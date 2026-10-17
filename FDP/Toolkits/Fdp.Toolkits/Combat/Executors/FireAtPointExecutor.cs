@@ -165,7 +165,8 @@ namespace Fdp.Toolkit.Combat.Executors
             var reason = ShootAtPoint(world, entity, fireIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: !bomb,
                                       ammo: loadedAmmo, weaponEntity: shooter, charge: charge, highArc: high,
                                       raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d,   // ⭐ CE-2180
-                                      fuzeSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.FuzeLeft(world, entity, loadedAmmo) : 0f);   // ⭐ CE-3235
+                                      fuzeSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.FuzeLeft(world, entity, loadedAmmo) : 0f,   // ⭐ CE-3235
+                                      burnSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.BurnLeft(world, entity, loadedAmmo) : 0f);   // ⭐ CE-3236 (VC-7)
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;
@@ -231,7 +232,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
             ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L,
-            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f)
+            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f, float burnSeconds = 0f)
         {
             // ⭐ IF-1 (I6) — a controlled weapon system fires as itself (its mount 0); the unit keeps the ROE and the line-of-fire check
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
@@ -268,6 +269,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 Charge = charge, HighArc = highArc,   // ⭐ IF-1 (I3) — the brain's fire solution
                 RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
                 FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
+                BurnSeconds = burnSeconds,   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left (0 = its own)
             });
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = cooldownSeconds;

@@ -241,12 +241,36 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => e.IsRemote,
             ownsTarget:  static (repo, man) => PossessionSystem.OwnsBrain(repo, man),
             toPayload:   static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => new InteractionPayload
-                { PickUpGrant = new PickUpGrantInteractionPayload { Ammo = e.Ammo, Rounds = e.Rounds, FuzeSeconds = e.FuzeSeconds } },
+                { PickUpGrant = new PickUpGrantInteractionPayload { Ammo = e.Ammo, Rounds = e.Rounds, FuzeSeconds = e.FuzeSeconds, BurnSeconds = e.BurnSeconds } },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new Fdp.Toolkit.Combat.PickUpGrantEvent
-                { Man = target, Ammo = p.PickUpGrant.Ammo, Rounds = p.PickUpGrant.Rounds, FuzeSeconds = p.PickUpGrant.FuzeSeconds, IsRemote = true });
+                { Man = target, Ammo = p.PickUpGrant.Ammo, Rounds = p.PickUpGrant.Rounds, FuzeSeconds = p.PickUpGrant.FuzeSeconds,
+                       BurnSeconds = p.PickUpGrant.BurnSeconds, IsRemote = true });
+
+        /// <summary>⭐ CE-3233 (B-11, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.13 ST-4) — draw / stow / conceal: to the node that owns
+        /// the man's passenger list (the slot replicates from there).</summary>
+        public static readonly IInteractionCodec Restation = new InteractionCodec<Fdp.Toolkit.Behavior.RestationEvent>(
+            EInteractionKind.Restation,
+            target:      static (in Fdp.Toolkit.Behavior.RestationEvent e) => e.Man,
+            actor:       static (in Fdp.Toolkit.Behavior.RestationEvent e) => e.Thing,
+            isRemote:    static (in Fdp.Toolkit.Behavior.RestationEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, man) => Fdp.Toolkit.Behavior.Embarkation.OwnsVehicle(repo, man),
+            toPayload:   static (in Fdp.Toolkit.Behavior.RestationEvent e) => new InteractionPayload { Restation = new RestationInteractionPayload { Seat = e.Seat } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Behavior.RestationEvent { Man = target, Thing = actor, Seat = p.Restation.Seat, IsRemote = true });
+
+        /// <summary>⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off: to the node that owns its position (it bursts where it stands).</summary>
+        public static readonly IInteractionCodec DetonateCharge = new InteractionCodec<Fdp.Toolkit.Combat.DetonateChargeEvent>(
+            EInteractionKind.DetonateCharge,
+            target:      static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.Charge,
+            actor:       static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.By,
+            isRemote:    static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, charge) => Fdp.Toolkit.Behavior.Embarkation.OwnsPosition(repo, charge),
+            toPayload:   static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => new InteractionPayload { DetonateCharge = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = target, By = actor, IsRemote = true });
 
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge };
     }
 
     /// <summary>

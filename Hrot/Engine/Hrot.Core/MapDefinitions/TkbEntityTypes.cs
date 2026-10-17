@@ -45,6 +45,14 @@ namespace Hrot.Map.Common
         public const long WeaponSystem_Igla = 614;
         /// <summary>⭐ <c>CE-2190</c> (§5c) — the ZU-23-2 twin 23 mm anti-aircraft gun (two-man, ground or a pintle).</summary>
         public const long WeaponSystem_Zu23 = 615;
+        /// <summary>⭐ CE-3233 (civilians B-11, AW-6; docs/DESIGN_Civilians_And_Crowd_Control.md §7.13 ST-7) — a PICK-UP rifle: one man carries
+        /// it in a carry station and fires it from his hands (the covert insurgent's, a dropped soldier's).</summary>
+        public const long WeaponSystem_PickUpRifle = 616;
+        /// <summary>⭐ CE-3233 (B-11, ST-7) — a PICK-UP pistol (it looks like one).</summary>
+        public const long WeaponSystem_PickUpPistol = 617;
+        /// <summary>⭐ CE-3233 (B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE: worn in a hidden station, placed, or in a car's cargo
+        /// station; never fired, only set off where it stands.</summary>
+        public const long WeaponSystem_ExplosiveCharge = 618;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

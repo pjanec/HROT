@@ -275,14 +275,19 @@ namespace Fdp.Toolkit.Behavior
             if (!repo.IsAlive(vehicle) || !Has<PassengerBuffer>(repo, vehicle) || !Has<CarrierStations>(repo, vehicle)) return -2;
             ref readonly var buffer = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
             ref readonly var stations = ref repo.GetComponentRO<CarrierStations>(vehicle);
-            bool any = false;
+            bool any = false, anyHidden = false;
+            int hidden = -1;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
                 if (!stations.IsStation(i) || (stations.Seats[i].Accepts & mountKinds) == 0) continue;
+                // ⭐ CE-3233 (B-11, §7.13 ST-3/ST-9) — a hidden station is filled only when asked (CarryStations.Move) WHILE an open one on the
+                //   type takes the thing (a man's hands, his back); where only a hidden one does (a car's boot takes cargo) it is the station.
+                if (stations.IsConcealed(i)) { anyHidden = true; if (hidden < 0 && buffer.Passengers[i].IsNull) hidden = i; continue; }
                 any = true;
                 if (buffer.Passengers[i].IsNull) return i;
             }
-            return any ? -1 : -2;
+            if (any) return -1;
+            return anyHidden ? hidden : -2;
         }
 
         /// <summary>

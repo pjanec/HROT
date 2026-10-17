@@ -148,7 +148,7 @@ namespace Hrot.SimHost.Tests
 
             // ② the grant: the flier → the brain
             var grantWriter = new CapturingWriter<EntityInteractionRequest>();
-            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f });
+            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f, BurnSeconds = 41f });
             simHost.Bus.SwapBuffers();
             new InteractionEgressTranslator(grantWriter, hostMap).ScanAndPublish(simHost);
             var sent = Assert.Single(grantWriter.Written);
@@ -161,6 +161,7 @@ namespace Hrot.SimHost.Tests
             brain.Bus.SwapBuffers();
             var grant = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Combat.PickUpGrantEvent>().ToArray());
             Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, grant.FuzeSeconds, grant.IsRemote));
+            Assert.Equal(41f, grant.BurnSeconds);   // ⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left crosses with it
         }
 
         [Fact]
@@ -464,6 +465,81 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(1, ingress.UnknownKindCount);
             Assert.Equal(0, w.Bus.Read<DoorCommandEvent>().Length);
+        }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11, §7.13 ST-4) — a draw / stow / conceal asked on the brain's node crosses as the
+        /// <c>Restation</c> case (target = the man, actor = the thing, the seat) to the node that owns his list, and arrives as the same event
+        /// marked remote. ✅ Red-proof: <c>Restation</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ARestation_CrossesAsItsUnionCase_ToTheListOwner_AndArrivesAsTheSameEvent()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsPistol = brain.CreateEntity();   // a replica man: no list here
+            Entity ownersMan = owner.CreateEntity(), ownersPistol = owner.CreateEntity();
+            brainMap.Register(700L, brainsMan); brainMap.Register(701L, brainsPistol);
+            ownerMap.Register(700L, ownersMan); ownerMap.Register(701L, ownersPistol);
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Behavior.RestationEvent { Man = brainsMan, Thing = brainsPistol, Seat = 3 });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.Restation, 700L, 701L, (byte)3), (sent.Payload.Kind, sent.TargetId, sent.ActorId, sent.Payload.Restation.Seat));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.RestationEvent>().ToArray());
+            Assert.Equal((ownersMan, ownersPistol, (byte)3, true), (arrived.Man, arrived.Thing, arrived.Seat, arrived.IsRemote));
+        }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, §7.13 ST-8) — a charge set off from the trigger holder's node crosses as the
+        /// <c>DetonateCharge</c> case (target = the charge, actor = who) to its position owner and arrives as the same event, marked remote.
+        /// ✅ Red-proof: <c>DetonateCharge</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ADetonateCharge_CrossesAsItsUnionCase_ToThePositionOwner()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsVest = brain.CreateEntity(), brainsMan = brain.CreateEntity();
+            Entity ownersVest = owner.CreateEntity(), ownersMan = owner.CreateEntity();
+            brainMap.Register(800L, brainsVest); brainMap.Register(801L, brainsMan);
+            ownerMap.Register(800L, ownersVest); ownerMap.Register(801L, ownersMan);
+            // the vest's position is owned elsewhere: the brain's node has a replica
+            brain.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            brain.AddComponent(brainsVest, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = brainsVest, By = brainsMan });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.DetonateCharge, 800L, 801L), (sent.Payload.Kind, sent.TargetId, sent.ActorId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Combat.DetonateChargeEvent>().ToArray());
+            Assert.Equal((ownersVest, ownersMan, true), (arrived.Charge, arrived.By, arrived.IsRemote));
         }
     }
 }

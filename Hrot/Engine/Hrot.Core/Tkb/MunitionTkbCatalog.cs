@@ -134,6 +134,10 @@ namespace Hrot.Core.Tkb
         public const string Pistol9mmName = "9x19 ball";
         /// <summary>⭐ <c>CE-3231</c> — the 9 mm round's own numbers (the pistol mount states the same, LR-1).</summary>
         public const float Pistol9mmPenetrationMm = 2f, Pistol9mmDamage = 18f;
+        /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE (a suicide vest, an IED, a car bomb's load): 8 kg
+        /// and its shrapnel; its warhead is the reference library's entry of the same name (one formula for blast and fragments).</summary>
+        public const int TkbExplosiveCharge = 6043;
+        public const string ExplosiveChargeName = "8 kg demolition charge";
 
         public const string BatonRoundName = "40mm baton round", StunGrenadeName = "stun grenade", StoneName = "thrown stone";
         public const string TearGasGrenadeName = "tear gas grenade", TearGasCanisterName = "40mm tear gas canister", SmokeGrenadeName = "smoke grenade";
@@ -199,6 +203,8 @@ namespace Hrot.Core.Tkb
             Register(tkb, Tracer556Name, Tkb556Tracer, Dis(8, Usa, 2, 1));                        // "5.56 mm"
             // ⭐ CE-3231 (B-9, §7.12 PI-3) — the pistol round: anti-personnel, ballistic; its calibre fields stay 0 (R-3011: never invented)
             Register(tkb, Pistol9mmName, TkbPistol9mm, Dis(8, Usa, 2), penetrationMm: Pistol9mmPenetrationMm, damage: Pistol9mmDamage);
+            // ⭐ CE-3233 (B-11b, §7.13 ST-8) — the charge: anti-personnel, its numbers the library's by name (calibre fields 0, R-3011)
+            Register(tkb, ExplosiveChargeName, TkbExplosiveCharge, Dis(9, 0, 2));   // no entry: a demolition charge — battlefield support, no calibre
             Register(tkb, Apds25Name, Tkb25mmApdsT, Dis(2, Usa, 2, 3, 2));                        // "25 mm / M791 APDS-T" (the Bradley's)
             Register(tkb, Apfsds120Name, Tkb120mmApfsds, Dis(2, Usa, 2, 13));                     // "120 mm"
             Register(tkb, Apfsds125Name, Tkb125mmApfsds, Dis(2, Russia, 2, 11));                  // "125 mm"
@@ -366,6 +372,7 @@ namespace Hrot.Core.Tkb
             {
                 [Tkb556Ball] = 1, [Tkb556Tracer] = 1, [Tkb762Ball] = 1, [Tkb762Tracer] = 1,     // small arms
                 [TkbPistol9mm] = 1,                                                              // ⭐ CE-3231 — the pistol's
+                [TkbExplosiveCharge] = 50,                                                       // ⭐ CE-3233 — the charge
                 [TkbHmgAp] = 3,                                                                  // heavy MG
                 [TkbM67Grenade] = 5,                                                             // hand grenade
                 [TkbGau8Hei] = 10, [TkbGau8Api] = 10, [Tkb25mmApdsT] = 20,                        // autocannon

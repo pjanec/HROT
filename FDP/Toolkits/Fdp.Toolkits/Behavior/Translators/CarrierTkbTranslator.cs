@@ -86,6 +86,8 @@ namespace Fdp.Toolkit.Behavior.Translators
                 var seat = dto.Seats[i];
                 if (seat.Role != SeatRole.Station) continue;
                 stations.StationMask |= (ushort)(1 << i);
+                if (seat.Stowed) stations.StowedMask |= (ushort)(1 << i);         // ⭐ CE-3233 (B-11, ST-2)
+                if (seat.Concealed) stations.ConcealedMask |= (ushort)(1 << i);
                 bool arc = seat.TraverseMinDeg.HasValue || seat.TraverseMaxDeg.HasValue || seat.ElevationMinDeg.HasValue || seat.ElevationMaxDeg.HasValue;
                 stations.Seats[i] = new StationSeat
                 {

@@ -99,9 +99,9 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(typeof(WeaponFireIntent).IsValueType);
             // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes; ⭐ CE-1032 + AtPoint (bool) and
             // TargetPoint (Vector3) = 40, ⭐ M8 + AmmoGuid (long, 8-aligned) = 48, ⭐ IF-1 (I3) + Charge, HighArc (bytes) = 50,
-            // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62.
+            // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66.
             // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
-            Assert.Equal(62, Marshal.SizeOf<WeaponFireIntent>());
+            Assert.Equal(66, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>
@@ -142,8 +142,8 @@ namespace Fdp.Toolkit.Combat.Tests
             // Current actual layout: 2×Entity(8) + 3×float(4) + bool (marshalled as 4) = 32, ⭐ CE-3071 + Penetration and
             // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48, ⭐ M1 + TravelX/Y/Z (3×float) = 60. A LOCAL event — the wire
             // message (MunitionDetonation) is mapped field by field, so the travel never reaches the wire. ⭐ CE-3209 + HasBodyPart,
-            // BodyPart, Face (3×byte, Pack = 1) = 63.
-            Assert.Equal(63, Marshal.SizeOf<DetonationNotification>());
+            // BodyPart, Face (3×byte, Pack = 1) = 63. ⭐ CE-3236 + Round (Entity, local only) = 71.
+            Assert.Equal(71, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>

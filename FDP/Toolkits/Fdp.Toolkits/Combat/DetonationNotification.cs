@@ -72,5 +72,8 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>⭐ <c>CE-3209</c> — the face entered (<see cref="Facing"/>), in the target's frame.</summary>
         public byte Face;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-3) — the round that burst, on the node that flew it (never sent: <see cref="Entity.Null"/>
+        /// off the wire): the cloud request reads its burn and its network id (the cloud's source).</summary>
+        public Entity Round;
     }
 }

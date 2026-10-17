@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -401,7 +401,7 @@ shot" could mean "not seen").
 | CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ✅ live 11/11 `2026-10-17` · twin `PostureScenarioTests.CE2236_CivCower_…` ✅ (also asserts each passed through `Panic` and left Cower for Alarmed, never back to Panic) |
 | **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · a hurt civilian (health 40) at the crossroads (200, 200); 12 calm civilians 30–60 m up the four streets | ⓪ the hurt one is a `Casualty` · ① every onlooker enters `Gather` · ② their mean distance to him falls below 15 m within 60 s · ③ one crowd holds ≥ 8 of them · ④ every one arrives and stands on a ring 2.5–11 m round him | ⏳ live run 1: 5/6 — ② at 25 s; ④ was measured while the 60 m ones still walked (check fixed: waits for all to arrive) · twin `PostureScenarioTests.CE2237_CivGathering_…` ✅ (12/12 Gather, 4.0–11.0 m, one crowd, mean < 15 m at 24.5 s) |
 | CIV-3 | **`ua-civ-contagion`** | test-town · 15 civilians 8 m apart along the street, 30–142 m from a firefight (a rifleman and a hostile) at its west end · ⚠ *deviation:* small-arms fire, not a blast — no scenario-scriptable blast exists; the hearing edge (100 m) splits the crowd the same way | ⓪ ONE crowd · ① ≥ 5 hear it (`HeardAt`) · ⓪ ≥ 4 never hear anything · ② ≥ 3 of those who never heard panic, from the crowd | ✅ live 3 of 3 in a row after `CE-2246` (§5f: the crowd split by wandering; the demo's civilians wander 3 m) · twin `PostureScenarioTests.CE2237_CivContagion_…` ✅ (samples `HeardAt` and `Panic` every frame) |
-| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · ⭐ *as built:* an instigator and two protesters inside a stone source (TKB 8812, a polyline area), a policeman 12 m off | ⓪ the instigator riots · ① he fills his hands at the source · ② he throws · ③ the side follows the ACT: nobody Hostile without his act; every thrower Hostile on CGF, SimHost and IG within 3 s | ✅ twin green (§5i.2a) · ⏳ the soldier line and "no soldier hits a Neutral rioter" wait on A6 (`Roe.ForceLevel`) |
+| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · ⭐ *as built:* an instigator and two protesters inside a stone source (TKB 8812, a polyline area), a policeman 12 m off | ⓪ the instigator riots · ① he fills his hands at the source · ② he throws · ③ the side follows the ACT: nobody Hostile without his act; every thrower Hostile on CGF, SimHost and IG within 3 s | ✅ live 6/6 `2026-10-17` (sim 7.9 s) · twin green (§5i.2a) · ⏳ the soldier line and "no soldier hits a Neutral rioter" wait on A6 (`Roe.ForceLevel`) |
 | CIV-4 · `CE-2238` | **`ua-civ-melee`** | test-town · an instigating protester (Neutral) 6 m from a policeman (Friend) | ⓪ he riots · ① his blow knocks the policeman down (`EffectState.KnockedDownUntil` > now) on CGF, SimHost and IG · ② the rioter is Hostile on all three | ✅ live 4/4 `2026-10-17` (simTime 8.6 s) · twin `PostureScenarioTests.CE2238_CivMelee_…` green (§5i.1) |
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
@@ -415,7 +415,7 @@ shot" could mean "not seen").
 | ARMED AW-18 · CE-2239 | **`ua-armed-self-defence`** | test-town · a NonLethal police line; one rioter aims a rifle at it | ① lethal fire at THAT rioter only · ② every other rioter still gets non-lethal force only | ⏳ |
 | ARMED AW-19 · CE-2239 | **`ua-armed-knife`** | test-town · a man with a knife closing on a checkpoint from 15 m; a second throws a Molotov | ① a warning while he is beyond reach · ② lethal once he is within reach or closing fast · ③ the Molotov thrower reads lethal | ⏳ |
 | ARMED AW-20 · CE-2239 | **`ua-armed-shield`** | test-town · a rifleman 60 m from an insurgent who walks east along the line, then 20 m out of it; six civilians standing in one row 0.45 m BESIDE the line (outside a 0.3 m body, inside the rifle's spread) — ⚠ *as built:* not "from inside a crowd": a civilian ON the line hides the target (no aimed shot is ever ready), and two rows are pushed ~1 m apart by pedestrian spacing | ① the rifleman holds ('hold: neutral on line') while a civilian is in the spread · ② he fires once clear and the insurgent goes down (out of the fight) · ③ zero neutral casualties (sampled) | ✅ live 5/5 · twin `PostureScenarioTests.AW20_ArmedShield_…` ✅ (every frame: held 2870 frames, no round left with a body on the line) |
-| ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ⏳ |
+| ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ✅ §5h.5 — live 7/7, twin green |
 | ARMED AW-2, AW-21 · B-7, B-8 | **`ua-armed-stones`** | test-town · stone-throwers (Hostile civilians) against a police line | ① non-lethal force only — zero lethal rounds counted · ② the throwers read unarmed on every node | ⏳ |
 | ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · a civilian fires at patrol A, hides his rifle, walks into a crowd; patrol B (another squad) arrives later | ① patrol A engages him on status when his line is clear · ② patrol B treats him as a civilian (warns, never fires first) | ⏳ |
 | ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ⏳ |
@@ -917,7 +917,7 @@ classDiagram
   class HandsLoadout { <<existing AmmoLoadout on the hands mount>> stones, a picked-up canister or grenade }
   class CarryStations { <<existing seats, grows>> Hands · Back · Hidden (Concealed) }
   class WeaponSystemEntity { <<existing>> + pick-up Rifle, Pistol · + ExplosiveCharge }
-  class HeldItem { <<NEW replicated byte, the Gesture shape>> None Weapon Throwable Phone Binoculars }
+  class HeldItem { <<as built §7.14 HI-1 - a byte on WeaponPosture beside ActiveMount>> None Weapon Throwable Phone Binoculars }
   class PocketItems { <<NEW type data>> phone, binoculars — never entities }
   class WeaponPosture { <<existing, replicated>> AtEase Ready Aimed · Target · ActiveMount }
   class LandedRound { <<existing>> a round lying where it landed }
@@ -1264,6 +1264,94 @@ re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ n
 nobody). Red under 5 mutants (any covered man surrenders · an at-ease rifle covers · any side covers · no 5 s hold · Surrender outranks the wound — 📌 that one survived the first rail, which only checked the final state; the rail now checks every tick). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
 frames held; 150 → 150 rounds; 100 → 100 HP; Hostile); live 8/8 `2026-10-17` (sim 19.5 s).
 
+### 5h.5 AW-5 / AW-21 — a soldier lays his weapon down and raises his hands; a feint takes it up again *(behaviors, `CE-2241` ①, 2026-10-17; build-state: BUILT)*
+
+⭐ **Scope.** The ARMED half of `ua-armed-surrender` (§5c), now that backend landed B-10 (`WeaponLaying`, §7.11a): ① a library
+behaviour **`Surrender`** — he stops, lays every weapon down (`WeaponLaying.LayDownAll`) and raises his hands; after `Seconds` (0 = for
+good) he takes them up again and the behaviour FINISHES, so the next mission task (his fight) resumes — the feint; ② AW-21's "out of the
+fight" grows the case backend left to us: **laid down AND hands up** (`ThreatDanger.IsOutOfTheFight`).
+
+**INVENTORY** *(2026-10-17)*: `WeaponLaying.LayDownAll / IsLaidDown / AllLaidDown` (`Combat/WeaponLaying.cs`, replicated through
+`WeaponAmmo`; a laid-down mount holds with `NotDeployed`); `Gestures.Set` / `ThreatDanger.ShowsHandsUp` (§5h.2); `IsOutOfTheFight`'s 7
+callers measured — `ThreatDanger.Of`, `Covering.By`, `StandardInputs` ×2, `SquadInputs`, `AliveFilterTest`, `CivilianBehavior.Standing` —
+each reads it as "not a target / not a member who counts", which is exactly AW-21's meaning. A Final HSM state ends a behaviour
+(`HsmKernelCore.cs:368` — the `CombatPostureHsm` precedent, `PostureNodes.Arrived`). ⛔ No surrender behaviour exists (grep
+`Surrender` over `Brains/` ⇒ the civilian state only).
+
+```mermaid
+classDiagram
+  direction LR
+  class SurrenderBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> Surrender HSM: Surrendered then Done (Final) · Seconds }
+  class WeaponLaying { <<backend B-10>> LayDownAll(down) · AllLaidDown }
+  class Gestures { <<existing>> HandsUp }
+  class ThreatDanger { <<existing, grows>> IsOutOfTheFight: + laid down AND hands up }
+  class AimAndFireExecutor { <<existing>> HoldSurrender on hands up · NotDeployed on a laid-down mount }
+  SurrenderBehavior ..> WeaponLaying : down, then up
+  SurrenderBehavior ..> Gestures : HandsUp, then None
+  ThreatDanger ..> WeaponLaying : AllLaidDown
+  ThreatDanger ..> Gestures : ShowsHandsUp
+  AimAndFireExecutor ..> ThreatDanger
+```
+*What the picture shows that prose hid:* the surrender is two writes the engine already carries to every node (the laid-down mask, the
+gesture); the only reader that changes is the one AW-21 names.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Surrendered
+  Surrendered --> Done : Seconds elapsed (Seconds above 0)
+  Done --> [*]
+```
+*What the picture shows that prose hid:* leaving `Surrendered` — by time or because an order replaced the behaviour — always runs the one
+deactivator that takes the weapons up and lowers the hands, so a surrender never outlives its behaviour.
+
+```mermaid
+sequenceDiagram
+  participant M as mission plan (CGF)
+  participant S as Surrender (enemy soldier, CGF)
+  participant R as rifleman AimAndFire (CGF)
+  M->>S: task 1 Surrender, Seconds 20
+  S->>S: stop, LayDownAll, HandsUp
+  R->>R: HoldOf: HandsUp, HoldSurrender, no round
+  S->>S: 20 s: LayDownAll(down false), hands down, Done
+  M->>S: task 2 his fight (BehaviorFinished)
+  S->>R: aims and fires
+  R->>R: hands down and armed: engages again
+```
+*What the picture shows that prose hid:* the feint is not a special case anywhere — the rifleman's ordinary rules see hands up, then
+hands down and a weapon up, frame by frame (CV-13a: "the hands coming down is read the next frame").
+
+```mermaid
+graph TD
+  CGF[CGF node] --> BT[BrainTickSystem]
+  BT --> SUR[enemy soldier: Surrender HSM]
+  BT --> RIF[rifleman: his tree]
+  SUR --> WL[WeaponLaying: LaidDownWeapons mask, replicated]
+  SUR --> GE[Gestures: Gesture, replicated]
+  RIF --> AAF[AimAndFireExecutor reads HandsUp]
+```
+*What the picture shows that prose hid:* nothing is registered; the behaviour runs in the brain tick on the node that owns the soldier.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| who decides to surrender | ⭐ an ORDER — the scenario's mission task (or an operator) gives `Surrender`; a morale-driven decision is later | a morale model now: no design for it, and the demo needs a deterministic feint |
+| the feint | ⭐ `Seconds` > 0: weapons up and hands down when it elapses, then the behaviour finishes and the next task runs | a separate "re-arm" behaviour: two behaviours for one act |
+| out of the fight (AW-21) | ⭐ `IsOutOfTheFight` = incapacitated OR (all weapons laid down AND hands up) — the seven callers stop counting him | hands up alone: a feint with a weapon still up is not out of the fight (CV-13a holds fire, AW-21 does not discount him) |
+| a man with no weapon | ⭐ `AllLaidDown` needs at least one weapon mount — an unarmed rioter's hands up is CV-13a only, never AW-21 | count the unarmed as laid down: every civilian with hands up would read out of the fight |
+
+⚠ **Known limits:** ① no handover yet (AW-5's later half — the weapon stays on him, laid down); ② `Seconds` is per order, not a decision.
+
+⭐ **As built `2026-10-17`** *(matches the four diagrams; one fact the design did not state)*:
+`SurrenderBehavior` (`Brains/SurrenderBehavior.cs`, HSM `Surrender_HSM`, params `SurrenderParamsJsonDto {Seconds}`, `AllMilitary`); the
+activity re-asserts laid-down + hands-up EVERY tick (so a weapon taken up by anything else goes down again); `IsOutOfTheFight` widened in
+`ThreatDanger.cs`. ⭐ **The fact the design did not state:** `PersonAttack` (`ClassAttackOrders`) *succeeds* when its target is out of the
+fight — so a surrender ENDS an attack order on him. ⇒ the demo's rifleman has a second task, `CombatPosture`, and it is that posture which
+engages the feint (not a held-open attack order). Demo `ua-armed-surrender`: enemy soldier task 1 `Surrender {Seconds: 20}`, task 2
+`PersonAttack` on the rifleman; rifleman task 1 `PersonAttack` on him, task 2 `CombatPosture`.
+Rails: `SurrenderBehaviorTests` ×2 (SimHost, production registry) · `WeaponLayingTests.CE2241_OutOfTheFight_…` (toolkit) — red under 5
+mutants (no lay-down · no take-up · never held · no `AllLaidDown` term · no hands-up term). Twin
+`PostureScenarioTests.CE2241_ArmedSurrender_…`: surrendered on CGF/SimHost/IG at 1.6 s, 0 rounds, unhurt, rose at 21.6 s, fired on at
+22.4 s.
+
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
@@ -1493,13 +1581,15 @@ stone never hits a neutral on purpose — the executor's neutral exemption for a
 |---|---|
 | where | `Stones.InHand` / `Stones.Throw` (`Fdp.Toolkits/Civilians/Stones.cs`) · the bend and the throw arm at the top of `CivilianBehavior.Riot`, `CanFill`, `RiotState { NextThrowAt, BendUntil }`, constants `ThrowMinMetres` 4 · `ThrowMaxMetres` 20 · `ThrowCooldownSeconds` 3 · `BendSeconds` 1.5; `Deactivate_Riot` stands him up when he leaves mid-bend |
 | the throw | ONE `FireAtPoint` round (`Rounds = 1`, the executor's own cooldown 0.5 s) on the hands mount at the target's position; the behaviour paces the stones |
+| ⛔→✅ civilians could not throw | 📌 **measured live, `2026-10-17`:** the rioter filled his hands and issued the throw, but no stone left his hand in 102 s (weapon status `None`). `WeaponDispatcherSystem` fails every weapon-channel action without `CanShoot` (`WeaponDispatcherSystem.cs:92`), and the civilian types carried only `CanMove | CanInteract`. ⇒ **`CivilianTkbCatalog.Civilian` now sets `CanShoot`** (cross-lane, backend's file — [note](blueprints/batches/NOTE_Behaviors_To_Backend_Hands_CanShoot.md)); it gives no weapon (H-3 reads the hands). Rail `NonLethalMunitionTests.CE2238_EveryBuiltInPersonWithABrain_…`, red without the flag. 📌 The twin had passed before the fix because it counted throw REQUESTS — it now asserts a stone is SPENT |
 | a test world needs HANDS | 📌 `PersonHands.MountIndex` reads the TKB type — a bare HSM world has none, so the rail builds the production path in miniature: a pedestrian type through `EnsureOnPersons`, injected by `CombatTkbTranslator` |
 
 **Proof.** Rails `CivilianHsmTests.CE2238_ARioterWithStones_…` (throws at 12 m from the hands mount, `Rounds` 1, at the policeman; the
 stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he has stones; out of stones he closes and strikes) and
-`CE2238_NoStoneBeyond20m_NorInside4m_AndALiveGrenadeIsNotAStone`. Demo `ua-civ-riot-stone` (§5c): twin
-`PostureScenarioTests.CE2238_RiotStone_…` green (28 s: he filled at the source, 6 throws; the instigator acted at 3.2 s and was Hostile on
-CGF, SimHost and IG the same frame; both protesters caught his anger, threw and turned Hostile at 9.4 s — none Hostile before his act).
+`CE2238_NoStoneBeyond20m_NorInside4m_AndALiveGrenadeIsNotAStone`, red under 5 mutants (a live grenade counts as a stone · thrown from 100 m · the stone is no act · no cooldown · thrown point-blank). Demo `ua-civ-riot-stone` (§5c): twin
+`PostureScenarioTests.CE2238_RiotStone_…` green (25 s, after the `CanShoot` fix: he filled at the source; 6 throws, 6 stones spent — weapon status `Turning` then `Firing`;
+the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
+at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
 
 ## 6. Known limits
 
@@ -2470,6 +2560,397 @@ Rails *(the armed-people catalogue suite)*: `NonLethalMunitionTests.CE3231_TheSo
 rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, `CE3136_P8_WindowDuel`, `CE3094_UniversalSoldier`, plus
 `CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
 the correction.
+
+### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: BUILT — as-built §7.13a (B-11a) and §7.13b (B-11b))*
+
+INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-memory CLI only — `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| the person's seats today | ⚠ **TWO, not one** — seat 0 the casualty seat, seat 1 ONE `Station` accepting `Carried`; the Javelin preset fills "seat 1 = the carry station" BY INDEX | `CarrierDefDto.cs:45-51`, `BdcTkbCatalog.cs:179` |
+| how seats reach the runtime | `CarrierTkbTranslator` projects `CarrierSeats` (roles, `ExposedMask`) and `CarrierStations` (`StationMask`, per-seat `Accepts`) — **type facts, never on the wire**, on every node | `CarrierTkbTranslator.cs:32-120` |
+| how a carried thing knows its seat | its slot in the man's `PassengerBuffer` — **on the wire** (`EntityPassengers`); every node re-derives `IsEmbarkedTag.Seat` / `Exposed` from it (`EmbarkedStateSystem` re-boards when the slot changes) | `EntityPassengersTranslators.cs`, `EmbarkedStateSystem.cs:52-73` |
+| "hidden" today | `PhysicalPresence.IsHidden` — an enclosed passenger (`IsEmbarkedTag.Exposed == 0`) is not sensed, targeted or hit; ⛔ **no `Concealed` anywhere** | `PhysicalPresence.cs:25-35`, `Embarkation.cs:447` |
+| where a carried thing stands | `EmbarkedStateSystem` moves it with its carrier, at the station's offset — so a carried thing's OWN position is its carrier's | `EmbarkedStateSystem.cs:122-135` |
+| carry, controller, fire gate | `Embarkation.Check` / `FreeStation` (the first free accepting station) · `WeaponSystems.ControllerOf` (carried + `FireWhileCarried` ⇒ the carrier) · `CanFire` (:85) · `AimAndFireExecutor.SystemHold` | `Embarkation.cs:137-286`, `WeaponSystems.cs:41-93`, `AimAndFireExecutor.cs:722` |
+| a cross-node carry command | `EmbarkEntityCommand` applied where the CARRIER is owned (`Embarkation.OwnsVehicle`) | `EmbarkationSystem.cs:35` |
+| one-man fire-while-carried types | the `shoulder` preset (OneMan, Ground \| Carried, `FireWhileCarried`): Javelin, NLAW, LAW; ids 600–615, **616 free** | `BdcTkbCatalog.cs:264-334`, `TkbEntityTypes.cs:26-47` |
+| `Armament` and carried weapons | status (`WeaponOf`), lethal-in-hand and conduct (`Controlled`) ALREADY count a carried weapon — ⛔ none asks where it is carried | `Armament.cs:199-276` |
+| a burst with no round in flight | the FPV drone: the position owner publishes `DetonationNotification` from mount 0's round, then spends itself (`DamageAssessedEvent`) | `DroneImpactSystem.cs:105-119` |
+| the builder's mount | `WeaponMount` has `Category`, ⛔ no look — a pistol weapon system would read as a rifle | `SimCombatDef.cs:5-58`, `BdcTkbBuilder.cs:299-325` |
+
+```mermaid
+classDiagram
+  direction LR
+  class SeatDto { <<existing, + 2 fields>> + Stowed : cannot fire from it · + Concealed : nobody sees it }
+  class CarrierDefDto { <<existing>> PersonCarrier(): seat 0 casualty · 1 HANDS (unchanged) · + 2 BACK (Stowed) · + 3 HIDDEN (Stowed, Concealed, not exposed) }
+  class CarrierStations { <<existing type fact, + 2 masks>> + StowedMask · + ConcealedMask }
+  class CarryStations { <<NEW static>> Hands/Back/Hidden(view, man) · SeatOf(view, thing) · IsStowed · IsConcealed · Move(world, man, thing, seat) }
+  class Embarkation { <<existing>> FreeStation never picks a Concealed seat }
+  class WeaponSystems { <<existing>> CanFire: not from a Stowed seat }
+  class Armament { <<CE-3229>> a weapon in a Concealed seat arms nobody }
+  class UtilityScorer { <<existing>> no Stowed candidate }
+  class InteractionTransport { <<I-1>> + kind 11 Restation · + kind 12 DetonateCharge }
+  class Charges { <<NEW static, B-11b>> Detonate(world, charge) — on its position owner }
+  class BdcTkbCatalog { <<existing>> + 616 pick-up rifle · + 617 pick-up pistol · + 618 explosive charge (B-11b) }
+  CarrierDefDto --> SeatDto
+  CarrierStations ..> SeatDto : projected
+  CarryStations ..> CarrierStations
+  Embarkation ..> CarrierStations
+  WeaponSystems ..> CarryStations
+  Armament ..> CarryStations
+  UtilityScorer ..> CarryStations
+  InteractionTransport ..> CarryStations : Restation, on the man's list owner
+  InteractionTransport ..> Charges : DetonateCharge, on the charge's position owner
+```
+
+*What the picture shows that prose hid:* **concealment is a SEAT fact, and the seat already crosses the wire** — no new replicated
+component: two masks on a type fact, read through the slot every node already has.
+
+```mermaid
+sequenceDiagram
+  participant B as brain (CGF)
+  participant T as I-1 transport
+  participant O as the man's list owner
+  participant N as every node
+  B->>T: Restation(man, pistol, Hands)
+  T->>O: kind 11
+  O->>O: CarryStations.Move — the slot moves 3 → 1
+  O-->>N: EntityPassengers (the slot)
+  N->>N: EmbarkedStateSystem re-tags: Seat 1, Exposed 1
+  N-->>N: Armament: now armed · CanFire: yes
+  B->>T: DetonateCharge(vest)  (B-11b)
+  T->>O: kind 12, on the vest's position owner
+  O->>O: DetonationNotification at the vest = at the man
+```
+
+```mermaid
+graph TD
+  TKB[CarrierTkbTranslator — at spawn, every node] --> CS[CarrierStations + Stowed / Concealed masks]
+  EMB[EmbarkedStateSystem — every node, every frame] --> TAG[IsEmbarkedTag Seat / Exposed from the slot]
+  IA[Interactions capability — every node] --> RS[Restation applied on the list owner]
+  IA --> DC[DetonateCharge applied on the position owner]
+  AE[AreaEffectSystem — SimHost] --> BURST[the vest's warhead]
+```
+
+*Caption:* every edge exists today except the two I-1 kinds — which run in the `Interactions` capability every node already builds (B-13's
+pick-up runs there).
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **ST-1** | **seat 1 stays HANDS; BACK and HIDDEN are APPENDED** (seats 2, 3) | renumbering Hands to a new index: the Javelin preset and every saved slot name seat 1 |
+| **ST-2** | **two seat flags: `Stowed` (cannot fire from it) and `Concealed` (nobody sees it)** — Back = Stowed; Hidden = Stowed + Concealed + `Exposed = false` (so `IsHidden` keeps it from being sensed or hit — the existing rule) | one "Hidden" flag: a slung rifle is visible but cannot fire, so the two properties differ |
+| **ST-3** | **`FreeStation` never picks a Concealed seat** — a weapon goes Hidden only when asked (`Move`) | auto-filling Hidden third: a man picking up a third weapon would conceal it without deciding to |
+| **ST-4** | **draw / stow / conceal = `CarryStations.Move`**, applied on the man's list owner; from another node an I-1 **`Restation` (kind 11)**; every node follows the slot | a new replicated "station" component: the slot already IS the station |
+| **ST-5** | **cannot fire from a Stowed seat** (`CanFire` and the weapon-choice candidates) — **but it still ARMS by sight**: a slung rifle is armed to an observer | stowed = unarmed: a soldier with a slung rifle is armed (AW-21's status) |
+| **ST-6** | **a Concealed seat arms NOBODY** — status, lethal-in-hand, conduct (R-2025) | hiding by `Exposed` alone: `Armament` reads the controlled list, not presence |
+| **ST-7** | **pick-up rifle 616 and pistol 617** — the `shoulder` preset's one-man carry, their mount = the built-in `Rifle()` / `Pistol()` numbers; `WeaponMount.Look` appended so the pistol LOOKS like one | a new "item" entity kind: a weapon system already carries, fires while carried and changes hands |
+| **ST-8** *(B-11b)* | **the charge 618 is a weapon system with one mount (the charge round, 6043)**; `Charges.Detonate` on the charge's POSITION owner publishes its `DetonationNotification` where it stands and spends it — **worn, it stands at the man; in a car, at the car** (the carried-thing rule above); from another node an I-1 **`DetonateCharge` (kind 12)** | the round fired from a muzzle: a vest has none; "bursts at its controller" as a special case: its own position already is |
+| **ST-9** *(B-11b)* | **the VBIED: `MountKinds.Cargo` (16, appended) and ONE cargo station appended to the civilian car** | the charge in a passenger seat: seats hold people (`Seated` role) |
+
+⚠ **Stated before the build:** ① the 3-D figure draws a carried weapon in its hands today — Back (slung) and Hidden (not drawn) are ui's;
+② `Carriage` / `LoadOf` still return the FIRST load (the casualty seat first) — unchanged; ③ which car takes the cargo station is settled
+at B-11b against CE-3220 part 2 (the urban-combat car 1002 is being retired; the BDC `CivilianCar` 502 stays).
+
+#### 7.13a AS-BUILT `CE-3233` B-11a *(2026-10-17)* — the stations and the pick-up weapons; the charge (B-11b) follows
+
+| built | where |
+|---|---|
+| `SeatDto.Stowed` / `Concealed` (appended); `PersonCarrier()` seats 2 BACK (stowed) and 3 HIDDEN (stowed, concealed, `Exposed = false`) appended — seat 1 stays the hands | `CarrierDefDto.cs` |
+| `CarrierStations.StowedMask` / `ConcealedMask` + `IsStowed` / `IsConcealed` (type fact), projected by `CarrierTkbTranslator` | `InteractionComponents.cs`, `CarrierTkbTranslator.cs` |
+| `Embarkation.FreeStation` skips a concealed station (ST-3) | `Embarkation.cs` |
+| `CarryStations` — `SeatOf`, `IsStowed`, `IsConcealed`, `Hands` / `Back` / `Hidden`, `Move` (on the list owner), `Ask`; `RestationEvent` (5013); `CarryStationSystem` in the `Interactions` capability | `Behavior/CarryStations.cs`, `CoreInfrastructureCapabilities.cs` |
+| I-1 kind 11 **`Restation`** (target the man, actor the thing, payload the seat; owner = `OwnsVehicle`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
+| fire gates: `WeaponSystems.CanFire` (stowed ⇒ `NotDeployed`) · `PrimaryMount` / `WeaponOf` skip a stowed weapon · weapon-choice candidates skip it | `WeaponSystems.cs`, `UtilityScorer.cs` |
+| observer gates: `Armament.ArmedByStatus` reads `SeenControlled` (no concealed weapon) · `Judge`'s conduct skips a concealed one | `Armament.cs` |
+| pick-up rifle **616** and pistol **617** (one man, `FireWhileCarried`, the soldier's rifle / pistol numbers); `WeaponMount.MuzzleVelocity` + `Look` (appended, copied by the builder) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `SimCombatDef.cs`, `BdcTkbBuilder.cs` |
+
+⚠ **Deviation from ST-6, and why:** `Armament.LethalInHand` — the TRUTH form ("am I armed", `ThreatDanger.OwnStrength`) — still counts a
+hidden weapon: the man knows he has it. ST-6's "arms nobody" holds for every OBSERVER reader (status, conduct, `Judge`). ⚠ `WeaponOf` now answers
+"what can he FIRE" (a slung rifle is not it), so `ArmedByStatus` no longer reads it — it reads `SeenControlled` (a slung rifle IS seen).
+
+Rails: `PersonCarrierTests.CE3233_APersonHasHandsBackAndHidden_…` (hands, then back, never hidden unasked) · `CE3233_DrawStowConceal_…`
+(the slot moves; hidden: no fire, armed to nobody, not exposed, still lethal in truth; back: armed, no fire; a replica re-tags) ·
+`InteractionTransportTests.CE3233_ARestation_…` · `NedTkbBuilderCombatTests.CE3233_ThePickUpRifleAndPistol_…` and the WS-4 catalogue table
+(+ 616, 617). Pins moved for the deliberate change: the soldier has 4 seats (`TheProfile_IsStampedFromTheType`), the MANPADS gunner's launcher
+is checked at seat 1 (`CE2187_…`).
+
+#### 7.13b AS-BUILT `CE-3233` B-11b *(2026-10-17)* — the explosive charge and the car's boot
+
+| built | where |
+|---|---|
+| `WeaponSystemDto.Charge` + `MountKinds.Cargo = 16` (appended); `WeaponSystemParams.Charge` (type fact, not on the wire) | `WeaponSystemDto.cs`, `WeaponSystemComponents.cs` |
+| `WeaponSystems.CanFire`: a charge ⇒ `NotDeployed` — it is never fired | `WeaponSystems.cs` |
+| `Charges` — `IsCharge`, `Ask`, `Detonate` (on the POSITION owner: mount 0's round as one `DetonationNotification` where it stands, shooter = who set it off, else its carrier, else itself; out of the carrier's list where this node owns it; ⭐ a REPLICATED charge is spent at once and ends through ONE `DestroyEntityCommand` — the teardown — so every replica goes; an offline one is destroyed); `DetonateChargeEvent` (5014); `ChargeSystem` in the `Interactions` capability | `Combat/Charges.cs`, `CoreInfrastructureCapabilities.cs` |
+| I-1 kind 12 **`DetonateCharge`** (target the charge, actor who set it off; owner = `OwnsPosition`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
+| charge **618** (one man, Ground \| Carried \| Cargo, breakable) and its round **6043** "8 kg demolition charge" — its warhead from the reference library's entry of that name (`explosiveKg 8`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `MunitionTkbCatalog.cs`, `ammo.json` |
+| the civilian car **1002**: a fifth seat, a cargo station — stowed, concealed, not exposed (the boot) | `UrbanCombatTkbCatalog.cs` |
+
+⚠ **Deviation from ST-3, and why:** `FreeStation` skips a concealed station only while an OPEN station on the type takes the thing (a man's hands,
+his back). Where only a concealed one does — the boot is the car's only cargo station — boarding fills it; else a car bomb could never be loaded.
+The man is unchanged: hands, then back, and `Full` after (never hidden unasked).
+⚠ **The round's name differs from the type's:** TKB names are case-insensitive and one table, so the round is "8 kg demolition charge", not
+"explosive charge". ③ above is settled: `CE-3220` part 2 retires 1001/1003 only, so the boot goes on **1002**.
+
+Rails: `ChargesTests` — a vest worn hidden arms nobody, fires nothing, set off bursts AT the man and is gone · only the position owner sets
+one off, only a charge (a real rifle refused) · a charge on a truck's OPEN station is still no weapon its crew fires · a car bomb rides in the boot, the car unarmed · `InteractionTransportTests.CE3233_ADetonateCharge_…` ·
+`NedTkbBuilderCombatTests.CE3233_TheCharge_IsDetonatedOnly_…` (its blast wider than the M67's; the boot is the car's last seat). Pin moved:
+the type-catalogue golden gains 618; `LR1_EveryBuiltInMount…` lists 6043 among the rounds with a warhead (a new type on a new mount).
+⚠ **Found after the first B-11b push:** `Detonate` destroyed the charge LOCALLY — the handoff's trap (a local destroy leaves every replica
+behind, measured on the cloud). Fixed to the teardown command, rail `ChargesTests.CE3233_AReplicatedCharge_EndsThroughTheTeardown_Once`
+(red-proofs: a local destroy ⇒ red; not spent ⇒ two bursts ⇒ red).
+8 red-proofs, each red: no charge check · no `CanFire` gate · no ownership check · the boot not concealed (fixture and catalogue) · no hidden-station
+fallback · the library entry renamed · the codec out of `All`.
+
+### 7.14 B-12 — what is in his hand: `HeldItem` + pocket items *(AW-14 — R-2025; `CE-3234`; backend, `2026-10-17`; build-state: BUILT — as-built §7.14a)*
+
+INVENTORY *(codebase-memory CLI `search_graph` `.*HeldItem.*` / `.*Binocular.*` / `.*Pocket.*` → 0 each, grep agrees; reads at `backend@aa2e2eb62`;
+`check_index_coverage` not available through the CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| the frame's model: a `Gesture`-shaped byte | `Gesture` = own component 398 + `dtGesture` 143 + 2 translators + Brain-group bit | `Gestures.cs`, `EntityGestureTranslators.cs` (B-6) |
+| where `ActiveMount` lives ("Weapon" means it) | ⭐ **`WeaponPosture.ActiveMount`** — Brain group, `dtWeaponPosture` 127, on EVERY behaving unit (civilians too: `BehaviorTkbTranslator` adds it beside the weapon channel); ingress rebuilds the struct field by field | `WeaponPosture.cs:36`, `BehaviorTkbTranslator.cs:144`, `EntityWeaponPosture*Translator.cs` |
+| where vision's range and field of view are read | ONE place: `VisualPerception.Optics` (the receptor, or the sensor's capability record), on the EQS solver node | `VisualPerception.cs:60-80` |
+| identification optics | `SeeingConditions.Optics` — `Of` hard-codes 1 "until B-12" | `Armament.cs:49-54` |
+| what a man shows | `Armament.Judge` reads built-in mounts, the hands, controlled weapon systems — never a non-weapon thing | `Armament.cs:266-330` |
+| ids | component 404, descriptor 145 free on every lane — ⛔ **not needed** (below) | `GlobalComponentIds.cs`, `AllDescriptors.cs` on 4 lanes |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponPosture { <<existing, Brain group, dtWeaponPosture>> Kind · Target · Point · ActiveMount · + HeldItem (APPENDED) }
+  class EntityWeaponPosture { <<existing topic>> … ActiveMount · + HeldItem (APPENDED, R-169) }
+  class HeldItemKind { <<NEW enum>> None · Weapon · Throwable · Phone · Binoculars }
+  class HeldItems { <<NEW static>> Set(world, man, kind) · Of(view, man) · Optics(view, man) · BinocularsRangeFactor 2 · BinocularsFovDegrees 10 · BinocularsOptics 4 }
+  class PocketItemsDto { <<NEW type data>> Phone · Binoculars }
+  class VisualPerception { <<existing>> Optics: × range, narrowed FOV while binoculars are up }
+  class SeeingConditions { <<CE-3229>> Of: optics from HeldItems }
+  class Armament { <<CE-3229>> Judge: a held phone / binoculars is a small non-lethal item }
+  class Charges { <<B-11b>> Ask by a man who does not carry it ⇒ he holds a phone }
+  HeldItems ..> WeaponPosture : writes / reads HeldItem
+  HeldItems ..> PocketItemsDto : refuses what he has not got
+  EntityWeaponPosture ..> WeaponPosture : replicated
+  VisualPerception ..> HeldItems
+  SeeingConditions ..> HeldItems
+  Armament ..> HeldItems
+  Charges ..> HeldItems
+```
+
+*What the picture shows that prose hid:* **the held item sits BESIDE `ActiveMount` on a component that already reaches every node** —
+"Weapon means the active mount" is then true by construction, and no new id, topic or translator is spent.
+
+```mermaid
+sequenceDiagram
+  participant B as brain (CGF)
+  participant W as WeaponPosture (brain owner)
+  participant N as every node
+  participant S as EQS solver (vision)
+  B->>W: HeldItems.Set(man, Binoculars)  (type has them)
+  W-->>N: dtWeaponPosture … HeldItem = 4
+  S->>S: VisualPerception.Optics — range × 2, FOV 10°
+  N->>N: SeeingConditions.Of — optics 4
+  B->>W: HeldItems.Set(man, Phone)
+  B->>B: Charges.Ask(charge, man) — allowed (a phone in hand)
+```
+
+```mermaid
+graph TD
+  BT[BehaviorTkbTranslator — every node at spawn] --> WP[WeaponPosture]
+  EG[EntityWeaponPosture egress — brain owner, every frame] --> WIRE[dtWeaponPosture]
+  WIRE --> IN[ingress — every other node]
+  SOLVER[EqsSolverSystem — the perception node] --> OPT[VisualPerception.Optics reads HeldItem]
+```
+
+*Caption:* every edge exists today; B-12 adds a field to one and a reader to another.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **HI-1** | **`HeldItem` is a byte APPENDED to `WeaponPosture` and its topic** — beside `ActiveMount`, same group, same owner, same units | a Gesture-shaped own component (the frame's sketch): a second id, topic and two translators for one byte that lives where `ActiveMount` already crosses |
+| **HI-2** | **one writer, `HeldItems.Set`**, on the brain owner; it refuses Phone / Binoculars unless his type has them (`PocketItemsDto`), and Weapon / Throwable unless he has a mount; lowering the weapon (`WeaponPostureOf.Idle`) does NOT clear it | the dispatcher setting it from the weapon action: a phone or binoculars is no weapon action |
+| **HI-3** | **pocket items are TYPE DATA** (`PocketItemsDto { Phone, Binoculars }`), never entities (AW-14): a phone on every civilian 1101–1104 and the insurgent 2003 (his charge's trigger), binoculars on the urban mortar team 2005 (⚠ the officer 201 has no template to carry them) | an item entity per pocket: AW-14's rejected row |
+| **HI-4** | **binoculars up: vision range × 2 and its field of view 10°** (the visual sensor only), **identification optics × 4** — constants on `HeldItems` | a per-type magnification field: one model is enough until a type needs another |
+| **HI-5** | **a held phone or binoculars is an item `Judge` sees**: `SmallObject`, 0.15 m, non-lethal — far off it is Unidentified (danger as unarmed, A-6), near it is Nothing | invisible: AW-14 calls the phone a D4 cue, so an observer must be able to see it |
+| **HI-6** | **`Charges.Ask` by a man who does not carry the charge needs a phone in his hand** (the remote trigger); his own vest, a timer (`by` null) need none | no gate: then a remote bomber needs nothing in hand and nobody can read him as about to set it off |
+
+#### 7.14a AS-BUILT `CE-3234` B-12 *(2026-10-17)* — built as §7.14 draws it
+
+| built | where |
+|---|---|
+| `HeldItemKind` + `WeaponPosture.HeldItem` (appended); `EntityWeaponPosture.HeldItem` (appended) carried by both posture translators | `WeaponPosture.cs`, `SimDescriptors.cs`, `EntityWeaponPosture{Egress,Ingress}Translator.cs` |
+| `HeldItems` — `Set` (refuses what he has not got), `Has`, `Of`, `BinocularsUp`, `IdentificationOptics`, `Shows`; constants ×2 range, 10° FOV, ×4 optics | `Combat/HeldItems.cs` |
+| `PocketItemsDto` (`Body.PocketItems`): a phone on civilians 1101–1104 and the insurgent 2003, binoculars on the mortar team 2005 | `Tkb/Domain/PocketItemsDto.cs`, `CivilianTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs` |
+| readers: `VisualPerception.Optics` (binoculars up), `SeeingConditions.Of` (optics), `Armament.Judge` conduct path (a held phone / binoculars), `Charges.Ask` (a remote bomber needs a phone) | `VisualPerception.cs`, `Armament.cs`, `Charges.cs` |
+
+No deviation from §7.14 except HI-3's officer: type 201 has no template, so no binoculars on it (found while building; the ExCon note at
+`ExConSubsystem.cs:488` already records the missing template). ⚠ Also measured: `SeeingConditions.Of` without a World Environment now
+returns a clear day WITH the observer's optics (it returned `ClearDay`, optics 1, before).
+
+Rails: `HeldItemsTests` (he holds only what his type carries; binoculars ×2 range, 10° cone, identify a pistol at 200 m; a held phone is
+Unidentified at 100 m, Nothing at 10 m) · `ChargesTests.CE3234_ARemoteBomber_NeedsAPhoneInHisHand_…` ·
+`EntityTurretPoseTranslatorTests` (the held item crosses with the posture) · `NonLethalMunitionTests.CE3234_…` (who carries what).
+7 red-proofs, each red: `Set` without `Has` · `Optics` without binoculars · optics 1 · `Judge` without the held item · `Ask` without the
+phone gate · egress without the field · the civilians' pockets dropped.
+
+### 7.15 B-14 — the cloud's SOURCE: a canister that vents, is picked up and thrown back *(AW-9 — R-2025; `CE-3236`; backend, `2026-10-17`; build-state: BUILT — as-built §7.15a)*
+
+INVENTORY *(grep + reads at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*Vent.*` → 0; `check_index_coverage` not available through the CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| what happens to a cloud round on the ground today | it BURSTS (`Area` bit, CE-3239) and is DESTROYED in the same tick — the cloud is born free and drifts | `BallisticsSystem.cs:96-118` (time-fuze `Landed` branch, the stopped impact round) |
+| who asks for the cloud | `AreaEffectSystem.RequestCloud`, on the node that flies the round (SimHost, `DamageAssessmentModule`), from the local `DetonationNotification` — which names no round | `AreaEffectSystem.cs:64,85-98`, `DetonationNotification.cs` |
+| how a round can lie | `Landed` + `Lingers` (B-13): the `Landed` branch counts `FuzeRemaining` down and ends it WITHOUT a burst; `IsLying` on the owner = `Landed` and not `Spent` | `CombatComponents.cs:139-185`, `RoundPickUp.cs:99-109` |
+| is a canister a hand item | ✅ 6039 gas grenade, 6040 canister, 6041 smoke grenade have `HandItemDto` | `MunitionTkbCatalog.cs:397-401` |
+| what a pick-up carries | `PickUpGrantEvent.FuzeSeconds` (I-1 kind 10) → `HeldFuze.Remaining` on the man; `HandsFuzeSystem` cooks a live round off at his feet when it runs out | `RoundPickUp.cs:40-75,160-175`, `RoundPickUpSystem.cs:52-100` |
+| what a throw carries | `WeaponFireIntent.FuzeSeconds` (appended, on the wire) — FireProcessing applies it ONLY to a time-fused round | `FireAtPointExecutor.cs:168,270`, `FireProcessingSystem.cs:181-183` |
+| the cloud's owner | CGF (the default processor); steps once a second: drift, irritate, end through the teardown | `AreaEffectCloudSystem.cs` |
+| net id → entity, with "known dead" | `NetworkIdResolver.ResolveNetworkId` / `IsKnownDeadAnchor` | `Replication/Services/NetworkIdResolver.cs:105-150` |
+
+```mermaid
+classDiagram
+  direction LR
+  class BallisticProjectile { <<existing, owner only>> Warhead bits · FuzeRemaining · + BurnSeconds }
+  class WarheadRound { <<existing>> Area · Arc · TimeFuze · Landed · Spent · Lingers · + Vents (64) }
+  class DetonationNotification { <<existing>> … · + Round (local; Null when remote) }
+  class AreaEffectCloud { <<CE-3219, dtAreaEffectCloud>> … · + SourceNetworkId (APPENDED) }
+  class AreaEffectCloudSystem { <<CE-3219, the cloud's owner>> step: sits on its source while it lives, else drifts }
+  class AreaEffectSystem { <<existing>> RequestCloud: seconds = the round's burn · source = the round }
+  class PickUpGrantEvent { <<B-13, I-1 kind 10>> … · + BurnSeconds (APPENDED) }
+  class HeldFuze { <<B-13>> Ammo · Remaining · + BurnSeconds }
+  class HandsFuzeSystem { <<B-13>> a burning canister irritates its holder; burnt out = gone, no cook-off }
+  class WeaponFireIntent { <<existing, on the wire>> … FuzeSeconds · + BurnSeconds (APPENDED) }
+  BallisticProjectile ..> WarheadRound
+  AreaEffectSystem ..> DetonationNotification : reads Round
+  AreaEffectSystem ..> AreaEffectCloud : requests
+  AreaEffectCloudSystem ..> AreaEffectCloud
+  PickUpGrantEvent ..> HeldFuze : Receive
+  HeldFuze ..> WeaponFireIntent : FireAtPoint throws it
+  WeaponFireIntent ..> BallisticProjectile : FireProcessing
+```
+
+*What the picture shows that prose hid:* **one number — the burn left — travels round → hand → throw → round → cloud**, each hop a field
+APPENDED to a struct that already crosses that hop; and the cloud needs only its source's EXISTENCE, because a lying canister never moves.
+
+```mermaid
+sequenceDiagram
+  participant S as SimHost (flies the round)
+  participant C as CGF (owns the cloud)
+  participant B as rioter's brain node
+  S->>S: canister stops: burst — DetonationNotification(Round)
+  S->>C: cloud request (Seconds = burn, Source = the round)
+  S->>S: the round LIES and VENTS (Landed, Lingers, Vents · FuzeRemaining = burn)
+  C->>C: each second: the source lives — the cloud sits on it
+  B->>S: PickUpRound (kind 9)
+  S->>S: grant BurnSeconds = burn left · the round is destroyed
+  S->>B: PickUpGrant (kind 10, + BurnSeconds)
+  C->>C: the source is gone (known dead) — the cloud drifts free, fades on its time
+  B->>B: HeldFuze.BurnSeconds burns down · an Irritant hit on him each second
+  B->>S: FireAtPoint — WeaponFireIntent(+ BurnSeconds)
+  S->>S: it lands: a new cloud for the burn left, sitting on it
+```
+
+```mermaid
+graph TD
+  BAL[BallisticsSystem — SimHost] --> VENT[a cloud round lies and vents]
+  AE[AreaEffectSystem — SimHost, DamageAssessmentModule] --> REQ[cloud request with source + burn]
+  CLD[AreaEffectCloudSystem — Interactions capability, the cloud's owner CGF] --> SIT[sits on its source / drifts]
+  HF[HandsFuzeSystem — Interactions capability, the brain node] --> IRR[irritates the holder; burnt out = gone]
+```
+
+*Caption:* every system here already runs where it is drawn; B-14 adds fields and branches, no system and no registration.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **VC-1** | **a CLOUD round (a cloud, no blast, no fragments) that bursts on the GROUND keeps lying and VENTS**: `Vents` bit set at fire time (`BitsOf`); at the ground burst it becomes `Landed` + `Lingers` (no `TimeFuze`), `FuzeRemaining` = its burn; the existing `Landed` branch ends it without a burst | a separate canister entity: the round already lies, replicates and is picked up (B-13) |
+| **VC-2** | **the burn is the round's `BurnSeconds`** (owner only): at fire, the intent's burn left, else the warhead's `CloudSeconds`; the cloud is asked for that long | the warhead's full seconds on every throw: a re-thrown canister would double the gas |
+| **VC-3** | **`DetonationNotification.Round`** — local only (Null off the wire): the burst names its round so the one cloud producer (`RequestCloud`) can read its burn and network id | a second cloud producer in `BallisticsSystem`: two paths to one request |
+| **VC-4** | **`AreaEffectCloud.SourceNetworkId`** (appended, on the wire): while the source resolves the cloud SITS on it (no drift); once it is KNOWN dead (or unresolvable on a mapless node) the cloud lets go — `SourceNetworkId` = 0 — and drifts | stepping the cloud to the source's position each second: a lying canister never moves, so existence is all that is needed |
+| **VC-5** | **picked up, the burn goes with it**: `TryGrant` sends `BurnSeconds` (appended to the grant and its I-1 payload), never as a fuze — a vented grenade's fuze is spent | reuse `FuzeSeconds`: a picked-up live gas grenade (still fused) and a venting one would be indistinguishable |
+| **VC-6** | **in his hand it burns on**: `HeldFuze.BurnSeconds`; each second an Irritant hit on the holder (the cloud's own effect); burnt out ⇒ out of his hands, no cook-off (it is empty) | no effect in hand: AW-9's acceptance ③ (irritated while he holds it) |
+| **VC-7** | **thrown, a new cloud for the burn left**: `FireAtPoint` passes `BurnSeconds` (`WeaponFireIntent`, appended + its wire), `FireProcessing` puts it on the round | throwing it as a fresh canister: VC-2's rejection |
+
+⚠ **Stated before the build:** an AIRBURST (a gas grenade whose fuze runs out in flight) is still destroyed at the burst — its cloud is free
+from birth; only a GROUND burst vents. The lying canister is a lightweight round, so a stone-sized replica on every node (B-13's cost).
+
+#### 7.15a AS-BUILT `CE-3236` B-14 *(2026-10-17)* — built as §7.15 draws it
+
+| built | where |
+|---|---|
+| `WarheadRound.Vents` (64) set by `BitsOf` for a cloud warhead with no blast / fragments; `BallisticProjectile.BurnSeconds` (owner only) | `CombatComponents.cs` |
+| `BallisticsSystem.BeginVenting` at both ground bursts (a stopped impact round, a landed time-fuzed one): `Landed` + `Lingers`, no `TimeFuze`, `FuzeRemaining` = the burn; `Detonate` names the round | `BallisticsSystem.cs` |
+| `DetonationNotification.Round` (local only) → `AreaEffectSystem.RequestCloud` asks for the cloud for the round's burn, with `SourceNetworkId` = the venting round's network id | `DetonationNotification.cs`, `AreaEffectSystem.cs` |
+| `AreaEffectCloud.SourceNetworkId` (+ `EntityAreaEffectCloud`); the owner's step `SitsOnItsSource` (resolves ⇒ no drift; known dead / mapless-unresolvable ⇒ 0 and drift) | `AreaEffectClouds.cs`, `AreaEffectCloudSystem.cs`, `SimDescriptors.cs`, `EntityAreaEffectCloudTranslators.cs` |
+| burn through the hand: `PickUpGrantEvent.BurnSeconds` (+ I-1 kind 10 payload) · `HeldFuze.BurnSeconds` · `RoundPickUp.BurnLeft` · `HandsFuzeSystem` irritates the holder each whole second and drops it burnt out (no cook-off) · `AreaEffectCloudSystem.Irritate` (one Irritant hit, shared with the cloud's pulse) | `RoundPickUp.cs`, `RoundPickUpSystem.cs`, `InteractionMessages.cs`, `InteractionTransport.cs` |
+| the throw: `FireAtPoint` → `WeaponFireIntent.BurnSeconds` (+ `WeaponFireRequest` wire) → `FireProcessingSystem` puts it on the round (else the warhead's `CloudSeconds`) | `FireAtPointExecutor.cs`, `WeaponFireEvents.cs`, `FireInteractionMessages.cs`, `WeaponFire*Translator.cs`, `FireProcessingSystem.cs` |
+
+No deviation from §7.15. ⚠ Not railed across nodes (as the cloud's drift before it): a source resolved on CGF needs the lying round's
+replica there — the rails check one world (resolve by scan) and the mapless rule; the wire rails check every appended field.
+
+Rails: `WarheadFlightTests.CE3236_ACloudRound_LiesAndVents_…` (grenade and canister) · `AreaEffectCloudTests.CE3236_ACloud_SitsOnItsCanister_…`
+and `…_AVentingCanistersBurst_AsksForACloud_…` · `RoundPickUpTests.CE3236_AVentingCanister_PickedUp_…` and `…_AHeldCanister_IsThrown…` ·
+`FireProcessingSystemTests.CE3236_ACanister_FliesWithItsBurn_…` · the wire: `WeaponFireIntentEgressTranslatorTests.M8_…`,
+`InteractionTransportTests.CE3235_APickUpAskAndItsGrant_…`, `BodyPartReplicationTests.CE3219_ACloud_…` (each gained the new field).
+11 red-proofs, each red.
+
+### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+
+INVENTORY *(grep at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*HostileAct.*` → `HostileActs` only)*:
+
+| question | measured | where |
+|---|---|---|
+| every `DamageAssessedEvent` producer | the hit (`DamageCalculationSystem`, from a `DetonationNotification` that already names `Shooter`) · the burst (`AreaEffectSystem.Assess` ×4, same notification) · `Melee.Strike` (the striker) · the cloud / a canister in hand (`AreaEffectCloudSystem.Irritate`) · `DroneImpactSystem` (the drone spends itself) · `EjectionSystem` (the aircraft) · the wire ingress | 7 producers |
+| the wire | `EntityHitDamage` (HitEntityId, TotalDamage, BodyPart, EffectKind, EffectSeconds — the last three APPENDED), `DamageAssessedEgressTranslator` / `EntityHitDamageIngressTranslator` | `FireInteractionMessages.cs:237`, `SimHost/*` |
+| the hostile act today | `HostileActs.Commit` stamps `CivilianState.HostileActAt` — brain-LOCAL — and flips the side through the one write path | `Civilians/HostileActs.cs` |
+| the planned component | §2 class diagram: `HostileAct { SinceSimTime, Kind }`, NEW, replicated | this design `:126` |
+| the model to follow | `Gesture` (B-6): own component, Brain group, `dtGesture` 143 + two translators | `Gestures.cs`, `EntityGestureTranslators.cs` |
+| ids | component 404 and descriptor 145 free on every lane (measured for B-12; re-checked at the build) | `GlobalComponentIds.cs`, `AllDescriptors.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class DamageAssessedEvent { <<existing>> HitEntity · TotalDamage · … · + Source (APPENDED, Null = unknown) }
+  class EntityHitDamage { <<existing topic>> … EffectSeconds · + SourceEntityId (APPENDED, 0 = unknown) }
+  class HostileAct { <<NEW component 404, Brain group, dtHostileAct 145>> SinceSimTime · Kind }
+  class HostileActKind { <<NEW enum>> None · NonLethal · Lethal }
+  class HostileActs { <<CE-2238, extended>> Commit(repo, actor, kind) · Of(view, actor) }
+  class CivilianState { <<behaviors>> HostileActAt (kept, stamped too) }
+  DamageAssessedEvent ..> EntityHitDamage : egress / ingress map Source
+  HostileActs ..> HostileAct : the one writer
+  HostileActs ..> CivilianState
+  HostileAct --> HostileActKind
+```
+
+*What the picture shows that prose hid:* both items are a field on something that already reaches every node — B-15 two appended
+fields on an existing event and topic, B-16 the component §2 already drew.
+
+```mermaid
+sequenceDiagram
+  participant S as SimHost (assesses the hit)
+  participant C as CGF (owns the victim's Health and brain)
+  S->>S: DamageAssessedEvent(Source = the round's shooter)
+  S->>C: EntityHitDamage(+ SourceEntityId)
+  C->>C: DamageAssessedEvent(Source = his entity here) — behaviors read it (AW-23)
+  C->>C: HostileActs.Commit(actor, Lethal) — HostileAct written, side flipped
+  C-->>S: dtHostileAct — every node reads Kind
+```
+
+```mermaid
+graph TD
+  DC[DamageCalculationSystem / AreaEffectSystem — SimHost] --> SRC[fill Source from the notification's Shooter]
+  EG[DamageAssessedEgressTranslator — SimHost] --> WIRE[EntityHitDamage + SourceEntityId]
+  HA[HostileActs.Commit — the actor's brain node] --> COMP[HostileAct, Brain group]
+  TR[EntityHostileAct translators — shared pack, every node] --> COMP
+```
+
+*Caption:* nothing new is scheduled; the translators join the shared pack beside `dtGesture`'s.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **DS-1** | **`DamageAssessedEvent.Source`** (Entity, appended; Null = unknown) filled where the producer KNOWS it: the hit and the burst (the notification's `Shooter`), a melee blow (the striker); a cloud, a canister in hand, a crash, an ejection say unknown | a separate "attribution" event: every reader would join two events |
+| **DS-2** | **`EntityHitDamage.SourceEntityId`** (appended; 0 = unknown), mapped through the entity map both ways | sending the source only for lethal damage: AW-23 counts friendly hits of every kind |
+| **HA-1** | **`HostileAct { SinceSimTime, Kind }`** — its own component (404), Brain group, `dtHostileAct` (145), the `Gesture` wiring | a field on `CivilianState`: behaviors' brain-local struct, not on the wire |
+| **HA-2** | **`HostileActs.Commit(repo, actor, kind)`** — stamps once, UPGRADES Non-lethal → Lethal (never down), keeps `CivilianState.HostileActAt` in step, flips the side once (as before) | a second writer per kind: the one write path stays one |
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

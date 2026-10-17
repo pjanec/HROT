@@ -44,13 +44,15 @@ namespace Fdp.Toolkit.Combat
         /// <summary>
         /// The conditions for <paramref name="observer"/> looking at <paramref name="man"/>: the weather AT the man
         /// (<see cref="Fdp.Toolkit.Weather.WeatherField.At(EntityRepository, Vector3)"/>), or a clear day when the world has no World
-        /// Environment; optics 1 until the held item exists (B-12, <c>CE-3234</c>).
+        /// Environment; ⭐ <c>CE-3234</c> (B-12, HI-4) — the observer's optics from what he holds (<see cref="HeldItems.IdentificationOptics"/>).
         /// </summary>
         public static SeeingConditions Of(EntityRepository world, Entity observer, Entity man)
         {
-            if (!Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _) || !world.HasComponent<SimTransform>(man)) return ClearDay;
+            float optics = HeldItems.IdentificationOptics(world, observer);
+            if (!Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _) || !world.HasComponent<SimTransform>(man))
+                return new SeeingConditions(1f, float.PositiveInfinity, optics);
             var w = Fdp.Toolkit.Weather.WeatherField.At(world, world.GetComponentRO<SimTransform>(man).Position);
-            return new SeeingConditions(w.RelativeLight, w.VisibilityM, 1f);
+            return new SeeingConditions(w.RelativeLight, w.VisibilityM, optics);
         }
     }
 
@@ -199,7 +201,21 @@ namespace Fdp.Toolkit.Combat
         public static bool ArmedByStatus(ISimulationView view, Entity man)
             => view.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(view, man) && !PersonHands.HandsOnly(view, man)   // ⭐ CE-3230 (H-3)
                && !WeaponLaying.AllLaidDown(view, man)   // ⭐ CE-3232 (B-10, LD-4) — every weapon laid down: no status weapon
-               || view is EntityRepository r && !WeaponSystems.WeaponOf(r, man).IsNull;
+               || view is EntityRepository r && SeenControlled(r, man);   // ⭐ CE-3233 (B-11, ST-6) — a weapon he carries that anyone can see
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-5/ST-6) — does <paramref name="man"/> control a working weapon system an observer can SEE
+        /// (in his hands or slung on his back — never one in his HIDDEN station)? Was <c>WeaponSystems.WeaponOf</c>, which now answers only what
+        /// he can FIRE (a slung rifle still arms him by sight).</summary>
+        private static bool SeenControlled(EntityRepository world, Entity man)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponState>()) return false;
+            Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
+            int n = WeaponSystems.Controlled(world, man, controlled);
+            for (int k = 0; k < n; k++)
+                if (world.HasComponent<WeaponState>(controlled[k]) && !WeaponSystems.IsBroken(world, controlled[k])
+                    && !Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, controlled[k])) return true;
+            return false;
+        }
 
         /// <summary>
         /// ⭐ The TRUTH form (Civilians §5h, note 1) for a reader that is not an observer — "am I armed" (<c>ThreatDanger.OwnStrength</c>):
@@ -271,9 +287,13 @@ namespace Fdp.Toolkit.Combat
             {
                 var w = controlled[k];
                 if (!world.HasComponent<WeaponState>(w) || WeaponSystems.IsBroken(world, w)) continue;
+                if (Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, w)) continue;   // ⭐ CE-3233 (B-11, ST-6) — hidden: nobody sees it
                 if (CombatTkb.MountOf(world, w, 0) is { } mount)
                     best = Max(best, OfItem(ItemAppearances.Of(world, mount), distance, seeing));
             }
+            // ⭐ CE-3234 (B-12, HI-5) — a phone or binoculars in his hand is a small thing an observer sees (AW-14: the phone is a D4 cue)
+            if (best < ArmedJudgement.IdentifiedLethal && HeldItems.Shows(world, man, out var held))
+                best = Max(best, OfItem(held, distance, seeing));
             return best;
         }
 

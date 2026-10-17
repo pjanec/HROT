@@ -20,7 +20,8 @@ namespace Hrot.Map.Common.Tests
         [Fact]
         public void ThereIsExactlyOneGroupPerNodeRole_R172()
         {
-            var roles = new[] { NodeRole.Brain, NodeRole.MuscleGround, NodeRole.Perception, NodeRole.NavigationSolver, NodeRole.Map2D };
+            var roles = new[] { NodeRole.Brain, NodeRole.MuscleGround, NodeRole.Perception, NodeRole.NavigationSolver, NodeRole.Map2D,
+                               NodeRole.Traffic };   // ⭐ AQ93 §12 S2 (R-4056) — the traffic settings' group, served by a Traffic node
             Assert.Equal(roles.OrderBy(r => r), T.Groups.Keys.OrderBy(r => r));
         }
 

@@ -293,13 +293,14 @@ namespace Hrot.Map.Definitions.Tkb
                 var suite = new WeaponSuiteDto();
                 foreach (var wm in combatDef.Weapons)
                 {
-                    generated.Formulas[ParameterNames.Mount(suite.Mounts.Count, ParameterNames.MuzzleVelocity)] = wm.Range > 0f
-                        ? $"range × {EngineFallbacks.MuzzleVelocityPerRangeMetre} (range = {wm.Range})"
-                        : $"no range ⇒ {EngineFallbacks.MuzzleVelocity}";
+                    if (wm.MuzzleVelocity <= 0f)   // ⭐ CE-3233 — a stated muzzle speed is data, not a formula
+                        generated.Formulas[ParameterNames.Mount(suite.Mounts.Count, ParameterNames.MuzzleVelocity)] = wm.Range > 0f
+                            ? $"range × {EngineFallbacks.MuzzleVelocityPerRangeMetre} (range = {wm.Range})"
+                            : $"no range ⇒ {EngineFallbacks.MuzzleVelocity}";
                     suite.Mounts.Add(new WeaponMountDto
                     {
                         InitialAmmunition = wm.Ammunition,
-                        MuzzleVelocity    = EngineFallbacks.MuzzleVelocityFromRange(wm.Range),
+                        MuzzleVelocity    = wm.MuzzleVelocity > 0f ? wm.MuzzleVelocity : EngineFallbacks.MuzzleVelocityFromRange(wm.Range),   // ⭐ CE-3233
                         // ⭐ CE-3071 (A4) — each mount keeps its OWN range and munition (the TOW is not the 25 mm).
                         Range             = wm.Range,
                         Penetration       = wm.Penetration,
@@ -324,6 +325,7 @@ namespace Hrot.Map.Definitions.Tkb
                         MinElevationDeg   = wm.MinElevationDeg,
                         MaxElevationDeg   = wm.MaxElevationDeg,
                         RateOfFire        = wm.RateOfFire,       // ⭐ CE-2188 (BS-1 §5.4c) — a dispenser's release interval
+                        Appearance        = wm.Look is { } look ? new ItemAppearanceDto { Look = look } : null,   // ⭐ CE-3233 (B-11, ST-7)
                     });
                 }
                 template.AddDescriptor(suite);

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -68,6 +69,17 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>Rounds that cooked off in a hand on this node.</summary>
         public long CookedOff { get; private set; }
 
+        /// <summary>⭐ <c>CE-3236</c> — Irritant hits a venting canister in a hand gave its holder / canisters that burnt out in a hand.</summary>
+        public long Irritated { get; private set; }
+        public long BurntOut { get; private set; }
+
+        /// <summary>How long one in-hand Irritant hit lasts: the canister's warhead effect, at least a step and a half (as the cloud's).</summary>
+        private static float IrritantSeconds(EntityRepository repo, long ammo)
+        {
+            float effect = CombatTkb.WarheadOf(repo, ammo)?.EffectSeconds ?? 0f;
+            return MathF.Max(effect, (float)AreaEffectCloudSystem.StepSeconds + 0.5f);
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<HeldFuze>()) return;
@@ -77,6 +89,20 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!PossessionSystem.OwnsBrain(repo, man)) continue;
                 ref var held = ref repo.GetComponentRW<HeldFuze>(man);
                 if (PersonHands.Rounds(repo, man, held.Ammo) <= 0) { _cooked.Add(man); continue; }   // thrown or taken some other way
+                if (held.BurnSeconds > 0f)
+                {
+                    // ⭐ CE-3236 (B-14, §7.15 VC-6) — a VENTING canister burns on in his hand: an Irritant hit on him each whole second;
+                    //   burnt out, it is empty — out of his hands, no burst
+                    float before = held.BurnSeconds;
+                    held.BurnSeconds -= deltaTime;
+                    if (held.BurnSeconds > 0f && MathF.Floor(held.BurnSeconds) != MathF.Floor(before)     // each whole second it still burns
+                        && AreaEffectCloudSystem.Irritate(repo, man, IrritantSeconds(repo, held.Ammo))) Irritated++;
+                    if (held.BurnSeconds > 0f) continue;
+                    PersonHands.Take(repo, man, held.Ammo);
+                    BurntOut++;
+                    _cooked.Add(man);
+                    continue;
+                }
                 held.Remaining -= deltaTime;
                 if (held.Remaining > 0f) continue;
                 CookOff(repo, man, held.Ammo);

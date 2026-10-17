@@ -112,7 +112,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();
         // ⭐ CE-3235 (B-13) — picking a round up: the ask (to the round's flier) and the grant (to the man's brain owner), on EVERY host
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
-        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();   // ⭐ CE-3233 (B-11b) — set a charge off, on its position owner   // ⭐ CE-3233 (B-11) — draw / stow / conceal, applied by the list owner   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
         //   kind's event on EVERY host — the ingress republishes it wherever a request lands).
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();

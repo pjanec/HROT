@@ -57,11 +57,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 else if (now - last < StepSeconds) continue;
                 _lastStep[e] = now;
 
-                // ① drift on the wind at the cloud (the ground wind: its base height), for the time since its last step
+                // ① drift on the wind at the cloud (the ground wind: its base height), for the time since its last step — ⭐ CE-3236 (B-14,
+                //   §7.15 VC-4) unless it still sits on its venting canister
                 ref var tf = ref repo.GetComponentRW<SimTransform>(e);
-                var wind = WeatherField.WindAt(repo, tf.Position);
-                float elapsed = (float)(now - last);
-                if (elapsed > 0f && wind != Vector2.Zero) tf.Position += new Vector3(wind * elapsed, 0f);
+                if (!SitsOnItsSource(repo, e))
+                {
+                    var wind = WeatherField.WindAt(repo, tf.Position);
+                    float elapsed = (float)(now - last);
+                    if (elapsed > 0f && wind != Vector2.Zero) tf.Position += new Vector3(wind * elapsed, 0f);
+                }
 
                 // ② a tear-gas cloud irritates whoever stands in it
                 if (cloud.Kind == CloudKind.TearGas && cloud.IrritantSeconds > 0f) Pulse(repo, in cloud, tf.Position);
@@ -91,6 +95,31 @@ namespace Fdp.Toolkit.Combat.Systems
             cmd.DestroyEntity(e);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3236</c> (B-14, §7.15 VC-4) — does the cloud still sit on its venting canister? While its source resolves, yes; once it is
+        /// KNOWN gone (or cannot be resolved on a node with no entity map — one world), the cloud lets go: <c>SourceNetworkId</c> = 0, and it
+        /// drifts from then on. A source not yet seen here (its replica on the way) holds it.
+        /// </summary>
+        private static bool SitsOnItsSource(EntityRepository repo, Entity cloud)
+        {
+            long source = repo.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId;
+            if (source <= 0) return false;
+            if (!Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, source).IsNull) return true;
+            bool mapless = !repo.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
+            if (!mapless && !Fdp.Toolkit.Replication.Services.NetworkIdResolver.IsKnownDeadAnchor(repo, source)) return true;
+            repo.GetComponentRW<AreaEffectCloud>(cloud).SourceNetworkId = 0;
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-3236</c> (B-14, VC-6) — one Irritant hit on <paramref name="person"/> (no damage, <paramref name="seconds"/> long),
+        /// through the one damage chain: the cloud's pulse and a canister burning in a man's hand.</summary>
+        public static bool Irritate(EntityRepository repo, Entity person, float seconds)
+        {
+            if (!repo.Bus.IsRegistered<DamageAssessedEvent>()) return false;
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = person, TotalDamage = 0f, Effect = HitEffect.Irritant, EffectSeconds = seconds });
+            return true;
+        }
+
         private void Pulse(EntityRepository repo, in AreaEffectCloud cloud, Vector3 at)
         {
             if (!repo.IsComponentTypeRegistered<Health>() || !repo.Bus.IsRegistered<DamageAssessedEvent>()) return;
@@ -100,11 +129,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.GetComponentRO<Health>(p).Current <= 0f) continue;
                 if (Perception.PhysicalPresence.IsHidden(repo, p)) continue;           // inside an enclosed hull
                 if (!AreaEffectClouds.Contains(in cloud, at, repo.GetComponentRO<SimTransform>(p).Position)) continue;
-                repo.Bus.Publish(new DamageAssessedEvent
-                {
-                    HitEntity = p, TotalDamage = 0f, Effect = HitEffect.Irritant, EffectSeconds = cloud.IrritantSeconds,
-                });
-                Pulses++;
+                if (Irritate(repo, p, cloud.IrritantSeconds)) Pulses++;
             }
         }
     }

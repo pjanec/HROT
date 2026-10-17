@@ -114,6 +114,7 @@ namespace Hrot.Network.NED.SimHost
                 HighArc     = request.HighArc,
                 RaisedAt    = request.RaisedAt,   // ⭐ CE-2180
                 FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
+                BurnSeconds = request.BurnSeconds,   // ⭐ CE-3236
             });
         }
 

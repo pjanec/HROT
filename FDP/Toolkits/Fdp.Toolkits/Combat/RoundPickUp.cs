@@ -46,6 +46,8 @@ namespace Fdp.Toolkit.Combat
         public float FuzeSeconds;
         /// <summary>Came off the network: never sent again.</summary>
         public bool IsRemote;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-5) — a venting canister's burn left (s): it goes on venting in his hand; 0 = none (APPENDED).</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>
@@ -61,6 +63,9 @@ namespace Fdp.Toolkit.Combat
         public long Ammo;
         /// <summary>Seconds left (≤ 0 = gone).</summary>
         public float Remaining;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-6) — a VENTING canister's burn left (s): it irritates him while it burns, and is gone (no
+        /// burst) when it is out. 0 = a live round (<see cref="Remaining"/> is its fuze).</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>
@@ -146,7 +151,12 @@ namespace Fdp.Toolkit.Combat
                 return false;
             ref readonly var flight = ref world.GetComponentRO<BallisticProjectile>(round);
             bool live = (flight.Warhead & WarheadRound.TimeFuze) != 0;
-            grant = new PickUpGrantEvent { Man = man, Ammo = flight.Ammo, Rounds = 1, FuzeSeconds = live ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f };
+            // ⭐ CE-3236 (B-14, §7.15 VC-5) — a VENTING canister: its burn left goes with it (its fuze is spent)
+            bool venting = (flight.Warhead & (WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers))
+                           == (WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers);
+            grant = new PickUpGrantEvent { Man = man, Ammo = flight.Ammo, Rounds = 1,
+                                           FuzeSeconds = live && !venting ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f,
+                                           BurnSeconds = venting ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f };
             return true;
         }
 
@@ -158,18 +168,27 @@ namespace Fdp.Toolkit.Combat
             return held.Ammo == ammo && held.Remaining > 0f ? held.Remaining : 0f;
         }
 
-        /// <summary>A round of <paramref name="ammo"/> left <paramref name="man"/>'s hands: a live one of that kind is no longer held.</summary>
+        /// <summary>⭐ <c>CE-3236</c> (B-14) — the burn left on the venting canister of <paramref name="ammo"/> in <paramref name="man"/>'s hands
+        /// (s), 0 when none.</summary>
+        public static float BurnLeft(EntityRepository world, Entity man, long ammo)
+        {
+            if (ammo == 0 || !world.IsComponentTypeRegistered<HeldFuze>() || !world.HasComponent<HeldFuze>(man)) return 0f;
+            ref readonly var held = ref world.GetComponentRO<HeldFuze>(man);
+            return held.Ammo == ammo && held.BurnSeconds > 0f ? held.BurnSeconds : 0f;
+        }
+
+        /// <summary>A round of <paramref name="ammo"/> left <paramref name="man"/>'s hands: a live (or venting) one of that kind is no longer held.</summary>
         public static void Thrown(EntityRepository world, Entity man, long ammo)
         {
-            if (FuzeLeft(world, man, ammo) > 0f) world.RemoveComponent<HeldFuze>(man);
+            if (FuzeLeft(world, man, ammo) > 0f || BurnLeft(world, man, ammo) > 0f) world.RemoveComponent<HeldFuze>(man);
         }
 
         /// <summary>Put a granted round in <paramref name="grant"/>'s man's hands; a live one keeps its fuze (one at a time).</summary>
         public static bool Receive(EntityRepository world, in PickUpGrantEvent grant)
         {
             if (!PersonHands.Give(world, grant.Man, grant.Ammo, grant.Rounds)) return false;
-            if (grant.FuzeSeconds > 0f && world.IsComponentTypeRegistered<HeldFuze>() && !world.HasComponent<HeldFuze>(grant.Man))
-                world.AddComponent(grant.Man, new HeldFuze { Ammo = grant.Ammo, Remaining = grant.FuzeSeconds });
+            if ((grant.FuzeSeconds > 0f || grant.BurnSeconds > 0f) && world.IsComponentTypeRegistered<HeldFuze>() && !world.HasComponent<HeldFuze>(grant.Man))
+                world.AddComponent(grant.Man, new HeldFuze { Ammo = grant.Ammo, Remaining = grant.FuzeSeconds, BurnSeconds = grant.BurnSeconds });
             return true;
         }
 

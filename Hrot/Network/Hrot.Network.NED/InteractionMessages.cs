@@ -26,6 +26,11 @@ namespace Hrot.NED.Messages
         //   actor = the man; applied by the node that flies the round) and the grant (target = the man; applied by his brain's owner).
         PickUpRound     = 9,
         PickUpGrant     = 10,
+        // ⭐ CE-3233 (civilians B-11, §7.13 ST-4) — put a carried thing in another of the man's stations (target = the man, actor = the
+        //   thing; applied by the node that owns his passenger list).
+        Restation       = 11,
+        // ⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off (target = the charge, actor = who; applied by its position owner).
+        DetonateCharge  = 12,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -144,6 +149,23 @@ namespace Hrot.NED.Messages
         public byte Reserved;
     }
 
+    /// <summary>⭐ CE-3233 — the <see cref="EInteractionKind.Restation"/> case (target = the man, actor = the thing): the station.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct RestationInteractionPayload
+    {
+        /// <summary>The seat (a carry station) of the man to put it in.</summary>
+        public byte Seat;
+    }
+
+    /// <summary>⭐ CE-3233 — the <see cref="EInteractionKind.DetonateCharge"/> case (target = the charge, actor = who): nothing more.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DetonateChargeInteractionPayload
+    {
+        public byte Reserved;
+    }
+
     /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -155,6 +177,8 @@ namespace Hrot.NED.Messages
         public int Rounds;
         /// <summary>The fuze it had left (s); 0 = inert.</summary>
         public float FuzeSeconds;
+        /// <summary>⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left (s); 0 = none (APPENDED, R-169).</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>
@@ -206,6 +230,12 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.PickUpGrant)]
         public PickUpGrantInteractionPayload PickUpGrant;   // ⭐ CE-3235
+
+        [DdsCase(EInteractionKind.Restation)]
+        public RestationInteractionPayload Restation;   // ⭐ CE-3233
+
+        [DdsCase(EInteractionKind.DetonateCharge)]
+        public DetonateChargeInteractionPayload DetonateCharge;   // ⭐ CE-3233 (B-11b)
     }
 
     /// <summary>

@@ -34,6 +34,10 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Where it can be mounted: on the ground (a tripod), a pintle, a helicopter door, on a soldier.</summary>
         public MountKinds MountKinds { get; init; } = MountKinds.Ground;
+
+        /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, AW-12, §7.13 ST-8) — an explosive CHARGE: it never fires a round (<c>CanFire</c> is false);
+        /// it is DETONATED where it stands (<c>Charges.Detonate</c>) — worn, placed or in a vehicle. Appended.</summary>
+        public bool Charge { get; init; }
     }
 
     /// <summary>⭐ WS-1 — who can carry a weapon system.</summary>
@@ -60,5 +64,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         Door = 4,
         /// <summary>On a soldier — his carry station.</summary>
         Carried = 8,
+        /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, AW-12, §7.13 ST-9) — a vehicle's CARGO space (a car's boot): it holds a charge, not a gun.</summary>
+        Cargo = 16,
     }
 }

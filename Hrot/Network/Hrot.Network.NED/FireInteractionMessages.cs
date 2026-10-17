@@ -61,6 +61,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6, R-169 — APPENDED) — the fuze a time-fuzed round flies with (s); 0 = its warhead's
         /// own. A live round picked up and thrown back keeps what it had left.</summary>
         public float FuzeSeconds;
+
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7, R-169 — APPENDED) — a thrown-back venting canister's burn left (s); 0 = its own.</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>

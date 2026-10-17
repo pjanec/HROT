@@ -286,5 +286,69 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(2f, cloud.IrritantSeconds);
             Assert.True(cloud.SightTransmittance is > 0f and < 1f);
         }
+
+        // ── ⭐ CE-3236 (B-14, §7.15) — the cloud's SOURCE ───────────────────────────────────
+
+        /// <summary>
+        /// ⭐ VC-4 — a cloud SITS on its venting canister while that lives (no drift in the wind), and once the canister is gone (picked up)
+        /// it lets go and drifts from where it was. ✅ Red-proof: <c>SitsOnItsSource</c> returning false ⇒ it drifts while the canister vents
+        /// ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_ACloud_SitsOnItsCanister_ThenDriftsFreeWhenItIsGone()
+        {
+            Wind(new Vector2(2f, 0f));
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var canister = _w.CreateEntity();
+            _w.AddComponent(canister, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _w.AddComponent(canister, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 777 });
+            var cloud = Cloud(CloudKind.TearGas, Vector3.Zero);
+            _w.GetComponentRW<AreaEffectCloud>(cloud).SourceNetworkId = 777;
+            float X() => _w.GetComponentRO<SimTransform>(cloud).Position.X;
+
+            for (int i = 1; i <= 6; i++) Frame(i * 0.5);
+            Assert.Equal(0f, X(), 3);                                                       // venting: it stays on its canister
+            Assert.Equal(777, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);
+
+            _w.DestroyEntity(canister);                                                     // picked up
+            Frame(3.5);
+            Assert.Equal(0, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);     // let go (replicates: free) …
+            Assert.Equal(2f, X(), 3);                                                       // … and drifts from that step: 2 m/s × 1 s
+            Frame(4.5);
+            Assert.Equal(4f, X(), 3);
+        }
+
+        /// <summary>
+        /// ⭐ VC-2 / VC-3 — a burst that names its round (a canister lying, venting) asks for a cloud that lasts the round's BURN and sits on it
+        /// (its network id). ✅ Red-proof: <c>RequestCloud</c> ignoring the round ⇒ the warhead's 40 s and no source ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_AVentingCanistersBurst_AsksForACloud_ForItsBurn_SittingOnIt()
+        {
+            const long Gas = 6101;
+            var db = new TkbDatabase();
+            var gas = new TkbTemplate("test tear-gas canister", Gas);
+            gas.AddDescriptor(new WarheadDto { Kind = WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 40f, EffectSeconds = 2f });
+            db.Register(gas);
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+            _w.RegisterComponent<BallisticProjectile>();
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var round = _w.CreateEntity();
+            _w.AddComponent(round, new BallisticProjectile
+            {
+                Ammo = Gas, BurnSeconds = 17.5f, FuzeRemaining = 17.5f,
+                Warhead = WarheadRound.Area | WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers,
+            });
+            _w.AddComponent(round, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4711 });
+            Clock(3);
+
+            _w.Bus.Publish(new DetonationNotification { HitX = 1, HitY = 2, HitZ = 0, Ammo = Gas, Round = round });
+            _w.Bus.SwapBuffers();
+            new AreaEffectSystem().Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+
+            var cloud = Assert.Single(Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray()).InitialComponents!.OfType<AreaEffectCloud>());
+            Assert.Equal((17.5f, 4711L), (cloud.Seconds, cloud.SourceNetworkId));
+        }
     }
 }
