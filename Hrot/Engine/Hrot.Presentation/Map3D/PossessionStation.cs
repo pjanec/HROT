@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -56,46 +57,225 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>Frames sent this session (diagnostics, rails).</summary>
         public long FramesSent { get; private set; }
 
-        public void Update(float dt)
+        /// <summary>Seconds this station has run (the use key's hold and the verdict line time against it).</summary>
+        public float Clock { get; private set; }
+
+        /// <summary>⭐ CE-1158 — where the Drive hand-over stands (§8h driving sequence).</summary>
+        public enum HandOverStep : byte
         {
-            var w = _world();
-            var held = w is null ? Entity.Null : HeldHere(w, out _);
-            if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave();
-            if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
+            None = 0,
+            /// <summary>Drive was pressed: waiting for the replicated passenger list to show the soldier in the driver seat.</summary>
+            AwaitBoard,
+            /// <summary>The soldier was asked to ride: waiting for his <see cref="PossessedBy"/> to say Riding.</summary>
+            AwaitRiding,
+            /// <summary>The vehicle was possessed: waiting for it to be held here.</summary>
+            AwaitVehicle,
         }
 
-        /// <summary>The unit this station holds in <paramref name="w"/> (its <see cref="PossessedBy"/> names this node), or null.</summary>
+        /// <summary>A hand-over step that has not moved on in this long is dropped (the press was refused, the seat went to someone else).</summary>
+        public const float HandOverTimeout = 15f;
+
+        private HandOverStep _step;
+        private Entity _hoSoldier, _hoVehicle;
+        private float _hoSince;
+        private Entity _getOutRider;
+        private float _getOutSince;
+        private float _orphanCheckAt;
+        private bool _softLeft;
+
+        /// <summary>⭐ CE-1158 — the Drive hand-over's step now (rails).</summary>
+        public HandOverStep Step => _step;
+
+        public void Update(float dt)
+        {
+            Clock += dt;
+            var w = _world();
+            if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
+            var held = w is null ? Entity.Null : HeldHere(w, out _);
+            bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
+            if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave(restore: !handing);
+            if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
+            if (_driver == null && _softLeft && !handing) RestoreView();   // a hand-over that came to nothing
+        }
+
+        /// <summary>
+        /// The unit this station DRIVES in <paramref name="w"/> (its <see cref="PossessedBy"/> names this node), or null. ⭐ CE-1158 — a unit
+        /// held as <see cref="PossessionMode.Riding"/> is skipped (the soldier sitting in the vehicle the station drives), and of two Fps
+        /// units (a moment during a take-over) the newest possession wins (<see cref="PossessedBy.Epoch"/>).
+        /// </summary>
         public static Entity HeldHere(EntityRepository w, out long networkId)
         {
             networkId = 0;
             if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
             var map = w.GetSingletonManaged<NetworkEntityMap>()!;
             var orders = new EntityOrders(w, map, geo: null);
+            Entity best = Entity.Null;
+            uint bestEpoch = 0;
             foreach (var unit in w.Query().With<PossessedBy>().Build())
             {
-                if (!w.IsAlive(unit) || w.GetComponentRO<PossessedBy>(unit).StationNodeId != orders.StationFor(unit)) continue;
-                if (!map.TryGetNetworkId(unit, out networkId)) continue;
-                return unit;
+                if (!w.IsAlive(unit)) continue;
+                var held = w.GetComponentRO<PossessedBy>(unit);
+                if (held.StationNodeId != orders.StationFor(unit) || held.Mode == PossessionMode.Riding) continue;
+                if (!map.TryGetNetworkId(unit, out long id)) continue;
+                if (best.IsNull || held.Epoch > bestEpoch) { best = unit; bestEpoch = held.Epoch; networkId = id; }
+            }
+            return best;
+        }
+
+        /// <summary>⭐ CE-1158 — the soldier this station holds as <see cref="PossessionMode.Riding"/> aboard <paramref name="vehicle"/>, or null.</summary>
+        public static Entity RiderOf(EntityRepository w, Entity vehicle)
+        {
+            if (vehicle.IsNull || !w.IsComponentTypeRegistered<PossessedBy>() || !w.IsComponentTypeRegistered<IsEmbarkedTag>()
+                || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
+            var orders = new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null);
+            foreach (var unit in w.Query().With<PossessedBy>().With<IsEmbarkedTag>().Build())
+            {
+                var held = w.GetComponentRO<PossessedBy>(unit);
+                if (w.IsAlive(unit) && held.Mode == PossessionMode.Riding && held.StationNodeId == orders.StationFor(unit)
+                    && w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity == vehicle) return unit;
             }
             return Entity.Null;
+        }
+
+        /// <summary>⭐ CE-1158 — is <paramref name="soldier"/> in <paramref name="vehicle"/>'s DRIVER seat, by the replicated passenger list?</summary>
+        public static bool InDriverSeat(EntityRepository w, Entity soldier, Entity vehicle)
+        {
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(soldier)) return false;
+            var tag = w.GetComponentRO<IsEmbarkedTag>(soldier);
+            if (tag.VehicleEntity != vehicle) return false;
+            return !w.IsComponentTypeRegistered<CarrierSeats>() || !w.HasComponent<CarrierSeats>(vehicle)
+                || w.GetComponentRO<CarrierSeats>(vehicle).Roles[tag.Seat] == SeatRole.Driver;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1158 (§8h U-4) — the driver sent a Drive / Pilot press: once the soldier shows in the driver seat, ride him and drive the
+        /// vehicle. The STATION orchestrates it, from replicated state, because the soldier and the vehicle may be brained on different nodes.
+        /// </summary>
+        internal void ArmDrive(Entity soldier, Entity vehicle)
+        {
+            _step = HandOverStep.AwaitBoard;
+            _hoSoldier = soldier;
+            _hoVehicle = vehicle;
+            _hoSince = Clock;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1158 (§8h U-4) — <c>E</c> (or Esc) in a vehicle with a rider: possess the rider as Fps — which releases the vehicle (one Fps
+        /// unit per station) — and, once the view is back in him, send his Get-out press. False when <paramref name="vehicle"/> has no rider.
+        /// </summary>
+        internal bool TryGetOut(Entity vehicle)
+        {
+            if (_world() is not { } w || Orders() is not { } orders) return false;
+            var rider = RiderOf(w, vehicle);
+            if (rider.IsNull || !w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(rider, out long id)) return false;
+            orders.Possess(id, PossessionMode.Fps);
+            _getOutRider = rider;
+            _getOutSince = Clock;
+            return true;
+        }
+
+        private void StepHandOver(EntityRepository w)
+        {
+            if (!_getOutRider.IsNull && Clock - _getOutSince > HandOverTimeout) _getOutRider = Entity.Null;
+            if (_step == HandOverStep.None) return;
+            if (Clock - _hoSince > HandOverTimeout || !w.IsAlive(_hoSoldier) || !w.IsAlive(_hoVehicle) || Orders() is not { } orders)
+            {
+                _step = HandOverStep.None;
+                return;
+            }
+            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
+            switch (_step)
+            {
+                case HandOverStep.AwaitBoard:
+                    if (!HeldByThis(w, _hoSoldier, out _)) { _step = HandOverStep.None; break; }   // released meanwhile (Esc)
+                    if (InDriverSeat(w, _hoSoldier, _hoVehicle) && map.TryGetNetworkId(_hoSoldier, out long soldierId))
+                    {
+                        orders.Possess(soldierId, PossessionMode.Riding);   // O-2 — his task stays paused
+                        _step = HandOverStep.AwaitRiding;
+                    }
+                    break;
+                case HandOverStep.AwaitRiding:
+                    if (!HeldByThis(w, _hoSoldier, out var mode)) { _step = HandOverStep.None; break; }
+                    // ⚠ only once he RIDES: possessing the vehicle as Fps releases this station's other Fps unit — which he still was
+                    if (mode == PossessionMode.Riding && map.TryGetNetworkId(_hoVehicle, out long vehicleId))
+                    {
+                        orders.Possess(vehicleId, PossessionMode.Fps);
+                        _step = HandOverStep.AwaitVehicle;
+                    }
+                    break;
+                case HandOverStep.AwaitVehicle:
+                    if (HeldHere(w, out _) == _hoVehicle) _step = HandOverStep.None;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-1158 — a rider whose vehicle this station no longer drives (the operator possessed someone else from the menu, the vehicle
+        /// was released or destroyed, he was thrown out) is let go, so his own task resumes. Checked once a second (a release takes a
+        /// round trip to show).
+        /// </summary>
+        private void ReleaseOrphanRiders(EntityRepository w)
+        {
+            if (_step != HandOverStep.None || Clock < _orphanCheckAt || !w.IsComponentTypeRegistered<PossessedBy>()) return;
+            _orphanCheckAt = Clock + 1f;
+            if (Orders() is not { } orders) return;
+            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
+            foreach (var unit in w.Query().With<PossessedBy>().Build())
+            {
+                if (unit == _getOutRider || !HeldByThis(w, unit, out var mode) || mode != PossessionMode.Riding) continue;
+                var vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit)
+                    ? w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity : Entity.Null;
+                if (!vehicle.IsNull && HeldByThis(w, vehicle, out var vehicleMode) && vehicleMode != PossessionMode.Riding) continue;
+                if (map.TryGetNetworkId(unit, out long id)) orders.Unpossess(id);
+            }
+        }
+
+        private static bool HeldByThis(EntityRepository w, Entity unit, out PossessionMode mode)
+        {
+            mode = PossessionMode.None;
+            if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.IsAlive(unit) || !w.HasComponent<PossessedBy>(unit)
+                || !w.HasSingletonManaged<NetworkEntityMap>()) return false;
+            var held = w.GetComponentRO<PossessedBy>(unit);
+            mode = held.Mode;
+            return held.StationNodeId == new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null).StationFor(unit);
         }
 
         private void Enter(EntityRepository w, Entity unit)
         {
             HeldHere(w, out long netId);
-            _before = _view.CurrentPose;
-            _was3D = _view.Is3D;
+            if (!_softLeft)
+            {
+                _before = _view.CurrentPose;
+                _was3D = _view.Is3D;
+            }
+            _softLeft = false;
             _view.Set(true, animate: false);
             _driver = new FpsCameraDriver(this, _world, unit, netId);
             _view.Camera3D.Driver = _driver;
             if (Bodies != null) Bodies.FirstPerson = unit;   // ⭐ CE-1073 — the camera is inside this head
+            // ⭐ CE-1158 (§8h U-4) — back in the rider after Get out: his first frame carries the Get-out press (his only action aboard)
+            if (unit == _getOutRider)
+            {
+                long vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit) && w.GetSingletonManaged<NetworkEntityMap>()!
+                    .TryGetNetworkId(w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity, out long v) ? v : 0L;
+                _driver.QueueUse(0, vehicle);
+                _getOutRider = Entity.Null;
+            }
         }
 
-        private void Leave()
+        /// <param name="restore">False during a hand-over: the view stays in first person while possession moves to the other unit.</param>
+        private void Leave(bool restore = true)
         {
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
             if (Bodies != null) Bodies.FirstPerson = Entity.Null;
+            if (restore) RestoreView();
+            else _softLeft = true;
+        }
+
+        private void RestoreView()
+        {
+            _softLeft = false;
             _view.ShowPose(_before);        // the view the operator had — 2-D when it was a 2-D pose
             if (!_was3D) _view.Set(false, animate: false);
         }
@@ -134,10 +314,19 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+            var font = HudText.Font();
+            // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-E list and the verdict: under the crosshair, where the operator looks
+            int uy = cy + 26;
+            foreach (var use in _driver.UseLines(w))
+            {
+                int uw = (int)HudText.Measure(font, use.Text);
+                Raylib.DrawRectangle(cx - uw / 2 - 6, uy - 3, uw + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, use.Text, cx - uw / 2, uy, use.Colour);
+                uy += HudLineHeight;
+            }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
                                   _driver.Scheme, _driver.Running);
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
-            var font = HudText.Font();
             int width = 0;
             foreach (var line in lines) width = Math.Max(width, (int)HudText.Measure(font, line));
             var (x, y) = HudOrigin(size, lines.Length, width);
@@ -178,6 +367,7 @@ namespace Hrot.UI.Common.Map3D
         /// </summary>
         public static Vector3? BarrelPoint(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
         {
+            (unit, mount) = Hud.Resolve(w, unit, mount);   // ⭐ CE-1158 — a controlled weapon's own turret
             if (!w.IsComponentTypeRegistered<TurretPose>() || !w.HasComponent<SimTransform>(unit)) return null;
             var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, mount);
             if (dto is not { TurretIndex: >= 0 } || Fdp.Toolkit.Combat.CombatTkb.TurretOf(w, unit, dto.TurretIndex) is not { } turret) return null;
@@ -240,6 +430,17 @@ namespace Hrot.UI.Common.Map3D
                     var a = w.GetComponentRO<WeaponAmmo>(unit);
                     for (int m = 0; m < Math.Max((int)a.Count, 1); m++) lines.Add(WeaponLine(w, unit, a, m, m == mount));
                 }
+                // ⭐ CE-1158 (§8h U-5) — and the weapons he CONTROLS (a manned ZU-23: index 32+k), numbered as their keys
+                Span<int> slots = stackalloc int[MaxSlots];
+                int slotCount = Slots(w, unit, slots);
+                for (int i = 0; i < slotCount; i++)
+                {
+                    if (!Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(slots[i])) continue;
+                    var weapon = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(w, unit, slots[i]);
+                    if (w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(weapon))
+                        lines.Add(WeaponLine(w, weapon, w.GetComponentRO<WeaponAmmo>(weapon), 0, slots[i] == mount, key: i + 1));
+                    else lines.Add($"{(slots[i] == mount ? "> " : "  ")}{i + 1} {TypeName(w, weapon)?.ToUpperInvariant() ?? "WEAPON"}");
+                }
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
@@ -251,20 +452,95 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo");   // ⭐ CE-1078 / CE-1079
+                lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo  E use (hold E: more)");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
+
+            /// <summary>The most weapon slots a unit has (its own mounts, then the weapons it controls).</summary>
+            public const int MaxSlots = 32;
+
+            /// <summary>
+            /// ⭐ CE-1158 (§8h U-5, module graph GAP1) — the station's weapon list, in key order: the unit's own mounts (<see cref="WeaponAmmo"/>,
+            /// 0…n-1), then each weapon system it controls (<see cref="Fdp.Toolkit.Combat.WeaponSystems.Controlled"/>, mount index 32+k —
+            /// the index the operator's fire path already takes). A unit with neither keeps mount 0.
+            /// </summary>
+            public static int Slots(EntityRepository w, Entity unit, Span<int> into)
+            {
+                int n = 0;
+                int own = w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(unit) ? w.GetComponentRO<WeaponAmmo>(unit).Count : 0;
+                for (int m = 0; m < own && n < into.Length; m++) into[n++] = m;
+                Span<Entity> weapons = stackalloc Entity[Fdp.Toolkit.Combat.WeaponSystems.MaxControlled];
+                int controlled = Fdp.Toolkit.Combat.WeaponSystems.Controlled(w, unit, weapons);
+                for (int k = 0; k < controlled && n < into.Length; k++) into[n++] = Fdp.Toolkit.Combat.WeaponSystems.ControlledMountBase + k;
+                if (n == 0 && into.Length > 0) into[n++] = 0;
+                return n;
+            }
+
+            /// <summary>⭐ CE-1158 — the entity and its own mount a slot fires: a controlled weapon's mount 0, else the unit's mount.</summary>
+            public static (Entity Holder, int Mount) Resolve(EntityRepository w, Entity unit, int mount)
+            {
+                if (!Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(mount)) return (unit, mount);
+                var weapon = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(w, unit, mount);
+                return weapon.IsNull ? (unit, mount) : (weapon, 0);
+            }
+
+            /// <summary>⭐ CE-1158 — a unit's type name from the TKB (<c>BMP-2</c>, <c>ZU-23-2</c>), or null.</summary>
+            public static string? TypeName(EntityRepository w, Entity e)
+            {
+                if (e.IsNull || !w.IsAlive(e) || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()
+                    || !w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
+                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
+                return w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(type, out var t) && t != null ? t.Name : null;
+            }
+
+            /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
+            public static string Label(EntityRepository w, in UseAction a)
+                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man && TypeName(w, a.Target) is { } name
+                    ? $"{a.Label} {name}" : a.Label;
+
+            /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
+            public static string ReasonText(UseReason r) => r switch
+            {
+                UseReason.OutOfReach => "too far",
+                UseReason.Locked => "locked",
+                UseReason.DoorRefuses => "will not move",
+                UseReason.NotDown => "not down",
+                UseReason.SeatTaken => "seat taken",
+                UseReason.Unfit => "you are down",
+                UseReason.Carrying => "hands full",
+                UseReason.NothingToDo => "nothing to do",
+                UseReason.Failed => "failed",
+                _ => "",
+            };
+
+            /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>E  Open door</c>, or greyed with its reason <c>E  Open door (too far)</c>.</summary>
+            public static string Prompt(EntityRepository w, in UseAction a)
+                => a.Available ? $"E  {Label(w, a)}" : $"E  {Label(w, a)} ({ReasonText(a.Reason)})";
+
+            /// <summary>⭐ CE-1158 (§8h.6 ②) — the brain's verdict on the press of <paramref name="label"/>: done, refused with its reason, or
+            /// nothing while it runs.</summary>
+            public static string? Verdict(string label, in OperatorUseStatus s) => s.Outcome switch
+            {
+                UseOutcome.Done => $"{label}: done",
+                UseOutcome.Refused => $"{label}: {(s.Reason == UseReason.Ok ? "refused" : ReasonText(s.Reason))}",
+                _ => null,
+            };
+
+            /// <summary>The use lines' colours: an action that can be done, one greyed, the one picked in the list, a verdict.</summary>
+            public static readonly Color UseReady = new(240, 240, 240, 255), UseGreyed = new(150, 150, 150, 255),
+                UsePicked = new(255, 220, 90, 255), UseDone = new(120, 235, 120, 255), UseRefused = new(255, 120, 100, 255);
 
             /// <summary>
             /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
             /// key, its kind, the round in its breech (and how many of that round), its total, the other rounds <c>F</c> cycles to (the
             /// selected weapon only), and LOADING while it reloads or switches.
             /// </summary>
-            public static string WeaponLine(EntityRepository w, Entity unit, in WeaponAmmo a, int m, bool selected)
+            /// <param name="key">⭐ CE-1158 — the number shown (its key), when it is not <paramref name="m"/> + 1 (a controlled weapon).</param>
+            public static string WeaponLine(EntityRepository w, Entity unit, in WeaponAmmo a, int m, bool selected, int? key = null)
             {
                 var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, m);
                 var line = new System.Text.StringBuilder();
-                line.Append(selected ? "> " : "  ").Append(m + 1).Append(' ').Append(KindOf(dto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown));
+                line.Append(selected ? "> " : "  ").Append(key ?? m + 1).Append(' ').Append(KindOf(dto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown));
                 long loaded = a.LoadedOf(m) != 0 ? a.LoadedOf(m) : unchecked((long)(dto?.AmmoGuid ?? 0UL));
                 if (RoundName(w, loaded) is { } round)
                 {
@@ -371,6 +647,21 @@ namespace Hrot.UI.Common.Map3D
         private byte _shotSeq, _cancelSeq, _ammoSeq;       // ⭐ CE-1078 / CE-1079 — presses, counted (DESIGN_Entity_Control §8e)
         private long _shotTarget;
         private int _ammoAtPress;
+        // ⭐ CE-1158 (§8h U-1, U-2, O-1) — the use key: presses counted, the verb (0 = the primary) and the target they carry
+        private byte _useSeq, _useVerb;
+        private long _useTarget;
+        private bool _eHolding, _usedHere, _queuedUse;
+        private float _eSince, _verdictSince = -1f;
+        private long _pressTarget, _queuedTarget;
+        private int _listIndex;
+        private byte _queuedVerb;
+        private string _lastLabel = "Use";
+        private readonly UseAction[] _actions = new UseAction[OperatorUseActions.MaxActions];
+
+        /// <summary>⭐ CE-1158 (O-1) — how long <c>E</c> is held before the list of the other verbs opens (s).</summary>
+        public const float HoldSeconds = 0.3f;
+        /// <summary>⭐ CE-1158 (§8h.6 ②) — how long the brain's verdict line stays (s).</summary>
+        public const float VerdictSeconds = 2f;
 
         internal FpsCameraDriver(PossessionStation station, Func<EntityRepository?> world, Entity unit, long netId)
         {
@@ -389,8 +680,8 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
         public Fdp.Toolkit.Combat.OperatorFireMode FireMode
-            => _world() is { } w && w.IsAlive(Unit)
-                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, Unit, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, Unit, Mount))
+            => _world() is { } w && w.IsAlive(Unit) && PossessionStation.Hud.Resolve(w, Unit, Mount) is var (holder, local)
+                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, holder, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local))
                 : Fdp.Toolkit.Combat.OperatorFireMode.Sight;
 
         /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
@@ -481,7 +772,12 @@ namespace Hrot.UI.Common.Map3D
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
         {
             if (_locked == null) { input.SetCursorLocked(true); _locked = input; }
-            if (input.IsKeyPressed(MapKeyboardKey.Escape)) { _station.Release(_netId); return true; }
+            if (input.IsKeyPressed(MapKeyboardKey.Escape))
+            {
+                // ⭐ CE-1158 (§8h U-4) — Esc in a vehicle with a rider is Get out (back into him), not a release that strands him aboard
+                if (!_station.TryGetOut(Unit)) _station.Release(_netId);
+                return true;
+            }
 
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
@@ -504,10 +800,30 @@ namespace Hrot.UI.Common.Map3D
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             Running = run;
             float wheel = input.MouseWheelMove;
-            if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
-            // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; F moves the selected weapon to its next round
-            for (int k = 0; k < 4; k++)
-                if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < MountCount()) Mount = k;
+            Span<int> slots = stackalloc int[PossessionStation.Hud.MaxSlots];
+            int slotCount = _world() is { } mw ? PossessionStation.Hud.Slots(mw, Unit, slots) : 0;
+            if (slotCount == 0) slots[slotCount++] = 0;
+            if (slots.Slice(0, slotCount).IndexOf(Mount) < 0) Mount = slots[0];   // ⭐ CE-1158 — a controlled weapon gone (he left the seat)
+            if (UseListOpen)
+            {
+                // ⭐ CE-1158 (O-1) — while the hold-E list is open the wheel and 1-4 pick a verb, not a weapon
+                int verbs = UseCount();
+                if (wheel != 0f && verbs > 0) _listIndex = ((_listIndex + (wheel > 0f ? -1 : 1)) % verbs + verbs) % verbs;
+                for (int k = 0; k < 4; k++)
+                    if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < verbs) _listIndex = k;
+            }
+            else
+            {
+                if (wheel != 0f)
+                {
+                    int at = Math.Max(0, slots.Slice(0, slotCount).IndexOf(Mount));
+                    Mount = slots[((at + (wheel > 0f ? -1 : 1)) % slotCount + slotCount) % slotCount];
+                }
+                // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; ⭐ CE-1158 (U-5) the weapons he controls follow his own
+                for (int k = 0; k < 4; k++)
+                    if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < slotCount) Mount = slots[k];
+            }
+            // F moves the selected weapon to its next round
             if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.F)) unchecked { _ammoSeq++; }
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
@@ -539,6 +855,7 @@ namespace Hrot.UI.Common.Map3D
             }
             if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
+            UseKey(input, aimTarget);
 
             var frame = new OperatorControlFrameEvent
             {
@@ -554,6 +871,7 @@ namespace Hrot.UI.Common.Map3D
                 AimPoint = aimAt,
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
+                UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
             };
             _station.Send(_netId, frame);
             return true;
@@ -580,19 +898,121 @@ namespace Hrot.UI.Common.Map3D
             return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);
         }
 
-        private int NextMount(int mount, int step)
+        private int AmmoOf(int mount)
         {
-            int count = MountCount();
-            return ((mount + step) % count + count) % count;
+            if (_world() is not { } w) return 0;
+            var (holder, local) = PossessionStation.Hud.Resolve(w, Unit, mount);   // ⭐ CE-1158 — a controlled weapon counts its own
+            return w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(holder) ? w.GetComponentRO<WeaponAmmo>(holder).AmmoOf(local) : 0;
         }
 
-        private int MountCount()
-            => _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
-                ? Math.Max(1, (int)w.GetComponentRO<WeaponAmmo>(Unit).Count) : 1;
+        // ── the use key (CE-1158; docs/DESIGN_Entity_Control.md §8h U-1…U-4, O-1, §8h.6) ──────────────────────────────
 
-        private int AmmoOf(int mount)
-            => _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
-                ? w.GetComponentRO<WeaponAmmo>(Unit).AmmoOf(mount) : 0;
+        /// <summary>⭐ CE-1158 — the use presses sent (the frame's <c>UseSeq</c>), the last verb and target.</summary>
+        public byte UseSeq => _useSeq;
+        public byte UseVerb => _useVerb;
+        public long UseTarget => _useTarget;
+
+        /// <summary>⭐ CE-1158 (O-1) — <c>E</c> has been held long enough to show the other verbs.</summary>
+        public bool UseListOpen => _eHolding && _station.Clock - _eSince >= HoldSeconds;
+
+        /// <summary>⭐ CE-1158 — the verb picked in the open list (0 = the primary).</summary>
+        public int UseListIndex => _listIndex;
+
+        /// <summary>⭐ CE-1158 — the next frame carries a use press of <paramref name="verb"/> on <paramref name="target"/> (the station's Get out).</summary>
+        internal void QueueUse(byte verb, long target)
+        {
+            _queuedUse = true;
+            _queuedVerb = verb;
+            _queuedTarget = target;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1158 (§8h U-1, O-1) — <c>E</c>: pressing it fixes the target (what the crosshair rests on); a TAP sends the primary verb;
+        /// held past <see cref="HoldSeconds"/> it opens the list, and letting go sends the verb picked there. Sent on release, as a
+        /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, <c>E</c> is Get out (U-4).
+        /// </summary>
+        private void UseKey(IInputProvider input, long aimTarget)
+        {
+            if (_queuedUse) { _queuedUse = false; Press(_queuedVerb, _queuedTarget); }
+            var e = (MapKeyboardKey)KeyboardKey.E;
+            if (!_eHolding && input.IsKeyPressed(e))
+            {
+                _eHolding = true;
+                _eSince = _station.Clock;
+                _pressTarget = aimTarget;
+                _listIndex = 0;
+                return;
+            }
+            if (!_eHolding || input.IsKeyDown(e)) return;
+            int verb = UseListOpen ? _listIndex : 0;
+            _eHolding = false;
+            if (_station.TryGetOut(Unit)) return;
+            var action = Press((byte)verb, _pressTarget);
+            if (action is { Verb: UseVerbKind.Drive or UseVerbKind.Pilot } drive) _station.ArmDrive(Unit, drive.Target);
+        }
+
+        private UseAction? Press(byte verb, long target)
+        {
+            unchecked { _useSeq++; }
+            _useVerb = verb;
+            _useTarget = target;
+            _usedHere = true;
+            _verdictSince = -1f;
+            UseAction? action = null;
+            if (_world() is { } w)
+            {
+                int n = Actions(w, target);
+                if (verb < n) action = _actions[verb];
+            }
+            _lastLabel = action is { } a && _world() is { } lw ? PossessionStation.Hud.Label(lw, a) : "Use";
+            return action;
+        }
+
+        /// <summary>The actions on <paramref name="target"/> (a network id; 0 = nothing), primary first, into <see cref="_actions"/>.</summary>
+        private int Actions(EntityRepository w, long target)
+        {
+            var entity = Entity.Null;
+            if (target != 0 && w.HasSingletonManaged<NetworkEntityMap>()) w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(target, out entity);
+            return OperatorUseActions.For(w, Unit, entity, _actions);
+        }
+
+        private int UseCount() => _world() is { } w ? Actions(w, _pressTarget) : 0;
+
+        /// <summary>One line by the crosshair and its colour.</summary>
+        public readonly record struct UseLine(string Text, Color Colour);
+
+        /// <summary>
+        /// ⭐ CE-1158 — what is drawn under the crosshair: the PROMPT (the primary action on what the crosshair rests on, from the same
+        /// rule the brain decides with, on this node's own copy of the world — §8h.6 ①), or the hold-E LIST (the picked one marked); then
+        /// the brain's VERDICT on our last press for <see cref="VerdictSeconds"/> once it is done or refused (§8h.6 ②).
+        /// </summary>
+        public System.Collections.Generic.List<UseLine> UseLines(EntityRepository w)
+        {
+            var lines = new System.Collections.Generic.List<UseLine>();
+            if (!w.IsAlive(Unit)) return lines;
+            if (UseListOpen)
+            {
+                int n = Actions(w, _pressTarget);
+                for (int i = 0; i < n; i++)
+                    lines.Add(new UseLine((i == _listIndex ? "> " : "  ") + (i + 1) + "  " + PossessionStation.Hud.Prompt(w, _actions[i])[3..],
+                        i == _listIndex ? PossessionStation.Hud.UsePicked : _actions[i].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
+            }
+            else if (Actions(w, _eHolding ? _pressTarget : AimTarget) > 0)
+                lines.Add(new UseLine(PossessionStation.Hud.Prompt(w, _actions[0]),
+                    _actions[0].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
+            if (VerdictLine(w) is { } verdict) lines.Add(verdict);
+            return lines;
+        }
+
+        private UseLine? VerdictLine(EntityRepository w)
+        {
+            if (!_usedHere || !w.IsComponentTypeRegistered<OperatorUseStatus>() || !w.HasComponent<OperatorUseStatus>(Unit)) return null;
+            var status = w.GetComponentRO<OperatorUseStatus>(Unit);
+            if (status.UseSeq != _useSeq || PossessionStation.Hud.Verdict(_lastLabel, status) is not { } text) return null;
+            if (_verdictSince < 0f) _verdictSince = _station.Clock;
+            if (_station.Clock - _verdictSince > VerdictSeconds) return null;
+            return new UseLine(text, status.Outcome == UseOutcome.Done ? PossessionStation.Hud.UseDone : PossessionStation.Hud.UseRefused);
+        }
 
         /// <summary>⭐ CE-1143 — C: crouched ↔ standing (from prone it crouches).</summary>
         public static Fdp.Toolkit.Tkb.Domain.StanceId ToggleCrouch(Fdp.Toolkit.Tkb.Domain.StanceId s)

@@ -15,6 +15,7 @@ known-rot: 3.0 is SUPERSEDED by 3.8.9 - the user ruled the JSON style cascade an
   StyleResolutionSystem is NOT lifted to every host. 3.8's own first draft is in the HISTORY section and
   must not be quoted.
 related-designs:
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §8 U-2 (CE-1163): a civilian whose side flips must redraw live; it builds §3.1 here and adds the IG override precedence (U2-b)
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: WHICH entities are selected and how that is stored,
     requested and announced. This file owns only what a selected entity LOOKS like (the ring, the symbol).
 -->
