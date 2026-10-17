@@ -465,5 +465,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, ingress.UnknownKindCount);
             Assert.Equal(0, w.Bus.Read<DoorCommandEvent>().Length);
         }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11, §7.13 ST-4) — a draw / stow / conceal asked on the brain's node crosses as the
+        /// <c>Restation</c> case (target = the man, actor = the thing, the seat) to the node that owns his list, and arrives as the same event
+        /// marked remote. ✅ Red-proof: <c>Restation</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ARestation_CrossesAsItsUnionCase_ToTheListOwner_AndArrivesAsTheSameEvent()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsPistol = brain.CreateEntity();   // a replica man: no list here
+            Entity ownersMan = owner.CreateEntity(), ownersPistol = owner.CreateEntity();
+            brainMap.Register(700L, brainsMan); brainMap.Register(701L, brainsPistol);
+            ownerMap.Register(700L, ownersMan); ownerMap.Register(701L, ownersPistol);
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Behavior.RestationEvent { Man = brainsMan, Thing = brainsPistol, Seat = 3 });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.Restation, 700L, 701L, (byte)3), (sent.Payload.Kind, sent.TargetId, sent.ActorId, sent.Payload.Restation.Seat));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.RestationEvent>().ToArray());
+            Assert.Equal((ownersMan, ownersPistol, (byte)3, true), (arrived.Man, arrived.Thing, arrived.Seat, arrived.IsRemote));
+        }
     }
 }

@@ -42,9 +42,19 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2152</c> — a soldier who can carry or drag one casualty: one open seat, the casualty survives his fall.</summary>
         /// <remarks>⭐ Weapon systems WS-2 (R-2016 W-G, DESIGN_Weapon_Systems §5) — and one CARRY STATION (a <see cref="SeatRole.Station"/>
         /// accepting <see cref="MountKinds.Carried"/>): the portable weapon system he carries, beside the casualty seat.</remarks>
+        /// <remarks>⭐ <c>CE-3233</c> (civilians B-11, AW-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.13 ST-1/ST-2) — and two more
+        /// carry stations APPENDED (seat 1 stays the HANDS, which presets name by index): seat 2 the BACK (<see cref="SeatDto.Stowed"/>: carried,
+        /// seen, not fired from) and seat 3 the HIDDEN station (stowed, <see cref="SeatDto.Concealed"/> and not exposed: nobody sees it, it
+        /// arms nobody, it is not sensed or hit).</remarks>
         public static CarrierDefDto PersonCarrier() => new()
         {
-            Seats = { new SeatDto(), new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried } },
+            Seats =
+            {
+                new SeatDto(),
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried },                                          // 1 the hands
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried, Stowed = true },                           // 2 the back
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried, Stowed = true, Concealed = true, Exposed = false },   // 3 hidden
+            },
             Exposure = PassengerExposure.Open,
             DiesWithCarrier = false,
             Person = new PersonCarryDto(),
@@ -127,6 +137,14 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ W-I (STEER_…_Crew_Presets) — a TKB type the seat starts with when the host is placed (<c>SeatPresets</c>, once, on the
         /// creating node): a weapon system for a <see cref="SeatRole.Station"/>, a soldier for a crew seat. 0 = empty.</summary>
         public long StartWith { get; init; }
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2) — a station whose weapon is CARRIED, not held: it cannot fire from here (a slung rifle,
+        /// a pistol in a holster). It is still seen unless <see cref="Concealed"/>. Appended.</summary>
+        public bool Stowed { get; init; }
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2/ST-6) — a station nobody sees into (under a coat, a suicide vest): what it holds arms
+        /// nobody (R-2025), and a carrier's free-station search never fills it unasked (ST-3). Appended.</summary>
+        public bool Concealed { get; init; }
     }
 
     /// <summary>⭐ CE-1083 — how a rider sits in a seat (the 3-D map's figure).</summary>

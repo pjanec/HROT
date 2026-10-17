@@ -279,6 +279,7 @@ namespace Fdp.Toolkit.Behavior
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
                 if (!stations.IsStation(i) || (stations.Seats[i].Accepts & mountKinds) == 0) continue;
+                if (stations.IsConcealed(i)) continue;   // ⭐ CE-3233 (B-11, §7.13 ST-3) — a hidden station is filled only when asked (CarryStations.Move)
                 any = true;
                 if (buffer.Passengers[i].IsNull) return i;
             }

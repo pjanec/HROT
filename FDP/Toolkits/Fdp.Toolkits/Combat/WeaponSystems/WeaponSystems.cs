@@ -74,6 +74,8 @@ namespace Fdp.Toolkit.Combat
                 var host = tag.VehicleEntity;
                 IsStation(world, host, tag.Seat, out var station);
                 carried = Has<PersonCarrier>(world, host);
+                // ⭐ CE-3233 (B-11, §7.13 ST-5) — a carried weapon on his BACK or in his HIDDEN station is not in his hands: draw it first
+                if (carried && Fdp.Toolkit.Behavior.CarryStations.IsStowed(world, weapon)) { reason = WeaponHold.NotDeployed; return false; }
                 if (!carried && station.NeedsGunner != 0)
                 {
                     int seat = station.OperatedBy;
@@ -170,7 +172,9 @@ namespace Fdp.Toolkit.Combat
             Span<Entity> weapons = stackalloc Entity[MaxControlled];
             int n = Controlled(world, unit, weapons);
             for (int k = 0; k < n; k++)
-                if (world.HasComponent<Components.WeaponState>(weapons[k]) && !IsBroken(world, weapons[k])) { mount = weapons[k]; return ControlledMountBase + k; }
+                if (world.HasComponent<Components.WeaponState>(weapons[k]) && !IsBroken(world, weapons[k])
+                    && !Fdp.Toolkit.Behavior.CarryStations.IsStowed(world, weapons[k]))   // ⭐ CE-3233 (B-11, ST-5) — not one he cannot fire
+                { mount = weapons[k]; return ControlledMountBase + k; }
             return 0;
         }
 

@@ -239,6 +239,8 @@ public sealed class EntityTypeCatalogTests
         613 Stinger (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         614 Igla (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         615 ZU-23-2 | dis 1.1.0.50.7.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        616 Rifle (pick-up) | dis 1.1.0.50.8.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        617 Pistol (pick-up) | dis 1.1.0.50.9.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
         1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1003 CivilianChild | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person

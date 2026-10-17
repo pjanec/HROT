@@ -64,6 +64,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-3235</c> (B-13) — <see cref="PickUpGrantEvent"/>: the round's owner gives it to the man's brain owner.</summary>
         public const int PickUpGrantEventId = 5012;
 
+        /// <summary>⭐ <c>CE-3233</c> (B-11) — <c>RestationEvent</c>: put a carried thing in another of the man's stations (draw / stow / conceal).</summary>
+        public const int RestationEventId = 5013;
+
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;

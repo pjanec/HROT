@@ -332,6 +332,21 @@ namespace Hrot.Map.Definitions.Tkb
                 new WeaponMount { WeaponType = "Igla_SAM", Ammunition = 1, Range = 5200, RateOfFire = 3, DamagePerHit = 300,
                     AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 8f, FireOnMove = false,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile, Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f));
+            // ⭐ CE-3233 (civilians B-11, AW-6, §7.13 ST-7) — the PICK-UP rifle and pistol: the shoulder carry of one man, fired from his hands
+            //   (FireWhileCarried) — not from his back or his hidden station (ST-5). Their mounts are the built-in soldier's rifle and pistol
+            //   (UrbanCombatTkbCatalog), muzzle speed stated (the range fallback would fly them at 150 / 25 m/s).
+            var pickUp = shoulder with { CarrySpeedFactor = 1f, DeploySeconds = 0f, PackSeconds = 0f };
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_PickUpRifle, "Rifle (pick-up)", 8, pickUp,
+                new WeaponMount { WeaponType = "5.56mm_rifle", Ammunition = 150, Range = 300, Penetration = 5, DamagePerHit = 25, DispersionMils = 6f,
+                    MagazineSize = 30, ReloadSeconds = 3f, MuzzleVelocity = 800f, FireOnMove = true, Category = WeaponCategory.SmallArms,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5 },
+                turret: null, new(0.1f, 0f, 10f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_PickUpPistol, "Pistol (pick-up)", 9, pickUp,
+                new WeaponMount { WeaponType = "9mm_pistol", Ammunition = 45, Range = 50, Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.Pistol9mmPenetrationMm,
+                    DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.Pistol9mmDamage, DispersionMils = 12f, MagazineSize = 15, ReloadSeconds = 2f,
+                    MuzzleVelocity = 360f, FireOnMove = true, Category = WeaponCategory.SmallArms, Look = ItemLook.Pistol,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm },
+                turret: null, new(0.02f, 0f, 5f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Zu23, "ZU-23-2", 7, heavy with { DeploySeconds = 30f, PackSeconds = 20f, CarrySpeedFactor = 0.3f },
                 new WeaponMount { WeaponType = "2A14_23mm", Ammunition = 100, Range = 2500, RateOfFire = 400,
                     DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Zu23ApiLibraryName),

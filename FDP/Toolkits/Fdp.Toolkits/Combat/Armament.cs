@@ -199,7 +199,21 @@ namespace Fdp.Toolkit.Combat
         public static bool ArmedByStatus(ISimulationView view, Entity man)
             => view.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(view, man) && !PersonHands.HandsOnly(view, man)   // ⭐ CE-3230 (H-3)
                && !WeaponLaying.AllLaidDown(view, man)   // ⭐ CE-3232 (B-10, LD-4) — every weapon laid down: no status weapon
-               || view is EntityRepository r && !WeaponSystems.WeaponOf(r, man).IsNull;
+               || view is EntityRepository r && SeenControlled(r, man);   // ⭐ CE-3233 (B-11, ST-6) — a weapon he carries that anyone can see
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-5/ST-6) — does <paramref name="man"/> control a working weapon system an observer can SEE
+        /// (in his hands or slung on his back — never one in his HIDDEN station)? Was <c>WeaponSystems.WeaponOf</c>, which now answers only what
+        /// he can FIRE (a slung rifle still arms him by sight).</summary>
+        private static bool SeenControlled(EntityRepository world, Entity man)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponState>()) return false;
+            Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
+            int n = WeaponSystems.Controlled(world, man, controlled);
+            for (int k = 0; k < n; k++)
+                if (world.HasComponent<WeaponState>(controlled[k]) && !WeaponSystems.IsBroken(world, controlled[k])
+                    && !Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, controlled[k])) return true;
+            return false;
+        }
 
         /// <summary>
         /// ⭐ The TRUTH form (Civilians §5h, note 1) for a reader that is not an observer — "am I armed" (<c>ThreatDanger.OwnStrength</c>):
@@ -271,6 +285,7 @@ namespace Fdp.Toolkit.Combat
             {
                 var w = controlled[k];
                 if (!world.HasComponent<WeaponState>(w) || WeaponSystems.IsBroken(world, w)) continue;
+                if (Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, w)) continue;   // ⭐ CE-3233 (B-11, ST-6) — hidden: nobody sees it
                 if (CombatTkb.MountOf(world, w, 0) is { } mount)
                     best = Max(best, OfItem(ItemAppearances.Of(world, mount), distance, seeing));
             }

@@ -334,6 +334,7 @@ namespace Fdp.Toolkit.Utility
                 for (int k = 0; k < nControlled && candidateCount < MaxCandidates; k++)
                 {
                     if (!repo.HasComponent<WeaponState>(controlled[k])) continue;
+                    if (Fdp.Toolkit.Behavior.CarryStations.IsStowed(repo, controlled[k])) continue;   // ⭐ CE-3233 (B-11, ST-5) — slung or hidden: not fired
                     candidates[candidateCount]  = controlled[k];
                     isSelfMount[candidateCount] = true;
                     candidateCount++;
