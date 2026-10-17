@@ -63,16 +63,19 @@ def write_scenario(count):
 
 
 def profile_rows():
-    """[(subsystem, system, avgMs, recentAvgMs, maxMs, executions)] from the scheduler's profiler, every subsystem."""
+    """([(subsystem, system, avgMs, recentAvgMs, maxMs, executions)], the same for translators) — every subsystem."""
     d = udc.data(udc.call("GET", "/diagnostics/architecture")) or {}
-    rows = []
+    rows, trows = [], []
     for s in d.get("subsystems") or []:
         for sy in s.get("systems") or []:
             if "avgMs" not in sy:
                 sys.exit("the route carries no timing (avgMs) — the runner predates CE-3222; rebuild it")
             rows.append((s.get("subsystem"), sy.get("systemName") or "?", sy.get("avgMs", 0.0), sy.get("recentAvgMs", 0.0),
                          sy.get("maxMs", 0.0), sy.get("executions", 0)))
-    return rows
+        for t in s.get("translators") or []:     # CE-3242: translator rows carry their own ms
+            trows.append((s.get("subsystem"), f"{t.get('topic') or t.get('systemName') or '?'} ({t.get('direction') or '?'})",
+                          t.get("avgMs", 0.0), t.get("recentAvgMs", 0.0), t.get("maxMs", 0.0), t.get("executions", 0)))
+    return rows, trows
 
 
 def run(count, seconds, port, budget):
@@ -84,7 +87,7 @@ def run(count, seconds, port, budget):
         t0 = udc.sim_time() or 0.0
         if udc.wait_for(lambda: (udc.sim_time() or 0.0) - t0 >= seconds, timeout=max(600, seconds * 20), every=2) is None:
             print(f"   ⚠ the sim did not advance {seconds} s (at {(udc.sim_time() or 0.0) - t0:.1f} s) — reporting what ran")
-        rows = profile_rows()
+        rows, trows = profile_rows()
     finally:
         udc.stop(proc)
         shutil.rmtree(folder, ignore_errors=True)
@@ -101,6 +104,11 @@ def run(count, seconds, port, budget):
         top = sorted((r for r in rows if r[0] == sub), key=lambda r: -r[3])[:TOP]
         for _, name_, avg, recent, mx, n in top:
             print(f"      top  {name_:<47} {recent:8.3f}  {avg:8.3f}  {mx:9.3f}  {n:7d}")
+    for sub in sorted({r[0] for r in trows}):
+        top = sorted((r for r in trows if r[0] == sub), key=lambda r: -r[3])[:TOP]
+        print(f"   {sub:<10} TRANSLATORS (costliest)")
+        for _, name_, avg, recent, mx, n in top:
+            print(f"      tr   {name_:<47} {recent:8.3f}  {avg:8.3f}  {mx:9.3f}  {n:7d}")
     frames = max((r[5] for r in rows), default=0)
     print(f"   frames run: {frames} in {seconds} s of sim (a --mode all host runs every subsystem in one process, one after another)")
     over = [r for r in watched if budget and r[3] > budget]

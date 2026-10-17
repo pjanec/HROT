@@ -113,6 +113,16 @@ namespace Hrot.Network.NED.SimHost
                 if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
                 _liveKeys.Add((parentNetworkId, localChildIndex));
 
+                // ⭐⭐ CE-3036 / R-185 K — a TKB sensor is built from the unit's TKB on EVERY node: its default never goes on
+                //    the wire. Only an OVERRIDE does (R-187 N′ — a SensorConfigPayload on it); when the override ends, ONE
+                //    "back to default" sample (Override = false) is written, then the sensor is silent again.
+                //    ⭐ CE-3245 — decided FIRST, before the record lookup and the context-slot reads: it is the common case (every
+                //    TKB sensor of every unit, every frame) and needs none of them. 📐 300 civilians: 600 such sensors, 1.8 ms/frame.
+                var payload  = view.HasManagedComponent<SensorConfigPayload>(entity) ? view.GetManagedComponentRO<SensorConfigPayload>(entity) : null;
+                bool tkb     = localChildIndex >= SensorChildFactory.FirstTkbPartId;
+                if (tkb && payload == null && !(_published.TryGetValue(entity, out var prevTkb) && prevTkb.Override))
+                    continue;
+
                 // ⭐ CE-507 (S6): the key is (descriptor, part instance) — the raw ordinal matched no record entry, so the
                 //   gate always fell to the parent's PRIMARY owner, whatever the brain group's grant said.
                 if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, localChildIndex))) continue;
@@ -127,14 +137,6 @@ namespace Hrot.Network.NED.SimHost
                 if (!TrySlotNetId(sensor.ContextSlot0, out long slot0)
                     || !TrySlotNetId(sensor.ContextSlot1, out long slot1)
                     || !TrySlotNetId(sensor.ContextSlot2, out long slot2))
-                    continue;
-
-                // ⭐⭐ CE-3036 / R-185 K — a TKB sensor is built from the unit's TKB on EVERY node: its default never goes on
-                //    the wire. Only an OVERRIDE does (R-187 N′ — a SensorConfigPayload on it); when the override ends, ONE
-                //    "back to default" sample (Override = false) is written, then the sensor is silent again.
-                var payload  = view.HasManagedComponent<SensorConfigPayload>(entity) ? view.GetManagedComponentRO<SensorConfigPayload>(entity) : null;
-                bool tkb     = localChildIndex >= SensorChildFactory.FirstTkbPartId;
-                if (tkb && payload == null && !(_published.TryGetValue(entity, out var prevTkb) && prevTkb.Override))
                     continue;
 
                 var topic = new EqsSensorConfigTopic
