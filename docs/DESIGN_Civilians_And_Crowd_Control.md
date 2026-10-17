@@ -418,7 +418,7 @@ shot" could mean "not seen").
 | ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ✅ §5h.5 — live 7/7, twin green |
 | ARMED AW-2, AW-21 · B-7, B-8 | **`ua-armed-stones`** | test-town · stone-throwers (Hostile civilians) against a police line | ① non-lethal force only — zero lethal rounds counted · ② the throwers read unarmed on every node | ⏳ |
 | ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · a civilian fires at patrol A, hides his rifle, walks into a crowd; patrol B (another squad) arrives later | ① patrol A engages him on status when his line is clear · ② patrol B treats him as a civilian (warns, never fires first) | ⏳ |
-| ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ⏳ |
+| ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ✅ §5i.3a — live 6/6 (the cloud 12.9 m from the police, the new one 0.1 m), twin green |
 | ARMED AW-23 · B-15, CE-2238 | **`ua-player-fratricide`** | test-town · a first-person player in a squad shoots two friends; a second run, one accidental wound | ① flipped Hostile on every node · ② the friendly AI engage him · ③ the instructor event names both victims · ④ the one-wound run flags nothing | ⏳ |
 | ARMED AW-12 · B-11, CE-2238 | **`ua-armed-bomber`** | test-town · a civilian with a Hidden charge walks into a crowd and sets it off | ① never armed to any observer before the blast (sampled) · ② the casualties match the warhead's numbers | ⏳ |
 | CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
@@ -1657,7 +1657,7 @@ graph TD
 | the act | ⭐ the first THROW commits it (`HostileActs.Commit`, once) | on the hit: a stone that misses is still an attack (AW-16) |
 | the throwers' arms | ⭐ the gesture stays `FistRaised`; the throw shows through the executor's `Throwing` status | a Throwing gesture byte per throw: the figure already reads the weapon status |
 
-⚠ **Known limits:** ① no lying-stone pick-up yet (`RoundPickUp.Ask` — next step); ② one target at a time, the nearest; ③ a thrown
+⚠ **Known limits:** ① ~~no lying-stone pick-up yet~~ — built, §5i.3 (`CE-2238` part 3); ② one target at a time, the nearest; ③ a thrown
 stone never hits a neutral on purpose — the executor's neutral exemption for an arcing round (H-5) means he may hit one by accident.
 
 #### 5i.2a AS-BUILT *(behaviors, 2026-10-17)*
@@ -1679,7 +1679,7 @@ stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he 
 the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
 at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
 
-### 5i.3 CIV-4 behaviour, part 3 — picking a lying throwable up, the canister thrown back *(behaviors, `CE-2238` part 3 / handoff B1, 2026-10-17; build-state: READY-TO-BUILD)*
+### 5i.3 CIV-4 behaviour, part 3 — picking a lying throwable up, the canister thrown back *(behaviors, `CE-2238` part 3 / handoff B1, 2026-10-17; build-state: BUILT — as-built in §5i.3a)*
 
 ⭐ **Scope.** AW-8's second source and AW-9: a rioter with empty hands and someone to throw at goes for the nearest LYING throwable —
 a stone that missed, a gas canister still venting — asks for it (backend's `RoundPickUp`, B-13 §7.10) and throws it with the riot's one
@@ -1762,6 +1762,20 @@ grant ride backend's existing `RoundPickUpSystem`, which every node builds.
 
 **Slices:** ① `Throwables` + the scavenge arm + rails (a missed stone picked up and thrown · a canister picked up, the burn in hand ·
 a live grenade skipped · no target ⇒ no scavenging) · ② demo `ua-armed-gas-throwback` + live check + twin.
+
+#### 5i.3a AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as the diagrams above draw it — no deviation.** `Throwables.Nearest` (`Fdp.Toolkits/Civilians/Throwables.cs`) walks the
+lightweight replicas AND, on the node that flies them, the rounds themselves; `CivilianBehavior.Riot` gains `Scavenge` (after the throw
+and strike arms, before the walk to the target) and `RiotState.Pickup`. A round someone else won is "not lying" any more, so the next
+tick looks again.
+
+| proof | result |
+|---|---|
+| rail `CivilianHsmTests.CE2238_ARioterWithEmptyHands_PicksTheLyingStoneUp_NotALiveGrenade_AndThrowsIt` (through backend's real `RoundPickUpSystem`) | ✅ — no target ⇒ the stone lies · he walks to the stone, not the nearer live grenade · granted (gone, one in his hands) · thrown at the policeman · his act. ✅ 3 mutants red: no scavenge arm · no lethal skip · no Ask |
+| demo `ua-armed-gas-throwback` — twin `PostureScenarioTests.CE2238_GasThrowback_…` | ✅ — the cloud sat on the canister 12.9 m from the policeman; picked up at 3.6 s, it let go and drifted; he was irritated while he held it; thrown, a new cloud rose 0.1 m from the policeman; he stayed in Riot (PanicAt 1.5) and his throw flipped him Hostile |
+| live `run_armed_gas_throwback` | ✅ 6/6 (the same numbers: 12.9 m → 0.1 m) |
+| the neighbours re-run (the riot changed under them) | twins `CE2238_RiotStone` · `CE2238_CivMelee` · `CE2239_PoliceLine` ✅; live `ua-civ-riot-stone` 6/6 |
 
 ## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: BUILT — slices ①–④, the demo's twin green)*
 
