@@ -114,6 +114,15 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3219 (civilians B-1) — a person's stored non-lethal effects, beside Health (Brain → every node).
             yield return new EntityEffectStateEgressTranslator(participant);
             yield return new EntityEffectStateIngressTranslator(participant, entityMap);
+            // ⭐⭐ CE-1148 S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — the world events on EVERY node: a shot, a burst, a
+            //   round's mark. The egress sends only this node's local events (IsRemote false) stamped with SourceNodeId; the ingress drops
+            //   this node's own samples, so no role needs an exclusion and a node with two shooters' worth of events gets each once.
+            yield return new Hrot.Network.NED.SimHost.WeaponFireNotificationEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MunitionDetonationEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MunitionDetonationIngressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.RoundImpactEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.RoundImpactIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
             yield return new EntityGestureEgressTranslator(participant);
             yield return new EntityGestureIngressTranslator(participant, entityMap);

@@ -251,5 +251,14 @@ public sealed class NedReplicationModuleTests
                                      "EntityWeaponTaskStatusIngressTranslator", "FireInteractionEventTranslator", "GeoSpatialIngressTranslator" })
             Assert.Contains(name, polled);
         Assert.DoesNotContain(registry.Systems, sys => sys.GetType().Name == "EntityStatesIngressPack");
+
+        // ⭐ CE-1148 S2 — the world events on every role, each pair exactly once (the ingress drops the node's own samples).
+        var sent = new List<string>();
+        foreach (var egress in registry.Systems.OfType<Fdp.Network.Cyclone.Systems.CycloneEgressSystem>())
+            foreach (var t in egress.Translators) sent.Add(t.GetType().Name);
+        foreach (var name in new[] { "WeaponFireIngressTranslator", "MunitionDetonationIngressTranslator", "RoundImpactIngressTranslator" })
+            Assert.Equal(1, polled.Count(n => n == name));
+        foreach (var name in new[] { "WeaponFireNotificationEgressTranslator", "MunitionDetonationEgressTranslator", "RoundImpactEgressTranslator" })
+            Assert.Equal(1, sent.Count(n => n == name));
     }
 }

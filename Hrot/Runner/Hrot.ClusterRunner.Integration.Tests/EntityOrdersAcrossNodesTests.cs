@@ -322,6 +322,49 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             "lowering the hands must reach both too");
     }
 
+    /// <summary>⭐⭐ <c>CE-1148</c> S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — a burst simulated on SimHost reaches the
+    /// brain node through the ONE shared event pair, exactly once, and stays once (no loop-back, no second list).</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE1148_ABurstOnSimHost_ReachesTheBrainExactlyOnce()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        const long Tag = 987_654_321L;   // a munition id no scenario uses, so only this burst is counted
+        int Seen()
+        {
+            Span<Fdp.Toolkit.Combat.RecentBurst> kept = stackalloc Fdp.Toolkit.Combat.RecentBurst[Fdp.Toolkit.Combat.RecentDetonations.Capacity];
+            int n = Fdp.Toolkit.Combat.RecentDetonations.Since(cgf, double.MinValue, kept), hits = 0;
+            for (int i = 0; i < n; i++) if (kept[i].Ammo == Tag) hits++;
+            return hits;
+        }
+
+        // the shooter must be a network entity: the egress drops a burst nobody fired (MunitionDetonationEgressTranslator)
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000), "the Rifleman must exist on SimHost");
+        sim.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification
+        {
+            Shooter = ByName(sim, "Rifleman"), HitX = 3f, HitY = 4f, HitZ = 0f, Ammo = Tag,
+        });
+        Assert.True(harness.PumpUntil(() => Seen() >= 1, timeoutFrames: 600), "a burst simulated on SimHost must reach the brain node");
+        harness.PumpFrames(120);
+        Assert.Equal(1, Seen());
+    }
+
     [Fact(Timeout = 600_000)]
     public async Task M7_APossessedDrone_FollowsTheStation_AcrossNodes()
     {

@@ -25,13 +25,16 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<RoundImpact>(participant, DdsTopicName), entityMap) { }
+        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap)
+        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+            : this(new DdsWriterAdapter<RoundImpact>(participant, DdsTopicName), entityMap, localNodeId) { }
+
+        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, long localNodeId = 0)
         {
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -47,7 +50,7 @@ namespace Hrot.Network.NED.SimHost
                     ShooterEntityId = shooterId, X = evt.X, Y = evt.Y, Z = evt.Z,
                     NormalX = evt.NormalX, NormalY = evt.NormalY, NormalZ = evt.NormalZ,
                     TravelX = evt.TravelX, TravelY = evt.TravelY, TravelZ = evt.TravelZ,
-                    MunitionType = evt.Ammo, Kind = evt.Kind,
+                    MunitionType = evt.Ammo, Kind = evt.Kind, SourceNodeId = _localNodeId,
                 });
                 SentSampleCount++;
             }
@@ -57,8 +60,9 @@ namespace Hrot.Network.NED.SimHost
         public void Dispose(long networkEntityId) { }
     }
 
-    /// <summary>⭐ <c>CE-1128</c> — a viewer's half: a DDS <c>RoundImpact</c> becomes a remote <see cref="RoundImpactNotification"/>, which
-    /// <c>EffectSpawnSystem</c> draws. ⛔ Never on a MuscleGround node: its own samples would loop back and draw every mark twice.</summary>
+    /// <summary>⭐ <c>CE-1128</c> — a DDS <c>RoundImpact</c> becomes a remote <see cref="RoundImpactNotification"/>, which
+    /// <c>EffectSpawnSystem</c> draws. ⭐ CE-1148 S2 (Node Roles §3.5) — on every node: this node's own samples come back and are dropped
+    /// by <c>SourceNodeId</c>, so a marking node draws each of its marks once.</summary>
     public sealed class RoundImpactIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "RoundImpact";
@@ -71,9 +75,12 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        private readonly long _localNodeId;
+
+        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
             _reader    = participant is not null ? new DdsReader<RoundImpact>(participant, DdsTopicName) : null;
         }
 
@@ -92,6 +99,7 @@ namespace Hrot.Network.NED.SimHost
 
         internal void ProcessSample(in RoundImpact d, IEntityCommandBuffer cmd)
         {
+            if (d.SourceNodeId != 0 && d.SourceNodeId == _localNodeId) return;   // ⭐ CE-1148 S2 — this node's own mark
             _entityMap.TryGetEntity(d.ShooterEntityId, out var shooter);
             cmd.PublishEvent(new RoundImpactNotification
             {

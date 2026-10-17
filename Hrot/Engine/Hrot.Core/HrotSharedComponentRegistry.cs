@@ -104,6 +104,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+        // ⭐ CE-1148 S2 (Node Roles §3.5) — the world events every node now receives (a shot, a burst, a round's mark).
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
         //   kind's event on EVERY host — the ingress republishes it wherever a request lands).

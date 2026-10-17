@@ -33,7 +33,25 @@ namespace Hrot.IG.Tests
         // ── Helpers ───────────────────────────────────────────────────────────
 
         private WeaponFireIngressTranslator BuildTranslator()
-            => new WeaponFireIngressTranslator(participant: null, _entityMap);
+            => new WeaponFireIngressTranslator(participant: null, _entityMap, localNodeId: 0);
+
+        /// <summary>⭐ CE-1148 S2 (Node Roles §3.5, R-3015) — every node reads the shots; its OWN shot (already a local event there) comes
+        /// back from the wire and is dropped by SourceNodeId, so heat and sound never count a shooter twice.</summary>
+        [Fact]
+        public void CE1148_ANodesOwnShot_IsDropped_AnotherNodesIsKept()
+        {
+            var ingress = new WeaponFireIngressTranslator(participant: null, _entityMap, localNodeId: 5);
+            var view = (ISimulationView)_world;
+            var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
+            ingress.ProcessSample(new WeaponFire { WeaponIndex = 1, SourceNodeId = 5 }, cmd);   // mine
+            ingress.ProcessSample(new WeaponFire { WeaponIndex = 2, SourceNodeId = 7 }, cmd);   // another node's
+            cmd.Playback(_world);
+            _world.Bus.SwapBuffers();
+
+            var e = Assert.Single(_world.Bus.Read<WeaponFireNotification>().ToArray());
+            Assert.Equal(2, e.WeaponIndex);
+            Assert.True(e.IsRemote);
+        }
 
         /// <summary>
         /// Calls <see cref="WeaponFireIngressTranslator.ProcessSample"/>, plays back the
