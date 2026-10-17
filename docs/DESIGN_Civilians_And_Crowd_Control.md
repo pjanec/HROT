@@ -1440,6 +1440,85 @@ always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluati
 red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
 witness window · a known man always lethal).
 
+### 5h.7 B3 — draw, sling, conceal; the covert insurgent; aiming at the forces is the act *(behaviors, `CE-2238` part 4 / handoff B3, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-11's COVERT insurgent (a civilian, a pick-up pistol Hidden) and AW-16: drawing makes him armed but is NOT a hostile act;
+aiming at the forces IS — the act and the side flip. Demo `ua-armed-draw-aim` (§5c). ⏳ Not here: the soldier's WARNING after the draw
+(the ladder's intent rows, B2) · `ua-armed-blend-back` (fire, conceal, walk into a crowd — next, on the same pieces).
+
+**INVENTORY** *(2026-10-17; grep `HostileActKind.Lethal` ⇒ readers only (`ForceLevels.SelfDefence`, `HostileActs.MarkWitnesses`) — ⛔ NO
+producer of a lethal act; grep `CarryStations\.(Move|Ask)` ⇒ no behaviour caller; codebase-memory CLI `search_graph`
+`.*(Draw|Stow|Conceal|Holster|Restation).*` ⇒ editor drawers only; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the stations | a person carries in seat 1 HANDS, 2 BACK (stowed: seen, cannot fire), 3 HIDDEN (stowed + concealed: arms nobody, not sensed); `CarryStations.Move` on the list's owner, `Ask` from anywhere (I-1 kind 11) | `Behavior/CarryStations.cs`, §7.13a |
+| the weapon | pick-up pistol **617** / rifle **616** — one man, fire while carried; a weapon system the man controls (`WeaponChoice` candidates include it) | §7.13a, `WeaponChoice.cs:29-37` |
+| a scenario that carries one | `PassengerBuffer { Passengers: [guid], Seats: [3] }` on the man (the air-assault scenarios author passengers this way) | `scenarios/ua-air-assault` |
+| the ONE writer of an aimed posture | `WeaponPostureOf.Report` — every executor reports "aiming / firing" there | `Combat/WeaponPostureOf.cs:45` |
+| who is a combatant | `Armament.IsCombatant`: not the Civilian class, not Neutral | `Armament.cs:188` |
+| ⛔ the lethal act | ⛔ no producer — `HostileActs.Commit(…, Lethal)` is called by nobody; ⇒ a civilian who shoots at the forces stays Neutral today | INVENTORY grep |
+| a mission's timer | `TimerElapsed {seconds}` ends a task | `MissionTriggerHelper.cs:39` |
+| a civilian running a soldier behaviour | categories are UI only — the ingress does not refuse `PersonAttack` on a civilian; civilians `CanShoot` (§5i.2a) | `BehaviorCategory` readers (none in the ingress) |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponPostureOf { <<existing, grows>> Report: + a NON-combatant Aimed at a forces person ⇒ HostileActs.Commit(Lethal) }
+  class HostileActs { <<existing B-16>> Commit(repo, actor, kind) · Of }
+  class StationWeapon { <<NEW library BTree, Hrot.AI.Behaviors>> Station Hands·Back·Hidden · Seconds }
+  class CarryStations { <<backend B-11, existing>> Hands · Back · Hidden · SeatOf · Move · Ask }
+  class PersonAttack { <<existing soldier behaviour>> AimAndFire at the named target }
+  class MissionPlan { <<existing>> cover (CivilianHsm) · TimerElapsed · StationWeapon Hands · PersonAttack }
+  WeaponPostureOf ..> HostileActs : the AW-16 act
+  StationWeapon ..> CarryStations : Move / Ask
+  MissionPlan ..> StationWeapon
+  MissionPlan ..> PersonAttack
+  PersonAttack ..> WeaponPostureOf : its executor reports Aimed
+```
+*What the picture shows that prose hid:* the insurgent is a MISSION — three existing pieces and one new behaviour; and the act is decided
+in the ONE posture writer, so any behaviour that aims — PersonAttack, CombatPosture, a player — commits it the same way.
+
+```mermaid
+sequenceDiagram
+  participant I as covert insurgent (CGF)
+  participant N as every node
+  participant S as soldier (CGF)
+  Note over I: task 1 CivilianHsm routine — his pistol in seat 3, armed to nobody
+  I->>I: TimerElapsed — task 2 StationWeapon Hands
+  I->>N: the pistol to his hands (CarryStations.Move) — armed, side still Neutral
+  S->>S: a Neutral: HoldNeutral, no round
+  I->>I: 10 s later — task 3 PersonAttack the soldier
+  I->>I: AimAndFire reports Aimed — WeaponPostureOf: a non-combatant aims at the forces
+  I->>N: HostileActs.Commit(Lethal) — side Hostile everywhere
+  S->>S: armed, Hostile, aimed at me: engages (self-defence lifts any cap)
+```
+*What the picture shows that prose hid:* nobody detects an "insurgent" — the soldier reacts to what crossed the wire, and the draw buys the
+man a hold, not a bullet, until he aims.
+
+```mermaid
+graph TD
+  MP[MissionPlan task chain — CGF] --> HSM[CivilianHsm routine]
+  MP --> SW[StationWeapon — BrainTickSystem]
+  MP --> PA[PersonAttack — BrainTickSystem]
+  SW --> CS[CarryStations.Move — the list owner CGF / Ask elsewhere]
+  PA --> AF[AimAndFireExecutor — WeaponDispatcherSystem]
+  AF --> WP[WeaponPostureOf.Report — the act rule]
+  WP --> HA[HostileActs.Commit — the side flip, B-16 replicated]
+```
+*Caption:* nothing new is scheduled — the act rule runs inside the existing posture write; the behaviour runs in the brain tick.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **CO-1** | ⭐ **AW-16 in the ONE posture writer**: `WeaponPostureOf.Report` — a unit that is NOT a combatant (`Armament.IsCombatant` false: a civilian, a neutral) whose weapon goes **Aimed** at a FORCES person (Friend, combatant) commits a **Lethal** hostile act, once (`HostileActs.Of` already Lethal ⇒ nothing) | in the attack behaviour: the next behaviour (CombatPosture, a player's order) forgets it · on the round fired: AW-16 makes the AIM the act — he may never fire |
+| **CO-2** | ⭐ ONE library behaviour **`StationWeapon {Station, Seconds}`** — Hands (draw) · Back (sling) · Hidden (conceal): moves his carried weapon there (`Move` where his list is owned, else `Ask`), holds still `Seconds` (0 ⇒ finishes at once) | three behaviours Draw/Sling/Conceal: one parameter · an `ArmedHostile` HSM state: it would re-implement the soldier's fight (AW-11 says reuse it) |
+| **CO-3** | ⭐ the covert insurgent is a **mission**: task 1 `CivilianHsm` (his cover) until `TimerElapsed`, task 2 `StationWeapon` Hands, task 3 a soldier's attack (`PersonAttack`) — no type, no detector | a covert type: a type per role (CV-1, AW-11) · a trigger vocabulary in the civilian's params: the mission already has timers |
+| **CO-4** | ⭐ the scenario carries the pistol in seat 3 (`PassengerBuffer`) | spawning it at run time: the scenario is the author's place |
+
+**Slices:** ① CO-1 + its rail (a civilian aiming at a soldier ⇒ Lethal, Hostile; a soldier aiming ⇒ nothing; a civilian aiming at a
+civilian ⇒ nothing) · ② `StationWeapon` + rails (draw, sling, conceal; finish after `Seconds`) · ③ demo `ua-armed-draw-aim` + live
+check + twin.
+
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and

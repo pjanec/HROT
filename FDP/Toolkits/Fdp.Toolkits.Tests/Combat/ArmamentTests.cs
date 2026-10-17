@@ -323,5 +323,30 @@ namespace Fdp.Toolkit.Tests.Combat
             Fdp.Toolkit.Civilians.HostileActs.Commit(_world.Repo, civ, Fdp.Toolkit.Civilians.HostileActKind.Lethal);
             Assert.True(KnownCombatants.Knows(_world.Repo, witness, civ));
         }
+        /// <summary>⭐ <c>CE-2238</c> part 4 (AW-16, §5h.7 CO-1) — AIMING at the forces is the hostile act, drawing is not: a civilian whose
+        /// weapon is READY at a soldier commits nothing; aimed at another civilian, nothing; aimed at the SOLDIER — a LETHAL act; an enemy
+        /// soldier aiming at him (a combatant: his status already says it) commits none. ✅ Red-proof: the <c>AimedAtTheForces</c> call removed
+        /// from <c>WeaponPostureOf.Report</c> ⇒ red; its combatant guard removed ⇒ red (the enemy soldier "acts").</summary>
+        [Fact]
+        public void CE2238_AimingAtTheForces_IsALethalAct_ForACivilian_NotForASoldier_NorAimedAtACivilian()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<WeaponPosture>()) _world.Repo.RegisterComponent<WeaponPosture>();
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.HostileAct>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();
+            var soldier = Observer();
+            var civ = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var bystander = Man(PhoneCivType, new Vector3(25f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var enemy = Man(RiflemanType, new Vector3(30f, 0f, 0f), ForceId.Hostile);
+            foreach (var e in new[] { civ, enemy }) _world.Repo.AddComponent(e, new WeaponPosture());
+            Fdp.Toolkit.Civilians.HostileActKind Act(Entity e) => Fdp.Toolkit.Civilians.HostileActs.Of(_world.Repo, e);
+
+            WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutral, soldier);   // drawn, ready
+            Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(civ));
+            WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, bystander);      // at a civilian
+            Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(civ));
+            WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, soldier);        // at the forces
+            Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.Lethal, Act(civ));
+            WeaponPostureOf.Report(_world.Repo, enemy, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, soldier);      // a combatant
+            Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(enemy));
+        }
     }
 }
