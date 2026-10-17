@@ -958,6 +958,23 @@ namespace Fdp.Core
         // ================================================
         
         /// <summary>
+        /// ⭐ <c>CE-3243</c> — sets the component bit and stamps <c>LastChangeTick</c> ONLY when the bit was not already set.
+        /// <c>LastChangeTick</c> is the entity's STRUCTURAL clock (create, destroy, a component coming or going, lifecycle): the
+        /// flight recorder rewrites the entity-index chunk and every table chunk holding a structurally changed entity, and
+        /// <c>QueryDelta</c> treats it as "changed in every component". A VALUE write is already in the table's chunk version —
+        /// the rule <see cref="GetComponentRW{T}"/> documents ("over-broad dirtying"). 📐 Value writes through
+        /// <c>SetComponent</c> / the command buffer stamped it on 58–391 entities a frame, so the recorder rewrote ~180–270 whole
+        /// table chunks a frame that had not changed.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void StampIfAdded(ref BitMask512 mask, int typeId, int entityIndex)
+        {
+            if (mask.IsSet(typeId)) return;
+            mask.SetBit(typeId);
+            _entityIndex.GetMetadata(entityIndex).LastChangeTick = _globalVersion;
+        }
+
+        /// <summary>
         /// Adds an unmanaged component (Tier 1) to an entity.
         /// Updates ComponentMask automatically.
         /// </summary>
@@ -977,8 +994,9 @@ namespace Fdp.Core
             
             // Update component mask
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
-            compMask.SetBit(ComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // ⭐ CE-3243 — LastChangeTick is STRUCTURAL: stamped when the component COMES, not on every value write (SetComponent
+            //   is this method). The value change is in the table's chunk version (table.Set above). See StampIfAdded.
+            StampIfAdded(ref compMask, ComponentType<T>.ID, entity.Index);
         }
         
         /// <summary>
@@ -1313,13 +1331,16 @@ namespace Fdp.Core
             
             // Update component mask
             ref var compMaskM = ref _entityIndex.GetComponentMask(entity.Index);
+            bool had = compMaskM.IsSet(ManagedComponentType<T>.ID);
             
             if (value != null)
                 compMaskM.SetBit(ManagedComponentType<T>.ID);
             else
                 compMaskM.ClearBit(ManagedComponentType<T>.ID);
-                
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+
+            // ⭐ CE-3243 — structural stamp only when the component comes or goes (see StampIfAdded)
+            if (had != (value != null))
+                _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
 
         // ================================================
@@ -1734,9 +1755,8 @@ namespace Fdp.Core
             // Direct memory copy
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
-            // Update component mask
-            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // Update component mask — ⭐ CE-3243: structural stamp only when the component comes
+            StampIfAdded(ref _entityIndex.GetComponentMask(entity.Index), typeId, entity.Index);
         }
 
         /// <summary>
@@ -1764,9 +1784,8 @@ namespace Fdp.Core
             // Use the raw write interface
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
-            // Update component mask (in case it wasn't set)
-            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // Update component mask (in case it wasn't set) — ⭐ CE-3243: structural stamp only when it comes
+            StampIfAdded(ref _entityIndex.GetComponentMask(entity.Index), typeId, entity.Index);
         }
         
         /// <summary>
@@ -1803,7 +1822,7 @@ namespace Fdp.Core
             // ⚠ The component mask is NOT set here, deliberately: a field write PATCHES a component
             //   that must already exist. Adding the bit would make a write to an absent component look
             //   like an add of a component whose other bytes are whatever the slot happened to hold.
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            // ⭐ CE-3243 — and a patch is never structural, so it does not stamp LastChangeTick (the chunk version carries it).
         }
 
         /// <summary>

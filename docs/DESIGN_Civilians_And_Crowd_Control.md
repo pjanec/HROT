@@ -2504,6 +2504,7 @@ for 93 s and CGF gave up waiting on 267 acks. Now an index per world: 📐 **the
 | IG all systems | 30.0 | 38.1 |
 | `CrowdSystem` (CGF, behaviors) | 3.16 | ⛔ **103.6** (max 159) — now CGF's biggest ⇒ behaviors note |
 | `RecorderTickSystem` CGF / SimHost / IG | 29.4 / 24.0 / 15.3 | 33.4 / 27.3 / 15.9 ⇒ `CE-3243` |
+| ⭐ `RecorderTickSystem` after **`CE-3243`** (one chunk-version read; `LastChangeTick` structural only) | **8.5 / 2.8 / 1.2** | — |
 | `OwnershipRecomputeSystem` CGF / SimHost | 9.6 / 11.4 | 16.3 / 19.1 — linear |
 | frames in 60 s of sim | 448 *(was 382)* | 322 |
 
