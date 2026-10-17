@@ -132,6 +132,8 @@ published for them.** `ThermalHeatSystem` and `SoundEmissionSystem` are composed
 local events already exist — ingesting them too would count each shot twice). ⭐ Both arrive `IsRemote = true`; heat and sound
 accept remote events (only `DamageCalculationSystem` skips them).
 
+⛔ **SUPERSEDED `2026-10-17` by [Node Roles §3.5](DESIGN_Node_Roles_And_Policies.md) (CE-1148 S2, R-3015):** the shot / burst / mark pairs are in the shared pack on EVERY node and the ingress drops the node's own samples by `SourceNodeId`; no role branch or exclusion remains. The text below is the prior as-built.
+
 ⭐ **As-built `CE-3065` (`2026-10-05`)** — `SimHostAuxiliaryTranslatorPack`: Perception && !MuscleGround ⇒ `WeaponFireIngressTranslator`
 + `MunitionDetonationIngressTranslator`; ⚠ **one correction found while building it:** the heard-contact EGRESS
 (`AudioTargetDetectedEgressTranslator`) sat behind the MuscleGround gate, but its producer is the memory stage, which runs with the

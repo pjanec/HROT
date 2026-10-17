@@ -98,6 +98,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ CE-1111 — the synced sim time (s) it was fired.</summary>
         public double FiredAt;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
@@ -155,6 +158,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
         public byte Kind;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
@@ -209,6 +215,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); a receiver looks its warhead up.
         /// ⛔ Never the warhead numbers (§3e — one source). <see cref="HitEntityId"/> 0 = it detonated on the terrain.</summary>
         public long MunitionType;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     /// <summary>

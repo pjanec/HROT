@@ -134,7 +134,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((_onSimHost, 2, flare, true, true), (intent.Shooter, intent.WeaponIndex, intent.AmmoGuid, intent.AtPoint, intent.IsRemote));
 
             var fire = new CapturingWriter<WeaponFire>();
-            var fireEgress = new WeaponFireNotificationEgressTranslator(fire, _simHostMap);
+            var fireEgress = new WeaponFireNotificationEgressTranslator(fire, _simHostMap, localNodeId: 1);   // SimHost
             _simHost.Bus.Publish(new WeaponFireNotification
             {
                 Shooter = _onSimHost, Target = Entity.Null, WeaponIndex = 2, AmmoGuid = flare, Round = Entity.Null,
@@ -144,7 +144,7 @@ namespace Hrot.SimHost.Tests
             fireEgress.ScanAndPublish(_simHost);
             var sent = Assert.Single(fire.Written);
             Assert.Equal(0L, sent.RoundEntityId);
-            var fireIngress = new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant: null, _brainMap);
+            var fireIngress = new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant: null, _brainMap, localNodeId: 2);   // the brain: another node's shot is kept
             Apply(_brain, (cmd, view) => fireIngress.ProcessSample(in sent, cmd));
             var seen = Assert.Single(_brain.Bus.Read<WeaponFireNotification>().ToArray());
             Assert.Equal((_onBrain, 2, flare, Entity.Null, 1, true), (seen.Shooter, seen.WeaponIndex, seen.AmmoGuid, seen.Round, seen.Quantity, seen.IsRemote));

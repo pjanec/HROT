@@ -26,6 +26,7 @@ namespace Hrot.Network.NED.IG
 
         private readonly DdsReader<WeaponFire>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — this node's own shots are dropped (SourceNodeId)
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
@@ -39,9 +40,11 @@ namespace Hrot.Network.NED.IG
         /// </summary>
         public WeaponFireIngressTranslator(
             DdsParticipant? participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            long localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
             _reader    = participant is not null
                 ? new DdsReader<WeaponFire>(participant, DdsTopicName)
                 : null;
@@ -88,6 +91,8 @@ namespace Hrot.Network.NED.IG
         /// </summary>
         internal void ProcessSample(in WeaponFire msg, IEntityCommandBuffer cmd)
         {
+            // ⭐ CE-1148 S2 (Node Roles §3.5, R-3015) — every node reads this topic; its own shot is already a local event.
+            if (msg.SourceNodeId != 0 && msg.SourceNodeId == _localNodeId) return;
             _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooter);
             _entityMap.TryGetEntity(msg.TargetEntityId,  out var target);
 

@@ -40,11 +40,7 @@ public sealed class NedIgTranslators : IIgTranslators
                 participant, entityMap));
             // ⛔ CE-3062 — the IG's AudioTargetDetected ingress is retired: nothing on the IG read what it published. The topic
             //   is the Brain's now (SimHostAuxiliaryTranslatorPack, AudioTargetDetectedIngressTranslator).
-            translators.Add(new WeaponFireIngressTranslator(
-                participant, entityMap));
-            translators.Add(new MunitionDetonationIngressTranslator(
-                participant, entityMap));
-            translators.Add(new Hrot.Network.NED.SimHost.RoundImpactIngressTranslator(participant, entityMap));   // ⭐ CE-1128 (VE §10)
+            // (⭐ CE-1148 S2 — the WeaponFire / MunitionDetonation / RoundImpact ingress is in SharedTranslatorPack, on every node.)
             translators.Add(new ContextActionsUpdateTranslator(
                 participant, entityMap, bus, ghostCreationSystem, localNodeId));
         }

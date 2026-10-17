@@ -8,6 +8,7 @@ known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): ef
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §8 U-4 (CE-1165): tear-gas / smoke clouds (AreaEffectCloud) drawn by EffectLayer, like the chaff cloud
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): the RoundImpact pair is on every node with an own-sample skip; supersedes §10's MuscleGround exclusion.
   - DESIGN_Entity_Control.md — §8g OWNS the operator's fire modes (SIGHT / LOCK) and the crosshair on the body parts asked in the same exchange as §10
   - DESIGN_World_Query_Seam.md — OWNS TraceCrossing; §10 IM-4 adds the entry / exit normals to it
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: smoke drifts on the real wind instead of W3's fixed breeze
@@ -953,6 +954,8 @@ graph TD
     classDef dead fill:#fdd,stroke:#c00
     MM[a MuscleGround host viewing ANOTHER muscle's rounds]:::dead
 ```
+
+⛔ **SUPERSEDED `2026-10-17` by [Node Roles §3.5](DESIGN_Node_Roles_And_Policies.md) (CE-1148 S2, R-3015):** the shot / burst / mark pairs are in the shared pack on EVERY node and the ingress drops the node's own samples by `SourceNodeId`; no role branch or exclusion remains. The text below is the prior as-built.
 
 *Caption:* the ingress sits beside every existing `MunitionDetonationIngressTranslator` EXCEPT the MuscleGround branch, where its own samples
 would loop back and draw every impact twice. ⚠ The red box is the known gap that leaves: a muscle node that is also a map host draws its OWN

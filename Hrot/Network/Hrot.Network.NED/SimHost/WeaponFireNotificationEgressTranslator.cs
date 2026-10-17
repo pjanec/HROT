@@ -36,6 +36,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly IDdsWriter<WeaponFire> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
@@ -44,16 +45,17 @@ namespace Hrot.Network.NED.SimHost
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
-        public WeaponFireNotificationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<WeaponFire>(participant, DdsTopicName), entityMap)
+        public WeaponFireNotificationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+            : this(new DdsWriterAdapter<WeaponFire>(participant, DdsTopicName), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor — accepts an injected writer stub.</summary>
-        internal WeaponFireNotificationEgressTranslator(IDdsWriter<WeaponFire> writer, NetworkEntityMap entityMap)
+        internal WeaponFireNotificationEgressTranslator(IDdsWriter<WeaponFire> writer, NetworkEntityMap entityMap, long localNodeId = 0)
         {
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
         }
 
         /// <inheritdoc/>
@@ -95,6 +97,7 @@ namespace Hrot.Network.NED.SimHost
                 if (evt.Round != Entity.Null) _entityMap.TryGetNetworkId(evt.Round, out roundNetId);
                 _writer.Write(new WeaponFire
                 {
+                    SourceNodeId = _localNodeId,
                     ShooterEntityId = shooterNetId,
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
