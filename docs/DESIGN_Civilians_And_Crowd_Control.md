@@ -1679,6 +1679,90 @@ stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he 
 the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
 at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
 
+### 5i.3 CIV-4 behaviour, part 3 — picking a lying throwable up, the canister thrown back *(behaviors, `CE-2238` part 3 / handoff B1, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-8's second source and AW-9: a rioter with empty hands and someone to throw at goes for the nearest LYING throwable —
+a stone that missed, a gas canister still venting — asks for it (backend's `RoundPickUp`, B-13 §7.10) and throws it with the riot's one
+throw. A canister thrown back carries its burn left (B-14 §7.15 VC-5…VC-7). Demo `ua-armed-gas-throwback` (§5c). ⛔ Not here: a live
+grenade (`HoldsLethal` ⇒ the armed path, B3), a crowd fetching stones from far off, a stone source further than his reach.
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*(Lying|Throwable|Scaveng|NearestRound).*` ⇒ no production finder,
+only `RoundPickUpTests` and the CE-3235 integration rail; grep `RoundPickUp\.(IsLying|Ask|CanAsk)` ⇒ no production caller;
+`check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the pick-up | `RoundPickUp.CanAsk` (lying · hand item · in reach 1.5 m · room) and `Ask` publish the request; the round's owner grants ONE asker and destroys the round; the grant lands in his hands (`PersonHands.Give`, a canister with `HeldFuze.BurnSeconds`) | `Combat/RoundPickUp.cs:131-145`, `RoundPickUpSystem` |
+| a lying round on the brain's node | a lightweight replica: `LightweightRound` + `TkbIdentity` (the ammo) + `SimTransform`; lying = speed < 0.2 m/s. On its owner: `BallisticProjectile` `Landed` and not `Spent` | `RoundPickUp.IsLying:103` |
+| who finds one today | ⛔ nobody — no production caller of `IsLying` / `Ask` | INVENTORY query |
+| the throw | `Stones.InHand` (holding anything NOT lethal — a stone or a canister) + `Stones.Throw` (one FireAtPoint from the hands mount); `FireAtPointExecutor` already sends a held round's fuze / burn left | `Civilians/Stones.cs`, §7.15a |
+| the riot's order of things | bend at a source → (no target ⇒ stand) → throw (4–20 m, stones in hand) → strike (in reach) → walk to the target | `CivilianBehavior.Riot:542-598` |
+| ⚠ gas frightens him first | FL-6 (§5j.1): a new irritation frightens as a hit (impulse 1) ⇒ `Panicked` (fear ≥ `PanicAt`, default 0.6) ⇒ Riot → Panic before he reaches the canister | `CivilianFearSystem`, `CivilianBehavior.cs:244, 724` |
+| ⭐ a hardened rioter | `PanicAt` is an authored per-civilian param; fear is capped at 1 ⇒ `PanicAt` > 1 never panics (the gas still irritates him) | `CivilianBehavior.Resolve:189`, `CivilianFear` |
+
+```mermaid
+classDiagram
+  direction LR
+  class Throwables { <<NEW static, Fdp.Toolkits/Civilians>> SearchMetres 15 · Nearest(world, man, radius, out round) }
+  class RoundPickUp { <<backend B-13, existing>> IsLying · IsHandItem · InReach · CanAsk · Ask }
+  class Stones { <<existing>> InHand · Throw }
+  class PersonHands { <<backend B-8, existing>> HasRoom · Holding · HoldsLethal }
+  class ItemAppearances { <<existing>> IsLethal(world, ammo) }
+  class CivilianBehavior_Riot { <<existing, grows>> + scavenge arm: walk to it, bend, Ask }
+  class RiotState { <<existing, grows>> + Pickup (Entity) }
+  Throwables ..> RoundPickUp : IsLying · IsHandItem · AmmoOf
+  Throwables ..> PersonHands : HasRoom
+  Throwables ..> ItemAppearances : skips a lethal round
+  CivilianBehavior_Riot ..> Throwables : Nearest
+  CivilianBehavior_Riot ..> RoundPickUp : CanAsk · Ask
+  CivilianBehavior_Riot ..> Stones : InHand · Throw (unchanged)
+  CivilianBehavior_Riot *-- RiotState
+```
+*What the picture shows that prose hid:* the throw-back needs NO new throw and NO new pick-up path — the riot gains one FINDER and one
+arm; what is thrown, how the burn travels and who wins a contested round are all backend's, already built.
+
+```mermaid
+sequenceDiagram
+  participant P as policeman (CGF)
+  participant S as SimHost (flies the round)
+  participant R as hardened rioter, Riot (CGF)
+  participant C as the cloud (CGF)
+  P->>S: FireAtPoint the gas canister at the crowd
+  S->>S: it lands, bursts, LIES and VENTS
+  S->>C: a cloud, sitting on its canister
+  R->>R: empty hands, a target 4–20 m: Throwables.Nearest — the canister
+  R->>R: walks to it — in reach: crouch, RoundPickUp.Ask
+  S->>R: the grant: the canister in his hands, its burn left
+  C->>C: its source is gone — the cloud drifts free
+  R->>R: irritated each second while he holds it (HandsFuze)
+  R->>S: Stones.Throw at the policeman (FireAtPoint, the burn left)
+  S->>C: it lands: a NEW cloud by the police
+```
+*What the picture shows that prose hid:* acceptance ①②③ are each one backend hop already railed in one world; the behaviour's part is
+the middle three lines — find, walk, ask.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> RIOT[CivilianHsm Riot]
+  RIOT --> TH[Throwables.Nearest — a library call]
+  RIOT --> ASK[RoundPickUp.Ask — the request on the bus]
+  ASK -.I-1 kind 9.-> RPS[RoundPickUpSystem — Interactions capability, the round's owner]
+  RPS -.I-1 kind 10.-> HANDS[PersonHands.Give — the brain's node]
+```
+*Caption:* nothing new is registered or scheduled — the finder is a library call inside the existing Riot activity; the request and the
+grant ride backend's existing `RoundPickUpSystem`, which every node builds.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **PK-1** | ⭐ the riot SCAVENGES when his hands are empty, he has a target and nobody in arm's reach: the nearest lying, non-lethal hand item within `Throwables.SearchMetres` (15 m) with room in his hands | always, target or not: a man with no one to throw at has no reason to · any distance: a riot that leaves its line to fetch is a later behaviour (§5i.2) |
+| **PK-2** | ⭐ walk to it (`MoveTo`, arrival 0.5 m); in reach: crouch and `Ask` ONCE, then the existing bend (`BendSeconds`) — the grant lands while he is down; if another man won it, the next look finds the next | a separate "pick up" state in the HSM: it is one arm of the riot, like the stone source's bend · ask every frame: one request per bend is the backend's contract (one winner) |
+| **PK-3** | ⭐ a LETHAL round (a live M67) is skipped (`ItemAppearances.IsLethal`) — picking up a live grenade is the armed path (AW-9 second half, B3) | pick it up and throw it: the riot would hold a lethal round with no rule for it |
+| **PK-4** | ⭐ the THROWER of a canister is a **hardened** rioter: authored `PanicAt` > 1 (fear never reaches it), so FL-6's gas fright does not turn him; the crowd around him still breaks | exempt instigators from FL-6: a riot with an instigator would never break under gas · a smaller gas impulse: gas would break no riot (FL-6's reason) |
+| **PK-5** | ⭐ the throw is the riot's existing `Stones.Throw` (a canister is "in hand, not lethal"); its first throw is his hostile act, as a stone's | a separate canister throw: two firing paths (§5i.2 rejected it) |
+
+**Slices:** ① `Throwables` + the scavenge arm + rails (a missed stone picked up and thrown · a canister picked up, the burn in hand ·
+a live grenade skipped · no target ⇒ no scavenging) · ② demo `ua-armed-gas-throwback` + live check + twin.
+
 ## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: BUILT — slices ①–④, the demo's twin green)*
 
 ⭐ **Scope.** CV-8's second half: a unit's ROE carries a FORCE LEVEL {Warn, NonLethal, Lethal} that caps what its weapons may fire, with
