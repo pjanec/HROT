@@ -43,10 +43,31 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// Classifies <paramref name="route"/> (a polyline from the unit) over <paramref name="terrain"/>; writes up to
         /// <c>areas.Length</c> descriptors in route order and returns how many.
         /// </summary>
+        /// <para>⭐ <c>CE-3227</c> (§7.3d-B G-3/G-4/G-6) — <paramref name="gas"/>: the tear-gas footprints (<see cref="GasFootprints.Of"/>); a run
+        /// of route samples inside any of them is one <see cref="DangerAreaKind.GasCloud"/> area. Gas answers on a node with NO road graph too
+        /// (the road passes then skip), and the areas come out sorted by <see cref="DangerAreaDescriptor.DistanceAlongRoute"/>.</para>
         public static int Classify(ReadOnlySpan<Vector3> route, in global::CarKinem.Road.RoadNetworkBlob roads, Fdp.Toolkit.World.IWorldQuery? terrain,
-            Fdp.Toolkit.Spatial.Eqs.ICoverProvider? cover, float corridorHalfWidth, Span<DangerAreaDescriptor> areas)
+            Fdp.Toolkit.Spatial.Eqs.ICoverProvider? cover, float corridorHalfWidth, Span<DangerAreaDescriptor> areas,
+            ReadOnlySpan<GasFootprint> gas = default)
         {
-            if (route.Length < 2 || areas.Length == 0 || !Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads)) return 0;
+            int n = ClassifyRuns(route, in roads, terrain, cover, corridorHalfWidth, areas, gas);
+            // ⭐ G-6 — a gas run may overlap a crossing and end after it: route order is by where each area STARTS
+            for (int i = 1; i < n; i++)
+            {
+                var a = areas[i];
+                int j = i - 1;
+                while (j >= 0 && areas[j].DistanceAlongRoute > a.DistanceAlongRoute) { areas[j + 1] = areas[j]; j--; }
+                areas[j + 1] = a;
+            }
+            return n;
+        }
+
+        private static int ClassifyRuns(ReadOnlySpan<Vector3> route, in global::CarKinem.Road.RoadNetworkBlob roads, Fdp.Toolkit.World.IWorldQuery? terrain,
+            Fdp.Toolkit.Spatial.Eqs.ICoverProvider? cover, float corridorHalfWidth, Span<DangerAreaDescriptor> areas, ReadOnlySpan<GasFootprint> gas)
+        {
+            if (route.Length < 2 || areas.Length == 0) return 0;
+            bool hasRoads = Fdp.Toolkit.Navigation.RoadGraphRouter.HasRoads(roads);
+            if (!hasRoads && gas.IsEmpty) return 0;
 
             Span<float> cumulative = route.Length <= 256 ? stackalloc float[route.Length] : new float[route.Length];
             cumulative[0] = 0f;
@@ -61,16 +82,33 @@ namespace Fdp.Toolkit.Squad.DangerArea
             ulong runMask = 0;
             bool inOpen = false;
             float openStart = 0f;
+            bool inGas = false;
+            float gasStart = 0f;
+            long gasCloud = 0;
             for (float d = 0f; ; d += Step)
             {
                 bool last = d >= total;
                 float at = last ? total : d;
                 var here = PointAt(route, cumulative, at);
-                ulong mask = RoadMask(roads, Xy(here));
+                ulong mask = hasRoads ? RoadMask(roads, Xy(here)) : 0ul;
+
+                // ⭐ CE-3227 (G-3) — a run inside any gas footprint: one GasCloud area, its handles the detour points either side
+                int cloud = GasAt(gas, here);
+                if (cloud >= 0 && !inGas) { inGas = true; gasStart = at; gasCloud = gas[cloud].CloudId; }
+                if (inGas && (cloud < 0 || last))
+                {
+                    float gasEnd = cloud >= 0 ? at : at - Step * 0.5f;
+                    if (gasEnd < gasStart) gasEnd = gasStart;
+                    var area = Describe(route, cumulative, total, terrain, gasStart, gasEnd, 0ul, corridorHalfWidth, DangerAreaKind.GasCloud);
+                    area.FeatureId = GasFeatureId(gasCloud);
+                    areas[written++] = area;
+                    if (written == areas.Length) return written;
+                    inGas = false;
+                }
 
                 // ⭐ CE-3081 — an open run: off the roads (A3) and no crouch cover within the corridor (A1). Runs never overlap a road
                 //   run, so emitting at a run's end keeps the areas in route order.
-                bool open = mask == 0 && cover != null && OpenAt(cover, here, corridorHalfWidth);
+                bool open = hasRoads && mask == 0 && cover != null && OpenAt(cover, here, corridorHalfWidth);
                 if (open && !inOpen) { inOpen = true; openStart = at; }
                 if (inOpen && (!open || last))
                 {
@@ -127,6 +165,24 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 FarSideHandle      = Grounded(terrain, PointAt(route, cumulative, MathF.Min(total, end + StandOff))),
                 DistanceAlongRoute = start,
             };
+        }
+
+        /// <summary>⭐ <c>CE-3227</c> — the index in <paramref name="gas"/> of the first footprint holding <paramref name="p"/>, -1 when none.</summary>
+        private static int GasAt(ReadOnlySpan<GasFootprint> gas, Vector3 p)
+        {
+            for (int i = 0; i < gas.Length; i++) if (gas[i].Contains(p)) return i;
+            return -1;
+        }
+
+        /// <summary>⭐ <c>CE-3227</c> (G-3) — a gas area's stable id: its cloud's (FNV-1a), so it holds while the cloud drifts and the unit walks.</summary>
+        public static uint GasFeatureId(long cloudId)
+        {
+            unchecked
+            {
+                uint h = 2166136261u ^ 0x47u;   // 'G' — never equal to a crossing's seed
+                for (int b = 0; b < 8; b++) { h ^= (uint)(cloudId >> (8 * b)) & 0xFFu; h *= 16777619u; }
+                return h == 0 ? 1u : h;
+            }
         }
 
         /// <summary>The stable id of a crossing: its road elements and its exit point on a <see cref="FeatureGrid"/> grid (FNV-1a).</summary>

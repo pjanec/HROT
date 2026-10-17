@@ -278,6 +278,12 @@ namespace Hrot.Editor.DebugApi
                         ["phase"]      = sys.Phase,
                         ["module"]     = sys.ModuleName,
                         ["systemName"] = sys.Profile?.SystemName,
+                        // ⭐ CE-3222 (civilians B-4, §7.4) — the scheduler's own profile of it (ms per execution): the perf gate reads these
+                        ["executions"]  = sys.Profile?.ExecutionCount ?? 0,
+                        ["avgMs"]       = Math.Round(sys.Profile?.AverageMs ?? 0.0, 4),
+                        ["recentAvgMs"] = Math.Round(sys.Profile?.GetRecentAverageMs() ?? 0.0, 4),
+                        ["maxMs"]       = Math.Round(sys.Profile?.MaxMs ?? 0.0, 4),
+                        ["errors"]      = sys.Profile?.ErrorCount ?? 0,
                     }).ToArray()),
                     ["translators"] = new JsonArray(snapshot.Translators.Select(t => (JsonNode)new JsonObject
                     {

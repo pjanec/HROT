@@ -398,7 +398,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(HostileActKind.None, HostileActs.Of(w.Repo, w.Unit));
             Assert.False(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.None));
 
-            Assert.True(HostileActs.Commit(w.Repo, w.Unit));                                          // a blow / a stone: non-lethal
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));                                   // a blow / a stone: non-lethal
             var first = w.Repo.GetComponentRO<HostileAct>(w.Unit);
             Assert.Equal(HostileActKind.NonLethal, first.Kind);
             Assert.True(first.SinceSimTime > 0);

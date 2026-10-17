@@ -191,5 +191,53 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(DangerAreaKind.OpenGround, a.Kind);
             Assert.InRange(a.ExtentsXY.X * 2f, 100f, 104f);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3227</c> (civilians, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-3/G-6) — a route through a gas footprint gets ONE
+        /// GasCloud area, its handles the detour points short of and beyond it, its id the cloud's (stable as the unit walks up); with a
+        /// crossing AFTER the gas but ending sooner, the areas still come out in route order. ✅ Red-proofs: no gas pass ⇒ no GasCloud ⇒ red;
+        /// no sort ⇒ the crossing first ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3227_ARouteThroughGas_GetsOneGasArea_InRouteOrder()
+        {
+            var areas = new DangerAreaDescriptor[8];
+            using var roads = TestTownRoads.Build();
+            // a capsule from x 150 to x 240 along y 300 (radius 8): the route walks east through it and over Cross Street (x 190–210) inside it
+            var gas = new[] { new GasFootprint(77L, new Vector2(150, 300), new Vector2(240, 300), 8f, -2f, 5f) };
+            int n = DangerAlongRouteClassifier.Classify(new[] { new Vector3(100, 300, 0), new Vector3(300, 300, 0) }, in roads, null, null, 10f, areas, gas);
+            Assert.Equal(2, n);
+            Assert.Equal(DangerAreaKind.GasCloud, areas[0].Kind);
+            Assert.Equal(DangerAreaKind.StreetCrossing, areas[1].Kind);
+            Assert.True(areas[0].DistanceAlongRoute < areas[1].DistanceAlongRoute);
+            Assert.InRange(areas[0].DistanceAlongRoute, 41f, 43f);          // the footprint starts at x 142
+            Assert.InRange(areas[0].NearSideHandle.X, 137f, 139f);           // 4 m short of it
+            Assert.InRange(areas[0].FarSideHandle.X, 251f, 253f);            // 4 m beyond its end (x 248)
+            Assert.Equal(DangerAlongRouteClassifier.GasFeatureId(77L), areas[0].FeatureId);
+
+            int again = DangerAlongRouteClassifier.Classify(new[] { new Vector3(130, 300, 0), new Vector3(300, 300, 0) }, in roads, null, null, 10f, areas, gas);
+            Assert.Equal(DangerAlongRouteClassifier.GasFeatureId(77L), areas[0].FeatureId);   // nearer, the same area
+            Assert.Equal(2, again);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3227</c> (G-4) — a map with NO road graph still answers for gas (it answered nothing before); a route that misses the
+        /// footprint, or passes under a cloud's height band, gets nothing. ✅ Red-proof: the old early return on no roads ⇒ 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3227_WithNoRoads_GasStillAnswers_AndAMissIsNothing()
+        {
+            var areas = new DangerAreaDescriptor[8];
+            var none = default(global::CarKinem.Road.RoadNetworkBlob);
+            var gas = new[] { new GasFootprint(5L, new Vector2(50, 0), new Vector2(50, 0), 7f, -2f, 5f) };
+            var route = new[] { new Vector3(0, 0, 0), new Vector3(100, 0, 0) };
+            Assert.Equal(1, DangerAlongRouteClassifier.Classify(route, in none, null, null, 10f, areas, gas));
+            Assert.Equal(DangerAreaKind.GasCloud, areas[0].Kind);
+            Assert.Equal(0, DangerAlongRouteClassifier.Classify(route, in none, null, null, 10f, areas));     // no gas, no roads: nothing
+            Assert.Equal(0, DangerAlongRouteClassifier.Classify(new[] { new Vector3(0, 20, 0), new Vector3(100, 20, 0) }, in none, null, null, 10f, areas, gas));
+            Assert.Equal(0, DangerAlongRouteClassifier.Classify(new[] { new Vector3(0, 0, 30), new Vector3(100, 0, 30) }, in none, null, null, 10f, areas, gas));
+            Assert.False(DangerAreaKindsOf.Wants(DangerAreaKinds.Crossings, DangerAreaKind.GasCloud));          // never in the v1 default
+            Assert.True(DangerAreaKindsOf.Wants(DangerAreaKinds.GasCloud, DangerAreaKind.GasCloud));
+        }
     }
 }

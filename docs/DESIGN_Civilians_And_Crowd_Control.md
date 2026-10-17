@@ -2131,7 +2131,7 @@ too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as dra
 `NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
 like any area round — the effects layer draws what it draws for one (ui's to decide).
 
-#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: READY-TO-BUILD — §7.3d-B)*
+#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: BUILT (backend half) — §7.3d-B/C)*
 
 🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
 gas) so the gas is something like a dangerous area to be avoided by not stepping into and rather taking cover farther from its current or
@@ -2177,7 +2177,7 @@ replicates (the danger-area result, `EffectState`). No navmesh change.
 
 ⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
 
-##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: READY-TO-BUILD)
+##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: BUILT — as-built §7.3d-C)
 
 📐 Measured at `backend@1ba6e036d`: `DangerAlongRouteClassifier.Classify` is a pure function of (route, road graph, terrain, cover) and
 returns 0 at once when the node has NO road graph (`:50`) — and `DangerAlongRouteSolve.Solve` too (`:43`); the Brain's
@@ -2218,6 +2218,20 @@ already runs, and a node with no road graph must still answer for gas (today it 
 | **G-5** | **the Brain rates a GasCloud 1** (the gas is the threat, whoever sees it) so `AreaThreatened` fires | 0 like every unseen area: no edge, a behaviour would have to poll the kind |
 | **G-6** | the result is in route order — the gas pass may overlap a crossing, so the written areas are sorted by `DistanceAlongRoute` | emit order: a long gas run ending after a crossing would sit behind it |
 
+##### 7.3d-C AS-BUILT `CE-3227` *(2026-10-17)* — built as G-1…G-6 draw it
+
+| built | where |
+|---|---|
+| `DangerAreaKind.GasCloud = 6` · `DangerAreaKinds.GasCloud = 1 << 6` · `Wants` accepts up to `GasCloud`; never in the v1 default | `DangerAreaDescriptor.cs`, `DangerAreaSettings.cs` |
+| `GasFootprint` (capsule `From → To`, `Radius`, a height band) and `GasFootprints.Of(repo, span)`: every live `TearGas` cloud, `To` = its centre + `WindAt × min(15 s, its time left)`, no drift while `SourceNetworkId ≠ 0`, radius + 2 m, band 2 m below / above | `Squad/DangerArea/GasFootprints.cs` |
+| `DangerAlongRouteClassifier.Classify(…, gas)`: a run of samples inside any footprint = one `GasCloud` area (handles `StandOff` before / after, `FeatureId = GasFeatureId(cloud id)`); the road and open-ground passes skip on a node with no road graph; the result sorted by `DistanceAlongRoute` | `DangerAlongRouteClassifier.cs` |
+| `DangerAlongRouteSolve`: up to 16 footprints per solve; no road graph and no gas ⇒ 0 as before | `DangerAlongRouteSolve.cs` |
+| the Brain rates a `GasCloud` area **1** (`AreaThreatened` fires) | `DangerAreaSensorSystem.Rate` |
+
+Rails: `DangerAlongRouteClassifierTests.CE3227_…` ×2 (one area, handles, stable id, route order; no roads still answers, a miss is
+nothing, `Wants`) · `AreaEffectCloudTests.CE3227_…` (the drift, the canister, smoke skipped). ⚠ Not railed: the Brain's rating of 1 and
+the solve's wiring end to end (a SimHost solve over a live cloud) — the behaviors reactions' rails will exercise it.
+
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
 One command (`scripts/perf-civilians.sh <count>`) runs the ClusterRunner `--mode all` headless on test-town with N civilians
@@ -2225,6 +2239,29 @@ spawned by a generated scenario, reads the scheduler's per-system `SystemProfile
 of sim time on CGF and SimHost, and prints ms/frame for `BrainTickSystem`, the perception systems and `CarKinematicsSystem`
 at 100 / 300 / 500. ⭐ It reads the existing diagnostics route — no new timing code. ⛔ Not built until B-2 gives it a type
 with a brain.
+
+#### 7.4a AS-BUILT `CE-3222` *(2026-10-17)* — the harness, and what it measured
+
+| built | where |
+|---|---|
+| ⚠ **deviation:** the route did NOT carry timing (it serialised each system's name only) — it now adds `executions`, `avgMs`, `recentAvgMs`, `maxMs`, `errors` from the scheduler's own `SystemProfileData`. Still no new timing code | `DebugApiService.Diagnostics.cs`, route doc |
+| ⚠ **deviation:** a Python harness, not a shell script — it reuses `utility-demo-check.py`'s launch / load / call helpers. `python3 scripts/perf-civilians.py 100 300 500 [--seconds 60] [--budget-ms N]`: generates `scenarios/perf-civ-N/` (gitignored, removed after), CIV-1 types on a jittered grid over test-town, a fresh `--mode all` per count; prints the crowd-scaling systems, each subsystem's top 8 and sum, and the frames run | `scripts/perf-civilians.py` |
+
+📐 **Measured** (`--mode all`, one process runs CGF, SimHost and IG in turn; ms/frame, recent average):
+
+| | 100 | 300 | ×3 civilians ⇒ |
+|---|---|---|---|
+| CGF all systems | 54.9 | 138.8 | ×2.5 |
+| SimHost all systems | 54.2 | 157.4 | ×2.9 |
+| `BrainTickSystem` | 1.70 | 4.79 | ×2.8 — linear |
+| `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame) |
+| `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ `CE-3241` |
+| `CrowdSystem` (CGF, behaviors) | 0.45 | 3.06 | ×6.8 ⇒ behaviors note |
+| `RecorderTickSystem` CGF / SimHost / IG | 25.0 / 22.1 / 15.5 | 29.4 / 24.6 / 16.8 | flat but the biggest ⇒ `CE-3243` |
+| frames in 60 s of sim | 690 | 382 | |
+
+⛔ **500 did not load:** not settled in the load route's 30 s (1059 entities) ⇒ `CE-3242`. ⚠ **No budget is set yet** — the
+harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
 
 ### 7.5 B-5 — the weapons *(CV-9)*
 
@@ -3191,7 +3228,7 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 | built | where |
 |---|---|
 | `HostileAct { double SinceSimTime; HostileActKind Kind }` (`None · NonLethal · Lethal`), component **404**, `NoScenario` (recorded, never authored), Brain group | `Civilians/HostileActs.cs`, `HrotOwnershipGroups` |
-| `HostileActs.Commit(repo, actor, kind)` — the first act stamps the time and flips the side once (the one write path, as before); a graver one UPGRADES the kind and keeps the time; a lesser one changes nothing (returns false). `Commit(repo, actor)` = `NonLethal` (a blow, a stone — what behaviors' callers commit today). `CivilianState.HostileActAt` kept in step | same |
+| `HostileActs.Commit(repo, actor, kind)` — the first act stamps the time and flips the side once (the one write path, as before); a graver one UPGRADES the kind and keeps the time; a lesser one changes nothing (returns false); a `Lethal` one marks the witnesses every time (behaviors' `KnownCombatants`, §5h.6). `HostileActKind` is behaviors' enum (CE-2238 part 3) — one enum, reused. `CivilianState.HostileActAt` kept in step | same |
 | `HostileActs.Of(view, actor)` the kind on any node · `Committed` true from the replicated component OR the brain's own stamp | same |
 | `dtHostileAct` **145**, topic `EntityHostileAct { EntityId, SinceSimTime, Kind }` (Reliable, TransientLocal, KeepLast 1), egress on change from the `dtHostileAct` owner, ingress skips the recorded owner — the `dtGesture` shape, in the shared pack | `EntityHostileActTranslators.cs`, `SharedTranslatorPack` |
 
