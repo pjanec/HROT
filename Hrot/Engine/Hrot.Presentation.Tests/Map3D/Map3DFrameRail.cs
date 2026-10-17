@@ -2439,6 +2439,104 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8) — the (V) acceptance for the clouds: a tear-gas cloud
+    /// (6 m, 3 m high) over three civilians and a smoke cloud (8 m, 4 m high) beside them, from backend's replicated
+    /// <c>AreaEffectCloud</c>; 3-D from the south, then the 2-D map with the production symbol gizmo (the civilians get symbols, the clouds
+    /// none). Screenshots <c>cloud-1-3d.png</c>, <c>cloud-2-map2d.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1165_V_GasAndSmokeClouds()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        long net = 7000;
+
+        Entity Place(long type, Vector3 at)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new NetworkIdentity(++net));
+            return e;
+        }
+        var gasAt = new Vector3(spot.X, spot.Y, ground);
+        var gas = Place(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, gasAt);
+        world.AddComponent(gas, new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = 90.0, Seconds = 60f,
+        });
+        var smokeAt = new Vector3(spot.X + 16f, spot.Y + 2f, query.GroundHeightAt(spot.X + 16f, spot.Y + 2f));
+        var smoke = Place(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, smokeAt);
+        world.AddComponent(smoke, new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 8f, Height = 4f, SightTransmittance = 0.1f, BornAtSimSeconds = 95.0, Seconds = 75f,
+        });
+        foreach (var off in new[] { new Vector2(-1.5f, 0.5f), new Vector2(1f, -1f), new Vector2(7.5f, 1f) })
+            Place(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale,
+                  new Vector3(spot.X + off.X, spot.Y + off.Y, query.GroundHeightAt(spot.X + off.X, spot.Y + off.Y)));
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var effects = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(effects);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(gasAt + new Vector3(8f, 0f, 2f), 34f, MathF.PI * 1.5f, -0.28f);   // from the south, a little above
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "cloud-1-3d.png"));
+        Assert.Equal(2, effects.CloudsDrawn);
+        Assert.False(bodies.TryGetBox(world, gas, tkb, out _, out _, out _));   // no unknown box where the cloud stands
+
+        var canvas2 = new MapCanvas(input: null);
+        var cam2 = new MapCamera();
+        const float zoom = 18f;
+        var target = new Vector2(spot.X + 8f - 1280f / 2f / zoom, spot.Y + 800f / 2f / zoom);
+        cam2.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas2.Camera = cam2;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: cam2);
+        canvas2.AddLayer(effects);
+        canvas2.AddLayer(gizmos);
+        var symbol = new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo();
+        int symbols = 0;
+        foreach (var e in world.Query().With<NetworkIdentity>().With<SimTransform>().Build())
+        {
+            int before = buffer.GetFrame().Length;
+            symbol.Draw(world, e, buffer);
+            if (buffer.GetFrame().Length > before) symbols++;
+        }
+        gizmos.Update(0.016f);
+        frame.Step(canvas2.Draw);
+        frame.Step(canvas2.Draw);
+        frame.Screenshot(Path.Combine(shots, "cloud-2-map2d.png"));
+        Assert.Equal(3, symbols);   // the three civilians; neither cloud
+        Assert.Equal(2, effects.CloudsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1112 (docs/DESIGN_Map_3D_Mode.md §6v) — the (V) acceptance for backend's air defence, from the CATALOGUE types: a ZU-23-2 (615)
     /// stowed on its wheels beside one deployed on its jacks with its gunner SEATED on it, a Stinger (613) lying on the ground; a Stinger
     /// gunner (202) with his launcher on his back and an Igla gunner (203) aiming his on his shoulder; the ZU-23 technical (110) with the gun
