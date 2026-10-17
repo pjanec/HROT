@@ -81,6 +81,14 @@ namespace Hrot.Map.Definitions.Tkb
         public float MinElevationDeg { get; set; }
         /// <inheritdoc cref="MinElevationDeg"/>
         public float MaxElevationDeg { get; set; }
+
+        /// <summary>⭐ <c>CE-3233</c> (civilians B-11, §7.13 ST-7) — the muzzle speed, m/s; 0 = derived from <see cref="Range"/> (the engine
+        /// fallback). A hand weapon states it: the fallback would fly a 300 m rifle round at 150 m/s. Copied onto <c>WeaponMountDto.MuzzleVelocity</c>.</summary>
+        public float MuzzleVelocity { get; set; }
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, ST-7) — what the weapon LOOKS like to an observer; null = by <see cref="Category"/>. Copied onto
+        /// <c>WeaponMountDto.Appearance</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.ItemLook? Look { get; set; }
     }
     
     /// <summary>

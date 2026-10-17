@@ -207,6 +207,25 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3233</c> (civilians B-11, AW-6; DESIGN_Civilians_And_Crowd_Control §7.13 ST-7) — the PICK-UP rifle and pistol fire the built-in
+        /// soldier's rounds at their STATED muzzle speeds (the range fallback would fly them at 150 / 25 m/s), and the pistol LOOKS like one
+        /// (B-7's identification reads it); the rifle looks like a rifle by its category. ✅ Red-proof: the builder ignoring
+        /// <c>WeaponMount.MuzzleVelocity</c> ⇒ 150 m/s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3233_ThePickUpRifleAndPistol_FireTheSoldiersRounds_AtTheirOwnSpeed_AndThePistolLooksLikeOne()
+        {
+            var db = BuildDatabase();
+            var rifle = db.GetByType(TkbEntityTypes.WeaponSystem_PickUpRifle)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+            var pistol = db.GetByType(TkbEntityTypes.WeaponSystem_PickUpPistol)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+            Assert.Equal((800f, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), (rifle.MuzzleVelocity, rifle.AmmoGuid));
+            Assert.Equal((360f, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm), (pistol.MuzzleVelocity, pistol.AmmoGuid));
+            Assert.Null(rifle.Appearance);
+            Assert.Equal(ItemLook.Pistol, pistol.Appearance!.Look);
+            Assert.True(db.GetByType(TkbEntityTypes.WeaponSystem_PickUpPistol)!.GetDescriptor<WeaponSystemDto>()!.FireWhileCarried);
+        }
+
+        /// <summary>
         /// ⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — the catalogue: nine weapon-system types (600–608), each a
         /// <c>Gen.WeaponSystem</c> entity of DIS class 1.1.*.50 with its gun as mount 0; the crew-served ones are manned (a Gunner seat, a
         /// loader's for a two-man weapon) and turret-mounted, the shoulder ones carried and fired carried; the sentry gun is automatic (no
@@ -227,6 +246,8 @@ namespace Hrot.Map.Common.Tests
                          (TkbEntityTypes.WeaponSystem_KornetTripod, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 3),
                          (TkbEntityTypes.WeaponSystem_TowTripod, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 3),
                          (TkbEntityTypes.WeaponSystem_SentryGun, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.Static, 0, true, 5),
+                         (TkbEntityTypes.WeaponSystem_PickUpRifle, MountKinds.Ground | MountKinds.Carried, WeaponPortability.OneMan, 1, false, 8),    // ⭐ CE-3233
+                         (TkbEntityTypes.WeaponSystem_PickUpPistol, MountKinds.Ground | MountKinds.Carried, WeaponPortability.OneMan, 1, false, 9),   // ⭐ CE-3233
                      })
             {
                 var t = db.GetByType(type)!;
@@ -754,7 +775,7 @@ namespace Hrot.Map.Common.Tests
                 Assert.True(ws.FireWhileCarried && (ws.MountKinds & MountKinds.Carried) != 0);
                 Assert.Equal(WeaponCategory.Sam, db.GetByType(launcher)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Category);
                 var seats = db.GetByType(gunner)!.GetDescriptor<CarrierDefDto>()!.Seats;
-                Assert.Equal(launcher, seats.Single(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station).StartWith);
+                Assert.Equal(launcher, seats[1].StartWith);   // ⭐ CE-3233 (B-11) — seat 1, his HANDS (the back and hidden stations follow it)
             }
             var zu = db.GetByType(TkbEntityTypes.WeaponSystem_Zu23)!;
             Assert.Equal(90f, zu.GetDescriptor<TurretSuiteDto>()!.Turrets[0].ElevationMaxDeg);

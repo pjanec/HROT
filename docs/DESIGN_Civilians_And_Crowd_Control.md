@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.13 B-11 stations / pick-up weapons / charge designed, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -2471,7 +2471,7 @@ rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, 
 `CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
 the correction.
 
-### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: READY-TO-BUILD — B-11a stations + pick-up weapons, then B-11b the charge)*
+### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: BUILDING — B-11a BUILT (§7.13a), B-11b the charge next)*
 
 INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-memory CLI only — `check_index_coverage` not run)*:
 
@@ -2561,6 +2561,29 @@ pick-up runs there).
 ⚠ **Stated before the build:** ① the 3-D figure draws a carried weapon in its hands today — Back (slung) and Hidden (not drawn) are ui's;
 ② `Carriage` / `LoadOf` still return the FIRST load (the casualty seat first) — unchanged; ③ which car takes the cargo station is settled
 at B-11b against CE-3220 part 2 (the urban-combat car 1002 is being retired; the BDC `CivilianCar` 502 stays).
+
+#### 7.13a AS-BUILT `CE-3233` B-11a *(2026-10-17)* — the stations and the pick-up weapons; the charge (B-11b) follows
+
+| built | where |
+|---|---|
+| `SeatDto.Stowed` / `Concealed` (appended); `PersonCarrier()` seats 2 BACK (stowed) and 3 HIDDEN (stowed, concealed, `Exposed = false`) appended — seat 1 stays the hands | `CarrierDefDto.cs` |
+| `CarrierStations.StowedMask` / `ConcealedMask` + `IsStowed` / `IsConcealed` (type fact), projected by `CarrierTkbTranslator` | `InteractionComponents.cs`, `CarrierTkbTranslator.cs` |
+| `Embarkation.FreeStation` skips a concealed station (ST-3) | `Embarkation.cs` |
+| `CarryStations` — `SeatOf`, `IsStowed`, `IsConcealed`, `Hands` / `Back` / `Hidden`, `Move` (on the list owner), `Ask`; `RestationEvent` (5013); `CarryStationSystem` in the `Interactions` capability | `Behavior/CarryStations.cs`, `CoreInfrastructureCapabilities.cs` |
+| I-1 kind 11 **`Restation`** (target the man, actor the thing, payload the seat; owner = `OwnsVehicle`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
+| fire gates: `WeaponSystems.CanFire` (stowed ⇒ `NotDeployed`) · `PrimaryMount` / `WeaponOf` skip a stowed weapon · weapon-choice candidates skip it | `WeaponSystems.cs`, `UtilityScorer.cs` |
+| observer gates: `Armament.ArmedByStatus` reads `SeenControlled` (no concealed weapon) · `Judge`'s conduct skips a concealed one | `Armament.cs` |
+| pick-up rifle **616** and pistol **617** (one man, `FireWhileCarried`, the soldier's rifle / pistol numbers); `WeaponMount.MuzzleVelocity` + `Look` (appended, copied by the builder) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `SimCombatDef.cs`, `BdcTkbBuilder.cs` |
+
+⚠ **Deviation from ST-6, and why:** `Armament.LethalInHand` — the TRUTH form ("am I armed", `ThreatDanger.OwnStrength`) — still counts a
+hidden weapon: the man knows he has it. ST-6's "arms nobody" holds for every OBSERVER reader (status, conduct, `Judge`). ⚠ `WeaponOf` now answers
+"what can he FIRE" (a slung rifle is not it), so `ArmedByStatus` no longer reads it — it reads `SeenControlled` (a slung rifle IS seen).
+
+Rails: `PersonCarrierTests.CE3233_APersonHasHandsBackAndHidden_…` (hands, then back, never hidden unasked) · `CE3233_DrawStowConceal_…`
+(the slot moves; hidden: no fire, armed to nobody, not exposed, still lethal in truth; back: armed, no fire; a replica re-tags) ·
+`InteractionTransportTests.CE3233_ARestation_…` · `NedTkbBuilderCombatTests.CE3233_ThePickUpRifleAndPistol_…` and the WS-4 catalogue table
+(+ 616, 617). Pins moved for the deliberate change: the soldier has 4 seats (`TheProfile_IsStampedFromTheType`), the MANPADS gunner's launcher
+is checked at seat 1 (`CE2187_…`).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

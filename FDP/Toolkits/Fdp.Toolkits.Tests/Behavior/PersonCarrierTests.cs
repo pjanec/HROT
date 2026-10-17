@@ -152,7 +152,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(_world.HasComponent<PersonCarrier>(soldier));
             Assert.Equal(0.3f, _world.GetComponentRO<PersonCarrier>(soldier).DragSpeedFactor);
             Assert.Equal((byte)1, _world.GetComponentRO<CarrierSeats>(soldier).PassengersSurvive);
-            Assert.Equal(2, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);   // ⭐ WS-2 (W-G) — the casualty seat + the carry station
+            Assert.Equal(4, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);   // ⭐ WS-2 (W-G) — the casualty seat + the carry station · ⭐ CE-3233 (B-11) — + the back and the hidden station
             Assert.Equal(1, Embarkation.CapacityOf(_world, soldier));   // ...of which one carries a man
 
             var apc = _world.CreateEntity();
@@ -291,6 +291,89 @@ namespace Fdp.Toolkit.Behavior.Tests
             var gunner = Soldier(100f, new Vector3(0f, 20f, 0f));
             Embarkation.TryEmbark(_world, Weapon(WeaponPortability.TwoMan), gunner, assistant: Soldier(100f, new Vector3(1f, 20f, 0f)));
             Assert.Equal(new WeaponSystemDto().CarrySpeedFactor, CarryLoad.Factor(_world, gunner), 3);
+        }
+            // ── ⭐⭐ CE-3233 (civilians B-11, §7.13) — the HANDS, BACK and HIDDEN stations ───────────────────────────────────────────────────────
+
+        /// <summary>A one-man weapon that fires while carried (a pick-up rifle or pistol), with its own WeaponState.</summary>
+        private Entity Gun()
+        {
+            if (!_world.IsComponentTypeRegistered<WeaponState>()) _world.RegisterComponent<WeaponState>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new WeaponState { Ammo = 15 });
+            var t = new TkbTemplate("Gun", 4346L);
+            t.AddDescriptor(new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Carried, Portable = WeaponPortability.OneMan, FireWhileCarried = true });
+            new WeaponSystemTkbTranslator().Inject(_world, e, t);
+            return e;
+        }
+
+        private int SeatOf(Entity thing) => CarryStations.SeatOf(_world, thing, out _);
+
+        /// <summary>
+        /// ⭐ ST-1 / ST-3 — a person has HANDS (seat 1, unchanged), BACK (2) and HIDDEN (3); a weapon he picks up goes to his hands, a second
+        /// to his back, and a third is refused — the hidden station is never filled unasked. ✅ Red-proof: FreeStation without the concealed
+        /// skip ⇒ the third goes into hiding ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3233_APersonHasHandsBackAndHidden_PickedUpWeaponsFillHandsThenBack_NeverHiddenUnasked()
+        {
+            var man = Soldier(100f);
+            Assert.Equal((1, 2, 3), (CarryStations.Hands(_world, man), CarryStations.Back(_world, man), CarryStations.Hidden(_world, man)));
+            var first = Gun(); var second = Gun(); var third = Gun();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, first, man));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, second, man));
+            Assert.NotEqual(EmbarkResult.Applied, Embarkation.TryEmbark(_world, third, man));
+            Assert.Equal((1, 2, -1), (SeatOf(first), SeatOf(second), SeatOf(third)));
+            Assert.False(CarryStations.IsStowed(_world, first));
+            Assert.True(CarryStations.IsStowed(_world, second));
+            Assert.False(CarryStations.IsConcealed(_world, second));
+        }
+
+        /// <summary>
+        /// ⭐ ST-4 / ST-5 / ST-6 — a pistol moved HANDS → HIDDEN: it can no longer fire (held "not deployed"), it arms him to nobody, and it is
+        /// not exposed (not sensed or hit); moved to his BACK it is seen (armed) but still cannot fire; back in his HANDS it fires and arms him.
+        /// A move into a taken seat, the casualty seat or a seat that is not his is refused; a replica re-tags from the moved slot.
+        /// ✅ Red-proofs: the concealed skip dropped from <c>Armament.SeenControlled</c> ⇒ armed while hidden ⇒ red; the stowed gate dropped from
+        /// <c>WeaponSystems.CanFire</c> ⇒ fires from his back ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3233_DrawStowConceal_TheSlotMoves_HiddenArmsNobody_StowedCannotFire_AndAReplicaFollows()
+        {
+            var man = Soldier(100f);
+            var pistol = Gun();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, pistol, man));
+            Assert.True(WeaponSystems.CanFire(_world, pistol));
+            Assert.True(Armament.ArmedByStatus(_world, man));
+
+            Assert.True(CarryStations.Move(_world, man, pistol, CarryStations.Hidden(_world, man)));
+            Assert.Equal(3, SeatOf(pistol));
+            Assert.True(_world.GetComponentRO<PassengerBuffer>(man).Passengers[1].IsNull);
+            Assert.False(WeaponSystems.CanFire(_world, pistol, out var why));
+            Assert.Equal(WeaponHold.NotDeployed, why);
+            Assert.False(Armament.ArmedByStatus(_world, man));
+            Assert.Equal((byte)0, _world.GetComponentRO<IsEmbarkedTag>(pistol).Exposed);   // ⭐ PhysicalPresence.IsHidden: not sensed, not hit
+            Assert.True(Armament.LethalInHand(_world, man));   // ⭐ the TRUTH form: he knows he is armed
+
+            Assert.True(CarryStations.Move(_world, man, pistol, CarryStations.Back(_world, man)));
+            Assert.True(Armament.ArmedByStatus(_world, man));   // slung: seen
+            Assert.False(WeaponSystems.CanFire(_world, pistol));
+
+            Assert.True(CarryStations.Move(_world, man, pistol, CarryStations.Hands(_world, man)));
+            Assert.True(WeaponSystems.CanFire(_world, pistol));
+
+            var other = Gun();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, other, man));   // to his back
+            Assert.False(CarryStations.Move(_world, man, other, 1));   // his hands are taken
+            Assert.False(CarryStations.Move(_world, man, other, 0));   // the casualty seat is no station
+            Assert.False(CarryStations.Move(_world, Soldier(100f), other, 1));   // not his
+
+            // a replica: the list arrives with the slot moved, the tag still old — the state system re-tags it
+            ref var buffer = ref _world.GetComponentRW<PassengerBuffer>(man);
+            buffer.Passengers[3] = pistol; buffer.Passengers[1] = Entity.Null;
+            new EmbarkedStateSystem().Execute(_world, 0.1f);
+            Assert.Equal(3, SeatOf(pistol));
+            Assert.True(CarryStations.IsConcealed(_world, pistol));
+            Assert.Equal((byte)0, _world.GetComponentRO<IsEmbarkedTag>(pistol).Exposed);
         }
     }
 }

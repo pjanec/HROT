@@ -211,6 +211,19 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Is seat <paramref name="seat"/> a station?</summary>
         public readonly bool IsStation(int seat) => seat >= 0 && seat < PassengerBuffer.Capacity && (StationMask & (1 << seat)) != 0;
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2) — bit i = station i is STOWED (carried, not fired from: a man's back, his hidden
+        /// station). Appended.</summary>
+        public ushort StowedMask;
+
+        /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2/ST-6) — bit i = station i is CONCEALED (nobody sees what it holds). Appended.</summary>
+        public ushort ConcealedMask;
+
+        /// <summary>Is station <paramref name="seat"/> stowed (not fired from)?</summary>
+        public readonly bool IsStowed(int seat) => IsStation(seat) && (StowedMask & (1 << seat)) != 0;
+
+        /// <summary>Is station <paramref name="seat"/> concealed (unseen)?</summary>
+        public readonly bool IsConcealed(int seat) => IsStation(seat) && (ConcealedMask & (1 << seat)) != 0;
     }
 
     /// <summary>
