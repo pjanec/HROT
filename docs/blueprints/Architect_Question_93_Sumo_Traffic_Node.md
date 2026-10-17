@@ -15,6 +15,7 @@ known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimH
 known-conflict: none. ⚠ Relation to §2.1e ① of DESIGN_Terrain_Zones_And_Assets.md (the scenario names only a terrain) —
   CONSISTENT: the SUMO net is a terrain asset (R-4021); only the traffic DEMAND is a scenario entity.
 related-designs:
+  - docs/DESIGN_Uniform_Gizmo_Membership.md §8.5b/§8.7 — OWNS which hosts draw and PUBLISH the map gizmos; the road layer rides that seam (§12.4)
   - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae — OWNS how every host composes a capability (one shared walk) and the per-node terrain content the pack's net loader joins
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT a terrain asset is (§2.1a: the road net is an external asset,
     "like sumo road net"; §2.1e: terrain.json, roadNetworks[]). This question adds a second road-net FORMAT to that slot.
@@ -147,7 +148,8 @@ classDiagram
   class TrafficCar { <<NEW component 452>> VehicleIndex Generation }
   class ReplicationRoute { <<NEW component 453, general>> RouteId }
   class TrafficFrame { <<NEW world singleton 454>> Cars IsEntity Lights }
-  class TrafficRoadGizmo { <<NEW, 2-D map>> }
+  class TrafficRoadGizmo { <<NEW, 2-D map>> draws the Plan }
+  class TrafficRoadPlan { <<NEW>> lane strips + ground rows, 2-D }
   class TrafficLayer3D { <<NEW, 3-D map>> }
   class LiveCitySim { <<SumoSharp>> Engine + car demand + publisher + in-memory wire }
   class DrClock { <<SumoSharp>> ResolveAt }
@@ -162,6 +164,8 @@ classDiagram
   TrafficNetCache --> TrafficRoadScene
   TrafficRoadScene ..> RoadSceneBuilder
   TrafficRoadScene ..> AmbientGroundBuilder
+  TrafficRoadScene --> TrafficRoadPlan : Plan
+  TrafficRoadGizmo ..> TrafficRoadPlan
   TrafficPack --> SumoNetTerrainLoader : attaches
   TrafficPack --> TrafficRuntime
   TrafficPack --> TrafficSteppingModule : registers
@@ -420,7 +424,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | slice | content | state |
 |---|---|---|
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
-| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | target §3.1–§3.4 |
+| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT — §12.1/§12.2; five-process run §12.3 (cars flow, one id and owner per car; ⚠ live acceptance only partly run) |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | |
 | 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
@@ -696,7 +700,8 @@ origin; no axis swap. The map consumes it behind an interface, as R-250 requires
 on, in the same shape the terrain already uses: *"the map sees triangles and a kind, never how the terrain is modelled"*
 (`TerrainLayer3D.cs:15`, R-250/R-252). ⇒ a **road layer that is the terrain layer's sibling** — the mesh built once per
 net and rebuilt only when the net changes (`TerrainLayer3D` keys on `ITerrainRenderGeometry.Identity`), coloured by kind;
-the 2-D map draws the same triangles flat; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
+~~the 2-D map draws the same triangles flat~~ *(⛔ SUPERSEDED as built, 2026-10-17 — ~51.8k triangles a frame starved the map's
+gizmo buffer; the 2-D map draws a PLAN of the same roads, §12.4)*; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
 The Stride host and a future production engine take the same triangles.
 
 | rejected | the one fact |
@@ -911,6 +916,31 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
   the allocator `SubsystemName + "Allocator"`, and `DdsIdAllocator` keeps every response whose `ClientId` matches — so both nodes
   enqueue both chunks and would give two cars one network id, breaking N2 under R-4055. The fix belongs in `HrotNodeBuilder`
   (client id carries the node id); the same collision existed for any two nodes of one subsystem name (two SimHosts, two Players).
+
+### 12.3 Found running the five-process cluster *(2026-10-17 — orchestrator · CGF · SimHost · IG · traffic, load from the IG port)*
+
+| ⭐ found | fixed | rail |
+|---|---|---|
+| ✅ IG's load intent reaches the orchestrator and fans out to all five nodes (the CE-164 IG-port path works). The demo is a RECIPE ⇒ its NAS name is `Recipes/demo-city`, not `demo-city` | — | — |
+| ⛔ every node's `PrepareLive` threw: `terrain.json` names `demo-city.net.xml`, but the `Recipes/Terrain` content glob shipped only `json`/`geojson`/`asc` (editor and unit suites read the source tree) | `Hrot.AI.Behaviors.csproj` ships `*.net.xml` | `ShippedTerrainFilesAreDeployedTests` (ClusterRunner.Tests — the build output a node reads) |
+| ⛔ every ECS node then CRASHED in `TrafficMirrorSystem`: `DdsWireFrame` had no `GetDescriptorOps`. The vendored SumoSharp `Directory.Build.targets` (R-4046) gave the single-target `Sim.Replication.Dds` a `TargetFrameworks` ⇒ NuGet restored it as multi-target and imported the CycloneDDS codegen switch under a condition a normal build never meets | the override applies only where the project multi-targets | `TrafficDdsTopicsAreGeneratedTests` (red on the old build: 9 topics) |
+| ⚠ OPEN: with every node failing `PrepareLive`, the orchestrator logged only the two OBSERVERS' failures (IG, traffic — P2 lets those pass), logged no abort for CGF's/SimHost's, and `/status` reported `OperatingLive` while every node stayed `Idle` | — | re-measure on a clean run |
+| ⚠ OPEN: `[ModuleHost][TIMEOUT] Module 'TrafficStepping' timed out after 100ms` on the traffic node | — | re-measure on a clean run |
+| ⛔ the traffic node then CRASHED in replication: `EntityInfoIngressTranslator` wrote `EntityInfo`, which only role registries registered | `HrotSharedComponentRegistry` carries the six types the shared pack writes (`CE-4013` D19) | `SharedRegistryCoversTheSharedPackTests` |
+| ⛔ the headless traffic node could not be READ over HTTP — no window claims a perspective, so it stayed "Default" | a process with ONE provider answers through it | `AHeadlessSingleProviderNodeIsReadableTests` |
+| ⛔⛔ **`CE-4016`: NO CARS — found, fixed.** Clean run: every node `OperatingLive`, the net loads on every node with ONE hash, CGF grants `dtTrafficDemand` to node 800 (200 cars) — but the traffic node held the grant with **no `TrafficDemand`**, so SUMO never started. 📐 ⛔ NOT "the creator stops sending": in the F7 window the creator's `HasAuthority` falls back to the primary owner and it DOES send once (`AuthorityExtensions.cs:49-66`, `OutgoingGrantsPending.cs:11-13`). The GRANTEE was the problem: a Muscle ghost cannot promote before `SimTransform` arrives, but nothing held the settings ghost — it promoted on `EntityMaster`, `DeferredTakeoverSystem` recorded 160→800 that frame, and the late sample was dropped as the node's own (`EntityTrafficDemandTranslators.cs:136`) | `TrafficDemand` is `[PerInstanceValue]` and the "Traffic" template PRODUCES it (`TrafficDemandTkbTranslator`, in `TkbTranslatorSet.Base()`) ⇒ the promotion gate waits for the value, as for `ObstacleShape` | `TheTrafficSettingsGhostWaitsForItsValuesTests` |
+| ✅ **CARS FLOW**: after CE-4016 the traffic node serves 200 cars; car 1218 carries ONE network id, TKB type 1050 and owner 800 on IG, SimHost and CGF (N2 / N5 / T1) | — | — |
+| ⛔ `CE-4017`: the replica's POSE disagreed across nodes by 40–150 m, one node at a time freezing a car and then jumping. 📐 The SumoSharp Vehicles stream is SPARSE and every step writes one instance; best-effort KEEP_LAST(1) + `StepTo`'s catch-up bursts (≤40 steps) ⇒ a reader kept only a burst's last frame (5 back-to-back: 4 lost), and `DrClock`'s 3 s cap froze the cars that lost their update | SumoSharp **H10** (`ecb43d1`): KEEP_LAST(64) on the vehicle stream; re-vendored. Live after: median spread 0.76–1.8 m, outliers only along-track (read skew) | `ABurstOfTrafficFramesReachesEveryReaderTests` + upstream `H10_…` · ⚠ 0.3 m not measurable with sequential reads; a sample lost on the wire still freezes a steady car until its next fire |
+
+
+### 12.4 Found running the slice 1 acceptance *(2026-10-17 — the editor, headless under Xvfb, demo-city, its debug API)*
+
+| ⭐ found | fixed | rail |
+|---|---|---|
+| ✅ load · 9 car replicas near our bodies, moving · pause drift 0.0000 m · no replica beyond 350 m of every body · LOS soldier→car resolves the car · deleting the traffic entity leaves zero replicas | — | — |
+| ⛔⛔ **the map drew NOTHING.** 📐 `TrafficRoadGizmo` emitted the 3-D meshes flat — ambient ground 27.5k, asphalt 15.6k, crosswalks 6.7k, junctions 2.0k triangles ≈ **51.8k a frame** — into the map's **4096**-primitive gizmo buffer (`/panels/_gizmo`: 48 512 dropped a frame), ground first ⇒ roads, lights, cars and every entity gizmo after it were dropped | ⭐ `TrafficRoadPlan`, built once with the scene: each normal lane a world-width line per shape segment (1 062), sidewalks lighter, the junction mesh as is, the ground cells merged along their rows; crosswalks and markings stay out of 2-D (paint). ⭐ The map buffer's default rises to **16384** in one place (`MapInteractionContext.DefaultBufferCapacity`; IG's explicit 4096 removed — it equalled the old default). The 3-D layer is unchanged | `TheRoadLayerFitsTheMapBufferTests` — the layer takes ≤ a quarter of the buffer, nothing dropped; the ground rows cover exactly the cells and none crosses our terrain; every normal-lane segment has a strip · `CE-4019` |
+| ✅ **live after the fix: 11/11** — the map buffer holds 3 966 primitives with **0 dropped**, the screenshot shows the lanes, sidewalks and junctions around our terrain; after deleting the traffic entity the roads stay and the lights and cars go | — | `accept_slice1.py` check ①b (`/panels/_gizmo` dropped == 0) |
+| ⚠ the map buffer is also PUBLISHED over DDS every frame by CGF, SimHost and IG (`DebugPrimitivesBatchPublisherSystem`, 64 B a primitive). ⭐ The publisher sends the primitives drawn, not the capacity — so the plan CUTS the road share of that traffic (it was capped at 4096 ≈ 256 KB a frame, the 2-D plan is 3 731 ≈ 239 KB — the same order, now carrying the roads instead of dropping them). ⛔ Not gated here: 🔒 the publish capability stays, gating is optional (`DESIGN_Uniform_Gizmo_Membership.md` §8.5b / §8.7) | — | — |
 
 
 ## 7. ⛔ HISTORY

@@ -36,6 +36,21 @@ public static class HrotSharedComponentRegistry
     /// </summary>
     public static void RegisterAll(EntityRepository world)
     {
+        // ⭐⭐ CE-4013 D19 (R-4057 + R-3015) — what the SHARED translator pack writes, registered with it. Every networked ECS node
+        //   runs that pack, so a node registering only this set must still accept every sample. 📌 Measured 2026-10-17: the traffic
+        //   node (this set only) crashed on "Component EntityInfo is not registered" from EntityInfoIngressTranslator. A sweep of
+        //   all 34 shared ingress translators found SIX such types, from three of them (EntityInfo, MapVisualOverlay, MapRoute);
+        //   the other hosts reached them only through their own role registries. Registration is idempotent, so those stay.
+        //   ⛔ Not the whole union of registries — DESIGN_Role_Affinity_Ownership.md §3.9b keeps registration narrowing.
+        //   Rail: SharedRegistryCoversTheSharedPackTests.
+        world.RegisterComponent<EntityInfo>();                                         // EntityInfoIngressTranslator
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();          // read by EntityInfoIngressTranslator
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();        // published by EntityInfoIngressTranslator
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();        // published by EntityInfoIngressTranslator
+        world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();       // MapVisualOverlayIngressTranslator
+        world.RegisterComponent<Hrot.IG.Components.MapOverlayStyle>();               // MapVisualOverlayIngressTranslator
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();      // MapRouteIngressTranslator
+
         // ── Network replication components ────────────────────────────────────
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)

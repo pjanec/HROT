@@ -234,7 +234,12 @@ namespace Hrot.SimHost
             //   Constructing entities undriven. 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
             Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null,
             // ⭐ CE-4013 (§4.1ae T1) — the node's terrain content (HrotNodeContext.TerrainContent). ⛔ A caller that HAS a context passes it.
-            Hrot.Map.Common.Services.TerrainContentRegistry? terrainContent = null)
+            Hrot.Map.Common.Services.TerrainContentRegistry? terrainContent = null,
+            // ⭐⭐ CE-4013 D15 — the node's ONE cluster slave and ONE slave translator (HrotNodeBuilder step 8). ⛔ This used to build a
+            //   second pair, so every host on this path ran two NedSlaveOrchestrationTranslators — the builder's never ticked, its DDS
+            //   readers never drained. A caller that HAS them passes them; only a caller with no context builds new ones here.
+            ClusterSlave? clusterSlave = null,
+            Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -245,10 +250,10 @@ namespace Hrot.SimHost
 
             // P1/CE-285: advertise the full declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
             // ⭐ + the asset tokens derived from the role (docs/DESIGN_Asset_Management.md §7.3a, CE-3020).
-            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role,
+            clusterSlave ??= new ClusterSlave(nodeId, subsystemName, eventBus, role,
                 capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(role));
-            SlaveTranslator = null;
-            if (participant != null && eventBus != null)
+            SlaveTranslator = slaveTranslator;
+            if (SlaveTranslator == null && participant != null && eventBus != null)
             {
                 // HEXAG2-S012: use factory when available; fall back to null-object otherwise.
                 var nodeFactory = _networkFactory?.ConfigureForNode(participant, nodeId, role);

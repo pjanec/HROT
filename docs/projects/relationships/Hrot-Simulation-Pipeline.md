@@ -1090,7 +1090,7 @@ subsystems:
 | [Hrot.Subsystems/Hrot.Orchestrator/ClusterMaster.cs](../../../Hrot/Subsystems/Hrot.Orchestrator/ClusterMaster.cs) | 2PC tracker, node roster, bootstrap latch |
 | [Hrot.Subsystems/Hrot.Orchestrator/ClusterConfiguration.cs](../../../Hrot/Subsystems/Hrot.Orchestrator/ClusterConfiguration.cs) | Cluster config (mandatory nodes, timeouts) |
 | [Hrot.Subsystems/Hrot.SimHost/SimHostSubsystem.cs](../../../Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs) | SimHost subsystem lifecycle adapter |
-| [Hrot.Subsystems/Hrot.SimHost/NodeBootstrapper.cs](../../../Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs) | Orchestration composition root for sim nodes |
+| [Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs](../../../Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs) | Orchestration composition root for sim nodes |
 | [Hrot.Subsystems/Hrot.CGF/CgfSubsystem.cs](../../../Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs) | CGF subsystem; HrotNodeBuilder wiring |
 | [Hrot.Subsystems/Hrot.CGF/Systems/CreateEntityRequestSystem.cs](../../../Hrot/Subsystems/Hrot.CGF/Systems/CreateEntityRequestSystem.cs) | Entity spawn authority (default processor) |
 | [Hrot.Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs](../../../Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs) | Intent -> behavior translation |

@@ -108,6 +108,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator(),
             // ⭐ CE-3136 P-7a — a static obstacle's marker, box and movement collider (it is baked into the terrain).
             new Fdp.Toolkit.Terrain.ObstacleTkbTranslator(),
+            // ⭐ CE-4016 (AQ93 S2) — the traffic settings: produced by the "Traffic" template so a ghost waits for the scenario's values.
+            new Fdp.Toolkit.Traffic.TrafficDemandTkbTranslator(),
             // Writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and
             // derives EntityInfo.ForceId from the SIDC's affiliation character.
             new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),

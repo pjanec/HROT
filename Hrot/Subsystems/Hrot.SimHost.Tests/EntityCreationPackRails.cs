@@ -541,6 +541,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, adapters.Polls);
         }
 
+        /// <summary>⭐⭐ CE-4013 D6 — the ONE shared registration schedules every piece the pack built, the network systems included:
+        /// nothing is left for a host to forget (the per-root rails above now only check that each root calls it).</summary>
+        [Fact]
+        public void RegisterOn_SchedulesEveryPieceOfThePack()
+        {
+            var creation = EntityCreationPack.Build(WithAdapters(MinimalContext(out var world), new FakeAdapters()));
+            var kernel = new Fdp.ModuleHost.ModuleHostKernel(world, new Fdp.Core.EventAccumulator());
+
+            creation.RegisterOn(kernel);
+
+            var globals = (System.Collections.IEnumerable)typeof(Fdp.ModuleHost.ModuleHostKernel)
+                .GetField("_registeredGlobalSystems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(kernel)!;
+            var scheduled = globals.Cast<object>().ToList();
+            Assert.Equal(string.Empty, creation.Unserviceable(scheduled.Append(creation.SpawnSystem)));
+            foreach (var piece in new object[] { creation.RequestSystem, creation.FinalizationSystem, creation.PromotionSystem,
+                                                 creation.ObstacleBakeSystem, creation.SeatPresetSystem }.Concat(creation.NetworkSystems))
+                Assert.Contains(piece, scheduled);
+            Assert.DoesNotContain(creation.SpawnSystem, scheduled);   // the spawner is the one module (SingleSystemModule)
+        }
+
         [Fact]
         public void Build_Offline_HasNoNetworkSystems()
         {
@@ -606,7 +627,7 @@ namespace Hrot.SimHost.Tests
             var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
 
             Assert.True(src.Contains("NetworkAdapters"), $"{rootPath} does not pass NetworkAdapters to the pack.");
-            Assert.True(src.Contains("creation.NetworkSystems"), $"{rootPath} does not schedule creation.NetworkSystems.");
+            Assert.True(src.Contains("creation.RegisterOn("), $"{rootPath} does not schedule the pack (and its NetworkSystems) through creation.RegisterOn (CE-4013 D6).");
             foreach (var copied in new[] { "new DeleteEntityRequestSystem", "NetworkPollingSystem(", ".PollNetwork", "adapters?.RequestSource" })
                 Assert.False(src.Contains(copied),
                     $"{rootPath} builds or copies '{copied}' itself; the pack owns it since S2b (R-174).");
@@ -624,7 +645,7 @@ namespace Hrot.SimHost.Tests
                 $"{rootPath} no longer builds the pack, so this row cannot assert anything. Either it " +
                 "genuinely stopped (drop the row and say why) or the rail is aimed at the wrong file.");
 
-            Assert.True(src.Contains("creation.PromotionSystem"),
+            Assert.True(src.Contains("creation.RegisterOn("),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.PromotionSystem. " +
                 "P2 moved ghost promotion's registrar out of NedReplicationModule, so this host no " +
                 "longer gets it for free: arrived ghosts will never receive their TKB projection and " +
@@ -644,7 +665,7 @@ namespace Hrot.SimHost.Tests
         {
             var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
             Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
-            Assert.True(src.Contains("creation.ObstacleBakeSystem"),
+            Assert.True(src.Contains("creation.RegisterOn("),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.ObstacleBakeSystem: every static obstacle on " +
                 "this host would stay Constructing until the lifecycle timeout destroys it.");
         }
@@ -660,7 +681,7 @@ namespace Hrot.SimHost.Tests
         {
             var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
             Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
-            Assert.True(src.Contains("RegisterGlobalSystem(creation.SeatPresetSystem)"),
+            Assert.True(src.Contains("creation.RegisterOn("),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.SeatPresetSystem: a technical's gun and gunner would stand " +
                 "beside it, never boarded.");
         }

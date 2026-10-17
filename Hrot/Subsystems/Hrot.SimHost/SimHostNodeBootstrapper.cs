@@ -133,7 +133,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     ///
     /// <para>⛔ It is not a second source of truth. <c>PopulateSystems</c> cross-checks it against the
     /// capabilities' own declared <c>Needs</c> and throws if they disagree — see
-    /// <see cref="AssertDeclaredResourcesMatchCapabilityNeeds"/>.</para>
+    /// the base bootstrapper's `capabilities` step (CE-4013 D10).</para>
     ///
     /// <para>📐 <c>MuscleGround</c> is the role whose kinematics borrow the trajectory pool the
     /// navigation solver writes; a node without it allocates no pool.</para>
@@ -157,16 +157,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             ? new Hrot.Common.Infrastructure.INodeResourceProvider[] { TrajectoryPool }
             : System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
 
-    /// <summary>
-    /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
-    /// SimHostApp sets this to register gizmo modules and event-history capture systems that must
-    /// be part of the initialized kernel topology but are not part of the domain core.
-    /// </summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
-    /// <inheritdoc/>
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -348,21 +339,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         var capabilities = plan.Resolve(composed);
 
-        // ⭐⭐⭐ CE-199 — THE RESOURCE HALF NOW RUNS, AND THIS IS ITS CROSS-CHECK.
-        //
-        // ⛔ HISTORY, kept because it explains the shape: this block used to say Allocate CANNOT run,
-        //    and it was right at the time. NodeBootValues.Set refuses any write outside a step that
-        //    declared the key — "Boot step '(outside any step)' set 'res:trajectory-pool' …" — so
-        //    allocating from here threw at boot. The base now owns a `node-resources` STEP that
-        //    declares the keys, and DeclaredResourceKeys/ResolveResources feed it.
-        //
-        // ⭐⭐ What is left to do HERE is the honesty check, and it is the reason the two-hook split is
-        //    safe. DeclaredResourceKeys(role) is a static role→keys map, because `provides` is recorded
-        //    before BuildContext exists. plan.RequiredResources(composed) is the REAL answer — the union
-        //    of the selected capabilities' declared Needs. If they ever disagree, the static map is a
-        //    lie and a capability is either allocating its own copy or reading a resource nobody made.
-        //    ⇒ compare them, and throw naming the difference.
-        AssertDeclaredResourcesMatchCapabilityNeeds(plan.RequiredResources(composed), composed);
+        // ⭐ CE-199 — every selected Need must have a provider (RequiredResources throws, naming it); the declared-vs-needed cross-check
+        //   is the base's now (CE-4013 D10).
+        plan.RequiredResources(composed);
 
         return capabilities;
     }
@@ -381,34 +360,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             DeltaTime = 1.0f / _simulationRateHz,
             TimeScale = 1.0f
         });
-    }
-
-    /// <summary>
-    /// Throws when <see cref="DeclaredResourceKeys"/> and the capabilities' own declared
-    /// <c>Needs</c> disagree about which resources this node allocates.
-    /// </summary>
-    /// <remarks>
-    /// ⭐ The static declaration exists only because a boot step's <c>provides</c> is recorded before
-    /// the context exists (<c>CE-199</c>). This keeps it subordinate to the real source — the
-    /// capabilities — rather than a second one competing with it.
-    /// </remarks>
-    private void AssertDeclaredResourcesMatchCapabilityNeeds(
-        IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider> required,
-        NodeRole composed)
-    {
-        var needed   = new SortedSet<string>(System.StringComparer.Ordinal);
-        foreach (Hrot.Common.Infrastructure.INodeResourceProvider provider in required)
-            needed.Add(provider.Key);
-
-        var declared = new SortedSet<string>(DeclaredResourceKeys(composed), System.StringComparer.Ordinal);
-
-        if (!needed.SetEquals(declared))
-            throw new InvalidOperationException(
-                $"SimHost role {composed} declares resources [{string.Join(", ", declared)}] but its " +
-                $"composed capabilities need [{string.Join(", ", needed)}]. The static declaration in " +
-                "DeclaredResourceKeys must match the union of the capabilities' Needs — otherwise a " +
-                "capability either allocates its own copy of a shared resource, or borrows one the " +
-                "node never allocated.");
     }
 
     /// <inheritdoc/>
@@ -460,7 +411,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             elm:                  context.BaseModules?
                                       .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
                                       .FirstOrDefault(),
-            terrainContent:       context.TerrainContent);   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
+            clusterSlave:         context.ClusterSlave,
+            slaveTranslator:      context.SlaveTranslator);
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
@@ -549,11 +503,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   free-standing empty bag this used to pass predated CE-199's node-resources step, which made the real one legal.
         RegisterCapabilities(context);
 
-        // GenesisMaterializationSystem - Input phase, registered after togglable groups
-        context.Kernel.RegisterGlobalSystem(
-            new GenesisMaterializationSystem(context.EntityMap));
-        // ⭐ CE-3042 — saved AI → the ingress; publishes only where the brain's events are registered, always drops the intent.
-        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());
+        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
+        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
     }
 
     /// <inheritdoc/>

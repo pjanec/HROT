@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ⭐ CE-4015 — the code EVERY ECS host composes, in ONE place no host owns.
+    🔒 User, 2026-10-17: "IG for sure cannot depend on sim host. The host must not be dependent on each other."
+    📄 .dev/_DONE/modular-2/feedback-3.md: subsystems "must never depend on each other, but only point inward toward the shared domain".
+
+    NodeBootstrapper (shared orchestration), the scenario serializer and the genesis tail lived in Hrot.SimHost, so reaching
+    them meant a host-to-host reference. ⛔ Not Hrot.Common: the scenario save handler is in Hrot.Presentation, and
+    Hrot.Presentation -> Hrot.Traffic -> Hrot.Common would make that a cycle. ⇒ this library sits above both, below every host.
+    ⚠ The moved files keep their Hrot.SimHost.* namespaces for now (as Hrot.IG.Components in Hrot.Core does).
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.EcsNode</RootNamespace>
+    <AssemblyName>Hrot.EcsNode</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.SimHost.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

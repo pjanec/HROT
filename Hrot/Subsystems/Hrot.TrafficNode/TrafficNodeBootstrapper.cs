@@ -38,33 +38,11 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
     /// <summary>The traffic node's role: it serves the traffic settings it is granted (S2).</summary>
     public const NodeRole Role = NodeRole.Traffic;
 
-    private HrotNodeConfig?   _savedConfig;
-    private NodeRole          _savedRole = Role;
     private NodeBootstrapper? _nodeBootstrapper;
 
     /// <summary>The serving traffic pack (runtime + mirror are set once the node is booted).</summary>
     public TrafficPack Traffic { get; } = TrafficPack.Serving();
 
-    /// <summary>The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.</summary>
-    public HrotNodeContext Context { get; private set; } = default!;
-
-    /// <summary>Optional phase-6d callback (diagnostics, test systems).</summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
-
-    // UNIFY: identical to StrideNodeBootstrapper.cs:149-167 — capture config/role, patch the SlaveTranslator NodeBootstrapper built.
-    public new HrotNodeContext BootstrapNode(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
-    {
-        _savedConfig      = config ?? throw new ArgumentNullException(nameof(config));
-        _savedRole        = role;
-        _nodeBootstrapper = new NodeBootstrapper(networkFactory);
-
-        var ctx = base.BootstrapNode(config, role, networkFactory);
-        if (_nodeBootstrapper.SlaveTranslator != null)
-            ctx = ctx with { SlaveTranslator = _nodeBootstrapper.SlaveTranslator };
-
-        Context = ctx;
-        return Context;
-    }
 
     // UNIFY: identical to StrideNodeBootstrapper.cs:178-200 (minus its gizmo buffers) — the time controller owns time, not dt.
     public void Tick()
@@ -125,16 +103,16 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         TogglableSimulationGroup simGroup,
         TogglablePostSimulationGroup postSimGroup,
         ScenarioSerializer serializer)
-        => _nodeBootstrapper!.BuildOrchestration(
-            _savedRole,
+        => (_nodeBootstrapper = new NodeBootstrapper(NetworkFactory)).BuildOrchestration(
+            BootRole,
             context.Kernel,
             context.World,
             context.NodeId,
             participant:         context.Participant,
-            subsystemName:       _savedConfig!.SubsystemName,
+            subsystemName:       BootConfig!.SubsystemName,
             eventBus:            context.EventBus,
             scenarioSerializer:  serializer,
-            localTempRoot:       _savedConfig.LocalTempRoot,
+            localTempRoot:       BootConfig.LocalTempRoot,
             tkbDb:               context.TkbDb,
             simGroup:            simGroup,
             postSimGroup:        postSimGroup,
@@ -143,7 +121,9 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
             eventAccumulator:    context.EventAccumulator,
             afterSeek:           context.NedReplication?.AfterSeekCallback,
             elm:                 context.BaseModules?.OfType<EntityLifecycleModule>().FirstOrDefault(),
-            terrainContent:      context.TerrainContent);   // ⭐ CE-4013 — the node's terrain content (the SUMO net)
+            terrainContent:      context.TerrainContent,   // ⭐ CE-4013 — the node's terrain content (the SUMO net)
+            clusterSlave:        context.ClusterSlave,     // ⭐ CE-4013 D15 — the node's ONE slave and translator
+            slaveTranslator:     context.SlaveTranslator);
 
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
@@ -159,8 +139,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         configuredFactory?.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
     }
 
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 
     // ── The shared pieces, one per method ─────────────────────────────────────
 
@@ -169,10 +147,8 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
     {
         var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(Role)
             .Capability(Role, Traffic);
-        // No capability here needs a node resource, so the declared set (none) must stay equal to the resolved one.
-        if (plan.RequiredResources(role).Count != 0)
-            throw new InvalidOperationException(
-                $"Traffic node role {role} composed capabilities that need node resources; declare them in DeclaredResourceKeys.");
+        // The declared-vs-needed resource check is the base's (CE-4013 D10); a Need with no provider throws here, naming it.
+        plan.RequiredResources(role);
         return plan.Resolve(role);
     }
 
@@ -198,5 +174,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
 
         // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
         creation.RegisterOn(context.Kernel);
+        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11 — the shared genesis tail
     }
 }

@@ -3,7 +3,11 @@
        netstandard2.1 (for Unity/Godot hosts); HROT has no netstandard host, so the second compile is pure build time.
        A .targets file is evaluated AFTER each project body, so this overrides the csproj's TargetFrameworks without
        editing the vendored (read-only) files — the sync script's verify mode compares only src/ and packaging/. -->
-  <PropertyGroup>
+  <!-- ⛔ ONLY where the project itself multi-targets. 📌 Measured 2026-10-17: applied unconditionally it ALSO gave the
+       single-TargetFramework Sim.Replication.Dds a TargetFrameworks, so NuGet restored it as multi-target and wrapped
+       CycloneDDS.NET.props (the code-generator switch) in a TargetFramework condition a non-crosstargeting build never
+       meets ⇒ no GetDescriptorOps was generated and every node crashed opening the traffic DDS reader. -->
+  <PropertyGroup Condition="'$(TargetFrameworks)' != ''">
     <TargetFrameworks>net8.0</TargetFrameworks>
   </PropertyGroup>
 </Project>

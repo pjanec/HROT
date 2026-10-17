@@ -75,6 +75,11 @@ public abstract class SharedApplicationBootstrapper
         NodeRole role,
         INetworkFactory? networkFactory)
     {
+        // ⭐ CE-4013 D15 — what every hook may need, captured ONCE here (two subclasses used to HIDE this method to capture them).
+        BootConfig     = config ?? throw new ArgumentNullException(nameof(config));
+        BootRole       = role;
+        NetworkFactory = networkFactory;
+
         // ⭐⭐⭐ THE PHASES ARE DECLARED, NOT JUST SEQUENCED (2026-09-03).
         //
         // The order below is EXACTLY what it has always been — NodeBootPlan verifies, it never
@@ -195,6 +200,16 @@ public abstract class SharedApplicationBootstrapper
             run: () =>
             {
                 _walk = new NodeCapabilityWalk(ResolveCapabilities(context, role));
+
+                // ⭐ CE-4013 D10 — the static resource declaration must equal the union of the composed capabilities' Needs: otherwise a
+                //   capability allocates its own copy of a shared resource, or borrows one the node never allocated. ⛔ SimHost, IG and the
+                //   traffic node each carried their own copy of this check (Stride none).
+                var needed = new SortedSet<string>(_walk.Capabilities.SelectMany(c => c.Needs), StringComparer.Ordinal);
+                var declared = new SortedSet<string>(declaredResourceKeys, StringComparer.Ordinal);
+                if (!needed.SetEquals(declared))
+                    throw new InvalidOperationException(
+                        $"[{config.SubsystemName}] role {role} declares resources [{string.Join(", ", declared)}] but its composed capabilities " +
+                        $"need [{string.Join(", ", needed)}]. DeclaredResourceKeys must match the capabilities' Needs.");
             });
 
         // Phase 4a — Populate togglable system groups and register them on the kernel.
@@ -356,8 +371,21 @@ public abstract class SharedApplicationBootstrapper
 
         plan.Run(GetType().Name);
 
+        Context = context;
         return context;
     }
+
+    /// <summary>⭐ CE-4013 D15 — the config this node was bootstrapped with (null before <see cref="BootstrapNode"/>).</summary>
+    protected HrotNodeConfig? BootConfig { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the role this node was bootstrapped with.</summary>
+    protected NodeRole BootRole { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the network factory handed to <see cref="BootstrapNode"/> (before node configuration).</summary>
+    protected INetworkFactory? NetworkFactory { get; private set; }
+
+    /// <summary>The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.</summary>
+    public HrotNodeContext Context { get; private set; } = default!;
 
     /// <summary>
     /// Phase 5-post — the slave-node composition invariant. Extracted verbatim from the inline
@@ -611,7 +639,13 @@ public abstract class SharedApplicationBootstrapper
     /// that must be part of the initialized kernel topology but are not part of the domain core.
     /// Default is a no-op.
     /// </summary>
-    protected virtual void RegisterApplicationSystems(HrotNodeContext context) { }
+    protected virtual void RegisterApplicationSystems(HrotNodeContext context) => ApplicationSystemsRegistrar?.Invoke(context);
+
+    /// <summary>
+    /// ⭐ CE-4013 D12 — the shell's phase-6d callback (diagnostic capture, test systems), invoked by the default
+    /// <see cref="RegisterApplicationSystems"/>. ⛔ Four hosts used to declare this same property and the same one-line override.
+    /// </summary>
+    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     /// <summary>
     /// Phase 7+: Called immediately after <see cref="ModuleHostKernel.Initialize()"/> completes.

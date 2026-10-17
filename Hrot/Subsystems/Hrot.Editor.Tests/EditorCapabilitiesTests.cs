@@ -101,6 +101,23 @@ public class EditorCapabilitiesTests : IDisposable
         return pack;
     }
 
+    /// <summary>
+    /// ⭐ CE-4013 — the simulation systems the plan's cross-role infrastructure contributes, in plan order (UnitHierarchy → EQS results →
+    /// Interactions), asked of the capabilities themselves rather than copied: a new applier joins the tail without editing this rail.
+    /// </summary>
+    private static IEnumerable<Type> InfrastructureSimulationTail()
+    {
+        var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
+        foreach (INodeCapability c in new INodeCapability[]
+                 {
+                     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy(),
+                     new Hrot.SimHost.EqsResultUpdateCapability(),
+                     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions(),
+                 })
+            c.PopulateSystems(context: null!, input, sim, post);
+        return sim.Select(s => s.GetType()).ToArray();
+    }
+
     /// <summary>⭐ AQ93 R-4047 — the editor composes SUMO traffic, last (its systems need the node context, so the null-context shape rails see none).</summary>
     [Fact]
     public void DefaultArm_ComposesTraffic_Last_AQ93()
@@ -194,24 +211,10 @@ public class EditorCapabilitiesTests : IDisposable
             .Concat(handSim)
             .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
                             typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
-            .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
-                            typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
-                            // ⭐ CE-3072 B3/B4 — the danger-area sensor's Brain half rides the EQS result capability
-                            //   (EqsInfrastructureCapability.cs), right after EqsResultUpdateSystem. Added deliberately in
-                            //   12021d5f5; this block was not updated then (a red found in the buildings Stage 0 gates).
-                            typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),
-                            // ⭐ CE-3110 — the interaction appliers (doors, embarkation), at the tail with the other cross-role infrastructure.
-                            typeof(Fdp.Toolkit.Terrain.DoorCommandSystem),
-                            typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
-                            // ⭐ Weapon systems WS-1 (W-C) — the deploy state's applier, the same Interactions capability. Added in
-                            //   5c3fe8974 (2026-10-14); this block was not updated then (found red in the airborne B-5 gates).
-                            typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),
-                            typeof(Hrot.Common.EntityCreation.EjectionSystem),   // ⭐ airborne insertion B-8 — same capability
-                            typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem),     // ⭐ CE-3219 part 3 — same capability
-                            // ⭐ CE-3235 (armed people B-13) — the pick-up grant and the in-hand fuze, same capability. Added in 61f235fd7;
-                            //   this block was not updated then (found red by the coordinator, 2026-10-17).
-                            typeof(Fdp.Toolkit.Combat.Systems.RoundPickUpSystem),
-                            typeof(Fdp.Toolkit.Combat.Systems.HandsFuzeSystem) })
+            // ⭐ The cross-role infrastructure tail, DERIVED from the infrastructure capabilities themselves (CE-4013): ⛔ it used to be
+            //   a hand-copied list that reddened every time a lane added an applier to Interactions (WS-1, B-8, CE-3219, CE-3235, B-11/12).
+            //   The rail still pins WHERE the tail sits (after the muscle tier and the perception stimuli) and that it is these, in order.
+            .Concat(InfrastructureSimulationTail())
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -293,16 +296,7 @@ public class EditorCapabilitiesTests : IDisposable
             new[] { typeof(Fdp.Toolkit.Combat.Systems.HealthApplicationSystem),   // ⭐ CE-2144 — the shared plan head, first
                     typeof(Fdp.Toolkit.Combat.Systems.BleedOutSystem) }           // ⭐ CE-2155 — the same capability's bleed-out
                .Concat(cgf.SimulationSystems.Select(s => s.GetType()))
-               .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
-                               typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
-                               typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),    // CE-3072 — same capability
-                               typeof(Fdp.Toolkit.Terrain.DoorCommandSystem),               // CE-3110 — interaction infrastructure
-                               typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
-                               typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),          // WS-1 — same capability
-                               typeof(Hrot.Common.EntityCreation.EjectionSystem),   // airborne B-8 — same capability
-                               typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem),      // CE-3219 part 3 — same capability
-                               typeof(Fdp.Toolkit.Combat.Systems.RoundPickUpSystem),          // CE-3235 — same capability
-                               typeof(Fdp.Toolkit.Combat.Systems.HandsFuzeSystem) }),
+               .Concat(InfrastructureSimulationTail()),   // ⭐ CE-4013 — derived, as above
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.

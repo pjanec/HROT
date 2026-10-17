@@ -1773,8 +1773,7 @@ namespace Hrot.Editor
             _kernel.RegisterModule(elm);
             // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (the spawner stays right after the ELM).
             creation.RegisterOn(_kernel);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
+            Hrot.SimHost.Systems.GenesisTail.RegisterOn(_kernel, entityMap);   // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
             // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)
             // is consumed in the offline editor just as it is on a CGF node.

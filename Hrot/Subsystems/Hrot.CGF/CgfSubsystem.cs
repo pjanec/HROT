@@ -1038,8 +1038,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   by the ONE shared registration. ⚠ The spawner was a GLOBAL system here; it is the module now, as on SimHost, Stride, the editor.
         creation.RegisterOn(_context.Kernel);
 
-        _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
-        _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
+        Hrot.SimHost.Systems.GenesisTail.RegisterOn(_context.Kernel, _entityMap!);   // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
 

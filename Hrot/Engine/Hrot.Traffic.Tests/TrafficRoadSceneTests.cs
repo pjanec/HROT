@@ -40,7 +40,7 @@ public sealed class TrafficRoadSceneTests
         Assert.Contains(asphalt.Vertices, v => v.X < -500f);   // and beyond it: the net is 4.75 km
     }
 
-    private static TrafficNetCache Load()
+    internal static TrafficNetCache Load()
     {
         using var world = new EntityRepository();
         var residency = new TerrainResidency(new TerrainCatalog(new[] { TerrainRoot() }), new CarKinem.Road.RoadNetworkHolder());
@@ -49,7 +49,7 @@ public sealed class TrafficRoadSceneTests
         return TrafficNetCache.Of(world)!;
     }
 
-    private static string TerrainRoot()
+    internal static string TerrainRoot()
     {
         string dir = AppContext.BaseDirectory;
         while (dir != null && !Directory.Exists(Path.Combine(dir, "Hrot", "Subsystems")))

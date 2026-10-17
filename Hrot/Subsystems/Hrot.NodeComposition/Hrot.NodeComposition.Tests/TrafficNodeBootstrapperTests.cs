@@ -80,6 +80,14 @@ public sealed class TrafficNodeBootstrapperTests
             .OfType<Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem>()
             .SelectMany(s => s.Translators);
         Assert.Contains(ingress, t => t is Hrot.Map.Common.Replication.Ingress.EntityTrafficDemandIngressTranslator);
+
+        // ⭐ CE-4013 D15 — ONE slave translator per node: the orchestration helper reused the builder's instead of building a second
+        //   (which used to leave the builder's live on DDS and never ticked).
+        var helper = typeof(TrafficNodeBootstrapper)
+            .GetField("_nodeBootstrapper", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(node) as Hrot.SimHost.NodeBootstrapper;
+        Assert.NotNull(node.Context.SlaveTranslator);
+        Assert.Same(node.Context.SlaveTranslator, helper!.SlaveTranslator);
     }
 
     [Fact]

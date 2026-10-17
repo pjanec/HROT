@@ -46,10 +46,24 @@ namespace Hrot.SimHost.Tests
         /// <summary>The three ECS composition roots that must each hold a terrain loader.</summary>
         public static TheoryData<string> EcsCompositionRoots => new()
         {
-            "Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs",
+            "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         };
+
+        /// <summary>⭐ CE-4013 D8 — a host that builds its orchestration through the shared
+        /// <c>Hrot.SimHost.NodeBootstrapper</c> composes its load phase THERE, so the rail reads that file.
+        /// ⛔ Only a real delegation counts: the host must construct the shared bootstrapper AND call its
+        /// <c>BuildOrchestration</c>.</summary>
+        private static string ReadEffectiveRoot(string relativePath)
+        {
+            var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(relativePath));
+            bool delegates = code.Contains("new Hrot.SimHost.NodeBootstrapper(", StringComparison.Ordinal)
+                          && code.Contains("_nodeBootstrapper.BuildOrchestration(", StringComparison.Ordinal);
+            return delegates
+                ? CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs"))
+                : code;
+        }
 
         // ── ① it is composed at all ───────────────────────────────────────────────────────────
 
@@ -57,8 +71,7 @@ namespace Hrot.SimHost.Tests
         [MemberData(nameof(EcsCompositionRoots))]
         public void EveryEcsHost_ComposesARealTerrainLoader(string relativePath)
         {
-            var code = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(relativePath));
+            var code = ReadEffectiveRoot(relativePath);
 
             Assert.True(
                 code.Contains("LoadPhaseChain.FromRoles", StringComparison.Ordinal),
@@ -88,13 +101,13 @@ namespace Hrot.SimHost.Tests
         {
             foreach (var path in new[]
             {
-                "Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs",
+                "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
                 "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
             })
             {
-                var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));
+                var code = ReadEffectiveRoot(path);
 
                 Assert.True(CompositionRootSource.ConstructsType(code, "TerrainLoadStep")
                          || code.Contains("HrotUniversalLoadParts.Build(", StringComparison.Ordinal),   // ⭐ CE-4013 — the shared factory
