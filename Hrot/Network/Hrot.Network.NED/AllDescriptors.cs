@@ -113,6 +113,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-1153 — the brain's verdict on the operator's last USE press (Brain group → every node, for the FPS HUD).
         //   📄 docs/DESIGN_Entity_Control.md §8h.6. Reserved for this item at dispatch; measured free on ui, behaviors, backend, coordinator.
         dtOperatorUseStatus           = 141,
+        // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, beside Health (Brain group → every node).
+        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3. Measured free on ui, behaviors, backend, coordinator.
+        dtEffectState                 = 142,
         // etc., all known descriptor types here
     }
 

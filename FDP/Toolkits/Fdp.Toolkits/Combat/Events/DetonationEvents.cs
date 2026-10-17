@@ -40,5 +40,12 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>⭐ <c>CE-3210</c> — the part id within the body plan.</summary>
         public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — APPENDED: what the hit does besides its damage (<see cref="HitEffect.Kinetic"/>
+        /// = nothing, every hit before).</summary>
+        public HitEffect Effect;
+
+        /// <summary>⭐ <c>CE-3219</c> — how long <see cref="Effect"/> lasts (s); the Health owner stores it in <see cref="EffectState"/>.</summary>
+        public float EffectSeconds;
     }
 }

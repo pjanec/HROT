@@ -16,6 +16,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         Fragmentation = 2,
         /// <summary>Shaped charge (HEAT/HEDP): the jet is the direct hit; a small blast and fragments around it.</summary>
         ShapedCharge = 3,
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6 ⓓ) — non-lethal blunt: a baton round, a stone; the hit knocks the man down.</summary>
+        Blunt = 4,
+        /// <summary>⭐ <c>CE-3219</c> — an irritant (tear gas): its burst leaves a cloud that irritates those inside.</summary>
+        Irritant = 5,
+        /// <summary>⭐ <c>CE-3219</c> — a stun grenade: one stun hit to everyone in its radius.</summary>
+        Stun = 6,
     }
 
     /// <summary>When a warhead detonates. v1: impact and time (W-4); airburst is later.</summary>
@@ -110,6 +116,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// shaped charge until ERA exists (<c>ArmorModel.ArmourFor</c>). Meaningful only with <see cref="WarheadKind.ShapedCharge"/>.</summary>
         [Description("Tandem shaped charge (defeats reactive armour once ERA exists).")]
         public bool Tandem { get; init; }
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — how long a non-lethal warhead's effect lasts on a man (s): a <see cref="WarheadKind.Blunt"/>
+        /// round's knock-down, a <see cref="WarheadKind.Stun"/> burst's stun at its centre (it falls off with the blast), an
+        /// <see cref="WarheadKind.Irritant"/> cloud's irritation per pulse.</summary>
+        [EditUnit("s")]
+        [Description("How long a non-lethal effect lasts (s): a blunt round's knock-down, a stun burst's stun, an irritant's irritation.")]
+        public float EffectSeconds { get; init; }
 
         /// <summary>True when the warhead has any area effect.</summary>
         [JsonIgnore]

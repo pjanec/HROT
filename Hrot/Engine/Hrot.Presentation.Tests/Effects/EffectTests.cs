@@ -663,7 +663,8 @@ public sealed class EffectTests
                                             MunitionTkbCatalog.Tkb60mmMortarHe, MunitionTkbCatalog.Tkb120mmMortarHe,   // ⭐ IF-1 (I7) — the new guns' own rounds (new types on new mounts): no number moved
                                             MunitionTkbCatalog.Tkb105mmHowitzerHe, MunitionTkbCatalog.Tkb155mmHowitzerHe,
                                             MunitionTkbCatalog.TkbStingerMissile, MunitionTkbCatalog.TkbIglaMissile,   // ⭐ CE-2187 — the MANPADS' proximity-fused warheads (new types on new mounts): no number moved
-                                            MunitionTkbCatalog.Tkb23mmHei };         // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
+                                            MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
+                                            MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade };   // ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {

@@ -105,6 +105,14 @@ namespace Fdp.Toolkit.Combat.Systems
                         health.Current = 0f;
                 }
 
+                // ⭐⭐ CE-3219 (civilians B-1, CV-6 ⓑ) — the hit's non-lethal effect is STORED beside Health by the same owner (never derived
+                //   from Health, rule I1): until when the man is knocked down, irritated, stunned. Replicated as dtEffectState.
+                if (evt.Effect != HitEffect.Kinetic && repo.IsComponentTypeRegistered<EffectState>())
+                {
+                    if (!repo.HasComponent<EffectState>(targetEntity)) repo.AddComponent(targetEntity, default(EffectState));
+                    Effects.Apply(ref repo.GetComponentRW<EffectState>(targetEntity), evt.Effect, evt.EffectSeconds, HitModel.Now(repo));
+                }
+
                 // At zero HP: strip mobility and shoot capabilities. ⛔ The entity is NOT destroyed —
                 //   a dead body stays in the world. 🔒 User ruling `2026-09-13`: *"dead entity should not
                 //   vanish, it should stay dead in the world, every entity (no magic dead body

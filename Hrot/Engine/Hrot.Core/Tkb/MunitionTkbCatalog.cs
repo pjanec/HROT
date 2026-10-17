@@ -114,6 +114,15 @@ namespace Hrot.Core.Tkb
         public const int TkbFlare = 6034;
         /// <summary>⭐ <c>CE-2188</c> / <c>CE-1111</c> — a CHAFF bundle: an expendable (DIS 8.2.1); it fools a <c>Radar</c> seeker.</summary>
         public const int TkbChaff = 6035;
+        /// <summary>⭐ <c>CE-3223</c> (civilians B-5, CV-9, R-3013) — a 40 mm BATON round (a less-lethal launcher's): a blunt hit that knocks
+        /// a man down.</summary>
+        public const int TkbBatonRound = 6036;
+        /// <summary>⭐ <c>CE-3223</c> — a STUN grenade (thrown, time fuze): stuns everyone its flash-bang reaches, no fragments.</summary>
+        public const int TkbStunGrenade = 6037;
+        /// <summary>⭐ <c>CE-3223</c> — a thrown STONE (a rioter's): a blunt hit.</summary>
+        public const int TkbStone = 6038;
+
+        public const string BatonRoundName = "40mm baton round", StunGrenadeName = "stun grenade", StoneName = "thrown stone";
 
         public const string Mortar60mmHeName = "60mm mortar HE", Mortar120mmHeName = "120mm mortar HE",
                             Howitzer105HeName = "105mm howitzer HE", Howitzer155HeName = "155mm howitzer HE";
@@ -251,6 +260,17 @@ namespace Hrot.Core.Tkb
                      expendable: new ExpendableDto { LifeSeconds = 5f, SinkMps = 8f });
             Register(tkb, ChaffName, TkbChaff, new DISEntityType { Kind = 8, Domain = 2, Category = 1 },
                      expendable: new ExpendableDto { LifeSeconds = 8f, SinkMps = 2f });
+            // ⭐⭐ CE-3223 (civilians B-5, CV-9, R-3013; docs/DESIGN_Civilians_And_Crowd_Control.md §7.5) — the NON-LETHAL rounds and the
+            //   rioter's stone. Their WarheadDto names the effect (CE-3219's HitEffect, stored by the Health owner); none has fragments,
+            //   and no name matches an explosive reference entry (the resolver's by-name fallback). Starter values — tuning starts here.
+            //   DIS kind 2 (munition), domain 8 (anti-personnel), category 2 (ballistic); a generic round names no country ⇒ 0.
+            Register(tkb, BatonRoundName, TkbBatonRound, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 4f }, damage: 5f);
+            Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+            Register(tkb, StoneName, TkbStone, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f }, damage: 3f);
         }
 
         // ⭐ CE-3213 — the SISO-REF-010 countries the munition codes use (enumeration 29, Country).
@@ -329,6 +349,7 @@ namespace Hrot.Core.Tkb
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
+                [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive

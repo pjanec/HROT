@@ -111,6 +111,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-1153 (§8h.6) — the brain's verdict on the operator's last use press (Brain → every node), for the HUD.
             yield return new EntityOperatorUseStatusEgressTranslator(participant);
             yield return new EntityOperatorUseStatusIngressTranslator(participant, entityMap);
+            // ⭐ CE-3219 (civilians B-1) — a person's stored non-lethal effects, beside Health (Brain → every node).
+            yield return new EntityEffectStateEgressTranslator(participant);
+            yield return new EntityEffectStateIngressTranslator(participant, entityMap);
             // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
             //   (the Muscle → every node).
             yield return new EntityPartDamageEgressTranslator(participant);
