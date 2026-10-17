@@ -1401,7 +1401,9 @@ public sealed class Map3DTests
         var civilian = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale));
         var police = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield));
         Assert.Equal((VisualFamily.Person, PersonKit.Civilian, false), (civilian.Family, civilian.Kit, civilian.Soldier));
-        Assert.Equal((VisualFamily.Person, PersonKit.Security, false), (police.Family, police.Kit, police.Soldier));
+        Assert.Equal((VisualFamily.Person, PersonKit.Security, false), (police.Family, police.Kit, police.Soldier));   // stun grenades only
+        var launcher = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher));
+        Assert.Equal((PersonKit.Security, true), (launcher.Kit, launcher.Soldier));   // a baton launcher is held: he carries it
         foreach (var t in db.GetAll())
             if (t.DisType.Kind == 3 && t.DisType.Category == 1 && EntityBodyLayer3D.Resolve(t).Family == VisualFamily.Person)
                 Assert.Equal(PersonKit.Soldier, EntityBodyLayer3D.Resolve(t).Kit);   // every infantryman is still a soldier
@@ -1414,6 +1416,149 @@ public sealed class Map3DTests
         var clothes = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, civilian.Soldier, false, null, ForceId.Neutral, civilian.Kit);
         Assert.NotEqual(Outfits.PoliceUniform, clothes.Top);
         Assert.False(clothes.Soldier);
+    }
+
+    /// <summary>⭐ CE-1162 (civilian U1-b, docs/DESIGN_Civilians_And_Crowd_Control.md §8) — the TYPE says an elderly person (backend F-4,
+    /// <c>PersonDto.Age</c>): grey or white hair, long trousers or a skirt (never shorts), on every seed; a younger adult keeps his clothes.</summary>
+    [Fact]
+    public void CE1162_AnElderlyType_IsDressedAndGreyedAsOne()
+    {
+        var db = BuiltIn();
+        var old = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly));
+        var adult = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale));
+        Assert.Equal((true, false, false), (old.Elderly, adult.Elderly, old.Child));
+        int grey = 0;
+        for (long seed = 1; seed <= 40; seed++)
+        {
+            var o = Outfits.For(seed, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly, false, false, null, ForceId.Neutral, old.Kit, old.Elderly);
+            Assert.NotEqual(Legwear.Shorts, o.Legwear);
+            float sat = MathF.Max(o.Hair.R, MathF.Max(o.Hair.G, o.Hair.B)) - MathF.Min(o.Hair.R, MathF.Min(o.Hair.G, o.Hair.B));
+            Assert.True(sat <= 8f && o.Hair.R >= 130, $"seed {seed}: hair {o.Hair.R},{o.Hair.G},{o.Hair.B} is not grey");
+            grey++;
+        }
+        Assert.Equal(40, grey);
+    }
+
+    /// <summary>⭐ CE-1164 (civilian U-3, §8 U3-a) — a COWERING civilian (backend F-3, <c>EffectState.Cowering</c>) is drawn crouched with
+    /// his forearms over his head: as low as a crouch, and the only parts that differ from the crouch are the arms, which reach above his
+    /// head's middle. A soldier never cowers in the drawing; the 2-D line says COWERING.</summary>
+    [Fact]
+    public void CE1164_ACoweringCivilian_CrouchesWithHisArmsOverHisHead()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));
+            Assert.True(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: true));
+            Assert.Equal("COWERING", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, false));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+        }
+
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var crouched = BlockFigure.Parts(StanceId.Crouched, soldier: false);
+        var cower = BlockFigure.Cower;
+        Assert.Equal(crouched.Length, cower.Length);
+        Assert.InRange(Top(cower, size), Top(crouched, size) - 0.05f, Top(crouched, size) + 0.15f);
+        float headMid = Vector3.Transform(Vector3.Zero, cower[BlockFigure.HeadIndex].BodyTransform(size)).Z;
+        var arms = Enumerable.Range(0, cower.Length).Where(i => cower[i] != crouched[i]).ToList();
+        Assert.NotEmpty(arms);
+        Assert.All(arms, i => Assert.NotEqual(BlockFigure.HeadIndex, i));
+        Assert.True(arms.Max(i => Top([cower[i]], size)) > headMid, "the hands are not over the head");
+    }
+
+    /// <summary>⭐ CE-1166 (civilian U-6, docs/DESIGN_Civilians_And_Crowd_Control.md §8.7) — each gesture changes ONLY the four arm parts
+    /// of a standing and of a crouched figure (the frame's acceptance: the arm boxes differ from the stance's), None changes nothing, a
+    /// soldier's rifle is slung, and HoldSign alone adds the pole and a board above his head.</summary>
+    [Theory]
+    [InlineData(BlockFigure.ArmGesture.HandsUp)]
+    [InlineData(BlockFigure.ArmGesture.FistRaised)]
+    [InlineData(BlockFigure.ArmGesture.HoldSign)]
+    [InlineData(BlockFigure.ArmGesture.Waving)]
+    [InlineData(BlockFigure.ArmGesture.Throwing)]
+    public void CE1166_EachGesture_ChangesOnlyTheArms(BlockFigure.ArmGesture gesture)
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (var (stance, crouched) in new[] { (StanceId.Standing, false), (StanceId.Crouched, true) })
+        {
+            var plain = BlockFigure.Parts(stance, soldier: false);
+            Assert.Same(plain, BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.None, crouched, false));
+            var shown = BlockFigure.GestureArms(plain, gesture, crouched, soldier: false);
+            int extra = gesture == BlockFigure.ArmGesture.HoldSign ? BlockFigure.PlacardParts : 0;
+            Assert.Equal(plain.Length + extra, shown.Length);
+            var changed = Enumerable.Range(0, plain.Length).Where(i => plain[i] != shown[i]).ToList();
+            Assert.Equal(Enumerable.Range(BlockFigure.TorsoIndex + 2, 4), changed);   // the four arm parts, nothing else
+            if (gesture == BlockFigure.ArmGesture.HoldSign)
+                Assert.True(Top(shown[^1..], size) > Top(plain, size) + 0.3f, $"{stance}: the board is not above his head");
+
+            var armed = BlockFigure.Parts(stance, soldier: true);
+            var slung = BlockFigure.GestureArms(armed, gesture, crouched, soldier: true);
+            Assert.NotEqual(armed[BlockFigure.WeaponIndex], slung[BlockFigure.WeaponIndex]);
+        }
+    }
+
+    /// <summary>⭐ CE-1166 (§8.7 U6-b) — the drawing's names ARE backend's (B-6 <c>GestureKind</c>), name for name and byte for byte, so
+    /// the cast in <c>Gestured</c> cannot drift: a gesture added on one side fails here.</summary>
+    [Fact]
+    public void CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte()
+    {
+        Assert.Equal(Enum.GetNames<Fdp.Toolkit.Combat.GestureKind>(), Enum.GetNames<BlockFigure.ArmGesture>());
+        foreach (var kind in Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>())
+            Assert.Equal(kind.ToString(), ((BlockFigure.ArmGesture)(byte)kind).ToString());
+    }
+
+    /// <summary>⭐ CE-1166 (§8.7 U6-a, U6-e) — the replicated gesture reaches the figure: a free man's arms show it; cowering, carrying or
+    /// None leave the arms to their owner; the 2-D line says HANDS UP or PROTEST, after any effect.</summary>
+    [Fact]
+    public void CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HandsUp));
+            var shown = EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain);
+            Assert.Equal(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false), shown);
+            Assert.Equal("HANDS UP", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain));
+
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HoldSign));
+            Assert.Equal(plain.Length + BlockFigure.PlacardParts, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain).Length);
+            Assert.Equal("PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));   // cowering owns the arms
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Equal("COWERING · PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+        }
+    }
+
+    /// <summary>⭐ CE-1166 (§8.7 U6-c) — the shapes read as what they are: hands up puts BOTH hands above the head, a raised fist ONE, and
+    /// the wind-up puts the throwing hand behind the shoulder line.</summary>
+    [Fact]
+    public void CE1166_TheShapes_ReadAsTheGesture()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        float headTop = Top([plain[BlockFigure.HeadIndex]], size);
+        int HandsAboveHead(KitPart[] parts) => new[] { BlockFigure.TorsoIndex + 3, BlockFigure.TorsoIndex + 5 }
+            .Count(i => Top([parts[i]], size) > headTop);
+        Assert.Equal(0, HandsAboveHead(plain));
+        Assert.Equal(2, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false)));
+        Assert.Equal(1, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.FistRaised, false, false)));
+        var windUp = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.Throwing, false, false);
+        Assert.True(Vector3.Transform(Vector3.Zero, windUp[BlockFigure.TorsoIndex + 5].BodyTransform(size)).X < -0.1f, "the throwing hand is not back");
     }
 
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,

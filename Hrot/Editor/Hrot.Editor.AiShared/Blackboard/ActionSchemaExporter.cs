@@ -197,7 +197,8 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
         collected[fqn] = new ActionSchemaEntry(
             fqn, dtoType, hosting, access, isCondition, dtoFields, isAiPrimitive,
-            WorkingStateType: isAiPrimitive ? null : ExtractSecondRefParamType(method));   // ⭐ CE-2099
+            WorkingStateType: isAiPrimitive ? null : ExtractSecondRefParamType(method),   // ⭐ CE-2099
+            Method: method);                                                               // ⭐ CE-1011
     }
 
     /// <summary>

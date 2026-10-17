@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Hrot.Blueprints.Editor.Host;
+namespace Hrot.Editor.AiShared.Source;
 
 /// <summary>
 /// Editor punch-list #6 — opens a source file in Visual Studio (best-effort, Windows).
@@ -8,7 +8,7 @@ namespace Hrot.Blueprints.Editor.Host;
 /// repo solution loaded; falls back to shell-opening the file with its default handler. All
 /// failures are swallowed — the inspector still shows the resolved <c>file:line</c> text either way.
 /// </summary>
-internal static class SourceFileOpener
+public static class SourceFileOpener
 {
     /// <summary>
     /// Attempts to open <paramref name="file"/> at <paramref name="line"/> (1-based; 0 = no line),

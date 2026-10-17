@@ -23,8 +23,9 @@ public static class BTreePickerDrawerFactory
     /// Creates a fresh custom-drawers map for <paramref name="asset"/>:
     /// <list type="bullet">
     ///   <item>⭐ <c>CE-417</c> slice 4b — the ONE <see cref="ActionBindingDrawer"/> for the action/condition binding, keyed by
-    ///         <see cref="BehaviorActionBindingFacet"/>. The BTree host supplies only its method list: the behavior
-    ///         registry's names. ⛔ Replaces <c>BehaviorHashPickerDrawer</c> + <c>BlackboardFieldPickerDrawer</c> and the
+    ///         <see cref="BehaviorActionBindingFacet"/>. The BTree host supplies only its method list: ⭐ <c>CE-1167</c> the exporter's
+    ///         BTree-hosted methods of the slot's kind ∪ the asset's own (<see cref="ActionBindingMethods"/>, the HSM's rule). ⛔ Was the
+    ///         behaviour registry's NAMES — not methods, so a pick wrote a value the build could not resolve. ⛔ Replaces <c>BehaviorHashPickerDrawer</c> + <c>BlackboardFieldPickerDrawer</c> and the
     ///         <c>BTreeFacetFqnContext</c> side channel between them.</item>
     ///   <item>a <see cref="CompositeStringDrawer"/> keyed by <c>typeof(string)</c> for the subtree asset picker.</item>
     /// </list>
@@ -43,7 +44,8 @@ public static class BTreePickerDrawerFactory
         //   passed its shell picker, plain combos where not)
         var field = new Hrot.Editor.AiShared.Inspector.PickerField(openPicker);
         var bindingDrawer = new ActionBindingDrawer(
-            new ActionBindingSources(asset, _ => registry.GetRegisteredNames(), exporter, catalog), field);
+            new ActionBindingSources(asset, kind => ActionBindingMethods.For(exporter, ActionHosting.BTree, kind == BindingSlotKind.Guard,
+                                                                             BindingsOf(asset, kind)), exporter, catalog), field);
 
         var composite = new CompositeStringDrawer();
 
@@ -64,6 +66,10 @@ public static class BTreePickerDrawerFactory
             [typeof(BehaviorActionBindingFacet)] = bindingDrawer,
         };
     }
+
+    /// <summary>⭐ CE-1167 — the bindings this asset already holds for a slot kind: its conditions' for a guard, its actions' otherwise.</summary>
+    public static IEnumerable<Hrot.Editor.AiShared.BehaviorActionBinding?> BindingsOf(BehaviorTreeAsset asset, BindingSlotKind kind)
+        => asset.Nodes.Select(n => kind == BindingSlotKind.Guard ? n.Condition : n.Action);
 }
 
 /// <summary>

@@ -103,16 +103,32 @@ public sealed class SE2_PickerDrawerRebuildTests
             "BTree custom-drawers map must contain a string drawer keyed by typeof(string)");
     }
 
+    /// <summary>⭐ CE-1167 (AI_Editor_Shared_Infrastructure §7.1c G-5) — the BTree binding lists the EXPORTER's BTree methods, not the
+    /// behaviour registry's names (a binding stores a C# method FQN; a behaviour name is not one). Was
+    /// <c>BTreeFactory_BindingDrawer_ListsTheRegistrysMethods</c>, which pinned the old list.</summary>
     [Fact]
-    public void BTreeFactory_BindingDrawer_ListsTheRegistrysMethods()
+    public void BTreeFactory_BindingDrawer_ListsTheExportersMethods_NotBehaviourNames()
     {
         var registry = new BehaviorRegistry();
         RegisterBehavior(registry, "Ns.Patrol", 1);
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeBTreeAsset(), registry);
+        var exporter = new SingleEntryExporter(
+            new ActionSchemaEntry("Ns.Nodes.Patrol", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite));
+        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeBTreeAsset(), registry, exporter);
 
         drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>(
             "the binding facet must be drawn by the ONE binding drawer");
-        ((drawers)[typeof(BehaviorActionBindingFacet)] as ActionBindingDrawer)!.Sources.GetMethods(BindingSlotKind.Action).Should().Contain("Ns.Patrol");
+        ((drawers)[typeof(BehaviorActionBindingFacet)] as ActionBindingDrawer)!.Sources.GetMethods(BindingSlotKind.Action)
+            .Should().Equal("Ns.Nodes.Patrol");
+    }
+
+    private sealed class SingleEntryExporter : IActionSchemaExporter
+    {
+        private readonly Dictionary<string, ActionSchemaEntry> _map;
+        public SingleEntryExporter(ActionSchemaEntry entry) => _map = new() { [entry.Fqn] = entry };
+        public IReadOnlyDictionary<string, ActionSchemaEntry> All => _map;
+        public ActionSchemaEntry? Lookup(string fqn) => _map.GetValueOrDefault(fqn);
+        public void Rebuild() { }
+        public event Action? Changed { add { } remove { } }
     }
 
     [Fact]

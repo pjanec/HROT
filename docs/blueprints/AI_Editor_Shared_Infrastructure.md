@@ -1096,6 +1096,124 @@ working state), `HsmStateSelectorDrawer`, `HsmEventPickerDrawer` (the pick maps 
 Rails: `PickerFieldTests` ×3 (none + every choice, landing on its node only, once; none clears, cancel does nothing; the FQN tree),
 `BTreePickerDrawerTests.CE1008_…`, `HsmPickerDrawerTests.CE1008_…` (the forwarding: one shared field). Each red-proved.
 
+### 7.1c ⭐ GO TO DEFINITION FOR A C# METHOD — **one opener, three surfaces** *(`CE-1009`, `CE-1011`, `CE-1167`, `2026-10-17`, ui)*
+
+> 🔒 **User (`2026-10-06`, Windows check):** CE-1009 — *the Blueprint function node's "Go to Definition" should open the C# source in
+> Visual Studio*; CE-1011 — *the method picker has no "Go to Definition" for the selected C# method (context menu suggested)*.
+
+📐 **INVENTORY, `2026-10-17`** *(codebase-memory CLI `search_graph` `.*(ResolveMethod|MethodOf|FindMethod|ResolveClrMethod|TryGetMethod).*`
+Method — 8; grep for every reference of the three opener types — 5 files; the BTree/HSM method lists read at their call sites; stored
+`MethodFqn` values counted across every `*.json`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | today | where |
+|---|---|---|
+| ⭐ open a file at a line in a running VS (DTE), else `devenv /edit`, else VS Code, else the shell | `SourceFileOpener.Open` → `VisualStudioDteOpener.TryOpenAtLine` — ⚠ **`internal` to `Hrot.Blueprints.Editor`** | `SourceFileOpener.cs:24`, `VisualStudioDteOpener.cs:33` |
+| ⭐ a method's file + line from its portable PDB | `ClrSourceLocator.Resolve(MethodInfo)` — ⚠ same assembly, `internal` | `ClrSourceLocator.cs:27` |
+| who calls them | ONE caller: the function node's "⋯" button | `FunctionCallNodeDrawer.cs:252` |
+| the Blueprint "Go to Definition" command | follows a graph target only, else "No definition to go to" | `BlueprintDocumentFactory.cs:1288-1310` |
+| a third consumer already designed | params DTOs: *"the editor reuses `SourceFileOpener` (file + line)"* | `DESIGN_Orders_Params_Entity_Classes.md` §13.1 F3 |
+| the exporter holds every action/condition's `MethodInfo` while scanning, and drops it | `ProcessMethod(MethodInfo …)` builds `ActionSchemaEntry` without it | `ActionSchemaExporter.cs:93-200` |
+| 🔴 **the BTree method field lists BEHAVIOUR names** (`AdvanceTo`, `Attack` …) | `registry.GetRegisteredNames()` — while every stored BTree binding holds a C# method FQN (`Fdp.Toolkit.Behavior.SopConditions.SensedFresh` ×172 …) and the BTree palette and the HSM list both read the exporter | `BTreePickerDrawers.cs:46`; `BTreeNodeCatalog.cs:91`; `HsmBindingMethods.cs:30` |
+
+#### Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class SourceFileOpener { <<MOVED to AiShared, public>> +Open(file, line) bool }
+    class VisualStudioDteOpener { <<MOVED, public>> +TryOpenAtLine(file, line) bool }
+    class ClrSourceLocator { <<MOVED, public>> +Resolve(MethodInfo) SourceLocation? }
+    class ActionSchemaEntry { <<EXISTS, grows>> +MethodInfo? Method }
+    class ActionBindingMethods { <<NEW, AiShared>> +For(exporter, kind, hosting, own) }
+    class HsmBindingMethods { <<EXISTS>> For = ActionBindingMethods.For(..., Hsm*) }
+    class ActionBindingSources { <<EXISTS, grows>> +SourceOf(fqn) +GoToDefinition(fqn) }
+    class ActionBindingDrawer { <<EXISTS, grows>> right-click the method: Go to Definition }
+    class BlueprintDocumentFactory { <<EXISTS, grows>> Go to Definition: graph target, else the C# source }
+    class FunctionCallNodeDrawer { <<EXISTS>> the button, now through the moved opener }
+    SourceFileOpener --> VisualStudioDteOpener
+    ActionBindingSources --> ActionSchemaEntry : Lookup(fqn).Method
+    ActionBindingSources --> ClrSourceLocator
+    ActionBindingSources --> SourceFileOpener
+    ActionBindingDrawer --> ActionBindingSources
+    BlueprintDocumentFactory --> ClrSourceLocator
+    BlueprintDocumentFactory --> SourceFileOpener
+    FunctionCallNodeDrawer --> SourceFileOpener
+    HsmBindingMethods --> ActionBindingMethods
+```
+*Caption:* what the picture shows that prose hid — the opener already exists and is reachable from ONE assembly only; moving it down one
+assembly serves all three callers, and the exporter (already scanning every method) supplies the `MethodInfo` so no second FQN resolver is
+written.
+
+#### Sequence — right-click a bound method, Go to Definition
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant D as ActionBindingDrawer
+    participant S as ActionBindingSources
+    participant X as IActionSchemaExporter
+    participant L as ClrSourceLocator
+    participant O as SourceFileOpener
+    U->>D: right-click the method field
+    D->>S: SourceOf(binding.MethodFqn)
+    S->>X: Lookup(fqn)
+    X-->>S: entry with Method
+    S->>L: Resolve(Method)
+    L-->>S: file and line, or none
+    D-->>U: menu: Go to Definition (greyed with no source), the file and line shown
+    U->>D: click
+    D->>S: GoToDefinition(fqn)
+    S->>O: Open(file, line)
+```
+
+#### Modules
+
+```mermaid
+graph TD
+    BPE[Hrot.Blueprints.Editor] -->|references| AIS[Hrot.Editor.AiShared]
+    AIS --> SRC[Source: SourceFileOpener, VisualStudioDteOpener, ClrSourceLocator]
+    INS[NodeProperties inspector, each frame, BTree + HSM] --> ABD[ActionBindingDrawer] --> SRC
+    CMD[Blueprint command Go to Definition, on F12 or the menu] --> SRC
+    FCN[FunctionCallNodeDrawer button] --> SRC
+    classDef dead fill:#fdd,stroke:#c00
+    OLD[today the three types are internal to Hrot.Blueprints.Editor: AiShared cannot reach them]:::dead
+    OLD -.-> SRC
+```
+*Caption:* the red box is the whole of CE-1011's blocker; the arrow direction (Blueprints.Editor → AiShared) is why the types move DOWN.
+
+#### Decisions — leans
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **G-1** | MOVE the three types to `Hrot.Editor.AiShared` (namespace `Hrot.Editor.AiShared.Source`), public | an interface in AiShared implemented in Blueprints.Editor: a seam with one implementation and a wiring step per host · copy them: two openers |
+| **G-2** | the exporter keeps the `MethodInfo` it already scans (`ActionSchemaEntry.Method`, optional, last) | a reflection FQN resolver over loaded assemblies: a second resolver next to four that exist (`NodePinSchema.ResolveMethod`, `Stage0_Rehydrate.ResolveMethod`, the Roslyn one, `BTreeBlueprintBindings`) |
+| **G-3** | the method field's RIGHT-CLICK menu: *Go to Definition* (greyed, with the reason, when there is no source) and the `file:line` as its tooltip — the frame's "context menu" | a second button beside the field: width the field does not have |
+| **G-4** | Blueprint "Go to Definition": the graph target as today; else a function node whose CLR method has a source ⇒ open it; else today's notification, its text naming the missing PDB | a separate "Go to Source" command: two names for one gesture |
+| **G-5** *(CE-1167)* | the BTree method list = the exporter's BTree-hosted entries of the slot's kind (`IsCondition` for a condition) ∪ the asset's own names — the HSM list's rule, ONE function `ActionBindingMethods.For` for both | keep the behaviour names: they are not methods, and a pick writes a value the build cannot resolve |
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a stored BTree binding is a C# method FQN | ✅ 172+ `MethodFqn` values are `Ns.Type.Method`; `BTreeMethodCompatibilityValidator.ResolveMethod` resolves exactly that (`:405`) | ✅ `DESIGN_Behavior_Action_Binding.md` §4b: `ActionBindingSources` lists the binding's METHODS |
+| the exporter sees the `MethodInfo` | ✅ `ActionSchemaExporter.cs:93` | ⛔ searched, none found — measured only |
+| the move breaks nobody outside Blueprints.Editor | ✅ 5 files reference the three types, all in Blueprints.Editor and its tests | — |
+| Windows-only opener is harmless on Linux | ✅ every step returns false on failure (`VisualStudioDteOpener.cs:35`, `SourceFileOpener.cs:42-60`) | — |
+
+#### AS-BUILT (`CE-1009`, `CE-1011`, `CE-1167`, `2026-10-17`, ui) — as designed
+
+| decision | as built |
+|---|---|
+| G-1 | `SourceFileOpener`, `VisualStudioDteOpener`, `ClrSourceLocator` moved (git mv) to `Hrot.Editor.AiShared/Source/`, namespace `Hrot.Editor.AiShared.Source`, public; the function node's "⋯" button and `ClrSourceLocatorTests` take the new namespace (the only two users) |
+| G-2 | `ActionSchemaEntry.Method` (optional, last); `ActionSchemaExporter.ProcessMethod` passes the method it scanned |
+| G-3 | `ActionBindingSources.SourceOf(fqn)` / `GoToDefinition(fqn)` / `OpenSource` (the opener, swappable by a rail); `PickerField.Draw(…, context)` draws an optional right-click menu on the field (button or combo); `ActionBindingDrawer` gives the method field *Go to Definition* + the `file:line`, greyed with the reason when there is no source |
+| G-4 | `BlueprintDocumentFactory.RegisterExpandCommands(…, openSource)`: no graph target and a library call with a source ⇒ open it (`SourceOfClrCall`); the refusal's text for a library call now says the C# source cannot be found |
+| G-5 | `ActionBindingMethods.For(exporter, hosting, condition, own)` (AiShared) — `HsmBindingMethods.For` calls it; the BTree factory calls it with `ActionHosting.BTree` and the slot's kind (`BTreePickerDrawerFactory.BindingsOf`) |
+
+⚠ Four old rails pinned the defect (`FieldPicker_BehaviorHash_*` ×3 and `SE2_PickerDrawerRebuildTests.BTreeFactory_BindingDrawer_ListsTheRegistrysMethods`
+asserted the BTree list IS the registry's names) — re-homed onto the exporter rule (`CE1167_…` ×2, `FieldPicker_MethodList_NoExporter_ReturnsEmpty`,
+`…_ItemsSorted`, `BTreeFactory_BindingDrawer_ListsTheExportersMethods_NotBehaviourNames`). Rails `CE1011_…` ×2
+(`BTreePickerDrawerTests`), `CE1009_…` ×2 (`ExpandNodeTests`); five red-proof switches, each reddening only its own rail.
+⚠ Not verified on Windows: the actual Visual Studio jump is the moved, unchanged opener; the rails stop at the opener call.
+
 ### 7.2 Per-subsystem graph model
 
 Each subsystem implements `IGraphModel` over its in-memory editor model. The implementation is a thin projection:

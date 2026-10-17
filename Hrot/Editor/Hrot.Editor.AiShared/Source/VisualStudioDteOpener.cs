@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using ComTypes = System.Runtime.InteropServices.ComTypes;
 
-namespace Hrot.Blueprints.Editor.Host;
+namespace Hrot.Editor.AiShared.Source;
 
 /// <summary>
 /// Editor punch-list #6 — opens a source file at a specific line in a <b>running Visual Studio</b>
@@ -16,7 +16,7 @@ namespace Hrot.Blueprints.Editor.Host;
 ///
 /// <para>Windows-only; every failure path returns <c>false</c> so the caller can fall back to a CLI launch.</para>
 /// </summary>
-internal static class VisualStudioDteOpener
+public static class VisualStudioDteOpener
 {
     [DllImport("ole32.dll")]
     private static extern int GetRunningObjectTable(int reserved, out ComTypes.IRunningObjectTable prot);
