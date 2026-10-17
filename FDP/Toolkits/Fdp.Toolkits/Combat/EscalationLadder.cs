@@ -127,12 +127,13 @@ namespace Fdp.Toolkit.Combat
             }
         }
 
-        /// <summary>EL-5 — his posture as the ladder reads it: none ⇒ at ease; aimed at a POINT (into the air) ⇒ ready.</summary>
+        /// <summary>His posture as the ladder reads it: none ⇒ at ease. ⭐ EL-5 (aimed at a POINT — into the air — is the ready rung, never
+        /// self-defence) needs nothing here: the rung only tells at-ease apart, and <see cref="ForceLevels.SelfDefence"/> asks for aimed AT
+        /// the unit.</summary>
         private static WeaponPostureKind PostureOf(EntityRepository world, Entity man)
         {
             if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(man)) return WeaponPostureKind.AtEase;
-            ref readonly var p = ref world.GetComponentRO<WeaponPosture>(man);
-            return p.Kind == WeaponPostureKind.Aimed && p.Target.IsNull ? WeaponPostureKind.Ready : p.Kind;
+            return world.GetComponentRO<WeaponPosture>(man).Kind;
         }
 
         private static double Now(EntityRepository world)

@@ -750,7 +750,7 @@ namespace Fdp.Toolkit.Tests
 
             exec.OnEnter(bradley, ref ch, repo);
             exec.Execute(bradley, ref ch, repo, 0.1f);
-            Assert.Equal(1, Aim(ref ch).HasChoice);
+            Assert.Equal(1 + (int)global::Fdp.Toolkit.Behavior.Components.RoeForceLevel.Lethal, Aim(ref ch).HasChoice);   // a choice, made under the Lethal level (EL-9)
             Assert.Equal(1, Aim(ref ch).ChosenMount);   // the TOW for the tank
 
             repo.GetComponentRW<WeaponState>(tow).Ammo = 0;   // the TOW runs dry ⇒ the next frame chooses again

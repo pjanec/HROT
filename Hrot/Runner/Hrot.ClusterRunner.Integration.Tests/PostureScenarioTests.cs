@@ -848,6 +848,242 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2239</c> part 3 (B2, CIV-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5k) — <c>ua-civ-escalation</c> in-process (the
+    /// live check's twin): a police line under a LETHAL ceiling (its ladder grades the force), an instigator and three protesters around a
+    /// stone source, and a Hostile GUNMAN who draws a hidden rifle, holds it at ease, then fires it into the air. Sampled every frame on
+    /// CGF: ⓪ the riot starts · ① drawn and at ease, he is WARNED (the cue) and no police round goes at him · ② every lethal round (the
+    /// rifleman's rifle) goes at the gunman, and at least one does · ③ he is hit · ④ the unarmed rioters get non-lethal force only: one
+    /// is stunned, irritated or down, none dies.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2239_Escalation_TheGunmanIsWarned_ThenShot_TheUnarmedRiotersGetNonLethalOnly()
+    {
+        using var harness = await StartShippedScenario("ua-civ-escalation");
+        var cgf = harness.Cgf!.World!;
+        var policeNames = new[] { "Police rifleman", "Police baton", "Police launcher" };
+        var civNames = new[] { "Instigator", "Protester 1", "Protester 2", "Protester 3" };
+        Assert.True(harness.PumpUntil(() => policeNames.Concat(civNames).Append("Gunman").Append("Police rifle").Append("Gunman's rifle")
+                                                .All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the cast must spawn on CGF");
+        var police = policeNames.Select(n => ByName(cgf, n)).ToArray();
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var gunman = ByName(cgf, "Gunman");
+        var officer = police[0];
+        var copRifle = ByName(cgf, "Police rifle");
+        var hisRifle = ByName(cgf, "Gunman's rifle");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponentRO<WeaponState>(e).Ammo : -1;
+        WeaponPostureKind PostureOf(Entity e) => cgf.HasComponent<WeaponPosture>(e) ? cgf.GetComponentRO<WeaponPosture>(e).Kind : WeaponPostureKind.AtEase;
+        var mounts = police.Append(copRifle).ToArray();
+        var last = mounts.Select(Ammo).ToArray();
+        bool riot = false, warnedAtEase = false, drawn = false;
+        int roundsAtHimAtEase = 0, lethalAtHim = 0;
+        var lethalElsewhere = new System.Collections.Generic.HashSet<string>();
+        var effected = new System.Collections.Generic.HashSet<string>();
+        var dead = new System.Collections.Generic.HashSet<string>();
+        var reasons = new System.Collections.Generic.HashSet<string>();
+        double? hitAt = null;
+        string NameOf(Entity e) => e.IsNull ? "-" : cgf.GetComponentRO<EntityInfo>(e).Name.ToString();
+        void Sample()
+        {
+            double fxNow = HitModel.Now(cgf);
+            if (civs.Any(c => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c) == Fdp.Toolkit.Civilians.CivilianMode.Riot)) riot = true;
+            drawn |= CarryStations.SeatOf(cgf, hisRifle, out _) == CarryStations.Hands(cgf, gunman);
+            bool atEase = drawn && PostureOf(gunman) == WeaponPostureKind.AtEase;
+            if (atEase && police.Any(p => Gestures.Of(cgf, p) == GestureKind.Warning)) warnedAtEase = true;
+            foreach (var p in police)
+                if (cgf.HasComponent<ActionStatus>(p)) reasons.Add(cgf.GetComponent<ActionStatus>(p).Weapon.Reason.ToString());
+            for (int i = 0; i < mounts.Length; i++)
+            {
+                int a = Ammo(mounts[i]);
+                if (a >= 0 && last[i] >= 0 && a < last[i])
+                {
+                    var shooter = i < police.Length ? police[i] : officer;
+                    var at = cgf.HasComponent<WeaponPosture>(shooter) ? cgf.GetComponentRO<WeaponPosture>(shooter).Target : Entity.Null;
+                    if (at == gunman && atEase) roundsAtHimAtEase++;
+                    if (mounts[i] == copRifle) { if (at == gunman) lethalAtHim++; else lethalElsewhere.Add(NameOf(at)); }
+                }
+                last[i] = a;
+            }
+            for (int i = 0; i < civs.Length; i++)
+                if (cgf.HasComponent<EffectState>(civs[i]))
+                {
+                    var fx = cgf.GetComponentRO<EffectState>(civs[i]);
+                    if (fx.StunnedUntil > fxNow || fx.IrritatedUntil > fxNow || fx.KnockedDownUntil > fxNow) effected.Add(civNames[i]);
+                }
+            foreach (var (e, n) in civs.Zip(civNames).Concat(police.Zip(policeNames)))
+                if (cgf.HasComponent<Health>(e) && cgf.GetComponentRO<Health>(e).Current <= 0f) dead.Add(n);
+            if (hitAt == null && cgf.GetComponentRO<Health>(gunman).Current < 100f) hitAt = cgf.SimulationTime;
+        }
+        string State() => $"riot {riot}, drawn {drawn}, warned at ease {warnedAtEase}, rounds at him at ease {roundsAtHimAtEase}, lethal at him {lethalAtHim}, " +
+                          $"lethal elsewhere [{string.Join(",", lethalElsewhere)}], hit at {hitAt}, gunman health {cgf.GetComponentRO<Health>(gunman).Current} " +
+                          $"posture {PostureOf(gunman)}, effected [{string.Join(",", effected)}], dead [{string.Join(",", dead)}], police ammo [{string.Join(",", mounts.Select(Ammo))}], " +
+                          $"police reasons [{string.Join(",", reasons)}], officer {cgf.GetComponent<ActionStatus>(officer).Weapon.Reason}";
+
+        harness.PumpUntil(() => { Sample(); return hitAt != null && cgf.SimulationTime - hitAt >= 3.0 || cgf.SimulationTime > 90.0; }, timeoutFrames: 9000);
+        _out.WriteLine(State());
+        Assert.True(riot, $"⓪ the riot starts; {State()}");
+        Assert.True(warnedAtEase, $"① drawn and at ease, he is warned; {State()}");
+        Assert.True(roundsAtHimAtEase == 0, $"① …and no round goes at him while his rifle is at ease; {State()}");
+        Assert.True(lethalAtHim > 0 && lethalElsewhere.Count == 0, $"② every lethal round goes at the gunman; {State()}");
+        Assert.True(hitAt != null, $"③ the gunman is hit; {State()}");
+        Assert.True(effected.Count > 0, $"④ a rioter gets non-lethal force; {State()}");
+        Assert.Empty(dead);                                                         // ④ no unarmed rioter (nor policeman) dies
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2239</c> part 3 (B2, AW-18; §5c, §5k) — <c>ua-armed-self-defence</c> in-process: the line on its DEFAULT NonLethal ceiling,
+    /// the same riot, and a Hostile gunman who draws and AIMS his rifle at the police rifleman. Sampled every frame on CGF: ① lethal fire
+    /// (the police rifle) goes at THAT man only, and does · ② he is hit · ③ every other rioter gets non-lethal force only: one is stunned,
+    /// irritated or down, none dies.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2239_SelfDefence_LethalAtTheManWhoAims_Only_TheOthersNonLethal()
+    {
+        using var harness = await StartShippedScenario("ua-armed-self-defence");
+        var cgf = harness.Cgf!.World!;
+        var civNames = new[] { "Instigator", "Protester 1", "Protester 2", "Protester 3" };
+        Assert.True(harness.PumpUntil(() => civNames.Append("Gunman").Append("Police rifleman").Append("Police rifle").All(n => !ByName(cgf, n).IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF");
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var gunman = ByName(cgf, "Gunman");
+        var officer = ByName(cgf, "Police rifleman");
+        var rifle = ByName(cgf, "Police rifle");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponentRO<WeaponState>(rifle).Ammo : -1;
+        int last = Ammo(), atHim = 0;
+        var elsewhere = new System.Collections.Generic.List<string>();
+        var effected = new System.Collections.Generic.HashSet<string>();
+        var dead = new System.Collections.Generic.HashSet<string>();
+        double? hitAt = null;
+        void Sample()
+        {
+            double fxNow = HitModel.Now(cgf);
+            int a = Ammo();
+            if (a >= 0 && last >= 0 && a < last)
+            {
+                var at = cgf.HasComponent<WeaponPosture>(officer) ? cgf.GetComponentRO<WeaponPosture>(officer).Target : Entity.Null;
+                if (at == gunman) atHim++; else elsewhere.Add(at.IsNull ? "-" : cgf.GetComponentRO<EntityInfo>(at).Name.ToString());
+            }
+            last = a;
+            for (int i = 0; i < civs.Length; i++)
+            {
+                if (cgf.HasComponent<EffectState>(civs[i]))
+                {
+                    var fx = cgf.GetComponentRO<EffectState>(civs[i]);
+                    if (fx.StunnedUntil > fxNow || fx.IrritatedUntil > fxNow || fx.KnockedDownUntil > fxNow) effected.Add(civNames[i]);
+                }
+                if (cgf.GetComponentRO<Health>(civs[i]).Current <= 0f) dead.Add(civNames[i]);
+            }
+            if (hitAt == null && cgf.GetComponentRO<Health>(gunman).Current < 100f) hitAt = cgf.SimulationTime;
+        }
+        string State() => $"at him {atHim}, elsewhere [{string.Join(",", elsewhere)}], hit at {hitAt}, gunman health {cgf.GetComponentRO<Health>(gunman).Current}, " +
+                          $"act {Fdp.Toolkit.Civilians.HostileActs.Of(cgf, gunman)}, effected [{string.Join(",", effected)}], dead [{string.Join(",", dead)}], " +
+                          $"officer {cgf.GetComponent<ActionStatus>(officer).Weapon.Reason}, rifle ammo {Ammo()}";
+
+        harness.PumpUntil(() => { Sample(); return hitAt != null && cgf.SimulationTime - hitAt >= 3.0 || cgf.SimulationTime > 90.0; }, timeoutFrames: 9000);
+        _out.WriteLine(State());
+        Assert.True(atHim > 0 && elsewhere.Count == 0, $"① lethal fire at the man who aims, only; {State()}");
+        Assert.True(hitAt != null, $"② he is hit; {State()}");
+        Assert.True(effected.Count > 0, $"③ another rioter gets non-lethal force; {State()}");
+        Assert.Empty(dead);                                                         // ③ none of them dies
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2239</c> part 3 (B2, AW-17; §5c, §5k EL-3/EL-5) — <c>ua-armed-celebration</c> in-process: a police patrol (a rifle, a Lethal
+    /// ceiling) 24 m from a wedding party; a Neutral guest fires his rifle into the air, then aims it at the patrol. Sampled every frame on
+    /// CGF: ① while he fires into the air the patrol WARNS (the cue) and spends no round · ② once he aims at it, the patrol's rifle fires at
+    /// him · ③ no other guest is hurt.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2239_Celebration_FireIntoTheAirIsWarned_AimingAtThePatrolIsShot()
+    {
+        using var harness = await StartShippedScenario("ua-armed-celebration");
+        var cgf = harness.Cgf!.World!;
+        var guestNames = Enumerable.Range(1, 6).Select(i => $"Guest {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => guestNames.Append("Celebrant").Append("Celebrant's rifle").Append("Police patrol").Append("Patrol rifle")
+                                                .All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the cast must spawn on CGF");
+        var guests = guestNames.Select(n => ByName(cgf, n)).ToArray();
+        var man = ByName(cgf, "Celebrant");
+        var hisRifle = ByName(cgf, "Celebrant's rifle");
+        var cop = ByName(cgf, "Police patrol");
+        var copRifle = ByName(cgf, "Patrol rifle");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponentRO<WeaponState>(e).Ammo : -1;
+        int his0 = Ammo(hisRifle), cop0 = Ammo(copRifle), copLast = cop0, atHim = 0, roundsWhileVolley = 0;
+        bool volley = false, warned = false;
+        double? aimedAt = null;
+        void Sample()
+        {
+            bool aimsAtCop = cgf.HasComponent<WeaponPosture>(man) && cgf.GetComponentRO<WeaponPosture>(man).Kind == WeaponPostureKind.Aimed
+                             && cgf.GetComponentRO<WeaponPosture>(man).Target == cop;
+            if (aimsAtCop) aimedAt ??= cgf.SimulationTime;
+            if (aimedAt == null && Ammo(hisRifle) < his0) volley = true;
+            if (volley && aimedAt == null && Gestures.Of(cgf, cop) == GestureKind.Warning) warned = true;
+            int a = Ammo(copRifle);
+            if (a >= 0 && copLast >= 0 && a < copLast)
+            {
+                if (aimedAt == null) roundsWhileVolley++;
+                else if (cgf.HasComponent<WeaponPosture>(cop) && cgf.GetComponentRO<WeaponPosture>(cop).Target == man) atHim++;
+            }
+            copLast = a;
+        }
+        string State() => $"volley {volley}, warned {warned}, rounds while volley {roundsWhileVolley}, aimed at {aimedAt}, at him {atHim}, " +
+                          $"his ammo {his0} → {Ammo(hisRifle)}, patrol ammo {cop0} → {Ammo(copRifle)}, patrol {cgf.GetComponent<ActionStatus>(cop).Weapon.Reason}, " +
+                          $"side {cgf.GetComponentRO<EntityInfo>(man).ForceId}, guests [{string.Join(",", guests.Select(g => cgf.GetComponentRO<Health>(g).Current))}]";
+
+        harness.PumpUntil(() => { Sample(); return atHim > 0 && cgf.SimulationTime - aimedAt >= 2.0 || cgf.SimulationTime > 60.0; }, timeoutFrames: 6000);
+        _out.WriteLine(State());
+        Assert.True(volley && warned, $"① he fires into the air and the patrol warns; {State()}");
+        Assert.True(roundsWhileVolley == 0, $"① …and spends no round; {State()}");
+        Assert.True(aimedAt != null && atHim > 0, $"② once he aims at the patrol, it fires at him; {State()}");
+        Assert.True(guests.All(g => cgf.GetComponentRO<Health>(g).Current >= 100f), $"③ no other guest is hurt; {State()}");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2239</c> part 3 (B2, CIV-5 ③; §5k EL-7) — <c>ua-civ-escalation-warn</c> in-process: the same line and riot under a WARN
+    /// ceiling. Sampled every frame on CGF for 40 s: no police round and no baton blow at all (every mount's ammo kept, no rioter stunned,
+    /// irritated, down or hurt by the police) — the warning cue only, shown, and the rounds held as "hold: warning".
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2239_EscalationWarn_UnderAWarnCeiling_NoRoundNoBlow_TheCueOnly()
+    {
+        using var harness = await StartShippedScenario("ua-civ-escalation-warn");
+        var cgf = harness.Cgf!.World!;
+        var policeNames = new[] { "Police rifleman", "Police baton", "Police launcher" };
+        var civNames = new[] { "Instigator", "Protester 1", "Protester 2", "Protester 3", "Gunman" };
+        Assert.True(harness.PumpUntil(() => policeNames.Concat(civNames).Append("Police rifle").All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var police = policeNames.Select(n => ByName(cgf, n)).ToArray();
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var mounts = police.Append(ByName(cgf, "Police rifle")).ToArray();
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponentRO<WeaponState>(e).Ammo : -1;
+        var a0 = mounts.Select(Ammo).ToArray();
+        bool riot = false, cue = false, heldWarn = false;
+        var effected = new System.Collections.Generic.HashSet<string>();
+        void Sample()
+        {
+            double fxNow = HitModel.Now(cgf);
+            if (civs.Any(c => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c) == Fdp.Toolkit.Civilians.CivilianMode.Riot)) riot = true;
+            if (police.Any(p => Gestures.Of(cgf, p) == GestureKind.Warning)) cue = true;
+            if (police.Any(p => cgf.HasComponent<ActionStatus>(p) && cgf.GetComponent<ActionStatus>(p).Weapon.Reason == ActionReason.HoldWarn)) heldWarn = true;
+            for (int i = 0; i < civs.Length; i++)
+                if (cgf.HasComponent<EffectState>(civs[i]))
+                {
+                    var fx = cgf.GetComponentRO<EffectState>(civs[i]);
+                    if (fx.StunnedUntil > fxNow || fx.IrritatedUntil > fxNow || fx.KnockedDownUntil > fxNow) effected.Add(civNames[i]);
+                }
+        }
+        string State() => $"riot {riot}, cue {cue}, held-warn {heldWarn}, ammo {string.Join(",", a0)} → {string.Join(",", mounts.Select(Ammo))}, " +
+                          $"effected [{string.Join(",", effected)}], health [{string.Join(",", civs.Select(c => cgf.GetComponentRO<Health>(c).Current))}], " +
+                          $"reasons [{string.Join(",", police.Select(p => cgf.GetComponent<ActionStatus>(p).Weapon.Reason))}]";
+
+        harness.PumpUntil(() => { Sample(); return cgf.SimulationTime > 40.0; }, timeoutFrames: 6000);
+        _out.WriteLine(State());
+        Assert.True(riot, $"the riot starts; {State()}");
+        Assert.True(mounts.Select(Ammo).SequenceEqual(a0), $"no police round at all; {State()}");
+        Assert.True(effected.Count == 0 && civs.All(c => cgf.GetComponentRO<Health>(c).Current >= 100f), $"no blow, no stun — nobody hurt by the police; {State()}");
+        Assert.True(cue, $"the warning cue is shown; {State()}");
+        Assert.True(heldWarn, $"rounds held as 'hold: warning'; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2238</c> part 3 (AW-8, AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5i.3) — <c>ua-armed-gas-throwback</c>
     /// in-process (the live check's twin): a policeman puts ONE tear-gas canister down in front of a riot; a HARDENED rioter (PanicAt 1.5)
     /// picks it up and throws it back. Sampled every frame on CGF (the clouds' and his brain's node): ⓪ a cloud sits on the canister ·

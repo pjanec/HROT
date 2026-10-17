@@ -426,6 +426,7 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(RoeForceLevel.NonLethal, Level(cop, armed));                                      // 3 s — not yet ignored
             Assert.True(EscalationLadder.WarnIfDue(_world.Repo, cop, armed));
             Assert.Equal(10.0, EscalationLadder.WarnedAt(_world.Repo, cop, armed), 3);                     // a repeated shout keeps the clock
+            Assert.Equal(12.0, _world.Repo.GetComponentRO<WarningLog>(cop).ShowUntil, 3);                  // …and does not raise the cue again
             _world.Repo.SetSimulationTime(15.5f);
             Assert.Equal(RoeForceLevel.Lethal, Level(cop, armed));                                         // ignored ⇒ lethal
             Assert.True(ForceLevels.Permits(_world.Repo, cop, armed, BulletAmmo));
@@ -443,8 +444,8 @@ namespace Fdp.Toolkit.Tests.Combat
 
         /// <summary>⭐ <c>CE-2239</c> part 3 (AW-16, §5k EL-3/EL-5) — the WARNING: the police watch warns an identified-armed man it remembers
         /// within reach — a NEUTRAL too (drawn ⇒ warn) — and shows the cue for 2 s; not one beyond reach, not an unarmed one; firing into the
-        /// air (aimed at a point) reads ready. ✅ Red-proofs: the reach test removed ⇒ the far man is warned ⇒ red; the cue never lowered ⇒ red;
-        /// the point-is-ready rule removed ⇒ the volley reads Lethal-capable Aimed ⇒ red.</summary>
+        /// air (aimed at a point) is the ready rung, never self-defence. ✅ Red-proofs: the reach test removed ⇒ the far man is warned ⇒ red;
+        /// the cue never lowered ⇒ red; <c>ForceLevels.AimsAt</c> without its <c>Target == unit</c> test ⇒ the volley reads self-defence ⇒ red.</summary>
         [Fact]
         public unsafe void CE2239_TheWarning_ArmedInReach_ANeutralToo_CueShowsTwoSeconds_AndFireIntoTheAirReadsReady()
         {

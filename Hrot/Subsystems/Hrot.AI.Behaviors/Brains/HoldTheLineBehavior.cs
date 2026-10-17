@@ -5,6 +5,7 @@ using Fbt.Compiler;
 using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
@@ -93,7 +94,9 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 PostureNodes.StopFiring(world, self, ref ws.Engage);
                 double now = world.SimulationTime;
-                if (now >= ws.NextStrikeAt && Melee.Strike(world, self, target)) ws.NextStrikeAt = now + Melee.CooldownSeconds;
+                // ⭐ CE-2239 part 3 (B2, §5k EL-7) — the baton is non-lethal FORCE: at the Warn rung (or under a Warn ceiling) no blow
+                if (now >= ws.NextStrikeAt && ForceLevels.LevelFor(world, self, target) >= RoeForceLevel.NonLethal && Melee.Strike(world, self, target))
+                    ws.NextStrikeAt = now + Melee.CooldownSeconds;
                 return NodeStatus.Running;
             }
             PostureNodes.Fire(world, self, ref ws.Engage, CooldownSeconds, 0, target);
@@ -109,15 +112,18 @@ namespace Hrot.AI.Behaviors.Brains
             ws = default;
         }
 
-        /// <summary>The nearest man he REMEMBERS (where he last saw him) within <paramref name="reach"/> m who is Hostile and still on his feet:
-        /// in the fight, not Neutral, not knocked down or stunned, his hands not up (the gate holds a ROUND at raised hands, CV-13a; nothing holds a baton
-        /// blow, so the line asks it here). <see cref="Entity.Null"/> when none.</summary>
+        /// <summary>The man he REMEMBERS (where he last saw him) within <paramref name="reach"/> m who is Hostile and still on his feet — in the
+        /// fight, not Neutral, not knocked down or stunned, his hands not up (the gate holds a ROUND at raised hands, CV-13a; nothing holds a
+        /// baton blow, so the line asks it here) — that he may use the MOST force on (<see cref="ForceLevels.LevelFor"/>: a gunman he may
+        /// shoot before a stone thrower he may only stun, a man he may only warn last — ⭐ §5k EL-8), the nearest among those.
+        /// <see cref="Entity.Null"/> when none.</summary>
         internal static unsafe Entity Nearest(EntityRepository world, Entity self, Vector3 me, float reach)
         {
             if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             Entity best = Entity.Null;
             float bestDist = reach * reach;
+            var bestLevel = RoeForceLevel.ForceUnset;
             for (int i = 0; i < mem.Count; i++)
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
@@ -127,7 +133,9 @@ namespace Hrot.AI.Behaviors.Brains
                     || Effects.IsStunned(world, e)) continue;   // ⭐ a stunned man is out of the fight for its seconds: not beaten while he cannot fight (live: a stunned instigator in reach was struck to death)
                 float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
                 float d = dx * dx + dy * dy;
-                if (d <= bestDist) { bestDist = d; best = e; }
+                if (d > reach * reach) continue;
+                var level = ForceLevels.LevelFor(world, self, e);
+                if (level > bestLevel || level == bestLevel && d <= bestDist) { bestLevel = level; bestDist = d; best = e; }
             }
             return best;
         }

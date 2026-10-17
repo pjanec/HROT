@@ -1,0 +1,448 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "c2390008-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10050
+      },
+      "TkbIdentity": {
+        "TkbType": 1201
+      },
+      "EntityInfo": {
+        "Name": "Police patrol",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c2390008-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          1
+        ]
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10051
+      },
+      "TkbIdentity": {
+        "TkbType": 616
+      },
+      "EntityInfo": {
+        "Name": "Patrol rifle",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c2390008-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "c2390008-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          124,
+          214,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10052
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Guest 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          126,
+          216,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10053
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Guest 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          128,
+          214,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10054
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Guest 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          124,
+          218,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10055
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Guest 4",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          128,
+          218,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10056
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Guest 5",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          126,
+          220,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10057
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Guest 6",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Origin": "Superior"
+      }
+    },
+    "c2390008-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          124,
+          204,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10058
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Celebrant",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c2390008-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          1
+        ]
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c2390008-0000-4000-8000-000000000901",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "3"
+                }
+              ]
+            },
+            {
+              "taskId": "c2390008-0000-4000-8000-000000000902",
+              "executingEngine": "",
+              "behaviorName": "FireAtPoint",
+              "behaviorParams": "{\"x\":140,\"y\":190,\"z\":30,\"mount\":0,\"rounds\":8,\"cooldownSeconds\":1.5}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2390008-0000-4000-8000-000000000903",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "4"
+                }
+              ]
+            },
+            {
+              "taskId": "c2390008-0000-4000-8000-000000000904",
+              "executingEngine": "",
+              "behaviorName": "PersonAttack",
+              "behaviorParams": "{\"Target\":10050}",
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "10"
+                }
+              ]
+            },
+            {
+              "taskId": "c2390008-0000-4000-8000-000000000905",
+              "executingEngine": "",
+              "behaviorName": "CivilianHsm",
+              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "c2390008-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          124,
+          204,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10059
+      },
+      "TkbIdentity": {
+        "TkbType": 616
+      },
+      "EntityInfo": {
+        "Name": "Celebrant's rifle",
+        "ForceId": "Neutral"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c2390008-0000-4000-8000-000000000009",
+        "Seat": 1
+      }
+    }
+  }
+}

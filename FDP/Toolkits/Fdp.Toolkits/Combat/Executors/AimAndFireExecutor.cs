@@ -751,7 +751,8 @@ namespace Fdp.Toolkit.Combat.Executors
             public byte   Ready;
             /// <summary>⭐ WL-4 W-12a — the mount chosen for this engagement (the struct's two former padding bytes: still 16).</summary>
             public byte   ChosenMount;
-            /// <summary>1 when <see cref="ChosenMount"/> holds a choice.</summary>
+            /// <summary>0 = no choice; else 1 + the <see cref="Fdp.Toolkit.Behavior.Components.RoeForceLevel"/> on the target the choice was made
+            /// under (⭐ CE-2239 part 3, §5k EL-9: a changed level chooses again).</summary>
             public byte   HasChoice;
 
             /// <summary>A fresh aim (timer and readiness reset) that KEEPS the engagement's mount choice.</summary>
@@ -769,7 +770,11 @@ namespace Fdp.Toolkit.Combat.Executors
             ref var aim = ref AimTimer(ref channel);
             ref Entity engaged = ref EngagedTarget(ref channel);
             mountEntity = unit;
-            if (aim.HasChoice != 0 && engaged == target)
+            // ⭐ CE-2239 part 3 (B2, §5k EL-9) — the choice is kept only while the FORCE LEVEL on this target is the one it was made under
+            //   (HasChoice = 1 + that level): a man who raises his weapon after an ignored warning gets the rifle, not the next stun grenade;
+            //   one who lowers it gets the baton round, not a held rifle
+            byte level = (byte)(1 + (byte)ForceLevels.LevelFor(world, unit, target));
+            if (aim.HasChoice == level && engaged == target)
             {
                 int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
                 if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
@@ -777,7 +782,7 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
             aim.ChosenMount = (byte)chosen;
-            aim.HasChoice = 1;
+            aim.HasChoice = level;
             engaged = target;
             return chosen;
         }
