@@ -4,7 +4,7 @@ updated: 2026-10-16
 build-state: DESIGN — cars: all decisions RULED 2026-10-16 (§0, R-4020…R-4031) except E7b (no LFS, lean). Pedestrians and
   panic (§8): P1–P8 ACCEPTED (R-4032); §8.6 promotion zones DROPPED for now (R-4037); §8.7 SUMO entities in the combat world (leans). The civilians themselves
   (P5, P6) moved to docs/DESIGN_Civilians_And_Crowd_Control.md, a separate programme built first (R-4033). Nothing is dispatched; §6 is the slice plan.
-current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: none.
@@ -51,6 +51,7 @@ related-designs:
 - *"A local entities ok, B ok, C ok, D1 and D7 ok."*
 - *"we can store the sumo road network as part of the terrain and synchronize this the same way as the terrain."*
 - *"Lets discuss pedestrians. I need them and also their panic mode if there is some incident like military/terrorist shootout."* · *"Panicking ones coukd.become.our entities and never returned to sumo"*
+- *"This concise summary is worth writing to the design as is i guess. Sumo node might keep a full copy of hrot entities in its ecs as this is a natural conswquence of code unification and reuse and the cost is basically just memory on the sumo node. Pls lets think about how to make the sumo integratable to the networkless editor in similar way as any other parts are. This is mandatory, sumo should not be just a separate networked node, i want it to be embeddable."*
 - *"Z1 and Z2 approved, write them into the designs"* (Z1: zones are the engine-wide fidelity area; Z2: a SUMO entity is a replica inside a zone or within R of an HROT entity)
 - *"Please explain point H1. H2 and H3 accepted. Why the vicinity condition 300 meters from our entities should apply just to pedestrians? I think it should apply both to sumo cars and pedestrians the same way, no matter if they are in the area of our terrain. Simply, if they are close to our entities, they will by seen by EQS queries, raycasts, and reachable by hits and damage."*
 - *"G2 to G6 leans accepted. The Sumo road network can span large areas that are not covered by our terrain, and this is fine because Sumo in thosr area is working just as a background traffic"*
@@ -435,6 +436,83 @@ simulation interacts with it there (no units, no ground, no buildings).
 | **H1** | which cars and pedestrians become entities (replicas, R-4038) | ⭐⭐ **AMENDED by Z2 (R-4043, 2026-10-17): a SUMO car or pedestrian is a real replica on a node if it is INSIDE A ZONE (a fidelity area, `DESIGN_Terrain_Zones_And_Assets.md` §11) OR within R of any HROT entity; otherwise it is only drawn.** Inside a zone covers the observer case (an observed area is a zone, so its traffic is seen by long-range sensors with no HROT entity near); the vicinity covers units operating outside any zone. With no zone defined only the vicinity applies (Z1-b). The R-4041 text below stands for the vicinity half. ✅ **RULED (R-4041) — ONE vicinity rule for cars AND pedestrians, wherever they are:** a SUMO car or pedestrian is a replica on a node while it is within R of any of our entities; otherwise it is only drawn from the receiving buffer. The terrain's extent plays no part (outside it there are no units, so nothing is near). Details (leans): R is one scenario parameter on the traffic demand entity, default 300 m; a hysteresis band (enter at R, leave at R + 50 m) so a car on the edge does not flicker in and out; each node decides from the same inputs, so every node holds the same replicas up to the band. ⛔ SUPERSEDED draft: "only inside the terrain's extent, plus pedestrians within R" — two rules where one does. ⭐ **Sensor range is independent of R** (user, 2026-10-17: *"Just the sensors of the observer need to see farther than 300 meters from him."*): R decides which traffic EXISTS as entities; any sensor of any range (a forward observer's optics, a drone) sees every replica in its range. "Our entities" means every HROT entity of any side, so the units an observer watches create the vicinity there. ⚠ Known limit: an area holding traffic and no HROT entity at all shows no traffic to sensors (only on the map); a later option is to let an observer's watched point count as a vicinity source | every car on the net as an entity (R-4022 A as first written): thousands of entities nobody can reach |
 | **H2** | height outside the terrain | SUMO's lane z (R-4025); a flat net (E2b drape) outside the terrain uses the terrain origin's altitude — there is no ground to drape on | `GroundHeightAt` outside the grid: undefined there |
 | **H3** | drawing | the road layer and the traffic draw everywhere the net reaches; the terrain only where it exists | clipping the roads to the terrain: the background city disappears from the map |
+
+## 9. How SUMO entities and HROT entities treat each other *(the summary, 2026-10-17 — every row cites its ruling)*
+
+### 9.1 SUMO entities, on every other node
+- **Normal entities owned by the traffic node** (R-4038), network ids from our allocator (R-4029). Only their **motion**
+  travels — on SumoSharp's own topics with its error-gated publishing (R-4020); NED never carries them.
+- **Every node dead-reckons them** with SumoSharp's lane curve, on cluster sim time (R-4020, R-4022, R-4027).
+- **A real replica only where it matters** (R-4043): inside a zone, or within R (300 m) of any HROT entity of any side.
+  There it is a neutral civilian-family entity with health and a collider: sensors, EQS, raycasts, line of sight, the
+  bullet test and blasts see it like any neutral, and our vehicles avoid it. Elsewhere it is **drawn only** — background
+  traffic, also beyond the terrain (R-4040).
+- **Roads and lights** are drawn on every map host from the net that rides the terrain (R-4021, R-4024), everywhere the
+  net reaches; heights from SUMO (R-4025, R-4041).
+- **Replay:** each node records its replicas; SUMO is not stepped (R-4027).
+
+### 9.2 HROT entities, on the traffic node
+The traffic node is an ordinary ECS cluster member (role `Traffic`, R-4022) and keeps **full copies of every HROT
+entity** like any node — the natural consequence of reusing the same composition, the cost is memory (user, 2026-10-17).
+It runs no brain and no physics on them, and feeds them to SUMO every step:
+- vehicles → lane-projected moving obstacles (cars brake, queue, swerve); soldiers and off-lane units → crowd discs
+  (R-4027). ⚠ SUMO pedestrians do not avoid our units (S4 deferred with the zones, R-4037);
+- `WeaponFire` / `MunitionDetonation` → panic incidents (R-4032);
+- a vehicle handed to SUMO → its intent drives a shadow car `hrot:<id>` (R-4023);
+- hits on SUMO entities arrive as the usual `EntityHitDamage`, since it owns them (R-4038).
+
+### 9.3 How the two interact
+
+| event | what happens |
+|---|---|
+| our soldier shoots a SUMO car or pedestrian | the shooter's muscle node computes the damage and sends the normal hit; the traffic node removes it from SUMO; CGF creates our civilian **with the same id, already wounded**; a car becomes our stopped, damaged car and its occupants civilians; hits during the switch are summed (R-4039) |
+| shooting or an explosion nearby | pedestrians in the panic radius (by kind) or near a panicked civilian leave SUMO for good as civilians in Panic → an openable building → deleted after a while (R-4032, R-4035); panicking cars later (P8) |
+| our vehicle drives near traffic | SUMO cars react to it as an obstacle; our vehicle avoids SUMO replicas near it |
+| our vehicle is handed to SUMO | SimHost keeps owning it and **follows** the shadow car (`KinematicsMode.Traffic`); leaving the mode takes it back — ownership never moves (R-4023) |
+| targeting | soldiers never target neutrals (CIV-0); a converted civilian is a target only after a visible hostile act (R-3013, R-4034) |
+| the traffic node goes down | it is optional (R-4027): traffic stops; converted civilians survive (CGF created them) |
+
+## 10. SUMO embedded in ANY host — **the networkless editor included** *(R-4044, mandatory; DESIGN 2026-10-17, leans EM-1…EM-5)*
+
+🔒 R-4044: SUMO is not only a separate networked node — it must be **embeddable** like every other part, so the
+networkless editor runs it too. ⭐ The same rule already governs every role: *"every mechanism keyed on a role must work
+over the internal bus with no network present"* (R-4005); the editor is a one-node cluster declaring the union of its
+roles (`EditorCapabilities.cs:60-62`, Node_Roles §4).
+
+📐 **Measured — the two seams that make it cheap already exist:**
+- **SumoSharp's transport is already pluggable:** `IReplicationSink` / `IReplicationSource` with an in-process binding,
+  `InMemoryReplicationBus` (`Sim.Replication/InMemoryReplication.cs`, *"proving the contract … is transport-neutral"*), and
+  the DDS binding (`DdsReplicationSink` / `DdsSubscriber`) behind the same interfaces.
+- **Our id allocation is already pluggable:** `INetworkIdAllocator` — `DdsIdAllocator` on a cluster, `SequentialIdAllocator`
+  / `BlockIdManager` without a network.
+
+```mermaid
+graph TD
+  subgraph Networked["cluster: a dedicated traffic node"]
+    TP1[TrafficPack on the traffic node] --> SK1[DdsReplicationSink]
+    SK1 -.->|sumo topics| SB1[DdsSubscriber on every other node]
+    SB1 --> MM1[TrafficMirrorModule]
+  end
+  subgraph Embedded["networkless editor, or any host composing Traffic"]
+    TP2[TrafficPack] --> BUS[InMemoryReplicationBus]
+    BUS --> MM2[TrafficMirrorModule, the same code]
+    EV[local events: WeaponFireNotification, DetonationNotification, DamageAssessedEvent] --> TP2
+    TP2 --> CR[local EntityCreationRequest]
+  end
+```
+
+*What the picture shows that prose hid:* the traffic code is ONE pack and the mirror is ONE module in both pictures —
+only the box between them changes (DDS or in-memory), exactly as our own events reach a system either from the local bus
+or through NED ingress; and in the embedded picture every input is a LOCAL event, so nothing in the pack may read a DDS
+topic directly.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **EM-1** | how SUMO enters a host | a **`TrafficPack`** (the `Traffic` role) composed like any other pack — into a dedicated traffic node, into CGF, or into the editor, which then declares Traffic in its role union (R-4005) | a separate process only: not embeddable (R-4044) · a special editor-only SUMO path: two implementations |
+| **EM-2** | the transport | the pack publishes through SumoSharp's `IReplicationSink`; a host with a network participant uses the DDS binding, and the host's OWN mirror always reads the in-process `InMemoryReplicationBus` — so the publishing host never round-trips through DDS to see its own traffic | the pack reading SUMO's arrays directly into the mirror: a second mirror path |
+| **EM-3** | every interaction is a LOCAL event | the pack consumes only bus events: incidents from `WeaponFireNotification` / `DetonationNotification` (NED ingress produces them from remote fire, local fire produces them directly); hits from `DamageAssessedEvent` on an entity it owns (NED ingress of `EntityHitDamage` produces the same event); conversions through the existing creation routing — a local `EntityCreationRequest` when the brain role is local (the editor), addressed to CGF otherwise; ids through `INetworkIdAllocator` | reading the NED topics in the pack: dead without a network |
+| **EM-4** | the hosting node's own SUMO entities | the host runs the SAME mirror and the SAME rule as every other node (R-4043: real replicas only inside a zone or near an HROT entity) — so results never depend on WHERE SUMO runs; in the editor, where the host is the only node, every car becoming an entity would otherwise flood sensors and EQS. ⚠ On a networked host its own SUMO entities are OWNED there, so `HasAuthority` is true and NED egress would publish them: egress must skip traffic-driven entities (one marker checked in the egress gate) — a rail pins it | the host keeping every SUMO car as an entity: the editor's answers would differ from a cluster's |
+| **EM-5** | the clock and threading | the pack steps SUMO from the host's `GlobalTime` (R-4022 B) on the host's frame; SumoSharp's internal parallel step stays inside the pack's tick; in the editor this is the editor's own clock (pause, step and replay work as for every other model) | SumoSharp's own background thread (`SimulationRunner.Start`): a second clock |
 
 ## 7. ⛔ HISTORY
 
