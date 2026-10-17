@@ -2051,7 +2051,7 @@ system, the police brain in the brain tick.
 - ⚠ **the three older riot demos pin their policeman to `Idle`** (`ua-civ-melee`, `ua-civ-riot-stone`, `ua-civ-surrender`) — they test
   the RIOTER against a passive target; with the new default he would fight back and change what they measure.
 
-## 5k. B2 — the escalation ladder: warn, then non-lethal, then lethal *(behaviors, `CE-2239` part 3 / handoff B2, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5k. B2 — the escalation ladder: warn, then non-lethal, then lethal *(behaviors, `CE-2239` part 3 / handoff B2, 2026-10-17; build-state: BUILT — §5k.1)*
 
 ⭐ **Scope.** AW-10's ladder for the SECURITY FORCES (AW-24: soldiers never run it): against a civilian who is not a combatant on status,
 the force a police unit may use rises with what the man does — **armed at ease ⇒ Warn · ready ⇒ NonLethal, Lethal after an ignored
@@ -2137,6 +2137,31 @@ brain that already runs there; only the gesture crosses the wire.
 **Slices:** ① `EscalationLadder` + `WarningLog` + `GestureKind.Warning` + `HoldWarn`, through `ForceLevels.LevelFor` + rails · ②
 `HoldTheLine` warns + demo `ua-civ-escalation` (live + twin) · ③ `ua-armed-celebration` + `ua-armed-self-defence` · ④ (later) knife
 and "closing fast"; `ua-armed-identify`.
+
+### 5k.1 As built *(2026-10-17)*
+
+⭐ The class and sequence diagrams above hold as drawn. Slices ①–③ are BUILT; ④ (knife, closing fast, `ua-armed-identify`) is not.
+The build found five things the design had not drawn; each is now a decision row (EL-7…EL-9) or a fix:
+
+| id | as built *(⭐ lean, for the user's review)* | found by |
+|---|---|---|
+| **EL-5′** | ⛔ SUPERSEDED: "firing into the air reads as Ready" as a posture conversion in the ladder. 📐 It was dead code — the rung only tells AT EASE apart, and `ForceLevels.SelfDefence` already asks aimed AT THIS unit (`AimsAt`'s `Target == unit`), so a volley into the air is the ready rung and never self-defence with nothing in `EscalationLadder` | mutant M7: the conversion removed, every rail green |
+| **EL-7** | ⭐ the BATON is non-lethal force: `HoldTheLine` strikes only when `LevelFor(unit, man) ≥ NonLethal` — under a Warn ceiling, or at the Warn rung, no blow (`Roe.ForceLevel`'s own doc: "NonLethal — … and the baton") | `ua-civ-escalation-warn`: `Melee.Strike` asked no force rule |
+| **EL-8** | ⭐ `HoldTheLine` engages the man it may use the MOST force on (`LevelFor`: a gunman past his ignored warning before a stone thrower; a man it may only warn last), the nearest among those | `ua-civ-escalation`: a gunman behind the stone throwers was never engaged (nearest only) |
+| **EL-9** | ⭐ `AimAndFireExecutor`'s kept mount choice is valid only under the force level it was made at (`AimState.HasChoice` = 1 + that level): a raised weapon after an ignored warning gets the rifle, not the next stun grenade; a lowered one gets the baton round, not a held rifle | review: a kept rifle would hold `HoldForceLevel` for ever once the level fell |
+| fix | `HoldTheLine` never targets a weapon a PERSON carries (its carrier is the target) | twin run 2: 17 police rifle rounds at the gunman's rifle ITEM (side Hostile) |
+| fix | `FireAtPoint` mount 0 with EMPTY hands fires the weapon the person carries (`WeaponSystems.PrimaryMount`, the weapon choice's own hands rule, CE-3230) | twin: a civilian's FireAtPoint failed at once — no volley, no fire into the air |
+
+⚠ **Known limit (filed with this section):** other shooters than `HoldTheLine` read a carried item with a SIDE as a target of its own
+(threat ranking, the soldier's posture). The demos carry their items Neutral (as `ua-armed-blend-back` does); `ua-civ-escalation`
+keeps a Hostile item on purpose, to prove the line's guard.
+
+| proof | result |
+|---|---|
+| rails `ArmamentTests.CE2239_TheLadder_…` + `CE2239_TheWarning_…` | ✅ green; **mutants 8/8 killed** — the at-ease rung · the ignored-warning clock · the SecurityForce test · the cap · the reach · the cue lowered · `AimsAt`'s target test · a repeated shout re-raising the cue |
+| toolkit suites (Armament, AimAndFire, Civilians, StarterPack, Perception, PersonHands, WeaponLaying) | ✅ 303/303 and 186/186 |
+| twins `PostureScenarioTests.CE2239_Escalation_…` · `_EscalationWarn_…` · `_SelfDefence_…` · `_Celebration_…` · `_PoliceLine_…` | ✅ all five green; neighbours `CE2238_GasThrowback`, `RiotStone`, `CE2238_*` green |
+| live checks | LIVE-RESULTS |
 
 ## 6. Known limits
 

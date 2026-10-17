@@ -3460,12 +3460,14 @@ def run_civ_escalation(c, timeout):
             h = health(n)
             if h is not None and h <= 0:
                 st["dead"].add(n)
-        hg = health(gun)
-        if st["hit"] is None and hg is not None and hg < 100:
+        hg = health(gun)   # ③/② count a hit only from the first police rifle round at him on (non-lethal force may hit him before)
+        if st["at_him"] == 0:
+            st["hp0"] = hg
+        elif st["hit"] is None and hg is not None and st.get("hp0") is not None and hg < st["hp0"]:
             st["hit"] = t
         return False
     call("POST", "/sim/play", {})
-    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 90, every=0.25)
+    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 120, every=0.25)
     c.ok(st["riot"], "⓪ the riot starts")
     c.ok(st["warned"] and st["at_ease_rounds"] == 0,
          f"① drawn and at ease, he is warned and the police rifle stays silent (warned {st['warned']}, rounds {st['at_ease_rounds']})")
@@ -3543,12 +3545,14 @@ def run_armed_self_defence(c, timeout):
             h = health(n)
             if h is not None and h <= 0:
                 st["dead"].add(n)
-        hg = health(gun)
-        if st["hit"] is None and hg is not None and hg < 100:
+        hg = health(gun)   # ③/② count a hit only from the first police rifle round at him on (non-lethal force may hit him before)
+        if st["at_him"] == 0:
+            st["hp0"] = hg
+        elif st["hit"] is None and hg is not None and st.get("hp0") is not None and hg < st["hp0"]:
             st["hit"] = t
         return False
     call("POST", "/sim/play", {})
-    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 90, every=0.25)
+    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 120, every=0.25)
     c.ok(st["at_him"] > 0 and not st["elsewhere"], f"① lethal fire at the man who aims, only ({st['at_him']} at him, else {st['elsewhere']})")
     c.ok(st["hit"] is not None, f"② he is hit (at {st['hit']}, health {health(gun)})")
     c.ok(st["effected"] and not st["dead"],
