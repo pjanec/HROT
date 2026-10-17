@@ -201,10 +201,16 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 3: Build scenario serializer ───────────────────────────────────
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐ CE-4013 D9 — the SAME serializer every host saves its owned slice with (🔒 user, 2026-09-14: "IG must share same scenario save
+    /// handler with other hosts … Unification is our goal"). ⛔ It used to be a bare builder stamping the "Hrot.IG" header (IG's VISUAL
+    /// configuration payload) with none of the HROT translators — so an entity IG owned would have saved without its mission plan,
+    /// routes or hierarchy, under a header the scenario load does not take.
+    /// </remarks>
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
-        => new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.IG")
-            .WithUnknownComponentPolicy(Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip)
-            .Build();
+        => Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(
+            registry ?? new BehaviorRegistry(),
+            unknownComponentPolicy: Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
 
     // ── Phase 4a: Populate togglable system groups ────────────────────────────
 
@@ -499,6 +505,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   ⚠ The spawner was a GLOBAL system on this host (a module on SimHost, Stride, the editor); it is the module now, like
         //     everywhere — the one ordering it must keep (LocalAuthorityYieldSystem after it) is declared by [UpdateAfter].
         creation.RegisterOn(context.Kernel);
+        // ⭐ CE-4013 D11 — and the shared genesis tail, which IG alone lacked (§4.1f: it belongs with the pack, not a role).
+        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
 
         // ⭐ CE-221 — the standalone SingleSystemModule registration that used to sit here was the
         //    PRECEDENT for treating UnitHierarchySystem as cross-role infrastructure rather than pack

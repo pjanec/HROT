@@ -395,11 +395,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //    order is chosen to match the editor rather than to satisfy a dependency.
         RegisterCapabilities(context);   // ⭐ CE-4013 — the shared walk, at this host's point (before its own spawn systems)
 
-        // GenesisMaterializationSystem resolves cross-entity Intent DTOs into live
-        // component data during scenario load. Runs in the Input phase.
-        context.Kernel.RegisterGlobalSystem(
-            new GenesisMaterializationSystem(context.EntityMap));
-        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());   // ⭐ CE-3042 — drops the intent here (no brain)
+        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
+        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
 
         // NetworkSpawningSystem handles incoming entity creation requests from the
         // network (CGF/Brain node). Only wired when an ID allocator is available;

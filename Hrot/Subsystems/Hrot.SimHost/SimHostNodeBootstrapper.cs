@@ -503,11 +503,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   free-standing empty bag this used to pass predated CE-199's node-resources step, which made the real one legal.
         RegisterCapabilities(context);
 
-        // GenesisMaterializationSystem - Input phase, registered after togglable groups
-        context.Kernel.RegisterGlobalSystem(
-            new GenesisMaterializationSystem(context.EntityMap));
-        // ⭐ CE-3042 — saved AI → the ingress; publishes only where the brain's events are registered, always drops the intent.
-        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());
+        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
+        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
     }
 
     /// <inheritdoc/>

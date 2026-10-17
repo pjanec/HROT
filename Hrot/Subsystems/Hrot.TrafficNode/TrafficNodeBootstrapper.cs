@@ -174,5 +174,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
 
         // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
         creation.RegisterOn(context.Kernel);
+        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11 — the shared genesis tail
     }
 }

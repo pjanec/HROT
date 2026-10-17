@@ -36,6 +36,12 @@ public class OneBootstrapImplementationRails
         => Assert.Empty(Scan(new Regex(@"RegisterGlobalSystem\(\s*creation\.|SingleSystemModule\(\s*""NetworkSpawning"""),
                              allowed: "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreation.cs"));
 
+    /// <summary>⭐ CE-4013 D11 — the genesis tail is composed through <c>GenesisTail.RegisterOn</c> only (IG and traffic had none).</summary>
+    [Fact]
+    public void NoProductionRoot_ComposesTheGenesisTailByHand()
+        => Assert.Empty(Scan(new Regex(@"new\s+(Hrot\.SimHost\.Systems\.)?(GenesisMaterializationSystem|InitialBrainMaterializationSystem)\("),
+                             allowed: "Hrot/Subsystems/Hrot.SimHost/Systems/GenesisTail.cs"));
+
     private static List<string> Scan(Regex pattern, string allowed, string? alsoAllowed = null)
     {
         string? root = RepoRoot();
