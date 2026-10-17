@@ -400,6 +400,53 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2235</c> CIV-1 — <c>ua-civ-routine-alarm</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5d): six civilians of the new types run <c>CivilianHsm</c> from their type's default and start in Routine; the first shots
+    /// alarm the two 40 m from the shooter and none of the four 170 m away; quiet again, the two go back to Routine; one wounded to
+    /// 40 % is a Casualty and stays where he fell.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2235_CivRoutineAlarm_HeardShotsAlarmTheNearOnly_QuietRestoresTheRoutine_AWoundIsACasualty()
+    {
+        using var harness = await StartShippedScenario("ua-civ-routine-alarm");
+        var cgf = harness.Cgf!.World!;
+        string[] nearNames = { "Near Civilian 1", "Near Civilian 2" };
+        string[] farNames = { "Far Civilian 1", "Far Civilian 2", "Far Civilian 3", "Far Civilian 4" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Far Civilian 4").IsNull, timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var rifle = ByName(cgf, "Rifleman");
+        var hostile = ByName(cgf, "Hostile");
+        var near = nearNames.Select(n => ByName(cgf, n)).ToArray();
+        var far = farNames.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
+        bool farAlarmed = false;
+        void Sample() { foreach (var f in far) farAlarmed |= Mode(f) is not (Fdp.Toolkit.Civilians.CivilianMode.Routine or Fdp.Toolkit.Civilians.CivilianMode.None); }
+        string State() => "near [" + string.Join(", ", near.Select(Mode)) + "] far [" + string.Join(", ", far.Select(Mode)) + "]";
+
+        Assert.True(harness.PumpUntil(() => near.Concat(far).All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine), timeoutFrames: 1200),
+            $"① every civilian starts in Routine; {State()}");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        int a0 = Ammo();
+        Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"② the rifleman opens fire; {State()}");
+        Assert.True(harness.PumpUntil(() => { Sample(); return near.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Alarmed); }, timeoutFrames: 150),
+            $"② both near civilians are Alarmed within 2.5 s of the first shot; {State()}");
+        harness.PumpUntil(() => { Sample(); return !Fdp.Toolkit.Combat.Injury.IsInTheFight(cgf, hostile); }, timeoutFrames: 12000);
+        Assert.True(harness.PumpUntil(() => { Sample(); return near.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine); }, timeoutFrames: 6000),
+            $"③ quiet again, both near civilians go back to Routine; {State()}");
+        Assert.False(farAlarmed, $"② no far civilian (beyond hearing) is ever alarmed; {State()}");
+
+        var victim = near[0];
+        cgf.GetComponentRW<Health>(victim).Current = 40f;   // ⭐ CGF owns Health (the Brain group): the owner's write
+        Assert.True(harness.PumpUntil(() => Mode(victim) == Fdp.Toolkit.Civilians.CivilianMode.Casualty, timeoutFrames: 300),
+            $"④ wounded to 40 %, he is a Casualty; {State()}");
+        var at = cgf.GetComponent<SimTransform>(victim).Position;
+        harness.PumpUntil(() => false, timeoutFrames: 240);
+        Assert.Equal(Fdp.Toolkit.Civilians.CivilianMode.Casualty, Mode(victim));
+        Assert.True(Vector3.Distance(at, cgf.GetComponent<SimTransform>(victim).Position) < 0.5f, "④ …and stays where he fell");
+        _out.WriteLine(State());
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3085</c> — U2 <c>ua-threat-ranking</c> in-process (the live check's twin): once the ranking settles over at
     /// least two remembered contacts with a non-zero top score, the armed, visible, nearest contact ranks first; the
     /// unarmed civilian and the farther armed contact rank below it; the one hidden behind the Tower is never ranked.
