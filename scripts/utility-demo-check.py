@@ -2613,6 +2613,13 @@ def run_civ_neutral_gate(c, timeout):
     rifle, civ, armed, hostile = (ids.get(n) for n in ("Rifleman", "Civilian", "Armed Neutral", "Hostile"))
     if not c.ok(None not in (rifle, civ, armed, hostile), "the rifleman, the civilian, the armed neutral and the hostile are loaded"):
         return
+    # ⓪ PRECONDITION — the cast stands where the scenario put it. ⚠ Measured 2026-10-17 (CE-2242): on some fresh loads every entity
+    #   lands ~900 km out ((901880, 5038392) — a projected coordinate, outside the perception grid), nobody sees anybody, and every
+    #   later line would fail for a reason that is not CIV-0's. Report THAT, and stop.
+    p0 = position(rifle)
+    if not c.ok(p0 is not None and 0 <= p0[0] <= 1000 and 0 <= p0[1] <= 1000,
+                f"⓪ the cast is on the terrain where the scenario put it (rifleman at {p0}; ⛔ off-terrain = CE-2242, a load race, not CIV-0)"):
+        return
     full = {n: health(n) for n in (civ, armed)}
     low = dict(full)
     zero_scores, ranked_seen = True, False
