@@ -530,7 +530,7 @@ public abstract class SharedApplicationBootstrapper
         => Array.Empty<INodeCapability>();
 
     /// <summary>The capabilities this node composes (empty before the <c>capabilities</c> step).</summary>
-    protected IReadOnlyList<INodeCapability> Capabilities => _walk?.Capabilities ?? Array.Empty<INodeCapability>();
+    public IReadOnlyList<INodeCapability> Capabilities => _walk?.Capabilities ?? Array.Empty<INodeCapability>();
 
     /// <summary>
     /// ⭐ CE-4013 — runs every capability's <c>Register</c> hook with the plan's <see cref="BootValues"/>. Call it ONCE from

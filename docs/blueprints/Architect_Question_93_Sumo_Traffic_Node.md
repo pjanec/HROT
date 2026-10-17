@@ -898,6 +898,20 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | the wire key is **`Source` = the node id** (H8), the owner is `SenderAppInstanceOf(source)`, falling back to the source | two traffic nodes number their cars independently (R-4055); a node skips its own source and reads its steps in memory (N7) |
 | a SUMO car with no TKB type gets **8851**; colour `0` means "no colour" (the id-seeded paint), else `EntityAppearance` | T1/T2 as ruled; the fallback keeps an unmapped SUMO type visible |
 
+### 12.2 N1 as built — the `--mode traffic` host *(2026-10-17)*
+
+- `Hrot/Subsystems/Hrot.TrafficNode/` — `TrafficSubsystem` (`--mode traffic`, node id base + 800, NOT in `all`: the editor serves
+  traffic embedded) over `TrafficNodeBootstrapper : SharedApplicationBootstrapper`, role `Traffic`. Its plan is the shared head
+  (`CoreInfrastructureCapabilities.LiveSimulationPlan`, i.e. `HealthApplication` — the node will own car replicas that take damage)
+  plus `TrafficPack.Serving()`, walked by the base (CE-4013); orchestration is `NodeBootstrapper.BuildOrchestration` (load chain for `Traffic`: KnowledgeBase →
+  Terrain), entity creation + ghost promotion is `EntityCreationPack`, components are `HrotSharedComponentRegistry` only.
+- ⚠ **Found, fixed:** `NedReplicationModule`'s ctor refused any role without MuscleGround/Map2D/Brain, so a Traffic node had no
+  replication — and so no `EntityTrafficDemandIngressTranslator`. It now accepts `Traffic` (no physics ⇒ drives from the network).
+- ✅ **Found, then FIXED in `HrotNodeBuilder` (CE-4013): two traffic nodes on one domain shared an id-allocator client id.** `HrotNodeBuilder` names
+  the allocator `SubsystemName + "Allocator"`, and `DdsIdAllocator` keeps every response whose `ClientId` matches — so both nodes
+  enqueue both chunks and would give two cars one network id, breaking N2 under R-4055. The fix belongs in `HrotNodeBuilder`
+  (client id carries the node id); the same collision existed for any two nodes of one subsystem name (two SimHosts, two Players).
+
 
 ## 7. ⛔ HISTORY
 

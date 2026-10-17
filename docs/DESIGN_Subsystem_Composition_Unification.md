@@ -6471,3 +6471,26 @@ sequenceDiagram
 | ⭐⭐ a skipped phase is **loud** | a rail: a bootstrapper subclass whose `RegisterSpawningPipeline` does not call `RegisterCapabilities` throws at boot, naming `Register` |
 | ⭐⭐ one walk per root | a source rail: no `foreach … .PopulateSystems(` / `.ProvideModules()` / `.Register(` over capabilities outside `NodeCapabilityWalk` |
 | ⭐ terrain content per node | a rail: two contexts, one pack ⇒ only that node's residency loads the SUMO net |
+
+### 📐 §4.1ae.1 — THE REST OF THE DUPLICATION, measured while building the traffic node *(2026-10-17)*
+
+📐 Building a fifth bootstrapper subclass (`TrafficNodeBootstrapper`, AQ93 N1) by REUSE is what exposed these: every piece it needed
+already existed in two to four hosts, in slightly different shapes. Each row is one item of `CE-4013`.
+
+| # | duplication | measured | status |
+|---|---|---|---|
+| D1 | the capability walk — five hand loops, three hooks skipped on three hosts | §4.1ae inventory | ✅ BUILT (W1–W5) |
+| D2 | the knowledge-base + terrain load parts — five hand copies; a process-wide content static | §4.1ae inventory | ✅ BUILT (T1–T2) |
+| D3 | ⛔ **the id-allocator client id is `SubsystemName + "Allocator"`** (`HrotNodeBuilder.cs:200`) and `DdsIdAllocator` keeps every response whose `ClientId` matches (`:179`) ⇒ two nodes of one subsystem name (two traffic nodes, two SimHosts, two Players) enqueue each other's chunks and hand out the SAME network id | a DEFECT, not just duplication | 🔨 building: the client id carries the node id |
+| D4 | ⛔ **the node's TKB is split** — IG publishes a FRESH catalogue as the world's `ITkbDatabase` (`IgNodeBootstrapper.cs:193`) while its load step loads into `context.TkbDb`; Stride publishes none and passes no `tkbDb:` to orchestration, so its knowledge-base step loads into a throwaway (`NodeBootstrapper` `tkbDb ?? CreateTkb()`) | a DEFECT | 🔨 building: `HrotNodeBuilder` publishes the context's TKB and entity map once, for every node; hosts stop doing it |
+| D5 | the entity-map / geo-transform singletons set again after boot (`SimHostApp.cs:566/571`, `CgfSubsystem.cs:734/739`, `IgApplication.cs:1034`, `EditorSubsystem.cs:1238`); Stride mode 2 never sets the entity map | duplication + a gap | 🔨 with D4 |
+| D6 | the `EntityCreationPack` registration — copied four ways (Stride, IG, SimHost, traffic): IG registers the spawn system as a GLOBAL system, the others through a `SingleSystemModule`; network-system order and log level differ; the ELM found three ways | duplication; the IG shape changes frame order ⇒ measure first | 📋 next: one `EntityCreation.RegisterOn(kernel)`, with an IG system-order diff |
+| D7 | the frame loop (`SlaveTranslator.Tick` → `ClusterSlave.Tick` → `Kernel.Update` → `SwapBuffers`) written four times, in different orders (`StrideNodeBootstrapper:173`, `SimHostApp:643`, `IgApplication:1100`, `CgfSubsystem:1791`) | duplication; order differs | 📋 next: one node tick on the base / `HrotNodeContext` |
+| D8 | IG builds its whole cluster-handler set by hand (`IgNodeBootstrapper.cs:332-483`, its own `ClusterSlave`, "IG" and `Map2D` hard-coded) instead of `NodeBootstrapper.BuildOrchestration` | duplication — the §4.1b/`CE-164` history lives here | 📋 design first (it is where IG's two-stack defect was) |
+| D9 | IG's serializer is its own `ScenarioSerializerBuilder("Hrot.IG")`; the others use `HrotScenarioSerializerFactory.Build` | duplication | 📋 |
+| D10 | the declared-vs-needed resource cross-check copied (`IgNodeBootstrapper:307`, `SimHostNodeBootstrapper:397`, traffic) | duplication | 📋 → the base's `capabilities` step |
+| D11 | `GenesisMaterializationSystem` registered on SimHost and Stride, not on IG | a gap or a decision — unmeasured | 📋 search the design record first |
+| D12 | `ApplicationSystemsRegistrar` declared separately on Stride, SimHost, IG (and traffic) | duplication | 📋 → the base |
+| D13 | each host builds its `HrotNodeConfig` inline (`SimHostApp:365`, `CgfSubsystem:715`, `StrideNodeShell:158`, `IgApplication:712`) — temp-root rule and participant fallback differ | duplication | 📋 |
+| D14 | `NedReplicationModule` accepts only MuscleGround / Map2D / Brain (/ Traffic, AQ93 N1) and throws otherwise — a role gating a capability, which `DESIGN_Node_Roles_And_Policies.md` §3.1 rules out | a per-role denial | 📋 lean: refuse only `NodeRole.None` (a rail pins Perception-only as rejected, with no design reason found) |
+| D15 | BootstrapNode is HIDDEN (`new`) on Stride and traffic to capture config/role and patch `SlaveTranslator`; `BuildContext` identical on four hosts | duplication | 📋 → the base |
