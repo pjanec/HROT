@@ -3040,8 +3040,8 @@ def run_civ_protest(c, timeout):
 
 def run_armed_shield(c, timeout):
     """test-town: a rifleman 60 m from an insurgent, four civilians standing in the line between them and two beside him. ① the
-    rifleman is seen holding with a civilian in the line ('hold: neutral on line'); ② he fires once it is clear and the insurgent goes
-    down; ③ no civilian is hit (sampled from play). The twin (PostureScenarioTests.AW20_ArmedShield_…) checks every frame."""
+    rifleman is seen holding with a civilian beside the line, inside his spread ('hold: neutral on line'); ② he fires once it is clear and the
+    insurgent goes down (out of the fight); ③ no civilian is hit (sampled from play). The twin (PostureScenarioTests.AW20_ArmedShield_…) checks every frame."""
     ids = ids_by_name()
     rifle, ins = ids.get("Rifleman"), ids.get("Insurgent")
     civs = [ids.get(f"Civilian {i}") for i in range(1, 7)]
@@ -3064,8 +3064,10 @@ def run_armed_shield(c, timeout):
                      timeout + 60, every=0.25)
     c.ok(held[0] > 0, f"① the rifleman holds his fire while a civilian stands in the line ({held[0]} samples 'hold: neutral on line')")
     c.ok(fired is not None, "② …and fires once the line is clear")
-    down = wait_for(lambda: (watch(), _dead(ins))[1], 120, every=0.5)
-    c.ok(down is not None, f"② the insurgent is engaged and goes down (health {health(ins)})")
+    th = (comps(ins).get("InjuryThresholds") or {})
+    down_below = (th.get("IncapacitatedBelow") or 0.3) * 100   # ⭐ OUT OF THE FIGHT, not health 0 (Injury, I4): he is not shot again
+    down = wait_for(lambda: (watch(), (h := health(ins)) is not None and h < down_below)[1], 120, every=0.5)
+    c.ok(down is not None, f"② the insurgent is engaged and goes down — out of the fight (health {health(ins)}, below {down_below:.0f})")
     wait_for(watch, 5, every=0.5)
     c.ok(not hurt, f"③ no civilian is hit ({sorted(hurt)}; health {[health(n) for n in civs]})")
 

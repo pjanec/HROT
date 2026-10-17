@@ -747,13 +747,14 @@ public sealed class PostureScenarioTests : IDisposable
             last = now;
             for (int i = 0; i < civs.Length; i++)
                 if (Hp(civs[i]) is var h && h >= 0f && h < 100f) hurt.Add(names[i]);
-            onLineBefore = cgf.IsAlive(insurgent) && CivilianOnTheLine();
+            onLineBefore = cgf.IsAlive(insurgent) && !Down() && CivilianOnTheLine();
         }
         string State() => $"held {held} frames, rounds {rounds}, through a civilian {throughCivilian}, on the line {onLineFrames} frames "
                           + $"(his reasons then: {string.Join(",", reasons.Select(kv => $"{kv.Key}={kv.Value}"))}), insurgent hp {Hp(insurgent)}, "
                           + $"hurt [{string.Join(",", hurt)}], civilians hp [{string.Join(",", civs.Select(Hp))}]";
 
-        bool down = harness.PumpUntil(() => { Sample(); return Hp(insurgent) <= 0f; }, timeoutFrames: 9000);   // 150 s
+        bool Down() => Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(cgf, insurgent);   // out of the fight, not health 0 (I4)
+        bool down = harness.PumpUntil(() => { Sample(); return Down(); }, timeoutFrames: 9000);   // 150 s
         harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 300);
         _out.WriteLine(State());
         Assert.True(held > 0, $"① he holds with a civilian in the line at least once; {State()}");
