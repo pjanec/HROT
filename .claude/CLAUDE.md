@@ -602,6 +602,15 @@ ever considered, which is what obligation ① exists to prevent.
   | ⭐⭐ **if a poll is truly needed** *(external state the harness cannot see)*: match the WHOLE file (`grep -q "Passed!\|Failed!" $f`), never `tail -1` | ⛔ the file's last line is the harness's `[exited …]` trailer, not your command's output |
   | ⭐ **when a wait returns on its TIMEOUT, that is a finding** | 📌 check the output file's mtime (`ls -l --time-style=+%T`) — it says when the job really ended, and whether the wait was the bottleneck |
 
+- ### ⛔⛔ NO SCHEDULED CHECK-INS JUST TO WATCH OTHER LANES *(user, `2026-10-17`)*
+  > 🔒 **User, verbatim:** *"Please do not use triggers just to check if other lane advanced. they block on my approval input so
+  > you can not continue. Instead simply check other lanes for new content after finishing a turn."*
+
+  | ⭐ the rule | |
+  |---|---|
+  | ⛔ **never `send_later` / `create_trigger` a "check the other lanes" reminder** | ⭐ each firing waits for the user's approval, and the session stalls until they give it |
+  | ⭐⭐ **instead: `git fetch` the other lanes at the end of each piece of work** | `git fetch origin behaviors ui coordinator` then `git diff --name-only HEAD...origin/<lane>` for new `HANDOFF_*` / `STEER_*` / `NOTE_*` addressed to your lane; follow what is there before starting the next item |
+
 - **Model delegation (token thrift):** keep Opus for orchestration and hard reviews; delegate heavier work that does not need Opus-level intelligence (mirror-an-existing-pattern slices, mechanical edits, broad searches) to a **Sonnet** subagent. Opus reviews the real diff and re-runs the gates. Do novel scheduler/IR/compiler work hands-on.
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
