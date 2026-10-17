@@ -134,6 +134,9 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ Indirect fire IF-1 (I5) — an ARC round's lifetime in ticks, from its time of flight
         /// (<c>FireProcessingSystem.ArcLifetimeTicks</c>); 0 = the flat <c>CombatConstants.ArcRoundLifetimeTicks</c>.</summary>
         public uint ArcLifetimeTicks;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-2) — a <see cref="WarheadRound.Vents"/> round's burn (s): the cloud it raises lasts this long
+        /// and it vents that long where it lies. At fire: the thrown-back burn left, else its warhead's <c>CloudSeconds</c>. Owner only.</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>
@@ -152,6 +155,10 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-1) — an INERT round a hand may pick up (<see cref="Fdp.Toolkit.Tkb.Domain.HandItemDto"/>):
         /// once it stops it lies <see cref="Landed"/> for its lying time (carried in <c>FuzeRemaining</c>), then goes without a burst.</summary>
         public const byte Lingers = 32;
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-1) — a CLOUD round (a cloud, no blast, no fragments): bursting on the GROUND it does not
+        /// go — it lies <see cref="Landed"/> + <see cref="Lingers"/> and VENTS its cloud for its burn (<c>BallisticProjectile.BurnSeconds</c>,
+        /// counted down in <c>FuzeRemaining</c>); a hand may pick it up and throw it back.</summary>
+        public const byte Vents = 64;
 
         /// <summary>
         /// ⭐ The ONE derivation of a fired round's bits from its warhead (<c>FireProcessingSystem</c>). ⭐⭐ <c>CE-3239</c> — a CLOUD warhead
@@ -164,6 +171,7 @@ namespace Fdp.Toolkit.Combat.Components
             if (warhead == null) return 0;
             byte bits = 0;
             if (warhead.HasAreaEffect || warhead.HasCloud) bits |= Area;
+            if (warhead.HasCloud && !warhead.HasAreaEffect) bits |= Vents;   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lands
             if (warhead.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && warhead.FuzeDelayS > 0f) { bits |= TimeFuze; fuzeSeconds = warhead.FuzeDelayS; }
             if (warhead.Indirect) bits |= Arc;
             return bits;

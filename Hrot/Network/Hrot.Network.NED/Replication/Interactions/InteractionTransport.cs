@@ -241,9 +241,10 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => e.IsRemote,
             ownsTarget:  static (repo, man) => PossessionSystem.OwnsBrain(repo, man),
             toPayload:   static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => new InteractionPayload
-                { PickUpGrant = new PickUpGrantInteractionPayload { Ammo = e.Ammo, Rounds = e.Rounds, FuzeSeconds = e.FuzeSeconds } },
+                { PickUpGrant = new PickUpGrantInteractionPayload { Ammo = e.Ammo, Rounds = e.Rounds, FuzeSeconds = e.FuzeSeconds, BurnSeconds = e.BurnSeconds } },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new Fdp.Toolkit.Combat.PickUpGrantEvent
-                { Man = target, Ammo = p.PickUpGrant.Ammo, Rounds = p.PickUpGrant.Rounds, FuzeSeconds = p.PickUpGrant.FuzeSeconds, IsRemote = true });
+                { Man = target, Ammo = p.PickUpGrant.Ammo, Rounds = p.PickUpGrant.Rounds, FuzeSeconds = p.PickUpGrant.FuzeSeconds,
+                       BurnSeconds = p.PickUpGrant.BurnSeconds, IsRemote = true });
 
         /// <summary>⭐ CE-3233 (B-11, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.13 ST-4) — draw / stow / conceal: to the node that owns
         /// the man's passenger list (the slot replicates from there).</summary>

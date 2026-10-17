@@ -401,6 +401,8 @@ namespace Hrot.NED.Descriptors
         public float IrritantSeconds;
         public double BornAtSimSeconds;
         public float Seconds;
+        /// <summary>⭐ CE-3236 (B-14, VC-4) — the venting canister it sits on; 0 = free (APPENDED, R-169).</summary>
+        public long SourceNetworkId;
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner

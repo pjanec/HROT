@@ -97,7 +97,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     {
                         // ⭐ CE-3235 (B-13, §7.10 PU-1) — a LINGERING inert round (a stone) has lain its time and goes without a burst
                         if ((proj.Warhead & WarheadRound.Lingers) == 0)
-                            Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        {
+                            Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick, entity);
+                            if (BeginVenting(ref proj)) continue;   // ⭐ CE-3236 (B-14, VC-1) — a gas / smoke grenade vents where it lies
+                        }
                         repo.DestroyEntity(entity);
                     }
                     continue;
@@ -112,8 +115,8 @@ namespace Fdp.Toolkit.Combat.Systems
                     if ((proj.Warhead & WarheadRound.Area) != 0 && (proj.Warhead & (WarheadRound.Spent | WarheadRound.TimeFuze)) == 0
                         && currentTick - proj.StoppedTick >= CombatConstants.ContactHitWaitTicks)
                     {
-                        BurstWhereStopped(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
-                        repo.DestroyEntity(entity);
+                        BurstWhereStopped(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick, entity);
+                        if (!BeginVenting(ref proj)) repo.DestroyEntity(entity);   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lies
                         continue;
                     }
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
@@ -138,7 +141,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     proj.FuzeRemaining -= deltaTime;
                     if (proj.FuzeRemaining <= 0f)
                     {
-                        Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick, entity);
                         repo.DestroyEntity(entity);
                         continue;
                     }
@@ -296,11 +299,13 @@ namespace Fdp.Toolkit.Combat.Systems
         /// ⭐ Stage 6 (<c>CE-1032</c>, W-3) — an off-target burst: a <see cref="DetonationNotification"/> with no target, carrying the
         /// munition (the area effect reads its warhead from it, next frame's Simulation) — and the end of the shot's record.
         /// </summary>
-        internal static void Detonate(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 at, ShotRecord? shot, uint tick)
+        internal static void Detonate(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 at, ShotRecord? shot, uint tick,
+                                      Entity round = default)
         {
             repo.Bus.Publish(new DetonationNotification
             {
                 Shooter = proj.Shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Ammo = proj.Ammo,
+                Round = round,   // ⭐ CE-3236 (B-14, VC-3) — the cloud's source and burn
                 // ⭐ M1 — the way it was travelling (0 = unknown: a round lying where it landed has no last segment)
                 TravelX = at.X - proj.PreviousPosition.X, TravelY = at.Y - proj.PreviousPosition.Y, TravelZ = at.Z - proj.PreviousPosition.Z,
             });
@@ -309,12 +314,26 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-2203</c> — the delayed impact burst of a round waiting at <paramref name="burst"/> (its stop point is its
         /// <c>PreviousPosition</c>, the burst stands off it back along the flight): the travel is the flight's, toward the stop point.</summary>
-        private static void BurstWhereStopped(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 burst, ShotRecord? shot, uint tick)
+        private static void BurstWhereStopped(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 burst, ShotRecord? shot, uint tick,
+                                              Entity round)
         {
             var forward = proj.PreviousPosition - burst;
             var asFlown = proj;
             asFlown.PreviousPosition = burst - forward;   // Detonate's travel = burst − PreviousPosition = the flight's direction
-            Detonate(repo, in asFlown, burst, shot, tick);
+            Detonate(repo, in asFlown, burst, shot, tick, round);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3236</c> (B-14, §7.15 VC-1) — a <see cref="WarheadRound.Vents"/> round that just burst on the ground LIES and vents for its
+        /// burn: <see cref="WarheadRound.Landed"/> + <see cref="WarheadRound.Lingers"/> (its fuze is spent), counted down in
+        /// <c>FuzeRemaining</c>; the <c>Landed</c> branch ends it without a burst. False for every other round (it goes).
+        /// </summary>
+        private static bool BeginVenting(ref BallisticProjectile proj)
+        {
+            if ((proj.Warhead & WarheadRound.Vents) == 0 || proj.BurnSeconds <= 0f) return false;
+            proj.Warhead = (byte)((proj.Warhead | WarheadRound.Landed | WarheadRound.Lingers) & ~WarheadRound.TimeFuze);
+            proj.FuzeRemaining = proj.BurnSeconds;
+            return true;
         }
 
         /// <summary>

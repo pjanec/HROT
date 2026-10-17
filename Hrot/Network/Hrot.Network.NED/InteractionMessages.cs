@@ -177,6 +177,8 @@ namespace Hrot.NED.Messages
         public int Rounds;
         /// <summary>The fuze it had left (s); 0 = inert.</summary>
         public float FuzeSeconds;
+        /// <summary>⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left (s); 0 = none (APPENDED, R-169).</summary>
+        public float BurnSeconds;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>

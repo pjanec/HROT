@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Tests.Combat
     /// </summary>
     public sealed class RoundPickUpTests : IDisposable
     {
-        private const long CivilianType = 9401, StoneAmmo = 9490, GrenadeAmmo = 9491, BulletAmmo = 9492;
+        private const long CivilianType = 9401, StoneAmmo = 9490, GrenadeAmmo = 9491, BulletAmmo = 9492, CanisterAmmo = 9493;
         private const float Dt = 1f / 60f;
 
         private readonly EntityRepository _world = new();
@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.RegisterEvent<PickUpGrantEvent>();
             _world.RegisterEvent<RaycastRequestEvent>();
             _world.RegisterEvent<DetonationNotification>();
+            _world.RegisterEvent<DamageAssessedEvent>();
             _world.SetSingleton(new GlobalTime { FrameNumber = _tick, TimeScale = 1f });
 
             var civilian = new TkbTemplate("Civilian", CivilianType);
@@ -63,6 +64,8 @@ namespace Fdp.Toolkit.Tests.Combat
             _db.Register(Round("Grenade", GrenadeAmmo, new WarheadDto { Kind = WarheadKind.Fragmentation, BlastInjuryRadiusM = 5f, Indirect = true,
                                                                         Fuze = FuzeKind.Time, FuzeDelayS = 4.5f }, new HandItemDto()));
             _db.Register(Round("Bullet", BulletAmmo, null, null));
+            _db.Register(Round("Gas canister", CanisterAmmo, new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f,
+                                                                              CloudSeconds = 90f, Indirect = true }, new HandItemDto()));
             PersonHands.EnsureOnPersons(_db);
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
@@ -245,6 +248,44 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(2.25f, RoundPickUp.FuzeLeft(_world, man, GrenadeAmmo));
             Assert.Equal(0f, RoundPickUp.FuzeLeft(_world, man, StoneAmmo));   // another kind is not that round
             RoundPickUp.Thrown(_world, man, GrenadeAmmo);
+            Assert.False(_world.HasComponent<HeldFuze>(man));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3236</c> (B-14, §7.15 VC-5/VC-6) — a VENTING canister picked up takes its burn left into his hand (never as a fuze): it
+        /// irritates him each second while it burns, and burnt out it is simply gone from his hands — no cook-off. ✅ Red-proofs: the grant's
+        /// burn dropped ⇒ no burn in hand ⇒ red; the in-hand irritation removed ⇒ red; burnt out cooking off ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_AVentingCanister_PickedUp_BurnsInHisHand_IrritatesHim_AndGoesWhenOut()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            var canister = Lying(CanisterAmmo, new Vector3(1, 0, 0),
+                WarheadRound.Area | WarheadRound.Arc | WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers, 3.2f);
+            Assert.True(RoundPickUp.Ask(_world, man, canister));
+            Frame();
+            Frame();
+            Assert.False(_world.IsAlive(canister));
+            Assert.Equal(1, PersonHands.Rounds(_world, man, CanisterAmmo));
+            Assert.Equal(3.2f, RoundPickUp.BurnLeft(_world, man, CanisterAmmo), 3);
+            Assert.Equal(0f, RoundPickUp.FuzeLeft(_world, man, CanisterAmmo));   // a burn, never a fuze
+
+            var hands = new HandsFuzeSystem();
+            for (int i = 0; i < 60 * 4 && _world.HasComponent<HeldFuze>(man); i++) { _world.Bus.SwapBuffers(); hands.Execute(_world, Dt); }
+            Assert.Equal(3, hands.Irritated);                                   // one Irritant hit each whole second
+            Assert.Equal((1L, 0L), (hands.BurntOut, hands.CookedOff));
+            Assert.Equal(0, PersonHands.Rounds(_world, man, CanisterAmmo));     // empty: out of his hands
+        }
+
+        /// <summary>⭐ <c>CE-3236</c> (VC-7) — thrown in time, the canister leaves his hand and the intent carries its burn left.
+        /// ✅ Red-proof: <c>BurnLeft</c> returning 0 ⇒ red.</summary>
+        [Fact]
+        public void CE3236_AHeldCanister_IsThrownWithTheBurnItHasLeft()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            Assert.True(RoundPickUp.Receive(_world, new PickUpGrantEvent { Man = man, Ammo = CanisterAmmo, Rounds = 1, BurnSeconds = 41.5f }));
+            Assert.Equal(41.5f, RoundPickUp.BurnLeft(_world, man, CanisterAmmo));
+            RoundPickUp.Thrown(_world, man, CanisterAmmo);
             Assert.False(_world.HasComponent<HeldFuze>(man));
         }
     }

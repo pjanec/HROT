@@ -174,13 +174,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   else the mount's own. Its warhead, penetration and damage are that round's (CombatTkb.RoundOf).
                 long mountAmmo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
                 long ammo = evt.AmmoGuid != 0 ? evt.AmmoGuid : mountAmmo;
-                byte warheadBits = 0; float fuze = 0f; uint arcLifetime = 0;
+                byte warheadBits = 0; float fuze = 0f, burn = 0f; uint arcLifetime = 0;
                 if (CombatTkb.WarheadOf(repo, ammo) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
                 {
                     // ⭐ CE-3239 — a cloud round bursts too · ⭐ CE-3235 (B-13) — an inert hand item lingers where it stops
                     warheadBits = WarheadRound.BitsOf(wh, CombatTkb.HandItemOf(repo, ammo), out fuze);
                     // ⭐ CE-3235 (§7.10 PU-6) — a live round thrown back keeps the fuze it had left when it was picked up
                     if (evt.FuzeSeconds > 0f && (warheadBits & WarheadRound.TimeFuze) != 0) fuze = evt.FuzeSeconds;
+                    // ⭐ CE-3236 (B-14, VC-2/VC-7) — a canister's burn: what a thrown-back one had left, else its warhead's
+                    if ((warheadBits & WarheadRound.Vents) != 0) burn = evt.BurnSeconds > 0f ? evt.BurnSeconds : wh.CloudSeconds;
                     if (wh.Indirect)
                     {
                         // ⭐ WL-4 L-1 (Weapon_Layers §5f) — a throw whose low arc the terrain would stop (the wall the target is
@@ -308,6 +310,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Warhead          = warheadBits,
                     FuzeRemaining    = fuze,
                     ArcLifetimeTicks = arcLifetime,   // ⭐ IF-1 (I5) — 0 = the flat arc lifetime
+                    BurnSeconds      = burn,          // ⭐ CE-3236 (B-14) — 0 = not a canister
                 });
 
                 // ⭐⭐ LR-2 (§8.5, R-271) — a VISIBLE round (its munition has a look: a shell, a bomb, a grenade, a rocket, a missile, a

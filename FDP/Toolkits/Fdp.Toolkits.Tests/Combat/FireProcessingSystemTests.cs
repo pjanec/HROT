@@ -970,6 +970,39 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3236</c> (B-14, §7.15 VC-2/VC-7) — a canister fired fresh carries its warhead's burn; one thrown back carries the burn the
+        /// intent names (what it had left in the hand). ✅ Red-proof: the intent's burn ignored ⇒ the thrown one burns 90 s again ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3236_ACanister_FliesWithItsBurn_AThrownBackOneWithWhatItHadLeft()
+        {
+            const long Canister = 9601;
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var round = new Fdp.Interfaces.TkbTemplate("test gas canister", Canister);
+            round.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Irritant, CloudRadiusM = 8f, CloudSeconds = 90f });
+            db.Register(round);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var fresh  = SpawnShooter(Vector3.Zero);
+            var thrown = SpawnShooter(new Vector3(0, 50, 0));
+            var target = SpawnTarget(new Vector3(100, 0, 0));
+
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = fresh,  Target = target, AmmoGuid = Canister });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = thrown, Target = target, AmmoGuid = Canister, BurnSeconds = 33f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            var burn = new System.Collections.Generic.Dictionary<Entity, (float Burn, bool Vents)>();
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var bp = _world.GetComponent<BallisticProjectile>(e);
+                burn[bp.Shooter] = (bp.BurnSeconds, (bp.Warhead & WarheadRound.Vents) != 0);
+            }
+            Assert.Equal((90f, true), burn[fresh]);
+            Assert.Equal((33f, true), burn[thrown]);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3071</c> — the bullet carries the FIRED mount's munition, read from the TKB by the shooter's type and the
         /// request's WeaponIndex (mount 1 = the TOW here). A shooter with no TKB numbers fires an unknown munition: the flat
         /// default damage and penetration 0.

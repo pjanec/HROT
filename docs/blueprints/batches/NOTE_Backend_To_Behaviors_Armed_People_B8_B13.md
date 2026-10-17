@@ -1,12 +1,12 @@
 <!--STATUS
-state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol, B-11 carry stations and the charge, B-12 the held item landed; CE-3239 found on the way).
+state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol, B-11 carry stations and the charge, B-12 the held item, B-14 the venting canister landed; CE-3239 found on the way).
 updated: 2026-10-17
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.13 / §7.13a / §7.13b OWN B-11 (stations, pick-up weapons, the charge); §7.14 / §7.14a OWN B-12 (the held item); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.13 / §7.13a / §7.13b OWN B-11 (stations, pick-up weapons, the charge); §7.14 / §7.14a OWN B-12 (the held item); §7.15 / §7.15a OWN B-14 (the venting canister); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md — your frame (B-7…B-14).
 -->
 
@@ -62,6 +62,16 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 | ⚠ `Charges.Ask(world, charge, by)` | a man who does NOT carry the charge (a remote IED) must hold a phone, else it returns false; his own vest and `by = null` (a timer) need none |
 
 ⚠ Nothing in the brains sets the held item yet — the frame left it to you (`ua-armed-status`, the spotter, the bomber).
+
+**⑧ B-14 — the venting canister** ([CE-3236](../Blueprint_Issues_Tracker.md), at `backend@B14SHA`; design [§7.15 / §7.15a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **`ua-armed-gas-throwback` is unblocked** (② above).
+
+| what happens now | what you call |
+|---|---|
+| a gas / smoke canister or grenade that bursts on the GROUND lies there and VENTS for its burn (90 s for the 40 mm canister); its cloud sits on it | nothing — `RoundPickUp.IsLying` / `CanAsk` find it like a stone |
+| picked up: the cloud lets go and drifts on the wind; the canister keeps burning in his HAND — an Irritant hit on him each second; burnt out it is gone from his hands | `RoundPickUp.Ask(world, man, canister)` (as B-13) · `RoundPickUp.BurnLeft(world, man, ammo)` reads what is left |
+| thrown back: it lands and raises a NEW cloud for the burn it had left, sitting on it again | `FireAtPoint` on his hands mount (as a stone) — the burn rides along by itself |
+
+⚠ An AIRBURST (a gas grenade whose fuze runs out in flight) still makes a free cloud and nothing to pick up.
 
 **Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
 (Stone Source). **Next free:** CE-3240.

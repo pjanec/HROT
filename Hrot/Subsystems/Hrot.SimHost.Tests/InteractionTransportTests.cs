@@ -148,7 +148,7 @@ namespace Hrot.SimHost.Tests
 
             // ② the grant: the flier → the brain
             var grantWriter = new CapturingWriter<EntityInteractionRequest>();
-            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f });
+            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f, BurnSeconds = 41f });
             simHost.Bus.SwapBuffers();
             new InteractionEgressTranslator(grantWriter, hostMap).ScanAndPublish(simHost);
             var sent = Assert.Single(grantWriter.Written);
@@ -161,6 +161,7 @@ namespace Hrot.SimHost.Tests
             brain.Bus.SwapBuffers();
             var grant = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Combat.PickUpGrantEvent>().ToArray());
             Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, grant.FuzeSeconds, grant.IsRemote));
+            Assert.Equal(41f, grant.BurnSeconds);   // ⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left crosses with it
         }
 
         [Fact]

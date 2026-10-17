@@ -85,6 +85,19 @@ namespace Fdp.Toolkit.Combat.Systems
         private static void RequestCloud(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w)
         {
             bool gas = w.Kind == Tkb.Domain.WarheadKind.Irritant;
+            // ⭐ CE-3236 (B-14, §7.15 VC-2/VC-4) — a canister still lying where it burst is the cloud's SOURCE, and its burn is the cloud's time
+            float seconds = w.CloudSeconds;
+            long source = 0;
+            if (!evt.Round.IsNull && repo.IsAlive(evt.Round) && repo.IsComponentTypeRegistered<BallisticProjectile>()
+                && repo.HasComponent<BallisticProjectile>(evt.Round))
+            {
+                ref readonly var round = ref repo.GetComponentRO<BallisticProjectile>(evt.Round);
+                if (round.BurnSeconds > 0f) seconds = round.BurnSeconds;
+                if ((round.Warhead & (WarheadRound.Vents | WarheadRound.Landed)) == (WarheadRound.Vents | WarheadRound.Landed)
+                    && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Round))
+                    source = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Round).Value;
+            }
             AreaEffectClouds.Request(repo, new Vector3(evt.HitX, evt.HitY, evt.HitZ), new AreaEffectCloud
             {
                 Kind = gas ? CloudKind.TearGas : CloudKind.Smoke,
@@ -93,7 +106,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 SightTransmittance = gas ? 0.4f : 0.1f,
                 IrritantSeconds = gas ? MathF.Max(w.EffectSeconds, (float)AreaEffectCloudSystem.StepSeconds + 0.5f) : 0f,
                 BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime,
-                Seconds = w.CloudSeconds,
+                Seconds = seconds,
+                SourceNetworkId = source,
             });
         }
 

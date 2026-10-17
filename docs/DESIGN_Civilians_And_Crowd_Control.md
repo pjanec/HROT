@@ -2792,6 +2792,166 @@ Unidentified at 100 m, Nothing at 10 m) · `ChargesTests.CE3234_ARemoteBomber_Ne
 7 red-proofs, each red: `Set` without `Has` · `Optics` without binoculars · optics 1 · `Judge` without the held item · `Ask` without the
 phone gate · egress without the field · the civilians' pockets dropped.
 
+### 7.15 B-14 — the cloud's SOURCE: a canister that vents, is picked up and thrown back *(AW-9 — R-2025; `CE-3236`; backend, `2026-10-17`; build-state: BUILT — as-built §7.15a)*
+
+INVENTORY *(grep + reads at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*Vent.*` → 0; `check_index_coverage` not available through the CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| what happens to a cloud round on the ground today | it BURSTS (`Area` bit, CE-3239) and is DESTROYED in the same tick — the cloud is born free and drifts | `BallisticsSystem.cs:96-118` (time-fuze `Landed` branch, the stopped impact round) |
+| who asks for the cloud | `AreaEffectSystem.RequestCloud`, on the node that flies the round (SimHost, `DamageAssessmentModule`), from the local `DetonationNotification` — which names no round | `AreaEffectSystem.cs:64,85-98`, `DetonationNotification.cs` |
+| how a round can lie | `Landed` + `Lingers` (B-13): the `Landed` branch counts `FuzeRemaining` down and ends it WITHOUT a burst; `IsLying` on the owner = `Landed` and not `Spent` | `CombatComponents.cs:139-185`, `RoundPickUp.cs:99-109` |
+| is a canister a hand item | ✅ 6039 gas grenade, 6040 canister, 6041 smoke grenade have `HandItemDto` | `MunitionTkbCatalog.cs:397-401` |
+| what a pick-up carries | `PickUpGrantEvent.FuzeSeconds` (I-1 kind 10) → `HeldFuze.Remaining` on the man; `HandsFuzeSystem` cooks a live round off at his feet when it runs out | `RoundPickUp.cs:40-75,160-175`, `RoundPickUpSystem.cs:52-100` |
+| what a throw carries | `WeaponFireIntent.FuzeSeconds` (appended, on the wire) — FireProcessing applies it ONLY to a time-fused round | `FireAtPointExecutor.cs:168,270`, `FireProcessingSystem.cs:181-183` |
+| the cloud's owner | CGF (the default processor); steps once a second: drift, irritate, end through the teardown | `AreaEffectCloudSystem.cs` |
+| net id → entity, with "known dead" | `NetworkIdResolver.ResolveNetworkId` / `IsKnownDeadAnchor` | `Replication/Services/NetworkIdResolver.cs:105-150` |
+
+```mermaid
+classDiagram
+  direction LR
+  class BallisticProjectile { <<existing, owner only>> Warhead bits · FuzeRemaining · + BurnSeconds }
+  class WarheadRound { <<existing>> Area · Arc · TimeFuze · Landed · Spent · Lingers · + Vents (64) }
+  class DetonationNotification { <<existing>> … · + Round (local; Null when remote) }
+  class AreaEffectCloud { <<CE-3219, dtAreaEffectCloud>> … · + SourceNetworkId (APPENDED) }
+  class AreaEffectCloudSystem { <<CE-3219, the cloud's owner>> step: sits on its source while it lives, else drifts }
+  class AreaEffectSystem { <<existing>> RequestCloud: seconds = the round's burn · source = the round }
+  class PickUpGrantEvent { <<B-13, I-1 kind 10>> … · + BurnSeconds (APPENDED) }
+  class HeldFuze { <<B-13>> Ammo · Remaining · + BurnSeconds }
+  class HandsFuzeSystem { <<B-13>> a burning canister irritates its holder; burnt out = gone, no cook-off }
+  class WeaponFireIntent { <<existing, on the wire>> … FuzeSeconds · + BurnSeconds (APPENDED) }
+  BallisticProjectile ..> WarheadRound
+  AreaEffectSystem ..> DetonationNotification : reads Round
+  AreaEffectSystem ..> AreaEffectCloud : requests
+  AreaEffectCloudSystem ..> AreaEffectCloud
+  PickUpGrantEvent ..> HeldFuze : Receive
+  HeldFuze ..> WeaponFireIntent : FireAtPoint throws it
+  WeaponFireIntent ..> BallisticProjectile : FireProcessing
+```
+
+*What the picture shows that prose hid:* **one number — the burn left — travels round → hand → throw → round → cloud**, each hop a field
+APPENDED to a struct that already crosses that hop; and the cloud needs only its source's EXISTENCE, because a lying canister never moves.
+
+```mermaid
+sequenceDiagram
+  participant S as SimHost (flies the round)
+  participant C as CGF (owns the cloud)
+  participant B as rioter's brain node
+  S->>S: canister stops: burst — DetonationNotification(Round)
+  S->>C: cloud request (Seconds = burn, Source = the round)
+  S->>S: the round LIES and VENTS (Landed, Lingers, Vents · FuzeRemaining = burn)
+  C->>C: each second: the source lives — the cloud sits on it
+  B->>S: PickUpRound (kind 9)
+  S->>S: grant BurnSeconds = burn left · the round is destroyed
+  S->>B: PickUpGrant (kind 10, + BurnSeconds)
+  C->>C: the source is gone (known dead) — the cloud drifts free, fades on its time
+  B->>B: HeldFuze.BurnSeconds burns down · an Irritant hit on him each second
+  B->>S: FireAtPoint — WeaponFireIntent(+ BurnSeconds)
+  S->>S: it lands: a new cloud for the burn left, sitting on it
+```
+
+```mermaid
+graph TD
+  BAL[BallisticsSystem — SimHost] --> VENT[a cloud round lies and vents]
+  AE[AreaEffectSystem — SimHost, DamageAssessmentModule] --> REQ[cloud request with source + burn]
+  CLD[AreaEffectCloudSystem — Interactions capability, the cloud's owner CGF] --> SIT[sits on its source / drifts]
+  HF[HandsFuzeSystem — Interactions capability, the brain node] --> IRR[irritates the holder; burnt out = gone]
+```
+
+*Caption:* every system here already runs where it is drawn; B-14 adds fields and branches, no system and no registration.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **VC-1** | **a CLOUD round (a cloud, no blast, no fragments) that bursts on the GROUND keeps lying and VENTS**: `Vents` bit set at fire time (`BitsOf`); at the ground burst it becomes `Landed` + `Lingers` (no `TimeFuze`), `FuzeRemaining` = its burn; the existing `Landed` branch ends it without a burst | a separate canister entity: the round already lies, replicates and is picked up (B-13) |
+| **VC-2** | **the burn is the round's `BurnSeconds`** (owner only): at fire, the intent's burn left, else the warhead's `CloudSeconds`; the cloud is asked for that long | the warhead's full seconds on every throw: a re-thrown canister would double the gas |
+| **VC-3** | **`DetonationNotification.Round`** — local only (Null off the wire): the burst names its round so the one cloud producer (`RequestCloud`) can read its burn and network id | a second cloud producer in `BallisticsSystem`: two paths to one request |
+| **VC-4** | **`AreaEffectCloud.SourceNetworkId`** (appended, on the wire): while the source resolves the cloud SITS on it (no drift); once it is KNOWN dead (or unresolvable on a mapless node) the cloud lets go — `SourceNetworkId` = 0 — and drifts | stepping the cloud to the source's position each second: a lying canister never moves, so existence is all that is needed |
+| **VC-5** | **picked up, the burn goes with it**: `TryGrant` sends `BurnSeconds` (appended to the grant and its I-1 payload), never as a fuze — a vented grenade's fuze is spent | reuse `FuzeSeconds`: a picked-up live gas grenade (still fused) and a venting one would be indistinguishable |
+| **VC-6** | **in his hand it burns on**: `HeldFuze.BurnSeconds`; each second an Irritant hit on the holder (the cloud's own effect); burnt out ⇒ out of his hands, no cook-off (it is empty) | no effect in hand: AW-9's acceptance ③ (irritated while he holds it) |
+| **VC-7** | **thrown, a new cloud for the burn left**: `FireAtPoint` passes `BurnSeconds` (`WeaponFireIntent`, appended + its wire), `FireProcessing` puts it on the round | throwing it as a fresh canister: VC-2's rejection |
+
+⚠ **Stated before the build:** an AIRBURST (a gas grenade whose fuze runs out in flight) is still destroyed at the burst — its cloud is free
+from birth; only a GROUND burst vents. The lying canister is a lightweight round, so a stone-sized replica on every node (B-13's cost).
+
+#### 7.15a AS-BUILT `CE-3236` B-14 *(2026-10-17)* — built as §7.15 draws it
+
+| built | where |
+|---|---|
+| `WarheadRound.Vents` (64) set by `BitsOf` for a cloud warhead with no blast / fragments; `BallisticProjectile.BurnSeconds` (owner only) | `CombatComponents.cs` |
+| `BallisticsSystem.BeginVenting` at both ground bursts (a stopped impact round, a landed time-fuzed one): `Landed` + `Lingers`, no `TimeFuze`, `FuzeRemaining` = the burn; `Detonate` names the round | `BallisticsSystem.cs` |
+| `DetonationNotification.Round` (local only) → `AreaEffectSystem.RequestCloud` asks for the cloud for the round's burn, with `SourceNetworkId` = the venting round's network id | `DetonationNotification.cs`, `AreaEffectSystem.cs` |
+| `AreaEffectCloud.SourceNetworkId` (+ `EntityAreaEffectCloud`); the owner's step `SitsOnItsSource` (resolves ⇒ no drift; known dead / mapless-unresolvable ⇒ 0 and drift) | `AreaEffectClouds.cs`, `AreaEffectCloudSystem.cs`, `SimDescriptors.cs`, `EntityAreaEffectCloudTranslators.cs` |
+| burn through the hand: `PickUpGrantEvent.BurnSeconds` (+ I-1 kind 10 payload) · `HeldFuze.BurnSeconds` · `RoundPickUp.BurnLeft` · `HandsFuzeSystem` irritates the holder each whole second and drops it burnt out (no cook-off) · `AreaEffectCloudSystem.Irritate` (one Irritant hit, shared with the cloud's pulse) | `RoundPickUp.cs`, `RoundPickUpSystem.cs`, `InteractionMessages.cs`, `InteractionTransport.cs` |
+| the throw: `FireAtPoint` → `WeaponFireIntent.BurnSeconds` (+ `WeaponFireRequest` wire) → `FireProcessingSystem` puts it on the round (else the warhead's `CloudSeconds`) | `FireAtPointExecutor.cs`, `WeaponFireEvents.cs`, `FireInteractionMessages.cs`, `WeaponFire*Translator.cs`, `FireProcessingSystem.cs` |
+
+No deviation from §7.15. ⚠ Not railed across nodes (as the cloud's drift before it): a source resolved on CGF needs the lying round's
+replica there — the rails check one world (resolve by scan) and the mapless rule; the wire rails check every appended field.
+
+Rails: `WarheadFlightTests.CE3236_ACloudRound_LiesAndVents_…` (grenade and canister) · `AreaEffectCloudTests.CE3236_ACloud_SitsOnItsCanister_…`
+and `…_AVentingCanistersBurst_AsksForACloud_…` · `RoundPickUpTests.CE3236_AVentingCanister_PickedUp_…` and `…_AHeldCanister_IsThrown…` ·
+`FireProcessingSystemTests.CE3236_ACanister_FliesWithItsBurn_…` · the wire: `WeaponFireIntentEgressTranslatorTests.M8_…`,
+`InteractionTransportTests.CE3235_APickUpAskAndItsGrant_…`, `BodyPartReplicationTests.CE3219_ACloud_…` (each gained the new field).
+11 red-proofs, each red.
+
+### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+
+INVENTORY *(grep at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*HostileAct.*` → `HostileActs` only)*:
+
+| question | measured | where |
+|---|---|---|
+| every `DamageAssessedEvent` producer | the hit (`DamageCalculationSystem`, from a `DetonationNotification` that already names `Shooter`) · the burst (`AreaEffectSystem.Assess` ×4, same notification) · `Melee.Strike` (the striker) · the cloud / a canister in hand (`AreaEffectCloudSystem.Irritate`) · `DroneImpactSystem` (the drone spends itself) · `EjectionSystem` (the aircraft) · the wire ingress | 7 producers |
+| the wire | `EntityHitDamage` (HitEntityId, TotalDamage, BodyPart, EffectKind, EffectSeconds — the last three APPENDED), `DamageAssessedEgressTranslator` / `EntityHitDamageIngressTranslator` | `FireInteractionMessages.cs:237`, `SimHost/*` |
+| the hostile act today | `HostileActs.Commit` stamps `CivilianState.HostileActAt` — brain-LOCAL — and flips the side through the one write path | `Civilians/HostileActs.cs` |
+| the planned component | §2 class diagram: `HostileAct { SinceSimTime, Kind }`, NEW, replicated | this design `:126` |
+| the model to follow | `Gesture` (B-6): own component, Brain group, `dtGesture` 143 + two translators | `Gestures.cs`, `EntityGestureTranslators.cs` |
+| ids | component 404 and descriptor 145 free on every lane (measured for B-12; re-checked at the build) | `GlobalComponentIds.cs`, `AllDescriptors.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class DamageAssessedEvent { <<existing>> HitEntity · TotalDamage · … · + Source (APPENDED, Null = unknown) }
+  class EntityHitDamage { <<existing topic>> … EffectSeconds · + SourceEntityId (APPENDED, 0 = unknown) }
+  class HostileAct { <<NEW component 404, Brain group, dtHostileAct 145>> SinceSimTime · Kind }
+  class HostileActKind { <<NEW enum>> None · NonLethal · Lethal }
+  class HostileActs { <<CE-2238, extended>> Commit(repo, actor, kind) · Of(view, actor) }
+  class CivilianState { <<behaviors>> HostileActAt (kept, stamped too) }
+  DamageAssessedEvent ..> EntityHitDamage : egress / ingress map Source
+  HostileActs ..> HostileAct : the one writer
+  HostileActs ..> CivilianState
+  HostileAct --> HostileActKind
+```
+
+*What the picture shows that prose hid:* both items are a field on something that already reaches every node — B-15 two appended
+fields on an existing event and topic, B-16 the component §2 already drew.
+
+```mermaid
+sequenceDiagram
+  participant S as SimHost (assesses the hit)
+  participant C as CGF (owns the victim's Health and brain)
+  S->>S: DamageAssessedEvent(Source = the round's shooter)
+  S->>C: EntityHitDamage(+ SourceEntityId)
+  C->>C: DamageAssessedEvent(Source = his entity here) — behaviors read it (AW-23)
+  C->>C: HostileActs.Commit(actor, Lethal) — HostileAct written, side flipped
+  C-->>S: dtHostileAct — every node reads Kind
+```
+
+```mermaid
+graph TD
+  DC[DamageCalculationSystem / AreaEffectSystem — SimHost] --> SRC[fill Source from the notification's Shooter]
+  EG[DamageAssessedEgressTranslator — SimHost] --> WIRE[EntityHitDamage + SourceEntityId]
+  HA[HostileActs.Commit — the actor's brain node] --> COMP[HostileAct, Brain group]
+  TR[EntityHostileAct translators — shared pack, every node] --> COMP
+```
+
+*Caption:* nothing new is scheduled; the translators join the shared pack beside `dtGesture`'s.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **DS-1** | **`DamageAssessedEvent.Source`** (Entity, appended; Null = unknown) filled where the producer KNOWS it: the hit and the burst (the notification's `Shooter`), a melee blow (the striker); a cloud, a canister in hand, a crash, an ejection say unknown | a separate "attribution" event: every reader would join two events |
+| **DS-2** | **`EntityHitDamage.SourceEntityId`** (appended; 0 = unknown), mapped through the entity map both ways | sending the source only for lethal damage: AW-23 counts friendly hits of every kind |
+| **HA-1** | **`HostileAct { SinceSimTime, Kind }`** — its own component (404), Brain group, `dtHostileAct` (145), the `Gesture` wiring | a field on `CivilianState`: behaviors' brain-local struct, not on the wire |
+| **HA-2** | **`HostileActs.Commit(repo, actor, kind)`** — stamps once, UPGRADES Non-lethal → Lethal (never down), keeps `CivilianState.HostileActAt` in step, flips the side once (as before) | a second writer per kind: the one write path stays one |
+
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
 **INVENTORY** *(2026-10-16; codebase-memory CLI `search_graph` for `.*EntityClassTable.*`, `.*VisualFamil.*`, `.*EffectState.*`,

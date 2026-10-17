@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         public void Dispose() => _w.Dispose();
 
-        private Entity Launch(Vector3 from, Vector3 to, float speed, bool high, byte warhead, float fuze = 0f)
+        private Entity Launch(Vector3 from, Vector3 to, float speed, bool high, byte warhead, float fuze = 0f, float burn = 0f)
         {
             var v = FireProcessingSystem.ArcLaunch(from, to, speed, high);
             var e = _w.CreateEntity();
@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(e, new BallisticProjectile
             {
                 PreviousPosition = from, Muzzle = from, SpawnTick = 1, TerrainFlags = 1, Ammo = 6002,
-                Warhead = warhead, FuzeRemaining = fuze,
+                Warhead = warhead, FuzeRemaining = fuze, BurnSeconds = burn,
             });
             return e;
         }
@@ -212,6 +212,38 @@ namespace Fdp.Toolkit.Combat.Tests
             if (fuze > 0f) Assert.InRange(tick * Dt, fuze - 0.1f, fuze + 0.2f);   // on its fuze, lying where it landed
             Assert.InRange(b.HitX, 13.5f, 16.5f);
             Assert.InRange(b.HitZ, 0f, 0.2f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3236</c> (B-14, §7.15 VC-1) — a cloud round that bursts on the GROUND does not go: it LIES and VENTS for its burn
+        /// (<see cref="WarheadRound.Landed"/> + <see cref="WarheadRound.Lingers"/>, its fuze spent), the burst names it as its round (the cloud's
+        /// source), and once its burn is over it goes WITHOUT a second burst. ✅ Red-proofs: <c>BeginVenting</c> returning false ⇒ it is
+        /// destroyed at the burst ⇒ red; the <c>Vents</c> bit dropped from <c>BitsOf</c> ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(1.5f)]   // the gas grenade: lands, waits its fuze, bursts, vents
+        [InlineData(0f)]     // the canister: bursts where it lands, vents
+        public void CE3236_ACloudRound_LiesAndVents_AfterItBursts_ThenGoesQuietly(float fuze)
+        {
+            var gas = new Fdp.Toolkit.Tkb.Domain.WarheadDto
+            {
+                Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 3f, Indirect = true,
+                Fuze = fuze > 0f ? Fdp.Toolkit.Tkb.Domain.FuzeKind.Time : Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, FuzeDelayS = fuze,
+            };
+            byte bits = WarheadRound.BitsOf(gas, out float fuzeSeconds);
+            Assert.True((bits & WarheadRound.Vents) != 0, "a cloud round vents");
+
+            var round = Launch(new Vector3(0, 0, 1.5f), new Vector3(15, 0, 0), 15f, high: false, bits, fuze: fuzeSeconds, burn: 3f);
+            var bursts = Fly(2, 150);                        // landed ~1 s, burst by 1.5 s; its 3 s burn runs on
+            var (tick, b) = Assert.Single(bursts);
+            Assert.Equal(round, b.Round);
+            Assert.True(_w.IsAlive(round), "it lies where it burst");
+            ref readonly var lying = ref _w.GetComponentRO<BallisticProjectile>(round);
+            Assert.Equal(WarheadRound.Landed | WarheadRound.Lingers, lying.Warhead & (WarheadRound.Landed | WarheadRound.Lingers | WarheadRound.TimeFuze));
+            Assert.InRange(lying.FuzeRemaining, 0f, 3f);   // its burn, counting down
+
+            Assert.Empty(Fly(150, 60 * 8));                  // it vents out quietly
+            Assert.False(_w.IsAlive(round), "burnt out, it is gone");
         }
     }
 }

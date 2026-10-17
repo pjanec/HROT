@@ -48,6 +48,10 @@ namespace Fdp.Toolkit.Combat
         /// <summary>How long it lives (s).</summary>
         public float Seconds;
 
+        /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-4) — the venting canister it sits on (its network id; APPENDED): while that lives the
+        /// cloud does not drift; once it is known gone (picked up, burnt out) the owner sets 0 and the cloud drifts free. 0 = free.</summary>
+        public long SourceNetworkId;
+
         /// <summary>True once its time is up.</summary>
         public readonly bool IsOver(double now) => now >= BornAtSimSeconds + Seconds;
 
