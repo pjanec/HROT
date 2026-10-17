@@ -26,7 +26,17 @@ public sealed class TrafficSteppingModule : IEcsModule
     public string Name => "TrafficStepping";
 
     /// <summary>20 Hz: a 0.5 s SUMO step is never more than a tick late; the target, not this rate, paces SUMO.</summary>
-    public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(20);
+    /// <remarks>
+    /// ⭐ CE-4020 — the time budget is the SESSION BUILD, not one step. 📌 Measured 2026-10-17 on the five-process cluster: the default
+    /// <c>SlowBackground</c> budget (100 ms) timed out the tick that builds the session (SUMO parses the net: 2.5 s on demo-city) and
+    /// every 40-step catch-up after it; five timeouts open the circuit for 10 s, the next catch-up is 40 steps again, and SUMO crawled.
+    /// ⛔ An abandoned tick also keeps running while the next one starts, and <see cref="TrafficRuntime.SteppingTick"/> is not
+    /// re-entrant. ⇒ <see cref="MaxTickMs"/> covers a build; a hang is still caught.
+    /// </remarks>
+    public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(20).WithTimeout(MaxTickMs);
+
+    /// <summary>The longest one stepping tick may take before the host calls it hung: a session build plus a full catch-up.</summary>
+    public const int MaxTickMs = 30_000;
 
     public IEnumerable<Type>? GetRequiredComponents() => new[] { typeof(TrafficDemand) };
 
@@ -64,6 +74,19 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     private TrafficReplicas? _replicas;
     private EntityRepository? _replicaWorld;
     private DdsMultiSourceSubscriber? _dds;
+    private double _wireNow;
+
+    /// <summary>
+    /// ⭐ CE-4021 (AQ93 E10, R-4027) — a traffic node that falls silent for this long, in CLUSTER time, is gone: its cars go.
+    /// 📌 Measured 2026-10-17: the subscriber had no timeout, so after the traffic node was killed every mirror kept its cars, frozen,
+    /// for good. ⭐ Cluster time, not wall time: a paused cluster steps no SUMO and sends nothing, and must keep its cars.
+    /// </summary>
+    public const double SilentSourceSeconds = 5.0;
+
+    /// <summary>The DDS reader of every traffic node's wire: samples stamped with SUMO sim time (E9), a source silent for
+    /// <see cref="SilentSourceSeconds"/> of <paramref name="clusterSeconds"/> removed (E10).</summary>
+    public static DdsMultiSourceSubscriber NewSubscriber(DdsParticipant participant, Func<double> clusterSeconds)
+        => new(participant, stampWithSimTime: true, sourceTimeoutSeconds: SilentSourceSeconds, clockSeconds: clusterSeconds);
     private TrafficNetCache? _net;
     private NetworkLaneSource? _netLanes;
     private TrafficSession? _adopted;
@@ -147,7 +170,8 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         }
         if (_participant is not null)
         {
-            _dds ??= new DdsMultiSourceSubscriber(_participant, stampWithSimTime: true);
+            _wireNow = now;
+            _dds ??= NewSubscriber(_participant, () => _wireNow);
             _dds.Pump();
             foreach (var (src, source) in _dds.Sources)
             {

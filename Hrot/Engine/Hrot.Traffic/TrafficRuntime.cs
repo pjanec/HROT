@@ -73,6 +73,14 @@ public sealed class TrafficRuntime : IDisposable
     /// <summary>Ids kept beyond the target car count.</summary>
     public const int IdHeadroom = 64;
 
+    /// <summary>⭐ AQ93 §13 F4 — our bodies, as of this frame (net coordinates); the stepping thread tells SUMO before its next step.
+    /// One volatile write of an array nobody mutates afterwards. ⛔ Main thread only.</summary>
+    public void SetBodies(TrafficBody[] bodies) => Volatile.Write(ref _bodies, bodies ?? Array.Empty<TrafficBody>());
+
+    /// <summary>The bodies the stepping thread will hand SUMO next (rails, diagnostics).</summary>
+    public IReadOnlyList<TrafficBody> Bodies => Volatile.Read(ref _bodies);
+    private TrafficBody[] _bodies = Array.Empty<TrafficBody>();
+
     /// <summary>How far SUMO may run (cluster sim time); also the time a NEW session starts at (N3). ⛔ Main thread only.</summary>
     public void SetTarget(TrafficSessionKey key, double clusterTime)
     {
@@ -115,6 +123,7 @@ public sealed class TrafficRuntime : IDisposable
                 return;
             }
         }
+        have.SetBodies(Volatile.Read(ref _bodies));
         Interlocked.Add(ref _steps, have.StepTo(target));
     }
 

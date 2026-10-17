@@ -56,4 +56,14 @@ public sealed class SumoNetPlacement
         var local = _geo!.ToCartesian(lat, lon, 0.0);
         return (local.X, local.Y);
     }
+
+    /// <summary>⭐ AQ93 §13 F5 — the terrain's local metres → a net point: the exact inverse of <see cref="ToLocal"/> (what SUMO is told
+    /// about our bodies).</summary>
+    public (double X, double Y) ToNet(double localX, double localY)
+    {
+        if (!_georeferenced) return (localX + _anchorX, localY + _anchorY);
+        var (lat, lon, _) = _geo!.ToGeodetic(new System.Numerics.Vector3((float)localX, (float)localY, 0f));
+        var (e, n) = Utm.FromGeodetic(lat, lon, _zone, _south);
+        return (e + _offsetX, n + _offsetY);
+    }
 }

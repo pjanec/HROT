@@ -71,6 +71,7 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         }
         Mirror = new TrafficMirrorSystem(Runtime, context.Participant, context.EntityMap, context.NodeId);
         input.Add(Mirror);
+        if (Runtime is not null) input.Add(new TrafficBodyFeedSystem(Runtime));   // ⭐ AQ93 §13 — our bodies into SUMO (E4)
     }
 
     public void Dispose() => Runtime?.Dispose();

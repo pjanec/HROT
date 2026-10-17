@@ -84,6 +84,13 @@ public sealed class TrafficSession : IDisposable
     /// <summary>SUMO's step length (seconds).</summary>
     public double StepSeconds => _sim.Dt;
 
+    /// <summary>⭐ AQ93 §13 — our bodies for SUMO's next step (stepping thread, between steps).</summary>
+    public void SetBodies(TrafficBody[] bodies) => _bodies = bodies ?? Array.Empty<TrafficBody>();
+    private TrafficBody[] _bodies = Array.Empty<TrafficBody>();
+
+    /// <summary>The bodies SUMO was last told about.</summary>
+    public IReadOnlyList<TrafficBody> Bodies => _bodies;
+
     /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
     /// that does not move — the cluster paused — steps nothing.</summary>
     /// <returns>The steps taken.</returns>
