@@ -40,7 +40,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 **⑤ The pistol (B-9) is data only** — InfantrySoldier (2002) mount 1, Grenadier (2004) mount 2 (the grenades stay mount 1; the hands moved to 2 / 3). Nothing to call: `AimAndFire` with `MountAuto` keeps the rifle while it has ammo and takes the pistol once it is empty. ⚠ **Measured: an empty rifleman then fires the pistol at ANY range** (50 m is its reach; aimed fire has no range gate for any weapon, and the chooser takes any score above 0) — if a behaviour should not empty his pistol at 150 m, gate the engagement on range. Your four soldier rails re-ran unchanged (U1, U2, WindowDuel, UniversalSoldier, plus CE2073 and AW20).
 
-**⑥ B-11 — carry stations and the charge** ([CE-3233](../Blueprint_Issues_Tracker.md), B-11a at `backend@fdffec282`, B-11b at `backend@B11BSHA`; design [§7.13a/§7.13b](../../DESIGN_Civilians_And_Crowd_Control.md)). Every person now has seats 1 HANDS, 2 BACK (stowed), 3 HIDDEN (stowed + concealed).
+**⑥ B-11 — carry stations and the charge** ([CE-3233](../Blueprint_Issues_Tracker.md), B-11a at `backend@fdffec282`, B-11b at `backend@7eff97ff7`; design [§7.13a/§7.13b](../../DESIGN_Civilians_And_Crowd_Control.md)). Every person now has seats 1 HANDS, 2 BACK (stowed), 3 HIDDEN (stowed + concealed).
 
 | what you can call | what it does |
 |---|---|
