@@ -197,5 +197,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// the line, fires at the nearest Hostile within <c>Reach</c> (his ROE's force level picks the weapon) and strikes with the baton
         /// within arm's reach. The security types run it by default.</summary>
         public const string HoldTheLine = "HoldTheLine";
+        /// <summary>⭐ <c>CE-2238</c> part 4 (AW-11, AW-16; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.7 CO-2) — put the carried weapon in a
+        /// carry station: Hands (draw), Back (sling) or Hidden (conceal); hold still <c>Seconds</c>, then finish.</summary>
+        public const string StationWeapon = "StationWeapon";
     }
 }

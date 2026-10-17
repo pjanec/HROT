@@ -326,7 +326,8 @@ namespace Fdp.Toolkit.Tests.Combat
         /// <summary>⭐ <c>CE-2238</c> part 4 (AW-16, §5h.7 CO-1) — AIMING at the forces is the hostile act, drawing is not: a civilian whose
         /// weapon is READY at a soldier commits nothing; aimed at another civilian, nothing; aimed at the SOLDIER — a LETHAL act; an enemy
         /// soldier aiming at him (a combatant: his status already says it) commits none. ✅ Red-proof: the <c>AimedAtTheForces</c> call removed
-        /// from <c>WeaponPostureOf.Report</c> ⇒ red; its combatant guard removed ⇒ red (the enemy soldier "acts").</summary>
+        /// from <c>WeaponPostureOf.Report</c> ⇒ red; its combatant guard removed ⇒ red (the enemy soldier "acts"); the target's combatant test
+        /// removed ⇒ red (a Friend-side CIVILIAN is not the forces).</summary>
         [Fact]
         public void CE2238_AimingAtTheForces_IsALethalAct_ForACivilian_NotForASoldier_NorAimedAtACivilian()
         {
@@ -342,6 +343,9 @@ namespace Fdp.Toolkit.Tests.Combat
             WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutral, soldier);   // drawn, ready
             Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(civ));
             WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, bystander);      // at a civilian
+            Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(civ));
+            var friendlyCiv = Man(PhoneCivType, new Vector3(26f, 0f, 0f), ForceId.Friend, civilian: true);                  // the forces' side, not the forces
+            WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, friendlyCiv);
             Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.None, Act(civ));
             WeaponPostureOf.Report(_world.Repo, civ, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, soldier);        // at the forces
             Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.Lethal, Act(civ));
