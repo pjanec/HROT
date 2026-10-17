@@ -3644,6 +3644,8 @@ namespace Hrot.Editor
                         // ⭐ §11.1a — feeds the hosted-subtree picker on StateFacet, and the
                         //   dispatcher's pick-time Guid capture. ⛔ This host HAS a catalogue.
                         Catalog          = _aiCatalogBuilder?.Catalog,
+                        // ⭐ CE-1008 — every inspector choice opens the shell's searchable picker (drawn each frame by this host)
+                        OpenPicker       = _shellPickers is { } pickers ? pickers.OpenPicker : null,
                     });
 
                 // AIE-047/048: Retarget Blueprint-specific windows.

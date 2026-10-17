@@ -14,10 +14,18 @@ namespace Hrot.Editor.AiShared.Inspector;
 public sealed class AiBehaviorPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly Func<IEnumerable<string>> _names;
+    private readonly PickerField _field;
 
     /// <param name="names">The host's registered behaviour names (<c>BehaviorRegistry.GetRegisteredNames</c>).</param>
-    public AiBehaviorPickerDrawer(Func<IEnumerable<string>> names)
-        => _names = names ?? throw new ArgumentNullException(nameof(names));
+    /// <param name="field">⭐ <c>CE-1008</c> (§7.1b) — the searchable choice field; null ⇒ a plain combo.</param>
+    public AiBehaviorPickerDrawer(Func<IEnumerable<string>> names, PickerField? field = null)
+    {
+        _names = names ?? throw new ArgumentNullException(nameof(names));
+        _field = field ?? new PickerField(null);
+    }
+
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(string);
 
@@ -34,25 +42,10 @@ public sealed class AiBehaviorPickerDrawer : IImGuiFieldDrawer, IPickerListSourc
         var current = value as string ?? string.Empty;
         var items   = GetItems();
         bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo("##aibehaviourpicker", current))
+        if (_field.Draw("aibehaviourpicker", node, current, PickerChoices.Flat(items), "Behaviour", out var picked))   // ⭐ CE-1008
         {
-            bool noneSelected = string.IsNullOrEmpty(current);
-            if (ImGuiNET.ImGui.Selectable("(none)", noneSelected) && !noneSelected)
-            {
-                value   = string.Empty;
-                changed = true;
-            }
-            foreach (var name in items)
-            {
-                bool selected = string.Equals(name, current, StringComparison.Ordinal);
-                if (ImGuiNET.ImGui.Selectable(name, selected) && !selected)
-                {
-                    value   = name;
-                    changed = true;
-                }
-                if (selected) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
+            value   = picked ?? string.Empty;
+            changed = true;
         }
         if (!string.IsNullOrEmpty(current) && !items.Contains(current, StringComparer.Ordinal))
             ImGuiNET.ImGui.TextDisabled($"⚠ '{current}' is not a registered behaviour");

@@ -256,7 +256,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             float length,
             float width,
             uint conditionMask,
-            byte layer = 0)
+            byte layer = 0,
+            Rgba32? colour = null)
         {
             var prim = DebugPrimitive.MakeSemanticShape(
                 (int)networkId,          // the SpatialAnchor cache key at offset 8 (C7 narrowing)
@@ -269,7 +270,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             // MakeSemanticShape builds from default(DebugPrimitive), which leaves Color at
             // (0,0,0,0) — fully transparent, so the avatar would draw invisibly. Set an
             // explicit opaque color so the shape (and the magenta fallback) is visible.
-            prim.Color = new Rgba32(100, 220, 255, 255);
+            // ⭐ CE-1163 (Symbology §3.1) — the entity's colour (AffiliationColors.For: its resolved tint, else its LIVE side);
+            //   the cyan stays only as the no-side fallback.
+            prim.Color = colour ?? Hrot.Common.Diagnostics.Gizmos.AffiliationColors.NoSide;
             draw.EmitRaw(in prim);
         }
     }

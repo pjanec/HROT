@@ -41,7 +41,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// default); <paramref name="Child"/>: a person shorter than <see cref="ChildHeight"/>.</para>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
-                                           bool TypeColoured = false, bool Child = false);
+                                           bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -220,7 +220,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e));
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e), look.Kit);
                 Outfits.Details(outfit.Value, seed, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
@@ -1201,7 +1201,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
         return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
-                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight);
+                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight,
+                            Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian);   // ⭐ CE-1162
     }
 
     /// <summary>

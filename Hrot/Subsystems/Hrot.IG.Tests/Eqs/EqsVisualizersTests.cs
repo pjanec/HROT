@@ -137,5 +137,46 @@ namespace Hrot.IG.Tests.Eqs
             Assert.Equal(4, red.Length);
             Assert.All(green, d => Assert.True(d.SphereCenter.Y < 29f, $"a kept point {d.SphereCenter} is not behind the car"));
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-1160 (gizmos-1 §11.11) — the verdict reruns the AI's filters (sight against the terrain) on the DRAW thread, so it is
+        /// CACHED per sensor: drawn every frame from the cache, recomputed only when <see cref="EqsSensorGizmo.VerdictRefreshSeconds"/> has
+        /// passed (and no sooner than 10× its own cost). 🔒 User, 2026-10-16: selecting a unit froze the 3-D map — "1 frame drawn in few
+        /// seconds", with these very dots appearing. 🔴 Red-proof: recompute every frame (the count rises on the second draw).
+        /// </summary>
+        [Fact]
+        public void CE1160_TheVerdict_IsDrawnEveryFrame_ButRecomputedOnlyOnItsBudget()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<EqsSensor>();
+            w.RegisterManagedComponent<IEqsTemplateRegistry>();
+            var template = new EqsQueryTemplate { BlueprintId = 5, Generator = new Ring(), MaxCandidates = 8 };
+            w.SetSingletonManaged<IEqsTemplateRegistry>(new OneTemplate(template));
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = new Vector3(10, 10, 0), Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new EqsSensor { BlueprintId = 5, SearchRadius = 5f });
+
+            long now = 1_000;
+            var gizmo = new EqsSensorGizmo(new GizmoSettingsRegistry()) { Clock = () => now };
+            int Dots() { var d = new DebugPrimitiveBuffer(); gizmo.Draw(w, unit, d); return d.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Sphere && p.Color.Equals(EqsSensorGizmo.KeptColor)); }
+
+            Assert.Equal(4, Dots());
+            Assert.Equal(4, Dots());                                   // the next frame: drawn from the cache
+            Assert.Equal(1, gizmo.VerdictsComputed);
+            now += (long)(EqsSensorGizmo.VerdictRefreshSeconds * System.Diagnostics.Stopwatch.Frequency) + 1;
+            Assert.Equal(4, Dots());
+            Assert.Equal(2, gizmo.VerdictsComputed);                    // its budget passed: recomputed
+        }
+
+        /// <summary>Four points round the observer, nothing filters them.</summary>
+        private sealed class Ring : IEqsGenerator
+        {
+            public int Generate(Entity observer, ref EqsSensor sensor, Fdp.ModuleHost.Abstractions.ISimulationView view, System.Span<EqsResult> candidates)
+            {
+                for (int i = 0; i < 4; i++) candidates[i] = new EqsResult { PositionX = 10 + i, PositionY = 10, PositionZ = 0 };
+                return 4;
+            }
+        }
     }
 }

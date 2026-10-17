@@ -2468,6 +2468,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                             ActionSchema     = schemaExporter,
                             // ⭐ §11.1a — same catalogue, same picker. ⛔ Not editor-only.
                             Catalog          = _aiCatalogBuilder?.Catalog,
+                            // ⭐ CE-1008 — the same searchable picker (this host's shell registry). ⛔ Not editor-only.
+                            OpenPicker       = _shellPickers is { } pickers ? pickers.OpenPicker : null,
                         }),
                 // ⛔ Still editor-only and correctly so: the legacy variables bridge and the
                 //   graph-signature window — CGF registers neither.

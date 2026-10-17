@@ -61,34 +61,15 @@ public static class HsmBindingMethods
 /// <summary>Internal rendering helpers shared by all HSM picker drawers.</summary>
 internal static class HsmPickerHelper
 {
-    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items,
-                                     Func<string, string>? label = null)
+    /// <summary>⭐ <c>CE-1008</c> (AI_Editor_Shared_Infrastructure §7.1b) — a string choice through the ONE choice field: the searchable
+    /// picker where the host passed one, else the plain combo ("(none)" clears).</summary>
+    internal static bool Render(ref object value, string id, IReadOnlyList<string> items, PickerField field, EditNode node, string title,
+                                Func<string, string>? label = null)
     {
         var current = value as string ?? string.Empty;
-        label ??= s => s;
-        bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo(id, label(current)))
-        {
-            // Allow clearing.
-            if (ImGuiNET.ImGui.Selectable("(none)", string.IsNullOrEmpty(current)) && !string.IsNullOrEmpty(current))
-            {
-                value = string.Empty;
-                changed = true;
-            }
-            foreach (var name in items)
-            {
-                bool sel = name == current;
-                // ⚠ "##"+name keeps the ImGui id the VALUE, so two entries with the same label stay distinct.
-                if (ImGuiNET.ImGui.Selectable($"{label(name)}##{name}", sel) && !sel)
-                {
-                    value   = name;
-                    changed = true;
-                }
-                if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
-        }
-        return changed;
+        if (!field.Draw(id, node, current, PickerChoices.Flat(items, label), title, out var picked)) return false;
+        value = picked ?? string.Empty;
+        return true;
     }
 }
 
@@ -99,11 +80,17 @@ internal static class HsmPickerHelper
 public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly PickerField _field;
 
-    public HsmStateSelectorDrawer(HsmAsset asset)
+    /// <param name="field">⭐ CE-1008 — the searchable choice field; null ⇒ a plain combo.</param>
+    public HsmStateSelectorDrawer(HsmAsset asset, PickerField? field = null)
     {
         _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _field = field ?? new PickerField(null);
     }
+
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(string);
 
@@ -118,7 +105,7 @@ public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSourc
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmstate", GetItems());
+        return HsmPickerHelper.Render(ref value, "hsmstate", GetItems(), _field, node, "State");
     }
 }
 
@@ -129,11 +116,17 @@ public sealed class HsmStateSelectorDrawer : IImGuiFieldDrawer, IPickerListSourc
 public sealed class HsmEventPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly PickerField _field;
 
-    public HsmEventPickerDrawer(HsmAsset asset)
+    /// <param name="field">⭐ CE-1008 — the searchable choice field; null ⇒ a plain combo.</param>
+    public HsmEventPickerDrawer(HsmAsset asset, PickerField? field = null)
     {
         _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _field = field ?? new PickerField(null);
     }
+
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(string);
 
@@ -157,22 +150,12 @@ public sealed class HsmEventPickerDrawer : IImGuiFieldDrawer, IPickerListSource
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
         var choices = Choices();
         var current = value is ushort uid ? choices.FirstOrDefault(c => c.Id == uid).Name ?? string.Empty : string.Empty;
-        bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo("##hsmev", current))
-        {
-            foreach (var (name, id) in choices)
-            {
-                bool sel = name == current;
-                if (ImGuiNET.ImGui.Selectable(name, sel) && !sel)
-                {
-                    value   = id;
-                    changed = true;
-                }
-                if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
-        }
-        return changed;
+        // ⭐ CE-1008 — the ONE choice field over the event NAMES; the pick maps back to its id (an event has no "(none)": a pick of it is ignored)
+        if (!_field.Draw("hsmev", node, current, PickerChoices.Flat(choices.Select(c => c.Name)), "Event", out var picked)
+            || string.IsNullOrEmpty(picked)) return false;
+        foreach (var (name, id) in choices)
+            if (name == picked) { value = id; return true; }
+        return false;
     }
 }
 
@@ -263,20 +246,24 @@ public static class HsmPickerDrawerFactory
         HsmAsset               asset,
         IActionSchemaExporter? exporter = null,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
-        Func<IEnumerable<string>>? behaviourNames = null)
+        Func<IEnumerable<string>>? behaviourNames = null,
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>? openPicker = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
+        // ⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — ONE choice field for every picker of this document: the host's searchable
+        //   picker (openPicker = its shell PickerRegistry.OpenPicker), or plain combos where it passes none
+        var field = new PickerField(openPicker);
         var bindingDrawer = new ActionBindingDrawer(new ActionBindingSources(
-            asset, kind => HsmBindingMethods.For(asset, exporter, kind), exporter, catalog));
+            asset, kind => HsmBindingMethods.For(asset, exporter, kind), exporter, catalog), field);
 
         var composite = new HsmCompositeStringDrawer()
-            .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
-            .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset));
+            .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset, field))
+            .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset, field));
         // ⭐ CE-2083 — the SOP order's behaviour picker (the BTree's drawer); only with a registry to list, as the catalogue rule.
         if (behaviourNames is not null)
             composite.Register<Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute>(
-                new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames));
+                new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames, field));
 
         // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
         //    null catalogue could only ever draw an empty list, and an empty dropdown reads as
@@ -293,7 +280,7 @@ public static class HsmPickerDrawerFactory
             {
                 if (!byKind.TryGetValue(attr.Kind, out var d))
                     byKind[attr.Kind] = d =
-                        new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, attr.Kind);
+                        new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, attr.Kind, field);
                 return d;
             });
         }

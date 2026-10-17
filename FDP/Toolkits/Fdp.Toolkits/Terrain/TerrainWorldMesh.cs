@@ -45,7 +45,7 @@ namespace Fdp.Toolkit.Terrain
             var g = new List<TerrainTriangleTag>();
 
             AddGround(world, cellSize, v, t, g);
-            foreach (var prism in world.Prisms) AddPrism(prism, v, t, g);
+            foreach (var prism in world.Prisms) if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, g);
             foreach (var w in world.Walkables)
             {
                 int b = v.Count;
@@ -124,6 +124,14 @@ namespace Fdp.Toolkit.Terrain
                     return true;
             return false;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1165</c> (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U4-b) — a prism of a material that lets sight through
+        /// AND does not block movement (a tear-gas or smoke cloud's obstacle, B1-c) is a VOLUME, not a solid: it is left out of the mesh — so
+        /// it neither renders as a block nor enters the navmesh (it blocks nothing) — and its own layer draws it. Sight still reads the
+        /// prism itself. ⚠ Every built-in see-through material today (glass, hedge, chain-link fence) blocks movement, so none is affected.
+        /// </summary>
+        public static bool IsVolumeEffect(TerrainPrism prism) => prism.Material is { SightTransmittance: > 0f, BlocksMovement: false };
 
         private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
         {
