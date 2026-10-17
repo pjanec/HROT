@@ -68,6 +68,12 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>⭐ <c>CE-2237</c> — sim time (s) he last HEARD violence (a shot, a blast); 0 when he never has. Tells a fright he heard
         /// from one he caught from his crowd.</summary>
         public double HeardAt;
+        /// <summary>⭐ <c>CE-2238</c> (§5i) — 1 while he is an INSTIGATOR: his anger is 1 and he raises the anger of his crowd near him
+        /// (<see cref="CrowdSystem"/>). Written by his HSM from its params.</summary>
+        public byte Instigator;
+        /// <summary>⭐ <c>CE-2238</c> (§5i, CV-4) — sim time (s) of his first HOSTILE ACT (a blow); 0 when he committed none. Brain-local
+        /// until backend's B-16 replicates the act and its kind. Written by <see cref="HostileActs.Commit"/>.</summary>
+        public double HostileActAt;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

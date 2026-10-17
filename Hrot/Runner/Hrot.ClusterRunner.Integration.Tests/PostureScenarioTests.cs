@@ -682,6 +682,53 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 1 — <c>ua-civ-melee</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5c,
+    /// §5i): an instigator protester 6 m from a policeman riots, runs at him and strikes; sampled every frame on CGF, SimHost and IG:
+    /// ⓪ he riots (CGF) · ① the policeman is knocked down on every node (the replicated <c>EffectState</c>) · ② the rioter is Hostile on
+    /// every node (the flip through <c>EntityWriteRouter</c>), and he was Neutral until the blow.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_CivMelee_TheRiotersBlowKnocksThePolicemanDown_AndFlipsHimHostile_OnEveryNode()
+    {
+        using var harness = await StartShippedScenario("ua-civ-melee");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Policeman").IsNull && !ByName(h.Item2, "Rioter").IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        var rioter = ByName(cgf, "Rioter");
+        Fdp.Toolkit.Civilians.CivilianMode Mode() => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, rioter);
+        var down = new System.Collections.Generic.HashSet<string>();
+        var hostile = new System.Collections.Generic.HashSet<string>();
+        bool riot = false, hostileBeforeBlow = false;
+        void Sample()
+        {
+            if (Mode() == Fdp.Toolkit.Civilians.CivilianMode.Riot) riot = true;
+            bool struck = Fdp.Toolkit.Civilians.HostileActs.Committed(cgf, rioter);
+            foreach (var (name, w) in hosts)
+            {
+                var cop = ByName(w, "Policeman");
+                var r = ByName(w, "Rioter");
+                if (!cop.IsNull && Effects.IsKnockedDown(w, cop)) down.Add(name);
+                if (!r.IsNull && w.GetComponentRO<EntityInfo>(r).ForceId == ForceId.Hostile)
+                {
+                    hostile.Add(name);
+                    if (!struck) hostileBeforeBlow = true;
+                }
+            }
+        }
+        string State() => $"mode {Mode()}, down [{string.Join(",", down)}], hostile [{string.Join(",", hostile)}], strikes {Melee.Strikes}";
+
+        harness.PumpUntil(() => { Sample(); return down.Count == 3 && hostile.Count == 3; }, timeoutFrames: 3600);   // 60 s
+        _out.WriteLine(State());
+        Assert.True(riot, $"⓪ the instigator riots; {State()}");
+        Assert.Equal(3, down.Count);           // ① knocked down on every node
+        Assert.Equal(3, hostile.Count);        // ② Hostile on every node
+        Assert.False(hostileBeforeBlow, $"⛔ anger is not an act: no flip before the blow; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>AW-20</c> (R-2026) — <c>ua-armed-shield</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
     /// §5c, §5h): a rifleman 60 m from an insurgent with four civilians standing in the line between them and two beside him. Sampled every
     /// frame on CGF: ① he holds with <c>HoldNeutralOnLine</c> at least once, and every round he spends leaves with no living civilian's body

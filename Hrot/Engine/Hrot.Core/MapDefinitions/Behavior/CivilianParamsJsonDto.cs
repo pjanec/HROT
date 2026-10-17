@@ -63,5 +63,14 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2240 — where he protests (a building's front, a square): the point the protesters ring.</summary>
         [JsonPropertyName("ProtestAt")]
         public System.Numerics.Vector3 ProtestAt;
+
+        /// <summary>⭐ CE-2238 (§5i, CV-5) — he is an INSTIGATOR: his anger is 1 and he raises the anger of the protesters round him.
+        /// Default false.</summary>
+        [JsonPropertyName("Instigator")]
+        public bool Instigator;
+
+        /// <summary>⭐ CE-2238 — the anger (0…1) at which a protester riots; he calms back to the protest below half of it. Default 0.6.</summary>
+        [JsonPropertyName("RiotAt")]
+        public float RiotAt;
     }
 }

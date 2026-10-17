@@ -53,6 +53,11 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>How fast a man's fear rises toward what a frightened neighbour beside him shows (per second); half at the edge of
         /// <see cref="ContagionMetres"/>.</summary>
         public const float ContagionRate = 1.5f;
+        /// <summary>⭐ <c>CE-2238</c> (§5i) — how fast an instigator raises the anger of a crowd member beside him (per second), half at the
+        /// edge of <see cref="ContagionMetres"/>.</summary>
+        public const float InstigateRate = 0.15f;
+        /// <summary>⭐ <c>CE-2238</c> — how fast a man's anger fades with no instigator near him (per second).</summary>
+        public const float AngerFade = 0.02f;
 
         /// <summary>The modes a member SHOWS fear in — the ones his neighbours catch it from.</summary>
         public static bool ShowsFear(CivilianMode mode)
@@ -68,7 +73,8 @@ namespace Fdp.Toolkit.Civilians
     /// for each calm civilian, the nearest within <see cref="CrowdRules.AttractMetres"/> (<see cref="CivilianState.Focus"/>, which his
     /// <c>CivilianHsm</c>'s Gather state walks to); ② the crowds — civilians linked within <see cref="CrowdRules.LinkMetres"/>, at least
     /// <see cref="CrowdRules.MinMembers"/> of them, each keeping the id most of its members had; ③ each crowd's <see cref="Crowd"/> entity
-    /// (mean fear and anger, focus); ④ contagion: a member's fear rises toward what a frightened member of his crowd nearby shows.
+    /// (mean fear and anger, focus); ④ contagion: a member's fear rises toward what a frightened member of his crowd nearby shows;
+    /// ⑤ <c>CE-2238</c> (§5i) anger: an instigator raises the anger of his crowd near him; with none near, anger fades.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class CrowdSystem : IEcsModuleSystem
@@ -105,6 +111,7 @@ namespace Fdp.Toolkit.Civilians
             Link();
             Assign(repo, now);
             Spread(repo, deltaTime);
+            Rouse(repo, deltaTime);
         }
 
         // ① incidents and who is drawn to them
@@ -269,6 +276,29 @@ namespace Fdp.Toolkit.Civilians
                         mind.HasFrightFrom = 1;
                     }
                 }
+            }
+        }
+
+        // ⑤ anger (CE-2238): an instigator's is 1; a member near one rises toward 1, faster the nearer; everyone else's fades
+        private void Rouse(EntityRepository repo, float dt)
+        {
+            if (dt <= 0f) return;
+            float reach = CrowdRules.ContagionMetres * CrowdRules.ContagionMetres;
+            for (int i = 0; i < _civs.Count; i++)
+            {
+                ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
+                if (mind.Instigator != 0) { mind.Anger = 1f; continue; }
+                float best = 0f;
+                if (mind.CrowdId != 0 && _groups.TryGetValue(Find(i), out var group) && group.Count >= CrowdRules.MinMembers)
+                    foreach (int j in group)
+                    {
+                        if (j == i || repo.GetComponentRO<CivilianState>(_civs[j]).Instigator == 0) continue;
+                        float d2 = Flat2(_at[i], _at[j]);
+                        if (d2 > reach) continue;
+                        best = MathF.Max(best, 1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.ContagionMetres);
+                    }
+                mind.Anger = best > 0f ? MathF.Min(1f, mind.Anger + CrowdRules.InstigateRate * best * dt)
+                                       : MathF.Max(0f, mind.Anger - CrowdRules.AngerFade * dt);
             }
         }
 

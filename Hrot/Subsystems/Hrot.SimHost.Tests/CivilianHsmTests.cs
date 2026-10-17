@@ -313,6 +313,95 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(GestureKind.None, Gestures.Of(w.Repo, w.Unit));
         }
 
+        /// <summary>A forces person (Friend, a pedestrian with a collider and health) at <paramref name="at"/>.</summary>
+        private static Entity Policeman(World w, Vector3 at)
+        {
+            var e = w.Repo.CreateEntity();
+            w.Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            w.Repo.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+            w.Repo.AddComponent(e, new Health { Current = 100f, Max = 100f });
+            w.Repo.AddComponent(e, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.3f });
+            w.Repo.AddComponent(e, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
+            return e;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 1 (§5i) — a protester whose anger reaches <c>RiotAt</c> riots: fist raised, he runs at the nearest
+        /// forces person; in reach he strikes (a Blunt <c>DamageAssessedEvent</c>), and that first blow is his hostile act — his side flips
+        /// to Hostile, once; a knocked-down man is not struck again; calm again (anger below half) he goes back to the protest.</summary>
+        [Fact]
+        public unsafe void CE2238_AnAngryProtester_Riots_StrikesTheNearestForcesPerson_AndHisFirstBlowFlipsHisSide()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);   // this node owns his record (CGF, for a scenario cast) ⇒ the flip is Direct
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Protest", w.State());
+
+            var police = Policeman(w, new Vector3(110, 200, 0));
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = CivilianBehavior.DefaultRiotAt - 0.01f;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Protest", w.State());   // just under: not yet
+
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = CivilianBehavior.DefaultRiotAt;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+            Assert.Equal(CivilianMode.Riot, w.Mode);
+            Assert.Equal(GestureKind.FistRaised, Gestures.Of(w.Repo, w.Unit));
+            var loco = w.Loco;
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, loco.ActiveAction);
+            var to = ((MoveToParams*)loco.Params)->Destination;
+            Assert.True(Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(110, 200)) < 0.01f, $"he runs at the policeman: {to}");
+            Assert.Equal(ForceId.Neutral, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);   // ⛔ anger is not an act (AW-16)
+
+            int strikes = Melee.Strikes;
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(111, 200, 0);    // he has reached him
+            w.Tick();
+            w.Tick();
+            Assert.Equal(strikes + 1, Melee.Strikes);
+            Assert.True(HostileActs.Committed(w.Repo, w.Unit));
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);    // the blow is the act: Hostile
+            Assert.Equal(ForceId.Friend, w.Repo.GetComponentRO<EntityInfo>(police).ForceId);
+
+            for (int i = 0; i < (int)(Melee.CooldownSeconds / 0.016f) - 5; i++) w.Tick();
+            Assert.Equal(strikes + 1, Melee.Strikes);                                            // the cooldown
+            for (int i = 0; i < 10; i++) w.Tick();
+            Assert.Equal(strikes + 2, Melee.Strikes);
+
+            // a man knocked down is not struck again while he is down (the Health owner stamps it; here by hand)
+            if (!w.Repo.HasComponent<EffectState>(police)) w.Repo.AddComponent(police, new EffectState());
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = HitModel.Now(w.Repo) + 60.0;
+            for (int i = 0; i < (int)(Melee.CooldownSeconds * 2 / 0.016f); i++) w.Tick();
+            Assert.Equal(strikes + 2, Melee.Strikes);
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = 0;
+
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = CivilianBehavior.DefaultRiotAt * 0.5f - 0.01f;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Protest", w.State());                                                   // calm again
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);    // sticky (CV-4)
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> — a rioter strikes only the FORCES: no forces person within reach ⇒ he stands, fist raised, and strikes
+        /// nobody — not a neutral bystander, not a Friend civilian, not a man already down.</summary>
+        [Fact]
+        public void CE2238_ARioter_StrikesOnlyTheForces_NotABystander_NotAManDown()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Instigator\":true}");
+            var bystander = Policeman(w, new Vector3(101, 200, 0));
+            w.Repo.GetComponentRW<EntityInfo>(bystander).ForceId = ForceId.Neutral;
+            var down = Policeman(w, new Vector3(100, 201, 0));
+            w.Repo.GetComponentRW<Health>(down).Current = 0f;
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.Equal("Riot", w.State());                       // an instigator's own anger is 1
+            int strikes = Melee.Strikes;
+            for (int i = 0; i < 200; i++) w.Tick();
+            Assert.Equal(strikes, Melee.Strikes);
+            Assert.False(HostileActs.Committed(w.Repo, w.Unit));
+            Assert.Equal(ForceId.Neutral, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
+        }
+
         /// <summary>⭐ <c>CE-2240</c> — a civilian NOT told to protest never does, and his arms stay down.</summary>
         [Fact]
         public void CE2240_ACivilianNotToldToProtest_NeverDoes()
