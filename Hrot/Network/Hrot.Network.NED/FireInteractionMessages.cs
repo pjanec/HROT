@@ -252,5 +252,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-3219</c> — how long the effect lasts (s).</summary>
         public float EffectSeconds;
+
+        /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED) — network id of who caused it (the round's shooter, a melee striker);
+        /// ⭐ 0 = unknown.</summary>
+        public long SourceEntityId;
     }
 }

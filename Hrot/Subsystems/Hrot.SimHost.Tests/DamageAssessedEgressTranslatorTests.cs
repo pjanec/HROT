@@ -93,6 +93,25 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new byte[] { 1, 0 }, new[] { writer.Written[0].BodyPart, writer.Written[1].BodyPart });
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-2) — who caused it crosses as his network id; an unknown source, or one this node has no
+        /// network id for, sends 0. ✅ Red-proof: the egress without the source ⇒ 0 for the shooter ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_TheSourceCrosses_AsItsNetworkId_UnknownIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var victim = RegisterEntity(netId: 7L);
+            var shooter = RegisterEntity(netId: 42L);
+            var unmapped = _world.CreateEntity();
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = shooter });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = unmapped });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new[] { 42L, 0L, 0L }, new[] { writer.Written[0].SourceEntityId, writer.Written[1].SourceEntityId, writer.Written[2].SourceEntityId });
+        }
+
         // ── SC-2: Zero events → no write ─────────────────────────────────────
 
         /// <summary>

@@ -102,6 +102,8 @@ namespace Hrot.Network.NED.SimHost
                 BodyPart    = msg.BodyPart != 0 ? (byte)(msg.BodyPart - 1) : Fdp.Toolkit.Physics.BodyParts.PersonPart.None,
                 Effect        = (Fdp.Toolkit.Combat.HitEffect)msg.EffectKind,   // ⭐ CE-3219
                 EffectSeconds = msg.EffectSeconds,
+                // ⭐ CE-3237 (B-15, DS-2) — who caused it, as this node's entity; 0 or not known here ⇒ Null (unknown)
+                Source        = msg.SourceEntityId != 0 && _entityMap.TryGetEntity(msg.SourceEntityId, out var source) ? source : Entity.Null,
                 IsRemote    = true,
             });
         }

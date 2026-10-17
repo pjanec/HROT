@@ -73,5 +73,11 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 ⚠ An AIRBURST (a gas grenade whose fuze runs out in flight) still makes a free cloud and nothing to pick up.
 
+**⑨ B-15 — who caused the damage** ([CE-3237](../Blueprint_Issues_Tracker.md), at `backend@B15SHA`; design [§7.16a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-23 (a player's friendly hits) has its input.**
+
+| what you read | what it holds |
+|---|---|
+| `DamageAssessedEvent.Source` (on the victim's Health owner, after the wire) | who caused it: the round's shooter for a hit or a burst — a person, a vehicle, or a weapon system (`WeaponSystems.ControllerOf(world, source)` names the man who works it) — the striker of a melee blow. `Entity.Null` = unknown: a gas cloud, a canister in hand, a crash, an ejection, or a shooter this node has no entity for |
+
 **Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
 (Stone Source). **Next free:** CE-3240.

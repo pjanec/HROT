@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
@@ -76,6 +77,32 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, events.Length);
             Assert.Equal(target, events[0].HitEntity);
             Assert.Equal(CombatConstants.DefaultBulletDamage, events[0].TotalDamage);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-1) — the damage names WHO caused it: a hit, the round's shooter; a melee blow, the striker
+        /// (the same damage event). A detonation with no shooter says unknown. ✅ Red-proofs: <c>DamageCalculationSystem</c> without
+        /// <c>Source</c> ⇒ Null for the shooter ⇒ red; <c>Melee.Strike</c> without it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_TheDamage_NamesWhoCausedIt()
+        {
+            _world.RegisterComponent<SimTransform>();
+            var target = SpawnTarget();
+            _world.AddComponent(target, new SimTransform { Position = System.Numerics.Vector3.Zero, Rotation = System.Numerics.Quaternion.Identity });
+            var shooter = ShooterAt(50f, 0f);
+            _world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = target });
+            _world.Bus.Publish(new DetonationNotification { Shooter = Entity.Null, Target = target });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var hits = _world.Bus.Read<DamageAssessedEvent>().ToArray();
+            Assert.Equal(new[] { shooter, Entity.Null }, hits.Select(h => h.Source).ToArray());
+
+            var striker = ShooterAt(1f, 0f);
+            Assert.True(Melee.Strike(_world, striker, target));
+            _world.Bus.SwapBuffers();
+            Assert.Equal(striker, Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray()).Source);
         }
 
         // ── SC-2: Non-authority → DamageAssessedEvent is still published ────────
