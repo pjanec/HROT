@@ -244,6 +244,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (obeyArc && BodyAim.OutsideFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
+            // ⭐ CE-2239 part 1 (CV-8, §5j FL-2) — the FORCE LEVEL, for a round at a point (no target ⇒ no self-defence lift); an operator decides himself
+            if (obeyRoe && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
             //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own
