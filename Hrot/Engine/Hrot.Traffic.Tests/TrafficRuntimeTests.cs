@@ -165,6 +165,7 @@ public sealed class TrafficRuntimeTests
         double t = 5.0;
         for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);   // 40 s of editor time
         Assert.NotEmpty(mirror.Cars);
+        Assert.Same(mirror.Cars, TrafficFrame.Of(world)!.Cars);                 // the maps read this frame's cars from the world
         long steps = runtime.StepsTaken;
         Assert.True(steps > 0);
 
@@ -181,6 +182,7 @@ public sealed class TrafficRuntimeTests
         Frame(world, mirror, runtime, t += 0.25);
         Assert.Null(runtime.Requested);
         Assert.Empty(mirror.Replicas!.Replicas);
+        Assert.Null(TrafficFrame.Of(world));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────

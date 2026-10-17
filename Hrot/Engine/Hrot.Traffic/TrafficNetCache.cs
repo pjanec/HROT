@@ -13,10 +13,15 @@ namespace Hrot.Traffic;
 [ComponentId(GlobalComponentIds.TrafficNetCache)]
 public sealed class TrafficNetCache
 {
-    public TrafficNetCache(string file, string path, NetworkModel model, string netHash, SumoNetPlacement placement)
+    public TrafficNetCache(string file, string path, NetworkModel model, string netHash, SumoNetPlacement placement,
+                           TrafficRoadScene? roads = null)
     {
-        File = file; Path = path; Model = model; NetHash = netHash; Placement = placement;
+        File = file; Path = path; Model = model; NetHash = netHash; Placement = placement; Roads = roads ?? TrafficRoadScene.Empty;
     }
+
+    /// <summary>⭐ AQ93 V7 (R-4049) — the net's static road scene in terrain-local metres, built with the parse (off the main thread).
+    /// Every map host draws THIS: the 3-D layer and the 2-D gizmo.</summary>
+    public TrafficRoadScene Roads { get; }
 
     /// <summary>The net file, relative to the terrain folder (as <c>terrain.json</c> names it).</summary>
     public string File { get; }

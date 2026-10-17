@@ -247,7 +247,7 @@ public sealed class TerrainResidency
         // ⭐ AQ93 R-4021 — every attached content loader prepares its part of this terrain, off the main thread.
         string folder = Path.GetDirectoryName(definitionPath)!;
         foreach (var loader in _contentLoaders)
-            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName)));
+            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? new TerrainWorld())));
 
         return staged;
     }
@@ -552,7 +552,9 @@ public sealed class TerrainResidency
 public interface ITerrainContentLoader
 {
     /// <summary>Reads and builds this terrain's content from <paramref name="terrainFolder"/>; <c>null</c> when it has none.</summary>
-    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName);
+    /// <param name="world">The terrain world staged with it (parsed just before; empty when the terrain has none) — e.g. its footprint,
+    /// which the SUMO road layer's ambient ground stays outside of (AQ93 V8).</param>
+    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world);
 
     /// <summary>Publishes what <see cref="Prepare"/> built (or clears the content when it built nothing).</summary>
     void Commit(EntityRepository world, object? prepared);

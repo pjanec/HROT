@@ -480,6 +480,8 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
+            // ⭐ AQ93 R-4024 / V7 — the SUMO roads, lights and far cars, TerrainLayer3D's sibling (idle when the terrain has no SUMO net).
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider));
             canvas.AddLayer(bodies);
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };

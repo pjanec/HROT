@@ -120,6 +120,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
             _mirror = new TrafficMirror(net.Placement);
             _lastResolved = double.NaN;
             _replicas!.Clear();
+            _frame = null;
         }
 
         double sumoNow = now - _origin;
@@ -140,6 +141,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
             _lastResolved = at;
         }
         _replicas!.Update(_cars);
+        Publish(world, session.Source.TlStateByLane);
     }
 
     private void Stop()
@@ -149,6 +151,22 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         _mirror = null;
         _cars.Clear();
         _replicas?.Clear();
+        if (_replicaWorld is { } w && w.HasSingletonManaged<TrafficFrame>()) w.SetSingletonManaged<TrafficFrame>(null!);
+        _frame = null;
+    }
+
+    private TrafficFrame? _frame;
+
+    // ⭐ One frame object per session: the car list and the light table are the live collections, so a map reads THIS frame's.
+    private void Publish(EntityRepository world, IReadOnlyDictionary<int, byte> lights)
+    {
+        if (_frame is null || !ReferenceEquals(_frame.Lights, lights))
+        {
+            var replicas = _replicas!;
+            _frame = new TrafficFrame(_cars, replicas.IsReplica, lights);
+            world.RegisterManagedComponent<TrafficFrame>();
+            world.SetSingletonManaged(_frame);
+        }
     }
 
     private static bool TryDemand(EntityRepository world, out TrafficDemand demand)

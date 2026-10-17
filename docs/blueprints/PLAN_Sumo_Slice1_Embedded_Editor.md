@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-17
-build-state: READY-TO-BUILD — the coordinator lane builds it itself (no handoff). Scope frozen at the commit that adds this file.
+build-state: BUILT 2026-10-17 (steps 0–7); the as-built is Architect_Question_93_Sumo_Traffic_Node.md §3.0, with its deviations
+  table. Live acceptance (§3) is the last row.
 current-answer: §2 the steps, §3 acceptance, §4 gates.
 stale-below: nothing.
-known-rot: none.
-known-conflict: Architect_Question_93_Sumo_Traffic_Node.md §6's slice table predates R-4047 (it builds the dedicated node first);
-  THIS plan is slice 1 as ruled (embedded in the editor first). §6 there is to be folded to match when this slice lands.
+known-conflict: none (AQ93 §6 was re-cut to match, 2026-10-17).
+known-rot: step 2's "a `.net.xml` in `terrain.json` `roadNetworks[]`" — as built it is its own key, `sumoNet { file, anchor }`
+  (AQ93 §3.0); step 5's "the civilian-car TKB type" — as built a new inert "SUMO car" type (8813); step 6's `NedPublishable()`
+  and "18" — as built `DefaultRoutePublishable()` at 29 NED query sites.
 related-designs:
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — THE DESIGN this plan builds: §3 class/sequence diagrams,
     §10 the embedded module diagram (EM-1…EM-5), §11 vendoring + V7/V8, §9 the summary. Every step cites its section; this

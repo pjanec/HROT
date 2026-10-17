@@ -33,6 +33,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\Hrot.Traffic\Hrot.Traffic.csproj" />   <!-- ⭐ AQ93 — the SUMO road/car layer (R-4024, V7) -->
     <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
 
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />

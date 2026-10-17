@@ -966,5 +966,7 @@ namespace Fdp.Core
         public const int TrafficCar = 452;
         /// <summary><c>ReplicationRoute</c> — an owned entity published by a mechanism other than NED (AQ93 EM-4, R-4045).</summary>
         public const int ReplicationRoute = 453;
+        /// <summary><c>TrafficFrame</c> — this frame's SUMO cars + traffic-light states, a managed world singleton the map layers read (Hrot.Traffic).</summary>
+        public const int TrafficFrame = 454;
     }
 }

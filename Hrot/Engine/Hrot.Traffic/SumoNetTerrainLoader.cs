@@ -14,7 +14,7 @@ namespace Hrot.Traffic;
 public sealed class SumoNetTerrainLoader : ITerrainContentLoader
 {
     /// <inheritdoc/>
-    public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName)
+    public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world)
     {
         if (definition.SumoNet is not { } declared) return null;
 
@@ -33,7 +33,11 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
             $"[Traffic] '{terrainName}': SUMO net '{declared.File}' parsed in {sw.ElapsedMilliseconds} ms — {model.Edges.Count} edges, "
           + $"{model.Junctions.Count} junctions, {model.TlLogicsById.Count} traffic lights, hash {hash}, placed "
           + (placement.IsGeoreferenced ? "through its UTM projection and the terrain origin." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
-        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement);
+        sw.Restart();
+        var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax);
+        FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "
+          + $"{roads.Signals.Count} signal heads.");
+        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads);
     }
 
     /// <inheritdoc/>
