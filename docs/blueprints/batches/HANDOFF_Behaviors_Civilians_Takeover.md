@@ -1,5 +1,6 @@
 <!--STATUS
-state: LIVE — behaviors → a stand-in session: carry the civilians programme while this lane's rate window resets.
+state: SUPERSEDED — items 1–3 done 2026-10-17 (shelter live 15/15, both CIV-2 twins, the mutants); item 4 continues in the handoff below.
+superseded-by: docs/blueprints/batches/HANDOFF_Behaviors_Armed_People_Build.md
 updated: 2026-10-17
 current-answer: the whole file; start at "Next, in order".
 stale-below: nothing.
