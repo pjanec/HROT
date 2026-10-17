@@ -6523,5 +6523,6 @@ graph TD
 |---|---|
 | ✅ built | `NodeBootstrapper`, the 17 `Serializers/*` files, `GenesisTail` + `GenesisMaterializationSystem` + `InitialBrainMaterializationSystem` moved from `Hrot.SimHost` (they reference nothing else in it); `IG → SimHost` and `TrafficNode → SimHost` removed (both were added by D8/D9/D11) |
 | ⚠ kept | the moved files' `Hrot.SimHost.*` namespaces — the same misleading shape that hid the dependency; rename with Roslyn, not text |
+| ⭐ `Hrot.NodeComposition` | ⚠ NOT a shared library: its one type is `StrideNodeBootstrapper`, the Stride host's own bootstrapper, kept apart from the `net8.0-windows` game so it builds and tests off Windows (`DESIGN_Stride_Port.md` §271). ⇒ game + NodeComposition = ONE host, and its SimHost/IG references are that host reaching into two others |
 | ⛔ debt | CGF→SimHost · Editor→SimHost/CGF/Orchestrator/IG · ExCon→Orchestrator · NodeComposition→SimHost/IG · ReplayBrowser→CGF/SimHost · Stride Game→NodeComposition/Editor/Orchestrator/CGF/SimHost — railed as a ratchet (`OneBootstrapImplementationRails.NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt`) |
 | ⭐ D17 | `Hrot.EcsNode` is the natural home for the one `BuildContext` helper too, if it references NED |

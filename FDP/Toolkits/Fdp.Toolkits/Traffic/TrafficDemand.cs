@@ -9,9 +9,15 @@ namespace Fdp.Toolkit.Traffic
     /// <para>Authored and saved as it stands (the scenario serializer's default policy), like <c>ScenarioClock</c>. Registered on
     /// every node (<c>HrotSharedComponentRegistry</c>) so a scenario that carries it loads anywhere; only a node that composes the
     /// traffic pack acts on it. 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §10 (EM-1), §11.3 (D4).</para>
+    /// <para>⭐ <c>[PerInstanceValue]</c> (CE-4016): the values are the scenario's, so a ghost of the settings must not promote before they
+    /// arrive. 📌 Measured 2026-10-17 on a five-process cluster: without it the traffic node's ghost promoted on <c>EntityMaster</c> alone,
+    /// its <c>DeferredTakeoverSystem</c> recorded the grant in that frame, and the creator's one in-window sample was then dropped as the
+    /// node's own (<c>IsRecordedOwner</c>) — the node owned settings it never received, so SUMO never started. The addition rule holds:
+    /// <c>EntityTrafficDemandEgressTranslator</c> sends a baseline for a new entity (its last-sent map starts empty).</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TrafficDemand)]
+    [PerInstanceValue]
     public struct TrafficDemand
     {
         /// <summary>How many cars SUMO keeps on the whole net at once (its live-city closed-loop target).</summary>
@@ -38,6 +44,25 @@ namespace Fdp.Toolkit.Traffic
     /// </summary>
     [Fdp.Toolkit.Tkb.Attributes.TkbDescriptor("Traffic.Demand")]
     public sealed record TrafficDemandDto;
+
+    /// <summary>
+    /// ⭐ CE-4016 — the "Traffic" template PRODUCES <see cref="TrafficDemand"/>, so the promotion gate (<c>[PerInstanceValue]</c> ∩ produced
+    /// by the template's translators ∩ ingressible ∩ registered) holds a ghost of the settings until the creator's sample arrives — the
+    /// same shape as <c>ObstacleTkbTranslator</c> / <c>ObstacleShape</c>. ⭐ The instance's value wins: it only adds the default where the
+    /// entity has none (the create leg's <c>InitialComponents</c> lands on top of it anyway).
+    /// </summary>
+    public sealed class TrafficDemandTkbTranslator : Fdp.Interfaces.ITkbEntityTranslator
+    {
+        public System.Collections.Generic.IEnumerable<System.Type> GetConsumedDescriptors() { yield return typeof(TrafficDemandDto); }
+
+        public System.Collections.Generic.IEnumerable<System.Type> GetProducedComponents() { yield return typeof(TrafficDemand); }
+
+        public void Inject(EntityRepository repo, Entity entity, Fdp.Interfaces.TkbTemplate template)
+        {
+            if (template.GetDescriptor<TrafficDemandDto>() == null || !repo.IsComponentTypeRegistered<TrafficDemand>()) return;
+            if (!repo.HasComponent<TrafficDemand>(entity)) repo.AddComponent(entity, TrafficDemand.Default);
+        }
+    }
 }
 
 namespace Fdp.Toolkit.Traffic
