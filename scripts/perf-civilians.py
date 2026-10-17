@@ -24,6 +24,7 @@ CIVILIAN_TYPES = (1101, 1102, 1103, 1104)   # the CIV-1 family (CE-3220): each l
 WATCHED = ("BrainTickSystem", "CivilianFearSystem", "CrowdSystem", "CarKinematicsSystem", "VisualPerception", "Perception",
            "Sensor", "Navigation", "Locomotion")
 AREA = (60.0, 60.0, 340.0, 340.0)           # test-town, inside its roads' footprint
+TOP = 8                                     # the costliest systems shown per subsystem, whatever they are
 
 
 def scenario(count):
@@ -95,6 +96,11 @@ def run(count, seconds, port, budget):
         per_sub[sub] = per_sub.get(sub, 0.0) + recent
     for sub, total in sorted(per_sub.items()):
         print(f"   {sub:<10} ALL SYSTEMS (sum of recent averages)              {total:8.3f}")
+        top = sorted((r for r in rows if r[0] == sub), key=lambda r: -r[3])[:TOP]
+        for _, name_, avg, recent, mx, n in top:
+            print(f"      top  {name_:<47} {recent:8.3f}  {avg:8.3f}  {mx:9.3f}  {n:7d}")
+    frames = max((r[5] for r in rows), default=0)
+    print(f"   frames run: {frames} in {seconds} s of sim (a --mode all host runs every subsystem in one process, one after another)")
     over = [r for r in watched if budget and r[3] > budget]
     return over
 

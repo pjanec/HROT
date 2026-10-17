@@ -446,7 +446,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",
             Summary: "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",
-            Returns: "{ subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }",
+            Returns: "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
             Hint:    "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
             Params: new RouteParam[]
             {
