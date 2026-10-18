@@ -48,6 +48,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2077</c> — the SOP's params as JSON (R-191); <c>null</c> = its authored defaults.</summary>
         public string? DefaultSopParamsJson { get; init; }
 
+        /// <summary>⭐ <c>CE-2273</c> DA-A (DA-1) — the unit type's combat proficiency 0–1 (Militia 0.35 for insurgents); <c>0</c> = none
+        /// (reads Regular). Projected at spawn into <c>CombatProficiency.TypeDefault</c>, under an authored or a unit value.</summary>
+        public float DefaultProficiency { get; init; }
+
         /// <summary>Whether the entity can move under its own power.</summary>
         public bool CanMove { get; init; }
 

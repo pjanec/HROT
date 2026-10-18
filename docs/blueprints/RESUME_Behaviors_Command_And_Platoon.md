@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
+updated: 2026-10-19
 current-answer: §1 where it stands · §2 the build order (start here) · §3 what binds you
 stale-below: nothing — but every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -20,13 +20,14 @@ related-designs:
 **`R-2054`** (check the block tables — `Blueprint_Issues_Tracker.md` "ID blocks", `RULINGS.md` §0a — they may have moved).
 ⭐ **Written at** `dd27d3b28` (behaviors), after merging `coordinator` at `10667905e`.
 
-## 1. Where it stands
+## 1. Where it stands *(updated 2026-10-19)*
 
 | | |
 |---|---|
-| ⭐ **nothing of this programme is built** | the whole day of 2026-10-18 was design: rulings R-2042…R-2053, rows CE-2288…CE-2300, hand-offs to backend and ui |
-| the user's go-ahead | 🔒 *"first build the necessary infraatructure allowing for your suggested implementation"* (R-2051) — the command infrastructure is what to build first, for both the platoon programme and the urban battle |
-| other lanes | nothing dispatched today had been picked up by backend or ui at the time of writing — check (§4) |
+| ⭐⭐ **the command chain is BUILT and runs live** | steps 1–7 done: `CE-2289` ROE up the chain · `CE-2262` SL-0 · `CE-2291` CC-A · `CE-2292` CC-B · `CE-2293` CC-C · `CE-2295` CC-E · `CE-2294` CC-D — `cc-platoon-bound` passes all five end conditions live (`utility-demo-check.py cc-platoon-bound --launch`) and as an in-process twin. As-built: [Command Chain §8a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| ⭐ wave 0 | `CE-2273` proficiency ✅ ([Defend & Attack §8a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)); `CE-2282` sectors next, then `CE-2281` roles |
+| still open from the chain | `CE-2288` — one read route over every behaviour slot (its first consumer is the platoon demos watching a hosted squad play) |
+| other lanes | backend built BR-3 (reports on the wire), BR-12 (WorldSurvey), BR-13 (ROE / reporting across nodes), LD-1 / LD-2 (look); a note tells them proficiency landed (BR-6 / BR-7 may start). A note tells the coordinator lane one editor rail is red since CE-4031 |
 | civilians (`CE-2235`…`CE-2240`, `CE-2256` TC-7) | a different programme on this lane, still open; not part of this resume |
 
 ## 2. The build order — start here
@@ -37,14 +38,14 @@ design section end to end before building it** (R-129) — the diagrams there ar
 
 | step | id | what (one line) | needs | notes |
 |---|---|---|---|---|
-| 1 | `CE-2289` | **ROE up the chain**: `RoeOf` reads the squad's and platoon's ROE when a man has none of his own | — | small; today ROE set on a squad never reaches its men |
-| 2 | `CE-2262` | **SL-0**: the squad layer one echelon up — a platoon of squads (the body-less platoon commander) | — | CC-C needs it |
-| 3 | `CE-2291` | **CC-A**: `CommandPicture` (Elements ×8, Subordinates ×6, Requests ×4), `ReportingRequirements` (+ `PirArea`), `ReportOutbox`; `SetReportingEvent` + its system | — | ⭐ every buffer a fixed-list wrapper (`Count` + `[InlineArray]`) so `GET /entities/{id}` shows it (R-2050) |
-| 4 | `CE-2292` | **CC-B**: `OrderSubordinate` / `AssignSubordinate` (one helper with `SquadManeuverRunner.Order`), `SetSubordinateReporting`, `SendReport`, `ProgressReached`, `ElementReported`, `TimeInState` | CC-A | — |
-| 5 | `CE-2293` | **CC-C**: the staff — `StaffComposerSystem` (PROGRESS on task end, SPOT, SITREP) + `StaffInboxSystem` | CC-A, SL-0 | ⭐ on ONE node first, with a local loopback; the wire (BR-3) comes later |
-| 6 | `CE-2295` + `CE-2288` | **CC-E**: reports over the debug HTTP (watch, fake, mute), `GET /entities/{id}/order` for every origin; **one read route over every behaviour slot** (R-2050) | CC-C | — |
-| 7 | `CE-2294` | **CC-D**: the first chain runs — `PlatoonBound` + `BasicPlatoonSop` + `PlatoonHold`, scenario `cc-platoon-bound` | CC-B, CC-C | its five end conditions are in Command Chain §8 |
-| 8 | wave 0 rest | proficiency `CE-2273` · sectors `CE-2282` · roles `CE-2281` | — | independent of steps 1–7; any order |
+| 1 ✅ | `CE-2289` | **ROE up the chain**: `RoeOf` reads the squad's and platoon's ROE when a man has none of his own | — | small; today ROE set on a squad never reaches its men |
+| 2 ✅ | `CE-2262` | **SL-0**: the squad layer one echelon up — a platoon of squads (the body-less platoon commander) | — | CC-C needs it |
+| 3 ✅ | `CE-2291` | **CC-A**: `CommandPicture` (Elements ×8, Subordinates ×6, Requests ×4), `ReportingRequirements` (+ `PirArea`), `ReportOutbox`; `SetReportingEvent` + its system | — | ⭐ every buffer a fixed-list wrapper (`Count` + `[InlineArray]`) so `GET /entities/{id}` shows it (R-2050) |
+| 4 ✅ | `CE-2292` | **CC-B**: `OrderSubordinate` / `AssignSubordinate` (one helper with `SquadManeuverRunner.Order`), `SetSubordinateReporting`, `SendReport`, `ProgressReached`, `ElementReported`, `TimeInState` | CC-A | — |
+| 5 ✅ | `CE-2293` | **CC-C**: the staff — `StaffComposerSystem` (PROGRESS on task end, SPOT, SITREP) + `StaffInboxSystem` | CC-A, SL-0 | ⭐ on ONE node first, with a local loopback; the wire (BR-3) comes later |
+| 6 ✅ (`CE-2288` open) | `CE-2295` + `CE-2288` | **CC-E**: reports over the debug HTTP (watch, fake, mute), `GET /entities/{id}/order` for every origin; **one read route over every behaviour slot** (R-2050) | CC-C | — |
+| 7 ✅ | `CE-2294` | **CC-D**: the first chain runs — `PlatoonBound` + `BasicPlatoonSop` + `PlatoonHold`, scenario `cc-platoon-bound` | CC-B, CC-C | its five end conditions are in Command Chain §8 |
+| 8 | wave 0 rest | proficiency `CE-2273` ✅ · sectors `CE-2282` · roles `CE-2281` | — | independent of steps 1–7; any order |
 | 9 | wave 2 → 4 | `SquadDefend` `CE-2275`, clearing `CE-2257`…`CE-2259`, sensors `CE-2283`, LD-3 `CE-2297`, LD demos `CE-2298` → `PlatoonDefend` `CE-2276`, `PlatoonAttack` `CE-2277`, PL-1 `CE-2264`, smoke `CE-2278`, sniper `CE-2279`, urban `CE-2284` → repertoire `CE-2280` | waves 0–1 + the other lanes (§4) | the demo harness is `CE-2296` |
 | later | urban battle | [§4](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md) items ①–⑨: the headquarters play, mortar sound + locating, armed search, IED trigger man + ambush, convoy halt, insurgent mortar cell | the platoon programme | ⛔ not scheduled (R-2051); file each row when you start it |
 

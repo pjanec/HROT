@@ -126,6 +126,16 @@ namespace Fdp.Toolkit.Behavior.Translators
                                                 ReturnFireWindowSeconds = dto.DefaultRoeReturnFireWindowSeconds,
                                                 ForceLevel = dto.DefaultRoeForceLevel });   // CE-2239 part 1
 
+            // ── Proficiency (CE-2273 DA-A): the type's default in its OWN field, so an authored or a unit value set before or after wins ──
+            if (dto.DefaultProficiency > 0f && repo.IsComponentTypeRegistered<CombatProficiency>())
+            {
+                var p = repo.HasComponent<CombatProficiency>(entity) ? repo.GetComponentRO<CombatProficiency>(entity) : new CombatProficiency();
+                p.TypeDefault = dto.DefaultProficiency;
+                p.Set |= CombatProficiency.TypeDefaultSet;
+                if (repo.HasComponent<CombatProficiency>(entity)) repo.SetComponent(entity, p);
+                else repo.AddComponent(entity, p);
+            }
+
             // ── LocomotionChannel: all moveable entities (including tier-0 civilians
             //    driven by TrafficBrainSystem) need a locomotion channel so the system
             //    can write ActiveAction = Flee / MoveTo each frame.

@@ -192,6 +192,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>(); // ⭐ CE-2155 — a type's injury band (Gen.Injury), stamped on every node
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();   // AQ89 B (R-269) — bravery / obedience; the editor saves it too
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-2273 DA-A — what he CAN do; the hit model reads it where fire resolves
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();
