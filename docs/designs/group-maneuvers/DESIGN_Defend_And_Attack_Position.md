@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) and DA-25 (§13b, where the planner runs) leans awaiting the user; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) and DA-25 (§13b, the WorldSurvey sensor) leans awaiting the user; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
-stale-below: nothing.
+stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: none.
 known-conflict: none — the Building Clearing platoon play is RESOLVED as the ClearBuilding preset (§10, R-2035).
 related-designs:
@@ -247,9 +247,11 @@ node inside plays the runner already ticks. ⚠ **Not reached today:** a platoon
 | — | **DA-J** (backend BR-11) | backend (frame, later) | `FightingPosition` holes and trenches (DA-8, D7) | — |
 | 2a | **DA-K** `CE-2281` | behaviors + backend / TKB | roles (DA-19): the new `TacticalDesignation` values + fire team index, the element split by team, the MG first into the base of fire; the infantry LMGs and their carriers (TKB) | DA-A |
 | 3a | **DA-L** `CE-2282` | behaviors | `EngagementArea` with `Allow` / `NoFire` in the five target picks and the two gates (DA-20) — ⭐ ONE build shared with Building Clearing BC-1 | — |
-| 3b | **DA-M** `CE-2283` | behaviors + backend | the new sensor changes (DA-21) and `BuildingOf(point)` (backend, with BR-1) | DA-L |
+| 3b | **DA-M** `CE-2283` | behaviors + backend | the new sensor changes (DA-21); building / storey / room of a point from a PointSurvey answer (R-2037) | DA-L, DA-P |
 | 6a | **DA-N** `CE-2284` | behaviors | `UrbanMovement`, `PlatoonSop`, the `ReactToFireFromBuilding` preset with clear / bypass (DA-17, DA-18) | DA-F, DA-M |
 | 1a | **DA-O** `CE-2285` | behaviors (FDP Terrain, cross-lane) | `roof` as rings + `house-3f` with the roof stair house and parapet (DA-22) | — |
+| 0 | **DA-P** (backend BR-12) | backend | the `WorldSurvey` sensor: VisibilityFan · BuildingSurvey · PointSurvey, solved on the muscle (DA-25, R-2037) | — |
+| 0a | **DA-Q** `CE-2286` | behaviors | move behaviors' brain-side geometry reads onto WorldSurvey / EQS answers (§13b table) + the conformance rail | DA-P |
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
@@ -433,7 +435,7 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 | who | finds | from | when |
 |---|---|---|---|
 | **platoon commander** (`DefendPosition`) | one polygon per squad on the line: the EA split by bearing from the position's centre, each 10 % wider than its share (mutual support); the reserve gets none until committed | the order's EA, or the area in front of the position along the threat axis | the plan; a new threat axis (supplementary sectors) |
-| **platoon commander** (`AttackPosition`) | the SBF squad: a strip in front of the objective's faces that see the assault's route (their windows); the assault squad: the entry face + a lateral boundary; a **NoFire** area around the assault squad's live men, and per room it holds | the objective building (`BuildingOf`, the room graph), the chosen axis | each phase; each `PhaseLine` / `Foothold` / `RoomClear` report |
+| **platoon commander** (`AttackPosition`) | the SBF squad: a strip in front of the objective's faces that see the assault's route (their windows); the assault squad: the entry face + a lateral boundary; a **NoFire** area around the assault squad's live men, and per room it holds | the objective building (a BuildingSurvey answer from the muscle, R-2037), the chosen axis | each phase; each `PhaseLine` / `Foothold` / `RoomClear` report |
 | **platoon commander** (`UrbanMovement`) | relative sectors: lead squad the corridor ahead, the following squad the two building faces of the street with an upper-storey band, the rear squad behind | the route leg | each leg |
 | **squad commander** (`SquadDefend`, `SupportByFire`) | each man's arc: the bearings from HIS post to the edges of the squad polygon, split between neighbours with ~10° overlap; the MG on the longest axis (its final protective line); team A the left half, team B the right | the squad sector, the posts, the roles (DA-19) | the order; a casualty (the neighbours widen); a displacement |
 | **squad commander** (march) | by place in the file: point man front 90°, then alternating left and right building faces, every second man the upper storeys, the last man the rear | the file order | each leg; a casualty |
@@ -444,42 +446,68 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
 
-### 13b. Where the planner runs, what it reads, how the answer comes back *(⭐ lean DA-25)*
+### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; ⭐ lean DA-25, the survey sensor)*
 
-| the planner needs | lives | measured |
+🔒 User, `2026-10-18`: *"The line of sight must always be a sensor or raycast query which goes to the muscle and returns back as a result.
+ It is nothing that is calculatable immediately on the brain It always needs to go to muscle and back."* — because smoke,
+destruction and doors change the world and *"only the muscle knows the current state of the environment"*. *"The final decisions, of
+course, can stay on brain."* ⛔ The first version of this section (a synchronous planner reading `IWorldQuery` on the brain) is
+SUPERSEDED — see HISTORY.
+
+**What the planner needs, split by the rule:**
+
+| the planner needs | kind | ⇒ where it comes from |
 |---|---|---|
-| the plan: the EA, the axis, which squad goes where, the known enemy posts | **brain only** (the commander's play and its `PlatoonPicture`) | §11; Building Clearing RP-1 |
-| each man's post and role | brain (the posts are EQS ANSWERS the commander already holds) | EQS answers return to the owner's node: `EqsSensorConfigEgress/IngressTranslator.cs` (Overview §5a) |
-| building faces, storeys, heights, line of sight | **every node, the brain included**: CGF loads the terrain (universal, R-182) and brain behaviours already read it through the `IWorldQuery` seam (`GroundHeightAt`, `SurfacesAt`, `SightBlocked`, `Trace`) | `CgfSubsystem.cs:1092-1103`; `IWorldQuery.cs:52-73`; `IndirectFireBehaviors.cs:88,143,616` |
-| the navmesh | ⛔ **SimHost only** — the one reason EQS is solved there | Overview §5a; `SimHostNodeBootstrapper.cs:60` |
-| where the sector is USED | the target picks AND the fire gate both run on the **brain**: `AimAndFireExecutor` / `FireAtPointExecutor` are in CGF's Brain executor set | `CgfLogicPack.cs:104, 164-167` |
+| the plan: EA, axis, which squad where, known enemy posts, roles, tier | brain data | the play itself — immediate |
+| splitting a polygon by bearing, an arc around a post, the overlap | pure math, no world | immediate, on the brain |
+| the posts (walkable, in cover, seeing the EA) | world | EQS, solved on the muscle (exists) |
+| what each post can SEE across its arc (walls, windows, smoke, rubble) | world | 🆕 a **visibility fan** asked of the muscle |
+| the building faces, windows, storeys, rooms, doors as they are NOW | world | 🆕 a **building survey** asked of the muscle (the room graph BR-1 lives there) |
+| which building / storey / room a point is in; heights and roof surfaces | world | 🆕 a **point survey** asked of the muscle (replaces BR-10's direct `BuildingOf`) |
 
 ```mermaid
 sequenceDiagram
   participant C as commander play (brain)
-  participant E as EQS (solved on SimHost)
+  participant S as WorldSurvey child sensor (brain side)
+  participant M as muscle (SimHost: live world, smoke, doors, damage)
   participant P as SectorPlanner (pure, brain)
-  participant W as IWorldQuery (brain's terrain)
-  participant N as the wire
-  C->>E: child sensors FindDefensivePosts / FindBuildingPosts (needs the navmesh)
-  E-->>C: the posts (an EQS answer, frames later)
-  C->>P: Split(area, posts, roles, tier)
-  P->>W: building faces, SightBlocked fan (v2)
-  P-->>C: squad polygons and member arcs (returned in the same call)
-  C->>N: create the SquadSector area entities, send the orders with the arcs
-  N-->>C: other nodes' brains stamp EngagementArea from their orders
+  C->>S: ask: posts (EQS template) + building survey + visibility fan per post
+  S->>M: sensor config on the wire (the EQS road: owner, epoch)
+  Note over C: WAITING — the squads keep their current orders
+  M->>M: solve against the CURRENT world
+  M-->>S: answer on the wire, stamped with the muscle's time
+  S-->>C: SensorChange SurveyReady (wakes the play)
+  C->>P: Split(the answer, the plan)
+  P-->>C: squad polygons + member arcs (pure, immediate)
+  C->>C: create the SquadSector areas, send the orders
+  Note over C: re-ask on a smoke cloud or damage near the area, a displacement, or every 10 s while engaged
 ```
-*What the picture shows that prose hid:* only the POSTS need the muscle, because only they need the navmesh. The sectors are angles and
-areas, so they are computed on the brain in the same call, with no wait. The answer travels on two existing roads: the area entity,
-which replicates like any tactical graphic, and the order.
+*What the picture shows that prose hid:* planning is a **round trip with a wait**, so it is a STATE of the play (ask → wait → decide),
+not a function call. Only the last step, the decision over the muscle's answer, is immediate and stays on the brain.
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **DA-25** | where the planner runs | **a pure, synchronous function on the brain** (`SectorPlanner`, Squad toolkit), called by the commander's play when it gives an order or something changes; it reads the play's own data and the terrain only through `IWorldQuery`; it returns its result to the caller. The posts it splits between come from EQS (solved on SimHost, as today). ⚠ If v2's line-of-sight fan proves too heavy for the brain, it becomes an EQS template (a "visible arc" generator) whose answer returns like any EQS answer, with the same call site | a sensor on the muscle: it would have to be sent the plan, the picture and the posts (all brain data) and reply frames later, for a computation that needs no navmesh · a new topic for sector results: the area entity and the order already carry them |
+| **DA-25** | how the brain gets geometry | ⭐ **one `WorldSurvey` sensor in the EQS family** (backend frame): a child sensor of any unit (the same lifecycle, epoch and config / answer translators as EQS — `EqsChildSensor`), solved on the muscle against the live world (`Trace` with the sight purpose: walls, openings, doors, clouds, damage), its answer applied into a cognitive buffer on the brain (the danger-area sensor's shape) and announced by `SensorChange.SurveyReady`. Three question shapes: **VisibilityFan** (≤ 12 origins, an arc each, eye height, range, ≤ 24 rays → per ray the free distance and what stopped it) · **BuildingSurvey** (an area or building → storeys, faces, window and door openings, rooms, as they are now) · **PointSurvey** (points → building, storey, room, indoors, ground and surface heights). The answer carries the muscle's time; the brain re-asks on change or after 10 s in a fight. ⭐ The SectorPlanner is a pure function over that answer | a raycast batch per ray: the existing `RaycastRequestEvent` solver casts against entity circles (`RaycastSolverSystem.cs:18-24`), ⛔ not measured whether it sees walls and smoke, and a fan would be hundreds of loose events · a new EQS generator only: an EQS answer is ranked points, not a visibility profile or a building's openings · the brain's terrain copy (the superseded lean): breaks the rule |
 
-⛔ **Not measured:** whether the brain's terrain has the building INTERIORS (wall panels, storeys) identical to SimHost's. Both come
-from the one universal load factory (`HrotUniversalLoadParts.Build`), so it is likely; a rail on `house-2f` settles it before DA-L
-(`CE-2282`).
+**Existing code that breaks the rule — found while measuring this** *(grep for `WorldQuery.Of`, `TerrainWorld`, `SightBlocked`,
+`SegmentBlocked`, `InsideTest` in code that runs on the brain; codebase-memory CLI not used for this sweep — a text sweep, so the list is
+what the pattern matched, not proof of completeness)*:
+
+| where | reads on the brain | kind | owner |
+|---|---|---|---|
+| `IndirectFireBehaviors.Sees` (`:612-618`) | the observer sees the burst — `SightBlocked` | **line of sight** | behaviors |
+| `VehicleFightFromCoverNodes.CanSeeMe` (`:652-663`) | can the remembered threat see me — `SightBlocked` | **line of sight** | behaviors |
+| `CivilianBehavior.IsIndoors` (`:758-763`) | inside a building — `TerrainWorld` + `InsideTest` | **building geometry** | behaviors |
+| `AirborneDrill` rope point / ring spots (`AirborneDrillBehaviors.cs:222-677`) | roof and ground surfaces | **building geometry**, heights | behaviors |
+| `IndirectFireBehaviors` aim heights + `FireSolution.For` / `ClearsDensely` (`:88, 143, 307, 644`; `FireSolution.cs:82, 137`) | ground height, does the arc clear the terrain | heights, **geometry** | behaviors (call) / backend (`FireSolution`) |
+| air behaviours: `GroundHeightAt` (`AirAttackBehaviors.cs:543, 1057`, `AirOrderBehaviors.cs:45`, `AirHolds.cs:110`) | ground height under an aircraft or a target | heights | behaviors |
+| `DangerAreaSensorSystem.Rate` (brain half, `Squad/Systems/DangerAreaSensorSystem.cs`) | does the remembered contact see the area — `TerrainWorld.SegmentBlocked` | **line of sight** | backend (`CE-3072`) |
+| `AimAndFireExecutor` (Brain executor set, `CgfLogicPack.cs:164-167`) → `LineOfFire.MuzzleMasked` + `AimPoint.Middle` (`AimAndFireExecutor.cs:268-275`) | is the muzzle masked by a wall, where the visible body is | **geometry**, sight | backend |
+
+⚠ Stated fairly: today's brain-side `SightBlocked` already multiplies in smoke clouds and doors (`TerrainWorldQuery.cs:69-76`) — but
+only by mirroring state the muscle owns, and with no destruction at all; that mirroring is exactly what R-2037 forbids. ⭐ The fix is
+tracked as `CE-2286` (behaviors' sites) and in the backend note; a conformance rail (an allow-list that may only shrink) keeps new
+code from adding a brain-side geometry read.
 
 ## 14. New sensors and sensor changes *(✅ approved R-2036 — DA-21)*
 
@@ -497,7 +525,7 @@ plus `DangerAreaAhead` (an SOP condition).
 | **`ContactOutsideSector`** (flanked) | member change | a hostile contact within 50 m outside his `Allow`, behind or beside him | the defender's displace to an alternate post (DA-4) |
 | **`PositionUntenable`** | member change | ≥ 3 near misses or a friend down at the same post within 10 s | displace (DA-4) |
 | — the defence's trigger line crossing | *(not a sensor)* | — | an EA test on the picture |
-| `BuildingOf(point)` | **query** (backend, with BR-1's room graph) | — | `FiredOnFromStructure`, the axis choice |
+| `BuildingOf(point)` | ⛔ not a brain query (R-2037): a **PointSurvey** answer from the muscle (§13b) | — | `FiredOnFromStructure`, the axis choice — one round trip before the change is raised |
 
 ⚠ **DA-14's backend need is downgraded:** the round's origin on `NearMissEvent` is no longer required for v1, because the gunshot
 sound already carries the shooter's position. It is kept as an option if sound proves too coarse at sniper ranges (⛔ not measured:
@@ -607,3 +635,7 @@ floor is any set of rings (`:107`); a stair may go up to `storeys.Count` (`:122-
 | ⭐ **`tq-urban-ambush-counterattack`** | regular platoon on `UrbanMovement` through `test-town` (3 legs, one intersection) · 4 insurgents (Militia, `Resolve` 0.9 two of them, 0.2 the others) in a building beside leg 2, `DefendPosition` preset **Ambush** (hold fire until the column is inside the EA) | the column crosses the intersection by the drill, is fired on, the squad in contact returns fire, reports `FiredOnFromStructure`; the platoon reacts with `ReactToFireFromBuilding` (the building is beside the route ⇒ clear); clear with `Eliminate`: the two who refuse and keep fighting are killed, the two who surrender are detained; consolidate; **the movement resumes at leg 2** | the trace: `UrbanMovement` paused → reaction → `BuildingClear` → `UrbanMovement` resumed at the same leg (`/entities/{id}` task state) · every non-surrendering insurgent dead, every surrendering one detained, none killed after surrendering · the column reaches leg 3's end |
 | `tq-ambush-bypass` | the same, but the ambush building is 120 m off the route | `Bypass`: suppress + smoke + cross | no squad enters the building; the movement resumes |
 | `tq-tier-ladder` | `tq-military-attack-defended` five times, both sides at each tier | — | attacker losses and time-to-clear fall as the tier rises |
+
+## ⛔ HISTORY
+
+- **2026-10-18, §13b first version (SUPERSEDED the same day by R-2037):** the SectorPlanner as a synchronous function on the brain reading building faces and line of sight through `IWorldQuery` (CGF loads the terrain). ⛔ The user ruled that the brain never reads world geometry: smoke, destruction and doors change it and only the muscle knows the current state. The rest of that version (posts from EQS, the answer carried by the area entity and the order) still holds.

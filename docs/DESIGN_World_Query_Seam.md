@@ -8,10 +8,11 @@ updated: 2026-10-10 (rev 4 — §5a the Q0 results. Rev 3 — all leans approved
   Rev 1 — R-250: every engine capability the editor, map and brain use sits behind an interface)
 current-answer: §1 why · §2 INVENTORY · §3 diagrams · §4 decisions · §5 slices · §6 not verified.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⛔ 2026-10-18 R-2037 — §1's "the brain itself never touches it" is FALSE as measured: behaviors and the CGF fire gate read IWorldQuery / TerrainWorld on the brain (inventory: docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13b); and R-2037 rules that the brain must NOT — geometry is asked of the muscle (WorldSurvey, docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). none.
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b: R-2037 (the brain never reads world geometry) and the WorldSurvey sensor; the inventory of brain-side IWorldQuery callers
   - docs/DESIGN_Visual_Effects.md — §10 IM-4: TraceCrossing gains EntryNormal / ExitNormal (init, zero = unknown) so an impact mark lies on the face it struck (CE-1128)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — the motion-model interface (IMotionModel) — the motion counterpart of this seam (§4a)
   - DESIGN_Peek_And_Fire.md — §10.8 lists the behaviour-library slices (CE-3158) checked against this seam; G3's friendly-line test moves behind Trace(Fire) with WQ-F
