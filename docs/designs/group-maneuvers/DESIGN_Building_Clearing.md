@@ -26,7 +26,8 @@ real world military doctrines."*
 
 🔒 User, `2026-10-18`, on the review: *"Platoon layer is what we need to exercise so the behaviors are created from that point of view already."* ·
 *"Refusing civilians should be let be even if they protest, shout and insult unless they attack, then non lethal melee should be used (weapon butt hits for example for a soldier having other means) to stun them."* ·
-*"Reuse knock down."* · *"Reports need to be networkable, nothing hidden inside single brain only."*
+*"Reuse knock down."* · *"Reports need to be networkable, nothing hidden inside single brain only."* ·
+*"Search is likely an interaction channel, needing also some posture so ui can render an animation"* · *"Also civilians lying down covering their heads with their hands if frightened or ordered to comply."*
 
 **The decision in one line (approved, R-2030 / R-2031):** a **platoon** play **`IsolateAndClear`** — the support squad isolates the
 building, the assault squad clears it with the squad play **`ClearBuilding`** (its entry fire team clears by Battle Drill 6 while the
@@ -218,7 +219,7 @@ fight, and its payloads hold local entity ids · **a report component on the com
 history, and would be the brain-local state R-2031 rules out.
 *(Owner: behaviors, in `CE-2263` — the debug API has taken squad routes from this lane before, `/entities/{id}/squad` O-a.)*
 
-## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030, R-2031)*
+## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030, R-2031, R-2032)*
 
 | id | decision | ✅ ruled | rejected — one line each |
 |---|---|---|---|
@@ -233,13 +234,19 @@ history, and would be the brain-local state R-2031 rules out.
 | **CB-9** | room state *(revised on review)* | **`BuildingClearance` on the CLEARING ECHELON's commander** — the platoon when there is one (a relieving squad continues it), else the squad; built from `RoomClear` / `RoomBlocked` reports, so every node can rebuild it (R-2031) | ⛔ SUPERSEDED: brain-local on the squad — a relief would start over, and it hides state in one brain |
 | **CB-10** | room order | nearest uncleared room by a portal from a Cleared one; hallways and stairs are rooms; bottom-up, `Entry: Roof` flips it | top-down always · a pre-planned route |
 | **CB-11** | doors | **#1 is the breacher**: Open (1 s), locked ⇒ Breach (3 s); a door that cannot be opened or breached ⇒ the room **Blocked**, skipped, reported | a separate breacher · explosive breach (later) |
-| **CB-12** | contact from an uncleared room | **limited penetration**: no entry under fire through the doorway; fire from beside it; enter after 3 s quiet | enter under fire · abort the building |
+| **CB-12** | contact from an uncleared room | **limited penetration**: no entry under fire through the doorway; fire from beside it; enter after 3 s quiet — ⚙ refined by CB-22: the doorway is pied (`SliceThePie`) before entry | enter under fire · abort the building |
 | **CB-13** | v2 | top-down by default · explosive breach · escort to a collection point · mouse-holing · two clearing squads on two floors | — *(swapping fire teams moved INTO v1 — CB-2)* |
 | **CB-14** | the defenders | no new insurgent behaviour: `CombatPosture` in a room; the covert insurgent reuses B3 | a barricade behaviour now |
 | **CB-15** | knowledge up the chain *(ruled on review)* | ⭐ **inside a squad: automatic, as today. Squad → platoon: typed `SquadReport`s** (Contact · UnderFire · Casualty · RoomClear · RoomBlocked · BuildingClear · CombatIneffective · Detained), sent by the **squad leader in the fight** after **`ReportDelaySeconds` (default 3 s, on the unit's type)**; silent during the leader-down lull. 🔒 **On the wire — every node takes it in, nothing hidden in one brain** (R-2031). The one seam a radio model (range, jamming, G10's Reported modality) plugs into later | automatic at the platoon: an omniscient reserve commit · a full radio net now: no reader needs it |
 | **CB-16** | a squad as a member *(found measuring)* | **combat effective**: a unit member is in the fight while ≥ `MinEffective` (default 4, or half its roster) of its men are; the runner's `Live(i)` and the centroid read it | the unit's own `Health`: a squad has none, and a sum would hide a wiped-out team |
 | **CB-17** | casualties | the room is finished first; §6a | stop the room for a casualty: the doorway is the fatal funnel |
 | **CB-18** | the isolating squad's fire | it fires only into rooms not Cleared, and stops as rooms are reported clear (doctrine's "shift fire"); ⚠ the friend-in-the-line hold is backend's B-15 (open) — until it lands the support squad watches and fires only at an exit or a window of a room the platoon holds as Unknown | free fire at the building: fratricide through a window |
+| **CB-19** | search, detain, restrain *(ruled 2026-10-18, R-2032)* | **interaction kinds** on `EntityInteractionRequest` (R-221): the soldier asks, the civilian's OWNER applies — **Search** (3 s: a Hidden weapon becomes visible, laid down), **Detain** (the replicated `Detained` flag), **Restrain** (hands tied) — so it works across nodes and every node sees the result | a brain-local timer: the result hidden in one brain · a direct write: the soldier's node may not own the civilian |
+| **CB-20** | what ui draws *(R-2032)* | new **gesture** values on the replicated gesture byte: `Searching` (the searcher), `HandsOnHead` (complying, searched), `Restrained` (hands behind the back), `CoverHead` (fear); kneeling = the existing Crouched stance | a pose component per activity: a second channel beside the gesture ui would merge |
+| **CB-21** | leaning *(R-2032)* | a replicated **`Lean` body state** (None · Left · Right): the eye point shifts ≈ 0.4 m sideways (he sees round the corner), his hit silhouette shrinks to what is exposed, ui draws the tilt; the weapon leads — `Aimed` while leaning; the eyes' direction is LD-1's | a stance value: stance is height, a man leans crouched too · no lean: corners taken fully exposed |
+| **CB-22** | corners *(R-2032)* | **`SliceThePie`**: small steps on an arc outside a corner or a doorway, leaning, weapon first, until the space beyond is seen — always at hallway corners, junctions and stairs; at a doorway **under contact** (replaces CB-12's "fire from beside the door": pie the room, then enter); otherwise rooms keep Battle Drill 6's fast entry | pie every room: doctrine wants speed at the stack · never pie: the corners |
+| **CB-23** | escort *(R-2032)* | v2 — but its pose is fixed now: a `Restrained` man walking beside a soldier who holds him (a "led" mode, the person-carrier pattern) | build it now: no demo needs it yet |
+| **CB-24** | the civilians' poses *(ruled 2026-10-18, R-2032)* | **Cower** (frightened, no shelter): **Prone + `CoverHead`** (was Crouched) · **Comply** (ordered down): **Prone + `HandsOnHead`** · searched: stays Prone + `HandsOnHead`, the searcher Crouched + `Searching` · detained: Prone or kneeling + `Restrained`. ⭐ **`ThreatDanger.ShowsHandsUp` counts `HandsUp`, `HandsOnHead`, `Restrained` — never `CoverHead`**: covering the head is fear, not surrender | one "head" gesture: a frightened Hostile would read as surrendering · Cower kept crouched: people under fire drop flat |
 
 ## 6a. Casualties and edge cases *(approved)*
 
@@ -273,7 +280,8 @@ history, and would be the brain-local state R-2031 rules out.
 | 6 | **PL-1** `CE-2264` | behaviors | **the platoon** `IsolateAndClear`: isolate (CB-18), foothold, clear, relieve on `CombatIneffective`, consolidate; `BuildingClearance` on the platoon; demo `bc-platoon-house` | BC-3, SL-0, RP-1 |
 | 7 | **BC-4** `CE-2260` | behaviors | grenades by `Intensity` (CB-6); demo `bc-house-high-intensity` | BC-3, BR-2 |
 | 8 | **BC-5** `CE-2261` | behaviors | contact and casualties (CB-12, §6a); demo `bc-house-defended` | BC-3 |
-| — | **BR-1** · **BR-2** · **BR-3** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic on the wire | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) |
+| 0 | **CP-1** `CE-2265` | behaviors | the civilians' poses (CB-24): Cower Prone + `CoverHead`; the four gesture values; `ShowsHandsUp` counts HandsOnHead / Restrained, never CoverHead — buildable now | — |
+| — | **BR-1** … **BR-5** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic · the Search / Detain / Restrain interactions · the `Lean` body state | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) · [handoff 3](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Interactions.md) (BR-4, BR-5) |
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 
@@ -283,6 +291,8 @@ history, and would be the brain-local state R-2031 rules out.
 | `RoomGraph` + `RoomOf` + the CQB house | 🆕 | rooms, portals (doors, gaps, stairs) with their two rooms, corners, area; the §8 house in `bt-range` | BR-1 |
 | stun holds every class | ⚙ | `Effects.IsStunned` stops the fire gate (`HoldStunned`) and the mover for any person — today only civilian code reads it | BR-2 |
 | `SquadReport` topic | 🆕 | the event topic on the `BehaviorFaultReport` precedent | BR-3 |
+| interactions `Search` · `Detain` · `Restrain` | 🆕 | `EInteractionKind` cases applied by the civilian's owner (CB-19): reveal + lay down a Hidden weapon, the replicated `Detained` flag, hands tied | BR-4 |
+| `Lean` body state | 🆕 | replicated None · Left · Right; the eye point offset for perception, the exposed silhouette for hits (CB-21) | BR-5 |
 
 ### Squad layer *(FDP `Squad` toolkit, behaviors)*
 | block | kind | what | slice |
@@ -311,7 +321,8 @@ history, and would be the brain-local state R-2031 rules out.
 |---|---|---|---|
 | `EnterRoom {Point, Sector}` | 🆕 | move to the point, then hold and engage only in the sector; Success when the sector is empty, down or complying | BC-1 |
 | `ControlPerson {Target}` | 🆕 | cover him, order him down (a `Gesture` now, G1 speech later); he complies ⇒ Success; refuses ⇒ watch only (CB-7); attacks ⇒ the butt-stroke | BC-2 |
-| `SearchPerson {Target}` | 🆕 | go to a complying man, 3 s; a Hidden weapon ⇒ laid down + `Detained`; none ⇒ `Held` | BC-2 |
+| `SearchPerson {Target}` | 🆕 | go to a complying man, Crouched + `Searching`, send the `Search` interaction (3 s); a Hidden weapon found ⇒ `Detain` (+ `Restrain`); none ⇒ `Held` (CB-19) | BC-2 |
+| `SliceThePie {Corner}` | 🆕 | the arc of small steps outside a corner or doorway, leaning, `Aimed`, until the space beyond is seen (CB-22) | BC-3 (corners), BC-5 (doorway under contact) |
 | `MeleeResponse` (SOP reaction) | 🆕 | struck in melee by an unarmed man in reach (`Hit` from a Blunt `DamageAssessedEvent` whose `Source` is in reach) ⇒ one `Melee.Strike` back (the existing 3 s knock-down), then the order resumes — any soldier, not only indoors | BC-2 |
 | `CombatPosture` · `CasualtyCare` (the R-2012 medic) · `CarryCasualty` · `Surrender` · `StationWeapon` (B3 draw) | ✅ | the defenders, casualties, a surrendering insurgent, the covert one's draw | — |
 
@@ -336,7 +347,9 @@ history, and would be the brain-local state R-2031 rules out.
 ### The civilians *(the civilian HSM, behaviors)*
 | block | kind | what | slice |
 |---|---|---|---|
-| `Comply` state | 🆕 | entered when a forces person controls him (`Covering.By` + the control order) and fear ≥ 0.3 or attitude ≤ 0; hands up, kneel, stay; wins over Panic while controlled | BC-2 |
+| `Comply` state | 🆕 | entered when a forces person controls him (`Covering.By` + the control order) and fear ≥ 0.3 or attitude ≤ 0; **Prone + `HandsOnHead`**, stays; wins over Panic while controlled (CB-24) | BC-2 |
+| `Cower` pose | ⚙ | **Prone + `CoverHead`** instead of Crouched (CB-24) | CE-2265 |
+| gesture values `Searching` · `HandsOnHead` · `Restrained` · `CoverHead` | 🆕 | appended to `GestureKind` (the wire is the byte); `ThreatDanger.ShowsHandsUp` counts HandsUp / HandsOnHead / Restrained, never CoverHead (CB-24) | CE-2265 |
 | refusal | 🆕 (a guard, no state) | the rest stay in their state — protest, shout, insult — never forced | BC-2 |
 | the attack | ✅ | the existing `Riot` state (fist on a forces person in reach) — what the soldier's `MeleeResponse` answers | — |
 | `Detained` | 🆕 flag | out of the fight (like a laid-down surrender): not searched again, guarded | BC-2 |
@@ -348,7 +361,7 @@ history, and would be the brain-local state R-2031 rules out.
 | the 7 scenarios of §8 + their twins + `utility-demo-check.py` runners | 🆕 | each slice ships its own |
 | ⛔ **to measure:** how a scenario incapacitates men at a scripted moment (the relief demo) · whether a rifleman's loadout carries M67 / stun grenades or the scenario must give them (`PersonHands.Give`) · what a failed breach leaves (`DoorState`) for `RoomBlocked` | — | before the slice that needs it |
 
-**Count:** 3 backend blocks · 9 squad-layer · 4 new member orders · 4 member behaviours · 3 plays · 6 planners / state · 3 civilian ·
+**Count:** 5 backend blocks · 9 squad-layer · 4 new member orders · 5 member behaviours · 3 plays · 6 planners / state · 5 civilian (+ 4 gesture values) ·
 3 new sensor events + 1 new local event + 1 wire topic — and the firing gate, the doors, the casualty care, the melee strike, the
 munitions and the squad runner are all reused.
 
