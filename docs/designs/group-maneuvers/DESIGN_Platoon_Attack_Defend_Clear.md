@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); PC-14…PC-16 (§6b) leans awaiting; work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
+build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); PC-14…PC-16 (§6b) ✅ APPROVED 2026-10-18 (R-2047); work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
 current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §6a sensors, sectors and the roof · §6b window switching and relocation (PC-14…PC-16) · §12 the demo scenarios (PC-11…PC-13) · §13 the work, split per lane
 stale-below: nothing.
 known-rot: none.
@@ -321,7 +321,9 @@ can be secured during the house clearing operation?"* — ⭐ **yes**; the table
 | the defenders | prone behind the parapet (low cover, the stance thresholds), from `FindRoofPosts` | Defend DA-5, DA-22 |
 | done | PROGRESS **RoomClear** (roof) ⇒ then BuildingClear | CB-43 |
 
-## 6b. Never showing twice at the same place — window switching and relocation *(⭐ leans PC-14…PC-16, 2026-10-18)*
+## 6b. Never showing twice at the same place — window switching and relocation *(✅ PC-14…PC-16 approved, R-2047)*
+
+✅ 🔒 User, `2026-10-18`: *"Approved. Is LD-1 in the plan too?"*
 
 🔒 User, `2026-10-18`: *"the defenders and maybe also the attackers, are they using the maneuvers like switching windows to not appear
 every time at the same place where the attackers can be waiting for?"* — ⭐ **yes, it is built**, and the same rule as R-2023 (the hill
