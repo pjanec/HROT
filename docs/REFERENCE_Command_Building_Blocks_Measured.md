@@ -4,7 +4,7 @@ updated: 2026-10-18
 current-answer: the whole file — a MEASURED reference, re-check a row before building on it (code moves)
 stale-below: nothing.
 known-rot: none.
-known-conflict: docs/blueprints/Architect_Question_87_Unit_Memory.md §4 routes ENGINE-written data to an ECS component and keeps unit memory for behaviours only; the user ruled on 2026-10-18 that everything a brain knows lives in its blackboard slots (§1 here) — reconciled in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CC-1)
+known-conflict: none — the 2026-10-18 "everything in the blackboard" rule was corrected the same day (R-2042: choose by scope; AQ87 §4 stands)
 related-designs:
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the MAP of the machinery; this file is the raw measurement under its command-and-control boxes
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the worked multi-level example built only from the blocks measured here
@@ -36,7 +36,7 @@ References are **symbols**, never line numbers. ⚠ A row is true as of the date
 | ⭐ **shared slot = unit memory** | a `[UnitMemory]` struct shared by EVERY behaviour of the unit, keyed by its type, created on first touch with `new T()`, never swept by a behaviour switch, last writer wins, layout-guarded | attribute `UnitMemoryAttribute` (`Fdp.Core/DtoAttribute.cs`) · API `UnitMemory.Get<T>(world, unit)` / `Ref<T>` / `Set<T>` / `Has<T>` / `GetInView<T>(view, unit)` (`Fdp.Toolkits/Behavior/UnitMemory.cs`) · example `FiringPositionMemory` (`Combat/FiringPositionMemory.cs`) | graph `^UnitMemory$` [Class] → 1; `UnitMemory` → 29 hits |
 | how a behaviour touches it | directly, or as a trailing `ref T` parameter of a `[SharedAi*]` method (the emitter binds it) | `UnitMemory.Ref<FiringPositionMemory>(world, self)` in `PeekAndFireNodes`, `VehicleFightFromCoverNodes`; emitter `UnitMemoryParams` (`AiEditor.Persistence/Emit/UnitMemoryParams.cs`) | read |
 | can a plain SYSTEM write it? | ⭐ **mechanically yes** (the API needs only the world and the unit); ⛔ **no production system does today** (callers: two behaviour nodes, a gizmo read, tests) | — | grep confirmed (generic calls invisible to the graph) |
-| ⚠ the design rule today | AQ87 §4: *"engine systems (non-behaviour code needs it) → an ECS component in a toolkit; behaviours only → a unit memory struct"*; "self only" | `docs/blueprints/Architect_Question_87_Unit_Memory.md` §4 | read — ⚠ conflicts with the user's 2026-10-18 rule, see the known-conflict line |
+| ⚠ the design rule today | AQ87 §4: *"engine systems (non-behaviour code needs it) → an ECS component in a toolkit; behaviours only → a unit memory struct"*; "self only" | `docs/blueprints/Architect_Question_87_Unit_Memory.md` §4 | read — ✅ consistent with R-2042 (knowledge lives at its scope) |
 | removed | `BlueprintSharedState`, the old entity scope | `OccurrenceSlotKey` header | read |
 
 ## 2. Knowledge held OUTSIDE the slots today
