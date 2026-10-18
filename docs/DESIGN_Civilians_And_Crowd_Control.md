@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/DESIGN_People_Display.md — ui's U7…U18 for this programme: what a person holds, carries, says and feels, DRAWN (held items, stations, melee, police look, speech and mood marks); its §8 lists the gaps G1…G8 this design's data does not yet carry.
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015): every node receives the same event data (detonations included); it owns who receives, §7.3a here owns the cloud.
@@ -3732,6 +3733,8 @@ and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
+⭐ **`2026-10-18` — the next ui designs (U7…U18: armed people, police look, speech and mood marks) live in [`DESIGN_People_Display.md`](DESIGN_People_Display.md)**, not here — this section stays U-1…U-6 and the cloud.
+
 **INVENTORY** *(2026-10-16; codebase-memory CLI `search_graph` for `.*EntityClassTable.*`, `.*VisualFamil.*`, `.*EffectState.*`,
 `.*AreaEffect.*`, `.*IgSymbolOverride.*`, `.*Affiliation.*` + grep on every call site + the design corpus; `check_index_coverage` NOT run — CLI only)*:
 
@@ -3991,6 +3994,8 @@ head, the soldier's rifle slung) and `CE1166_TheShapes_ReadAsTheGesture` (hands 
 hand behind the shoulder), red-proved with three switches (no override · hands up drawn as a fist · no placard). ⭐ `2026-10-17`, on
 B-6: `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` (red-proved by an extra enum member) and
 `CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine` (red-proved: no `Gestured`, no word).
+⭐ `2026-10-18` (`CE-1180`): behaviors' `GestureKind.Warning` (= 6, the escalation ladder's EL-3) — `ArmGesture.Warning` (the right arm
+straight out, the palm forward) and WARNING in the line; the names rail caught the new member on the merge.
 
 ### 8.8 U4-a — the cloud drawn *(ui, `2026-10-17`; on backend's [NOTE](blueprints/batches/NOTE_Backend_To_Ui_AreaEffectCloud.md), `CE-3219` part 3 as built in §7.3c; item `CE-1165`)*
 

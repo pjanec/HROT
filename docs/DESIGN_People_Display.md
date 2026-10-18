@@ -1,0 +1,215 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-18
+build-state: DESIGN — leans awaiting the user (§5); the parts whose data exists are READY-TO-BUILD once approved (§7 marks each)
+current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+stale-below: nothing.
+known-rot: none.
+known-conflict: none.
+related-designs:
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the data: §5h–§5l (armed people, escalation, riot, bomber), §7.7–§7.16 (gesture, armament, hands, pick-up, laid-down, pistol, stations, charge, held item); its §8 holds ui's U-1…U-6 and the cloud (U-4) — THIS document is ui's U-7…U-16 for the same programme.
+  - docs/DESIGN_Map_3D_Mode.md — OWNS the block figure, its poses and kits (§6m carriage, §6n weapons, §6o faces, §6q outfits, §6r the shader surface).
+  - docs/DESIGN_Visual_Effects.md — OWNS EffectLayer and ProjectileLayer (what lies on the ground, bursts, puffs).
+  - docs/DESIGN_Entity_Control.md — OWNS the FPS station and its HUD (§8e, §8h).
+  - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the 2-D symbol, side colour and the entity card.
+-->
+
+# People display — what a person holds, does, says and feels, drawn *(ui, `2026-10-18`)*
+
+🔒 User, `2026-10-18`: *"write the ui half of the design. Lots to implement — pickable item, carried hand held objects (phone, stone,
+grenade, weapons like pistol or knife...) Melee attack (fist punch or something), explosive vest, weapon being concealed, drawn or aimed at
+someone, police officers easier identifiable look (typical cap on the head, various equipment on chest and belt — just texture), shouting
+insults and shouting warnings and orders and talking as symbols floating above the head for a while, protesting/rioting civilian hand up
+gesture animated a bit (not stiff), toy gun in hands rendered in orange color, police officer having baton in hand, animation of using it at
+civilian, holding and using non lethal weapon (rubber projectile gun, taser...) if some of those are missing some backend implementation pls
+record those as well... civilian mood or alerted mode or wound/pain/fear/anger and similar as facial expression or some floating indicator
+above persons head (note it needs to be small as there can be many people next to each other so big ones would clutter the scene)"*
+
+## 1. INVENTORY *(2026-10-18 — three read-only sweeps over code + the design corpus; grep and `git grep origin/backend|behaviors`; ⚠ the
+codebase-memory server did not connect and its CLI hung on one sweep, so no `search_graph` enumeration — the lists are grep results;
+`check_index_coverage` NOT run)*
+
+### 1.1 The data — what is on the wire (every node can draw it)
+
+| what | where | on the wire | written by |
+|---|---|---|---|
+| ⭐ what is in his hand: `WeaponPosture.HeldItem` (`HeldItemKind` None · Weapon · Throwable · Phone · Binoculars) | `Combat/Components/WeaponPosture.cs:40-55`, `HeldItems.Set/Of` | ✅ `dtWeaponPosture` (127) | ⚠ **no production caller** — tests only (gap G7) |
+| which weapon is up, posture, aimed-at target | `WeaponPosture.Kind` {AtEase, Ready, Aimed}, `Target`, `ActiveMount` | ✅ `dtWeaponPosture` | the weapon brain (`WeaponPostureOf`) |
+| what an item LOOKS like | `WeaponMountDto.Appearance` → `ItemAppearanceDto {Look: None·Rifle·Pistol·LongObject·SmallObject, SizeM, Lethal?, ReachM}`; `ItemAppearances.Of` falls back to the category | TKB type data (every node has it) | catalogues; only the pistol sets one (`UrbanCombatTkbCatalog.cs:328`) |
+| where a carried weapon sits | the carried entity's `IsEmbarkedTag.Seat` on the man: 1 Hands · 2 Back · 3 Hidden; `CarryStations.Hands/Back/IsConcealed` | ✅ (the replicated passenger list) | `StationWeaponBehavior` (`RestationEvent`) |
+| the hands mount and what it holds | `PersonHands` (last mount of every person, `Hands = true`); the loaded round per mount | ✅ `dtWeaponAmmo` | pick-ups (`RoundPickUpSystem`) |
+| laid down (surrender) | `WeaponAmmo.LaidDown` bitmask | ✅ `dtWeaponAmmo` | `SurrenderBehavior` |
+| pick-up rifle 616 / pistol 617, the charge 618 | weapon-system types (`TkbEntityTypes.cs:48-52`, `BdcTkbCatalog.cs:339-358`); `Charges.IsCharge` | ✅ ordinary entities | scenario / behaviours |
+| stones and the stone source | munition 6038 (lies 60 s), area 8812 `StoneSource` | ✅ rounds as lightweight entities | behaviours |
+| gesture | `Gesture.Kind` (`GestureKind` … Throwing, ⭐ **Warning** = 6, the police warning, 2 s) | ✅ `dtGesture` (143) | the CivilianHsm, `EscalationLadder` |
+| effects on him | `EffectState` (stunned, irritated, knocked down, cowering) | ✅ `dtEffectState` (142) | `HealthApplicationSystem`, the HSM |
+| a hostile act | `HostileAct {SinceSimTime, Kind}` | ✅ `dtHostileAct` (145) | `WeaponPostureOf`, the HSM |
+| wounded / incapacitated | `Injury` computed from the replicated health (`EntityDamage`) | ✅ (health) | — |
+| ⛔ **mood / mode** — `CivilianState {Fear, Anger, Attitude, Mode}`, `Crowd {MeanFear, MeanAnger}` | `Civilians/CivilianState.cs:44-82`, `CrowdSystem.cs:19-33` | ⛔ **brain node only** (`CognitiveComponentRegistry.cs:35-36`) | the HSM, `CivilianFearSystem`, `CrowdSystem` |
+| ⛔ **speech** — insult, warning, order, talk | — | ⛔ **nothing exists** (searched shout, insult, chant, speech, utterance, verbal, megaphone: none); a warning is only `Gesture.Warning` + the brain-local `WarningLog` | — |
+| melee — a fist, the police baton | `Melee.Strike/InReach` → a Blunt `DamageAssessedEvent` (1.5 m, knock-down 3 s) | ⚠ the HIT is (via `EffectState`); ⛔ **the swing is not** — no event says who struck whom | the HSM's fists (`CivilianBehavior.cs:586`), `HoldTheLineBehavior.cs:97` (the baton) |
+| non-lethal | baton round 6036 on `BatonLauncher()` (SecurityLauncher 1203), stun grenade 6037, tear gas 6039/6040, smoke 6041 | ✅ rounds / effects | the weapon brain |
+| ⛔ taser, pepper spray, a baton / knife / machete ITEM, a riot shield, a toy-gun type | searched code and the design: none (a toy gun exists only as a test type, `ArmamentTests.cs:28`) | — | — |
+
+### 1.2 The drawing — what ui already has
+
+| surface | today | where |
+|---|---|---|
+| the figure | parts 0-3 legs · 4 torso · 5 head · 6-9 arms · 10 weapon; extra parts appended after (the placard) | `ShapeKit.cs:510-520, 889, 1147` |
+| arm overrides | `CarrierArms`, `HandleArms`, `AtWeapon`, `Cower`, `GestureArms` (⚠ STATIC), `Shouldered` (the launcher tube) | `ShapeKit.cs:873, 1055, 1081, 1111, 1154, 1180` |
+| the rifle | one Metal limb, both hands on it, by posture | `ShapeKit.cs:823-848` |
+| the pose pipeline | Descent → Held → FigurePose → Motion → Burdened → Shouldered → Gestured → seat drop | `EntityBodyLayer3D.cs:151-183` |
+| per-man clocks | `MotionTracker` (by distance walked — still at rest), `PostureBlend` (0.3 s), `DeathFall` (0.6 s); ⛔ no time-based gesture clock | `MotionTracker.cs:21-141`, `ShapeKit.cs:1405, 1486` |
+| outfits | `PoliceUniform` navy, no camo; the helmet box is chosen by `look.Soldier` — ⛔ no cap, no police helmet, no vest or belt | `Outfits.cs:78, 121`; `EntityBodyLayer3D.cs:265` |
+| faces | painted by the shader (`BodySurface`: eyes, irises, brows, mouth, beard) — fixed per seed, ⛔ no expression parameter | `BodySurface.cs:19-61, 110-120` |
+| overhead text | `EffectStateGizmo` / `GestureGizmo` (DOWN · STUNNED · … · HANDS UP / PROTEST / WARNING) — 🔴 **un-anchored: in 3-D it sits at his FEET** | `EffectStateGizmo.cs:17-82` |
+| labels in 3-D | `LabelOverlay3D` lifts ANCHORED labels to the body top (`TopAbove`) | `RaylibGizmoSink3D.cs:50-92`, `EntityBodyLayer3D.cs:1154` |
+| icons on the map | ⛔ none: the `Icon` primitive is a 4 px dot; gizmo text is ASCII Roboto (FontAwesome lives in ImGui only) | `RaylibGizmoSink3D.cs:86`, `RaylibPresentationShell.cs:214` |
+| clutter control | layer bits (`Labels` on, `UnitDetails` off), per-primitive `Min/MaxZoomLod` (raw primitives only) | `DebugTraceLayers.cs:21-32`, `DebugPrimitive.cs:92` |
+| things lying on the ground | lying rounds and grenades (`ProjectileLayer`), the dropped rifle by a dead man | `ProjectileLayer.cs:150-209`, `ShapeKit.cs:962` |
+
+## 2. Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBodyLayer3D { <<existing, grows>> pose pipeline + HeldInHands · Strike · Gestured(animated) }
+  class BlockFigure { <<existing, grows>> +HandItem parts · +PistolArms · PhoneArms · BinocularArms · ThrowArms · StrikeArms · SlungOnBack }
+  class HandItemLook { <<NEW>> Rifle Pistol Knife Baton Taser Spray Phone Binoculars Stone Grenade Canister Toy }
+  class HandItems { <<NEW, pure>> +Of(world, man, tkb) HandItemLook · reads HeldItem, ActiveMount, Appearance, the hands round }
+  class StrikeTracker { <<NEW, PostureBlend shape>> 0.45 s swing per strike }
+  class GestureMotion { <<NEW, stateless>> phase = sin(simTime x rate + seed) }
+  class PoliceKit { <<NEW in Outfits + BodySurface>> cap or riot helmet · vest and belt painted }
+  class OverheadMarkLayer { <<NEW IMapLayer, 2-D + 3-D>> one small mark per person, above the head }
+  class MarkKind { <<NEW>> Insult Warning Order Talk · Fear Anger Pain Alarm · HandsUp }
+  class Marks { <<NEW, pure>> +Of(world, man, now) MarkKind? · the one priority rule }
+  class GroundItems { <<in ProjectileLayer / body kits>> pick-up rifle and pistol, a placed charge, a laid-down weapon }
+  class Utterance { <<GAP G1 — backend + behaviors>> Kind Target Until }
+  class Demeanour { <<GAP G2 — backend + behaviors>> Mode Fear Anger, quantised }
+  class StrikeNotification { <<GAP G3 — backend>> Striker Target Weapon }
+  EntityBodyLayer3D --> BlockFigure
+  EntityBodyLayer3D --> HandItems
+  EntityBodyLayer3D --> StrikeTracker
+  EntityBodyLayer3D --> GestureMotion
+  HandItems --> HandItemLook
+  OverheadMarkLayer --> Marks
+  Marks --> MarkKind
+  Marks ..> Utterance : when it exists
+  Marks ..> Demeanour : when it exists
+  StrikeTracker ..> StrikeNotification : when it exists
+  Outfits ..> PoliceKit
+```
+*Caption:* what the picture shows that prose hid — every NEW ui box reads data that is either on the wire today or one of three named gaps;
+the figure grows by ONE pipeline step (`HeldInHands`) and ONE timed step (`Strike`), and everything above the head is ONE layer with ONE
+priority rule, so marks never stack.
+
+## 3. Sequences
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D (each frame, every map host)
+  participant P as FigurePose / Burdened
+  participant H as HandItems
+  participant G as Gestured
+  participant S as StrikeTracker
+  L->>P: stance, carriage arms
+  L->>H: HandItems.Of(man): held item, active mount, its look, toy or real
+  H-->>L: the item and the arms that hold it (pistol one hand, phone to the ear, binoculars up, a stone ready)
+  L->>G: gesture arms, animated by the man's own phase (fist pumps, sign bobs, hands-up sway)
+  L->>S: a strike in the last 0.45 s? (fist or baton)
+  S-->>L: the swing overrides the striking arm
+  L->>L: carried weapons: hands drawn above, back slung, hidden not drawn
+```
+
+```mermaid
+sequenceDiagram
+  participant O as OverheadMarkLayer (each frame)
+  participant M as Marks.Of
+  participant W as world view
+  O->>W: each person within the mark distance
+  O->>M: speech now? gesture? effect? mood?
+  M-->>O: at most ONE mark (priority: speech, hands up, pain, anger, fear, alarm)
+  O->>O: 3-D: a small billboard above TopAbove · 2-D: a small glyph beside the symbol
+```
+
+## 4. Modules — who registers it, who calls it each frame
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers, every map host] --> BODY[EntityBodyLayer3D: figure, items, strikes, animated gestures]
+  MIP --> OML[OverheadMarkLayer NEW: one mark per person]
+  MIP --> PRJ[ProjectileLayer: rounds and items lying]
+  SGS[StatelessGizmoSystem, every host] --> ESG[EffectStateGizmo: the text line, anchored to the head]
+  BRAIN[CGF brain node: CivilianState, WarningLog, Melee.Strike]
+  BRAIN -.->|G2 not on the wire| OML
+  BRAIN -.->|G1 no speech act| OML
+  BRAIN -.->|G3 the swing is not sent| BODY
+  classDef gap fill:#ffd,stroke:#aa0
+  G1[G1 Utterance]:::gap
+  G2[G2 Demeanour]:::gap
+  G3[G3 StrikeNotification]:::gap
+  G1 -.-> OML
+  G2 -.-> OML
+  G3 -.-> BODY
+```
+*Caption:* every reader is already called each frame on every map host; the yellow boxes are the data that lives only on the brain node (or
+nowhere) — until they exist, the parts that read them draw nothing, and the rest builds now.
+
+## 5. Decisions — leans *(⏳ awaiting the user)*
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **U7** | what is in his hand | `HandItems.Of`: `HeldItem` first (Phone → to the ear while still, in hand while walking · Binoculars → raised to the eyes · Throwable → the hands round's look: stone a grey lump, grenade dark green, canister a can); Weapon → the `ActiveMount`'s `Appearance.Look` (Rifle the rifle · Pistol one hand, the other free · LongObject a baton / bar · SmallObject a knife); None → empty | a held-item entity: B-12 chose a byte, and an entity per phone is heavy |
+| **U8** | where a carried weapon sits | Hands drawn as U7 · Back slung across the back (today's carrier sling) · Hidden NOT drawn — a worn charge, a concealed pistol; ⭐ an exercise-control layer **"Concealed (ExCon)"**, off by default, outlines hidden items for the instructor | draw concealed items for everyone: defeats AW-15's per-observer identification |
+| **U9** | drawn / aimed at someone | the posture as today (at ease low, ready, aimed — rifle and pistol each); ⭐ AIMED AT A PERSON adds a thin line from the muzzle to the target in 2-D and 3-D, on the `UnitDetails` layer (off by default) | an always-on line: a firefight becomes spaghetti |
+| **U10** | melee | a 0.45 s swing of the striking arm (`StrikeTracker`, the `PostureBlend` shape): a fist — a straight punch; a baton — an overhead swing; a knife — a stab; started by G3's notification | animate from the VICTIM's knock-down: wrong man swings, and a miss shows nothing |
+| **U11** | police look | ⭐ by `PersonKit.Security`: a PEAKED CAP (navy, white band) instead of hair; the shield man a RIOT HELMET with a visor; the uniform painted with a VEST panel (darker, two pouch boxes painted) and a BELT (black band, pouches) by `BodySurface` — texture only; the baton man a baton in the right hand (U7's LongObject once G4 gives him the item; until then from his type) | a new mesh: the block figure is boxes by design · a POLICE text badge: unreadable at map distance |
+| **U12** | the toy gun | an item whose `Appearance.Look` is Rifle / Pistol and whose ground truth is harmless (`Lethal == false`, or no lethal round) is drawn in ORANGE (a toy's safety tip and body) | a separate toy shape: it must look like the gun to fool the observer — only the colour tells the truth |
+| **U13** | non-lethal weapons | the baton-round launcher as today's launcher with a YELLOW band; the stun / gas grenade in hand as U7's Throwable; ⛔ the taser (yellow pistol + two darts drawn as thin lines on firing) and pepper spray (a small can + a short cone puff) wait on G5 | — |
+| **U14** | the animated gestures | stateless motion on the man's own phase (`sin(simTime × rate + seed)`, no tracker): FistRaised pumps (forearm ±25°, 1.4 Hz) · HoldSign bobs (±6 cm, 0.8 Hz) · HandsUp sways (±8°, 0.5 Hz) · Waving waves the forearm (±30°, 1.8 Hz) · Warning holds still; each man out of step with his neighbours | a gesture clock per entity: state to keep and clear for a value that time alone gives |
+| **U15** | speech above the head | a SMALL mark (≈ 14 px screen-space in 2-D, a 0.35 m billboard in 3-D, never larger than 20 px), shown while the act lasts and fading over its last 0.5 s: **insult** a red jagged balloon `#!` · **warning** a yellow triangle `!` · **order** a white balloon with an arrow · **talk** a grey balloon `…` · chant a balloon with a note; the warning shows TODAY from `Gesture.Warning`, the rest wait on G1 | text ("STOP!"): unreadable in a crowd and language-bound · a big comic balloon: the clutter the user named |
+| **U16** | mood, alarm, pain | ⭐ BOTH, kept small: the FACE carries it close up (brows and mouth by a 5th shader parameter: calm · afraid — raised brows, open mouth · angry — lowered brows, tight mouth · in pain — squint, set by `Injury` Wounded) and a TINY DOT above the head at map distance (6 px: amber afraid, red angry, white alarmed, none when calm), only for people in an unusual state; ONE mark per person (U15 wins over U16); hidden beyond 300 m and on a layer toggle | an icon per emotion: twelve tiny icons are unreadable · nothing at a distance: the operator cannot see a crowd turning |
+| **U17** | the overhead text line | fix the existing line to sit ABOVE the head in 3-D (anchor it to the entity, like the card) | leave it at the feet: measured wrong today |
+| **U18** | items on the ground | a pick-up rifle / pistol lies as its look; a laid-down weapon lies at the man's feet (`WeaponAmmo.LaidDown`); a PLACED charge is a small box with a red blink; stones lie as today's rounds | — |
+
+## 6. Claim table
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the held item, the posture and the active mount reach every node | ✅ `dtWeaponPosture` carries `HeldItem` beside `ActiveMount` (`SimDescriptors.cs:277-278`) | ✅ [backend's note to ui](blueprints/batches/NOTE_Backend_To_Ui_Armed_People_Drawing.md) |
+| a hidden station must not be drawn | ✅ `CarryStations.IsConcealed` (`CarryStations.cs:33-60`) | ✅ Civilians AW-13 / AW-15 (per-observer identification) |
+| a toy is told by its ground truth, not its look | ✅ `ItemAppearanceDto.Lethal` (`WeaponSuiteDto.cs:154-185`); `Armament.LethalInHand` | ✅ AW-15: "a toy gun is a rifle" to an observer |
+| fear and anger are not on the wire | ✅ `CognitiveComponentRegistry.cs:35-36` registers `CivilianState` / `Crowd` on the brain only | ⛔ searched `docs/` + `.dev/`: no design puts them on the wire |
+| no speech act exists | ✅ searched shout, insult, chant, speech, utterance, verbal, megaphone: none | ✅ Civilians §5j: a warning is an audible cue — not designed as data |
+| the melee swing is not sent | ✅ `Melee.Strike` raises only a `DamageAssessedEvent` (`Melee.cs:16-52`) | ⛔ searched, none found |
+| the overhead line sits at the feet in 3-D | ✅ `EffectStateGizmo` draws un-anchored x,y; `GizmoRenderer3D` puts un-anchored labels on the ground (`GizmoRenderer3D.cs:98-115`) | ✅ Symbology: labels above the unit |
+| animation needs no new clock | ✅ `GlobalTime.TotalTime` is read every frame (`EntityBodyLayer3D.cs:104-106`); the seed exists per man | — |
+
+## 7. Items *(ids from the ui block; each builds when its data exists)*
+
+| id | what | needs | state |
+|---|---|---|---|
+| `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ⏳ approve → READY |
+| `CE-1170` | U9 — aimed at a person: the line | on the wire today | ⏳ approve → READY |
+| `CE-1171` | U10 — the melee swing (fist, baton, knife) | G3 (and G4 for the baton / knife as items) | ⏳ waits G3 |
+| `CE-1172` | U11 — the police look (cap, riot helmet, vest, belt, baton in hand) | ui only (baton in hand from his type until G4) | ⏳ approve → READY |
+| `CE-1173` | U12 — the toy gun drawn orange | ✅ the data; a catalogue toy type is G6 | ⏳ approve → READY |
+| `CE-1174` | U13 — non-lethal weapons (launcher band; taser, spray) | the launcher today; taser / spray G5 | ⏳ approve → partly READY |
+| `CE-1175` | U14 — animated gestures | on the wire today | ⏳ approve → READY |
+| `CE-1176` | U15 — speech marks above the head | the warning today (`Gesture.Warning`); the rest G1 | ⏳ approve → partly READY |
+| `CE-1177` | U16 — mood on the face and the tiny dot | pain today (`Injury`); fear / anger / alarm G2 | ⏳ approve → partly READY |
+| `CE-1178` | U17 — the overhead text line above the head in 3-D | ui only | ⏳ approve → READY |
+| `CE-1179` | U18 — items on the ground (pick-up weapons, laid-down weapon, placed charge) | on the wire today | ⏳ approve → READY |
+
+## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
+
+| # | gap | lean | owner |
+|---|---|---|---|
+| **G1** | a SPEECH act: insult, warning, order, talk, chant — who, to whom, until when | a replicated `Utterance {Kind, Target, Until}` in the Brain group, the `Gesture` shape; the HSM / ladder writes it | backend (component + wire) · behaviors (who says what, when) |
+| **G2** | the MOOD on the wire | a replicated `Demeanour {Mode, Fear, Anger}` (three bytes, quantised to quarters), written when `CivilianState` crosses a quarter — never every tick | backend · behaviors |
+| **G3** | the MELEE swing | a `StrikeNotification {Striker, Target, Weapon}` raised by `Melee.Strike` and replicated like `WeaponFireNotification` (a fist and a baton look different) | backend |
+| **G4** | melee ITEMS — the police baton, a knife, a machete | mounts with `Appearance` (LongObject / SmallObject, `ReachM`) whose fire is `Melee.Strike`; the baton man (1202) carries one | backend (data) · behaviors (AW-19 knife) |
+| **G5** | taser and pepper spray | munitions + an effect (taser: Stun at ≤ 7 m with two darts; spray: Irritant cone ≤ 3 m) on police types | backend · behaviors (when to use, the ladder rung) |
+| **G6** | a toy-gun TYPE in the catalogue | a civilian type whose mount looks like a rifle and fires nothing (the test type made real) | backend |
+| **G7** | nobody SETS the held item | the HSM / behaviours set `HeldItems` (a civilian on his phone, a lookout with binoculars) | behaviors |
+| **G8** | the riot SHIELD | an item on the shield man (1201) — drawn by ui, and later a blocker for thrown items | backend |

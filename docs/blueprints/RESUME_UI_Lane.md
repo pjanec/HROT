@@ -220,7 +220,11 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1165 | ⏳ U4-a (the gas cloud drawn in `EffectLayer`) still waits on backend's `AreaEffectCloud` (B-1 part 3) | [Civilians §8](../DESIGN_Civilians_And_Crowd_Control.md) |
 | CE-1158 | ⏳ the use key's station + HUD are BUILT; the live cluster run is still owed | [Entity Control §8h.9](../DESIGN_Entity_Control.md) |
 
-⭐ Lanes: check `origin/backend` and `origin/behaviors` at the end of each piece of work (CLAUDE.md: no scheduled check-ins). ui next free id `CE-1168`.
+| CE-1165 | ✅ DONE `2026-10-17` — the gas / smoke cloud drawn (`EffectLayer.ResolveClouds`), never as a unit (`NotAUnit`) | [Civilians §8.8](../DESIGN_Civilians_And_Crowd_Control.md) |
+| CE-1168 / CE-1180 | ✅ DONE — HANDS in the FPS HUD; the police WARNING gesture drawn and named (the names rail caught it on the merge) | [Entity Control §8h.9a](../DESIGN_Entity_Control.md) |
+| CE-1169…1179 | 📐 DESIGNED `2026-10-18`, ⏳ awaiting the user's approval — the PEOPLE DISPLAY (held items, stations, melee, police look, toy gun, non-lethal, animated gestures, speech and mood marks, items on the ground); gaps G1…G8 sent to backend + behaviors | [DESIGN_People_Display](../DESIGN_People_Display.md) |
+
+⭐ Lanes: check `origin/backend` and `origin/behaviors` at the end of each piece of work (CLAUDE.md: no scheduled check-ins). ui next free id `CE-1181`.
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 
