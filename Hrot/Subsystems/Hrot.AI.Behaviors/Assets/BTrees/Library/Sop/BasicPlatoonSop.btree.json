@@ -1,0 +1,151 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2294000-0000-0000-0000-000000000001",
+  "Name": "BasicPlatoonSop",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2294000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2294000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Selector",
+      "VisualId": "c2294000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c2294000-0000-0000-0000-000000000010"
+      ],
+      "DisplayLabel": "Rows — first true wins",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 120,
+        "Comment": "The platoon commander's standing orders (CE-2294 CC-D, Command Chain §6): each row reads the platoon's PICTURE — what its squads reported — never their state. The reaction pauses the platoon's task; when it ends, the task resumes in its state.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2294000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "c2294000-0000-0000-0000-000000000011",
+        "c2294000-0000-0000-0000-000000000012",
+        "c2294000-0000-0000-0000-000000000013"
+      ],
+      "DisplayLabel": "Enemy element reported → hold",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "A squad reported an enemy element (team-size or larger, within 400 m, seen within 30 s): every squad holds until it is gone.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "reportReceived"
+      },
+      "VisualId": "c2294000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "A report arrived (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 140,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Squad.Command.PictureConditions.ElementReported",
+        "ExpressionTargetField": "enemyNear"
+      },
+      "VisualId": "c2294000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "An enemy element in the picture",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "PlatoonHold",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2294000-0000-0000-0000-000000000013",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: PlatoonHold",
+      "EditorMetadata": {
+        "X": 460,
+        "Y": 400,
+        "Comment": "Both squads hold; the platoon's task waits in its state.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "reportReceived",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"ReportReceived\",\"Seconds\":3}",
+        "Comment": "A subordinate's report reached the platoon's picture recently (and since the current run began)."
+      },
+      {
+        "Name": "enemyNear",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Squad.Command.ElementReportedParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"MinSize\":\"Team\",\"WithinMetres\":400,\"FreshSeconds\":30}",
+        "Comment": "An enemy element in the platoon's picture: team-size or larger, within 400 m of the platoon, observed within 30 s."
+      }
+    ]
+  }
+}

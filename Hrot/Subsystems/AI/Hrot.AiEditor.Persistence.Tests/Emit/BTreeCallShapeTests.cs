@@ -144,6 +144,10 @@ public sealed class BTreeCallShapeTests
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000061", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2159 X-c — the danger-area row
+        // ⭐ CE-2294 CC-D — the platoon's SOP row: SopConditions.SensedFresh and PictureConditions.ElementReported are both
+        //   (ref TParams, Entity, EntityRepository) ⇒ the plain three-param shared form.
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),

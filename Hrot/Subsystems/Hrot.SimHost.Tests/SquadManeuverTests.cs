@@ -1620,6 +1620,159 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
         }
 
+        // ── CE-2294 CC-D — the first chain: a platoon's task and SOP over its squads' reports (Command Chain §1, §6, §8) ─────────
+
+        /// <summary>A body-less PLATOON (the fixture's commander) over two squads (its members: Alpha in slot 0, Bravo in slot 1); the
+        /// squads are stand-ins whose reports the test publishes, folded by the platoon's inbox each frame.</summary>
+        private sealed class Platoon
+        {
+            public readonly Squad S = new(members: 2);
+            public readonly Fdp.Toolkit.Squad.Command.StaffInboxSystem Inbox = new();
+            public Entity Alpha => S.Members[0];
+            public Entity Bravo => S.Members[1];
+
+            public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); }
+            public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
+
+            public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f)
+            {
+                float now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(S.Repo);
+                r.ObservedAt = now - observedAgo;
+                S.Repo.Bus.PublishManaged(new Fdp.Toolkit.Squad.Command.SquadReportNotification { FromUnit = from, ToUnit = S.Commander, Report = r, SentAt = now });
+            }
+
+            public void ReportSet(Entity from, float observedAgo = 0f)
+                => Report(from, new Fdp.Toolkit.Squad.Command.CommandReport
+                {
+                    Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set,
+                }, observedAgo);
+
+            public void ReportSpot(Entity from, Vector3 at, byte count)
+                => Report(from, new Fdp.Toolkit.Squad.Command.CommandReport
+                {
+                    Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = at, Count = count,
+                    Size = Fdp.Toolkit.Squad.Command.StaffComposerSystem.SizeOf(count),
+                });
+
+            public int OrdersTo(Entity squad, string intent) => S.Orders.Count(o => o.Entity.Equals(squad) && o.IntentId == intent);
+
+            public void Bound(float sitrep = 0f)
+                => S.Order("{\"SupportPoint\":[0,100,0],\"Objective\":[50,200,0],\"SitrepEverySeconds\":" + sitrep.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}",
+                           BehaviorNames.PlatoonBound);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2294</c> CC-D (cc-platoon-bound ①②) — <c>PlatoonBound</c> orders the SUPPORT squad (Bravo) once and keeps that
+        /// order (no re-send while it stands); the ASSAULT squad (Alpha) is ordered ONLY after Bravo's SET is in the picture; a Set observed
+        /// before Alpha's order (the last order's, still on its way) does not finish the task; Alpha's own Set does. ✅ Red-proofs: the
+        /// support guard always true ⇒ Alpha ordered at once; the fold ignoring <c>OrderedAt</c> ⇒ the stale Set finishes the task.</summary>
+        [Fact]
+        public void CE2294_PlatoonBound_OrdersTheSupportSquad_ThenTheAssaultOnlyOnItsSet()
+        {
+            var p = new Platoon();
+            p.Bound(sitrep: 15f);
+            p.Ticks(3);
+            Assert.Equal(BehaviorNames.PlatoonBound, p.S.TaskName);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, "Order.Move"));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Move"));
+            p.Ticks(60);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, "Order.Move"));          // the order stands: not re-sent
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Move"));
+
+            p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));
+            var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var back = p.S.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(50f, 200f)), 0f, 0.1f);
+
+            p.ReportSet(p.Alpha, observedAgo: 5f);                       // observed before Alpha's order: the last order's
+            p.Ticks(3);
+            Assert.False(p.S.Finished(out _));
+            Assert.Equal(BehaviorNames.PlatoonBound, p.S.TaskName);
+
+            p.ReportSet(p.Alpha);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2294</c> CC-D (cc-platoon-bound ③④) — the platoon's SOP (<c>BasicPlatoonSop</c>) takes a reported enemy team as
+        /// the edge <c>ReportReceived</c> + <c>ElementReported</c> and REACTS with <c>PlatoonHold</c>: the task pauses, BOTH squads are
+        /// ordered to hold (once — the order stands); the lost SPOT ends the hold, its orders are released, and the task RESUMES in its state
+        /// and orders its leg's squad (Alpha) again — Bravo, whose leg is behind it, is not re-ordered. ✅ Red-proof: <c>MoveLeg</c> never
+        /// re-ordering (orders given once per state) ⇒ Alpha left un-ordered after the hold.</summary>
+        [Fact]
+        public void CE2294_ASpotPausesTheTask_BothSquadsHold_ThenTheTaskResumesAndReordersItsLeg()
+        {
+            var p = new Platoon();
+            p.S.StartSop("BasicPlatoonSop");
+            p.Bound();
+            p.Ticks(3);
+            p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));
+
+            p.ReportSpot(p.Alpha, new Vector3(0f, 250f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
+            Assert.True(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, "Order.Hold"), p.OrdersTo(p.Bravo, "Order.Hold")));
+            p.Ticks(60);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, "Order.Hold"), p.OrdersTo(p.Bravo, "Order.Hold")));   // the hold stands
+
+            p.ReportSpot(p.Alpha, new Vector3(0f, 250f, 0f), 0);         // lost: the element is gone
+            p.Ticks(6);
+            Assert.Equal(BehaviorNames.PlatoonBound, p.S.TaskName);
+            Assert.Contains(p.S.Clears, c => c.Entity.Equals(p.Alpha));
+            Assert.Contains(p.S.Clears, c => c.Entity.Equals(p.Bravo));
+            Assert.Equal(2, p.OrdersTo(p.Alpha, "Order.Move"));          // the leg re-ordered on resume
+            Assert.Equal(1, p.OrdersTo(p.Bravo, "Order.Move"));          // the support leg is behind the task
+
+            p.ReportSet(p.Alpha);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2294</c> (R-214, CV-8) — only contacts still IN THE FIGHT make the element: dead men stay in memory by design
+        /// and a neutral is no enemy, so neither is SPOTted; when the last enemy dies the squad sends the lost SPOT and the platoon's
+        /// picture empties. 📌 Found live in cc-platoon-bound (three dead enemies, a count-3 SPOT every 15 s, the hold never ending).
+        /// ✅ Red-proof: the in-the-fight filter removed ⇒ the dead are still an element.</summary>
+        [Fact]
+        public void CE2294_DeadOrNeutralContacts_AreNoElement_TheLastDeathClearsThePicture()
+        {
+            var c = new Chain(members: 3);
+            var enemies = c.S.PoolMany(3, new Vector3(0f, 200f, 0f));
+            foreach (var e in enemies) c.S.Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            c.S.Repo.AddComponent(enemies[2], new EntityInfo { ForceId = ForceId.Neutral });
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Picture.Elements.Count);
+            Assert.Equal((byte)2, c.Picture.Elements.Items[0].Count);                    // the neutral is not counted
+
+            foreach (var e in enemies) c.S.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Current = 0f;
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Picture.Elements.Count);                                   // the lost SPOT, at once (not at the refresh)
+        }
+
+        /// <summary>⭐ <c>CE-2294</c> (CB-33, CB-34) — a squad re-SPOTs an element it still holds every 15 s, so the platoon's copy stays
+        /// fresh while it is there (a stale one then means it is gone). ✅ Red-proof: the refresh check removed ⇒ no second SPOT.</summary>
+        [Fact]
+        public void CE2294_AHeldElement_IsReSpotted_Every15Seconds()
+        {
+            var c = new Chain(members: 3);
+            c.S.PoolMany(3, new Vector3(0f, 200f, 0f));
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            int sent = c.Composer.SentCount;
+            float first = c.Picture.Elements.Items[0].ObservedAt;
+            c.S.Pause(8); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(sent, c.Composer.SentCount);                    // ~11 s: not yet
+            c.S.Pause(5); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(sent + 1, c.Composer.SentCount);
+            Assert.Equal(1, c.Picture.Elements.Count);
+            Assert.True(c.Picture.Elements.Items[0].ObservedAt > first + 14f);
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)

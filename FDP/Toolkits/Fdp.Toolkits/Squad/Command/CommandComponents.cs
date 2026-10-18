@@ -61,6 +61,9 @@ namespace Fdp.Toolkit.Squad.Command
         public float LastSitrepAt;
         /// <summary>The newest sequence taken in from it (CB-32: an older one arriving late is dropped).</summary>
         public uint LastSeq;
+        /// <summary>⭐ <c>CE-2294</c> CC-D — when the commander last gave it a fresh order (sim s): a PROGRESS observed before it belongs to
+        /// the previous order and is not taken (a Set still on its way when a play re-orders must not satisfy the new wait).</summary>
+        public float OrderedAt;
     }
 
     [InlineArray(CommandPicture.MaxSubordinates)]
@@ -190,5 +193,8 @@ namespace Fdp.Toolkit.Squad.Command
         public ElementSize SpotSize;
         /// <summary>⭐ CE-2293 — when the composer last queued a routine SITREP (sim s; 0 = never).</summary>
         public float LastSitrepAt;
+        /// <summary>⭐ CE-2294 — when the composer last queued a SPOT of the element (sim s): it re-reports a still-held element every
+        /// <c>SpotRefreshSeconds</c> (CB-33: a reported contact is forgotten "unless re-reported").</summary>
+        public float SpotSentAt;
     }
 }

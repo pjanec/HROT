@@ -59,6 +59,14 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";
 
+        /// <summary>⭐ <c>CE-2294</c> CC-D (Command Chain §1, §6) — a platoon's task: its support squad moves to the support point; once
+        /// that squad reports SET, its assault squad moves to the objective; done when the assault squad reports SET. An HSM.</summary>
+        public const string PlatoonBound = "PlatoonBound";
+
+        /// <summary>⭐ <c>CE-2294</c> CC-D — a platoon's reaction to a reported enemy element: every squad holds, until no such element is
+        /// fresh in the platoon's picture (then the paused task resumes where it was).</summary>
+        public const string PlatoonHold = "PlatoonHold";
+
         /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the MOVE order: it marches there (Wedge, or File on a road).</summary>
         public const string InfantrySquadMove = "InfantrySquadMove";
 

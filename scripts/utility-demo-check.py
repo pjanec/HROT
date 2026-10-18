@@ -1279,6 +1279,82 @@ def run_sl0_platoon_march(c, timeout):
          f"⑤ the platoon stands with its effective squads, not pulled back to the dead one (platoon y={pp and round(pp[1])}, Charlie y={cp and round(cp[1])})")
 
 
+def squad_reports(unit=None, last=256):
+    q = f"/squad/reports?last={last}" + (f"&unit={unit}" if unit else "")
+    return (data(call("GET", q)) or {}).get("reports") or []
+
+
+def run_cc_platoon_bound(c, timeout):
+    """⭐ CE-2294 CC-D (Command Chain §1, §8) — the first two-level command chain. A body-less PLATOON (305) runs PlatoonBound over
+    Alpha and Bravo: Bravo moves to the support point; only when Bravo's staff reports SET (3 s after its task ends) is Alpha ordered
+    to the objective. Three armed neutrals north of it turn hostile: Alpha's staff sends ONE SPOT, the platoon's SOP (BasicPlatoonSop,
+    its TKB default) reacts with PlatoonHold — the task pauses, both squads hold. The enemy goes down, the SPOT says lost, the hold
+    ends, and the task RESUMES in its leg: Alpha is ordered on and reports SET, and the task completes."""
+    ids = ids_by_name()
+    pl, al, br = ids.get("Platoon"), ids.get("Alpha"), ids.get("Bravo")
+    enemies = [ids.get(f"Enemy {i}") for i in (1, 2, 3)]
+    if not c.ok(pl and al and br and None not in enemies, "the platoon, Alpha, Bravo and three (neutral) enemies are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(pl) == "PlatoonBound", 10), f"the platoon runs PlatoonBound (task: {task_name(pl)})")
+    moved = wait_for(lambda: task_name(br) == "InfantrySquadMove", 15)
+    c.ok(moved and task_name(al) != "InfantrySquadMove",
+         f"② Bravo is ordered to the support point first; Alpha waits (Bravo: {task_name(br)}, Alpha: {task_name(al)})")
+
+    def progress_from(u, after=None):
+        return next((r for r in reversed(squad_reports()) if r.get("from") == u and r.get("kind") == "Progress"
+                     and r.get("subtype") == "Set" and r.get("verdict") == "folded" and (after is None or r["seenAt"] > after)), None)
+    bset = wait_for(lambda: progress_from(br), 240, every=1)
+    if not c.ok(bset is not None, "① Bravo reaches the support point and its staff reports SET"):
+        return
+    lag = bset["seenAt"] - bset["observedAt"]
+    c.ok(2.9 <= lag <= 3.6, f"① …into the platoon's picture {lag:.2f} s after Bravo's task ended (3 s + a frame)")
+    a_order = wait_for(lambda: (o := data(call("GET", f"/entities/{al}/order")) or {}).get("task") and o, 15)
+    since = ((a_order or {}).get("task") or {}).get("since")
+    c.ok(since is not None and since >= bset["seenAt"] - 0.05,
+         f"② only THEN is Alpha ordered (its task {((a_order or {}).get('task') or {}).get('behavior')} since {since}, Bravo's SET seen at {bset['seenAt']:.2f})")
+
+    for e in enemies:
+        call("POST", f"/entities/{e}/attribute", {"patchJson": {"Affiliation": "FORCE_OPPOSING"}})
+    spot = wait_for(lambda: next((r for r in reversed(squad_reports(unit=al)) if r.get("from") == al and r.get("kind") == "Spot"
+                                  and (r.get("count") or 0) > 0), None), 90, every=1)
+    if not c.ok(spot is not None, "③ Alpha's staff SPOTs the enemy"):
+        return
+    time.sleep(4)
+    first = [r for r in squad_reports(unit=al) if r.get("from") == al and r.get("kind") == "Spot" and r["seenAt"] <= spot["seenAt"] + 4]
+    c.ok(len(first) == 1 and spot.get("size") in ("Team", "Individual"),
+         f"③ ONE SPOT for the element, not one per contact (count {spot.get('count')}, size {spot.get('size')}; SPOTs in its first 4 s: {len(first)})")
+
+    held = wait_for(lambda: task_name(pl) == "PlatoonHold", 15)
+    c.ok(held, f"④ the platoon's SOP reacts: PlatoonHold (task: {task_name(pl)})")
+    both = wait_for(lambda: task_name(al) == "InfantrySquadHold" and task_name(br) == "InfantrySquadHold", 15)
+    c.ok(both, f"④ …both squads hold (Alpha: {task_name(al)}, Bravo: {task_name(br)})")
+    st = data(call("GET", f"/entities/{pl}/state")) or {}
+    print(f"    platoon state while holding: behavior={st.get('behavior')}, paused={st.get('pausedTask') or st.get('paused')}")
+
+    t_kill = sim_time() or 0
+    for e in enemies:
+        set_health(e, 0)
+    resumed = wait_for(lambda: task_name(pl) == "PlatoonBound", 90, every=1)
+    c.ok(resumed, f"④ the element is gone (a lost SPOT), the hold ends and the task RESUMES (task: {task_name(pl)})")
+    re_ordered = wait_for(lambda: task_name(al) == "InfantrySquadMove", 15)
+    c.ok(re_ordered and task_name(br) != "InfantrySquadMove",
+         f"④ …in its leg: Alpha is ordered on to the objective, Bravo (behind the plan) is not (Alpha: {task_name(al)}, Bravo: {task_name(br)})")
+    aset = wait_for(lambda: progress_from(al, after=t_kill), 240, every=1)
+    c.ok(aset is not None, "the assault squad reaches the objective and reports SET")
+    done = wait_for(lambda: task_name(pl) != "PlatoonBound", 15)
+    c.ok(done, f"…and the platoon's task completes (task now: {task_name(pl)})")
+
+    pic = data(call("GET", f"/entities/{pl}/reports")) or {}
+    subs = {s.get("networkId"): s for s in (pic.get("picture") or {}).get("subordinates", [])}
+    log = squad_reports(unit=pl)
+    c.ok(al in subs and br in subs and all(r.get("observedAt") is not None and r.get("seenAt") is not None for r in log) and len(log) >= 4,
+         f"⑤ every report is on the debug HTTP with ObservedAt and arrival ({len(log)} in the log; rows: "
+         f"{[(s.get('name'), s.get('progress'), s.get('lastSeq')) for s in subs.values()]})")
+    kinds = sorted({(r.get("kind"), r.get("subtype")) for r in log}, key=str)
+    print(f"    report kinds seen: {kinds}")
+
+
 def run_squad_bound_open_ground(c, timeout):
     """⭐ CE-2161 (Squad Tactics §7.7.7 D3; CE-3081 OpenGround) — a squad marching with OpenGround on leaves Shed Row's cover for the
     ~100 m open field to (175, 60): the commander's route sensor lists the field as OpenGround, the crossing choice picks BOUND, the
@@ -3793,6 +3869,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-squad-march-loose": run_squad_march_loose,
              # ⭐ CE-2262 SL-0 — the first nested hierarchy: a platoon of squads (Building Clearing §7)
              "sl0-platoon-march": run_sl0_platoon_march,
+             "cc-platoon-bound": run_cc_platoon_bound,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

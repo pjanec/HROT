@@ -659,7 +659,7 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>⭐ <c>CE-2262</c> SL-0 — the INFANTRY PLATOON: a land unit of the infantry arm at platoon echelon whose roster is three
-        /// squad commanders (a composite of composites), with a brain and no default SOP yet (CC-D brings BasicPlatoonSop).</summary>
+        /// squad commanders (a composite of composites), with a brain whose standing orders are BasicPlatoonSop (CC-D, CE-2294).</summary>
         [Fact]
         public void CE2262_TheInfantryPlatoon_IsThreeSquads()
         {
@@ -674,7 +674,7 @@ namespace Hrot.Map.Common.Tests
             Assert.NotEqual(squad.DisType.Subcategory, platoon.DisType.Subcategory);                                            // a different echelon
             var brain = platoon.GetDescriptor<BehaviorProfileDto>();
             Assert.NotNull(brain);
-            Assert.Null(brain!.DefaultSop);
+            Assert.Equal("BasicPlatoonSop", brain!.DefaultSop);   // ⭐ CE-2294 CC-D
         }
 
         /// <summary>

@@ -212,6 +212,10 @@
     <Content Include="Assets\BTrees\Library\Sop\BasicSquadSop.btree.json" Link="Recipes\BTrees\BasicSquadSop.btree.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- ⭐ CE-2294 CC-D — the platoon commander's standing orders (Command Chain §6): same two roles. -->
+    <Content Include="Assets\BTrees\Library\Sop\BasicPlatoonSop.btree.json" Link="Recipes\BTrees\BasicPlatoonSop.btree.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- H4 — SCENARIO SEEDS: the "recipe" a new scenario is created from (design §2.1e ⑤b: a scenario

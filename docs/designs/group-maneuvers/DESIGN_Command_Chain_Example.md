@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
+build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) still open; CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
@@ -445,3 +445,46 @@ Rails: `SquadManeuverTests.CE2295_*` (a fake SPOT arrives synthetic, aged and lo
 element replaces it; a muted squad's PROGRESS waits until the radio is back); route docs in `DebugApiRouteDocs` (rail
 `EveryRouteIsDocumentedTests`). ⚠ `CE-2288` (one read route over every behaviour slot) is NOT in this slice — its first consumer is
 the platoon demos that watch a hosted squad play.
+
+**CC-D `CE-2294`** — the first chain runs: `PlatoonBound` + `PlatoonHold` (`Hrot.AI.Behaviors/Brains/PlatoonBehaviors.cs`), the leg
+node `MoveLeg` (`CommandNodes.cs`), the SOP asset `BasicPlatoonSop.btree.json` (the platoon type's TKB default SOP), scenario
+`cc-platoon-bound`:
+
+| piece | as built | deviation from §6 |
+|---|---|---|
+| `PlatoonBound` (HSM) | states `Support` → `Assault` → `Done` (Final); each leg's ACTIVITY is `MoveLeg` (its squad, its point), its polled guard `ProgressReached(slot, Set)`; `Done`'s entry withdraws the SITREP extras it asked (only when it asked). Params `PlatoonBoundParamsJsonDto`: `SupportPoint`, `Objective`, `SupportSquad` / `AssaultSquad` (1-based roster places; 0 = Bravo / Alpha), `Speed`, `ArrivalRadius`, `SitrepEverySeconds` | ⭐ §6's four states (`OrderBravo` → `WaitBravo` → …) with ENTRY actions became two states with an ACTIVITY: an HSM resumes in its state with its activities ticking (Decision Layer §4.1), and an entry action would not run again — so after a reaction replaced the squad's order, nothing would have ordered it on (see the sequence below) |
+| `MoveLeg` | `[SharedAiAction]` stateful `{Slot, Point, Speed, ArrivalRadius, SitrepEverySeconds}`: orders the squad (abstract Move + the SITREP extras) whenever THIS run's order to it does not stand (`CommandOrders.Stands`: the commander's `SubordinateOrders` entry for that squad carries another run, or none) — on the state's first tick, and again after a reaction | — (new; any play's leg) |
+| `PlatoonHold` (BTree reaction) | every roster squad ordered `Hold` (abstract) and kept on it while `ElementReported(Team+, 400 m, 30 s)`; Success once not. Params `PlatoonHoldParamsJsonDto` (`MinSize`, `WithinMetres`, `FreshSeconds`) | — |
+| `BasicPlatoonSop` | one row: `SensedFresh(ReportReceived, 3 s)` → `ElementReported(Team, 400 m, 30 s)` → `React PlatoonHold (Contact)` | the platoon type's TKB `DefaultSop` (the `PilotSop` precedent) — SL-0 left it empty for CC-D |
+| ⭐ the stale-Set guard | `SubordinateRow.OrderedAt` (set by `OrderGiven`); the inbox takes a PROGRESS only when `ObservedAt ≥ OrderedAt` | §6 reset the progress on a fresh order; a Set still on its way (3 s) would still have satisfied the NEW wait |
+| ⭐ the SPOT refresh | the composer re-SPOTs a still-held element every `SpotRefreshSeconds` = 15 s (`ReportOutbox.SpotSentAt`) | CC-C sent one SPOT per element, so a still-visible enemy aged out of the platoon's picture in 30 s and the hold would end with the enemy still there — CB-33 assumes a contact is "forgotten … unless re-reported", CB-34 gives the 15 s engaged rate |
+| ⭐ an element is men IN THE FIGHT | the composer counts only pool contacts that are not `ThreatDanger.IsOutOfTheFight` (dead, incapacitated, surrendered) and not `IsNeutral`; the last one going sends the lost SPOT (Count 0) at once | 📌 found LIVE in `cc-platoon-bound`: dead men stay in memory by design (R-214, CE-3080 — every threat reader filters them), so CC-C's raw pool count SPOTted three corpses every 15 s and the platoon held forever |
+
+```mermaid
+sequenceDiagram
+  participant SOP as platoon SOP (BasicPlatoonSop)
+  participant GATE as BehaviorIngressSystem
+  participant PB as PlatoonBound, state Assault
+  participant HOLD as PlatoonHold (reaction)
+  participant SO as SubordinateOrders on the platoon
+  participant A as Alpha squad
+  PB->>SO: Record(Alpha, run = task)
+  PB->>A: Order.Move objective (MoveLeg, first tick)
+  Note over SOP: SPOT from Alpha folded, ReportReceived
+  SOP->>GATE: React PlatoonHold
+  GATE->>PB: pause (instance and state kept)
+  HOLD->>SO: Record(Alpha, run = reaction)
+  HOLD->>A: Order.Hold
+  Note over HOLD: lost SPOT, ElementReported false, Success
+  GATE->>SO: Release(reaction run), Clear to Alpha
+  GATE->>PB: resume in Assault
+  PB->>SO: Stands(Alpha)? no entry of this run
+  PB->>A: Order.Move objective again, OrderedAt = now
+```
+*What the picture shows that the prose hid:* the resumed task does not know it was paused — it only asks "does MY order to this squad
+still stand?", and the reaction's release has answered no. The same question also covers an operator's order to the squad.
+
+Rails: `SquadManeuverTests.CE2294_*` — the support squad ordered once and kept, the assault squad only after its Set, a Set observed
+before the order not taken; the SOP's reaction pauses the task, both squads hold once, the lost SPOT resumes it and only the current
+leg's squad is re-ordered; a held element re-SPOTted every 15 s. Red-proofs: the support guard always true · the fold ignoring
+`OrderedAt` · `MoveLeg` ordering once per state · no refresh — each reddens its rail.
