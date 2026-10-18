@@ -1331,6 +1331,35 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(p.Orders, o => o.Entity.Equals(p.Members[2]));
         }
 
+        /// <summary>⭐ <c>CE-2291</c> CC-A (R-2042) — the commander's picture is the UNIT's knowledge: a task switch and a reaction pausing the
+        /// task (through the real ingress) leave it exactly as the staff wrote it — a guard against any future admit step that resets unit
+        /// state.</summary>
+        [Fact]
+        public void CE2291_ThePicture_SurvivesATaskSwitch_AndAReaction()
+        {
+            var s = new Squad(members: 3);
+            var picture = new Fdp.Toolkit.Squad.Command.CommandPicture();
+            picture.Elements.Items[0] = new Fdp.Toolkit.Squad.Command.ReportedElement { At = new Vector3(10, 200, 0), Count = 3, FromNetId = 5002, Seq = 7 };
+            picture.Elements.Count = 1;
+            picture.Subordinates.Items[0] = new Fdp.Toolkit.Squad.Command.SubordinateRow { UnitNetId = 5002, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
+            picture.Subordinates.Count = 1;
+            s.Repo.AddComponent(s.Commander, picture);
+
+            s.Order("{\"DurationSeconds\":0}", BehaviorNames.SquadHold);
+            Ticks(s, 2);
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);   // a task switch
+            Ticks(s, 2);
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+            s.React(BehaviorNames.SquadHold);                                                                       // a reaction pauses it
+            Ticks(s, 2);
+            Assert.Equal(BehaviorNames.SquadHold, s.TaskName);
+
+            var after = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(s.Commander);
+            Assert.Equal(1, after.Elements.Count);
+            Assert.Equal((5002L, 7u, (byte)3), (after.Elements.Items[0].FromNetId, after.Elements.Items[0].Seq, after.Elements.Items[0].Count));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, after.Subordinates.Items[0].Progress);
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)
