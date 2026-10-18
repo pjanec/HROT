@@ -27,7 +27,8 @@ real world military doctrines."*
 🔒 User, `2026-10-18`, on the review: *"Platoon layer is what we need to exercise so the behaviors are created from that point of view already."* ·
 *"Refusing civilians should be let be even if they protest, shout and insult unless they attack, then non lethal melee should be used (weapon butt hits for example for a soldier having other means) to stun them."* ·
 *"Reuse knock down."* · *"Reports need to be networkable, nothing hidden inside single brain only."* ·
-*"Search is likely an interaction channel, needing also some posture so ui can render an animation"* · *"Also civilians lying down covering their heads with their hands if frightened or ordered to comply."*
+*"Search is likely an interaction channel, needing also some posture so ui can render an animation"* · *"Also civilians lying down covering their heads with their hands if frightened or ordered to comply."* ·
+*"the mission us not always to kill"* · *"Also stun/flasglh grenades thrown to room"*
 
 **The decision in one line (approved, R-2030 / R-2031):** a **platoon** play **`IsolateAndClear`** — the support squad isolates the
 building, the assault squad clears it with the squad play **`ClearBuilding`** (its entry fire team clears by Battle Drill 6 while the
@@ -219,7 +220,7 @@ fight, and its payloads hold local entity ids · **a report component on the com
 history, and would be the brain-local state R-2031 rules out.
 *(Owner: behaviors, in `CE-2263` — the debug API has taken squad routes from this lane before, `/entities/{id}/squad` O-a.)*
 
-## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030, R-2031, R-2032)*
+## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
 | id | decision | ✅ ruled | rejected — one line each |
 |---|---|---|---|
@@ -247,6 +248,12 @@ history, and would be the brain-local state R-2031 rules out.
 | **CB-22** | corners *(R-2032)* | **`SliceThePie`**: small steps on an arc outside a corner or a doorway, leaning, weapon first, until the space beyond is seen — always at hallway corners, junctions and stairs; at a doorway **under contact** (replaces CB-12's "fire from beside the door": pie the room, then enter); otherwise rooms keep Battle Drill 6's fast entry | pie every room: doctrine wants speed at the stack · never pie: the corners |
 | **CB-23** | escort *(R-2032)* | v2 — but its pose is fixed now: a `Restrained` man walking beside a soldier who holds him (a "led" mode, the person-carrier pattern) | build it now: no demo needs it yet |
 | **CB-24** | the civilians' poses *(ruled 2026-10-18, R-2032)* | **Cower** (frightened, no shelter): **Prone + `CoverHead`** (was Crouched) · **Comply** (ordered down): **Prone + `HandsOnHead`** · searched: stays Prone + `HandsOnHead`, the searcher Crouched + `Searching` · detained: Prone or kneeling + `Restrained`. ⭐ **`ThreatDanger.ShowsHandsUp` counts `HandsUp`, `HandsOnHead`, `Restrained` — never `CoverHead`**: covering the head is fear, not surrender | one "head" gesture: a frightened Hostile would read as surrendering · Cower kept crouched: people under fire drop flat |
+| **CB-25** | the objective *(ruled 2026-10-18, R-2033)* | one order setting **`Objective: Eliminate \| Arrest`** + an optional **`CaptureTarget`** (named people to take alive), on `IsolateAndClear` and `ClearBuilding`; police (SecurityForce) units default to Arrest, soldiers to Eliminate — the same drill, a setting | a separate police drill: the whole play twice |
+| **CB-26** | Arrest's force *(R-2033)* | **everyone is judged by conduct** (AW-21's path, insurgents included) and the escalation ladder (§5k) reaches status combatants: **challenge** ⇒ complies: control, search, restrain, detain · refuses or resists without aiming: **non-lethal** (the butt / baton knock-down now; taser / spray when G5 lands) · aims or fires: **lethal** (self-defence, built). A `CaptureTarget`: non-lethal preferred even armed; lethal only to save a teammate | Arrest = never fire: police fire when a life is threatened |
+| **CB-27** | shouting *(R-2033)* | **speech is data** — G1's targeted, replicated `Utterance` (`CE-2249`, backend's component): Challenge · commands Down / Freeze / HandsUp / DropIt / ComeOut · Announce at the door · team calls Clear / ManDown. The TARGET's brain reads the commands addressed to him. A prerequisite of Arrest; Eliminate works without it (`Gesture.Warning`). ⭐ The ladder's brain-local `WarningLog` becomes a reader of utterances — R-2031 | shouting as ui decoration only: nobody could answer it |
+| **CB-28** | the challenged answer *(R-2033)* | a civilian: Comply or refuse (CB-24) · an insurgent: a new **`SurrenderDecision`** — challenged AND covered by ≥ 2 guns ⇒ he surrenders if his **`Resolve`** allows (the existing `Surrender` behaviour, now Prone + `HandsOnHead`; a fanatic, Resolve 1, never), else fights or flees | no decision: an insurgent never gives up, an Arrest ends in a firefight |
+| **CB-29** | capture and delivery *(R-2033)* | restrain ⇒ **escort** (CB-23, v1 for Arrest) ⇒ board a vehicle (the Embark / LoadCasualty pattern) ⇒ move to the delivery point ⇒ hand over; the mission succeeds when he is **delivered alive** | leave him in place: the capture mission never ends |
+| **CB-30** | stun grenades *(R-2033; widens CB-6)* | **Arrest:** a flashbang before EVERY room not Cleared · **Eliminate + Precision:** a stun into a Suspected room, and always a stun (never fragmentation) when non-combatants are known · **Eliminate + HighIntensity:** fragmentation into a Suspected room with none known, a stun when one is. The drill **"bang out"**: #1 opens, #2 throws, the stack waits OUT of the doorway behind the wall for the bang (≈ 1.5 s fuze), enters within 1 s on it — the window is up to 8 s (the existing stun grenade 6037: 8 m, 8 s, scaled by falloff and walls, `AreaEffectSystem.cs:221`). No throw when a friend would get more than 0.5 s of stun at his position (the same falloff and barrier) | before every room always: wasted under Eliminate · never in Arrest: it is the police's main tool against having to shoot |
 
 ## 6a. Casualties and edge cases *(approved)*
 
@@ -324,6 +331,8 @@ history, and would be the brain-local state R-2031 rules out.
 | `SearchPerson {Target}` | 🆕 | go to a complying man, Crouched + `Searching`, send the `Search` interaction (3 s); a Hidden weapon found ⇒ `Detain` (+ `Restrain`); none ⇒ `Held` (CB-19) | BC-2 |
 | `SliceThePie {Corner}` | 🆕 | the arc of small steps outside a corner or doorway, leaning, `Aimed`, until the space beyond is seen (CB-22) | BC-3 (corners), BC-5 (doorway under contact) |
 | `MeleeResponse` (SOP reaction) | 🆕 | struck in melee by an unarmed man in reach (`Hit` from a Blunt `DamageAssessedEvent` whose `Source` is in reach) ⇒ one `Melee.Strike` back (the existing 3 s knock-down), then the order resumes — any soldier, not only indoors | BC-2 |
+| `SurrenderDecision` + `Resolve` | 🆕 | the insurgent's answer to a challenge (CB-28) | CE-2267 |
+| `Escort {Detainee, To}` + delivery | 🆕 | walk a restrained man beside the escort ("led" mode), board, deliver, hand over (CB-29) | CE-2268 |
 | `CombatPosture` · `CasualtyCare` (the R-2012 medic) · `CarryCasualty` · `Surrender` · `StationWeapon` (B3 draw) | ✅ | the defenders, casualties, a surrendering insurgent, the covert one's draw | — |
 
 ### Squad and platoon plays *(behaviors)*
@@ -342,7 +351,9 @@ history, and would be the brain-local state R-2031 rules out.
 | `IsolationPlan` | 🆕 | watch points outside covering each exit and window face, out of each other's line | PL-1 |
 | `EngagementArea` | 🆕 component, read by the target pick BEFORE the gate | allowed arcs / polygons per member — ONE mechanism for the room sector (CB-4) and the support squad's "rooms not Cleared" (CB-18); never a new firing rule | BC-1, PL-1 |
 | `BuildingClearance` | 🆕 | per room Unknown / Suspected / Cleared / Blocked, the held and detained, the casualty point; on the clearing echelon's commander, rebuilt from reports | BC-3, PL-1 |
-| `GrenadeCheck` | 🆕 | Intensity × room state × no non-combatant known × no friend within the munition's lethal radius of the aim point | BC-4 |
+| `GrenadeCheck` | 🆕 | Objective × Intensity × room state × non-combatants known; the friend check by the area effect's own falloff and walls (CB-30); "bang out" timing | BC-4 |
+| `Objective` / `CaptureTarget` + conduct-for-everyone | 🆕 | the order setting (CB-25), the gate's conduct path and the ladder for status combatants under Arrest (CB-26) | CE-2266 |
+| `Utterance` readers | 🆕 | the challenge and the commands sent by `ControlPerson` / the ladder; the target's brain reads those addressed to him (CB-27) | CE-2249 (+ backend G1) |
 
 ### The civilians *(the civilian HSM, behaviors)*
 | block | kind | what | slice |
@@ -385,6 +396,8 @@ squad has four exits to watch. Placed in `bt-range` on open ground, 60 m from th
 | `bc-platoon-house-relief` | PL-1 | the same, with three assault-squad men made incapacitated by the scenario script after room B | ① `Casualty` ×3 then `CombatIneffective` from the assault squad · ② the reserve is ordered `ClearBuilding` within 1 s of the report arriving · ③ the reserve clears only C, D, E — no room cleared twice · ④ the casualties carried to the casualty point after a room is clear, never mid-room |
 | `bc-house-high-intensity` | BC-4 | one squad, `Intensity: HighIntensity`, no civilians, insurgents heard in A and D | a fragmentation grenade before A and D (Suspected); none before B, C, E (Unknown); none with a friend inside its lethal radius |
 | `bc-house-defended` | BC-5 | an insurgent in A firing through its open door at the stack in the hallway | no entry until 3 s of quiet; the man hit in the doorway replaced from the security team; the room still cleared |
+| `bc-police-arrest` | CE-2266 | a police team (Arrest) at the CQB house: 2 insurgents (one Resolve 0.2, one 1.0), 2 civilians | a flashbang before every room; a challenge (`Utterance`) to every person; the low-Resolve insurgent surrenders and is detained ALIVE; the fanatic is shot only after he aims; the civilians comply, unhurt |
+| `bc-capture-hvt` | CE-2268 | a platoon (Eliminate) with `CaptureTarget` = one named insurgent among three, a truck at the rally point | the two others engaged as usual; the target taken alive (non-lethal only), restrained, escorted to the truck, delivered; success = delivered alive |
 
 ⚠ **To measure before the relief demo is built** (`⛔ assumed`): how a scenario incapacitates men at a scripted moment. A timed scenario
 task, a health-setting HTTP command or a test-only system are the candidates; the twin can set `Health` directly either way.
