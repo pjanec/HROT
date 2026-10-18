@@ -2340,6 +2340,8 @@ graph TD
 | live, first cut | ⛔ 0 of 12 rioted — the riots were too short to be sampled, nobody struck the police ⇒ PV-6 and the 60 s presence phase |
 | twin, as built (60 s presence, `FearBeatsAnger`) | ✅ police within 30 m at 22.3 s; the first riot at 51.5 s (presence alone, a hostile-at-heart member); the first baton blow at 58.6 s; rioted {1, 4, 6}, all three Hostile (each struck the police); no attitude −1 member riots |
 | ⭐ live `ua-civ-provocation`, as built | ✅ **7/7** — police within 30 m at 20.5 s, the first riot at 48.0 s, the first blow at 60.0 s; rioted {1, 6} of 12, Hostile {1, 6} on CGF, SimHost and IG alike; no attitude −1 member riots |
+| mutants (9) — facing ignored · provoke reach ×100 · the struck man spiked too · spike every frame · riot ignores attitude · charge strikes any Neutral · charge ignores the force level · charge 1000× longer · a rioter panics on fear alone | ✅ all 9 red on their rails |
+| neighbour twins after the change — bomber (CE-2247), police line, escalation ×2, self-defence, celebration, riot stone, civilian melee, gas throw-back, surrender, contagion, protest, provocation | ✅ 13/13 |
 
 ## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
 
@@ -2374,6 +2376,21 @@ the remote trigger already read it, so nothing new crosses the wire.
 | **HD-3** | ⭐ only the owning HSM writes it, only through `HeldItems.Set`, and only clears what it set (a Phone or a Throwable — never a drawn weapon) | clearing on every state entry: it would put away a weapon `StationWeapon` drew |
 | **HD-4** | ⚠ a phone in hand is a small NON-lethal object to an observer (`HeldItems.Shows`): no rule fires a round at it, and a Neutral is held first anyway (CIV-0) | — |
 
+### 5n.1 As built *(2026-10-18)*
+
+⭐ As drawn: `CivilianBehavior.Routine` draws the phone on the pause's own seeded draw (`PhoneShare` 0.3) and puts it away before the next
+walk and in its deactivator; `Riot` holds `Throwable` while `Stones.InHand`, else empties it, and its deactivator puts it away. Two
+private helpers carry HD-3 — `Hold` never replaces a drawn `Weapon` or `Binoculars`, `PutAway` clears only the kind it is given. No new
+component, no new wire.
+
+⚠ Checked, not a hazard: a phone in hand is also a remote charge's TRIGGER permission (`Charges.Ask`, HI-6) — but only `DetonateCharge`
+asks; taking a phone out sets nothing off.
+
+| proof | result |
+|---|---|
+| rail `CivilianHsmTests.CE2248_InARoutinePause_…` — over 60 pauses a share (0.15–0.45) has the phone out; none while walking; kept out while he lingers; put away on Alarmed; a drawn weapon is never touched | ✅ — red under 5 mutants |
+| rail `CivilianHsmTests.CE2248_ARioterWithAStone_…` — Throwable with stones, None out of stones, None out of the riot | ✅ — red under 3 mutants |
+
 ## 5o. The people display's gaps — the BEHAVIOUR halves *(behaviors, 2026-10-18; build-state: DESIGN — frames with leans, for review)*
 
 ⭐ **Scope.** ui's [DESIGN_People_Display.md](DESIGN_People_Display.md) §8 (findings [G1–G8](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))
@@ -2393,7 +2410,7 @@ says WHICH weapon; no speech, no mood on the wire — ui's §1.1 sweep agrees)*.
 | **`CE-2252`** · G5 taser, spray | ⭐ **they are ladder RUNGS between Warn and NonLethal**: a policeman who may use non-lethal force on a man within 7 m (taser) / 3 m (spray) chooses them before the baton round — the weapon choice (`ForceLevels.AllowsMount`, EL-9) reads the mount's effect and range; `HoldTheLine` closes to them only when the target is already within reach | backend's munitions and effects (G5) | a new force level: the ladder already has NonLethal; these are mounts under it |
 | **`CE-2253`** · G6 toy gun | ⭐ **the toy gun needs no behaviour** — `Armament.Judge` already reads its LOOK (AW-15); the work is the demo **`ua-armed-identify`** (§5c): a toy rifle at 80 m is warned / held, closer the soldier sees it is harmless | backend's toy type (G6) | — |
 | **`CE-2254`** · G8 riot shield | ⭐ **the shield man faces the throwers**: `HoldTheLine` turns the shield man toward the nearest thrower within 20 m; a stone hitting the shield arc is stopped (backend's blocker) | backend's shield item + blocker (G8) | the shield as cover in EQS: a moving 1 m board is not a cover point |
-| **`CE-2256`** · TC-7 (backend §7.17) a held throwable's reach | ⭐ **lethal only within the hand's throw**: `Armament.OfHands` gives a held throwable the hands mount's `Range` (25 m) as its `ReachM`, so beyond it the observer reads Unidentified ⇒ warned and held, not shot — AW-19's *"lethality is an item's reach"*; the closing-fast rule stays its own row. Demo: `ua-armed-knife`'s thrower variant (knives from 8 m) | backend's knives (`CE-3247`) for the demo; the reach itself builds now | lethal at any identified distance (today): throwing stars read lethal at 150 m · a reach per munition: one hand, one throw (TC-5) |
+| **`CE-2256`** · TC-7 (backend §7.17) a held throwable's reach | ⭐ **lethal only within the hand's throw**: `Armament.OfHands` gives a held throwable the hands mount's `Range` (25 m) as its `ReachM`, so beyond it the observer reads Unidentified ⇒ warned and held, not shot — AW-19's *"lethality is an item's reach"*; the closing-fast rule stays its own row. Demo: `ua-armed-knife`'s thrower variant (knives from 8 m) | backend's knives (`CE-3247`) for the demo. ⭐ **The reach BUILT `2026-10-18` on the lean** (cross-lane edit in `Armament.OfHands`): rail `PersonHandsTests.CE2256_AGrenadeInHand_IsLethalOnlyWithinHisThrow` (10 m and 24 m lethal, 30 m Unidentified, still `LethalInHand`), red under 2 mutants | lethal at any identified distance (today): throwing stars read lethal at 150 m · a reach per munition: one hand, one throw (TC-5) |
 | **`CE-2255`** · gestures and items nobody writes | ⭐ **Waving**: a civilian in Routine waves at a passing patrol now and then (a cue, never an act); ⭐ **binoculars**: a lookout role (an `Observe {point}` order — raise them, report) — the ISR half belongs with the AW-14 phone spotter | nothing | a Waving written by the protest: it is a greeting, not a slogan |
 
 ## 6. Known limits
