@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039)
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 (memory at every command level) lean awaiting the user
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -253,13 +253,42 @@ sequenceDiagram
   PL->>PP: read the picture, never the events
   Note over OB,PP: while engaged the squad re-sends its STATUS every 15 s, silence ages its status into Stale
 ```
-**Who holds what, level by level** *(measured; the clarification the user asked for on CB-33)*:
+**Who holds what — one rule at EVERY level** *(⭐ lean CB-36, 2026-10-18; replaces the level table first written for CB-33)*
 
-| level | entity | its contact knowledge | filled by |
+🔒 User, `2026-10-18`: *"Shouldn't the memory be hierarchical, like commander at each level having its own memory and sending reports up
+the chain? What if there are three levels of command? … That doesn't sound like a sustainable model."*
+
+**Measured today:** a soldier has a `TargetMemory`; a body-less squad commander has only `SquadCognitiveState.Contacts`, a pool
+REBUILT from its members' memories at each merge (`SquadPerceptionMergeSystem.cs:38-72`) — so it cannot keep what its members forgot,
+nor take in a report; a commander whose members are commanders gets an empty pool (they hold no `TargetMemory`).
+
+```mermaid
+graph BT
+  S1[soldier: own TargetMemory, own sensors] -->|automatic merge, same squad| SQ1[squad commander: OWN TargetMemory]
+  S2[soldier] -->|automatic merge| SQ1
+  S3[soldier] -->|automatic merge| SQ2[squad commander: OWN TargetMemory]
+  SQ1 -->|SquadReport, delayed, on the wire| PL[platoon commander: OWN TargetMemory]
+  SQ2 -->|SquadReport| PL
+  PL -->|report| CO[company commander: OWN TargetMemory]
+  PL2[another platoon commander] -->|report| CO
+```
+*What the picture shows that prose hid:* every commander knows only what its OWN direct subordinates gave it; nothing skips a level. The
+company never sees a soldier; it sees what its platoons reported, which is what their squads reported, which is what their men saw —
+three levels or ten, the same two rules.
+
+| rule | ⭐ lean |
+|---|---|
+| **every commander has its own `TargetMemory`** | the same component a soldier has, at every level; it ages by the existing decay / forget (which already runs on every holder, body-less too, `ThreatEvaluationSystem.cs:81-82`) |
+| **from bodied members: automatic** | a commander's memory takes in its SOLDIER members' memories automatically (today's merge — the squad hears its own men) |
+| **from commander members: only reports** | ⛔ the automatic merge NEVER reads a subordinate COMMANDER's memory — otherwise the top would become omniscient by the back door; a subordinate commander is heard only through its `SquadReport`s (CB-15) |
+| **a report is made from the sender's own memory** | a commander reports what IT knows (its memory), so a platoon's report to its company carries what its squads reported plus what its own bodied members (if any) saw |
+| **the pool is a view of the commander's memory** | `SquadCognitiveState.Contacts` is built from the commander's own memory, so every existing pool reader (top contact, fire distribution, the runner) works at any level unchanged |
+| **nothing flows down automatically** | a commander passes knowledge down only explicitly — a designated target in an order (exists), or a later "intel" report downward; never an automatic copy |
+| **the topic is level-free** | `SquadReport` already carries `FromUnit` / `ToUnit`; any commander reports to its own superior through it |
+
+| id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| soldier | a squad MEMBER with a body (rifleman, MG gunner…) | its own `TargetMemory` (the entries decay 0.1 / s, forgotten below 0.5) | its own sensors on the Perception node |
-| squad | the body-less squad COMMANDER | `SquadCognitiveState.Contacts`, a pool of 16, **no `TargetMemory` of its own** | merged automatically from its members' memories (`SquadPerceptionMergeSystem`, ~10 Hz) — inside a squad nothing is reported (CB-15) |
-| platoon | the body-less platoon COMMANDER | 🆕 its own `TargetMemory` + its pool | **only `Contact` reports** from its squad commanders (CB-33) — never sensors, never another brain's memory |
+| **CB-36** | knowledge across the command levels | the table above: every commander owns a `TargetMemory`; soldiers feed it automatically, subordinate commanders only by report; reports go to the direct superior only, made from the sender's own memory; the pool is a view of it | the squad's rebuilt-only pool: it forgets what its men forgot and cannot take a report · the top commander merging everyone below: omniscient and unbounded · merging a subordinate commander's memory automatically: reports become decoration |
 
 *What the picture shows that prose hid:* the brain never reads a report as an event — events last one frame. It reads the **picture**,
 the buffer the reports are folded into, and the picture is where ageing happens. Three kinds of content age three different ways.
@@ -274,7 +303,7 @@ the buffer the reports are folded into, and the picture is where ageing happens.
 |---|---|---|---|
 | **CB-31** | the report's time | every report carries **`ObservedAt`** (when the squad saw it) beside `SentAt`; age is measured from `ObservedAt`, so the 3 s delay and the wire are counted in it | age from `SentAt`: a report held 3 s looks 3 s fresher than it is |
 | **CB-32** | order and duplicates | a **`Seq`** per sender; for contacts and status the picture keeps the newest by `ObservedAt` and drops an older one that arrives late; facts are idempotent (a second `RoomClear` changes nothing) | trusting arrival order: the wire does not promise it across nodes |
-| **CB-33** | reported contacts | they enter a **`TargetMemory` on the platoon commander** as a *Reported* entry (the G10 modality) with the reporter's error radius, and age by the existing decay / forget (measured: the decay runs on EVERY entity holding a `TargetMemory`, a body-less one too — `ThreatEvaluationSystem.cs:81-82`); ⭐ the platoon's contact pool (`SquadCognitiveState.Contacts`) merges the commander's OWN memory beside its members' (today it reads members only, and a squad commander holds none ⇒ the platoon pool is empty — `SquadPerceptionMergeSystem.cs:38-72`), so every pool reader works one level up unchanged | a separate contact list in the picture: a second memory with its own forgetting rules, and no existing reader could use it |
+| **CB-33** | reported contacts | they enter a **`TargetMemory` on the platoon commander** as a *Reported* entry (the G10 modality) with the reporter's error radius, and age by the existing decay / forget (measured: the decay runs on EVERY entity holding a `TargetMemory`, a body-less one too — `ThreatEvaluationSystem.cs:81-82`); ⭐ generalised to every level by **CB-36** below | a separate contact list in the picture: a second memory with its own forgetting rules, and no existing reader could use it |
 | **CB-34** | status heartbeat | while engaged a squad re-sends **`Status` every 15 s** and at once on a change (a man down, effective lost); `Fresh` / `Stale` / `Silent` by age; not engaged: on change only | status only on change: a squad that went silent (all dead, radio-less) would look fine forever |
 | **CB-35** | where the picture lives and how it survives | on the platoon's brain node, **rebuildable**: on an ownership handover or a late join the new owner replays its own node's `SquadReportLog` (every node holds the same log) and the heartbeat refreshes status within one period | replicate the picture as a component: a second copy of state the reports already carry (R-2031's rule is that the REPORTS are on the wire) |
 
