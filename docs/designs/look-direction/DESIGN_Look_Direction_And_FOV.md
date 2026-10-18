@@ -430,8 +430,8 @@ Running), `LookParams` {`Mode`, `BearingSet`, `Bearing`, `HalfWidth`, `StepSecon
 decide Parallel carries the `Look` (its blackboard gains `Look` / `LookState`); `CombatPostureParamsJsonDto.watchTowards` (local
 metres) becomes the node's bearing, scanned ±30°; `PersonHold` becomes a one-state HSM with the `Look` activity
 (`ClassHoldOrders.PersonHoldBlackboard`, the order still empty). `POST /entities/{networkId}/sector` (`DebugApiService.Sector.cs`, MCP
-`set_entity_sector`) lets the operator set a sector — the ROE twin, origin Operator, through `EngagementAreaSystem.Apply`; 409 on a
-replica. Deviations from the first draft of this section: no `Watch` behaviour, no `HoldOrder.Towards` (LD-3e); the sector gives its
+`set_entity_sector`) lets the operator set a sector — the ROE twin, origin Operator, through `EngagementAreaSystem.Apply`; on a node
+that does not run his brain it publishes the event and backend's kind 4 (`CE-3261`) carries it there (answer `forwarded`). Deviations from the first draft of this section: no `Watch` behaviour, no `HoldOrder.Towards` (LD-3e); the sector gives its
 own scan width (LD-3c); a heard sound is LD-3b's second source. Rails `TacticsTreesTests.CE2297_*` (8, CombatPosture's suite): the
 compass and the scan · CombatPosture looks at its top threat, stamped with its run · no threat ⇒ the sector, scanning, then released
 when withdrawn · a look another run wrote is not released · `SectorOnly` keeps the sector · a heard shot takes the eyes while fresh ·

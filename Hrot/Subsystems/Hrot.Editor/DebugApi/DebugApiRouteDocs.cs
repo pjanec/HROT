@@ -1924,7 +1924,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_entity_sector",
             Group:   "K — AI behavior traces",
             Summary: "Set a man's or a commander's sector — the arc he may choose to shoot into, where he watches, his NoFire areas (CE-2298, DA-26).",
-            Returns: "{ networkId, arc:{left,right,minRange,maxRange}|null, watch|null, allowArea|null, noFire, setBy }",
+            Returns: "{ networkId, arc:{left,right,minRange,maxRange}|null, watch|null, allowArea|null, noFire, setBy } — or { networkId, forwarded:true } when his brain is elsewhere",
             Hint:    "Req: networkId. Body (all optional): left, right (compass, 0 = north, clockwise), minRange, maxRange, watch (compass), allowArea, noFire:[areaIds]. Empty body withdraws. Example: set_entity_sector({networkId:5301, watch:0})",
             Params: new RouteParam[]
             {
@@ -1940,7 +1940,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "Origin Operator through the one writer (EngagementAreaSystem.Apply): it replaces the whole sector; a higher setter refuses it.",
-                "The arc's origin is where he stands now. Run it where the brain runs (409 on a replica).",
+                "The arc's origin is where he stands now. On a node that does not run his brain the sector is forwarded to the one that does (kind 4) — the answer says forwarded.",
                 "His eyes follow it: a holding or fighting man looks at his sector when no threat or sound holds them (Look Direction §3.3a).",
             },
             ExampleArgsJson: "{\"networkId\":5301,\"watch\":0}",
