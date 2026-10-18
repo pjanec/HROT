@@ -1355,6 +1355,71 @@ def run_cc_platoon_bound(c, timeout):
     print(f"    report kinds seen: {kinds}")
 
 
+def _look(nid):
+    """LD-I — the look block of /entities/{id}/state, with compass bearings added (0 = north, clockwise; the state's yaws are
+    0 = +X east, counter-clockwise)."""
+    lk = (data(call("GET", f"/entities/{nid}/state")) or {}).get("look") or {}
+    for k in ("bodyYawDeg", "eyeYawDeg"):
+        if lk.get(k) is not None:
+            lk[k.replace("YawDeg", "Bearing")] = (90.0 - lk[k]) % 360.0
+    return lk
+
+
+def _off(a, b):
+    return abs((a - b + 540.0) % 360.0 - 180.0)
+
+
+def _remembers(nid, who, visual_only=True):
+    for x in (data(call("GET", f"/entities/{nid}/memory")) or {}).get("slots") or []:
+        if x.get("networkId") == who and (not visual_only or (int(x.get("modalities") or 0) & 1)):   # SensorModality.Visual = 1 (a bitmask)
+            return True
+    return False
+
+
+def run_ld_sentry_surprise(c, timeout, control=False):
+    """⭐ CE-2298 LD-5 (Look Direction §3.4) — an order points the eyes and the cone follows them. A sentry (200° field of view,
+    HOLDING, his sector set to watch north over POST /entities/{id}/sector, starting faced north-east) on bt-range; hostile A crosses 110 m north of him (the clear east strip); hostile B walks up
+    behind him to 40 m, then is ordered to fire. ① the lasting look turns his BODY north · ② A seen (visual) · ③ B NOT in his memory
+    while it walks · ④ B's shot: he turns to the sound and sees B. ⑤ The control run (`ld-sentry-surprise-360`, 360°) sees B while
+    it walks — the cone is what hid him."""
+    ids = ids_by_name()
+    s, a, b = ids.get("Sentry"), ids.get("Hostile A"), ids.get("Hostile B")
+    if not c.ok(s and a and b, "the sentry and hostiles A and B are loaded"):
+        return
+    sec = call("POST", f"/entities/{s}/sector", {"watch": 0})
+    c.ok(isinstance(sec, dict) and (data(sec) or {}).get("watch") == 0, f"the operator gives the sentry his sector: watch north ({json.dumps(data(sec) or sec)[:160]})")
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(s) == "PersonHold", 10), f"the sentry holds (task: {task_name(s)})")
+    if not control:   # (the control sees B at once and turns to him — that is its point, so ① is not asked of it)
+        turned = wait_for(lambda: (lk := _look(s)).get("bodyBearing") is not None and _off(lk["bodyBearing"], 0.0) <= 10.0 and lk, 8)
+        lk = _look(s)
+        c.ok(bool(turned), f"① a lasting look turns his body north within 8 s (body {lk.get('bodyBearing')}, eyes {lk.get('eyeBearing')}, source {lk.get('source')})")
+    seen_a = wait_for(lambda: _remembers(s, a), 20)
+    if not seen_a:
+        ps, pa = position(s), position(a)
+        md = data(call("GET", f"/entities/{s}/memory")) or {}
+        ent = data(call("GET", f"/entities/{s}")) or {}
+        comps = ent.get("components") or ent
+        rec = {"perception": next((v for k, v in (comps.items() if isinstance(comps, dict) else []) if "PerceptionReceptor" in k), None)}
+        print(f"    ② diagnostic: sentry {ps}, A {pa}, A's task {task_name(a)}, sentry memory "
+              f"{[(x.get('networkId'), x.get('modalities'), x.get('freshness')) for x in md.get('slots') or []]}, receptor {rec.get('perception') or rec.get('receptor')}")
+    c.ok(seen_a, "② hostile A, crossing in front of him, is SEEN (visual)")
+    arrived = wait_for(lambda: (p := position(b)) is not None and p[1] >= 38.0, 40, every=1)
+    seen_b = _remembers(s, b) if control else _remembers(s, b, visual_only=False)   # control: SEEN · demo: not in memory at all
+    if control:
+        c.ok(seen_b, f"⑤ the 360° control SEES B while it walks up behind him (B arrived: {bool(arrived)})")
+        return
+    c.ok(bool(arrived) and not seen_b, f"③ B walks up behind him to 40 m UNSEEN (arrived: {bool(arrived)}, in his memory: {seen_b})")
+    _if_order(b, "Attack", {"Target": s})
+    heard = wait_for(lambda: (lk := _look(s)).get("eyeBearing") is not None and _off(lk["eyeBearing"], 180.0) <= 80.0 and lk, 10, every=0.2)
+    c.ok(bool(heard), f"④ B fires: his eyes go to the sound behind him (look: {_look(s)})")
+    c.ok(wait_for(lambda: _remembers(s, b), 6, every=0.2), "④ …and B is SEEN")
+
+
+def run_ld_sentry_surprise_360(c, timeout):
+    run_ld_sentry_surprise(c, timeout, control=True)
+
+
 def run_squad_bound_open_ground(c, timeout):
     """⭐ CE-2161 (Squad Tactics §7.7.7 D3; CE-3081 OpenGround) — a squad marching with OpenGround on leaves Shed Row's cover for the
     ~100 m open field to (175, 60): the commander's route sensor lists the field as OpenGround, the crossing choice picks BOUND, the
@@ -3870,6 +3935,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2262 SL-0 — the first nested hierarchy: a platoon of squads (Building Clearing §7)
              "sl0-platoon-march": run_sl0_platoon_march,
              "cc-platoon-bound": run_cc_platoon_bound,
+             # ⭐ CE-2298 LD-5 — the look-direction demos (Look Direction §3.4)
+             "ld-sentry-surprise": run_ld_sentry_surprise,
+             "ld-sentry-surprise-360": run_ld_sentry_surprise_360,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

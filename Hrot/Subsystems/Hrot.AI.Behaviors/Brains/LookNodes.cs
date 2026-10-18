@@ -65,6 +65,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float WatchHalfWidth = 30f;
         /// <summary>How long a heard sound keeps his eyes (ticks — the <c>KnownCombatants</c> clock; ≈ 5 s at 60 Hz).</summary>
         public const uint HeardWindowTicks = 300;
+        /// <summary>How long a hit or a near miss puts the sound of the shot above a threat he sees (s).</summary>
+        public const double UnderFireSeconds = 2.0;
 
         /// <summary>Choose and write the look; returns what it chose. Releases only a look this run wrote.</summary>
         public static LookChoice Want(EntityRepository world, Entity self, in LookParams p, ref LookNodeState ws, double now)
@@ -72,6 +74,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (!LookRequest.CanCarry(world, self)) return LookChoice.NoLook;
             uint run = world.HasComponent<BehaviorState>(self) ? world.GetComponentRO<BehaviorState>(self).InstanceId : 0u;
 
+            // ⭐ shot at: a round that hit or just missed him turns him to where it was HEARD from, over a threat he already sees
+            //   (📌 ld-sentry-surprise: with A in sight in front, B's shots from behind never turned him)
+            if (p.Mode == LookMode.ThreatThenSector && UnderFire(world, self) && FreshHeard(world, self, out var shotFrom))
+            {
+                LookRequest.AtPoint(world, self, shotFrom, behaviorInstance: run);
+                ws.Threat = Entity.Null;
+                return ws.Source = LookChoice.Heard;
+            }
             if (p.Mode == LookMode.ThreatThenSector && EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) && world.IsAlive(threat))
             {
                 LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
@@ -139,6 +149,11 @@ namespace Hrot.AI.Behaviors.Brains
             float r = bearing * (MathF.PI / 180f);
             return new Vector3(origin.X + MathF.Sin(r) * metres, origin.Y + MathF.Cos(r) * metres, origin.Z);
         }
+
+        /// <summary>Hit or near-missed within <see cref="UnderFireSeconds"/> (<c>RecentSensesOf</c>, the self-defence clock).</summary>
+        public static bool UnderFire(EntityRepository world, Entity self)
+            => RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.Hit, UnderFireSeconds)
+            || RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, UnderFireSeconds);
 
         /// <summary>The freshest HEARD contact (an anonymous memory slot — <c>TopThreat</c> ranks entities only) stamped within
         /// <see cref="HeardWindowTicks"/> of now (<c>SimulationTick</c>, the clock perception stamps it with).</summary>

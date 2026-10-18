@@ -1,0 +1,129 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "2a980301-0000-4000-8000-000000000301": {
+   "SimTransform": {
+    "Position": [
+     185,
+     80,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.382683,
+     0.92388
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 5301
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Sentry",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "PersonHold",
+    "Params": "{}",
+    "Origin": "Superior"
+   },
+   "PerceptionReceptor": {
+    "HearingRange": 4000,
+    "VisionRange": 300,
+    "FieldOfViewCos": -1.0
+   }
+  },
+  "2a980302-0000-4000-8000-000000000302": {
+   "SimTransform": {
+    "Position": [
+     150,
+     150,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.0,
+     1.0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 5302
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Hostile A",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": "{\"x\": 198, \"y\": 150, \"speed\": 1.0, \"arrivalRadius\": 1}",
+    "Origin": "Superior"
+   }
+  },
+  "2a980303-0000-4000-8000-000000000303": {
+   "SimTransform": {
+    "Position": [
+     185,
+     5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.707107,
+     0.707107
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 5303
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Hostile B",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": "{\"x\": 185, \"y\": 40, \"speed\": 1.5, \"arrivalRadius\": 1}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}
