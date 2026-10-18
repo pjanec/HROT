@@ -69,6 +69,11 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         //   never saw one (the riflemen, carrying Locomotion, it did).
         if (!context.World.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>())
             context.World.RegisterComponent<CarKinem.Core.VehicleParams>();
+        // ⭐ CE-4024 (K7) — the hits the panic system reads, which the traffic node's hit ingress publishes. 📌 Measured 2026-10-18: CGF and
+        //   SimHost register it in their combat registries, the traffic node did not, and the first hit CRASHED it ("event type 5006 not
+        //   registered") — taking SUMO, and every car on every node, with it.
+        if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+            context.World.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
         if (_serves)
         {
             long local = 0;

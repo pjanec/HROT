@@ -53,6 +53,7 @@ public sealed class TrafficNodeBootstrapperTests
         //   anchors, SUMO's view of our bodies and the replicas all key on it.
         Assert.True(node.Context.World.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>());
         Assert.True(node.Context.World.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>());   // a vehicle is told apart and sized
+        Assert.True(node.Context.World.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>());   // a hit never crashes the node
     }
 
     /// <summary>
