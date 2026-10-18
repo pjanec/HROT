@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — leans awaiting the user (§5); the parts whose data exists are READY-TO-BUILD once approved (§7 marks each)
+build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
 current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
@@ -24,6 +24,8 @@ gesture animated a bit (not stiff), toy gun in hands rendered in orange color, p
 civilian, holding and using non lethal weapon (rubber projectile gun, taser...) if some of those are missing some backend implementation pls
 record those as well... civilian mood or alerted mode or wound/pain/fear/anger and similar as facial expression or some floating indicator
 above persons head (note it needs to be small as there can be many people next to each other so big ones would clutter the scene)"*
+
+🔒 **APPROVED** — user, `2026-10-18`, on the leans U7…U18 below: *"Approved."* (`R-1005`).
 
 ## 1. INVENTORY *(2026-10-18 — three read-only sweeps over code + the design corpus; grep and `git grep origin/backend|behaviors`; ⚠ the
 codebase-memory server did not connect and its CLI hung on one sweep, so no `search_graph` enumeration — the lists are grep results;
