@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none — it makes concrete, and in two places revises, DESIGN_Defend_And_Attack_Position (§3/§4 PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken are now CommandPicture and the closed PROGRESS / SPOT set, PC-2; DA-7's ROE lift needs PC-6)
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea this programme ends in: a combined-arms fight in demo-city, escalation by requests
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS the doctrine, proficiency tiers, posts, sectors (DA-20, DA-24), the survey sensor (R-2037/R-2038), the presets (R-2035) and the town movement; this design turns its two platoon plays into concrete HSMs on the command machinery
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the room drill, BuildingClearance (CB-9), the report concept and vocabulary (§5b–§5d, CB-36…CB-47); the attack's Clear phase runs its ClearBuildingPlay
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the machinery used here: CommandPicture, ReportingRequirements, the staff, OrderSubordinate / AssignSubordinate, picture guards, Initiative (CC-1…CC-16)
@@ -461,7 +462,7 @@ covered route (west) and the open one (centre) differ.
 |---|---|---|
 | `test-town` | 6, **all solid prisms** (height + floors, no template, no interior) | ⛔ nothing can be entered — the approved `tq-urban-ambush-counterattack` (Defend §17) **cannot clear its building there** |
 | `bt-range` | 2 × `house-2f` 60 m apart + 1 solid block; walls are a test row of materials at y = 40 | no approach cover, no street, no second building at sniper range; its `premises.json` (DemoPremisesTests) pins its sight lines, so adding features risks the existing demos |
-| `demo-city` | 5, solid | — |
+| `demo-city` | 5 solid + ⭐ **34 enterable houses** (16 `house-1f`, 18 `shop-1f`, all ONE storey; added by the coordinator lane 2026-10-18, CE-4028) — *corrected 2026-10-18; this row first said "5, solid"* | streets and traffic, but no upper windows ⇒ still not the platoon fight; the [urban battle](DESIGN_Urban_Battle_Demo.md) idea runs there |
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
