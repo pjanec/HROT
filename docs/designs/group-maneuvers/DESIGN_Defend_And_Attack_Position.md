@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) lean awaiting the user; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: nothing.
 known-rot: none.
@@ -17,6 +17,7 @@ related-designs:
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS the hit model's spread; DA-2 adds one shooter factor to it
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md — the backend frame: spread factor, acquisition by exposure, LMGs and roles on the wire, sniper / DMR / scope, BuildingOf(point), trenches later
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a man looks (LD-1…LD-3); the march watch sectors and EngagementArea.WatchBearing point the eyes once it lands
+  - docs/DESIGN_Orders_Params_Entity_Classes.md — OWNS R-2003 (a sector is an area entity) and the Designate › Set sector gesture (§13.3, F10); §13a builds the two sector levels on it
   - docs/DESIGN_Decision_Layer.md — OWNS task · SOP · reaction and resume (§4.1, §4.9); §11's town movement is a task and the attack a reaction
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — the catalogue rows SQD-8 / SQD-11 (defend), D7 (trenches) and the building-post templates this design builds
 -->
@@ -370,6 +371,78 @@ that makes shifting and lifting fire safe.
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-20** | sectors | one **`EngagementArea`** per member — the component Building Clearing already designed (CB-4, CB-18), now with two lists: **`Allow`** (arcs from his post: left and right bearing and a max range, or a polygon such as a building face's windows) and **`NoFire`** (polygons: rooms the friends hold, the assault element's area). **Who assigns:** the play of his commander writes the sector into the ORDER it gives him — the defence plan per post, the SBF its window faces, the clearing its room sectors, the march each man's watch sector by file place — and the member's own brain stamps the component from the order, so it crosses nodes with the order (R-2031: nothing hidden in one brain). **Shift and lift** = the platoon sends the SBF squad a new order with moved shapes. **How he uses it:** contacts outside `Allow` are not chosen, **except** one that hit or near-missed him in the last 5 s within 50 m (self-defence, as `ReturnFire` already reads); a shot whose line ends inside `NoFire` is **refused at the gate, always**. Below Regular: no `Allow` (they fire at anything); `NoFire` still applies, since it is the friends' safety. Once LD-1 lands, `WatchBearing` is also where he looks | a sector as a new firing rule only in the gate: he would keep choosing a target he may not shoot and freeze · a sector per behaviour: five places would each grow their own |
+
+### 13a. Sector shapes, who finds them, who gets them — two levels *(⭐ lean DA-24, refines DA-20)*
+
+**Measured:** ⭐ **a sector is already ruled to be an AREA ENTITY** (R-2003, user *"Sector as area for sure"*; Orders design F10): a
+tactical graphic, a polygon (`EditablePolyline : IAreaOutline`, vertices relative to the entity's position,
+`Hrot.Core/Components/Map/EditablePolyline.cs:20-29`), replicated as `MapVisualOverlay` (`Hrot.Network.NED/MapDescriptors.cs:60`),
+picked in an order as an `EntityRef` with `[MapPickableEntity("tactical_graphics")]`. An operator can already give a unit one:
+**Designate › Set sector…** (Orders §13.3, built, `CE-2149`). ⛔ Nothing reads it as a sector yet. Doctrine: the platoon leader gives
+each squad its sector (left and right limits, depth); the squad leader gives each team and man his part of it, overlapping the
+neighbour's.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadSector { <<AREA ENTITY, existing kind, R-2003>> polygon · owner unit · Allow or NoFire }
+  class MemberArc { <<NEW value, in the member order>> origin · left bearing · right bearing · min and max range · storey band · relative (to the route) or fixed }
+  class SectorPlanner { <<NEW pure>> SplitArea(area, squads) · ForMembers(squad sector, posts, roles) · Moving(file places) }
+  class PlatoonPlay { <<AttackPosition, DefendPosition, UrbanMovement>> }
+  class SquadPlay { <<SquadDefend, SupportByFire, Approach, march, clearing>> }
+  class EngagementArea { <<NEW component, member and squad commander>> Allow · WatchBearing }
+  class NoFireAreas { <<NEW pure>> NoFire areas owned by any unit in his chain of command }
+  class RoomEntryPlan { <<Building Clearing>> room sectors }
+  PlatoonPlay ..> SectorPlanner : SplitArea, when it plans or shifts
+  PlatoonPlay --> SquadSector : creates one per squad, or uses the operator's
+  PlatoonPlay ..> SquadPlay : the order carries the SquadSector ref
+  SquadPlay ..> SectorPlanner : ForMembers, when it gives member orders
+  SquadPlay ..> RoomEntryPlan : inside a room
+  SquadPlay ..> MemberArc : one per member order
+  MemberArc ..> EngagementArea : the member's brain stamps it
+  SquadSector ..> EngagementArea : the squad commander's Allow
+  NoFireAreas ..> SquadSector : the NoFire ones
+```
+*What the picture shows that prose hid:* the two levels use **two different shapes for a reason**. The squad's sector is a **polygon
+entity**, so it is on the map, on the wire and can be drawn by a person. A man's part is a cheap **arc in his order**, so it can be
+redone every time someone is hit or moves, without creating entities. **NoFire areas are never copied down:** the gate looks them up
+through the man's chain of command, so one write by the platoon reaches every man on every node.
+
+```mermaid
+sequenceDiagram
+  participant PL as platoon play
+  participant SP as SectorPlanner
+  participant SQ as squad play
+  participant M as member brain
+  participant G as target pick + gate
+  PL->>SP: SplitArea(the EA or the objective or the route corridor, squads, their places)
+  SP-->>PL: one polygon per squad (10 percent overlap with the neighbour)
+  PL->>PL: create the SquadSector area entities (or take the operator's)
+  PL->>SQ: order (SquadDefend / SupportByFire / march leg) + SquadSector ref
+  SQ->>SP: ForMembers(the sector, each man's post, roles)
+  SP-->>SQ: one MemberArc per man (MG on the long axis, team A left, team B right)
+  SQ->>M: member order + MemberArc
+  M->>M: EngagementArea.Allow = the arc
+  G->>G: choose only inside Allow (self-defence excepted) · refuse any shot ending in a NoFire area of his chain
+  Note over SQ: a man down or moved ⇒ ForMembers again, the neighbours widen
+  Note over PL: shift or lift fire ⇒ move the SquadSector polygon, or add a NoFire area
+```
+*What the picture shows that prose hid:* the planner is asked **only at order time and on change** (a plan, a phase, a casualty, a
+displacement, a shift of fire) — never per frame. A sector change is one order, which is why it crosses nodes.
+
+| who | finds | from | when |
+|---|---|---|---|
+| **platoon commander** (`DefendPosition`) | one polygon per squad on the line: the EA split by bearing from the position's centre, each 10 % wider than its share (mutual support); the reserve gets none until committed | the order's EA, or the area in front of the position along the threat axis | the plan; a new threat axis (supplementary sectors) |
+| **platoon commander** (`AttackPosition`) | the SBF squad: a strip in front of the objective's faces that see the assault's route (their windows); the assault squad: the entry face + a lateral boundary; a **NoFire** area around the assault squad's live men, and per room it holds | the objective building (`BuildingOf`, the room graph), the chosen axis | each phase; each `PhaseLine` / `Foothold` / `RoomClear` report |
+| **platoon commander** (`UrbanMovement`) | relative sectors: lead squad the corridor ahead, the following squad the two building faces of the street with an upper-storey band, the rear squad behind | the route leg | each leg |
+| **squad commander** (`SquadDefend`, `SupportByFire`) | each man's arc: the bearings from HIS post to the edges of the squad polygon, split between neighbours with ~10° overlap; the MG on the longest axis (its final protective line); team A the left half, team B the right | the squad sector, the posts, the roles (DA-19) | the order; a casualty (the neighbours widen); a displacement |
+| **squad commander** (march) | by place in the file: point man front 90°, then alternating left and right building faces, every second man the upper storeys, the last man the rear | the file order | each leg; a casualty |
+| **squad commander** (clearing) | the room sectors (`RoomEntryPlan`, Building Clearing CB-4) | the room graph | each room |
+| **the operator** | any squad sector, by **Designate › Set sector** (built) | — | ⭐ an operator's sector wins over the planner's |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
 
 ## 14. New sensors and sensor changes *(✅ approved R-2036 — DA-21)*
 

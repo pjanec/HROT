@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13a: the first READER of a squad's sector area (R-2003): the platoon creates one per squad, the squad splits it into member arcs, NoFire areas looked up through the chain of command
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the new civilian family and the security forces; CV-1 adds a Civilian and a SecurityForce class to EntityClassTable (R-280)
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: ArtilleryUnitStrike / SelfPropelledArtilleryStrike (<Class><Order>) and an operator's call for fire from the designations
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the WeaponSystem class (Kind 1, Domain 1, Category 50) and the Move refusal for a weapon system (R-2016)
