@@ -69,6 +69,11 @@ namespace Hrot.Map.Common
         public const long Infantry_SfOperator = 205;
         /// <summary>⭐ Airborne insertion B-7 (§7d) — a PILOT: spawned by his aircraft's ejection seat (Gen.Ejection), down under a round canopy.</summary>
         public const long Infantry_Pilot = 206;
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — an AUTOMATIC RIFLEMAN with an M249-class LMG (5.56, 200-round belt). ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_AutomaticRifleman = 207;
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — a MACHINE GUNNER with a PKM-class gun (7.62, 100-round belt), the other side's (faction 2).
+        /// ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_MachineGunnerPkm = 208;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

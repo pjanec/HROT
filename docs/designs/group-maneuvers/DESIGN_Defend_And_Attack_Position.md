@@ -340,6 +340,17 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 |---|---|---|---|
 | **DA-19** | roles | **append** `AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank` to `TacticalDesignation`, plus a **fire team index** (A / B) per member — the doctrinal 9-man squad: a leader + two teams of four (team leader, automatic rifleman, grenadier, rifleman). Readers: the element split goes **by fire team**, not by roster halves · the base of fire and the SBF take the AR / MG first · a defence puts the MG on the post with the longest view down the EA (its final protective line) · the clearing stack never puts the AR first · the sniper team is two Marksmen · a casualty's role is taken over (the next rifleman picks up the AR's role). ⚠ Needs from backend / TKB: an **infantry LMG** (M249-class, and a PKM-class for the other side) and a soldier type carrying it; the wire enum gains the new values | a role component separate from the designation: two stores of one fact · roles inferred from the weapon carried: a rifleman who picks up the MG would need re-inferring every frame, and the medic carries a rifle |
 
+### 12a. BR-8 as built *(backend, `CE-3253`, 2026-10-19 — cross-lane fold by backend)*
+
+| piece | as built | where | rail |
+|---|---|---|---|
+| the roles | `TacticalDesignation` gains `AutomaticRifleman 7 · MachineGunner 8 · Grenadier 9 · Marksman 10 · AntiTank 11` (appended) | `Fdp.Core/CommandHierarchy/TacticalDesignation.cs` | — |
+| on the wire | `eTacticalDesignation` carries EVERY value by the same name and value — ⭐ `TeamLeader 5` and `Medic 6` too (⛔ before, they crossed as raw numbers outside the enum) | `Hrot.Network.NED/GenericDescriptors.cs` | `TacticalDesignationMapperTests.CE3253_*` (every member, name + value) · `EntityInfoTranslatorTests.CE3253_*` (a MachineGunner arrives as one) |
+| from a scenario | by name (`"designation": "MachineGunner"`) — the existing `UnitSubordinateTranslator` parse, nothing new | — | `UnitSubordinateTranslatorTests.CE3253_*` |
+| the guns | `InfantryLmg` mount (mount 0, `MachineGun` category, belt, 1 in 5 traces, the rifleman's aim error): an **M249-class** (5.56, 200 belt, 750 rpm, 800 m) and a **PKM-class** (the 7.62 ball, 100 box, 650 rpm, 1000 m) | `NedTkbCatalog.InfantryLmg` | `NedTkbBuilderCombatTests.CE3253_*` |
+| the men | `Infantry_AutomaticRifleman` **207** (US, faction 1) and `Infantry_MachineGunnerPkm` **208** (Russia, faction 2): the rifleman's body, sensor, injury, carrier and brain with the LMG | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` (BdcTkbCatalog.cs) | the same |
+| ⛔ not here | the fire-team index, the element split by team, the MG first into the base of fire, role takeover (behaviors' `CE-2281`) · the squad's composition (still 1 SquadLeader + 9 Wingman — behaviors decides where the AR / MG go) · the grenadier's launcher and the AT gunner's weapon (no new weapon: the role only) | | |
+
 ## 13. Sectors — how they are assigned and how a man keeps to his *(✅ approved R-2036 — DA-20)*
 
 **Measured:** ⛔ **no sector, arc or engagement-area restriction exists anywhere** (only a turret's traverse limit). A target is chosen

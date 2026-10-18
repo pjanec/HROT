@@ -508,5 +508,24 @@ namespace Hrot.IG.Tests
             eventBus.SwapBuffers();
             Assert.Equal(0, eventBus.Read<CmdAssignSubordinate>().Length);
         }
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — a squad role crosses: a MachineGunner's designation arrives as one.</summary>
+        [Fact]
+        public void CE3253_AMachineGunnersRole_Replicates()
+        {
+            var (repo, entityMap, eventBus, translator) = CreateFixture();
+            var cmdEntity = repo.CreateEntity();
+            var subEntity = repo.CreateEntity();
+            entityMap.Register(10, cmdEntity);
+            entityMap.Register(20, subEntity);
+
+            translator.ProcessSample(new Hrot.NED.Descriptors.EntityInfo
+            {
+                EntityId = 20, CommanderId = 10, ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
+                TacticalDesignation = Hrot.Map.Common.Replication.TacticalDesignationMapper.ToDds(TacticalDesignation.MachineGunner),
+            }, netId: 20, repo: repo);
+
+            eventBus.SwapBuffers();
+            Assert.Equal(TacticalDesignation.MachineGunner, Assert.Single(eventBus.Read<CmdAssignSubordinate>().ToArray()).Designation);
+        }
     }
 }

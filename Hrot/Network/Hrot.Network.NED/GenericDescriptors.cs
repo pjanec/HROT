@@ -144,6 +144,15 @@ namespace Hrot.NED.Descriptors
         SquadLeader = 2,
         Wingman     = 3,
         Support     = 4,
+        // ⭐ CE-3253 (BR-8, DA-19) — the rest of TacticalDesignation, value for value (a rail pins name and value): ⛔ before, TeamLeader and
+        //   Medic crossed as raw numbers outside the enum, and the squad roles did not exist.
+        TeamLeader  = 5,
+        Medic       = 6,
+        AutomaticRifleman = 7,
+        MachineGunner = 8,
+        Grenadier   = 9,
+        Marksman    = 10,
+        AntiTank    = 11,
     }
 
     // Additional metadata for an entity that is not strictly required for existence

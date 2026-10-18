@@ -113,6 +113,27 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(1.5f, bradley.GetDescriptor<WeaponSuiteDto>()!.Mounts[1].AimSeconds);   // the TOW's lay
         }
 
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — the two infantry machine gunners carry an LMG as their own mount 0: a MachineGun-category,
+        /// belt-fed gun on the M249 / PKM ammunition, a person's body, on their sides. ✅ Red-proof: the M249 back to SmallArms ⇒ red.</summary>
+        [Fact]
+        public void CE3253_TheInfantryMachineGunners_CarryAnLmg()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, ammo, belt, faction, country) in new[]
+                     {
+                         (TkbEntityTypes.Infantry_AutomaticRifleman, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, 200, (byte)1, NedTkbCatalog.UnitedStates),
+                         (TkbEntityTypes.Infantry_MachineGunnerPkm, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, 100, (byte)2, NedTkbCatalog.Russia),
+                     })
+            {
+                var t = db.GetByType(type)!;
+                var lmg = t.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+                Assert.Equal((WeaponCategory.MachineGun, ammo, belt), (lmg.Category, lmg.AmmoGuid, lmg.MagazineSize));
+                Assert.Equal(CarKinem.Core.VehicleClass.Pedestrian, t.GetDescriptor<VehicleParametersDto>()!.VehicleClass);
+                Assert.Equal(country, t.DisType.Country);
+                Assert.NotNull(t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.InjuryDefDto>());
+            }
+        }
+
         [Fact]
         public void Stage0_Rifleman_HealthGeneratedFromBodyArmour_DamageExplicit()
         {

@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3 built).
+state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a built; 4 blocked on your CE-2273).
 updated: 2026-10-19
 current-answer: the whole note.
 stale-below: nothing.
@@ -78,3 +78,19 @@ that publishes elsewhere must register it (strict mode).
 * Read it anywhere through `Fdp.Toolkit.Perception.Look.LookOf` (`EyeForward`, `HeadYaw`) or `LookState` (replicated, `dtLookState`);
   HTTP `GET /entities/{id}/state` → `look {bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, target, fovDegrees}` — for LD-5's demos.
 * ⭐ Vision's cone is now around the EYES. The FOV is still 360° (LD-4 narrows it), so nothing a demo sees changes until LD-4.
+
+## BR-8 — infantry machine guns and the roles on the wire *(as built: [Defend and Attack §12a](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), `CE-3253`)*
+
+* `TacticalDesignation` gains `AutomaticRifleman 7 · MachineGunner 8 · Grenadier 9 · Marksman 10 · AntiTank 11` — ⭐ **I appended them to
+  the ECS enum too** (the wire enum must match it value for value), so your `CE-2281` uses them as they are; the fire-team index stays yours.
+* The wire enum now carries every value — TeamLeader and Medic included (they crossed as raw numbers before). A rail pins name + value.
+* TKB: `Infantry_AutomaticRifleman` **207** (M249-class, 5.56, 200 belt, US) and `Infantry_MachineGunnerPkm` **208** (PKM-class, 7.62,
+  faction 2) — the rifleman with an LMG as mount 0 (`MachineGun` category). A scenario names the role: `"designation": "MachineGunner"`.
+* ⛔ I did NOT change `Unit_InfantrySquad` (still 1 SquadLeader + 9 Wingman): where the AR / MG sit in the squad is your DA-19 call.
+
+## BR-6 / BR-7 — ⛔ blocked on your `CE-2273`
+
+The handoff's fence says read proficiency only through `ProficiencyOf` (yours, `CE-2273`, beside `CombatTemperament`) — it is not on
+`behaviors` yet (`CombatProficiency` / `ProficiencyOf`: 0 hits, 2026-10-19). Tell me when it lands and I build both; until then I go on
+with BR-9.
+
