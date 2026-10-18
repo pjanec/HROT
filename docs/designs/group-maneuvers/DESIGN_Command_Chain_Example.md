@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — leans CC-1…CC-7 awaiting the user; nothing built
-current-answer: §1 the example · §1a where each piece lives (by scope) · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
+build-state: DESIGN — CC-1 ✅ APPROVED 2026-10-18 (R-2043); CC-2…CC-7 and §7a CC-8…CC-11 leans awaiting the user; nothing built
+current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
@@ -218,13 +218,75 @@ public struct SetReportingEvent                      // the SetRoeEvent twin
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **CC-1** | where a commander's knowledge lives | ⭐ **by scope (R-2042, §1a)**: the unit's knowledge — `CommandPicture`, `ReportingRequirements`, `ReportOutbox` — is three **components** on the commander (written by the staff systems; AQ87 §4's rule; the `Roe` / `SquadCognitiveState` precedent); each play's own tracking is in **its own slots**; unit memory stays for behaviour-only shared data. ⚠ Revises Building Clearing CB-33: reported elements go into `CommandPicture`, not into a `TargetMemory` on the commander. ⚠ Costs three component ids | unit memory for staff-written data (the first lean, after R-2041 as first worded): it puts system-owned state in the behaviours' store, and AQ87 §4 already ruled the other way · the commander's `TargetMemory`: perception's component, with perception's rules |
+| **CC-1** ✅ | where a commander's knowledge lives | ✅ **approved (R-2043)** — **by scope (R-2042, §1a)**: the unit's knowledge — `CommandPicture`, `ReportingRequirements`, `ReportOutbox` — is three **components** on the commander (written by the staff systems; AQ87 §4's rule; the `Roe` / `SquadCognitiveState` precedent); each play's own tracking is in **its own slots**; unit memory stays for behaviour-only shared data. ⚠ Revises Building Clearing CB-33: reported elements go into `CommandPicture`, not into a `TargetMemory` on the commander. ⚠ Costs three component ids | unit memory for staff-written data (the first lean, after R-2041 as first worded): it puts system-owned state in the behaviours' store, and AQ87 §4 already ruled the other way · the commander's `TargetMemory`: perception's component, with perception's rules |
 | **CC-2** | how report requests reach a subordinate | ⭐ **the ROE pattern**: a `SetReportingEvent` sent with the order (or on its own), applied by `ReportingRequirementsSystem` into the subordinate's `ReportingRequirements`, origin-gated like `RoeSystem`, persisting across tasks; sent by the node `SetSubordinateReporting` | inside every play's params DTO (CB-42 as written): each behaviour would have to carry it, and there is no admit hook to lift it out · a component stamped by the gate: the gate has no general hook, and adding one is a change to the most-shared system for one feature |
 | **CC-3** | the gate | ⭐ **unchanged** — "the gate" is `BehaviorIngressSystem`, which already admits, pauses and resumes; nothing here needs it to know about reports | an admit hook: not needed once CC-2 copies ROE |
-| **CC-4** | ordering a subordinate commander from an HSM / BTree / blueprint | ⭐ a shared action `OrderSubordinate(unit, orderName, json)` doing exactly what `SquadManeuverRunner.Order` does (`AssignTacticalIntentEvent{Order.<name>, Superior}` + `SubordinateOrders`), the runner calling the same helper | a second order path: two ways to order a unit, released differently |
+| **CC-4** | ordering a subordinate commander from an HSM / BTree / blueprint | ⭐ (refined by CC-9: two actions, abstract `OrderSubordinate` and concrete `AssignSubordinate`) a shared action `OrderSubordinate(unit, orderName, json)` doing exactly what `SquadManeuverRunner.Order` does (`AssignTacticalIntentEvent{Order.<name>, Superior}` + `SubordinateOrders`), the runner calling the same helper | a second order path: two ways to order a unit, released differently |
 | **CC-5** | the first reports the staff sends without any play changing | ⭐ **PROGRESS on the task's end** (`BehaviorFinishedEvent` of the commander's task ⇒ `PROGRESS Set`), **SPOT** from the squad pool when a new element appears (a PIR), **SITREP** on the requested rate — so `SquadMarch`, unchanged, already reports SET | requiring every play to call `SendReport` for SET: every existing play would need editing first |
 | **CC-6** | when the staff runs | ⭐ Simulation phase on the brain node owning the commander (the `SquadCoordinationSystem` filter), before `BrainTickSystem`; the inbox applies every report addressed to a commander owned here | in a behaviour: a report would be lost while a different state runs |
 | **CC-7** | the example's scope | ⭐ exactly §1: two squads, `SquadMarch`, `SquadHold`, one HSM task, one SOP row, PROGRESS / SPOT / SITREP only — the smallest run that exercises orders down, requirements down, reports up, a guard advancing the plan and the SOP interrupting it | the full building attack first: every part at once, nothing provable on its own |
+
+## 7a. Who reports, which order, and when may a unit act on its own *(⭐ leans CC-8…CC-11, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"Who is responsible for collecting the information on the subordinate and sending reports back to the
+superior? Is it the staff system or is it the behavior running there? … do the behaviors needs to understand the report requests …
+Can the behavior affect the reports?"* · *"How Do we control whether a unit can act autonomously on something or needs to wait for
+orders from its higher level command? Maybe some situations require autonomous response immediately while still being reported up the
+chain."*
+
+**Who does what in reporting (CC-8):**
+
+| layer | its part | needs anything from the superior? |
+|---|---|---|
+| **the staff** of the subordinate (engine systems) | ⭐ **all collection and sending**: the doctrinal minimum by exception, ALWAYS — CONTACT on a new element, SITREP when a colour changes and on its routine rate, LACE after contact, PROGRESS when the task ends or fails — plus whatever the superior's requirements add | ⛔ no — the minimum is the unit's own standing reporting (a TKB default per unit type, like its SOP) |
+| **the running behaviour** | only what the staff cannot infer: its **milestones** (`SendReport` PROGRESS: phase line, foothold, room clear) and its **requests** (CASEVAC, fire support, permission); and it may **shape** reporting — `ReportingPosture` *Silent* while it sneaks (the staff queues everything but CONTACT under fire) | ⛔ no — ⭐ **a behaviour never reads the superior's requirements** |
+| **the superior** | ⭐ **optional** requirements (CCIR) only when its play needs MORE than the minimum (*"tell me at once about any MG"*, *"report every phase line"*) — the `SetReportingEvent` of CC-2 | — |
+
+⇒ A subordinate reports correctly with **no** request at all; a behaviour knows nothing about requests; the superior asks only for
+extras. This is how a real unit works: reporting is SOP, the commander adds CCIR.
+
+**Abstract or concrete orders (CC-9)** — both exist today, and reporting does not care which one ran:
+
+| kind | measured | when |
+|---|---|---|
+| **abstract** — *what* to do, each subordinate class decides *how* | `AssignTacticalIntentEvent{IntentId = "Order.<name>"}`, resolved by the RECEIVER's own class (`TacticalIntentResolutionSystem`); `SquadManeuverRunner.Order` | general orders — Move, Attack, Hold, Defend (RTS style) |
+| **concrete** — run exactly this behaviour with these params | a behaviour name with its params (`SquadManeuverRunner.Publish` to soldiers; the hill attack's `HullDownAttack` intent) | a play that needs one exact drill from a subordinate |
+
+⇒ CC-4 becomes **two** shared actions on the same helper: `OrderSubordinate(unit, Order.<name>, json)` (abstract) and
+`AssignSubordinate(unit, behaviourName, json)` (concrete), both recorded in `SubordinateOrders` and released when the giving play ends.
+
+**Acting alone vs waiting for orders (CC-10, CC-11)** — doctrine: **immediate action** (take cover, return fire, the battle drill's first
+seconds) is ALWAYS the unit's own and ALWAYS reported; anything that **changes the mission** (assault, bypass, withdraw, clear a building)
+is the commander's — unless his intent allows initiative, or there is no commander.
+
+| SOP row class | examples | allowed when |
+|---|---|---|
+| **Immediate** | take cover, return fire, go to ground, casualty first aid | always — reported up as CONTACT / LACE |
+| **Local** | assault a small enemy that blocks the task, break contact, bound to cover | `Initiative ≥ WithinIntent` |
+| **Mission** | abandon the task, attack or clear a building, withdraw from the objective | `Initiative = Full` — or no superior at all |
+
+| the unit | `Initiative` default |
+|---|---|
+| has no superior (the squad alone) | **Full** — it acts on its own SOP, exactly as today |
+| has a superior, Regular+ | **WithinIntent** — immediate and local alone, mission-level waits for an order |
+| has a superior, Untrained / Militia | **Full** — irregulars act on their own (the proficiency repertoire, Defend_And_Attack DA-16) |
+| the superior's order says otherwise | the superior sets it with the order, as it sets ROE |
+
+⇒ For CC-7's spot report: Alpha's men see the enemy → the squad merge → the squad's SOP takes its **Immediate** row at once (cover,
+return fire — `ReactToContact`'s first seconds) **and** its staff sends a SPOT up. Whether Alpha then assaults is a **Mission**-class
+choice: with `WithinIntent` it holds and waits; the platoon's SOP decides (`PlatoonHold`, or an order to assault). Without a platoon,
+`Initiative = Full` and Alpha's own SOP goes on as today. If no order comes within a hold time (default 30 s), the squad's initiative
+rises one step — doctrine's *"if in doubt, act on the commander's intent"*.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **CC-8** | who reports | ⭐ **the staff collects and sends everything**; a standing reporting minimum per unit type needs no request; behaviours only add milestones and requests (`SendReport`) and may set `ReportingPosture` (Silent); **behaviours never read the superior's requirements**; the superior's requirements are optional extras | the behaviour composing reports: every play re-implements SALUTE and must read the requirements · requirements mandatory with every order: an RTS "move" would carry a reporting spec |
+| **CC-9** | abstract or concrete orders | ⭐ **both, unchanged**: `Order.<name>` (resolved by the receiver's class) and a concrete behaviour; two actions `OrderSubordinate` / `AssignSubordinate` on one helper | one kind only: RTS needs abstract, the hill attack needs concrete |
+| **CC-10** | what a unit may do on its own | ⭐ every SOP row is classed **Immediate · Local · Mission**; a unit's **`Initiative`** (`ImmediateOnly · WithinIntent · Full`) admits the classes; a refused row's situation is still reported (the staff does that anyway); the gate checks it beside the existing `RoeReactions.StayOnTask` | a per-row "needs approval" flag: every SOP author re-decides doctrine per row · no limit: a platoon could never keep its squads on the plan |
+| **CC-11** | where `Initiative` lives and who sets it | ⭐ **a new half of `Roe`**, set by `SetRoeEvent` (with the order or on its own, origin-gated, persists across tasks) — ROE's `Reactions` is already the "may reactions interrupt" switch; defaults by the table above; rises one step after 30 s without orders | a separate component: two sources for "what may this unit do on its own" |
+
+⚠ CC-2 clarified: the separate event is the **report-requirements** event (`SetReportingEvent`), NOT the behaviour order; it carries
+only the superior's EXTRA requirements (CC-8).
 
 ## 8. Slices and the check
 
