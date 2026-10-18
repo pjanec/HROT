@@ -594,12 +594,12 @@ point, mast; the blades' height empty; parts off ⇒ one body) · `BodyPartDamag
 | grep `BodyProfile.Points\|Fractions` | 5 sites | being SEEN: `Points` (Explain, `AimPoint.For`, `AreaEffectSystem`) and two inline copies of its loop (`IsVisible`, EQS `CheapLineOfSightTest`) — every point on the man's vertical, no lateral term |
 | read `BodyPartRay.Person` / `BodyPartHit.Segment` | 1 | being HIT: the ONE person part test (the round's narrow phase AND the FPS crosshair, CE-1126) — sphere then boxes, in the body frame (x fwd, y LEFT, z up) |
 | `Gesture` recipe (`c194d559e`) | 17 files | the small brain-written replicated body state to copy: component · Brain group · `dt` · egress/ingress · pack · rails |
-| other lanes' `GlobalComponentIds` / `AllDescriptors` | — | 415 and `dt` 149 free on `behaviors`, `ui`, `coordinator` at design time — ⚠ behaviors took 415 the same day (`CombatProficiency`); `Lean` FINAL **417** (`EngagementArea` 416) after two same-day clashes |
+| other lanes' `GlobalComponentIds` / `AllDescriptors` | — | 415 and `dt` 149 free on `behaviors`, `ui`, `coordinator` at design time — ⚠ behaviors took 415 the same day (`CombatProficiency`); `Lean` **416**, `EngagementArea` 417 — CONVERGED on both lanes after two same-day clashes and a ping-pong |
 
 ```mermaid
 classDiagram
   direction LR
-  class Lean { <<NEW FDP component 417, Brain group, dtLean 149>> LeanSide Side }
+  class Lean { <<NEW FDP component 416, Brain group, dtLean 149>> LeanSide Side }
   class LeanSide { <<NEW>> LeanNone · LeanLeft · LeanRight }
   class Leans { <<NEW FDP static>> Set · Of · Shift 0.4 m · Offset(h) · Shear · Unshear }
   class TerrainWorldLosStrategy { <<EXISTING, grows>> EyeOf NEW · IsVisible · Explain }

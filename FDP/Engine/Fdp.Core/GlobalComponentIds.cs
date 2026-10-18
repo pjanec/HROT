@@ -1026,17 +1026,19 @@ namespace Fdp.Core
         /// read through <c>ProficiencyOf</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8a.
         /// ⚠ 415: 414 was taken in parallel by backend's Custody (CE-3256) — 415 measured free on every lane 2026-10-19.</summary>
         public const int CombatProficiency = 415;
-        /// <summary>⭐ <c>CE-2282</c> (behaviors, DA-L) — <c>EngagementArea</c>: a man's or a commander's sector (Allow, NoFire), read
-        /// through <c>EngagementAreas</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13c.
-        /// ⚠ 416 measured free on backend, ui, coordinator and behaviors 2026-10-19.</summary>
-        public const int EngagementArea = 416;
 
         /// <summary>⭐ <c>CE-3257</c> (backend, BR-5) — <c>Lean</c>: a man leaning round a corner (left / right), Brain group, replicated as
-        /// <c>dtLean</c> (149). 📄 docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §13.
-        /// ⛔⛔ FINAL — DO NOT FLIP AGAIN (2026-10-19): <c>EngagementArea</c> = 416, <c>Lean</c> = 417 — the values on <c>behaviors</c> at
-        /// <c>b7264182a</c>. Both lanes resolved the same clash at once, twice, each adopting the other's STALE state (a ping-pong). ⇒ Whoever
-        /// merges next: KEEP 416 / 417. 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</summary>
-        public const int Lean = 417;
+        /// <c>dtLean</c> (149). 📄 docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §13. ⚠ 416: backend first took 415 the
+        /// same day behaviors' CombatProficiency (CE-2273) did; backend merged second and moved (a runtime id, NoScenario — nothing persisted).
+        /// 416 measured free on backend, ui, coordinator, behaviors 2026-10-19. ⚠ FINAL: behaviors' EngagementArea also took 416 and both
+        /// lanes then moved at once (backend Lean → 417, behaviors EngagementArea → 417); backend adopted behaviors' resolution — Lean 416.
+        /// ⛔⛔ CONVERGED (2026-10-19, backend merging behaviors a43b4bd3c): Lean = 416, EngagementArea = 417 on BOTH lanes — the values
+        /// behaviors declared final. KEEP them; a later id goes in a lane block (NOTE_Backend_To_All_Lanes_Component_Id_Space.md).</summary>
+        public const int Lean = 416;
+        /// <summary>⭐ <c>CE-2282</c> (behaviors, DA-L) — <c>EngagementArea</c>: a man's or a commander's sector (Allow, NoFire), read
+        /// through <c>EngagementAreas</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13c.
+        /// ⚠ 417: 416 was taken in parallel by backend's Lean (CE-3257); behaviors merged second and moved (runtime id, NoScenario) — 417 measured free on every lane 2026-10-19.</summary>
+        public const int EngagementArea = 417;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
