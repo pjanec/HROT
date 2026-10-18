@@ -13,6 +13,7 @@ related-designs:
   - docs/REFERENCE_Command_Building_Blocks_Measured.md — the measured blocks, symbol by symbol
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner and the built drills (bounding overwatch, suppress-and-manoeuvre, break contact, casualty care) the squad plays reuse
   - docs/DESIGN_Decision_Layer.md — OWNS task · SOP · reaction and ROE (§4.4); PC-6 extends ROE through the chain
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a man looks (LD-1…LD-5, R-2048): §3 brings it into this programme, its demos and the look checks added to §12's
   - docs/DESIGN_Peek_And_Fire.md — OWNS the expose / hide / relocate cycle, FiringPositionMemory heat and CoverClaim; §6b keeps relocation inside a man's post and sector (PC-14) and sets who switches by tier (PC-15)
 -->
 
@@ -336,7 +337,7 @@ attack: *"so the enemy cannot aim and wait"*). What this programme adds is keepi
 | **memory of used spots** | `FiringPositionMemory` — the UNIT's memory (outlives a posture switch, a reload, a re-plan): every exposure heats the spot, **being shot at heats it more**; hot enough ⇒ **burned** and skipped until it cools (a half-life); a warm spot scores lower when the next one is chosen |
 | **two men, one window** | `CoverClaim`: a point another unit claimed is skipped |
 | **the watcher's side** | a man who loses sight of his target fires a **blind burst at the remembered spot** (the Blind phase) — the "waiting for him to reappear" the switching defeats |
-| ⛔ **not there yet** | the hide candidates ignore the man's **post and sector** (a defender may slide to a window in his neighbour's arc, an SBF man off his line) · a soldier's **eyes do not stay on** the window where the enemy last showed (vision is 360° until LD-1) · below Regular the switching is ON today, though DA-2 says the untrained stay at the sill |
+| ⛔ **not there yet** | the hide candidates ignore the man's **post and sector** (a defender may slide to a window in his neighbour's arc, an SBF man off his line) · a soldier's **eyes do not stay on** the window where the enemy last showed (vision is 360° until LD-1 — ✅ now in the plan, R-2048, Look Direction §3) · below Regular the switching is ON today, though DA-2 says the untrained stay at the sill |
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -487,6 +488,8 @@ live check (`scripts/utility-demo-check.py`, one `run_*` each) and an in-process
 | **C** platoon | `pc-ambush-bypass` | the bypass branch | the same, but the route turns south down the Cross Road at the intersection, so the fire comes from SNP, 100 m off the rest of the route | AI | no squad enters SNP · suppress + smoke + cross · the movement resumes | DA-N |
 | **C** platoon | `pc-tier-ladder` | the repertoire | `pc-attack-house` five times, both sides at each tier | AI | attacker losses and time to BuildingClear fall as the tier rises (a table in the run report) | DA-I |
 
+⭐ **Look direction (R-2048):** its own demos (`ld-sentry-surprise`, `ld-crossing-security`, `ld-watch-last-window`, `ld-room-sectors`) run on `bt-range` and are listed in [Look Direction §3.4](../look-direction/DESIGN_Look_Direction_And_FOV.md); the same section adds a look check to `sq-defend-house`, `sq-support-by-fire`, `pc-urban-ambush` and `pc-defend-house` above.
+
 ⭐ **Kept where they are** (Building Clearing §8, the CQB test house): `bc-platoon-house` (the clearing alone, no defence) and
 `bc-platoon-house-relief` (scripted casualties ⇒ relief) already prove the Clear phase and Relieve; they are not copied here.
 
@@ -541,6 +544,7 @@ graph LR
     B9[BR-9 sniper and DMR rifles, scope]
     B25[BR-2 stun · BR-4 / BR-5 interactions, Lean]
     B87[CE-2287 backend's brain-side geometry sites]
+    BLD[LD-1 / LD-2 look direction: executor on the look-at channel, the cone follows it]
   end
   subgraph ui
     U1[UI-1 shared Recipes/Buildings]
@@ -554,7 +558,7 @@ graph LR
   subgraph behaviors
     W0[wave 0: proficiency CE-2273 · ROE chain CE-2289 · SL-0 CE-2262 · EngagementArea CE-2282 · roles CE-2281]
     W1[wave 1: command machinery CC-A..CC-E CE-2291..2295]
-    W2[wave 2: SquadDefend CE-2275 · clearing CE-2257..2259 · sensors CE-2283 · stage A demos]
+    W2[wave 2: SquadDefend CE-2275 · clearing CE-2257..2259 · sensors CE-2283 · LD-3 who points the eyes CE-2297 · stage A demos · LD demos CE-2298]
     W3[wave 3: PlatoonDefend CE-2276 · PlatoonAttack CE-2277 · PL-1 CE-2264 · smoke CE-2278 · sniper CE-2279 · urban CE-2284]
     W4[wave 4: repertoire CE-2280 · tier ladder]
   end
@@ -573,6 +577,7 @@ graph LR
   B3 --> U6
   W1 --> U6
   W1 --> U5
+  BLD --> W2
 ```
 *What the picture shows that prose hid:* the three lanes can all **start today** — backend on the survey and the report topic, ui on
 the buildings and the terrain, behaviors on wave 0 — and the first point where one lane WAITS on another is behaviors' wave 2 (the
@@ -580,6 +585,6 @@ rooms from BR-12, the CQB house from UI-3). The stage C demos need the terrain (
 
 | lane | items | where they are framed |
 |---|---|---|
-| **backend** | BR-12 (+ the roof room) · BR-3 (+ the note's fields incl. `Synthetic`) · BR-6 / BR-7 · BR-8 · BR-9 · BR-2 · BR-4 / BR-5 · CE-2287; ⚠ **BR-1 is superseded**: its room graph is BR-12's derived rooms, its test house moves to ui (UI-3) | the existing handoffs + [`NOTE_Behaviors_To_Backend_Platoon_Programme.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md) (order, the roof room, BR-1's split) |
+| **backend** | BR-12 (+ the roof room) · BR-3 (+ the note's fields incl. `Synthetic`) · **LD-1 / LD-2** (look direction, R-2048) · LD-4 last · BR-6 / BR-7 · BR-8 · BR-9 · BR-2 · BR-4 / BR-5 · CE-2287; ⚠ **BR-1 is superseded**: its room graph is BR-12's derived rooms, its test house moves to ui (UI-3) | the existing handoffs + [`NOTE_Behaviors_To_Backend_Platoon_Programme.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md) (order, the roof room, BR-1's split) |
 | **ui** | UI-1 … UI-7 (table in the handoff); takes over `CE-2285` (house-3f) and `CE-2290` (cqb-village) | [`HANDOFF_Behaviors_To_Ui_Platoon_Demos.md`](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md) |
-| **behaviors** | waves 0–4 above; the command machinery gets its own rows `CE-2291`…`CE-2295` (CC-A…CC-E); the demo harness `CE-2296`; `CE-2263` (RP-1) is folded into `CE-2291`…`CE-2295` | the tracker rows |
+| **behaviors** | waves 0–4 above (LD-3 `CE-2297` and the LD demos `CE-2298` in wave 2, [Look Direction §3](../look-direction/DESIGN_Look_Direction_And_FOV.md)); the command machinery gets its own rows `CE-2291`…`CE-2295` (CC-A…CC-E); the demo harness `CE-2296`; `CE-2263` (RP-1) is folded into `CE-2291`…`CE-2295` | the tracker rows |
