@@ -202,5 +202,7 @@ namespace Hrot.Map.Definitions.Behavior
         public const string StationWeapon = "StationWeapon";
         /// <summary>⭐ <c>CE-2238</c> part 5 (AW-12, §5l BM-1) — he sets off the charge he carries.</summary>
         public const string DetonateCharge = "DetonateCharge";
+        /// <summary>⭐ <c>CE-2241</c> ② (CV-14, §5m PV-4) — a police order: go at the point and strike the protesters within reach of it.</summary>
+        public const string BatonCharge = "BatonCharge";
     }
 }

@@ -407,7 +407,7 @@ shot" could mean "not seen").
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ✅ §5j.1 — live 6/6 (force at 4.1 s, four stun grenades, all five stunned, the riot broken: a Casualty and four Cower), twin green |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ✅ §5k.1 — ⭐ *as built:* the armed rioter is a Hostile GUNMAN who draws a hidden rifle, holds it at ease 6 s (warned, no round), then fires into the air (ready ⇒ lethal after the ignored warning); ③ is its own scenario `ua-civ-escalation-warn` · live 6/6 + 6/6, twins green |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
-| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest, each protester an authored `Attitude` (four at −1); three policemen (SecurityForce, NonLethal) walk from 60 m to 15 m, hold the line there facing the crowd 60 s (the presence, PV-1), `BatonCharge` the front rank 12 s, then `HoldTheLine` (§5m) | ① before the police are within 30 m, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ every Hostile civilian rioted first, the same on every node · ④ ⚠ *as built:* no member of attitude −1 riots (the deterministic half of "the same members" — the seed is the authored attitude, §5m PV-3) | ⚠ §5m.1 |
 | **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
@@ -2238,6 +2238,136 @@ Failure with no charge. No deviation.
 | twin `PostureScenarioTests.CE2238_Bomber_…` | ✅ green (47 s): never judged armed by the rifleman or a civilian, 0 rounds, every civilian within 5 m dead, one at 10.4 m wounded, nobody beyond the radii hurt |
 | live `ua-armed-bomber` | ✅ 5/5 — Neutral and 0 rounds until the blast; the vest bursts at 37.7 s, he is dead; everyone within 3 m hurt; the rifleman at 31 m unhurt |
 | ⛔ finding `CE-2247` (backend) | 2 s after the burst the position owner (SimHost) has the spent vest GONE, but CGF and IG still hold it as a LIVE charge — `Charges.End` promises every replica goes. Rail `CE2247_Bomber_TheSpentVest_LeavesEveryNode`, skipped until fixed; [note](blueprints/batches/NOTE_Behaviors_To_Backend_SpentChargeReplicas.md) |
+
+## 5m. B7 — CV-14, the security forces provoke a crowd *(behaviors, `CE-2241` ② / handoff B7, 2026-10-18; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** CV-14 (§4, R-2024) on the crowd built in §5f/§5i: police near the crowd, facing it, raise its anger slowly; force used on a
+member spikes his neighbours' anger; each member's hidden **attitude** sets HIS riot threshold, so only a fraction riots. Demo
+`ua-civ-provocation` (§5c). ⏳ Not here: an arrest (a person led away), anger from a death, attitude for a civilian with no authored value
+(it stays 0 — every existing demo keeps its thresholds).
+
+**INVENTORY** *(2026-10-18; codebase-memory MCP `search_graph` `.*(Provok|Provoc|BatonCharge|Disperse|Arrest|Attitude|Anger).*` ⇒
+`CivilianState.Anger` (5 readers), `CivilianState.Attitude` (**0 readers**), `CrowdRules.AngerFade` — ⛔ **no provocation input, no order
+that strikes a protester**; grep `Melee.Strike` ⇒ `HoldTheLine` (Hostiles only) and the rioter · `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| where anger rises today | `CrowdSystem.Rouse`: an instigator's 1; a crowd member near one rises `InstigateRate × near`; otherwise fades `AngerFade` | `Civilians/CrowdSystem.cs` ⑤ |
+| who riots | `CivilianBehavior.Rioting`: a protester with `Anger ≥ RiotAt` (0.6); `Calmed` below half | `Brains/CivilianBehavior.cs:770` |
+| how force shows on a man | `EffectState` Until fields grow (Blunt ⇒ KnockedDown, Irritant, Stun); `CivilianFearSystem` already turns a NEW stun/irritation into fear once per effect (`EffectFrightUntil`) | `Combat/Effects.cs`, `CivilianFearSystem.cs:92` |
+| who is police | `Armament.IsSecurityForce` (DIS 3.1.*.3) | `Combat/Armament.cs:185` |
+| a man's facing | `SimTransform.Rotation`, X-forward | `EmbarkedStateSystem.Forward` |
+| who strikes a NEUTRAL protester | ⛔ nobody — `HoldTheLine.Nearest` skips Neutral | `Brains/HoldTheLineBehavior.cs:131` |
+
+```mermaid
+classDiagram
+  direction LR
+  class CrowdSystem { <<existing, + CV-14>> Rouse: + presence · Provoke: force spike }
+  class CrowdRules { <<existing, + CV-14>> ProvokeMetres 30 · ProvokeRate · FacingCos · ForceSpike · SpikeMetres · AttitudeWeight }
+  class CivilianState { <<existing>> Anger · Attitude (now written) · + ForceSeenUntil }
+  class CivilianBehavior { <<existing>> Rioting / Calmed read RiotAtFor(RiotAt, Attitude) }
+  class CivilianParamsJsonDto { <<existing>> + Attitude }
+  class BatonChargeBehavior { <<NEW, Brains>> BatonCharge(X,Y,Z, Reach, Seconds) }
+  class Melee { <<existing>> Strike }
+  class ForceLevels { <<existing>> LevelFor }
+  class Armament { <<existing>> IsSecurityForce }
+  class EffectState { <<existing>> }
+  CrowdSystem ..> Armament : police near and facing
+  CrowdSystem ..> EffectState : a new effect on a member
+  CrowdSystem --> CivilianState : anger
+  CivilianBehavior ..> CivilianState : anger vs his threshold
+  BatonChargeBehavior ..> Melee : strike a protester in reach
+  BatonChargeBehavior ..> ForceLevels : no blow below NonLethal (EL-7)
+  Melee ..> EffectState : Blunt ⇒ knocked down
+```
+*What the picture shows that prose hid:* the provocation has NO new system — both inputs land in the `CrowdSystem` pass that already owns
+anger, and the only new class is the order that puts force on a Neutral crowd (nothing could before).
+
+```mermaid
+sequenceDiagram
+  participant P as police (CGF brains)
+  participant C as CrowdSystem (CGF)
+  participant M as protester's HSM
+  P->>P: PersonMove to 15 m, facing the crowd
+  loop every frame within 30 m and facing
+    C->>M: Anger += ProvokeRate × near (no fade)
+  end
+  P->>M: BatonCharge — Melee.Strike ⇒ KnockedDown
+  C->>C: a NEW effect on a member (ForceSeenUntil)
+  C->>M: every member within SpikeMetres: Anger += ForceSpike × near
+  M->>M: Anger ≥ RiotAt − 0.5 × Attitude ⇒ Riot (a fraction)
+  M->>P: the rioter's blow ⇒ HostileActs.Commit ⇒ Hostile
+```
+
+```mermaid
+graph TD
+  CGF[CGF] --> CRS[CrowdSystem — already registered: + presence, + force spike]
+  CGF --> BT[BrainTickSystem]
+  BT --> HSM[CivilianHsm — Rioting reads his threshold]
+  BT --> BC[BatonCharge — a police plan step]
+  BC --> MEL[Melee.Strike — DamageAssessedEvent]
+```
+*Caption:* nothing new is scheduled; `CgfLogicPackTests`' system count is unchanged.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **PV-1** | ⭐ **presence**: each `SecurityForce` person alive and standing within `ProvokeMetres` 30 of a crowd member, facing him (forward · direction ≥ `FacingCos` 0.5, ±60°), raises his anger `ProvokeRate` 0.01/s × (1 − 0.5·d/30) — the strongest one counts, added to an instigator's pull; while provoked his anger does not fade | the crowd's centroid: a long crowd's far end is not provoked · per-person sight: CV-2's cost |
+| **PV-2** | ⭐ **force**: a NEW or longer effect on a crowd member (`EffectState` KnockedDown/Stunned/Irritated past `ForceSeenUntil`) adds `ForceSpike` 0.3 × (1 − 0.5·d/10) to every OTHER member of his crowd within `SpikeMetres` 10 — once per effect | the struck man too: CV-14 says neighbours; his own answer is fear (FL-6) · every member: a blow at the front does not reach the back rank |
+| **PV-3** | ⭐ **attitude**: authored `Attitude` (−1 friendly … +1 hostile at heart; default 0) sets HIS threshold `RiotAt − 0.5 × Attitude` (−1 ⇒ 1.1: never riots; +1 ⇒ 0.1); `Calmed` is below half of it; the HSM writes it into `CivilianState.Attitude` | a seeded random per entity: entity ids differ per run — ④ "the same members riot" fails · a hash of the network id for unauthored civilians: moves every existing demo's thresholds |
+| **PV-4** | ⭐ **the order**: a library behaviour `BatonCharge {X,Y,Z, Reach 8, Seconds 10}` for the police — walk at the point, strike the nearest standing `Civilian`-class person within `Reach` of it (close on him, `Melee.Strike` in reach, every `Melee.CooldownSeconds`; a man down or stunned is left), only when `ForceLevels.LevelFor ≥ NonLethal` (EL-7); Success after `Seconds` | baton rounds by `FireAtPoint`: a fixed point misses a milling protester · `HoldTheLine` striking Neutrals: its rule is "Hostiles only" (FL-5) |
+| **PV-6** *(found building the demo, 2026-10-18)* | ⭐ **Riot → Panic is §2.2's "fear beats anger"**: a rioter panics only when his fear is past `PanicAt` AND at least his anger (`FearBeatsAnger`). Contagion gives at most 0.9 of its source, so the crowd's fright does not turn a man angrier than that; force on HIM (fear 1) still does. Protest → Panic and Alarmed → Panic keep `Panicked` | the old guard (fear ≥ `PanicAt` alone) — measured: every rioter panicked by contagion from his struck neighbour within a second, so the live run saw no riot · contagion skipping rioters: hides a rioter's fear from readers that are not the HSM |
+| **PV-5** | ⭐ the fraction is the TWO knobs together — presence makes a crowd angry, force tips the ones whose threshold the spike reaches; a calm crowd (no presence) under the same blows stays below 0.6 and its struck men panic instead (§2.2's Dispersing edge) | — |
+
+### 5m.1 As built *(2026-10-18)*
+
+⭐ The diagrams above hold as drawn — PV-1…PV-4 in `CrowdSystem` (`Police`, `Provocation`, `Provoke`; `CrowdRules.Provoke*`,
+`ForceSpike`, `SpikeMetres`, `AttitudeWeight`, `RiotAtFor`), `CivilianState.ForceSeenUntil`, the `Attitude` param read by
+`CivilianBehavior.Rioting`/`Calmed` (and written to `CivilianState.Attitude`), `BatonChargeBehavior` + `BatonChargeParamsJsonDto`
+(`BehaviorNames.BatonCharge`). No new system.
+
+| deviation | why |
+|---|---|
+| ④ "the same members riot on every run" is checked as "no member of attitude −1 riots" | the WHO among the willing depends on which members the blows land near (timing); the deterministic part is the threshold, and that is what the seed (the authored attitude) fixes |
+| the struck man's own anger is not spiked (PV-2) | as designed — his answer is fear; measured live: the struck front rank mostly panics, the spike tips their neighbours |
+
+| proof | result |
+|---|---|
+| rails `CrowdSystemTests.CE2241_…` ×3 (presence 0.0075/s at 15 m · facing away / beyond 30 m nothing · the spike 0.24 at 4 m, once per effect, not himself, not beyond 10 m · the threshold literals) | ✅ |
+| rails `CivilianHsmTests.CE2241_HisAttitude_…` · `HoldTheLineBehaviorTests.CE2241_BatonCharge_…` ×2 | ✅ |
+| twin `PostureScenarioTests.CE2241_Provocation_…` | ✅ twice — police within 30 m at 22.6 s, the first blow at 38.6 s, riot from the same frame; rioted {4, 6, 8} of 12, Hostile {4}; no attitude −1 member riots |
+
+## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** ui's finding G7 ([handoff](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md)): `HeldItems.Set`
+(backend HI-2, `Combat/HeldItems.cs:30`) has no production caller, so the display never shows a phone or a stone in hand. ⏳ Not here:
+binoculars (no lookout behaviour exists to raise them — a later role), speech (G1) and the replicated mood (G2) — both need backend's
+component first.
+
+**INVENTORY** *(2026-10-18; grep `HeldItems\.(Set|Of|Shows|BinocularsUp)` outside tests ⇒ readers only: `Charges.Ask` (a phone in hand
+triggers a remote charge, HI-6), `VisualPerception` (binoculars), `HeldItems.Shows` (an observer judges a small non-lethal object);
+⛔ no writer · the owner's `WeaponPosture` is added beside the weapon channel by `BehaviorTkbTranslator.cs:145` — a civilian type has
+`CanShoot` (§5i.2a), so he has one · codebase-memory CLI not used for this one-symbol question)*.
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianBehavior { <<existing, + G7>> Routine: phone out for a share of his pauses · Riot: Throwable while a stone is in hand · deactivators put it away }
+  class HeldItems { <<existing, backend HI-2>> Set(man, kind) · Of(man) }
+  class WeaponPosture { <<existing, replicated>> HeldItem }
+  class Stones { <<existing>> InHand }
+  CivilianBehavior ..> HeldItems : Set
+  HeldItems --> WeaponPosture : HeldItem (dtWeaponPosture)
+  CivilianBehavior ..> Stones : InHand
+```
+*What the picture shows that prose hid:* the brain only WRITES the existing replicated byte — the display, the observer's judgement and
+the remote trigger already read it, so nothing new crosses the wire.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **HD-1** | ⭐ **the phone**: when a Routine walk ends and he pauses, he takes his phone out on `PhoneShare` 0.3 of his pauses (his own seeded draw, the same per man per pause); he puts it away when he walks on or leaves Routine | a phone for everyone at once: a street of statues · a phone in Panic: he runs |
+| **HD-2** | ⭐ **the stone**: while he riots with a stone in his hands (`Stones.InHand`) he holds `Throwable`; empty-handed, or out of Riot, `None` | the hands mount's ammo read by ui: it is not replicated as a held item; the byte is |
+| **HD-3** | ⭐ only the owning HSM writes it, only through `HeldItems.Set`, and only clears what it set (a Phone or a Throwable — never a drawn weapon) | clearing on every state entry: it would put away a weapon `StationWeapon` drew |
+| **HD-4** | ⚠ a phone in hand is a small NON-lethal object to an observer (`HeldItems.Shows`): no rule fires a round at it, and a Neutral is held first anyway (CIV-0) | — |
 
 ## 6. Known limits
 

@@ -3603,6 +3603,58 @@ def run_armed_celebration(c, timeout):
     c.ok(all(h is not None and h >= 100 for h in hp), f"③ no other guest is hurt ({hp})")
 
 
+# ── CE-2241 ② B7 CV-14 — the security forces provoke a crowd (Civilians §5c, §5m) ─────────────────────────────────────────────
+
+_PROVOCATION_NEVER = (2, 5, 7, 10)   # the protesters authored Attitude −1: their threshold is above 1 (§5m PV-3)
+
+
+def run_civ_provocation(c, timeout):
+    """test-town: ua-civ-protest's twelve protesters, each with a hidden Attitude (four at −1), and three policemen 60 m off who walk to
+    15 m of the crowd, hold the line there facing it for 60 s, BatonCharge its front rank for 12 s, then hold the line again. ① before the police come within 30 m nobody riots ·
+    ② after the batons at least one and fewer than all riot · ③ every Hostile civilian rioted first, on CGF, SimHost and IG alike, and
+    one is · ④ no protester whose attitude is −1 riots. The twin (PostureScenarioTests.CE2241_Provocation_…) checks every frame."""
+    ids = ids_by_name()
+    civs = {i: ids.get(f"Protester {i}") for i in range(1, 13)}
+    police = [ids.get(n) for n in ("Police shield", "Police baton 1", "Police baton 2")]
+    if not c.ok(None not in list(civs.values()) + police, "twelve protesters and three policemen are loaded"):
+        return
+    rioted, blows, near_at = {}, [None], [None]
+
+    def xy(n):
+        p = ((comps(n) or {}).get("SimTransform") or {}).get("Position") or [0, 0, 0]
+        return p[0], p[1]
+
+    def watch():
+        t = (sim_time() or 0.0)
+        where = {i: xy(n) for i, n in civs.items()}
+        for n in police:
+            px, py = xy(n)
+            if near_at[0] is None and any(((x - px) ** 2 + (y - py) ** 2) ** 0.5 <= 30.0 for x, y in where.values()):
+                near_at[0] = t
+        for i, n in civs.items():
+            m = civ_mind(n)
+            if _CIV_MODES.get(m.get("Mode"), m.get("Mode")) == "Riot":
+                rioted.setdefault(i, t)
+            if blows[0] is None and (((comps(n) or {}).get("EffectState") or {}).get("KnockedDownUntil") or 0) > t:
+                blows[0] = t
+        return False
+    call("POST", "/sim/play", {})
+    t0 = sim_time() or 0.0
+    wait_for(lambda: (watch(), (sim_time() or 0.0) - t0 >= 170.0)[1], timeout + 400, every=0.5)
+    first = min(rioted.values()) if rioted else None
+    c.ok(near_at[0] is not None and (first is None or first >= near_at[0]),
+         f"① nobody riots before the police are within 30 m (police near at {near_at[0]}, first riot at {first})")
+    c.ok(blows[0] is not None, f"② the baton charge knocks a protester down (at {blows[0]})")
+    c.ok(1 <= len(rioted) < len(civs), f"② a FRACTION riots: {len(rioted)} of {len(civs)} ({sorted(rioted)})")
+    hostile = {}
+    for h in ("CGF", "SimHost", "IG"):
+        hostile[h] = {i for i, n in civs.items() if ((comps_on(h, n) or {}).get("EntityInfo") or {}).get("ForceId") in ("Hostile", 2)}
+    c.ok(hostile["CGF"] and all(hostile[h] <= set(rioted) for h in hostile),
+         f"③ every Hostile civilian rioted first, and one is ({ {h: sorted(v) for h, v in hostile.items()} })")
+    c.ok(hostile["CGF"] == hostile["SimHost"] == hostile["IG"], f"③ …the same on CGF, SimHost and IG")
+    c.ok(not set(rioted) & set(_PROVOCATION_NEVER), f"④ no protester of attitude −1 riots ({sorted(set(rioted) & set(_PROVOCATION_NEVER))})")
+
+
 # ── CE-2238 part 5 B5 — the bomber sets off his worn charge (Civilians §5c, §5l) ─────────────────────────────────────────────
 
 def run_armed_bomber(c, timeout):
@@ -3685,6 +3737,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-armed-self-defence": run_armed_self_defence, "ua-armed-celebration": run_armed_celebration,
              # ⭐ CE-2238 part 5 B5 — the bomber (Civilians §5c, §5l)
              "ua-armed-bomber": run_armed_bomber,
+             # ⭐ CE-2241 ② B7 CV-14 — the security forces provoke a crowd; a fraction riots (Civilians §5c, §5m)
+             "ua-civ-provocation": run_civ_provocation,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

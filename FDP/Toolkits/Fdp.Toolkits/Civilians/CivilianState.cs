@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Civilians
         public float Fear;
         /// <summary>0 … 1 — raised by the crowd and by force used on him (CE-2237, CE-2241). Unused in slice 1.</summary>
         public float Anger;
-        /// <summary>−1 (friendly) … +1 (hostile at heart) — hidden; his side flips only on a hostile ACT (CV-4). Unused in slice 1.</summary>
+        /// <summary>−1 (friendly) … +1 (hostile at heart) — hidden; his side flips only on a hostile ACT (CV-4). ⭐ <c>CE-2241</c> ② (§5m
+        /// PV-3): it sets his riot threshold; written by his HSM from its <c>Attitude</c> param.</summary>
         public float Attitude;
         /// <summary>The state his HSM is in.</summary>
         public CivilianMode Mode;
@@ -79,6 +80,9 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6, §5j) — the latest end of a stun or an irritation (<c>EffectState</c>) that has frightened
         /// him already, so a running effect frightens him once and only a new or longer one again. Written by <see cref="CivilianFearSystem"/>.</summary>
         public double EffectFrightUntil;
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-2) — the latest end of a knock-down, stun or irritation on him that has already spiked his
+        /// neighbours' anger, so one blow spikes it once. Written by <see cref="CrowdSystem"/>.</summary>
+        public double ForceSeenUntil;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

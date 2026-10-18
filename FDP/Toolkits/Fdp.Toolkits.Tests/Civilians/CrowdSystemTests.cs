@@ -26,7 +26,19 @@ namespace Fdp.Toolkit.Civilians.Tests
             if (!w.IsComponentTypeRegistered<InjuryThresholds>()) w.RegisterComponent<InjuryThresholds>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
             if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             return w;
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ② — a policeman (the <c>SecurityForce</c> class, alive) at (x, y) facing <paramref name="headingDeg"/>.</summary>
+        private static Entity Policeman(EntityRepository w, float x, float y, float headingDeg = 0f)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0),
+                Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, headingDeg * System.MathF.PI / 180f) });
+            w.AddComponent(e, new Health { Current = 100, Max = 100 });
+            w.SetDisType(e, new DISEntityType { Kind = 3, Domain = 1, Category = Fdp.Toolkit.Combat.Armament.SecurityForceCategory });
+            return e;
         }
 
         private static Entity Civ(EntityRepository w, float x, float y, CivilianMode mode = CivilianMode.Routine, float fear = 0f)
@@ -171,6 +183,69 @@ namespace Fdp.Toolkit.Civilians.Tests
             float before = Mind(w, near).Anger;
             for (int i = 0; i < 100; i++) Frame(w, crowds);                 // 10 s at 0.02/s
             Assert.InRange(Mind(w, near).Anger, before - 0.21f, before - 0.19f);
+        }
+    
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-1) — a policeman 15 m off FACING the crowd raises its anger slowly (0.01/s, half at 30 m ⇒
+        /// 0.0075/s at 15 m); one facing AWAY, or one beyond 30 m, does not; once he is gone the anger fades.</summary>
+        [Fact]
+        public void CE2241_AFacingPoliceman_RaisesTheCrowdsAngerSlowly_NotFacingAwayOrFar_AndItFadesWhenHeGoes()
+        {
+            var w = World();
+            var crowds = new CrowdSystem();
+            var a = Civ(w, 0, 0, CivilianMode.Protest);
+            var b = Civ(w, 3, 0, CivilianMode.Protest);
+            var c = Civ(w, 6, 0, CivilianMode.Protest);
+            var police = Policeman(w, -15, 0, headingDeg: 0f);              // X-forward: facing the crowd
+            for (int i = 0; i < 100; i++) Frame(w, crowds);                  // 10 s
+            Assert.InRange(Mind(w, a).Anger, 0.074f, 0.076f);               // 0.01 × (1 − 0.5 × 15/30) × 10 s
+            Assert.True(Mind(w, c).Anger < Mind(w, a).Anger && Mind(w, c).Anger > 0f, $"farther, slower: {Mind(w, c).Anger}");
+
+            float before = Mind(w, a).Anger;
+            w.GetComponentRW<SimTransform>(police).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, System.MathF.PI);   // he turns away
+            for (int i = 0; i < 20; i++) Frame(w, crowds);                   // 2 s
+            Assert.InRange(Mind(w, a).Anger, before - 0.041f, before - 0.039f);   // not provoked: it fades 0.02/s
+
+            var w2 = World();
+            var crowds2 = new CrowdSystem();
+            var far = new[] { Civ(w2, 0, 0, CivilianMode.Protest), Civ(w2, 3, 0, CivilianMode.Protest), Civ(w2, 6, 0, CivilianMode.Protest) };
+            Policeman(w2, -31, 0);                                           // facing, beyond 30 m
+            for (int i = 0; i < 100; i++) Frame(w2, crowds2);
+            Assert.All(far, f => Assert.Equal(0f, Mind(w2, f).Anger));
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-2) — force on a member (a new knock-down) spikes the anger of the OTHER members of his crowd
+        /// within 10 m (0.3, half at 10 m) — not his own, not a member beyond 10 m — ONCE per effect; a longer effect spikes again.</summary>
+        [Fact]
+        public void CE2241_ForceOnAMember_SpikesHisNeighboursAnger_OncePerEffect_NotHisOwnNorFarther()
+        {
+            var w = World();
+            var crowds = new CrowdSystem();
+            var struck = Civ(w, 0, 0, CivilianMode.Protest);
+            var beside = Civ(w, 4, 0, CivilianMode.Protest);
+            var back = Civ(w, 12, 0, CivilianMode.Protest);
+            Frame(w, crowds);
+            w.AddComponent(struck, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = w.SimulationTime + 3 });
+            Frame(w, crowds);
+            Assert.InRange(Mind(w, beside).Anger, 0.239f, 0.241f);           // 0.3 × (1 − 0.5 × 4/10)
+            Assert.Equal(0f, Mind(w, struck).Anger);
+            Assert.Equal(0f, Mind(w, back).Anger);
+            float once = Mind(w, beside).Anger;
+            for (int i = 0; i < 5; i++) Frame(w, crowds);
+            Assert.True(Mind(w, beside).Anger <= once, $"one blow spikes it once: {Mind(w, beside).Anger}");
+
+            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(struck).KnockedDownUntil = w.SimulationTime + 3;   // a second blow
+            Frame(w, crowds);
+            Assert.True(Mind(w, beside).Anger > once + 0.2f, $"a new blow spikes it again: {Mind(w, beside).Anger}");
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-3) — his attitude moves HIS riot threshold: the design's literals.</summary>
+        [Fact]
+        public void CE2241_HisAttitude_MovesHisRiotThreshold()
+        {
+            Assert.Equal(0.6f, CrowdRules.RiotAtFor(0.6f, 0f), 4);
+            Assert.Equal(1.1f, CrowdRules.RiotAtFor(0.6f, -1f), 4);          // friendly: above 1 — he never riots
+            Assert.Equal(0.1f, CrowdRules.RiotAtFor(0.6f, 1f), 4);
+            Assert.Equal(1.1f, CrowdRules.RiotAtFor(0.6f, -5f), 4);          // clamped
         }
     }
 }

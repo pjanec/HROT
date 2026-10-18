@@ -71,6 +71,10 @@ related-designs:
 | CV-4 | a hostile ACT flips the side to Hostile (one write path, replicated) | `HostileActs.Commit` | §7.1a |
 | CE-2233 | neutral danger 0 · never a pick · never a round · not a threat edge · not a posture input | `ThreatDanger.IsNeutral`, `EqsTacticsNodes.Engageable`, `HoldOf`, `ThreatEvaluationSystem`, `StandardInputs` | §5b |
 | CE-2245 | a path answered after the move was stopped is refused | `EngineBackedPathResponseSystem` | §5e |
+| PV-1 (CV-14) | police within 30 m FACING a crowd member raise his anger 0.01/s (half at 30 m); no fade while provoked | `CrowdSystem` (`Police`, `Provocation`), `CrowdRules.Provoke*` | §5m |
+| PV-2 (CV-14) | force on a member (a new knock-down, stun or irritation) spikes his crowd neighbours within 10 m by up to 0.3, once per effect | `CrowdSystem.Provoke`, `CivilianState.ForceSeenUntil` | §5m |
+| PV-3 (CV-14) | hidden `Attitude` −1…+1 sets HIS riot threshold `RiotAt − 0.5 × Attitude` (−1 never riots) ⇒ only a fraction riots | `CrowdRules.RiotAtFor`, `CivilianBehavior.Rioting/Calmed` | §5m |
+| PV-4 (CV-14) | `BatonCharge {point, Reach, Seconds}`: police strike standing Civilian-class people near the point, never below NonLethal | `BatonChargeBehavior`, `Melee.Strike`, `ForceLevels.LevelFor` | §5m |
 
 **Demos**
 
@@ -83,7 +87,7 @@ related-designs:
 | `ua-civ-gathering` | a hurt man at a crossroads | onlookers form one crowd on a 2.5–11 m ring | CV-5, CE-2237 | ⚠ twin ✅, live re-run pending |
 | `ua-civ-contagion` | a fight at one end of a street | fear reaches those who heard nothing, through the crowd | CE-2237, CE-2246 | ✅ 3 in a row |
 | `ua-civ-protest` | 12 protesters, no police | one crowd; fists and placards on every node; nobody Hostile or rioting | CE-2240, CV-13 | ⚠ twin ✅, live not recorded |
-| `ua-civ-provocation` | police advance on a protest, batons | part of the crowd riots, the same members each run | CV-14 | ⏳ not built |
+| `ua-civ-provocation` | 12 protesters (4 friendly at heart) and 3 police who walk up, baton-charge the front rank, then hold the line | nobody riots before the police are near; after the blows a FRACTION riots, never a friendly one; only rioters turn Hostile, the same on every node | CV-14, PV-1…PV-4 | ⚠ twin ✅, live — see §5m.1 |
 
 ## 3. Armed people, riots and police force — [Civilians design](DESIGN_Civilians_And_Crowd_Control.md) §5h–§5l
 
@@ -364,7 +368,7 @@ related-designs:
 
 ## 11. Not built, open, or known wrong
 
-- ⏳ **CV-14** provocation (police raise a crowd's anger) · **AW-19** knife / closing fast · **AW-23** player fratricide · **AW-15** toy gun item (blocks `ua-armed-identify`).
+- ⏳ **AW-19** knife / closing fast · **AW-23** player fratricide · **AW-15** toy gun item (blocks `ua-armed-identify`).
 - ⏳ crossing-Hold live check (`ua-squad-danger-crossing-hold`) · team stretcher carry · medic stabilising · helicopter battle position, pop-up, dive bomb, radar SAM · smoke, counter-battery · rappel.
 - 🔴 **CE-2247** (backend): a spent charge stays a live charge on CGF and IG · **CE-2160**: authoring an entity `Roe` crashes the cluster · **CE-2232**: hide choice ignores line to target.
 - ⚠ other shooters than the police line may still target a carried item that has a hostile side (§3 "never the target" covers `HoldTheLine` only).
