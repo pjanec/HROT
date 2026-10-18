@@ -1341,7 +1341,6 @@ classDiagram
 
 | known gap | |
 |---|---|
-| the 3-D map draws no NON-entity pedestrian (only replicas, as civilians) | `TrafficLayer3D` draws cars; the 2-D map draws a dot per pedestrian |
 | the civilian is born at rest (the removal's velocity is not carried) | no creation attribute for a velocity |
 
 Rails: `PedestriansPanicIntoCiviliansTests` (5: walkers named by our allocator and civilian replicas near a body; a shot gives them up
