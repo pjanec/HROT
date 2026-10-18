@@ -1026,10 +1026,16 @@ namespace Fdp.Core
         /// read through <c>ProficiencyOf</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8a.
         /// ⚠ 415: 414 was taken in parallel by backend's Custody (CE-3256) — 415 measured free on every lane 2026-10-19.</summary>
         public const int CombatProficiency = 415;
+
+        /// <summary>⭐ <c>CE-3257</c> (backend, BR-5) — <c>Lean</c>: a man leaning round a corner (left / right), Brain group, replicated as
+        /// <c>dtLean</c> (149). 📄 docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §13. ⚠ 416: backend first took 415 the
+        /// same day behaviors' CombatProficiency (CE-2273) did; backend merged second and moved (a runtime id, NoScenario — nothing persisted).
+        /// 416 measured free on backend, ui, coordinator, behaviors 2026-10-19.</summary>
+        public const int Lean = 416;
         /// <summary>⭐ <c>CE-2282</c> (behaviors, DA-L) — <c>EngagementArea</c>: a man's or a commander's sector (Allow, NoFire), read
         /// through <c>EngagementAreas</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13c.
-        /// ⚠ 416 measured free on backend, ui, coordinator and behaviors 2026-10-19.</summary>
-        public const int EngagementArea = 416;
+        /// ⚠ 417: 416 was taken in parallel by backend's Lean (CE-3257); behaviors merged second and moved (runtime id, NoScenario) — 417 measured free on every lane 2026-10-19.</summary>
+        public const int EngagementArea = 417;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

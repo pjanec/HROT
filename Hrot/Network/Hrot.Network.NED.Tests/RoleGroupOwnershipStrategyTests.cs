@@ -39,7 +39,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtEffectState),           // ⭐ CE-3219 — a person's non-lethal effects
         D(EDescriptorType.dtGesture),               // ⭐ CE-3224 — a person's gesture
         D(EDescriptorType.dtHostileAct),            // ⭐ CE-3238 — a man's hostile act
-        D(EDescriptorType.dtCustody) };             // ⭐ CE-3256 — a man in custody
+        D(EDescriptorType.dtCustody),               // ⭐ CE-3256 — a man in custody
+        D(EDescriptorType.dtLean) };                // ⭐ CE-3257 — a man leaning
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned

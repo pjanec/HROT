@@ -28,6 +28,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
             w.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();   // ⭐ CE-3252
             w.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();   // ⭐ CE-3256
+            w.RegisterComponent<Fdp.Toolkit.Combat.Lean>();   // ⭐ CE-3257
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -176,6 +177,27 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityCustodyEgressTranslator.ToSample(47L, held with { Detained = 0, Restrained = 0 }));
+        }
+
+        /// <summary>⭐ <c>CE-3257</c> (BR-5, hit location §13 LN-1/LN-8) — a man's lean reaches the other node (sight, fire and ui read it there),
+        /// and straightening up is a change the egress publishes. ✅ Red-proof: the ingress dropping the side ⇒ LeanNone ⇒ red.</summary>
+        [Fact]
+        public void CE3257_Lean_ReachesTheOtherNode_AndStraighteningUpIsAChange()
+        {
+            var lean = new Fdp.Toolkit.Combat.Lean { Side = Fdp.Toolkit.Combat.LeanSide.LeanRight };
+            var sample = EntityLeanEgressTranslator.ToSample(48L, lean);
+
+            var (node, unit, map) = Node(48L);
+            using (node)
+            {
+                var ingress = new EntityLeanIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, Fdp.Toolkit.Combat.Leans.Of(node, unit));
+            }
+
+            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, default));
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

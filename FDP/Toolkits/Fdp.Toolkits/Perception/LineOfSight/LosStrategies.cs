@@ -198,6 +198,20 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             return mount.For(stance);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3257</c> (BR-5, hit location §13 LN-3) — THE eye POSITION of <paramref name="e"/> for <paramref name="stance"/>: his feet,
+        /// raised by <see cref="EyeHeightFor"/>, moved sideways by his lean (<see cref="Fdp.Toolkit.Combat.Leans"/>). ⛔ The eye was rebuilt at
+        /// every site (<c>pos.Z += EyeHeightFor(...)</c>); sight, the round (<c>ShotOrigin.Eye</c>), the ammunition choice and command guidance
+        /// now take it from here, so a man who sees round a corner also shoots round it.
+        /// </summary>
+        public static Vector3 EyeOf(ISimulationView view, Entity e, StanceId stance)
+        {
+            var eye = view.GetComponentRO<SimTransform>(e).Position;
+            float h = EyeHeightFor(view, e, stance);
+            eye.Z += h;
+            return eye + Fdp.Toolkit.Combat.Leans.Offset(view, e, stance, h, h);
+        }
+
         /// <summary>⭐ THE aim-point rule: half <paramref name="colliderHeight"/> when known (&gt; 0), else half the eye height for
         /// <paramref name="stance"/>. Shared by sight (<see cref="AimHeight"/>) and fire (R-217).</summary>
         public static float AimHeightFor(ISimulationView view, Entity e, StanceId stance, float colliderHeight)
@@ -226,11 +240,10 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// </summary>
         public LosExplanation Explain(ISimulationView view, Entity observer, Entity target)
         {
-            var eye = view.GetComponentRO<SimTransform>(observer).Position;
             var so = _stance?.Invoke(view, observer) ?? StanceId.Standing;
             var st = _stance?.Invoke(view, target) ?? StanceId.Standing;
             float eh = EyeHeight(view, observer);
-            eye.Z += eh;
+            var eye = EyeOf(view, observer, so);   // ⭐ CE-3257 — the leaning eye
             var points = new List<LosPoint>();
             var batch = _batch.Value!;
             var world = batch.World;
@@ -282,12 +295,12 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
         {
-            var eye = view.GetComponentRO<SimTransform>(observer).Position;
-            eye.Z += EyeHeight(view, observer);
+            var eye = EyeOf(view, observer, _stance?.Invoke(view, observer) ?? StanceId.Standing);   // ⭐ CE-3257 — the leaning eye
             var basePos = view.GetComponentRO<SimTransform>(target).Position;
             var stance = _stance?.Invoke(view, target) ?? StanceId.Standing;
             float collider = _hull?.Invoke(view, target) ?? 0f;
             float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
+            bool leans = collider <= 0f && Fdp.Toolkit.Combat.Leans.SignOf(view, target, stance) != 0;   // ⭐ CE-3257 LN-4
             var batch = _batch.Value!;
             var world = batch.World;
             var occlusion = batch.Occlusion;
@@ -295,6 +308,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
                 var aim = basePos with { Z = basePos.Z + f * scale };
+                if (leans) aim += Fdp.Toolkit.Combat.Leans.Offset(view, target, stance, f * scale, scale);
                 if (world != null && world.SightBlocked(eye, aim)) continue;
                 if (occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
             }
@@ -455,7 +469,12 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var basePos = view.GetComponentRO<SimTransform>(target).Position;
             float scale = hullHeight > 0f ? hullHeight : TerrainWorldLosStrategy.EyeHeightFor(view, target, stance);
             foreach (float f in Fractions(stance, hullHeight > 0f))
-                into.Add(basePos with { Z = basePos.Z + f * scale });
+            {
+                var point = basePos with { Z = basePos.Z + f * scale };
+                // ⭐ CE-3257 (LN-4) — a LEANING man's points lean with him: his top point is where his eye is (R-246)
+                if (hullHeight <= 0f) point += Fdp.Toolkit.Combat.Leans.Offset(view, target, stance, f * scale, scale);
+                into.Add(point);
+            }
         }
 
         /// <summary>

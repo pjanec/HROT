@@ -145,6 +145,16 @@ namespace Fdp.Toolkit.Combat
     /// <summary>⭐ <c>CE-3219</c> part 3 — the one reader of <see cref="AreaEffectCloud"/> for sight, and the one request helper.</summary>
     public static class AreaEffectClouds
     {
+        /// <summary>
+        /// ⭐ <c>CE-3258</c> — THE wind a cloud drifts on: the wind at its MIDDLE (<paramref name="position"/> + half its
+        /// <paramref name="height"/>) over the ground it lies on (its own Z — R-2037: no terrain read on its owner, CGF). The drift
+        /// (<see cref="Systems.AreaEffectCloudSystem"/>) and the danger footprint's prediction (<c>GasFootprints</c>) both read it, so the
+        /// prediction is the drift. ⛔ The wind at its base: under a scenario wind (a level above the ground, a log profile to zero at the
+        /// ground) a cloud lying on the ground never drifted — only the single-level steady wind moved it.
+        /// </summary>
+        public static Vector2 DriftWind(EntityRepository repo, Vector3 position, float height)
+            => Fdp.Toolkit.Weather.WeatherField.WindAt(repo, position + new Vector3(0f, 0f, MathF.Max(height, 0f) * 0.5f), position.Z);
+
         /// <summary>The clouds <paramref name="view"/> holds, or null when it holds none (the common case: no cost to a query).</summary>
         public static CloudTable? Of(ISimulationView view)
         {

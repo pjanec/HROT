@@ -193,8 +193,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (g.Guidance == GuidanceKind.Command)
             {
                 if (!targetKnown || !repo.IsAlive(g.Gunner) || !repo.HasComponent<SimTransform>(g.Gunner)) { g.Phase = GuidedPhase.Lost; return false; }
-                var eye = repo.GetComponentRO<SimTransform>(g.Gunner).Position;
-                eye.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, g.Gunner, HitModel.LogicalStance(repo, g.Gunner));
+                var eye = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeOf(repo, g.Gunner, HitModel.LogicalStance(repo, g.Gunner));   // ⭐ CE-3257
                 if (world != null && world.SightBlocked(eye, targetPoint)) { g.Phase = GuidedPhase.Lost; return false; }
                 var line = targetPoint - eye;
                 float length = line.Length();

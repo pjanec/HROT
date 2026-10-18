@@ -183,6 +183,33 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, _w.GetComponentRO<SimTransform>(cloud).Position.Y, 3);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3258</c> (CE-2287, R-2037 — the brain never reads world geometry) — a cloud's owner is CGF, a brain node: it drifts on the wind
+        /// at its OWN height above the ground it lies on (its Z), never on a terrain read — so a cloud on a 20 m roof drifts as one on the street
+        /// does, under a wind that grows with height — and it DRIFTS (the wind at its middle; at its base, height 0 of a log profile, it never
+        /// did). ✅ Red-proofs: the terrain's ground (0 m with no terrain) ⇒ the roof cloud drifts 1.57× the street one ⇒ red; the wind at its
+        /// base ⇒ no drift ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3258_ACloud_DriftsOnTheWindAtItsOwnGround_NoTerrainRead()
+        {
+            _w.RegisterComponent<ScenarioClock>();
+            _w.RegisterComponent<WeatherConditions>();
+            var env = _w.CreateEntity();
+            _w.AddComponent(env, ScenarioClock.Default);
+            var weather = WeatherConditions.Standard;
+            weather.SetWind(0, 2000f, 270f, 8f, 0f);   // 8 m/s from the west at 2000 m MSL, slower below (the log profile); so high that a
+                                                       // 20 m roof barely shortens the profile (the levels are MSL — a low level is nearer a roof)
+            weather.WindCount = 1;
+            _w.AddComponent(env, weather);
+            var street = Cloud(CloudKind.Smoke, new Vector3(0f, 0f, 0.5f));
+            var roof = Cloud(CloudKind.Smoke, new Vector3(0f, 50f, 20.5f));
+            for (int i = 1; i <= 8; i++) Frame(i * 0.5);
+            float streetX = _w.GetComponentRO<SimTransform>(street).Position.X, roofX = _w.GetComponentRO<SimTransform>(roof).Position.X;
+            Assert.InRange(roofX / streetX, 0.99f, 1.01f);
+            Assert.True(streetX > 1f, $"it drifts under a scenario wind: {streetX} m");   // ⛔ at its base (height 0) it never did
+        }
+
         [Fact]
         public void ACloud_WithNoWeather_StaysWhereItBurst()
         {

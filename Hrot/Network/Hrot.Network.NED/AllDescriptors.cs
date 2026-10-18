@@ -134,6 +134,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3256 (BR-4) — a man in custody: detained, restrained, searched (Brain group → every node). 📄 DESIGN_Entity_Interactions §7.6.
         //   Measured free on ui, behaviors, backend, coordinator 2026-10-19. ⚠ FDP states it too (CustodyRules.CustodyDescriptorOrdinal; a rail pins it).
         dtCustody                     = 148,
+        // ⭐ CE-3257 (BR-5) — a man leaning round a corner (Brain group → every node). 📄 hit location §13. Measured free on ui, behaviors,
+        //   backend, coordinator 2026-10-19.
+        dtLean                        = 149,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,

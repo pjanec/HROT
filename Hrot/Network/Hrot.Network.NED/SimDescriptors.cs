@@ -416,6 +416,18 @@ namespace Hrot.NED.Descriptors
         public byte Searching;
     }
 
+    // ⭐ CE-3257 (BR-5) — a man leaning round a corner, his brain's owner → every node (sight, fire and ui read it). Reliable +
+    //   TransientLocal + KeepLast 1: a late joiner must know who leans.
+    [DdsTopic("EntityLean")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityLean
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>Fdp.Toolkit.Combat.LeanSide</c>.</summary>
+        public byte Side;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

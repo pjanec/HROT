@@ -162,7 +162,7 @@ namespace Fdp.Toolkit.Physics.Systems
                 //   body reaches PersonBody.MaxBoundRadius from its point). ⛔ Was a disc of ½ length + 5 m round the midpoint, capped at
                 //   64 silently: a 70 m segment visited ~16 × 16 cells, and in a crowd the man on the line could be dropped.
                 float pad = gridData.MaxRadius > 0f
-                    ? MathF.Max(MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius),
+                    ? MathF.Max(MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius + Fdp.Toolkit.Combat.Leans.Shift),   // ⭐ CE-3257 — a leaning man
                                 Fdp.Toolkit.Physics.BodyParts.VehicleBody.MaxBoundRadius)   // ⭐ CE-3211 (S2-9) — a turret swung past the circle
                     : PhysicsConstants.QueryExpansionRadius;   // a grid built by hand (no radius measured): the old pad
 

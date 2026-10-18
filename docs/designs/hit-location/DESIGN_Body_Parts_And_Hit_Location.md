@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§9b: a vehicle part's face is the armour ARC, CE-2217 — supersedes HL-5 / S2-7 for vehicles)
-build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); S2c (aircraft) BUILT 2026-10-16 (§12a, CE-3215); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built. §1 is the measured ground.
+updated: 2026-10-19 (§13: lean — a man leaning round a corner, CE-3257); 2026-10-16 (§9b: a vehicle part's face is the armour ARC, CE-2217 — supersedes HL-5 / S2-7 for vehicles)
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); S2c (aircraft) BUILT 2026-10-16 (§12a, CE-3215); §13 lean BUILT 2026-10-19 (CE-3257); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built · §13 lean (BR-5). §1 is the measured ground.
 stale-below: nothing.
 known-rot: HL-5 and S2-7 below say a VEHICLE part is scored on "the face entered" and that "no armour number moves" — SUPERSEDED for vehicles by §9b (CE-2217): a vehicle part's face is the armour model's arc in the part's frame. People keep HL-5.
 known-conflict: none.
@@ -17,6 +17,8 @@ related-designs:
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — §6's CE-2182 row ("a direct hit on a DEPLOYED weapon needs a real collider first"): S2 gives weapon systems their parts
   - docs/DESIGN_Terrain_World.md — §4.4 OWNS the collider grid (W9, CE-2193); this file changes how a ROUND queries it (a cell walk), not the grid
   - docs/DESIGN_Weapon_Layers.md — OWNS TurretPose (W-9), the replicated pose S2's turret and gun parts are posed by
+  - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS CB-21 (why a man leans, the SliceThePie behaviour that leans him — behaviors); §13 here is the engine of it
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where the eyes POINT (LookState, the FOV cone); §13's lean moves where they SIT
   - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-1: the new civilian family carries body zones (HL-12) and uses the civilian poses (HL-9).
 -->
 
@@ -581,3 +583,87 @@ point, mast; the blades' height empty; parts off ⇒ one body) · `BodyPartDamag
 `.CE3215_AShotOffTail_IsTheCrash_AFuselageHitIsNot` · `EjectionSystemTests.CE3215_AJetWreckedByItsTail_StillEjects_Once` · ui's
 `VehicleBodyParityTests` (every catalogue aircraft with a combat platform — both UH-60s, the AH-64, the A-10 — kit, size and posed boxes).
 
+## 13. Lean — a man leans round a corner, `CE-3257` *(backend, behaviors' BR-5; Building Clearing CB-21, R-2032; designed and built `2026-10-19`, leans under the overnight mandate; build-state: BUILT)*
+
+### INVENTORY — the queries run *(2026-10-19)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=.*(Eye\|Silhouette\|Lean).*` (Method, Class, Field; `*.cs`) | ~60 | no sim `Lean` type; `MotionPose.Lean` (ui, FORWARD pitch, `ShapeKit.cs:72`) and `CarryLean`/`WoundedLean` (ui); eye HEIGHT rules `EyeHeightFor` / `SensorMount` / `EngineFallbacks`; `ShotOrigin.Eye` |
+| grep `EyeHeightFor\|EyeHeight(\|ShotOrigin.Eye` | 9 sites | the eye POSITION is built per caller (`pos.Z += EyeHeightFor(...)`): `TerrainWorldLosStrategy.IsVisible` / `.Explain`, `ShotOrigin.Eye` (the round, `LineOfFire.MuzzleMasked`, `AimPoint.For`), `AmmoChoice.ArmourFacing`, `GuidedRoundSystem`, ui `PossessionStation.EyeOf` (fallback) — ⛔ no one function returns the eye |
+| grep `BodyProfile.Points\|Fractions` | 5 sites | being SEEN: `Points` (Explain, `AimPoint.For`, `AreaEffectSystem`) and two inline copies of its loop (`IsVisible`, EQS `CheapLineOfSightTest`) — every point on the man's vertical, no lateral term |
+| read `BodyPartRay.Person` / `BodyPartHit.Segment` | 1 | being HIT: the ONE person part test (the round's narrow phase AND the FPS crosshair, CE-1126) — sphere then boxes, in the body frame (x fwd, y LEFT, z up) |
+| `Gesture` recipe (`c194d559e`) | 17 files | the small brain-written replicated body state to copy: component · Brain group · `dt` · egress/ingress · pack · rails |
+| other lanes' `GlobalComponentIds` / `AllDescriptors` | — | 415 and `dt` 149 free on `behaviors`, `ui`, `coordinator` at design time — ⚠ behaviors took 415 the same day (`CombatProficiency`); `Lean` moved to **416** at the merge |
+
+```mermaid
+classDiagram
+  direction LR
+  class Lean { <<NEW FDP component 416, Brain group, dtLean 149>> LeanSide Side }
+  class LeanSide { <<NEW>> LeanNone · LeanLeft · LeanRight }
+  class Leans { <<NEW FDP static>> Set · Of · Shift 0.4 m · Offset(h) · Shear · Unshear }
+  class TerrainWorldLosStrategy { <<EXISTING, grows>> EyeOf NEW · IsVisible · Explain }
+  class BodyProfile { <<EXISTING, grows>> Points sheared }
+  class ShotOrigin { <<EXISTING>> Eye = EyeOf }
+  class BodyPartRay { <<EXISTING, grows>> Person: unshear · clip to the leaning half · boxes }
+  class AimPoint { <<EXISTING, grows>> Middle: the exposed half's middle }
+  class RaycastSolverSystem { <<EXISTING>> cell pad + Leans.Shift }
+  class EntityLeanTranslators { <<NEW, SharedTranslatorPack>> egress on change · ingress }
+  Leans --> Lean
+  TerrainWorldLosStrategy ..> Leans : the eye shifts
+  BodyProfile ..> Leans : the seen points shift
+  ShotOrigin ..> TerrainWorldLosStrategy : EyeOf
+  BodyPartRay ..> Leans : the hit silhouette
+  AimPoint ..> Leans
+  EntityLeanTranslators ..> Lean
+```
+*What the picture shows that prose hid:* ONE geometric rule (`Leans`) feeds the three places a man is a point in space — where he looks
+FROM (the eye), where he is SEEN (the profile) and where he is HIT (the part boxes) — so "he sees round the corner", "he is seen round it"
+and "a round meets him there" cannot disagree. Before, there was no shared eye function: `EyeOf` is new and the five eye sites go through it.
+
+```mermaid
+sequenceDiagram
+  participant B as his brain (behaviors' SliceThePie)
+  participant L as Lean (dtLean, every node)
+  participant V as TerrainWorldLosStrategy (perception)
+  participant F as FireProcessing / RaycastSolver (a round at him)
+  B->>L: Leans.Set(man, LeanLeft)
+  L-->>L: replicated (Brain group), ui draws the tilt
+  V->>V: EyeOf(man) = feet + eye height + 0.4 m to his left
+  V->>V: a target's points = feet + h, sheared 0.4·h/eye sideways
+  F->>F: BodyPartRay.Person: segment into his upright frame (unshear)
+  F->>F: clip to his leaning half (body y · side ≥ 0)
+  F->>F: boxes of his pose ⇒ the part, or a miss
+```
+
+```mermaid
+graph TD
+  BT[behaviors' brain node] -->|Leans.Set| LEAN[Lean component]
+  LEAN -->|SharedTranslatorPack: EntityLeanEgress/Ingress, every node| LEAN2[Lean on every node]
+  LEAN2 --> VIS[VisualPerception → TerrainWorldLosStrategy.IsVisible — per tick, perception module]
+  LEAN2 --> FIRE[FireProcessingSystem → ShotOrigin.Eye, AimPoint.Middle — per shot]
+  LEAN2 --> RAY[RaycastSolverSystem → BodyPartRay.Person — per round]
+  LEAN2 --> UI[ui figure — draws the tilt]
+  LEAN2 -.->|never read| MOVER[CarKinematicsSystem — the mover ignores it]
+  classDef dead stroke:#c00,stroke-dasharray:4 3
+  class MOVER dead
+```
+*The dashed edge is deliberate:* the mover never reads the lean (the frame: "ignored by the mover").
+
+| id | decision (lean) | why | rejected — one line each |
+|---|---|---|---|
+| **LN-1** | `Lean { LeanSide Side }` on the person, **Brain group** (written by his brain, like `Gesture`), `dtLean` 149, NoScenario; `Leans.Set` / `Leans.Of` | the frame: replicated, written by his brain; the `Gesture` recipe is the measured one | a stance value (the fence: a man leans crouched too) · a Muscle-owned state (the brain writes it) |
+| **LN-2** | ⭐ the lean is a **SHEAR about his feet** across his own left axis: a point `h` above his feet moves `Shift · h / eye` sideways (`Shift` = 0.4 m), so the EYE moves exactly 0.4 m and the feet do not move. Standing and crouched only — prone and downed do not lean | one rule for the eye, the seen points and the boxes; linear, so a segment stays a segment (the box test needs no new shapes) | a roll about the hip (needs per-pose hip heights, and rotated boxes) · moving the whole body 0.4 m (his feet would leave the corner) |
+| **LN-3** | ⭐ **`TerrainWorldLosStrategy.EyeOf(view, e, stance)`** — the ONE eye position: feet + `EyeHeightFor` + the lean. `IsVisible`, `Explain`, `ShotOrigin.Eye` (so the round, `LineOfFire.MuzzleMasked` and `AimPoint.For` too), `AmmoChoice`, `GuidedRoundSystem` go through it | the eye was rebuilt at each site; a lean added at three of five would let a man see round a corner and not shoot round it | the lean at the LOS sites only (he would see and not hit) |
+| **LN-4** | being SEEN: `BodyProfile.Points` and `IsVisible`'s loop shear their points the same way — his eye-height point is where his eye is | R-246: "if your eye sees out, your head shows" | an unchanged profile (a man looking round a corner would be invisible from where he looks) |
+| **LN-5** | ⭐ being HIT: `BodyPartRay.Person` takes the segment into his UPRIGHT frame (unshear), clips it to the **leaning half** (body-frame y · side ≥ 0 — the frame's "only the leaning side's half of his silhouette"), tests the pose's boxes, and maps the hit's `t` back. The bounding sphere and the solver's cell pad grow by `Shift` | the ONE person part test — the round and the crosshair both get it; no new pose tables (the generated-table parity rail stays green) | new leaning poses in the tables (needs the ui `BlockFigure` to lean first — HL-1's single geometry) · a damage multiplier (a hit he cannot take would still land) |
+| **LN-6** | `AimPoint.Middle` aims at the middle of the EXPOSED half: the sheared centreline at the aim height plus `ExposedHalf` (0.1 m) into the leaning side | a shooter aims at what he sees; the frame's rail aims at the CENTRE on purpose, to measure the smaller target | the unshifted centre (an AI shooter would fire at the wall beside him) |
+| **LN-7** | the mover ignores it; fragments (`AreaEffectSystem`'s split, HL-10's sampled marks) do NOT shear | the frame; fragments are counts, not rays | — |
+| **LN-8** | ui receives `Lean` (replicated, every node) and draws the sideways tilt — `MotionPose.Lean` is a FORWARD pitch, so ui needs a roll | the frame: "ui receives the state" | — |
+
+**Rails** *(`CE-3257`)*: `LeanTests` (Toolkits) — `CE3257_ALeaningMan_SeesRoundTheCorner_AManHeCannotSeeUpright` (a pillar hides a man; leaning
+left the eye, 0.4 m to his left, clears it; prone does not lean) · `.CE3257_HeShootsFromHisLeaningEye_AndIsAimedAtOnTheHalfHeShows`
+(`ShotOrigin.Eye`, `AimPoint.Middle`) · `.CE3257_ARoundMeetsOnlyTheHalfHeShows_AndHisHeadWhereItLeansTo` (the right shoulder misses, the head
+0.4 m out is the Head, `t` on the original segment) · `.CE3257_RoundsAimedAtHisCentre_MissALeaningManMoreOften_AMeasuredRatio` (the frame's
+ratio, 4000 rounds, σ 0.3 m at 50 m: 📐 **0.28** of the upright hits — half the silhouette, its upper part sheared off the centre line;
+aiming at `AimPoint.Middle`'s exposed half does > 1.3× better) · `BodyPartReplicationTests.CE3257_*` (SimHost) and both descriptor-map rails.

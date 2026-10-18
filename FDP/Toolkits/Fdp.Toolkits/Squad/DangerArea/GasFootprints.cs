@@ -55,7 +55,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 var p = repo.GetComponentRO<SimTransform>(e).Position;
                 var from = new Vector2(p.X, p.Y);
                 var to = c.SourceNetworkId != 0 ? from
-                    : from + Fdp.Toolkit.Weather.WeatherField.WindAt(repo, p) * MathF.Min(LookAheadSeconds, (float)(c.BornAtSimSeconds + c.Seconds - now));
+                    // ⭐ CE-3258 — the SAME wind the cloud drifts on (AreaEffectClouds.DriftWind), so the prediction is the drift
+                    : from + Fdp.Toolkit.Combat.AreaEffectClouds.DriftWind(repo, p, c.Height) * MathF.Min(LookAheadSeconds, (float)(c.BornAtSimSeconds + c.Seconds - now));
                 long id = repo.IsComponentTypeRegistered<NetworkIdentity>() && repo.HasComponent<NetworkIdentity>(e)
                     ? repo.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
                 into[n++] = new GasFootprint(id, from, to, c.Radius + MarginM, p.Z - BandM, p.Z + MathF.Max(c.Height, 0.1f) + BandM);
