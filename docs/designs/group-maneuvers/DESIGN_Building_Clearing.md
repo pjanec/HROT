@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: leans CB-31…CB-35 awaiting the user (2026-10-18)
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -224,7 +224,7 @@ fight, and its payloads hold local entity ids · **a report component on the com
 history, and would be the brain-local state R-2031 rules out.
 *(Owner: behaviors, in `CE-2263` — the debug API has taken squad routes from this lane before, `/entities/{id}/squad` O-a.)*
 
-## 5b. A report's life — who makes it, how it travels, how the brain reads it, and how it ages *(⭐ leans CB-31…CB-35, 2026-10-18)*
+## 5b. A report's life — who makes it, how it travels, how the brain reads it, and how it ages *(✅ CB-31…CB-35 approved 2026-10-18, R-2039)*
 
 🔒 User, `2026-10-18`: *"how the reports from subordinates work, who generates them, how they are transported to the brain, how brain
 reads them, if they are buffered somewhere Or can age, so the brain doesn't act on old no longer valid ones"*.
@@ -253,6 +253,14 @@ sequenceDiagram
   PL->>PP: read the picture, never the events
   Note over OB,PP: while engaged the squad re-sends its STATUS every 15 s, silence ages its status into Stale
 ```
+**Who holds what, level by level** *(measured; the clarification the user asked for on CB-33)*:
+
+| level | entity | its contact knowledge | filled by |
+|---|---|---|---|
+| soldier | a squad MEMBER with a body (rifleman, MG gunner…) | its own `TargetMemory` (the entries decay 0.1 / s, forgotten below 0.5) | its own sensors on the Perception node |
+| squad | the body-less squad COMMANDER | `SquadCognitiveState.Contacts`, a pool of 16, **no `TargetMemory` of its own** | merged automatically from its members' memories (`SquadPerceptionMergeSystem`, ~10 Hz) — inside a squad nothing is reported (CB-15) |
+| platoon | the body-less platoon COMMANDER | 🆕 its own `TargetMemory` + its pool | **only `Contact` reports** from its squad commanders (CB-33) — never sensors, never another brain's memory |
+
 *What the picture shows that prose hid:* the brain never reads a report as an event — events last one frame. It reads the **picture**,
 the buffer the reports are folded into, and the picture is where ageing happens. Three kinds of content age three different ways.
 
@@ -266,7 +274,7 @@ the buffer the reports are folded into, and the picture is where ageing happens.
 |---|---|---|---|
 | **CB-31** | the report's time | every report carries **`ObservedAt`** (when the squad saw it) beside `SentAt`; age is measured from `ObservedAt`, so the 3 s delay and the wire are counted in it | age from `SentAt`: a report held 3 s looks 3 s fresher than it is |
 | **CB-32** | order and duplicates | a **`Seq`** per sender; for contacts and status the picture keeps the newest by `ObservedAt` and drops an older one that arrives late; facts are idempotent (a second `RoomClear` changes nothing) | trusting arrival order: the wire does not promise it across nodes |
-| **CB-33** | reported contacts | they enter a **`TargetMemory` on the platoon commander** as a *Reported* entry (the G10 modality) with the reporter's error radius, and age by the existing decay / forget | a separate contact list in the picture: a second memory with its own forgetting rules, and no existing reader could use it |
+| **CB-33** | reported contacts | they enter a **`TargetMemory` on the platoon commander** as a *Reported* entry (the G10 modality) with the reporter's error radius, and age by the existing decay / forget (measured: the decay runs on EVERY entity holding a `TargetMemory`, a body-less one too — `ThreatEvaluationSystem.cs:81-82`); ⭐ the platoon's contact pool (`SquadCognitiveState.Contacts`) merges the commander's OWN memory beside its members' (today it reads members only, and a squad commander holds none ⇒ the platoon pool is empty — `SquadPerceptionMergeSystem.cs:38-72`), so every pool reader works one level up unchanged | a separate contact list in the picture: a second memory with its own forgetting rules, and no existing reader could use it |
 | **CB-34** | status heartbeat | while engaged a squad re-sends **`Status` every 15 s** and at once on a change (a man down, effective lost); `Fresh` / `Stale` / `Silent` by age; not engaged: on change only | status only on change: a squad that went silent (all dead, radio-less) would look fine forever |
 | **CB-35** | where the picture lives and how it survives | on the platoon's brain node, **rebuildable**: on an ownership handover or a late join the new owner replays its own node's `SquadReportLog` (every node holds the same log) and the heartbeat refreshes status within one period | replicate the picture as a component: a second copy of state the reports already carry (R-2031's rule is that the REPORTS are on the wire) |
 
