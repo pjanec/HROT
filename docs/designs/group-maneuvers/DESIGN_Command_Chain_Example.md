@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) still open; CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
+build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) ✅ BUILT 2026-10-19 (§8a, end); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050)
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
@@ -443,8 +443,7 @@ the inbox drops a late older report and takes a synthetic one.
 
 Rails: `SquadManeuverTests.CE2295_*` (a fake SPOT arrives synthetic, aged and logged, and the squad's next real SPOT of the same
 element replaces it; a muted squad's PROGRESS waits until the radio is back); route docs in `DebugApiRouteDocs` (rail
-`EveryRouteIsDocumentedTests`). ⚠ `CE-2288` (one read route over every behaviour slot) is NOT in this slice — its first consumer is
-the platoon demos that watch a hosted squad play.
+`EveryRouteIsDocumentedTests`). `CE-2288` (one read route over every behaviour slot) followed as its own slice — see the end of this section.
 
 **CC-D `CE-2294`** — the first chain runs: `PlatoonBound` + `PlatoonHold` (`Hrot.AI.Behaviors/Brains/PlatoonBehaviors.cs`), the leg
 node `MoveLeg` (`CommandNodes.cs`), the SOP asset `BasicPlatoonSop.btree.json` (the platoon type's TKB default SOP), scenario
@@ -488,3 +487,49 @@ Rails: `SquadManeuverTests.CE2294_*` — the support squad ordered once and kept
 before the order not taken; the SOP's reaction pauses the task, both squads hold once, the lost SPOT resumes it and only the current
 leg's squad is re-ordered; a held element re-SPOTted every 15 s. Red-proofs: the support guard always true · the fold ignoring
 `OrderedAt` · `MoveLeg` ordering once per state · no refresh — each reddens its rail.
+
+**CC-16 follow-up `CE-2288`** — one read route over every behaviour slot: `GET /entities/{networkId}/slots`
+(`DebugApiService.Slots.cs`, MCP tool `get_entity_slots`), over one reader `OccurrenceSlotCatalog` (`Fdp.Toolkits/Behavior`).
+
+```mermaid
+classDiagram
+  class OccurrenceSlotCatalog {
+    <<static, new>>
+    +Read(world, unit, registry) List~OccurrenceSlotView~
+  }
+  class OccurrenceSlotView {
+    <<record, new>>
+    Key · Kind · PayloadSize · StructureHash
+    Owner : SlotOwnerKind
+    Behaviour · Role : SlotRole · Label · LayoutType
+    Value : decoded DTO
+  }
+  class OccurrenceStoreAccess { <<existing>> GetBlocksReadOnly }
+  class RootParamsAccess { <<existing>> KeyForBehaviour }
+  class HostedSubtree { <<existing>> EffectiveSlots · BlockOffsetFor }
+  class BehaviorIngressSystem { <<existing>> PausedTaskOf }
+  class DtoDiagnosticMapper { <<existing>> MapObject }
+  class DebugApiService { GetEntitySlots(networkId) }
+  DebugApiService --> OccurrenceSlotCatalog
+  OccurrenceSlotCatalog ..> OccurrenceStoreAccess : walks every slot
+  OccurrenceSlotCatalog ..> RootParamsAccess : recomputes the root keys
+  OccurrenceSlotCatalog ..> HostedSubtree : the working and hosted keys
+  OccurrenceSlotCatalog ..> BehaviorIngressSystem : the paused task
+  OccurrenceSlotCatalog ..> DtoDiagnosticMapper : decodes
+  OccurrenceSlotCatalog --> OccurrenceSlotView : 0..*
+```
+*What the picture shows that the prose hid:* nothing new stores who owns a slot. The catalog only joins blocks that already exist:
+the store walk, the key functions ingress used to attach the slots, and the decoder the root dump uses.
+
+| piece | as built | deviation from CC-16 |
+|---|---|---|
+| naming | a slot's key is a one-way hash, so each is named by RECOMPUTING the candidate keys of the running task (`BehaviorState`), the SOP (`SopState`) and a paused task (`BehaviorIngressSystem.PausedTaskOf`): root params / tree state / HSM keys, then `HostedSubtree.EffectiveSlots` — a tree-state slot is a hosted child (named by the child, `HostedChildren`), the rest are working state. The first claim wins: task, then SOP, then paused | — |
+| decoding | `Marshal.PtrToStructure` at the slot (a hosted child: at `HostedSubtree.BlockOffsetFor(child)`, after its brain and start word) into the behaviour's `BlackboardLayoutType` / the node's `WorkingStateType`, then `DtoDiagnosticMapper.MapObject` — the root dump's path (`BrainDiagnosticsTranslator`) | tree-state and HSM slots are listed, not decoded (no layout DTO) |
+| unmatched | a slot no candidate claims is still listed — key, kind, size, hash — with owner `OwnerUnknown` | — |
+| the enums | `SlotOwnerKind { OwnerUnknown, Task, Sop, PausedTask }`, `SlotRole { RoleUnknown, Params, State, Hsm, Working, HostedChild }` | ⚠ member names unique across the file: the DDS IDL generator emits the toolkit's enums into one scope, and two `Unknown` members broke its build |
+
+Rails: `SquadManeuverTests.CE2288_*` (a platoon commander: the task's params decoded, PlatoonBound's legs; the SOP's slots; once
+a reaction pauses the task, the paused task's slots under their own owner) · `BehaviourTaskDemoTests.CE2288_*` (Demo_TaskChain's
+hosted `MoveToLocation` named by the child and decoded at its block offset, destination x = 100) · route doc in
+`DebugApiRouteDocs` (rail `EveryRouteIsDocumentedTests`). Red-proofs: the catalog naming no candidates · the hosted arm decoding at
+offset 0 — each reddens its rail.

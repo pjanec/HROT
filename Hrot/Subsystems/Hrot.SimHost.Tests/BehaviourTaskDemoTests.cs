@@ -244,6 +244,29 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2288</c> (CC-16, R-2050) — a HOSTED child's slot over the slot catalog: while Demo_TaskChain's Advance runs, its
+        /// <c>MoveToLocation</c> child is listed under the task as a <c>HostedChild</c>, named by the child and decoded through the
+        /// child's own layout at its block offset (the destination its parameter gave, x = 100). 📌 The gap CC-16 named: before, the root
+        /// dump read the root slot only. ✅ Red-proof: the hosted arm decoding at offset 0 ⇒ the destination is not 100.
+        /// </summary>
+        [Fact]
+        public void CE2288_TheSlotCatalog_NamesAndDecodesAHostedChild()
+        {
+            var w = Start("Demo_TaskChain", MissionJson(maxRounds: 3));
+            w.Frame();
+            w.Frame();
+            Assert.NotEmpty(w.Destinations);                                     // the Advance child is running
+            var slots = OccurrenceSlotCatalog.Read(w.Repo, w.Unit, w.Registry);
+            var child = Assert.Single(slots, s => s.Role == SlotRole.HostedChild && s.Behaviour == "MoveToLocation");
+            Assert.Equal(SlotOwnerKind.Task, child.Owner);
+            Assert.Equal("MoveToLocationParams", child.LayoutType);
+            var p = Assert.IsType<Dictionary<string, object?>>(child.Value);
+            Assert.Equal(100f, Convert.ToSingle(p["X"]));
+            Assert.Equal(5f, Convert.ToSingle(p["Speed"]));
+            Assert.Contains(slots, s => s.Owner == SlotOwnerKind.Task && s.Role == SlotRole.Params && s.Behaviour == "Demo_TaskChain");
+        }
+
+        /// <summary>
         /// ⭐⭐ <b>Demo_TaskChain — CallOff aborts the running Engage (FireAtTarget) and the chain retreats.</b> Stage never
         /// reaches 2; the Retreat's 0.5 s precedes the Failure.
         /// </summary>
