@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/DESIGN_People_Display.md — (ui) OWNS how a person is DRAWN — what he holds, his gestures, marks above the head; its §8 gaps G1–G8 are answered by §5o here
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015): every node receives the same event data (detonations included); it owns who receives, §7.3a here owns the cloud.
@@ -2368,6 +2369,27 @@ the remote trigger already read it, so nothing new crosses the wire.
 | **HD-2** | ⭐ **the stone**: while he riots with a stone in his hands (`Stones.InHand`) he holds `Throwable`; empty-handed, or out of Riot, `None` | the hands mount's ammo read by ui: it is not replicated as a held item; the byte is |
 | **HD-3** | ⭐ only the owning HSM writes it, only through `HeldItems.Set`, and only clears what it set (a Phone or a Throwable — never a drawn weapon) | clearing on every state entry: it would put away a weapon `StationWeapon` drew |
 | **HD-4** | ⚠ a phone in hand is a small NON-lethal object to an observer (`HeldItems.Shows`): no rule fires a round at it, and a Neutral is held first anyway (CIV-0) | — |
+
+## 5o. The people display's gaps — the BEHAVIOUR halves *(behaviors, 2026-10-18; build-state: DESIGN — frames with leans, for review)*
+
+⭐ **Scope.** ui's [DESIGN_People_Display.md](DESIGN_People_Display.md) §8 (findings [G1–G8](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))
+needs data that nothing writes. Backend owns the components and the wire; **this section owns WHO writes them, WHEN**. G7 is built in §5n.
+⏳ Each row designs fully (UML) when backend's component lands; until then it is a frame with a lean.
+
+**INVENTORY** *(2026-10-18; grep `Gestures.Set(` outside tests ⇒ writers of FistRaised, HandsUp, None (`CivilianBehavior`), HandsUp
+(`SurrenderBehavior`), Warning (`EscalationLadder`) — ⛔ **nobody writes `Waving`**, and `HoldSign` only through the protest's sign share;
+`Melee.Strike` callers ⇒ the rioter's fist (`CivilianBehavior`), the police baton (`HoldTheLineBehavior`, `BatonChargeBehavior`), neither
+says WHICH weapon; no speech, no mood on the wire — ui's §1.1 sweep agrees)*.
+
+| row | gap | ⭐ lean — who writes it, when | waits on | rejected — one line each |
+|---|---|---|---|---|
+| **`CE-2249`** · G1 speech | ⭐ **one writer per kind, through one helper `Speech.Say(man, kind, target, seconds)`**: **warning** — `EscalationLadder` (beside today's `Gesture.Warning`, 2 s); **order** — `BatonCharge` and `HoldTheLine` when the line moves ("disperse", 3 s); **insult** — a protester at anger ≥ half his threshold, on his own seeded clock (one every 6–12 s), aimed at the nearest forces person; **chant** — the protest ring (the sign-holders, a shared phase); **talk** — two civilians standing in Routine / Gather within 2 m, now and then | backend's `Utterance` component (G1) | the HSM writing the component directly: four writers would invent four rules · speech as a gesture kind: one byte, but a man can shout AND raise his fist |
+| **`CE-2250`** · G2 mood | ⭐ **one writer, `CrowdSystem`'s pass (it already touches every civilian each frame)**: quantise `Fear`/`Anger` to quarters and write `Demeanour {Mode, Fear, Anger}` ONLY when a quarter or the mode changes | backend's `Demeanour` (G2) | the HSM writing it: a crowd's contagion moves fear between HSM ticks · every tick: G2 says never |
+| **`CE-2251`** · G3/G4 melee | ⭐ **`Melee.Strike` takes the weapon** (`Fist` · `Baton` · `Knife`) and backend's notification carries it; the callers say which: the rioter's fist, the police line and the charge a `Baton` (from the 1202's item once G4 gives it); ⭐ **AW-19 the knife** (§5h): a man with a knife ITEM closes and strikes — lethal within its reach; demo `ua-armed-knife` (§5c) | backend's `StrikeNotification` (G3), the knife / baton items (G4) | the swing read from the victim's knock-down: ui's U10 rejects it (a miss shows nothing) |
+| **`CE-2252`** · G5 taser, spray | ⭐ **they are ladder RUNGS between Warn and NonLethal**: a policeman who may use non-lethal force on a man within 7 m (taser) / 3 m (spray) chooses them before the baton round — the weapon choice (`ForceLevels.AllowsMount`, EL-9) reads the mount's effect and range; `HoldTheLine` closes to them only when the target is already within reach | backend's munitions and effects (G5) | a new force level: the ladder already has NonLethal; these are mounts under it |
+| **`CE-2253`** · G6 toy gun | ⭐ **the toy gun needs no behaviour** — `Armament.Judge` already reads its LOOK (AW-15); the work is the demo **`ua-armed-identify`** (§5c): a toy rifle at 80 m is warned / held, closer the soldier sees it is harmless | backend's toy type (G6) | — |
+| **`CE-2254`** · G8 riot shield | ⭐ **the shield man faces the throwers**: `HoldTheLine` turns the shield man toward the nearest thrower within 20 m; a stone hitting the shield arc is stopped (backend's blocker) | backend's shield item + blocker (G8) | the shield as cover in EQS: a moving 1 m board is not a cover point |
+| **`CE-2255`** · gestures and items nobody writes | ⭐ **Waving**: a civilian in Routine waves at a passing patrol now and then (a cue, never an act); ⭐ **binoculars**: a lookout role (an `Observe {point}` order — raise them, report) — the ISR half belongs with the AW-14 phone spotter | nothing | a Waving written by the protest: it is a greeting, not a slogan |
 
 ## 6. Known limits
 
