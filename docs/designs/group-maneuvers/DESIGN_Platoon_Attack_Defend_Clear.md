@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
-current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §6a sensors, sectors and the roof · §12 the demo scenarios (PC-11…PC-13) · §13 the work, split per lane
+build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); PC-14…PC-16 (§6b) leans awaiting; work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
+current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §6a sensors, sectors and the roof · §6b window switching and relocation (PC-14…PC-16) · §12 the demo scenarios (PC-11…PC-13) · §13 the work, split per lane
 stale-below: nothing.
 known-rot: none.
 known-conflict: none — it makes concrete, and in two places revises, DESIGN_Defend_And_Attack_Position (§3/§4 PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken are now CommandPicture and the closed PROGRESS / SPOT set, PC-2; DA-7's ROE lift needs PC-6)
@@ -13,6 +13,7 @@ related-designs:
   - docs/REFERENCE_Command_Building_Blocks_Measured.md — the measured blocks, symbol by symbol
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner and the built drills (bounding overwatch, suppress-and-manoeuvre, break contact, casualty care) the squad plays reuse
   - docs/DESIGN_Decision_Layer.md — OWNS task · SOP · reaction and ROE (§4.4); PC-6 extends ROE through the chain
+  - docs/DESIGN_Peek_And_Fire.md — OWNS the expose / hide / relocate cycle, FiringPositionMemory heat and CoverClaim; §6b keeps relocation inside a man's post and sector (PC-14) and sets who switches by tier (PC-15)
 -->
 
 # The platoon attacks, defends and clears a building — concrete commander and squad behaviours *(behaviors, `2026-10-18`)*
@@ -319,6 +320,27 @@ can be secured during the house clearing operation?"* — ⭐ **yes**; the table
 | the exit | the stair-house door is a fatal funnel: **pie it** (`SliceThePie`, CB-22), a stun first under Arrest or Precision with people known (CB-30), then out fast, the AR never first | Building Clearing CB-22, CB-30 |
 | the defenders | prone behind the parapet (low cover, the stance thresholds), from `FindRoofPosts` | Defend DA-5, DA-22 |
 | done | PROGRESS **RoomClear** (roof) ⇒ then BuildingClear | CB-43 |
+
+## 6b. Never showing twice at the same place — window switching and relocation *(⭐ leans PC-14…PC-16, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"the defenders and maybe also the attackers, are they using the maneuvers like switching windows to not appear
+every time at the same place where the attackers can be waiting for?"* — ⭐ **yes, it is built**, and the same rule as R-2023 (the hill
+attack: *"so the enemy cannot aim and wait"*). What this programme adds is keeping it inside each man's post and sector.
+
+| measured *(`PeekAndFireNodes`, `WindowDuelBehavior.Shape`, `FiringPositionMemory` / `PositionHeat`)* | |
+|---|---|
+| **the defender at a window** (shape A) | prone under the sill, up at the window, fires, down; after **3 exposures** another window ≥ 2 m away (`FindWindowFiringPosition`, 12 m search) |
+| **the attacker behind cover** (shape B) | crouched behind cover, steps out, fires, back; after **2 exposures** a suppressive burst, then relocates **≥ 8 m** (`FindCoverFromTarget`, 15 m search) |
+| **memory of used spots** | `FiringPositionMemory` — the UNIT's memory (outlives a posture switch, a reload, a re-plan): every exposure heats the spot, **being shot at heats it more**; hot enough ⇒ **burned** and skipped until it cools (a half-life); a warm spot scores lower when the next one is chosen |
+| **two men, one window** | `CoverClaim`: a point another unit claimed is skipped |
+| **the watcher's side** | a man who loses sight of his target fires a **blind burst at the remembered spot** (the Blind phase) — the "waiting for him to reappear" the switching defeats |
+| ⛔ **not there yet** | the hide candidates ignore the man's **post and sector** (a defender may slide to a window in his neighbour's arc, an SBF man off his line) · a soldier's **eyes do not stay on** the window where the enemy last showed (vision is 360° until LD-1) · below Regular the switching is ON today, though DA-2 says the untrained stay at the sill |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **PC-14** | where a man may move to | the next hide point must lie **inside his `EngagementArea.Allow`** (it still sees his sector) and, in a defence, be one of **his post's windows or his alternate** (`SquadDefend` hands the post set into the order); an SBF man stays **on the support line**; a man who finds none fights from where he is (the existing "every point burned" path) | free relocation: a defender drifts into a neighbour's arc and a sector goes empty · a fixed post: he shows at the same window until hit |
+| **PC-15** | who switches | by proficiency (DA-2): **Untrained / Militia stay at the sill and do not switch**, Regular switches after 3, **Veteran after 2, Elite after 1** — and Veteran+ also leave at once when shot at (the heat already burns the spot) | everyone switches: the untrained look trained · nobody: the regulars die at the first window |
+| **PC-16** | the other side's counter-play | v1: the blind burst at the remembered window (built) + the acquisition time by exposure (BR-7) — a man up at a NEW window is acquired later than one who reappears where he was watched; ⭐ once LD-1 lands, Regular+ attackers keep **`WatchBearing` on the last window an element showed at** (the squad's SPOT gives the storey), so switching is what beats them | pre-aim without look direction: there are no eyes to aim |
 
 ## 7. The report contract — what each order asks for, and what each report drives
 
