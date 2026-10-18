@@ -362,22 +362,9 @@ namespace Hrot.SimHost
 
             // ── 5. Build Hrot node infrastructure — includes entity map,
             //        elm, geoModule (via BaseModules). Replication is created via INetworkFactory.
-            var hrotConfig = new HrotNodeConfig
-            {
-                DomainId            = domainId,
-                NodeId              = localNodeId,
-                Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
-                ExternalParticipant = shellParticipant,
-                ExternalGeoTransform = wgs84,   // CE-3126
-                LocalTempRoot       = Path.Combine(
-                    string.IsNullOrEmpty(nodeConfig.LocalTempRoot)
-                        ? Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()
-                        : nodeConfig.LocalTempRoot,
-                    "nodes",
-                    $"node-{localNodeId}"),
-                LogDirectory        = Path.Combine(System.AppContext.BaseDirectory, "logs"),
-                SubsystemName       = "SimHost",
-            };
+            // ⭐ CE-4013 D13 — the one node config (_headless only controls the Raylib window)
+            var hrotConfig = HrotNodeConfig.ForNode(domainId, localNodeId, "SimHost", shellParticipant, nodeConfig.LocalTempRoot);
+            hrotConfig.ExternalGeoTransform = wgs84;   // CE-3126
 
             // -- 6. Bootstrapper setup (SM-009) -----------------------------------------------
             // Create SimHostNodeBootstrapper and delegate 7-phase initialization.

@@ -228,12 +228,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //
         // 📐 Measured before removing: `_tkbEntityTranslators` has exactly one read site,
         //    NedReplicationModule.cs:413's GhostPromotionSystem construction.
-        var ctx = new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .WithReplication(role)
-            .WithBehaviorRegistry(GetBehaviorRegistry())
-            .Build();
+        var ctx = Hrot.Network.Infrastructure.HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // ⭐ CE-4013 D17
 
         _tkbDb = ctx.TkbDb;
         return ctx;

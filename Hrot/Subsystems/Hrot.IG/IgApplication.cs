@@ -709,16 +709,9 @@ public class IgApplication : IDisposable
                 AppInstanceId = _effectiveInstanceId,
             });
         }
-        var igConfig = new HrotNodeConfig
-        {
-            DomainId              = _domainOverride ?? IgNetworkConstants.DdsDomain,
-            NodeId                = _effectiveInstanceId,
-            Headless              = false,             // always live since we always have a participant
-            ExternalParticipant   = shellParticipant,
-            SubsystemName         = "IgApplication",
-            // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait.
-            SkipAllocatorRouting  = true,
-        };
+        // ⭐ CE-4013 D13 — the one node config: IG now stages per node like every host (it took the BARE staging root)
+        var igConfig = HrotNodeConfig.ForNode(_domainOverride ?? IgNetworkConstants.DdsDomain, _effectiveInstanceId, "IgApplication", shellParticipant);
+        igConfig.SkipAllocatorRouting = true;   // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait
 
         // Create objects that do NOT need a world (so the ApplicationSystemsRegistrar lambda can capture them).
         _userConfig          = new MapUserConfig();

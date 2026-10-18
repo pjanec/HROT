@@ -64,12 +64,7 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
 
     // UNIFY: identical to StrideNodeBootstrapper.cs:218-226 and IgNodeBootstrapper.cs:180-185.
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
-        => new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .WithReplication(role)
-            .WithBehaviorRegistry(GetBehaviorRegistry())
-            .Build();
+        => Hrot.Network.Infrastructure.HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // ⭐ CE-4013 D17
 
     protected override void RegisterDomainComponents(EntityRepository world)
     {

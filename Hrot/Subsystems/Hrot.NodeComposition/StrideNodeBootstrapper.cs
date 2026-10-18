@@ -171,12 +171,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        return new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .WithReplication(role)
-            .WithBehaviorRegistry(GetBehaviorRegistry())
-            .Build();
+        return Hrot.Network.Infrastructure.HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // ⭐ CE-4013 D17
     }
 
     /// <inheritdoc/>

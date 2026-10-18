@@ -164,12 +164,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    here" (asserted, never measured) and (b) "this list feeds ONLY the ghost projection ... never
         //    a local spawn" — false since CE-144 gave IG the shared NetworkSpawningSystem.
         // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3 · §3.4c · docs/designs/tkb-1/DESIGN.md §6.3/§6.5b.
-        return new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .WithReplication(role)
-            .WithBehaviorRegistry(GetBehaviorRegistry())
-            .Build();
+        return Hrot.Network.Infrastructure.HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // ⭐ CE-4013 D17
     }
 
     // ── Phase 2: Register domain ECS components ───────────────────────────────

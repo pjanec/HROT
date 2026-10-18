@@ -140,6 +140,21 @@ public sealed class HrotNodeBuilderWithReplication
 public static class HrotNodeBuilderReplicationExtensions
 {
     /// <summary>
+    /// ⭐ CE-4013 D17 — THE replicated ECS node's context, one place: the role, the network factory, NED replication for the role and the
+    /// behaviour registry. 📐 It was written identically in four <c>BuildContext</c> overrides (SimHost, IG, Stride, Traffic); the
+    /// shared bootstrapper base cannot hold it because <c>Hrot.Common</c> cannot see NED, so the one copy lives here, beside
+    /// <see cref="WithReplication"/>. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+    /// </summary>
+    public static HrotNodeContext BuildReplicatedNode(HrotNodeConfig config, NodeRole role, Hrot.Core.Network.INetworkFactory? networkFactory,
+                                                      BehaviorRegistry? behaviorRegistry)
+        => new HrotNodeBuilder(config)
+            .WithRole(config.SubsystemName, role)
+            .WithNetworkFactory(networkFactory)
+            .WithReplication(role)
+            .WithBehaviorRegistry(behaviorRegistry)
+            .Build();
+
+    /// <summary>
     /// Configures NED replication for the given node role.
     /// Returns a <see cref="HrotNodeBuilderWithReplication"/> whose <see cref="HrotNodeBuilderWithReplication.Build"/>
     /// constructs both the base context and the <see cref="NedReplicationModule"/>.

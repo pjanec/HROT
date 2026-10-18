@@ -673,9 +673,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
         int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
-        string baseTempRoot = OrchestrationConstants.ResolveStagingRoot();
-        string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
-        string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
+        string isolatedTempRoot = OrchestrationConstants.GetNodeStagingRoot(cgfNodeId);   // ⭐ CE-4013 D13 — the same root ForNode gives the config
         // ⭐⭐⭐ THE NODE-BOOT HEAD IS A DECLARED PLAN (§4.1T) — the first INLINE ECS root to take one.
         //
         // The statements below are UNCHANGED and in the SAME ORDER; what is new is that each region
@@ -715,19 +713,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 run: v =>
             {
         var shellParticipant = v.Get<CycloneDDS.Runtime.DdsParticipant>("participant");
-        var nodeConfig = new HrotNodeConfig
-        {
-            DomainId            = config.DomainId,
-            NodeId              = cgfNodeId,
-            // CgfSubsystem always creates a DDS participant — Headless here controls only
-            // the Raylib/ImGui window (UI), not the network layer.
-            // This mirrors SimHostApp which also hardcodes Headless = false for HrotNodeConfig.
-            Headless            = false,
-            ExternalParticipant = shellParticipant,
-            LocalTempRoot       = isolatedTempRoot,
-            LogDirectory        = resolvedLogDir,
-            SubsystemName       = "CGF",
-        };
+        // ⭐ CE-4013 D13 — the one node config (Headless controls only the window here, never the network)
+        var nodeConfig = HrotNodeConfig.ForNode(config.DomainId, cgfNodeId, "CGF", shellParticipant);
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", DefaultRole)
             .WithNetworkFactory(_networkFactory)
