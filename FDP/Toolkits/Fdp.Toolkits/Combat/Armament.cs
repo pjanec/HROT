@@ -298,7 +298,7 @@ namespace Fdp.Toolkit.Combat
                 for (int i = 0; i < suite.Mounts.Count && best < ArmedJudgement.IdentifiedLethal; i++)
                 {
                     if (!PersonHands.IsHands(suite.Mounts[i]) && WeaponLaying.IsLaidDown(world, man, i)) continue;   // ⭐ CE-3232 — on the ground, not on him
-                    best = Max(best, PersonHands.IsHands(suite.Mounts[i]) ? OfHands(world, man, distance, seeing)
+                    best = Max(best, PersonHands.IsHands(suite.Mounts[i]) ? OfHands(world, man, suite.Mounts[i].Range, distance, seeing)
                                                                           : OfItem(ItemAppearances.Of(world, suite.Mounts[i]), distance, seeing));
                 }
             }
@@ -330,13 +330,17 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>⭐ <c>CE-3230</c> (H-3) — the hands by what they hold: empty ⇒ nothing to see; each kind a small object in the hand,
         /// lethal when its round is (a grenade, AW-9), not when it is a stone or a canister.</summary>
-        private static ArmedJudgement OfHands(EntityRepository world, Entity man, float distance, SeeingConditions seeing)
+        /// <remarks>⭐ <c>CE-2256</c> (TC-7, §5o; AW-19 "lethality is an item's reach") — a lethal thing in the hand is lethal only within his
+        /// throw: its reach is the hands mount's <c>Range</c> (<see cref="PersonHands.ThrowRange"/>, 25 m), so beyond it he reads Unidentified
+        /// (warned and held), not IdentifiedLethal.</remarks>
+        private static ArmedJudgement OfHands(EntityRepository world, Entity man, float throwRange, float distance, SeeingConditions seeing)
         {
             var best = ArmedJudgement.Nothing;
+            float reach = throwRange > 0f ? throwRange : PersonHands.ThrowRange;
             PersonHands.Holding(world, man, ammo =>
             {
                 var item = new ItemAppearance(ItemLook.SmallObject, ItemAppearances.DefaultSize(ItemLook.SmallObject),
-                                              ItemAppearances.IsLethal(world, ammo), 0f);
+                                              ItemAppearances.IsLethal(world, ammo), reach);
                 best = Max(best, OfItem(item, distance, seeing));
                 return best == ArmedJudgement.IdentifiedLethal;
             });

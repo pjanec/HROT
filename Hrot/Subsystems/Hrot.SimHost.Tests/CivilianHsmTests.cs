@@ -506,7 +506,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ <c>CE-2238</c> part 2 — gives the unit the HANDS production gives every person (backend B-8): a pedestrian TKB type
         /// run through <c>PersonHands.EnsureOnPersons</c>, injected by <c>CombatTkbTranslator</c>; plus <paramref name="stones"/> stones.</summary>
-        private static void Hands(World w, int stones)
+        private static void Hands(World w, int stones, bool phone = false)
         {
             foreach (var reg in new System.Action[]
             {
@@ -519,6 +519,7 @@ namespace Hrot.SimHost.Tests
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var civ = new Fdp.Interfaces.TkbTemplate("Civilian", CivilianType);
             civ.AddDescriptor(new VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Pedestrian });
+            if (phone) civ.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-2248 — the civilian types carry one (CivilianTkbCatalog)
             db.Register(civ);
             var stone = new Fdp.Interfaces.TkbTemplate("Stone", StoneAmmo);
             stone.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true });
@@ -535,6 +536,89 @@ namespace Hrot.SimHost.Tests
             db.TryGetByType(CivilianType, out var t);
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, w.Unit, t!);
             if (stones > 0) Assert.True(PersonHands.Give(w.Repo, w.Unit, StoneAmmo, stones));
+            if (!w.Repo.IsComponentTypeRegistered<WeaponPosture>()) w.Repo.RegisterComponent<WeaponPosture>();
+            if (!w.Repo.HasComponent<WeaponPosture>(w.Unit)) w.Repo.AddComponent(w.Unit, new WeaponPosture());   // as BehaviorTkbTranslator adds it
+        }
+
+        /// <summary>⭐ <c>CE-2248</c> (§5n HD-1, HD-3) — in a Routine pause he takes his phone out for a share of his pauses (his own seeded
+        /// draw), keeps it out while he lingers, puts it away to walk on and when he leaves the routine; a drawn weapon in his hand his
+        /// routine never touches.</summary>
+        [Fact]
+        public void CE2248_InARoutinePause_HeTakesHisPhoneOut_ForAShare_PutsItAwayToWalkOn_AndNeverTouchesADrawnWeapon()
+        {
+            var w = new World();
+            Hands(w, 0, phone: true);
+            w.Start("{\"WanderRadius\":8,\"PauseMinSeconds\":0.2,\"PauseMaxSeconds\":0.3}");
+            HeldItemKind Held() => HeldItems.Of(w.Repo, w.Unit);
+            bool Pause()
+            {
+                for (int i = 0; i < 3; i++) w.Tick();
+                Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+                Assert.Equal(HeldItemKind.None, Held());                                       // walking: no phone
+                w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // he got there
+                w.Tick();
+                var first = Held();
+                for (int i = 0; i < 5; i++) w.Tick();
+                Assert.Equal(first, Held());                                                   // he keeps it out while he lingers
+                return first == HeldItemKind.Phone;
+            }
+
+            int phones = 0;
+            const int pauses = 60;
+            for (int k = 0; k < pauses; k++)
+            {
+                if (Pause()) phones++;
+                for (int i = 0; i < 20; i++) w.Tick();                                         // the pause ends: he walks on
+            }
+            Assert.InRange(phones, (int)(pauses * 0.15f), (int)(pauses * 0.45f));              // a share (0.3), not every pause, not none
+
+            while (!Pause()) for (int i = 0; i < 20; i++) w.Tick();
+            w.Fear(CivilianBehavior.DefaultAlarmAt);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Alarmed", w.State());
+            Assert.Equal(HeldItemKind.None, Held());                                           // out of the routine: put away
+
+            w.Fear(0f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Routine", w.State());
+            w.Repo.GetComponentRW<WeaponPosture>(w.Unit).HeldItem = HeldItemKind.Weapon;      // something else drew his weapon
+            for (int k = 0; k < 10; k++)
+            {
+                for (int i = 0; i < 3; i++) w.Tick();
+                w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;
+                for (int i = 0; i < 25; i++) w.Tick();
+                Assert.Equal(HeldItemKind.Weapon, Held());
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2248</c> (§5n HD-2) — a rioter with a stone in his hands shows it (<c>Throwable</c>); out of stones his hand is empty
+        /// again; leaving the riot he puts it away.</summary>
+        [Fact]
+        public void CE2248_ARioterWithAStone_ShowsItInHisHand_EmptyHandedOrOutOfTheRiot_Nothing()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            Hands(w, 2);
+            Policeman(w, new Vector3(112, 200, 0));
+            w.Start("{\"Protest\":true,\"ProtestAt\":[100,200,0],\"Instigator\":true}");
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(w.Repo, w.Unit));
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+            Assert.Equal(HeldItemKind.Throwable, HeldItems.Of(w.Repo, w.Unit));
+
+            PersonHands.Take(w.Repo, w.Unit, StoneAmmo, PersonHands.Rounds(w.Repo, w.Unit, StoneAmmo));
+            for (int i = 0; i < 2; i++) w.Tick();
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(w.Repo, w.Unit));                    // out of stones
+
+            Assert.True(PersonHands.Give(w.Repo, w.Unit, StoneAmmo, 1));
+            for (int i = 0; i < 2; i++) w.Tick();
+            Assert.Equal(HeldItemKind.Throwable, HeldItems.Of(w.Repo, w.Unit));
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = 0f;
+            w.Fear(1f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.NotEqual("Riot", w.State());
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(w.Repo, w.Unit));                    // out of the riot
         }
 
         /// <summary>A round of <paramref name="ammo"/> LYING at <paramref name="at"/>, as the node that flies it holds it (B-13: Landed + Lingers).</summary>

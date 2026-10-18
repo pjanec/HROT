@@ -162,6 +162,23 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world, me, stones, SeeingConditions.ClearDay));
         }
 
+        /// <summary>⭐ <c>CE-2256</c> (TC-7, §5o) — a live grenade in the hand is lethal only within his THROW (the hands mount's 25 m): at
+        /// 10 m identified lethal, at 30 m — still seen (a small object is identified to 45 m by day) — Unidentified: warn, not shoot.
+        /// Armed in truth either way (<c>LethalInHand</c>).</summary>
+        [Fact]
+        public void CE2256_AGrenadeInHand_IsLethalOnlyWithinHisThrow()
+        {
+            var me = Spawn(RiflemanType, Vector3.Zero);
+            var man = Spawn(CivilianType, new Vector3(10f, 0f, 0f), civilianClass: true);
+            PersonHands.Give(_world, man, GrenadeAmmo, 1);
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world, me, man, SeeingConditions.ClearDay));
+            _world.GetComponentRW<SimTransform>(man).Position = new Vector3(PersonHands.ThrowRange - 1f, 0f, 0f);
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world, me, man, SeeingConditions.ClearDay));
+            _world.GetComponentRW<SimTransform>(man).Position = new Vector3(30f, 0f, 0f);
+            Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world, me, man, SeeingConditions.ClearDay));
+            Assert.True(Armament.LethalInHand(_world, man));
+        }
+
         /// <summary>⭐ H-2 / H-5 — the hands hold up to four KINDS; a kind already held is topped up; a fifth kind is refused; when the loaded
         /// kind runs out the next one is ready at once (a hand has no breech).</summary>
         [Fact]

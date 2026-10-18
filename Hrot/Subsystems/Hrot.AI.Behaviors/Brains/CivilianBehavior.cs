@@ -78,6 +78,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float BendSeconds = 1.5f;
         /// <summary>⭐ <c>CE-2241</c> ① — a surrendered man lowers his hands after this long with nobody covering him (s).</summary>
         public const float SurrenderHoldSeconds = 5f;
+        /// <summary>⭐ <c>CE-2248</c> (§5n HD-1) — the share of his Routine pauses he takes his phone out for.</summary>
+        public const float PhoneShare = 0.3f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
@@ -275,12 +277,14 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Walking = 0;
                 var rng = SimRng.FromSim((int)self.Index, 0x2235 + ws.Legs, (float)now);
                 ws.PauseUntil = now + p.PauseMinSeconds + rng.NextSingle() * (p.PauseMaxSeconds - p.PauseMinSeconds);
+                if (rng.NextSingle() < PhoneShare) Hold(world, self, HeldItemKind.Phone);   // ⭐ CE-2248 HD-1 — a share of his pauses, his own draw
                 return NodeStatus.Running;
             }
             if (now < ws.PauseUntil) return NodeStatus.Running;
             if (!world.HasComponent<CivilianState>(self)) return NodeStatus.Running;
             ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
             if (mind.HasHome == 0) return NodeStatus.Running;
+            PutAway(world, self, HeldItemKind.Phone);   // he walks on
             ws.Target = WanderPoint(mind.Home, p.WanderRadius, (int)self.Index, ws.Legs, now);
             ws.Legs++;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true)) ws.Walking = 1;
@@ -293,8 +297,24 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Routine(ref CivilianParams p, ref RoutineState ws, Entity self, EntityRepository world)
         {
             LocomotionMoveTo.Stop(world, self);
+            PutAway(world, self, HeldItemKind.Phone);
             ws.Walking = 0;
             ws.PauseUntil = 0;
+        }
+
+        /// <summary>⭐ <c>CE-2248</c> (§5n HD-3) — he takes <paramref name="kind"/> (his phone, a stone) in his hand — unless a drawn weapon or
+        /// binoculars are there (not his HSM's to put away).</summary>
+        private static void Hold(EntityRepository world, Entity self, HeldItemKind kind)
+        {
+            var held = HeldItems.Of(world, self);
+            if (held == kind || held == HeldItemKind.Weapon || held == HeldItemKind.Binoculars) return;
+            HeldItems.Set(world, self, kind);
+        }
+
+        /// <summary>⭐ <c>CE-2248</c> (§5n HD-3) — he puts <paramref name="kind"/> away: only what his HSM took, never a drawn weapon.</summary>
+        private static void PutAway(EntityRepository world, Entity self, HeldItemKind kind)
+        {
+            if (HeldItems.Of(world, self) == kind) HeldItems.Set(world, self, HeldItemKind.None);
         }
 
         /// <summary>Alarmed: he stops and crouches where he is. Running until his fear fades (the machine's guard).</summary>
@@ -548,6 +568,8 @@ namespace Hrot.AI.Behaviors.Brains
             CivilianMind.SetMode(world, self, CivilianMode.Riot);
             MarkInstigator(in p, self, world);
             if (Gestures.Of(world, self) != GestureKind.FistRaised) Gestures.Set(world, self, GestureKind.FistRaised);
+            if (Stones.InHand(world, self)) Hold(world, self, HeldItemKind.Throwable);   // ⭐ CE-2248 HD-2 — a stone in his hand shows
+            else PutAway(world, self, HeldItemKind.Throwable);
             double now = world.SimulationTime;
             if (now >= ws.NextLookAt || !Standing(world, ws.Target))
             {
@@ -634,6 +656,7 @@ namespace Hrot.AI.Behaviors.Brains
             LocomotionMoveTo.Stop(world, self);
             if (ws.BendUntil > 0) StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);   // left mid-bend: he stands up
             Gestures.Set(world, self, GestureKind.None);
+            PutAway(world, self, HeldItemKind.Throwable);
             ws = default;
         }
 

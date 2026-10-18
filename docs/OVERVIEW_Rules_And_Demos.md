@@ -76,6 +76,8 @@ related-designs:
 | PV-3 (CV-14) | hidden `Attitude` −1…+1 sets HIS riot threshold `RiotAt − 0.5 × Attitude` (−1 never riots) ⇒ only a fraction riots | `CrowdRules.RiotAtFor`, `CivilianBehavior.Rioting/Calmed` | §5m |
 | PV-6 (CV-14) | a rioter panics only when fear ≥ PanicAt AND ≥ his anger (§2.2 "fear beats anger") — the crowd's fright does not break an angry man, force on him does | `CivilianBehavior.FearBeatsAnger` | §5m |
 | PV-4 (CV-14) | `BatonCharge {point, Reach, Seconds}`: police strike standing Civilian-class people near the point, never below NonLethal | `BatonChargeBehavior`, `Melee.Strike`, `ForceLevels.LevelFor` | §5m |
+| HD-1 (CE-2248, G7) | a civilian takes his phone out on 30 % of his Routine pauses (his own seeded draw), puts it away to walk on or when he leaves the routine | `CivilianBehavior.Routine`, `HeldItems.Set` | §5n |
+| HD-2 / HD-3 (CE-2248, G7) | a rioter with a stone in his hands shows `Throwable`; the HSM clears only what it set, never a drawn weapon | `CivilianBehavior.Riot`, `Hold` / `PutAway` | §5n |
 
 **Demos**
 
@@ -97,6 +99,7 @@ related-designs:
 | id | rule | built by | § |
 |---|---|---|---|
 | AW-15 | armed is judged PER OBSERVER: identified lethal · unidentified · nothing (range × light × optics) | `Armament.Judge` | §5h |
+| TC-7 (CE-2256) | a lethal thing in the HAND is lethal only within his throw (the hands mount's Range, 25 m); beyond it Unidentified — warn, not shoot | `Armament.OfHands` | §5o |
 | AW-2 | stones, canisters, baton rounds, stun grenades arm nobody | `ItemAppearances.IsLethal` | §5h |
 | AW-3 | a Hidden carry station is invisible | `Armament.ArmedByStatus`, `CarryStations` | §5h |
 | AW-21 | combatants are engaged on STATUS, civilians on CONDUCT; out of the fight is exempt | `Armament.IsCombatant`, `ThreatDanger.IsOutOfTheFight` | §5h |
