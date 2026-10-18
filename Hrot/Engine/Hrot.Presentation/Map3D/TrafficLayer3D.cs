@@ -12,8 +12,8 @@ namespace Hrot.UI.Common.Map3D;
 /// <summary>
 /// ⭐ AQ93 R-4024 / V7 / V8 — the SUMO net in the map's 3-D mode, <see cref="TerrainLayer3D"/>'s sibling: the road scene
 /// (<see cref="TrafficNetCache.Roads"/> — asphalt, junction fills, lane markings, crosswalks, the ambient ground beyond our terrain),
-/// one colour per kind, built once per net; then each frame the traffic lights in their live state and the cars that are NOT
-/// entities (an entity car is drawn by <see cref="EntityBodyLayer3D"/>), from <see cref="TrafficFrame"/>. Nothing in 2-D (the
+/// one colour per kind, built once per net; then each frame the traffic lights in their live state and the cars and pedestrians that
+/// are NOT entities (an entity is drawn by <see cref="EntityBodyLayer3D"/> — a pedestrian replica as a civilian), from <see cref="TrafficFrame"/>. Nothing in 2-D (the
 /// 2-D map draws <c>TrafficRoadGizmo</c>).
 /// </summary>
 /// <remarks>
@@ -29,6 +29,10 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
     public static readonly Color GroundColor    = new(150, 160, 128, 255);
     public static readonly Color CarColor       = new(70, 120, 190, 255);
     public static readonly Color PoleColor      = new(60, 60, 60, 255);
+    public static readonly Color PedestrianColor = new(205, 195, 180, 255);
+
+    /// <summary>⭐ CE-4026 — a SUMO pedestrian's figure: footprint (metres) and height.</summary>
+    public const float PedestrianWidth = 0.5f, PedestrianHeight = 1.75f;
 
     private readonly Func<EntityRepository?> _world;
     private object? _identity;
@@ -84,6 +88,17 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
             Raylib.DrawMesh(_cube, shader.Tinted(CarColor),
                 HrotToRaylib.Model(centre, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, car.YawRad), size));
         }
+        var figure = new Vector3(PedestrianWidth, PedestrianWidth, PedestrianHeight);
+        foreach (var ped in PedestriansToDraw(frame))   // ⭐ CE-4026 (AQ93 §15 K3)
+            Raylib.DrawMesh(_cube, shader.Tinted(PedestrianColor),
+                HrotToRaylib.Model(new Vector3(ped.X, ped.Y, ped.Z + PedestrianHeight / 2f), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, ped.YawRad), figure));
+    }
+
+    /// <summary>⭐ CE-4026 — the pedestrians this layer draws: every one in the frame that is not a replica entity. Pure — a rail tests it.</summary>
+    public static System.Collections.Generic.IEnumerable<TrafficPedPose> PedestriansToDraw(TrafficFrame frame)
+    {
+        foreach (var ped in frame.Pedestrians)
+            if (!frame.IsPedEntity(ped)) yield return ped;
     }
 
     private void Rebuild(TrafficNetCache net)

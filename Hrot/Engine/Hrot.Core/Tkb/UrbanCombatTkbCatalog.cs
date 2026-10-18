@@ -77,6 +77,15 @@ namespace Hrot.Core.Tkb
         private const float ApcMaxHealth     = 500f;
         private const float SoldierMaxHealth = 100f;
 
+        /// <summary>⭐ CE-4030 — a civilian road vehicle's combat platform: a soft skin, as the technical's pickup (5 mm sheet, 300 hit points,
+        /// immobilised below 60 %, a near burst wrecks it). 📌 Measured 2026-10-18: no civilian car type had one, so a burst never damaged a
+        /// civilian car and a SUMO car converted by a hit (AQ93 §15 K7) had no health to take the hit on.</summary>
+        internal static CombatPlatformDefDto SoftSkinCar() => new()
+        {
+            ArmorFront = 5, ArmorSide = 5, ArmorRear = 5, ArmorTop = 3,
+            MaxHealth = 300f, BlastSusceptibility = 1f, MobilityKillBelowFraction = 0.6f,
+        };
+
         // ⭐ CE-2106 — what each type gives off to EARS (AcousticSignatureDto, R-205 / R-207). First-cut ranges (m), heard when
         //   within both the sound's range and the listener's HearingRange. 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
         internal const float FootstepsRange   = 25f;
@@ -188,6 +197,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
+                t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
                 tkb.Register(t);
             }
 
@@ -365,6 +375,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
             t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
             t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = vClass, Weight = weight });
+            t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
             tkb.Register(t);
         }
 

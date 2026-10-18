@@ -64,16 +64,36 @@ for nid in cars()[:24]:
     at = (p1[0] + 80 * fx, p1[1] + 80 * fy)
     s = call("POST", "/entities/spawn", {"tkbType": tkb, "transform": {"position": {"x": at[0], "y": at[1], "z": 0},
              "rotation": {"x": 0, "y": 0, "z": math.sin(h / 2), "w": math.cos(h / 2)}}})
-    time.sleep(20)
-    p2, _ = tf(nid)
-    if not p2: outcomes.append((nid, "gone (left the vicinity)")); continue
-    lat = abs((p2[0] - p1[0]) * fy - (p2[1] - p1[1]) * fx)
-    along = (p2[0] - at[0]) * fx + (p2[1] - at[1]) * fy
-    p3, _ = tf(nid); time.sleep(2); p4, _ = tf(nid)
-    still = p3 and p4 and math.dist(p3[:2], p4[:2]) < 0.5
-    outcomes.append((nid, f"lat {lat:.1f} m, along {along:.1f} m, still {still}, spawn ok {(s or {}).get('ok')} {(s or {}).get('error') or ''}"[:300]))
+    # ⭐ CE-4025 — TRACK it for 30 s (one sample at 20 s cannot tell "stopped in a queue" from "not braking"): the closest it came,
+    #   whether it ever passed our vehicle, its slowest speed, and any car between it and our vehicle at the end.
+    track, last = [], None
+    for _ in range(30):
+        time.sleep(1.0)
+        p2, _ = tf(nid)
+        if not p2: break
+        along = (p2[0] - at[0]) * fx + (p2[1] - at[1]) * fy
+        lat = abs((p2[0] - p1[0]) * fy - (p2[1] - p1[1]) * fx)
+        speed = math.dist(p2[:2], last[:2]) if last else None
+        track.append((round(along, 1), round(lat, 1), None if speed is None else round(speed, 2)))
+        last = p2
+    if not track: outcomes.append((nid, "gone (left the vicinity)")); continue
+    along, lat = track[-1][0], track[-1][1]
+    passed = any(t[0] > 2.0 for t in track)
+    slowest = min((t[2] for t in track if t[2] is not None), default=None)
+    between = []
+    for other in cars():
+        if other == nid: continue
+        q, _ = tf(other)
+        if not q: continue
+        oa = (q[0] - at[0]) * fx + (q[1] - at[1]) * fy
+        ol = abs((q[0] - p1[0]) * fy - (q[1] - p1[1]) * fx)
+        if ol < 2.0 and along < oa < 0: between.append((other, round(oa, 1)))
+    outcomes.append((nid, f"lat {lat:.1f} m, along {along:.1f} m, passed {passed}, slowest {slowest} m/s, cars between {between}, "
+                          f"spawn ok {(s or {}).get('ok')}"[:300]))
+    json.dump(track, open(os.path.join(OUT, f"slice3-track-{nid}.json"), "w"))
     if lat < 2.0:
-        check(f"SUMO car {nid} stops behind our vehicle", along < -2.0 and still, outcomes[-1][1])
+        check(f"SUMO car {nid} stops behind our vehicle (never passes it, comes to rest)",
+              not passed and slowest is not None and slowest < 0.5, outcomes[-1][1])
         break
 check("a car stayed in its lane to judge (else inconclusive)", any("lat" in o[1] and float(o[1].split()[1]) < 2.0 for o in outcomes), outcomes)
 screenshot("after")
