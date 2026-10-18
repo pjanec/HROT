@@ -74,12 +74,13 @@ public sealed class AnimationReplicationModule
             ? new INetworkTranslator[] { new StanceIntentEgressTranslator(participant, entityMap), new StanceStatusIngressTranslator(participant, entityMap) }
             : new INetworkTranslator[] { new StanceIntentIngressTranslator(participant, entityMap), new StanceStatusEgressTranslator(participant, entityMap) };
 
-    /// <summary>⭐ <c>CE-2121</c> — registers <see cref="StanceTranslators"/> on <paramref name="kernel"/> the way every translator
+    /// <summary>⭐ <c>CE-2121</c> — registers <see cref="StanceTranslators"/> (⭐ and, <c>CE-3252</c>, <see cref="LookAtTranslators"/>) on <paramref name="kernel"/> the way every translator
     /// pack does (one ingress and one egress system). No participant ⇒ nothing (offline hosts share one world).</summary>
     public static void RegisterStanceOn(Fdp.ModuleHost.ModuleHostKernel kernel, DdsParticipant? participant, NetworkEntityMap entityMap, NodeRole role)
     {
         if (participant is null) return;
-        var all = StanceTranslators(participant, entityMap, role);
+        var all = new List<INetworkTranslator>(StanceTranslators(participant, entityMap, role));
+        all.AddRange(LookAtTranslators(participant, entityMap, role));   // ⭐ CE-3252 (G5) — the look rides beside the stance
         var ingress = new List<INetworkTranslator>(); var egress = new List<INetworkTranslator>();
         foreach (var t in all)
         {
@@ -89,6 +90,14 @@ public sealed class AnimationReplicationModule
         kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem(ingress.ToArray()));
         kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Systems.CycloneEgressSystem(egress.ToArray()));
     }
+
+    /// <summary>⭐ <c>CE-3252</c> (LD-F, G5) — the look-at pair for this node's role, the stance pair's twin: the Brain sends
+    /// <see cref="Hrot.MuscleCharacter.Animation.Components.LookAtChannel"/> and receives its report; a Muscle node the reverse.
+    /// (Every node reads where a person looks from FDP's replicated <c>LookState</c> instead — no viewer half here.)</summary>
+    public static IReadOnlyList<INetworkTranslator> LookAtTranslators(DdsParticipant participant, NetworkEntityMap entityMap, NodeRole role)
+        => (role & NodeRole.Brain) != 0
+            ? new INetworkTranslator[] { new LookAtChannelIntentEgressTranslator(participant, entityMap), new LookAtChannelStatusIngressTranslator(participant, entityMap) }
+            : new INetworkTranslator[] { new LookAtChannelIntentIngressTranslator(participant, entityMap), new LookAtChannelStatusEgressTranslator(participant, entityMap) };
 
     /// <summary>
     /// ⭐ <c>CE-1139</c> — a VIEWER's half of the stance wire (an IG: it draws people but neither asks for a stance nor performs

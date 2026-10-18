@@ -26,6 +26,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
             w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
+            w.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();   // ⭐ CE-3252
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -187,6 +188,38 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in sample, cmd, node);
                 Assert.Equal(1, ingress.DroppedSampleCount);
             }
+        }
+    
+        /// <summary>⭐ <c>CE-3252</c> (LD-E) — where a person looks reaches the other node (target, source, head turn); the owner sends
+        /// again only on news (≥ 1° of head, ≥ 0.25 m of target). ✅ Red-proof: drop HeadYaw from the wire ⇒ the far node's head is 0.</summary>
+        [Fact]
+        public void CE3252_LookState_TheMusclesLook_ReachesTheOtherNode_OnNewsOnly()
+        {
+            var look = new Fdp.Toolkit.Perception.Look.LookState
+            {
+                Target = new Vector3(4f, 5f, 1.5f), HasTarget = 1, Source = Fdp.Toolkit.Perception.Look.LookSource.LookGlance, HeadYaw = 0.6f,
+                GlanceSince = 12.0, RestUntil = 3.0,   // the muscle's own timers — not on the wire
+            };
+            var sample = Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.ToSample(46L, look);
+
+            var (node, unit, map) = Node(46L);
+            using (node)
+            {
+                var ingress = new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<Fdp.Toolkit.Perception.Look.LookState>(unit);
+                Assert.Equal((look.Target, look.HasTarget, look.Source, look.HeadYaw), (got.Target, got.HasTarget, got.Source, got.HeadYaw));
+                Assert.Equal(0.0, got.GlanceSince);
+            }
+
+            var tiny = sample; tiny.HeadYaw += 0.01f;            // < 1°
+            Assert.True(Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.Same(sample, tiny));
+            var turned = sample; turned.HeadYaw += 0.05f;        // ≈ 3°
+            Assert.False(Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.Same(sample, turned));
+            var released = sample; released.HasTarget = 0;
+            Assert.False(Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.Same(sample, released));
         }
     }
 }

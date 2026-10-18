@@ -376,6 +376,38 @@ namespace Hrot.Editor.DebugApi
                     ["returnFireWindowSeconds"] = RoeOf.ReturnFireWindowSeconds(_world, entity),
                 };
 
+            // ⭐ CE-3252 (LD-D / LD-I) — where he LOOKS, from the replicated LookState (the muscle's, on every node): the body's yaw,
+            //   the head's turn, the eyes' (body + head — the cone vision uses), who decides it and the wanted point. Omitted
+            //   without a LookState (a vehicle, an aircraft): their eyes are their body.
+            if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>()
+                && _world.HasComponent<Fdp.Toolkit.Perception.Look.LookState>(entity))
+            {
+                ref readonly var look = ref _world.GetComponentRO<Fdp.Toolkit.Perception.Look.LookState>(entity);
+                const float ToDeg = 180f / MathF.PI;
+                float bodyYaw = _world.HasComponent<SimTransform>(entity)
+                    ? Fdp.Toolkit.Perception.Look.LookOf.YawOf(_world.GetComponentRO<SimTransform>(entity).Rotation) : 0f;
+                var lookNode = new JsonObject
+                {
+                    ["bodyYawDeg"] = bodyYaw * ToDeg,
+                    ["headYawDeg"] = look.HeadYaw * ToDeg,
+                    ["eyeYawDeg"]  = Fdp.Toolkit.Perception.Look.LookOf.Wrap(bodyYaw + look.HeadYaw) * ToDeg,
+                    ["source"]     = look.Source switch
+                    {
+                        Fdp.Toolkit.Perception.Look.LookSource.LookOrdered => "order",
+                        Fdp.Toolkit.Perception.Look.LookSource.LookAim     => "aim",
+                        Fdp.Toolkit.Perception.Look.LookSource.LookGlance  => "glance",
+                        _                                                  => "free",
+                    },
+                    ["hasTarget"]  = look.HasTarget != 0,
+                };
+                if (look.HasTarget != 0) lookNode["target"] = Vec3(look.Target);
+                if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.PerceptionReceptor>()
+                    && _world.HasComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>(entity))
+                    lookNode["fovDegrees"] = 2f * MathF.Acos(Math.Clamp(
+                        _world.GetComponentRO<Fdp.Toolkit.Perception.Components.PerceptionReceptor>(entity).FieldOfViewCos, -1f, 1f)) * ToDeg;
+                state["look"] = lookNode;
+            }
+
             // ⚠ "grounded" is in the design's field list and is NOT here: measured, this engine has no
             // ground-contact component to read it from. Deriving it from the position would be a guess
             // wearing a fact's name — MX-007 records it rather than inventing one.

@@ -92,6 +92,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();      // ⭐ CE-3252 — where a person looks (dtLookState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
 

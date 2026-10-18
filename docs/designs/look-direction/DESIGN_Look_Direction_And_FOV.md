@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
-current-answer: §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
-stale-below: nothing.
+build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
+current-answer: §3.2b (LD-1 / LD-2 AS BUILT — the classes, the wire, the rails) · §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
+stale-below: §3.2a's class names `LookRequests`, `LookOf.EyeYaw`, `LookState.Since` / `BodyYaw` — the plan; §3.2b names what was built.
 known-rot: none.
 known-conflict: none.
 related-designs:
@@ -257,7 +257,78 @@ sequenceDiagram
 | **LD-H** | nothing requested | ⭐ v1: the head returns to the body (no scan) — ⛔ LD-B's "slow scan around the last look" is left to behaviors' LD-3 (`Scan` writes points; it is a behaviour, not physiology) | a scan in `LookFollowSystem`: a second producer of "where he looks" |
 | **LD-I** | `look` on HTTP | ⭐ `GET /entities/{id}/state` → `look { bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, targetX/Y/Z, fovDegrees }` from the replicated `LookState` (LD-D) | — |
 
-*(As built: §3.2b when the slices land.)*
+### 3.2b LD-1 / LD-2 — AS BUILT *(backend, `CE-3252`, 2026-10-19)*
+
+```mermaid
+classDiagram
+  direction LR
+  class LookRequest { <<BUILT static, Hrot.MuscleCharacter.Animation.Look>> AtPoint · AtEntity · Release · CanCarry }
+  class LookAtChannel { <<EXISTING 221, Brain group>> now on every person (G2) }
+  class LookAtDispatcherSystem { <<EXISTING>> CanAim now granted to every person (G3) }
+  class LookAtExecutors { <<EXISTING, grown>> OnEnter LookOf.Want · OnExit / Release LookOf.Release }
+  class LookState { <<BUILT FDP 413, Muscle group, dtLookState 147>> Target · TargetEntity local · HasTarget · Source · HeadYaw · GlanceSince / RestUntil local }
+  class LookOf { <<BUILT FDP pure>> YawOf · HeadYaw · EyeForward · Want · Release · Wrap }
+  class LookFollowSystem { <<BUILT FDP, GroundKinematicsModule after CarKinematicsSystem>> }
+  class CarKinematicsSystem { <<EXISTING, grown>> lookingPerson: standing, no aim, a look ⇒ IntegrateFacing to it }
+  class EntityLookStateTranslators { <<BUILT NED, SharedTranslatorPack>> egress on news ≥1° / ≥0.25 m · ingress }
+  class LookAtChannelIntentEgressTranslator { <<EXISTING, fixed G7>> target index ⇒ network id }
+  class VisionBroadphase { <<EXISTING>> forward = LookOf.EyeForward }
+  class VisibilityConeGizmo { <<EXISTING>> yaw + LookOf.HeadYaw }
+  class DebugApiService { <<EXISTING>> GET entity state, look }
+  LookRequest --> LookAtChannel
+  LookAtChannel ..> LookAtChannelIntentEgressTranslator : brain ≠ muscle
+  LookAtChannel ..> LookAtDispatcherSystem
+  LookAtDispatcherSystem ..> LookAtExecutors
+  LookAtExecutors ..> LookOf : Want / Release
+  LookOf --> LookState
+  CarKinematicsSystem ..> LookState : reads the target
+  LookFollowSystem --> LookState : HeadYaw · Source · follows TargetEntity
+  LookState ..> EntityLookStateTranslators
+  VisionBroadphase ..> LookOf
+  VisibilityConeGizmo ..> LookOf
+  DebugApiService ..> LookOf
+```
+*What the picture shows that prose hid:* every write of the look goes through `LookOf` (`Want` / `Release` from the executors, the head
+from `LookFollowSystem`) and every read through it too — one component, one helper; the wire is the existing look-at channel brain →
+muscle and the new `dtLookState` muscle → everyone.
+
+```mermaid
+graph TD
+  REG1[StanceComponentRegistry: SimHost, CGF, editor] -->|registers| TRIO[LookAtChannel · Status · ExecutorState · LookState]
+  REG2[HrotSharedComponentRegistry: every host] -->|registers| LS[(LookState)]
+  CGF[CgfSubsystem: RegisterStanceOn Brain] -->|+ LookAtTranslators| WIRE1[look-at intent egress · status ingress]
+  SH[SimHostNodeBootstrapper: RegisterStanceOn MuscleGround] -->|+ LookAtTranslators| WIRE2[look-at intent ingress · status egress]
+  AMM[AnimationMuscleModule on SimHost / editor] --> DISP[LookAtDispatcherSystem]
+  GKM[GroundKinematicsModule PostSimulation] --> CK[CarKinematicsSystem] --> LF[LookFollowSystem]
+  STP[SharedTranslatorPack: every node] --> LST[EntityLookState egress + ingress]
+  PERC[Perception: VisualSensorGenerator] --> VB[VisionBroadphase]
+```
+*Caption:* who runs it each frame. Nothing new needs a new host hook: the look-at pair rides `RegisterStanceOn`, the head rides the
+gait's module, `LookState` rides the shared pack — so every host that moves a person or reads vision already has it.
+
+| gap (§3.2a) | as built | rail |
+|---|---|---|
+| G1 registered nowhere | `StanceComponentRegistry` registers the look-at trio + `LookState`; `HrotSharedComponentRegistry` registers `LookState` | `LookPipelineTests` |
+| G2 needs `AimConfig` | every character def gets the channel, its report, the executor state and `LookState` | `TranslatorAndCacheTests.CE3252_Inject_WithoutAimConfig_StillAddsLookAtComponents` (re-homed: the old rail pinned the gate) |
+| G3 no `CanAim` | `BehaviorTkbTranslator`: a body with an animation def gets `CanAim` | `LookPipelineTests.CE3252_WithoutCanAim_TheLookIsRefused` (the gate still holds) |
+| G4 nothing writes the channel | `LookRequest` (fresh `ActionInstanceId` per NEW request; the same point within 5 cm / the same target ⇒ nothing) | `LookPipelineTests` |
+| G5 translators on no host | `AnimationReplicationModule.LookAtTranslators`, registered by `RegisterStanceOn` beside the stance pair | cluster `EqsDistributedTests` / `EntityOrdersAcrossNodesTests` boot SimHost + CGF with it |
+| ⭐ **G5b — found while building** | the look-at DDS structs had NO generated serialiser (`[DdsTopic]` missing — the stance pair got it in `CE-2121`, the look-at pair stayed test-only): the first live reader threw *"does not have a public static GetDescriptorOps()"* and the SimHost boot failed. Now `[DdsTopic]` + `[DdsKey]` + State QoS on `DdsLookAtChannelIntent` / `DdsLookAtChannelStatus` | the same cluster rails (they reddened, 12/29, until it was fixed) |
+| G6 no yaw | `LookOf.Want` from the executors; `LookFollowSystem` the head; `CarKinematicsSystem` the body | `LookFollowSystemTests` ×4, `CarKinematicsSystemTests.CE3252_*` |
+| ⭐ **G7 — found while building** | the brain's look-at egress sent the target's raw entity INDEX where the ingress reads a NETWORK id; now remapped, an unmapped target held back (`UnmappedTargetCount`) | `AnimationChannelTranslatorTests.CE3252_*` |
+| LD-2 the cone | `VisionBroadphase` forward = `LookOf.EyeForward`; the map's cone adds `LookOf.HeadYaw` | `VisionBroadphaseTests.CE3252_TheConeIsAroundTheEyes_NotTheChest` |
+| LD-I HTTP | `GET /entities/{id}/state` → `look {bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, target, fovDegrees}` | `EntityStateLookTests.CE3252_*` (Hrot.Editor.Tests — the DebugApi harness rails are excluded, DEBT-MCP-001) |
+| the wire | `dtLookState` 147, Muscle group, `EntityLookState` (target, has, source, head) on news only | `BodyPartReplicationTests.CE3252_*` |
+
+**Deviations from §3.2a, argued:**
+- ⛔ `LookState.BodyYaw` / `Since` dropped — the body's yaw is the replicated transform's (a second copy would publish every frame of a
+  turn); `Since` had no reader. `TargetEntity`, `GlanceSince`, `RestUntil` are the muscle's own and never cross.
+- `LookRequests` → `LookRequest`; `LookOf.EyeYaw` → `EyeForward` (vision wants a vector), plus `Want` / `Release` so the executors do
+  not each spell the write.
+- The body follows a look only when the gait asks for NO speed (`targetSpeed ≤ 0.01`): a man walking keeps his way and glances (LD-C).
+- ⚠ Not here: LD-3 (behaviors point the eyes — `LookRequest` is their one call), LD-4 (the 200° FOV), LD-5 (demos).
+
+
 
 ### 3.3 Who points the eyes, in every play of the programme *(LD-3)*
 

@@ -130,7 +130,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         }
 
         [Fact]
-        public void Inject_WithoutAimConfig_DoesNotAddLookAtComponents()
+        public void CE3252_Inject_WithoutAimConfig_StillAddsLookAtComponents()
         {
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
@@ -141,8 +141,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             translator.Inject(repo, entity, template);
 
-            Assert.False(repo.HasComponent<LookAtChannel>(entity));
-            Assert.False(repo.HasComponent<LookAtExecutorState>(entity));
+            // ⭐ CE-3252 (LD-F, G2) — every person can be told where to look; ⛔ before, no AimConfig ⇒ no channel, and the shipped
+            //   mannequin has no AimConfig, so the look-at path was inert on every unit.
+            Assert.True(repo.HasComponent<LookAtChannel>(entity));
+            Assert.True(repo.HasComponent<LookAtExecutorState>(entity));
         }
     }
 

@@ -1313,6 +1313,30 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3252</c> (LD-C, R-2049) — a STANDING man told to look 90° to his left turns his BODY to it with the aim's lag (W-14):
+        /// a lasting look ends with him facing it. While he AIMS the other way, the aim wins and the look turns nothing.
+        /// ✅ Red-proof: drop the <c>lookingPerson</c> branch ⇒ he never turns.
+        /// </summary>
+        [Fact]
+        public void CE3252_AStandingPersonWithALook_TurnsHisBodyToIt_ButTheAimWins()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, null);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.None });
+            repo.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();
+            repo.AddComponent(e, new Fdp.Toolkit.Perception.Look.LookState { Target = new Vector3(0f, 20f, 0f), HasTarget = 1 });
+            Run(repo, 4f);
+            Assert.True(Off(repo, e, MathF.PI / 2f) < 10f * MathF.PI / 180f, $"faces the look: {Off(repo, e, MathF.PI / 2f) * 180f / MathF.PI:F1}° off");
+            Assert.True(new Vector2(repo.GetComponent<SimTransform>(e).Position.X, repo.GetComponent<SimTransform>(e).Position.Y).Length() < 0.01f);
+
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture
+                { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Point = new Vector3(20f, 0f, 1f) });   // east
+            Run(repo, 4f);
+            Assert.True(Off(repo, e, 0f) < 10f * MathF.PI / 180f, $"the aim wins: {Off(repo, e, 0f) * 180f / MathF.PI:F1}° off east");
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3195</c> (W-14c) — a BRIEF aim inside the twist barely turns him (a snap shot), and when the posture is no
         /// longer Aimed he stops turning.</summary>
         [Fact]

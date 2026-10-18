@@ -121,6 +121,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);
         map.RegisterMapping((long)EDescriptorType.dtEffectState, GlobalComponentIds.EffectState);               // ⭐ CE-3219 — non-lethal effects
         map.RegisterMapping((long)EDescriptorType.dtPartDamage, GlobalComponentIds.PartDamage);   // ⭐ CE-3210 — wounds, beside Health
+        map.RegisterMapping((long)EDescriptorType.dtLookState, GlobalComponentIds.LookState);     // ⭐ CE-3252 — where a person looks
         map.RegisterMapping((long)EDescriptorType.dtHitMarks, GlobalComponentIds.HitMarks);       // ⭐ CE-3210 — where rounds struck
         map.RegisterMapping((long)EDescriptorType.dtDescent, GlobalComponentIds.Descent);          // ⭐ airborne B-1 — a man coming down
         map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)

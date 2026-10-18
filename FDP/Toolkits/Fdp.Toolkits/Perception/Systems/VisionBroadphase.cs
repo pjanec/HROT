@@ -58,7 +58,8 @@ namespace Fdp.Toolkit.Perception.Systems
             // Derive 2-D forward from quaternion — X-forward (east) convention.
             // Using Vector3.UnitX (not UnitY) to match the FDP yaw convention:
             //   yaw=0 → facing east (+X), yaw=90° → facing north (+Y).
-            Vector3 fwd3D   = Vector3.Transform(Vector3.UnitX, obsTf.Rotation);
+            //   ⭐ CE-3252 (LD-2) — the EYES: the body's forward turned by the head (LookOf; unchanged with no look).
+            Vector3 fwd3D   = Fdp.Toolkit.Perception.Look.LookOf.EyeForward(view, observer, obsTf.Rotation);
             Vector2 forward = Vector2.Normalize(new Vector2(fwd3D.X, fwd3D.Y));
 
             float rangeSq = range * range;

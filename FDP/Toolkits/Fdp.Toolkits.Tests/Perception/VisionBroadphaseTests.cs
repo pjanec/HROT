@@ -549,5 +549,40 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Dispose();
         }
 
-}
+
+        /// <summary>
+        /// ⭐ <c>CE-3252</c> (LD-2) — the cone is around the EYES: a man facing east whose head is turned 60° left sees the enemy to
+        /// his north-west-ish (60°) and no longer the one dead ahead (60° cone). With no look the cone is the body's, as before.
+        /// ✅ Red-proof: read the body rotation in <c>VisionBroadphase.Select</c> ⇒ he still sees ahead and not left.
+        /// </summary>
+        [Fact]
+        public void CE3252_TheConeIsAroundTheEyes_NotTheChest()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>())
+                world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();
+            var grid = CreateTestGrid();
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // body east
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
+            world.AddComponent(observer, new PerceptionReceptor { VisionRange = 200f, HearingRange = 50f, FieldOfViewCos = MathF.Cos(MathF.PI / 6f) });
+            world.AddComponent(observer, new TargetMemory());
+            Entity Enemy(float x, float y)
+            {
+                var t = world.CreateEntity();
+                world.AddComponent(t, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+                world.AddComponent(t, new EntityInfo { ForceId = ForceId.Hostile });
+                grid.Add(t, new Vector2(x, y));
+                return t;
+            }
+            grid.Clear();
+            var ahead = Enemy(100f, 0f);
+            var left = Enemy(50f, 86.6f);   // 60° left
+
+            Assert.Equal(new[] { ahead }, Selected(world, grid, observer).ToArray());
+            world.AddComponent(observer, new Fdp.Toolkit.Perception.Look.LookState { HasTarget = 1, HeadYaw = MathF.PI / 3f });
+            Assert.Equal(new[] { left }, Selected(world, grid, observer).ToArray());
+            grid.Dispose();
+        }
+    }
 }

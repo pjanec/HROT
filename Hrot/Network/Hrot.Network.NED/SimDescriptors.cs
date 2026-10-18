@@ -400,6 +400,22 @@ namespace Hrot.NED.Descriptors
 
     // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, the brain owner → every node. Reliable + TransientLocal + KeepLast 1, like
     //   EntityGesture: a late joiner must know who has acted, and how gravely.
+    // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks, the Muscle → every node (vision on a Perception node, the map's cone, HTTP).
+    //   Reliable + TransientLocal + KeepLast 1: a late joiner must know where everyone looks. Sent on change (≥ 1°, ≥ 0.25 m).
+    [DdsTopic("EntityLookState")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityLookState
+    {
+        [DdsKey] public long EntityId;
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
+        public byte HasTarget;
+        public byte Source;
+        public float HeadYaw;
+    }
+
     [DdsTopic("EntityHostileAct")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
