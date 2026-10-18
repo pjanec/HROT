@@ -178,3 +178,11 @@ proposes per-lane component-id blocks for the user to decide.
   `CrowdSystem` pass can call it every frame.
 * **The blow** (`CE-3266`): `Melee.Strike(…, weapon: MeleeWeapon.MeleeBaton)` — the new last parameter (default fist); the swing is on
   the wire for ui.
+
+## `2026-10-19` — `CE-3246`: a blow's (and a gas cloud's) damage now reaches its victim's owner from any node
+
+⭐ A `DamageAssessedEvent` raised on a CGF brain — `Melee.Strike`, a cloud — on a victim whose `Health` another node owns used to be
+dropped there (Civilians §5i limit ①). It now travels: the `EntityHitDamage` pair runs on every node, sends exactly the hits this node does
+not apply, and the owner applies it once ([BS-1 §6.4a](../../designs/brain-split/BS-1-DESIGN.md)). ⛔ Nothing for behaviors to change —
+keep raising the event where the blow is decided. ⚠ One rule for "is a hit applied here" is now `Fdp.Toolkit.Combat.HealthOwnership.AppliesHere`;
+read it rather than re-deriving the `NetworkAuthority` / `HasAuthority<Health>` test.

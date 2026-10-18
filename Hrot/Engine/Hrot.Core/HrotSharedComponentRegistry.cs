@@ -135,6 +135,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();   // ⭐ CE-3246 — the EntityHitDamage ingress runs on every node
         world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-3266 (G3) — a blow struck (MeleeStrike topic)
         world.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();   // ⭐ CE-3256 (BR-4) — search / detain / restrain (interaction kind 13)
         world.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();   // ⭐ CE-3233 (B-11b) — set a charge off, on its position owner   // ⭐ CE-3233 (B-11) — draw / stow / conceal, applied by the list owner   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner

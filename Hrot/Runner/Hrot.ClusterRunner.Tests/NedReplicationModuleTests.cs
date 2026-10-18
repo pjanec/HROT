@@ -228,6 +228,8 @@ public sealed class NedReplicationModuleTests
     [InlineData(NodeRole.Map2D)]
     [InlineData(NodeRole.Brain)]
     [InlineData(NodeRole.MuscleGround)]
+    [InlineData(NodeRole.Traffic)]   // ⭐ CE-3246 — the traffic node takes and sends hits through the same pair
+    [InlineData(NodeRole.Brain | NodeRole.MuscleGround)]   // ⭐ CE-3246 — the editor's role: one pair, not one per role flag
     public void CE1148_EveryRole_PollsTheSharedIngress_OneReaderPerTopic(NodeRole role)
     {
         using var participant = new CycloneDDS.Runtime.DdsParticipant(0);
@@ -257,9 +259,11 @@ public sealed class NedReplicationModuleTests
         var sent = new List<string>();
         foreach (var egress in registry.Systems.OfType<Fdp.Network.Cyclone.Systems.CycloneEgressSystem>())
             foreach (var t in egress.Translators) sent.Add(t.GetType().Name);
-        foreach (var name in new[] { "WeaponFireIngressTranslator", "MunitionDetonationIngressTranslator", "RoundImpactIngressTranslator" })
+        foreach (var name in new[] { "WeaponFireIngressTranslator", "MunitionDetonationIngressTranslator", "RoundImpactIngressTranslator",
+                                     "EntityHitDamageIngressTranslator" })   // ⭐ CE-3246 (BS-1 §6.4a)
             Assert.Equal(1, polled.Count(n => n == name));
-        foreach (var name in new[] { "WeaponFireNotificationEgressTranslator", "MunitionDetonationEgressTranslator", "RoundImpactEgressTranslator" })
+        foreach (var name in new[] { "WeaponFireNotificationEgressTranslator", "MunitionDetonationEgressTranslator", "RoundImpactEgressTranslator",
+                                     "DamageAssessedEgressTranslator" })
             Assert.Equal(1, sent.Count(n => n == name));
     }
 }

@@ -1702,8 +1702,9 @@ the brain tick and the crowd system that already run every frame on CGF.
 | the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
 | a hostile rioter and the soldiers | ⭐ he is Hostile and unarmed (danger 0.3). ⭐ *As of `2026-10-17` (§5h.7b CH-1, user-approved):* no unit fires a LETHAL round at him unless it sees something lethal on him, knows him (it or its squad saw a lethal act) or he aims at it — non-lethal force only (the R-2027 flow's UNARMED arm); a police unit's force level (A6) caps it further. ⛔ SUPERSEDED: "the AI may engage him" | special-casing rioters in the threat rules: the ladder's job |
 
-⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
-scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
+⚠ **Known limits:** ① ~~a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
+scenario casts (CGF claims them), a limit for a SimHost-created soldier~~ — ✅ closed `2026-10-19` (`CE-3246`, backend): the hit travels to
+the Health owner from any node ([BS-1 §6.4a](designs/brain-split/BS-1-DESIGN.md)); ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
 hostile act carries no kind yet (B-16) — AW-22's lethal/non-lethal split waits on it; ④ a rioter does not avoid being shot — the force
 level (A6) is what makes the police answer non-lethally.
 

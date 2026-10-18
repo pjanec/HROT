@@ -66,21 +66,15 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 var targetEntity = evt.HitEntity;
 
-                // Skip if entity is no longer alive.
-                if (!repo.IsAlive(targetEntity))
-                    continue;
-
                 // Authority gate: only the node that CLAIMS Health applies it. ⭐ CE-523 (S8): Health is in the Brain
                 //   group, so its claim follows the group's grant — an entity SimHost or IG created has its Brain group
                 //   (Health with it) on CGF while the ENTITY's primary owner stays the creator. The old entity-level
                 //   test (NetworkAuthority.HasAuthority) was false there and the damage was dropped on every node.
                 //   With no NetworkAuthority (no network) this node owns everything.
                 //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
-                if (repo.HasComponent<NetworkAuthority>(targetEntity) && !repo.HasAuthority<Health>(targetEntity))
-                    continue;
-
-                // Require a Health component to be present.
-                if (!repo.HasComponent<Health>(targetEntity))
+                //   ⭐ CE-3246 — the rule (alive, has Health here, claims it) is HealthOwnership.AppliesHere, the ONE body the hit egress reads
+                //   too: it sends exactly the hits this node does not apply, so a hit is applied once, by its owner (BS-1 §6.4a).
+                if (!HealthOwnership.AppliesHere(repo, targetEntity))
                     continue;
 
                 // Apply damage with a floor of 0.

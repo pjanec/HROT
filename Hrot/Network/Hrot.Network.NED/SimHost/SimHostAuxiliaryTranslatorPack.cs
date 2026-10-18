@@ -83,8 +83,7 @@ public static class SimHostAuxiliaryTranslatorPack
         if (role.HasFlag(NodeRole.Brain))
         {
             translators.Add(new WeaponFireIntentEgressTranslator(participant, entityMap));
-            // Brain (authority node): receives EntityHitDamage → applies health changes.
-            translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
+            // (⭐ CE-3246 — the EntityHitDamage pair is in SharedTranslatorPack, on every node: BS-1 §6.4a.)
             // ⭐ CE-3062 — what the unit HEARD (anonymous), into the Brain's memory (CE-3063).
             translators.Add(new AudioTargetDetectedIngressTranslator(participant, entityMap));
             // ⭐ CE-3064 — a round passed close to one of its units (R-206).
@@ -94,22 +93,13 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new MissileWarningIngressTranslator(participant, entityMap));
         }
 
-        // ⭐ CE-4024 (AQ93 §15 K7) — the TRAFFIC node takes the hits too: a hit on a SUMO car or pedestrian is addressed to the replica the
-        //   traffic node owns, and its TrafficPanicSystem turns it into a conversion. 📌 Measured 2026-10-17 on the cluster: Brain-only, so
-        //   a burst did 2 889 damage to a SUMO car on SimHost and the traffic node never heard of it. ⛔ Harmless for everything else:
-        //   HealthApplicationSystem is authority-gated, and the traffic node owns no one's health but its replicas'.
-        if (role.HasFlag(NodeRole.Traffic) && !role.HasFlag(NodeRole.Brain))
-            translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
-        // ⭐ … and SENDS one: the hit it held for a converted agent is re-published to our new entity as its own, and must reach that
-        //   entity's brain owner. 📌 Measured 2026-10-18: Muscle-only, so a converted car stood on CGF at 300/300 after an 863-damage hit.
-        if (role.HasFlag(NodeRole.Traffic) && !role.HasFlag(NodeRole.MuscleGround))
-            translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
+        // ⭐ CE-4024 (AQ93 §15 K7) — the traffic node takes the hits on its SUMO replicas and sends the one it re-addresses to a converted
+        //   agent: both now through the shared pack's EntityHitDamage pair, on every node (⭐ CE-3246, BS-1 §6.4a).
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
         if (role.HasFlag(NodeRole.MuscleGround))
         {
             // (⭐ CE-1148 S2 — the WeaponFire / MunitionDetonation / RoundImpact pairs are in SharedTranslatorPack, on every node.)
-            translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
             translators.Add(new NearMissEgressTranslator(participant, entityMap));   // CE-3064
             translators.Add(new MissileWarningEgressTranslator(participant, entityMap));          // ⭐ CE-2189
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));

@@ -16,8 +16,8 @@ namespace Fdp.Toolkit.Combat
     /// <summary>
     /// ⭐ <c>CE-3266</c> (G3, ST-1; docs/DESIGN_Civilians_And_Crowd_Control.md §7.18) — a blow was STRUCK: who, whom, with what. Raised by
     /// <see cref="Melee.Strike"/> beside the damage, and on the wire like <see cref="Events.WeaponFireNotification"/> (topic <c>MeleeStrike</c>)
-    /// so every map host draws the swing once. Independent of the damage chain — a blow's damage can be lost across nodes (<c>CE-3246</c>),
-    /// its picture is not.
+    /// so every map host draws the swing once. Independent of the damage chain (which reaches the victim's Health owner, <c>CE-3246</c>): a swing that
+    /// hurts no one is still drawn.
     /// </summary>
     [EventId(CombatConstants.StrikeNotificationEventId)]
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
@@ -35,8 +35,8 @@ namespace Fdp.Toolkit.Combat
     /// with a knock-down, through the ONE damage chain — a <see cref="DamageAssessedEvent"/> {Blunt} on the striker's node's bus, applied
     /// only where the victim's Health is claimed (<c>HealthApplicationSystem</c>), which stores the knock-down in <see cref="EffectState"/>
     /// (replicated). ⛔ No round, no muzzle: the ballistic path is for things that fly.
-    /// <para>⚠ A victim whose Health another node claims is not hurt here (the gate drops it) — a scenario cast is CGF's, so a CGF brain's
-    /// blow lands; a SimHost-created soldier is the known limit (§5i ①).</para>
+    /// <para>⭐ <c>CE-3246</c> — a victim whose Health another node claims is hurt THERE: the hit egress (every node) sends a hit this node
+    /// does not apply to its owner (docs/designs/brain-split/BS-1-DESIGN.md §6.4a). ⛔ Before, the blow was dropped (§5i ①).</para>
     /// </summary>
     public static class Melee
     {

@@ -28,7 +28,7 @@ namespace Hrot.SimHost.Tests
         public void Dispose() => _world.Dispose();
 
         private EntityHitDamageIngressTranslator BuildTranslator()
-            => new EntityHitDamageIngressTranslator(participant: null, _entityMap);
+            => new EntityHitDamageIngressTranslator(participant: null, _entityMap, localNodeId: 1);
 
         private ReadOnlySpan<DamageAssessedEvent> ProcessAndFlush(
             EntityHitDamageIngressTranslator translator,

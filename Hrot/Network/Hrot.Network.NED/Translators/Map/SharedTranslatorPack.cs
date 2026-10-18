@@ -145,6 +145,10 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this
+            //   node does not apply (HealthOwnership.AppliesHere), the ingress drops its own sample; HealthApplicationSystem applies it once.
+            yield return new Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);

@@ -280,5 +280,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED) — network id of who caused it (the round's shooter, a melee striker);
         /// ⭐ 0 = unknown.</summary>
         public long SourceEntityId;
+
+        /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
+        /// sender (taken).</summary>
+        public long SourceNodeId;
     }
 }
