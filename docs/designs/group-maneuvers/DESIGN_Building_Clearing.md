@@ -16,7 +16,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — OWNS how a door command reaches the door's owner (OpenDoor / Breach)
   - docs/DESIGN_Orders_Params_Entity_Classes.md — R-2003: a sector is an area entity; the order on the wire is complete
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the machinery map (§9 squads: a new drill is an ISquadPlay, not a new node)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; CB-28's Resolve lives there; the defenders' temperaments drive ts-house-defenders
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; CB-28's Resolve lives there; the defenders' temperaments drive ts-house-defenders
 -->
 
 # Building clearing — a squad clears a house, kills the armed, spares and controls the rest *(behaviors, `2026-10-18`)*

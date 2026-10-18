@@ -12,6 +12,7 @@ related-designs:
   - docs/DESIGN_Peek_And_Fire.md — the blind burst at a remembered spot (the existing at-point fire this reuses)
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.4 doctrine and order origin (the commander's "aggressive / defensive" lever)
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — §6 bounding overwatch: the covering element suppresses while the other moves
+  - docs/DESIGN_Temperament_And_Stress.md — (behaviors, R-2034) ADDS Nerve and Resolve to this question's `CombatTemperament`, a live Stress and the break; `Willingness` and the 0.6 threshold stay as ruled here
 -->
 
 # Architect Question 89 — suppress and close: blind suppression, bravery, obedience

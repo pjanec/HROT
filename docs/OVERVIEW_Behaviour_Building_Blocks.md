@@ -23,7 +23,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — owns embarkation (§7, §7.1 plan) — §10 here is its measured state
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — owns the urban tank tactics proposal (hide / expose / reverse, danger to me); §10b here is its measured ground
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the room-clearing drill, a new ISquadPlay (design stage)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; the per-man character layer under the posture decision (design stage)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (design stage)
 -->
 
 # Behaviour building blocks — an overview
