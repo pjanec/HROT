@@ -106,9 +106,11 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 
 🔒 User, `2026-10-18`: *"The democity terrain was anyway too boring, adding building there to create some quarters like living ones and business onr and commercial ones would help. Obstacles to cover behing on the streets could be added as part of the scenario."*
 
+🔒 User, `2026-10-18` (R-2053): *"That 'no procedural buikding' was related to the buildings from sumosharp own test project, not ported here to our 3d map. Our Building can be created in whatever suitable way."*
+
 | | ⭐ decision | rejected — one line each |
 |---|---|---|
-| where | ⭐ **demo-city, given quarters** — it alone has the road net, traffic and crowds the scene needs; its houses are authored placements (`demo-city.houses.json`, a template per house) that the coordinator's `terrain-from-sumo.py --houses` merges, so new buildings are data | grow `cqb-village` (~330 × 232 m, no road net or traffic; its sight lines are pinned by the platoon demos' rails) · a third terrain (redoes demo-city's road and traffic work) |
+| where | ⭐ **demo-city, given quarters** — it alone has the road net, traffic and crowds the scene needs; new buildings can be made in whatever way suits — authored placements (`demo-city.houses.json`, merged by the coordinator's `terrain-from-sumo.py --houses`), a generator, new templates (R-2053: R-4052's "no procedural buildings" is SumoSharp's viewer buildings only) | grow `cqb-village` (~330 × 232 m, no road net or traffic; its sight lines are pinned by the platoon demos' rails) · a third terrain (redoes demo-city's road and traffic work) |
 | what | residential (2–3 storey houses, walled courtyard houses, alleys), business (office blocks, 3–4 storeys, stairs, windows on every storey, flat roofs), commercial (shops with flat roofs, a market square), and **one battle street** through them | — |
 | street cover | ⭐ **in the scenario**, not the terrain: the existing static obstacles (cars, sandbags, concrete blocks, crates) | baked into the terrain: every demo on demo-city would inherit them |
 

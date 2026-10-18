@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DISPATCHED at the commit that adds this file (2026-10-18); scope frozen there. A FRAME: you design the layout as step 1.
+state: LIVE — DISPATCHED 2026-10-18; RE-STAMPED the same day (rule 1a: not yet in origin/ui) — scope frozen at the re-stamp commit. A FRAME: you design the layout as step 1.
 updated: 2026-10-18
 current-answer: the whole file.
 stale-below: nothing.
@@ -9,14 +9,14 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — THE reason: §4a the stage (the decision), §1 the scene the battle street must hold
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md — UI-1 (the shared building folder) and UI-2 (house-3f, roof rings) this builds on
   - docs/DESIGN_Building_Interiors.md — OWNS building templates, storeys, openings, stairs, roofs
-  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — (coordinator) demo-city's road net, traffic, the 34 houses (CE-4028), R-4052 no procedural buildings
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — (coordinator) demo-city's road net, traffic, the 34 houses (CE-4028); R-4052's "no procedural buildings" is SumoSharp's viewer buildings only (R-2053)
 -->
 
 # HANDOFF — ui: give demo-city quarters *(UI-8 … UI-12)*
 
 **For:** the ui lane (`ui`). **FYI:** the coordinator lane, which owns demo-city's road net, traffic and its 34 houses (CE-4028) — this
-adds to that terrain (cross-lane: say it in the commit). **From:** behaviors. ⭐ **Dispatched at the commit that adds this file**: your
-scope is FROZEN there; later documents are FYI. If one invalidates an item, **STOP that item and report it** (R-106).
+adds to that terrain (cross-lane: say it in the commit). **From:** behaviors. ⭐ **Re-stamped `2026-10-18`** (one fence corrected, §2): your
+scope is FROZEN at the re-stamp commit; later documents are FYI. If one invalidates an item, **STOP that item and report it** (R-106).
 
 ## 0. Why
 
@@ -36,7 +36,7 @@ the stage for the recorded urban battle ([DESIGN_Urban_Battle_Demo](../../design
 ## 2. Fences
 
 - ⛔ **No change to the road net or the traffic** (coordinator's): new buildings stand clear of every lane, as the 34 do.
-- ⛔ **No procedural buildings** (R-4052): authored placements in `demo-city.houses.json`, merged by `scripts/terrain-from-sumo.py --houses`.
+- ⭐ **Make the buildings however suits** (R-2053): authored placements in `demo-city.houses.json` (merged by `scripts/terrain-from-sumo.py --houses`), a generator of your own, new templates — your choice. ⚠ R-4052's *"no procedural buildings"* is about SumoSharp's own viewer buildings (*"too dense and too unrealistic"*), not about ours. ⭐ Pick what keeps the quarters looking deliberate — a residential street, an office row, a market.
 - ⭐ **Keep the existing promise in that file's `$comment`**: every front door faces a sidewalk, and every sidewalk point stays within
   70 m of a front door (the civilian shelter query searches 80 m). Replacing a house is fine; leaving a stretch of sidewalk without a door is not.
 - ⭐ **No street cover in the terrain**: parked cars, sandbags, concrete blocks and crates are scenario objects (the existing static
@@ -50,7 +50,7 @@ the stage for the recorded urban battle ([DESIGN_Urban_Battle_Demo](../../design
 | **UI-9** | **the templates** (beside `house-2f` / `house-3f` in the shared folder): a **courtyard house** (a walled yard, 2.5 m wall, one gate, a house on one side); an **office block** (3–4 storeys, a stairwell, windows on every storey on the street side, a flat roof reachable by the stairs); a **two-storey shop** with a flat roof and a shopfront; ⭐ *offer* a **market hall** (an open ground floor under a roof) | each loads; every door opens; the navmesh reaches every room and every roof; a roof's parapet gives crouched cover |
 | **UI-10** | **the quarters placed**: residential — mostly `house-2f` / `house-3f` and courtyard houses with alleys between; business — office blocks; commercial — two-storey shops round the market square. Along the battle street, buildings on both sides with upper windows facing it, at least one walled compound, and two flat roofs that see along it | the terrain loads on every host; the fences of §2 hold |
 | **UI-11** | **an open landing square** near the battle street (≥ 40 × 40 m clear, no wires or trees — a UH-60 lands a squad there) | a helicopter route to it lands without a collision |
-| **UI-12** | **rails**: demo-city's own suites stay green — ⭐ start with the feature's rails (`Hrot.Traffic.Tests`, e.g. `PedestriansPanicIntoCiviliansTests`, and `ShippedTerrainFilesAreDeployedTests`); add sight-line rows in a `premises.json` for: the battle street seen from an upper window on each side · the landing square seen from one office roof · the compound's yard hidden from the street | the shelter coverage still holds; the premises rows print as the test reports them |
+| **UI-12** | **rails**: demo-city's own suites stay green — ⭐ start with the feature's rails (`EnterableShelterTests.CE4028_DemoCity_EverySidewalkPoint_HasAnEnterableHouseWithinTheShelterRadius` — the shelter promise — then `Hrot.Traffic.Tests`, e.g. `PedestriansPanicIntoCiviliansTests`, and `ShippedTerrainFilesAreDeployedTests`); add sight-line rows in a `premises.json` for: the battle street seen from an upper window on each side · the landing square seen from one office roof · the compound's yard hidden from the street | the shelter coverage still holds; the premises rows print as the test reports them |
 
 ## 4. Report
 

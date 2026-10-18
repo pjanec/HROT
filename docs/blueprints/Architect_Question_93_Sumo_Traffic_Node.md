@@ -758,7 +758,7 @@ two streets — none matches any net.
 | **D3** | a generator script turns a SUMO net + its `buildings.json` into an HROT terrain folder (`terrain.json` with the net and its anchor, the world GeoJSON with bounds and buildings) |
 | **D4** | the demo scenario on `demo-city`: the traffic settings entity + a few soldiers at a downtown junction — enough for every slice-1 acceptance check |
 | **D5** | E1b: a non-georeferenced net is placed by an anchor in `terrain.json` |
-| ⛔ | **no procedural buildings** — the viewer's current ones are *"too dense and too unrealistic"* (user); maybe later |
+| ⛔ | **no procedural buildings** — the viewer's current ones are *"too dense and too unrealistic"* (user); maybe later · ⚠ *scoped 2026-10-18 (R-2053, user): this is SumoSharp's own viewer buildings; HROT's buildings may be created in any suitable way* |
 
 ## 12. The dedicated traffic node, built ALONGSIDE the editor *(R-4053; N1–N3 APPROVED R-4054; any number of traffic nodes R-4055; N4–N8, T1–T3, S1–S3 APPROVED 2026-10-17, R-4056)*
 
