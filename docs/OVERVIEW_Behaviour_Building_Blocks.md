@@ -5,6 +5,8 @@ current-answer: the whole file — an EXPLAINER (map of what exists), not a desi
 stale-below: none
 known-rot: §1–§8 colours are a 2026-10-06 snapshot (§5a, §9, §10 measured 2026-10-11) — re-check the tracker before relying on a red or amber box
 related-designs:
+  - docs/REFERENCE_Command_Building_Blocks_Measured.md — the MEASURED command-and-control blocks (storage, unit memory, orders, the gate, SOP, edges, guards), symbol by symbol; start a command design there
+  - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — a worked two-level command chain on those blocks (orders down, requirements down, reports up)
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the doctrine RULES and DEMOS built on this machinery (rule → behaviour/system/sensor → demo)
   - DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that §8a summarises
   - DESIGN_Orders_Params_Entity_Classes.md — OWNS orders, params DTOs and entity classes (rules built 2026-10-12/13; the §9 order box was refreshed 2026-10-13, P7)

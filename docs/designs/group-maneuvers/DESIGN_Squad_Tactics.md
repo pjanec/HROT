@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — a platoon ordering squads via SquadManeuverRunner.Order's helper; the squad pool feeds the staff's SPOT
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS SquadFastRope, SquadAirborneExit (the jumpmaster) and AssembleAfterDrop, started by new SOP rows on the carrier's Roping / Dropping phase
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: BatteryFireMissionPlay — one more ISquadPlay, with MemberOrderKind.FireAtPoint
