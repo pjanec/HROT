@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — the lean APPROVED 2026-10-18 (R-2034); TS-6 and TS-8 are refinements found while designing, marked "lean" for review
+build-state: READY-TO-BUILD — APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos
 stale-below: nothing.
 known-rot: none.
@@ -115,7 +115,7 @@ graph TD
 *Caption:* one new system on the brain node, scheduled after perception so a near miss counts the same frame; the components are
 brain-local like the civilians' state (visible over HTTP for debugging) — no new wire in v1.
 
-## 4. Decisions *(✅ approved 2026-10-18, R-2034 — TS-6 and TS-8 are leans found while designing, for review)*
+## 4. Decisions *(✅ approved 2026-10-18, R-2034 — all nine, TS-6 and TS-8 included)*
 
 | id | decision | ✅ ruled / ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -124,9 +124,9 @@ brain-local like the civilians' state (visible over HTTP for debugging) — no n
 | **TS-3** | where it lives | **`TemperamentDto` on the TKB type** (the defaults) + a **seeded spread** per man (`SimRng`, ± `Spread`, default 0.15, from the entity's own seed) + a **per-entity override in the scenario**, stamped into a `Temperament` component on the brain node | per-behaviour params: a man's character is not the behaviour's · no spread: every insurgent a clone |
 | **TS-4** | stress | a live **`Stress`** 0–1 on the brain node: **+** a near miss 0.08 · a hit 0.25 · a friend down within 15 m 0.2 · outnumbered (`EnemyStrengthRatio` > 1.5) 0.02 / s · alone (no friend within 20 m) 0.01 / s — each × (1 − 0.5 × effective Nerve); **−** 0.03 / s, × 2 in cover, × 2 with his squad leader within 20 m | stress from health alone: the decision already reads health |
 | **TS-5** | how it shapes behaviour | **three inputs that only DAMP an option**, 1.0 exactly with no `Temperament` ⇒ every existing score unchanged: `CautionDamp` = 1 − 0.5 × max(0, −Aggression) on AdvanceAndAttack · `AggressionDamp` = 1 − 0.5 × max(0, Aggression) on TakeCover / HoldProne / Flee · `StressDamp` = 1 − Stress on AdvanceAndAttack and Suppress. ⭐ Measured: an unregistered input reads 0 (`UtilityScorer.cs:615`) and five of the six options MULTIPLY their considerations ⇒ damping with a neutral of 1.0 is the only shape that leaves today's scores bit-identical | boosting inputs: a product cannot boost past 1, and a neutral of 0.5 would rescale every demo |
-| **TS-6** | the break | when Stress ≥ effective Nerve ⇒ `SensorChange.StressBreak` ⇒ the SOP's **Break** (pauses the task): Surrender if effective Resolve < 0.3 and he is covered by an enemy (`Covering.By`), else Flee if a retreat point exists, else go to ground (HoldProne, no fire). Recovered when Stress < 0.6 × Nerve for 10 s (`StressRecovered`). ⭐ **Lean: ROE `StayOnTask` does NOT refuse the break** — men break whatever the order; discipline is what makes it rare | StayOnTask refuses it: a disciplined unit would never break even at stress 1 — but discipline already raises effective nerve |
+| **TS-6** | the break | when Stress ≥ effective Nerve ⇒ `SensorChange.StressBreak` ⇒ the SOP's **Break** (pauses the task): Surrender if effective Resolve < 0.3 and he is covered by an enemy (`Covering.By`), else Flee if a retreat point exists, else go to ground (HoldProne, no fire). Recovered when Stress < 0.6 × Nerve for 10 s (`StressRecovered`). ✅ **ROE `StayOnTask` does NOT refuse the break** — men break whatever the order; discipline is what makes it rare | StayOnTask refuses it: a disciplined unit would never break even at stress 1 — but discipline already raises effective nerve |
 | **TS-7** | who has it | **combatants only** (soldiers, insurgents, police); civilians keep their own model | one model for both: the civilians' fear / anger / attitude is built, approved and tuned |
-| **TS-8** | the wire | ⭐ **lean: brain-local in v1** (like `CivilianState`), visible over HTTP (`GET /entities/{id}` shows the components on the brain node); ui's G2 mood quantised later if wanted | replicate now: no reader on another node yet |
+| **TS-8** | the wire | ✅ **brain-local in v1** (like `CivilianState`), visible over HTTP (`GET /entities/{id}` shows the components on the brain node); ui's G2 mood quantised later if wanted | replicate now: no reader on another node yet |
 | **TS-9** | the coarse lever | the doctrine swap (aggressive / defensive SOP, Sensors §7.4) **stays**; temperament is the per-man layer beneath it | replace doctrine: a commander's choice and a man's character are different things |
 
 ## 5. Slices *(behaviors ids from `CE-2269`)*
