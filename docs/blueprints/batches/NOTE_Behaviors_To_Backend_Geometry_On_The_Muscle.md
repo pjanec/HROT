@@ -39,5 +39,5 @@ are not edited).
 | `FireSolution.For` / `ClearsDensely` (`FireSolution.cs:82, 137`), called by behaviors' indirect fire | does the arc clear the terrain | geometry on the brain |
 | `TerrainWorldQuery.SightBlocked` (`:69-76`) as served on CGF | sight with mirrored clouds and doors, no destruction | the mirror R-2037 forbids |
 
-⭐ Behaviors' own sites are `CE-2286`. Please allocate your rows from your block and name them in your report, so `CE-2286`
+⭐ **The full list of YOUR sites is tracked as `CE-2287`** (filed by behaviors, owner backend; a full sweep on 2026-10-18 added `FireAtPointExecutor`, the bomb release cue, `DoorNodes.ApproachPoint`, spawn `ResolveLevel`, the cloud drift and the fog visibility in `Armament.Judge`). Re-file it under your block if you prefer. ⭐ Behaviors' own sites are `CE-2286`. Please allocate your rows from your block and name them in your report, so `CE-2286`
 (waits on BR-12), `CE-2283` (PointSurvey) and `CE-2257` (BuildingSurvey) can cite them.
