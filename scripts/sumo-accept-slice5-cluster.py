@@ -110,12 +110,13 @@ def slowest(ns):   # ⭐ an M67 kills within ~5 m: a car moving 10 m/s leaves th
     a = {n: pos(n) for n in ns}; time.sleep(1); b = {n: pos(n) for n in ns}
     v = {n: ((b[n][0] - a[n][0]) ** 2 + (b[n][1] - a[n][1]) ** 2) ** 0.5 for n in ns if a.get(n) and b.get(n)}
     return min(v, key=lambda n: (v[n], dist(n))) if v else None
-target, ours_car = None, None
+target, ours_car, b, tp, attempt = None, None, None, None, 0
 for attempt in range(3):   # a burst that missed a moving car is retried at a fresh (slowest) car, up to three times
     cands = [n for n in sumo(SIM) if tkb(SIM, n) not in CIVILIANS] or sim_cars
     target = slowest(cands) if cands else None
     if not target: break
     tp = pos(target)
+    if tp is None: continue   # it left the vicinity between the reads (📌 2026-10-18: a None pose crashed the check)
     b = call(SIM, "POST", "/entities/command", {"eventType": "DetonationNotification",
              "payload": {"HitX": tp[0], "HitY": tp[1], "HitZ": tp[2] + 0.5, "Ammo": 6001, "IsRemote": False}})
     print(f"burst {attempt + 1} at car {target} {tp}: {(b or {}).get('ok')}", flush=True)
