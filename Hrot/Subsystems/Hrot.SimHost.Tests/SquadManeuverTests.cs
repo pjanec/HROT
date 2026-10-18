@@ -1360,6 +1360,70 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, after.Subordinates.Items[0].Progress);
         }
 
+        // ── CE-2292 CC-B — the command actions on a real commander ─────────────────────────────────────────────────────────
+
+        /// <summary>⭐⭐ <c>CE-2292</c> CC-B — <c>OrderSubordinate</c> sends the squad in roster slot 1 an ABSTRACT order (<c>Order.Move</c>,
+        /// the point geodetic), records it on the commander's run like the runner's own orders, and makes the picture forget that squad's
+        /// last progress; the runner's re-send (the same helper) does NOT. ✅ Red-proof: the node's <c>newOrder: true</c> dropped ⇒ the
+        /// progress stays Set.</summary>
+        [Fact]
+        public void CE2292_OrderSubordinate_SendsAnAbstractOrder_RecordsIt_AndResetsTheProgress()
+        {
+            var s = new Squad(members: 2);
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new UnitEntity());
+            s.Order("{\"DurationSeconds\":0}", BehaviorNames.SquadHold);   // the commander's run that the orders belong to
+            Ticks(s, 2);
+            int row = Fdp.Toolkit.Squad.Command.CommandPictureOps.EnsureRow(s.Repo, s.Commander,
+                Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(s.Repo, s.Members[1]));
+            s.Repo.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandPicture>(s.Commander).Subordinates.Items[row].Progress
+                = Fdp.Toolkit.Squad.Command.ProgressKind.Set;
+            s.Orders.Clear();
+
+            var p = new OrderSubordinateParams { Slot = 1, Order = Hrot.AI.Behaviors.Orders.OrderKind.Move, Point = new Vector3(30f, 40f, 0f), Speed = 2f };
+            Assert.Equal(Fbt.NodeStatus.Success, CommandNodes.OrderSubordinate(ref p, s.Commander, s.Repo));
+            s.Tick();
+            var o = Assert.Single(s.Orders.Where(x => x.Entity.Equals(s.Members[1])));
+            Assert.Equal("Order.Move", o.IntentId);
+            var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var back = s.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(30f, 40f)), 0f, 0.1f);
+            Assert.Contains(SubordinateOrders.Of(s.Repo, s.Commander)!.Orders, e => e.Member.Equals(s.Members[1]));
+            var slot1 = new Fdp.Toolkit.Squad.Command.ProgressReachedParams { Slot = 1, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
+            Assert.False(Fdp.Toolkit.Squad.Command.PictureConditions.ProgressReached(ref slot1, s.Commander, s.Repo));
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandPicture>(s.Commander).Subordinates.Items[row].Progress
+                = Fdp.Toolkit.Squad.Command.ProgressKind.Set;
+            SquadManeuverRunner.Move(s.Repo, s.Commander, s.Members[1], new Vector3(30f, 40f, 0f), 2f, 5f);   // the runner's re-send
+            Assert.True(Fdp.Toolkit.Squad.Command.PictureConditions.ProgressReached(ref slot1, s.Commander, s.Repo));
+
+            var none = new OrderSubordinateParams { Slot = 5, Order = Hrot.AI.Behaviors.Orders.OrderKind.Hold };
+            Assert.Equal(Fbt.NodeStatus.Failure, CommandNodes.OrderSubordinate(ref none, s.Commander, s.Repo));   // no such slot
+        }
+
+        /// <summary>⭐ <c>CE-2292</c> CC-B — <c>SetSubordinateReporting</c> reaches the subordinate's <c>ReportingRequirements</c> through
+        /// its system (Superior); <c>SendReport</c> queues the play's milestone, due 3 s later; a SPOT is the staff's, not the play's.</summary>
+        [Fact]
+        public void CE2292_SetSubordinateReporting_AndSendReport()
+        {
+            var s = new Squad(members: 2);
+            var p = new SetSubordinateReportingParams { Slot = 0, Pir = Fdp.Toolkit.Squad.Command.PirFlags.AnyElement, SitrepEverySeconds = 15f };
+            Assert.Equal(Fbt.NodeStatus.Success, CommandNodes.SetSubordinateReporting(ref p, s.Commander, s.Repo));
+            s.Repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem().Execute(s.Repo, 0.016f);
+            var req = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(s.Members[0]);
+            Assert.Equal((Fdp.Toolkit.Squad.Command.PirFlags.AnyElement, 15f, BehaviorOrigin.Superior), (req.Pir, req.SitrepEverySeconds, req.SetBy));
+
+            double now = s.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            var phase = new SendReportParams { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.PhaseLine, Count = 2 };
+            Assert.Equal(Fbt.NodeStatus.Success, CommandNodes.SendReport(ref phase, s.Commander, s.Repo));
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            Assert.Equal(1, q.Count);
+            Assert.Equal((Fdp.Toolkit.Squad.Command.ReportKind.Progress, (byte)2, 1u), (q.Items[0].Report.Kind, q.Items[0].Report.Count, q.Items[0].Report.Seq));
+            Assert.Equal((float)now + CommandNodes.ReportDelaySeconds, q.Items[0].DueAt, 3);
+            var spot = new SendReportParams { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot };
+            Assert.Equal(Fbt.NodeStatus.Failure, CommandNodes.SendReport(ref spot, s.Commander, s.Repo));
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)

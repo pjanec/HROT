@@ -584,24 +584,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The order the COMMANDER's run gives a member: recorded on the commander (released when that run ends —
         /// <see cref="SubordinateOrders"/>, A5), then published at Superior.</summary>
         private static void Publish(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
-        {
-            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior);
-            world.Bus.PublishManaged(new AssignTacticalIntentEvent
-            {
-                Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
-            });
-        }
+            => CommandOrders.Assign(world, commander, member, behaviour, json);   // ⭐ CE-2292 — the one helper the command nodes share
 
         /// <summary>⭐ <c>CE-2141</c> — an ORDER to a unit member (<c>Order.&lt;name&gt;</c>, resolved by the member itself — D3). Its
         /// release is an unnamed clear: the commander cannot know which behaviour it resolved to.</summary>
         private static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json)
-        {
-            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior);
-            world.Bus.PublishManaged(new AssignTacticalIntentEvent
-            {
-                Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior,
-            });
-        }
+            => CommandOrders.Order(world, commander, member, orderName, json);   // ⭐ CE-2292 — a re-send: the picture keeps its progress
 
         /// <summary>Every live member of <paramref name="element"/> is within <see cref="MoverArrivalMetres"/> of its point.</summary>
         public static unsafe bool ElementArrived(in SquadPlayState ws, in SquadPlayContext ctx, byte element)

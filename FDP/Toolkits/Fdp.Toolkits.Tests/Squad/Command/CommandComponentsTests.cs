@@ -113,5 +113,105 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             Assert.Equal(0, root.GetProperty("Requests").GetArrayLength());
             Assert.Equal("Set", root.GetProperty("Subordinates")[0].GetProperty("Progress").GetString());   // enums as strings (R-2007)
         }
-    }
+    
+        // ── CE-2292 CC-B — the picture guards and the outbox ──────────────────────────────────────────────────────────────
+
+        private static (EntityRepository world, Entity platoon, Entity alpha, Entity bravo) Platoon()
+        {
+            var world = World();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            world.RegisterComponent<SimTransform>();
+            var platoon = world.CreateEntity();
+            var alpha = world.CreateEntity();
+            var bravo = world.CreateEntity();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, alpha);
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, bravo);
+            world.AddComponent(platoon, roster);
+            world.AddComponent(platoon, new SimTransform { Position = Vector3.Zero });
+            return (world, platoon, alpha, bravo);
+        }
+
+        private static void At(EntityRepository world, double t) => world.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f });
+
+        /// <summary>Writes a row as the staff's inbox will (CC-C).</summary>
+        private static void Reported(EntityRepository world, Entity platoon, Entity sub, ProgressKind progress, StatusColour strength, float at)
+        {
+            int row = CommandPictureOps.EnsureRow(world, platoon, CommandPictureOps.NetIdOf(world, sub));
+            ref var r = ref world.GetComponentRW<CommandPicture>(platoon).Subordinates.Items[row];
+            r.Progress = progress; r.Strength = strength; r.LastReportAt = at;
+        }
+
+        /// <summary>⭐ CC-B — <c>ProgressReached</c> names the subordinate by roster SLOT and is true for its latest progress; a NEW order
+        /// (<c>OrderGiven</c>) forgets it, so a guard waiting for this leg's Set is not passed by the last leg's. ✅ Red-proof: OrderGiven
+        /// not resetting ⇒ the guard stays true after the new order.</summary>
+        [Fact]
+        public void CE2292_ProgressReached_BySlot_AndANewOrderForgetsTheLastLegsProgress()
+        {
+            var (world, platoon, alpha, bravo) = Platoon();
+            var set = new ProgressReachedParams { Slot = 1, Progress = ProgressKind.Set };
+            Assert.False(PictureConditions.ProgressReached(ref set, platoon, world));
+            Reported(world, platoon, bravo, ProgressKind.Set, StatusColour.Green, 1f);
+            Assert.True(PictureConditions.ProgressReached(ref set, platoon, world));
+            var alphaSet = new ProgressReachedParams { Slot = 0, Progress = ProgressKind.Set };
+            Assert.False(PictureConditions.ProgressReached(ref alphaSet, platoon, world));
+
+            CommandPictureOps.OrderGiven(world, platoon, bravo);
+            Assert.False(PictureConditions.ProgressReached(ref set, platoon, world));
+            var none = new ProgressReachedParams { Slot = 1, Progress = ProgressKind.NoProgress };
+            Assert.False(PictureConditions.ProgressReached(ref none, platoon, world));   // "no progress" is never a milestone
+            world.Dispose();
+        }
+
+        /// <summary>⭐ CC-B — colour (this or worse), freshness (overdue), elements by size / distance / age, pending requests.</summary>
+        [Fact]
+        public void CE2292_TheOtherGuards_ReadThePicture()
+        {
+            var (world, platoon, alpha, _) = Platoon();
+            At(world, 100);
+            Reported(world, platoon, alpha, ProgressKind.NoProgress, StatusColour.Amber, 90f);
+            var amber = new SubordinateColourParams { Slot = 0, AtLeast = StatusColour.Amber };
+            var red = new SubordinateColourParams { Slot = 0, AtLeast = StatusColour.Red };
+            Assert.True(PictureConditions.SubordinateColour(ref amber, platoon, world));
+            Assert.False(PictureConditions.SubordinateColour(ref red, platoon, world));
+            var fresh15 = new SubordinateFreshParams { Slot = 0, WithinSeconds = 15f };
+            var fresh5 = new SubordinateFreshParams { Slot = 0, WithinSeconds = 5f };
+            Assert.True(PictureConditions.SubordinateFresh(ref fresh15, platoon, world));
+            Assert.False(PictureConditions.SubordinateFresh(ref fresh5, platoon, world));   // overdue
+
+            ref var pic = ref world.GetComponentRW<CommandPicture>(platoon);
+            pic.Elements.Items[pic.Elements.Count++] = new ReportedElement { At = new Vector3(0, 300, 0), Size = ElementSize.Team, ObservedAt = 95f };
+            var near = new ElementReportedParams { MinSize = ElementSize.Team, WithinMetres = 400f, FreshSeconds = 30f };
+            var squad = new ElementReportedParams { MinSize = ElementSize.SquadSize, WithinMetres = 400f };
+            var close = new ElementReportedParams { MinSize = ElementSize.Individual, WithinMetres = 200f };
+            var stale = new ElementReportedParams { FreshSeconds = 2f };
+            Assert.True(PictureConditions.ElementReported(ref near, platoon, world));
+            Assert.False(PictureConditions.ElementReported(ref squad, platoon, world));
+            Assert.False(PictureConditions.ElementReported(ref close, platoon, world));
+            Assert.False(PictureConditions.ElementReported(ref stale, platoon, world));
+
+            var anyReq = new PendingRequestParams();
+            var casevac = new PendingRequestParams { Kind = RequestKind.Casevac };
+            Assert.False(PictureConditions.PendingRequest(ref anyReq, platoon, world));
+            pic = ref world.GetComponentRW<CommandPicture>(platoon);
+            pic.Requests.Items[pic.Requests.Count++] = new PendingRequest { Kind = RequestKind.FireSupport };
+            Assert.True(PictureConditions.PendingRequest(ref anyReq, platoon, world));
+            Assert.False(PictureConditions.PendingRequest(ref casevac, platoon, world));
+            world.Dispose();
+        }
+
+        /// <summary>⭐ CC-B — the outbox numbers each report per sender (CB-32) and refuses a ninth.</summary>
+        [Fact]
+        public void CE2292_TheOutbox_NumbersEachReport_AndRefusesWhenFull()
+        {
+            var (world, platoon, _, _) = Platoon();
+            for (int i = 0; i < ReportOutbox.MaxQueued; i++)
+                Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, 3f));
+            Assert.False(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, 3f));
+            var outbox = world.GetComponentRO<ReportOutbox>(platoon);
+            Assert.Equal(((uint)ReportOutbox.MaxQueued, 1u, (uint)ReportOutbox.MaxQueued),
+                         (outbox.NextSeq, outbox.Queued.Items[0].Report.Seq, outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Seq));
+            world.Dispose();
+        }
+}
 }
