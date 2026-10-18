@@ -35,6 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
             public EqsTacticsParams Flank, Firing, Throw;
             public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
             public DesignateParams Designate;      // ⭐ CE-3170 — an attack order's target (C-5)
+            public LookParams Look;                // ⭐ CE-2297 LD-3 — where his eyes go (threat → sector → the order's bearing)
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
@@ -45,6 +46,7 @@ namespace Hrot.AI.Behaviors.Brains
             public EngageState SuppressState, HoldProneState;
             public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
             public DesignateState DesignateState;        // ⭐ CE-3170
+            public LookNodeState LookState;              // ⭐ CE-2297
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -89,6 +91,15 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
 
+            // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
+            //   scanned ±30° (📄 Look Direction §3.3a)
+            if (authored.WatchTowards != Vector3.Zero && world.HasComponent<SimTransform>(self))
+            {
+                block.Look.Bearing = LookAt.BearingTo(world.GetComponentRO<SimTransform>(self).Position, authored.WatchTowards);
+                block.Look.BearingSet = 1;
+                block.Look.HalfWidth = LookAt.WatchHalfWidth;
+            }
+
             // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an ATTACK: the named target, and with no objective authored the advance
             //   goes to where the target is now (the unit closes in; the decision picks the way).
             if (authored.Target.IsNone) return;
@@ -116,6 +127,7 @@ namespace Hrot.AI.Behaviors.Brains
                     .StatefulAction(bb => bb.Sensors, bb => bb.SensorsState, PostureNodes.PostureSensors)
                     .StatefulAction(bb => bb.Approach, bb => bb.ApproachChoice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.ApproachSensors, bb => bb.ApproachSensorsState, PostureNodes.ApproachSensors)
+                    .StatefulAction(bb => bb.Look, bb => bb.LookState, LookNodes.Look)   // ⭐ CE-2297 LD-3 — the eyes, beside the work
                     .ObserverSelector(winner => winner
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)

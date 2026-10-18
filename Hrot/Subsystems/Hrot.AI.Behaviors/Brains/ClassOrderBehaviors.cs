@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
 using Fdp.Core;
@@ -72,12 +73,31 @@ namespace Hrot.AI.Behaviors.Brains
             => CombatPostureBehavior.BuildCombatPostureTree();
     }
 
-    /// <summary>⭐ <c>CE-2143</c> — HOLD for a person or a platform: stay where it is, as <c>Idle</c> (one state, never ends).</summary>
+    /// <summary>⭐ <c>CE-2143</c> — HOLD for a person or a platform: stay where it is, as <c>Idle</c> (one state, never ends).
+    /// ⭐ <c>CE-2297</c> LD-3 — a person's hold carries his eyes: the threat, else a fresh sound, else his sector.</summary>
     public static class ClassHoldOrders
     {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct PersonHoldBlackboard
+        {
+            public LookParams Look;
+            public LookNodeState LookState;
+        }
+
+        /// <summary>The order carries nothing: his eyes come from the threat, a sound, or his sector (<c>LookAt</c>).</summary>
+        [BehaviorResolver(BehaviorNames.PersonHold)]
+        public static void ResolvePerson(in HoldOrder order, ref PersonHoldBlackboard block, EntityRepository world, Entity self)
+            => block = default;
+
         [Behavior(BehaviorNames.PersonHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
-        [HsmDefinition(BehaviorNames.PersonHold, Curated = true, Group = "Library/Orders")]
-        public static StateMachineGraph BuildPersonHold() => Hold("PersonHold_HSM");
+        [HsmDefinition(BehaviorNames.PersonHold, Curated = true, Group = "Library/Orders", ParamsType = typeof(PersonHoldBlackboard))]
+        public static StateMachineGraph BuildPersonHold()
+        {
+            var builder = new HsmBuilder("PersonHold_HSM");
+            builder.State("Hold").Initial()
+                .Activity<PersonHoldBlackboard, LookParams, LookNodeState>(bb => bb.Look, bb => bb.LookState, LookNodes.Look);
+            return builder.Build();
+        }
 
         [Behavior(BehaviorNames.PlatformHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.AllMilitary)]
         [HsmDefinition(BehaviorNames.PlatformHold, Curated = true, Group = "Library/Orders")]

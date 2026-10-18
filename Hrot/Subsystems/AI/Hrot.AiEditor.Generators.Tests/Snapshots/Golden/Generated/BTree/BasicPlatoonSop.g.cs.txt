@@ -1,0 +1,37 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a2294000-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Squad.Command;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class BasicPlatoonSop
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Selector(sel =>
+            {
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
+                        visualId: new Guid("c2294000-0000-0000-0000-000000000011"));
+                    seq.Condition("Fdp.Toolkit.Squad.Command.PictureConditions.ElementReported@8",
+                        visualId: new Guid("c2294000-0000-0000-0000-000000000012"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:PlatoonHold:Contact@-1",
+                        visualId: new Guid("c2294000-0000-0000-0000-000000000013"));
+                },
+                    visualId: new Guid("c2294000-0000-0000-0000-000000000010"));
+            },
+                visualId: new Guid("c2294000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("BasicPlatoonSop", AssetId = "a2294000-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("BasicPlatoonSop");
+}

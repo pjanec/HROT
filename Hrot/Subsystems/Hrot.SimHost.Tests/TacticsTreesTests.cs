@@ -1,4 +1,10 @@
+using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using Hrot.Map.Definitions.Behavior;
+using Hrot.MuscleCharacter.Animation.Components;
+using Hrot.MuscleCharacter.Animation.Contracts;
+using Hrot.MuscleCharacter.Animation.Look;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
@@ -978,6 +984,148 @@ namespace Hrot.SimHost.Tests
             senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, w.Repo.GetSingleton<GlobalTime>().TotalTime);
             w.Repo.AddComponent(w.Unit, senses);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
+        }
+
+        // ── ⭐ CE-2297 LD-3 — who points the eyes (docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a) ─────────────────
+
+        private static void CanLook(World w)
+        {
+            if (!w.Repo.IsComponentTypeRegistered<LookAtChannel>()) w.Repo.RegisterComponent<LookAtChannel>();
+            w.Repo.AddComponent(w.Unit, new LookAtChannel());
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit))
+                w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+        }
+
+        private static unsafe Vector3 LookPoint(World w)
+        {
+            ref readonly var ch = ref w.Repo.GetComponentRO<LookAtChannel>(w.Unit);
+            Assert.Equal(LookAtActionIds.LookAtPoint, ch.ActiveAction);
+            LookAtPointParams p;
+            fixed (byte* src = ch.Params) p = *(LookAtPointParams*)src;
+            return new Vector3(p.WorldPointX, p.WorldPointY, p.WorldPointZ);
+        }
+
+        private static float AngleOff(float a, float b) => MathF.Abs(((a - b) % 360f + 540f) % 360f - 180f);
+
+        /// <summary>⭐ The compass and the scan: 0 = north (+Y), clockwise; five fixations across ±half, ping-pong, each held a step.</summary>
+        [Fact]
+        public void CE2297_TheScan_FiveFixations_PingPong_OnTheCompass()
+        {
+            Assert.Equal(90f, LookAt.BearingTo(Vector3.Zero, new Vector3(10, 0, 0)), 3);
+            Assert.Equal(180f, LookAt.BearingTo(Vector3.Zero, new Vector3(0, -10, 0)), 3);
+            var p = LookAt.PointAt(Vector3.Zero, 90f, 100f);
+            Assert.Equal(100f, p.X, 3);
+            Assert.Equal(0f, p.Y, 3);
+            Assert.Equal(90f, LookAt.FacingBearing(Quaternion.Identity), 3);               // the body's forward is +X ⇒ east
+            float[] expected = { 60, 75, 90, 105, 120, 105, 90, 75, 60 };
+            for (int k = 0; k < expected.Length; k++)
+                Assert.Equal(expected[k], LookAt.ScanBearing(90f, 30f, 2f, k * 2.0 + 0.5), 3);
+        }
+
+        /// <summary>⭐⭐ LD-3 in the posture every holding man runs: a threat takes his eyes (the channel follows the entity, this run
+        /// stamped on it). ✅ Red-proof: the Look node removed from CombatPosture's decide Parallel ⇒ the channel stays empty.</summary>
+        [Fact]
+        public unsafe void CE2297_CombatPosture_LooksAtItsTopThreat()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            var enemy = w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            ref readonly var ch = ref w.Repo.GetComponentRO<LookAtChannel>(w.Unit);
+            Assert.Equal(LookAtActionIds.LookAtEntity, ch.ActiveAction);
+            Assert.Equal(w.Repo.GetComponentRO<BehaviorState>(w.Unit).InstanceId, ch.BehaviorInstanceId);
+            Assert.Equal((uint)enemy.Index, Unsafe.As<byte, LookAtEntityParams>(ref Unsafe.AsRef(in ch.Params[0])).TargetEntityId);
+        }
+
+        /// <summary>⭐ LD-3b / LD-3c — with no threat his SECTOR points his eyes: the watch bearing, stepped across ±30°; with no sector
+        /// either, a look this run wrote is released. ✅ Red-proof: the scan step removed ⇒ the point never moves.</summary>
+        [Fact]
+        public void CE2297_NoThreat_TheSectorPointsTheEyes_Scanning_ThenReleased()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            Assert.True(Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem.Apply(w.Repo, new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent
+                { Entity = w.Unit, Origin = BehaviorOrigin.Superior, WatchSet = 1, WatchBearing = 90f }));
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            var first = LookPoint(w);
+            Assert.InRange(LookAt.BearingTo(Vector3.Zero, first), 60f - 0.5f, 120f + 0.5f);   // east, within ±30°
+            for (int i = 0; i < 130; i++) w.Tick();                                          // > one 2 s step
+            Assert.NotEqual(first, LookPoint(w));                                            // the scan moved on
+
+            Assert.True(Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem.Apply(w.Repo, new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent
+                { Entity = w.Unit, Origin = BehaviorOrigin.Superior }));                    // withdrawn
+            w.Tick();
+            Assert.Equal(LookAtActionIds.ReleaseLook, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>LD-3d — a look another run wrote is NOT released by this one (a reaction's look stays its own).</summary>
+        [Fact]
+        public void CE2297_ALookAnotherRunWrote_IsNotReleased()
+        {
+            var w = new World();
+            CanLook(w);
+            Assert.True(LookRequest.AtPoint(w.Repo, w.Unit, new Vector3(0, 50, 0), behaviorInstance: 9999));
+            var p = new LookParams();
+            var ws = new LookNodeState { Source = LookChoice.Sector };
+            Assert.Equal(LookChoice.Released, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 1.0));
+            Assert.Equal(LookAtActionIds.LookAtPoint, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>LD-3b — SectorOnly: a threat elsewhere does not take a security man's eyes off his sector.</summary>
+        [Fact]
+        public void CE2297_SectorOnly_KeepsTheSector_WhenAThreatIsKnown()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            w.Contact(armed: true);
+            Assert.True(Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem.Apply(w.Repo, new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent
+                { Entity = w.Unit, Origin = BehaviorOrigin.Superior, WatchSet = 1, WatchBearing = 0f }));
+            var p = new LookParams { Mode = LookMode.SectorOnly, HalfWidth = 0.001f };
+            var ws = new LookNodeState();
+            Assert.Equal(LookChoice.Sector, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
+            var at = LookPoint(w);
+            Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, at), 0f) < 1f);   // north
+        }
+
+        /// <summary>⭐ LD-5 ④'s half on the brain — a shot HEARD behind him (an anonymous memory slot, which <c>TopThreat</c> never
+        /// ranks) takes his eyes to the sound while it is fresh; once older than the window his order's bearing has them again.
+        /// ✅ Red-proof: the heard source removed ⇒ he keeps looking north.</summary>
+        [Fact]
+        public unsafe void CE2297_AHeardShot_TurnsTheEyesToTheSound_WhileItIsFresh()
+        {
+            var w = new World();
+            CanLook(w);
+            w.Hear(0f, -50f, 5f);                                                           // behind him (south)
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = w.Repo.SimulationTick;
+            var p = new LookParams { BearingSet = 1, Bearing = 0f };                        // ordered to watch north
+            var ws = new LookNodeState();
+            Assert.Equal(LookChoice.Heard, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
+            Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 180f) < 1f);
+            w.Repo.ResetGlobalVersion(w.Repo.SimulationTick + LookAt.HeardWindowTicks + 1);  // the sound is old now
+            Assert.Equal(LookChoice.Bearing, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
+            Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 0f) < 1f);
+        }
+
+        /// <summary>⭐ LD-3 — the operator's HOLD carries his eyes: a sector set on him (the ROE-twin event, as the debug route raises it)
+        /// points them, scanned ±30° around its watch bearing. ✅ Red-proof: PersonHold without its Look activity ⇒ the channel stays empty.</summary>
+        [Fact]
+        public void CE2297_Hold_TheSectorPointsTheEyes()
+        {
+            var w = new World();
+            CanLook(w);
+            Assert.True(Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem.Apply(w.Repo, new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent
+                { Entity = w.Unit, Origin = BehaviorOrigin.Operator, WatchSet = 1, WatchBearing = 0f }));
+            w.Order(BehaviorNames.PersonHold);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(BehaviorNames.PersonHold, w.TaskName);
+            float bearing = LookAt.BearingTo(Vector3.Zero, LookPoint(w));
+            Assert.True(AngleOff(bearing, 0f) <= 30.5f, $"looks north within the scan, at {bearing}");
         }
 
         // ── ⭐ CE-3170 — an ATTACK order: CombatPosture with a designated target (docs/DESIGN_Entity_Control.md C-5) ──────────

@@ -1920,6 +1920,32 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read what a unit remembers — seen and heard contacts, how fresh, and where"),
 
+        [("POST", "/entities/{networkId}/sector")] = new RouteDoc(
+            Tool:    "set_entity_sector",
+            Group:   "K — AI behavior traces",
+            Summary: "Set a man's or a commander's sector — the arc he may choose to shoot into, where he watches, his NoFire areas (CE-2298, DA-26).",
+            Returns: "{ networkId, arc:{left,right,minRange,maxRange}|null, watch|null, allowArea|null, noFire, setBy }",
+            Hint:    "Req: networkId. Body (all optional): left, right (compass, 0 = north, clockwise), minRange, maxRange, watch (compass), allowArea, noFire:[areaIds]. Empty body withdraws. Example: set_entity_sector({networkId:5301, watch:0})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("left", "number", false, "Arc's left bearing (compass degrees)"),
+                new("right", "number", false, "Arc's right bearing (compass degrees)"),
+                new("minRange", "number", false, "Arc's min range (m)"),
+                new("maxRange", "number", false, "Arc's max range (m); 0 = none"),
+                new("watch", "number", false, "Where he looks (compass degrees)"),
+                new("allowArea", "number", false, "An area entity's network id he may shoot into"),
+                new("noFire", "array", false, "Up to four area entities' network ids no round may end in"),
+            },
+            Notes: new[]
+            {
+                "Origin Operator through the one writer (EngagementAreaSystem.Apply): it replaces the whole sector; a higher setter refuses it.",
+                "The arc's origin is where he stands now. Run it where the brain runs (409 on a replica).",
+                "His eyes follow it: a holding or fighting man looks at his sector when no threat or sound holds them (Look Direction §3.3a).",
+            },
+            ExampleArgsJson: "{\"networkId\":5301,\"watch\":0}",
+            ExampleGist: "point a sentry north, or give a man his arc of fire"),
+
         [("GET", "/entities/{networkId}/slots")] = new RouteDoc(
             Tool:    "get_entity_slots",
             Group:   "K — AI behavior traces",

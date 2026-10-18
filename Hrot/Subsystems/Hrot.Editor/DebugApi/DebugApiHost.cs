@@ -1239,6 +1239,18 @@ namespace Hrot.Editor.DebugApi
                     return error != null ? Fail(status, error) : Ok(result);
                 });
             }));
+            // ⭐ CE-2298 (LD-5, DA-26) — the operator sets a sector (the ROE-twin event, origin Operator) where the brain runs.
+            _routes.Add(new("POST", "/entities/{networkId}/sector", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error) = s.PostEntitySector(id, body);
+                    return error != null ? Fail(status, error) : Ok(result);
+                });
+            }));
             _routes.Add(new("GET", "/squad/reports", ctx =>
             {
                 int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 50;
