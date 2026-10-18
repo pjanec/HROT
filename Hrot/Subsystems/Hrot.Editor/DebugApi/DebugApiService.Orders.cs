@@ -247,6 +247,15 @@ namespace Hrot.Editor.DebugApi
             var bs = _world.GetComponentRO<BehaviorState>(unit);
             node["onBrainNode"] = _world.HasAuthority<BehaviorState>(unit);
             node["current"] = BehaviourNode(bs.ActiveBehaviorHash, bs.Origin);
+            // ⭐ CE-2295 (CC-E, Platoon §12.4) — the running task's params whatever its ORIGIN: a platoon demo reads the Superior order a
+            //   squad was given (the "state" below stays the OPERATOR's order, as the order tools expect)
+            if (bs.ActiveBehaviorHash != BehaviorIds.None && _world.HasManagedComponent<BehaviorStartRecord>(unit)
+                && ((ISimulationView)_world).GetManagedComponentRO<BehaviorStartRecord>(unit) is { } running && running.InstanceId == bs.InstanceId)
+                node["task"] = new JsonObject
+                {
+                    ["behavior"] = NameOf(bs.ActiveBehaviorHash), ["origin"] = bs.Origin.ToString(), ["since"] = bs.RunSince,
+                    ["params"] = TryParse(running.JsonParams),
+                };
 
             if (bs.ActiveBehaviorHash != BehaviorIds.None && bs.Origin == BehaviorOrigin.Operator)
             {

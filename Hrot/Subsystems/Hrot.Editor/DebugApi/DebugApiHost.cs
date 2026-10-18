@@ -1199,6 +1199,44 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐⭐ CE-2295 CC-E (CC-12…CC-15, PC-11) — the reports up the chain of command: watch a commander's picture and a unit's outbox,
+            //   fake a report as if the unit's staff sent it, cut its radio, and read the node's report log (docs/designs/group-maneuvers/
+            //   DESIGN_Command_Chain_Example.md §7c).
+            _routes.Add(new("GET", "/entities/{networkId}/reports", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMain(s => s.GetEntityReports(id));
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/reports", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error) = s.PostEntityReport(id, body);
+                    return error != null ? Fail(status, error) : Ok(result);
+                });
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/reports/mute", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                var body = ctx.Body;
+                return RunMainResult(s =>
+                {
+                    var (result, status, error) = s.PostEntityReportMute(id, body);
+                    return error != null ? Fail(status, error) : Ok(result);
+                });
+            }));
+            _routes.Add(new("GET", "/squad/reports", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 50;
+                long? unit = long.TryParse(ctx.Query("unit"), out var u) ? u : null;
+                return RunMain(s => s.GetSquadReports(last, unit));
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));

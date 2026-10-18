@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — CC-A ✅ CC-B ✅ CC-C ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
+build-state: BUILDING — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
@@ -429,3 +429,19 @@ Rails (`SquadManeuverTests.CE2293_*`, a squad under a body-less platoon on one n
 before) into the platoon's picture, which raises `ReportReceived` and turns `ProgressReached` true · three pooled contacts are one
 SPOT; 10 m is not news, 40 m replaces it, an empty pool removes it · a SITREP only at the requested rate, GREEN; mute holds the outbox ·
 the inbox drops a late older report and takes a synthetic one.
+
+**CC-E `CE-2295`** — the debug HTTP (`Hrot.Editor/DebugApi/DebugApiService.Reports.cs`) over one service
+(`Fdp.Toolkits/Squad/Command/ReportInjection.cs`):
+
+| route | as built | deviation from §7c |
+|---|---|---|
+| `GET /entities/{id}/reports` | the INTERPRETED view (CC-12): picture elements with `ageSeconds` (from `ObservedAt`), `receivedAt`, `seq`, `synthetic`; each subordinate's progress, colours, phase, age, `overdue` (silent > 60 s, CB-34); open requests; the requirements; the outbox (queued with `dueAt`, posture, muted) | "the last 16 sent" lives in the node log below, not in the outbox |
+| `POST /entities/{id}/reports` | `ReportInjection.Inject`: the staff's own `SquadReportNotification`, from the unit to its direct superior, `Synthetic = 1`, `Seq = 0`, `ObservedAt = now − observedAgoSeconds` — before the wire, so BR-3 carries it | ⚠ `ReportInjection` is in `Fdp.Toolkits` (not `Hrot.Common`): it needs nothing above the toolkit, and the test rails reach it there |
+| `POST /entities/{id}/reports/mute` | `ReportInjection.Mute` → `ReportOutbox.MutedUntil` (CC-15); 0 restores; ⚠ runs on the unit's BRAIN node (the outbox lives there) | — |
+| `GET /squad/reports?last=&unit=` | ⭐ PC-11: `SquadReportLog` — a ring of 256 per world, written by `StaffInboxSystem` for EVERY report it sees, with its verdict (`folded` · `stale` · `not-owned-here`) and origin node; network ids resolved at read time (the `ShotLog` precedent) | ⚠ kept where the inbox runs (brain nodes), not on SimHost / IG |
+| `GET /entities/{id}/order` | gains `task:{behavior, origin, since, params}` for the running task of ANY origin (a Superior order a squad was given) beside the operator-order `state` | — |
+
+Rails: `SquadManeuverTests.CE2295_*` (a fake SPOT arrives synthetic, aged and logged, and the squad's next real SPOT of the same
+element replaces it; a muted squad's PROGRESS waits until the radio is back); route docs in `DebugApiRouteDocs` (rail
+`EveryRouteIsDocumentedTests`). ⚠ `CE-2288` (one read route over every behaviour slot) is NOT in this slice — its first consumer is
+the platoon demos that watch a hosted squad play.

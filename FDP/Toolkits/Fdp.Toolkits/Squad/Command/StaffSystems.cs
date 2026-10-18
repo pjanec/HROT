@@ -205,11 +205,21 @@ namespace Fdp.Toolkit.Squad.Command
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<CommandPicture>() || !repo.Bus.IsRegisteredManaged<SquadReportNotification>()) return;
             float now = CommandPictureOps.Now(repo);
+            SquadReportLog? log = null;
             foreach (var n in repo.Bus.ReadManaged<SquadReportNotification>())
             {
+                // ⭐ CE-2295 (PC-11) — every report this node sees goes into its log, with what the inbox did with it
+                log ??= SquadReportLog.For(repo);
+                var entry = new SquadReportLogEntry
+                {
+                    SeenAt = now, FromUnit = n.FromUnit, ToUnit = n.ToUnit, Report = n.Report, OriginNodeId = n.OriginNodeId,
+                    Verdict = "not-owned-here",
+                };
+                log.Add(entry);
                 if (n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
                 if (_gateOnAuthority && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
-                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now)) FoldedCount++; else DroppedCount++;
+                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now)) { FoldedCount++; entry.Verdict = "folded"; }
+                else { DroppedCount++; entry.Verdict = "stale"; }
             }
         }
 

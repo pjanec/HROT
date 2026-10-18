@@ -1570,6 +1570,56 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
         }
 
+        // ── CE-2295 CC-E — faking reports and cutting the radio (the service the debug HTTP calls) ──────────────────────────
+
+        /// <summary>⭐⭐ <c>CE-2295</c> CC-E (CC-13, CC-14) — a SPOT faked as the squad's (<c>ReportInjection.Inject</c>) reaches the platoon's
+        /// picture marked synthetic, aged from its <c>observedAgoSeconds</c>, logged; the squad's next REAL SPOT of the same element replaces
+        /// it. ✅ Red-proof: the inbox dropping a <c>Seq</c>-0 synthetic as stale ⇒ the fake never arrives.</summary>
+        [Fact]
+        public void CE2295_AFakeSpot_ReachesThePlatoon_Synthetic_AndTheSquadsRealOneReplacesIt()
+        {
+            var c = new Chain(members: 3);
+            c.Ticks(2);
+            var fake = new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = new Vector3(0f, 300f, 0f), Count = 9,
+                Size = Fdp.Toolkit.Squad.Command.ElementSize.SquadSize,
+            };
+            Assert.Null(Fdp.Toolkit.Squad.Command.ReportInjection.Inject(c.S.Repo, c.S.Commander, fake, observedAgoSeconds: 4f));
+            c.Ticks(2);
+            var e = c.Picture.Elements.Items[0];
+            Assert.Equal(1, c.Picture.Elements.Count);
+            Assert.Equal((byte)1, e.Synthetic);
+            double now = c.S.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            Assert.InRange(now - e.ObservedAt, 3.9, 4.2);
+            var logged = Fdp.Toolkit.Squad.Command.SquadReportLog.Peek(c.S.Repo)!;
+            Assert.Contains(logged.Recent(10), x => x.Report.Synthetic == 1 && x.Verdict == "folded");
+
+            c.S.PoolMany(2, new Vector3(5f, 305f, 0f));   // the squad's own eyes: the same place, two men
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            e = c.Picture.Elements.Items[0];
+            Assert.Equal(1, c.Picture.Elements.Count);
+            Assert.Equal(((byte)0, (byte)2), (e.Synthetic, e.Count));
+
+            Assert.NotNull(Fdp.Toolkit.Squad.Command.ReportInjection.Inject(c.S.Repo, c.Platoon, fake));   // the platoon has no superior
+        }
+
+        /// <summary>⭐ <c>CE-2295</c> CC-E (CC-15) — a muted squad sends nothing, its PROGRESS waits in the outbox; restored, it goes.</summary>
+        [Fact]
+        public void CE2295_AMutedSquad_SendsNothing_UntilItsRadioIsBack()
+        {
+            var c = new Chain(members: 3);
+            Assert.Null(Fdp.Toolkit.Squad.Command.ReportInjection.Mute(c.S.Repo, c.S.Commander, 120f));
+            c.S.Order("{\"DurationSeconds\":0.5}", BehaviorNames.SquadHold);
+            for (int i = 0; i < 80 && !c.S.Finished(out _); i++) c.Tick();
+            c.Ticks(2); c.S.Pause(4); c.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.NoProgress, c.SquadProgress);
+            Assert.Equal(0, c.Composer.SentCount);
+            Assert.Null(Fdp.Toolkit.Squad.Command.ReportInjection.Mute(c.S.Repo, c.S.Commander, 0f));
+            c.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)
