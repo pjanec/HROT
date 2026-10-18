@@ -2340,6 +2340,8 @@ graph TD
 | live, first cut | ⛔ 0 of 12 rioted — the riots were too short to be sampled, nobody struck the police ⇒ PV-6 and the 60 s presence phase |
 | twin, as built (60 s presence, `FearBeatsAnger`) | ✅ police within 30 m at 22.3 s; the first riot at 51.5 s (presence alone, a hostile-at-heart member); the first baton blow at 58.6 s; rioted {1, 4, 6}, all three Hostile (each struck the police); no attitude −1 member riots |
 | ⭐ live `ua-civ-provocation`, as built | ✅ **7/7** — police within 30 m at 20.5 s, the first riot at 48.0 s, the first blow at 60.0 s; rioted {1, 6} of 12, Hostile {1, 6} on CGF, SimHost and IG alike; no attitude −1 member riots |
+| mutants (9) — facing ignored · provoke reach ×100 · the struck man spiked too · spike every frame · riot ignores attitude · charge strikes any Neutral · charge ignores the force level · charge 1000× longer · a rioter panics on fear alone | ✅ all 9 red on their rails |
+| neighbour twins after the change — bomber (CE-2247), police line, escalation ×2, self-defence, celebration, riot stone, civilian melee, gas throw-back, surrender, contagion, protest, provocation | ✅ 13/13 |
 
 ## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
 
