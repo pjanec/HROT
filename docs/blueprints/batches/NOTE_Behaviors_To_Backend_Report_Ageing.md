@@ -23,9 +23,9 @@ is unstarted (`git merge-base --is-ancestor` checked: not in `origin/backend`), 
 | **`ObservedAt`** (sim seconds) beside `SentAt` | when the squad saw what it reports; age is measured from it (CB-31) | a report held 3 s arrives with `ObservedAt` 3 s before `SentAt`, on every node |
 | **`Seq`** (uint, per sender unit) | the picture keeps the newest per subject and drops a late older one (CB-32) | two reports from one sender, published in order, carry increasing `Seq` on every node |
 | kind **`Sitrep`** *(was `Status`)* | combat power and ammo as GREEN / AMBER / RED / BLACK, phase, position (CB-34, CB-37) | a SITREP with every field arrives on every node |
-| **`KindId`** (ushort) replaces the byte `Kind` | the report kind registry: standard 1–99 (CONTACT, SPOT, SITREP, LACE, PROGRESS, REQUEST), behaviour-defined 100+ (CB-41) | an unknown kind id still crosses the wire and is logged |
+| **`KindId`** (ushort) replaces the byte `Kind` | the report kind registry: standard 1–99 (CONTACT, SPOT, SITREP, LACE, PROGRESS, REQUEST), a CLOSED set (CB-43) — no behaviour-defined kinds | an unknown kind id still crosses the wire and is logged |
 | **SPOT fields** | size class (individual · team · squad · platoon), activity, equipment flags (MG · sniper · AT · vehicle), radius (CB-37) | a SPOT round-trips every field |
-| **`Payload`** (≤ 64 bytes) + a `RequestId` | a behaviour kind's DTO bytes; a REQUEST's id that an answering order cites (CB-41) | a 64-byte payload arrives intact; a longer one is refused at egress and counted |
+| **`Subtype`** (byte) + a `RequestId` *(re-stamped: the free payload is DROPPED, CB-43)* | the closed subtype of the kind (PROGRESS: Set · PhaseLine · Foothold · …; REQUEST: Casevac · FireSupport · …); a REQUEST's id that an answering order cites | every kind × subtype round-trips; an unknown subtype still crosses and is logged |
 
 Everything else in BR-3 stands (event topic, egress drains the local event, ingress raises it on every node, sender's own sample
 skipped by `OriginNodeId`, replay records it). Please name your tracker row in your report so `CE-2263` (RP-1) can cite it.

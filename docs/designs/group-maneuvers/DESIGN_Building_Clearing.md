@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 (memory at every command level) and §5c CB-37…CB-41 (what is reported, who processes it) leans awaiting the user
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 (inside a commander) leans awaiting the user
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -253,7 +253,7 @@ sequenceDiagram
   PL->>PP: read the picture, never the events
   Note over OB,PP: while engaged the squad re-sends its STATUS every 15 s, silence ages its status into Stale
 ```
-**Who holds what — one rule at EVERY level** *(⭐ lean CB-36, 2026-10-18; replaces the level table first written for CB-33)*
+**Who holds what — one rule at EVERY level** *(✅ CB-36 approved 2026-10-18, R-2040; replaces the level table first written for CB-33)*
 
 🔒 User, `2026-10-18`: *"Shouldn't the memory be hierarchical, like commander at each level having its own memory and sending reports up
 the chain? What if there are three levels of command? … That doesn't sound like a sustainable model."*
@@ -311,7 +311,7 @@ the buffer the reports are folded into, and the picture is where ageing happens.
 the kinds gain `Status` (with men in the fight, effective, ammo-low, phase in `Count` and a small flags field). Sent as
 [`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md).
 
-## 5c. What is reported up, what each level needs, and who processes it *(⭐ leans CB-37…CB-41, 2026-10-18)*
+## 5c. What is reported up, what each level needs, and who processes it *(✅ concept approved 2026-10-18, R-2040; CB-41 superseded by CB-43 §5d; details in §5d)*
 
 🔒 User, `2026-10-18`: *"Higher level commanders are usually not interested in the lowest details. What kind of report could the squad
 commander report up, What kind of knowledge the platoon level commander actually needs … How this report processing will be
@@ -414,6 +414,132 @@ it ASKED for machine guns, and it is woken by an edge, not by polling.
 ⚠ **Changes to BR-3 again** (still unstarted): the header gains `KindId` (ushort, the registry) and a small `Payload` (≤ 64 bytes); the
 SPOT fields (size class, activity, equipment flags) ride in the standard fields; CB-34's `Status` is the SITREP. Folded into
 [`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md) (re-stamped).
+
+## 5d. Inside a commander — how requests arrive, who reads the reports, and how a report changes a decision *(⭐ leans CB-42…CB-47, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"CB36 approved. Report concept apptoved, solution details needed. It is still not clear to me How the requests for
+reports are communicated … what part of the commander entity is reading and processing these reports? … Commander might need some kinf of
+report processing 'brain' running on top of his decision tree. Is that the standard operation procedure feature we are having, or do we
+need something else? … there is probably some closed set of all kinds of possible reports … Maybe this is the real use case for the
+hierarchical setup, that one behavior on top is using a sub-behavior as its own node, or maybe some parallel regions in hierarchical state
+machine or something? and maybe with commender's SOP on the very top?"*
+
+**What a commander entity already runs** *(measured)*:
+
+| layer | built | where |
+|---|---|---|
+| **SOP slot** — always ticking, woken at once by a `SensorChangedEvent` on the unit | ✅ | `BrainTickSystem.TickSopSlots` (`BrainTickSystem.cs:220-246`); body-less commanders run one (`BasicSquadSop` on the squad entity) |
+| **task slot** — ONE task; a **reaction** started by the SOP pauses it and it resumes in place after | ✅ | `BehaviorIngressSystem.cs:258-265, 459-485` (R-199, `CE-2081`) |
+| **HSM parallel regions** — every region ticks each frame | ✅ | `StateFlags.IsParallel` (`HsmKernelCore.cs:303-305`); rail ⑥ |
+| **polled transitions with guards** — re-checked while a state runs | ✅ | `CE-381` / `CE-382` |
+| **a state or a node hosts another behaviour of any tier** | ✅ | E5 (HSM hosts a BTree), E6 (BTree hosts BTree), S5a / S5d (any tier hosted, blueprint `Run Behaviour`) |
+| **`SensorChangedEvent`** carries `Unit`, `Sensor`, `Target` (entities) + the change | ✅ | `SensorChangedEvent.cs:78-90` |
+
+⇒ ⭐ **No new "brain" is needed.** The layering the user describes — SOP on top, the play below, sub-behaviours and parallel regions
+inside it — **already exists**. What is missing is the layer UNDER all of them: the staff, which turns reports into the commander's
+senses.
+
+```mermaid
+classDiagram
+  direction TB
+  class CommanderEntity { <<body-less unit, R-272>> }
+  class Staff { <<NEW engine systems, always on, NOT a behaviour>> inbox folds reports · composer sends reports · ages · raises edges }
+  class Picture { <<the commander's senses>> own TargetMemory (enemy elements) · StatusTable (per subordinate) · ProgressRecord · Requests }
+  class ReportingRequirements { <<NEW component, stamped from the superior's ORDER>> PIR · FFIR · routine rates }
+  class SopSlot { <<existing>> interrupts: reacts to edges by starting a REACTION that pauses the task }
+  class TaskSlot { <<existing>> the play, e.g. AttackBuilding HSM }
+  class PhaseRegion { <<HSM region>> Observe · SupportByFire · Approach · Isolate · Foothold · Clear · Consolidate }
+  class ControlRegion { <<HSM region, parallel>> relief · shift and lift fire · answer requests · re-plan the axis }
+  class HostedSubBehaviours { <<states host BTrees>> e.g. Approach hosts BoundingControl }
+  class PictureNodes { <<NEW guards, conditions, utility inputs>> ProgressReached · SubordinateColour · ElementsAt · PendingRequest }
+  CommanderEntity *-- Staff
+  CommanderEntity *-- Picture
+  CommanderEntity *-- ReportingRequirements
+  CommanderEntity *-- SopSlot
+  CommanderEntity *-- TaskSlot
+  Staff --> Picture : writes
+  Staff ..> ReportingRequirements : what to send up
+  Staff ..> SopSlot : SensorChangedEvent edges wake it
+  TaskSlot *-- PhaseRegion
+  TaskSlot *-- ControlRegion
+  PhaseRegion *-- HostedSubBehaviours
+  PhaseRegion ..> PictureNodes : polled guards
+  ControlRegion ..> PictureNodes : polled guards
+  PictureNodes ..> Picture : read only
+```
+*What the picture shows that prose hid:* reports never reach a behaviour directly. The staff turns them into the commander's
+**picture** — exactly as perception turns rays into a soldier's memory — and every behaviour layer reads that picture: the SOP through
+edges (for interrupts), the play through guards (for its own plan). The superior's REQUEST for reports is just a component the staff
+reads.
+
+**How a report changes a decision — three routes, by how big the change is:**
+
+| the report means | route | example |
+|---|---|---|
+| **the plan moves on** | a **polled guard** on the play's phase region | `ProgressReached(assault squad, Foothold)` ⇒ Foothold → Clear; every `RoomClear` + `BuildingClear` ⇒ Consolidate |
+| **adjust inside the plan** | a guard in the play's **parallel control region**, the phase keeps running | SITREP `BLACK` from the assault squad ⇒ order the reserve to relieve it · PIR met: an MG on the entry face ⇒ re-run the axis choice · `PhaseLine 30 m` ⇒ order the SBF to shift fire · a CASEVAC REQUEST ⇒ answer it with an order |
+| **drop the plan for something else** | an **SOP reaction** (pauses the task, it resumes after) | `FiredOnFromStructure` while on `UrbanMovement` ⇒ `ReactToFireFromBuilding` (§11 of Defend_And_Attack); a subordinate `Silent` for 60 s ⇒ a check-in reaction |
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "AttackBuilding (the task, an HSM)" as AB {
+    state "phase region" as PR {
+      [*] --> Observe
+      Observe --> SupportByFire : SBF squad PROGRESS SET
+      SupportByFire --> Approach : SPOT picture covers the objective
+      Approach --> Isolate : assault PROGRESS phase line 30 m
+      Isolate --> Foothold : exits watched
+      Foothold --> Clear : PROGRESS Foothold
+      Clear --> Consolidate : PROGRESS BuildingClear
+    }
+    --
+    state "control region" as CR {
+      [*] --> Watching
+      Watching --> Relieve : a squad SITREP BLACK
+      Relieve --> Watching : reserve ordered
+      Watching --> ShiftFire : assault phase line reached
+      ShiftFire --> Watching : SBF re-ordered
+      Watching --> Replan : PIR met on the axis
+      Replan --> Watching : new axis ordered
+      Watching --> Answer : a REQUEST pending
+      Answer --> Watching : order sent
+    }
+  }
+```
+*What the picture shows that prose hid:* the commander does NOT have to choose between following its plan and listening to reports. The
+phase region advances the plan; the control region, ticking in parallel, adjusts it. Both read the same picture. Only a report that
+should abandon the plan goes through the SOP.
+
+**How the superior's requests travel (CB-42):** they are NOT a new event. They are a field of the **order** — every play's params DTO
+carries one common `InformationRequirements` block (PIR: element kinds, equipment, area; FFIR: colours, phases; routine rates). The
+behaviour ingress (the one gate) stamps it into a **`ReportingRequirements` component** on the subordinate commander when it admits
+the order, and clears it when the order ends. The subordinate's staff reads that component. Changing only the requirements mid-task is
+a small order-update event that the same ingress applies without restarting the task. The order is already on the wire, so the
+requirements cross nodes with it.
+
+**The closed set (CB-43, replaces CB-41's registered payloads):**
+
+| kind | subtypes (closed enums, extended only in code) |
+|---|---|
+| CONTACT | — |
+| SPOT | size class · activity · equipment flags |
+| SITREP | colours (strength, ammo) · phase |
+| LACE | ammo · WIA · KIA · equipment lost |
+| PROGRESS | Set · PhaseLine · Foothold · RoomClear · RoomBlocked · BuildingClear · ObjectiveSecure · Detained · Displacing · FallingBack |
+| REQUEST | Casevac · FireSupport · Resupply · Reinforce · Permission |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **CB-42** | how requests for reports travel | in the ORDER (a common `InformationRequirements` block in every play's params), stamped by the ingress into `ReportingRequirements` on the subordinate; a requirements-only update event changes it without restarting the task | a separate request event: two messages that can disagree about one task · requirements read from the running task's params by the staff: the generic staff would have to know every play's DTO |
+| **CB-43** | the report kinds | **a closed set**: the six kinds with closed subtype enums (table above); a new subtype is a code change; ⛔ no behaviour-registered payloads | registered payload kinds (CB-41 as first written): an open vocabulary nobody can read generically |
+| **CB-44** | who reads the reports | **the staff** (engine systems, always on, under every behaviour): folds them into the picture, raises edges. Behaviours read only the picture | each behaviour reading the inbox: the same folding in every play, and a report missed while a different state runs |
+| **CB-45** | how reports reach decisions | three routes: polled guards on the play's **phase region** (the plan moves on) · guards in a **parallel control region** (adjust the plan) · an **SOP reaction** (drop the plan for another, resume after) | everything through the SOP: every adjustment would pause the plan · everything inside the play: a play could not be interrupted by something it never anticipated |
+| **CB-46** | the picture nodes | one set of shared C# guards, conditions and utility inputs, usable from BTree, HSM and blueprint alike: `ProgressReached(unit, kind)` · `SubordinateColour(unit)` · `SubordinateFresh(unit)` · `ElementsAt(area, size, equipment)` · `PendingRequest(kind)` · `PirMet(index)`; plus actions `SendReport(kind, subtype, …)`, `AnswerRequest(id, order)` | a node per play: the same questions answered differently |
+| **CB-47** | the commander's own reports up | the staff composes the standard ones (SPOT from its memory, SITREP, LACE) under ITS superior's requirements; the play sends PROGRESS and REQUESTs with `SendReport` at its decision points | the play composing everything: every play would re-implement SALUTE |
+
+⚠ **BR-3 again:** CB-43 drops the free `Payload`; a report carries `KindId` + `Subtype` + the fixed fields. The amendment note is
+re-stamped.
 
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
