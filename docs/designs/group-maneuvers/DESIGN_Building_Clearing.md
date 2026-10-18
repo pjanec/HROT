@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1
-current-answer: §3–§5 the diagrams (platoon level) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §8 demos — §1 doctrine, §2 measured ground
+current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: none. (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none.
@@ -79,6 +79,10 @@ backend's room graph.
 | a report on the wire | ✅ the event-topic precedent: `BehaviorFaultReport` (origin node publishes once, every node takes it in) | `Hrot.Network.NED/BehaviorFaultMessages.cs`; `Translators/BehaviorFaultTranslators.cs` | the `SquadReport` topic (backend BR-3) |
 | radio / comms | ⛔ none; Sensors G10 keeps a "Reported" modality open | `DESIGN_Sensors_And_Doctrine.md` G10 (searched `docs/`, `.dev/`; graph name pattern Radio / Comms / Communication: 0 classes) | the report step is its one seam |
 | melee answer by a soldier | ⛔ only the rioter, the police line and the baton charge call `Melee.Strike` (Blunt, 3 s knock-down, 5 damage) | `Combat/Melee.cs:16-52` | the butt-stroke (CB-7) |
+| HTTP: raw bus events | ⚠ `GET /events?type=` reads ONE ring of **500 events of every type** (`DiagnosticEventHistoryService.Capacity`), oldest overwritten — a firefight's shots and sensor events evict a report within seconds; payloads carry node-local `Entity` ids, not network ids | `Fdp.Core/Diagnostics/DiagnosticEventHistoryService.cs:16`; `DebugApiService.cs:837` | a report log of its own |
+| HTTP: a log of one kind of event | ✅ the precedent: `ShotLog` (a ring per node, network ids at read time) served by `GET /combat/shots?last=&shooter=&target=` | `DebugApi/CombatReport.cs:17`; `DebugApiHost.cs:746` | — |
+| HTTP: a squad's state | ✅ `GET /entities/{id}/squad`: members, assignments, contacts, the drill trace (`SquadDrillTrace`: phases, events, member orders) | `DebugApiService.Squad.cs:19-120`; `DebugApiHost.cs:1194` | the platoon's picture and the room record |
+| an infantry PLATOON unit type | ⛔ only `Unit_InfantrySquad` (302, 1 leader + 9 riflemen, body-less, runs the squad SOP); platoons exist for tanks only (301, 303) | `MapDefinitions/TkbEntityTypes.cs:145-149`; `Tkb/BdcTkbCatalog.cs:734-750` | `Unit_InfantryPlatoon` (SL-0) |
 
 ## 3. Classes
 
@@ -196,6 +200,24 @@ graph TD
 (`BehaviorFaultReport`) and EVERY node takes it in — the platoon's brain builds its picture from it, the map can draw room marks
 from it, a replay records it; nothing the platoon decides on is held in one brain only.
 
+## 5a. Monitoring — reading the reports over HTTP *(lean, for review)*
+
+**Decision (lean):** a **`SquadReportLog`** ring on every node — the `ShotLog` precedent — written by the report ingress (and by the
+sender for its own reports), served by **`GET /squad/reports`**; and the platoon's **picture and room record** added to the existing
+`GET /entities/{id}/squad`. ⭐ Because the reports are on the wire (R-2031), **every node's log holds the same reports** — the live check
+asks CGF, SimHost and IG and compares them, which is the proof that nothing is hidden in one brain.
+
+| route | answers |
+|---|---|
+| `GET /squad/reports?unit=&to=&kind=&since=&last=` | each report: `seq` · `kind` · `from` / `to` (network ids + names) · `subject` (network id) · `room` (id + name) · `position` · `count` · `sentAt` · `receivedAt` (⇒ the delay is visible) · `originNode` |
+| `GET /entities/{platoon}/squad` *(extended)* | + `picture`: per squad its last report kind, age, men in the fight, combat effective · + `clearance`: per room `Unknown / Suspected / Cleared / Blocked`, cleared by whom and when, the people held there |
+| `GET /entities/{squad}/squad` *(unchanged shape)* | the drill trace already shows `ClearBuilding`'s phases, events and member orders (Stack · Breach · Enter · Dominate · Control · Clear) |
+
+Rejected: **`GET /events?type=SquadReportNotification` alone** — the 500-event ring of every type evicts a report in seconds of a
+fight, and its payloads hold local entity ids · **a report component on the commander** — a component holds the last one, not the
+history, and would be the brain-local state R-2031 rules out.
+*(Owner: behaviors, in `CE-2263` — the debug API has taken squad routes from this lane before, `/entities/{id}/squad` O-a.)*
+
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030, R-2031)*
 
 | id | decision | ✅ ruled | rejected — one line each |
@@ -243,8 +265,8 @@ from it, a replay records it; nothing the platoon decides on is held in one brai
 
 | order | slice | owner | what | needs |
 |---|---|---|---|---|
-| 1 | **SL-0** `CE-2262` | behaviors | **the squad layer one echelon up**: `CombatEffective` (CB-16) read by `Live(i)` and the centroid; a rail that runs a platoon ordering a squad commander a drill (`SquadMarch`) on a nested-hierarchy scenario — the first time one is exercised | — |
-| 2 | **RP-1** `CE-2263` | behaviors | **the report step** (CB-15): `SquadReport` + `ReportKind`, `ReportOutbox` (delay, leader in the fight, silent in the lull), `PlatoonPicture` taken in from the wire; Contact / UnderFire / Casualty / CombatIneffective first | backend BR-3 |
+| 1 | **SL-0** `CE-2262` | behaviors | **the squad layer one echelon up**: `CombatEffective` (CB-16) read by `Live(i)` and the centroid; the `Unit_InfantryPlatoon` composite type (three squads, body-less, runs the commander SOP); a rail that runs a platoon ordering a squad commander a drill (`SquadMarch`) on a nested-hierarchy scenario — the first time one is exercised | — |
+| 2 | **RP-1** `CE-2263` | behaviors | **the report step** (CB-15): `SquadReport` + `ReportKind`, `ReportOutbox` (delay, leader in the fight, silent in the lull), `PlatoonPicture` taken in from the wire; Contact / UnderFire / Casualty / CombatIneffective first; the monitoring (§5a: `SquadReportLog`, `GET /squad/reports`, the platoon's picture on `/entities/{id}/squad`) | backend BR-3 |
 | 3 | **BC-1** `CE-2257` | behaviors | one room, one squad: `RoomEntryPlan` + entry / security fire teams, Stack · Breach · Enter · Dominate · Clear, `SectorFilter`; demo `bc-room-clear` | BR-1 |
 | 4 | **BC-2** `CE-2258` | behaviors | civilians: `Control`, `Comply`, search, held / detained, the refusal rule and the butt-stroke (CB-7); demo `bc-room-civilians` | BC-1 |
 | 5 | **BC-3** `CE-2259` | behaviors | the building, one squad: `BuildingClearance`, next room, hallways, stairs, the fire teams swapping, RoomClear / RoomBlocked reports; demo `bc-house-clear` | BC-1, RP-1 |
@@ -253,16 +275,35 @@ from it, a replay records it; nothing the platoon decides on is held in one brai
 | 8 | **BC-5** `CE-2261` | behaviors | contact and casualties (CB-12, §6a); demo `bc-house-defended` | BC-3 |
 | — | **BR-1** · **BR-2** · **BR-3** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic on the wire | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) |
 
-## 8. Demos *(each with a live check and an in-process twin, as every drill)*
+## 8. Demos *(each with an HTTP live check and an in-process twin, as every drill)*
 
-| demo | cast | must end with |
-|---|---|---|
-| `bc-room-clear` | a squad at a closed door; 2 insurgents in the room's far corners | the entry team stacks (nobody in the doorway), opens, each to his point of domination; both insurgents down; no friend hit; "room clear" |
-| `bc-room-civilians` | the same room: 1 insurgent, 2 civilians (one refuses and shouts), 1 covert insurgent, 1 civilian who attacks | the insurgent down; the complying civilian searched, unhurt; the refuser left standing, never struck; the attacker knocked down by a rifle butt, then held; the covert one detained on the search or shot only after he draws and aims |
-| `bc-house-clear` | one squad at the CQB house: insurgents in 2 rooms, civilians in 2 | every room cleared in one sweep, the fire teams swapping; every insurgent down, every civilian unhurt and held; "building clear" reported |
-| `bc-platoon-house` | a platoon (3 squads, a body-less commander) at the CQB house | the support squad covers the exits; the assault squad clears; a room-clear report reaches the platoon ~3 s after the room is clear and is seen on every node; when the assault squad is made ineffective (scripted casualties) the reserve finishes the remaining rooms, none cleared twice |
-| `bc-house-high-intensity` | a squad, `Intensity: HighIntensity`, no civilians | a fragmentation grenade before each Suspected room; none into an Unknown one; none with a friend in range |
-| `bc-house-defended` | an insurgent firing through a door at the stack; a soldier hit in the doorway | no entry until quiet; the next man fills the gap; the casualty carried after the room is clear |
+![The CQB test house](img/cqb-house.svg)
+
+*The house BR-1 is asked for, as proposed here (backend may move walls; the demos need only its topology):* a 14 × 10 m single storey —
+a **hallway** (a danger area cleared as a room) with the front door (W) and back door (E); rooms **A** and **B** north, **C** south (36 m²),
+**D** south (11 m² ⇒ two-man entry), and the closet **E** reached only through D; side doors N into A and S into C, so the support
+squad has four exits to watch. Placed in `bt-range` on open ground, 60 m from the existing `house-2f`.
+
+### 8.1 The ladder of demos
+
+| demo | slice | cast | must end with *(the live check, read over HTTP)* |
+|---|---|---|---|
+| `bc-room-clear` | BC-1 | one squad at the front door of the hallway; 2 insurgents (`CombatPosture`) in room A's far corners | ① nobody stands in a doorway longer than 1 s (positions vs the room graph) · ② each entry man reaches his point of domination (drill trace) · ③ both insurgents down, no friend hit (`/combat/shots`) · ④ `RoomClear` A in `/squad/reports` |
+| `bc-room-civilians` | BC-2 | the same squad; room C: 1 insurgent, a civilian who complies, one who refuses and shouts (`Attitude` +0.8, no `Instigator`), one who attacks (`Attitude` +1, `Instigator`), a covert insurgent (hidden pistol, B3 draw on the search) | ① the insurgent down · ② the complier `Comply`, searched, `held`, unhurt · ③ the refuser standing, never struck, never shot · ④ the attacker knocked down by ONE blunt blow from a soldier (`Melee.Strike`, Blunt) then held · ⑤ the covert one `Detained` (report) — or shot only after `WeaponPosture` Aimed at a soldier |
+| `bc-house-clear` | BC-3 | one squad, the whole house; insurgents in A and E (the closet), civilians in B and C | ① a `RoomClear` for hallway, A, B, C, D, E — each ONCE, each from a room reachable from a Cleared one (E after D) · ② the two fire teams swap at least once (drill trace) · ③ every insurgent down, every civilian unhurt and held · ④ `BuildingClear` last |
+| ⭐ `bc-platoon-house` | PL-1 | **a platoon**: a body-less `Unit_InfantryPlatoon` commander over three `Unit_InfantrySquad`s (support · assault · reserve), the same house and people as `bc-house-clear` | ① the support squad on four watch points covering the four exits before the assault squad reaches the door · ② the same `RoomClear` sequence as above · ③ ⭐ **each `RoomClear` arrives 3 s (± 1 frame) after the drill trace's "room clear"** (`receivedAt − ` the trace time) · ④ ⭐ **the report log is identical on CGF, SimHost and IG** · ⑤ the platoon's `clearance` = all Cleared · ⑥ no support-squad round crosses a window of a room the platoon then held as Cleared (`/combat/shots` crossings × the report times) · ⑦ the support squad enters only after `BuildingClear` |
+| `bc-platoon-house-relief` | PL-1 | the same, with three assault-squad men made incapacitated by the scenario script after room B | ① `Casualty` ×3 then `CombatIneffective` from the assault squad · ② the reserve is ordered `ClearBuilding` within 1 s of the report arriving · ③ the reserve clears only C, D, E — no room cleared twice · ④ the casualties carried to the casualty point after a room is clear, never mid-room |
+| `bc-house-high-intensity` | BC-4 | one squad, `Intensity: HighIntensity`, no civilians, insurgents heard in A and D | a fragmentation grenade before A and D (Suspected); none before B, C, E (Unknown); none with a friend inside its lethal radius |
+| `bc-house-defended` | BC-5 | an insurgent in A firing through its open door at the stack in the hallway | no entry until 3 s of quiet; the man hit in the doorway replaced from the security team; the room still cleared |
+
+⚠ **To measure before the relief demo is built** (`⛔ assumed`): how a scenario incapacitates men at a scripted moment. A timed scenario
+task, a health-setting HTTP command or a test-only system are the candidates; the twin can set `Health` directly either way.
+
+### 8.2 What every live check also asserts
+- **Determinism, the drill way:** the twin and the live run agree on the room ORDER (not on exact times).
+- **No civilian is ever the target of a round** (`/combat/shots` target class), except a round fired after that man's own lethal act.
+- **The report log is the record:** a check never reads a brain component to decide pass or fail — it reads `/squad/reports`, the
+  room record and the shots, all of which exist on every node.
 
 ## ⛔ HISTORY
 
