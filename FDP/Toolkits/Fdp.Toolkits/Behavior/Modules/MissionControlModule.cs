@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Behavior.Modules
             {
                 new RoeSystem(),                       // ⭐ CE-2074 — orders change the ROE, gated by origin
                 new Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem(),   // ⭐ CE-2291 CC-A — its twin: a superior's reporting extras
+                new EngagementAreaSystem(),            // ⭐ CE-2282 DA-L — the ROE twin for a man's sector
                 new BehaviorIngressSystem(_registry),
             };
             SimulationSystems = new IEcsModuleSystem[]

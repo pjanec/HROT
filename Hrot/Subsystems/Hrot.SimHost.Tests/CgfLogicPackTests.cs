@@ -185,7 +185,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
             // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
             // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
-            Assert.Equal(6,  pack.InputSystems.Count);
+            Assert.Equal(7,  pack.InputSystems.Count);   // ⭐ CE-2282: +1 (EngagementAreaSystem)
             Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
@@ -400,7 +400,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-3172 (2026-10-11) — 1 MORE: PossessionSystem (the brain owner's side of possession), first.
             // ⭐ CE-3110 (2026-10-12) — the interaction appliers are NOT pack content (CoreInfrastructureCapabilities.Interactions, every host's plan).
             // ⭐ CE-2291 (2026-10-19) — 1 MORE: ReportingRequirementsSystem (MissionControlModule, after RoeSystem — its twin).
-            Assert.Equal(6,  pack.InputSystems.Count);
+            Assert.Equal(7,  pack.InputSystems.Count);   // ⭐ CE-2282: +1 (EngagementAreaSystem)
             Assert.DoesNotContain(pack.InputSystems, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
@@ -469,7 +469,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(32, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (the staff) · ⭐ CE-2291: +1 (ReportingRequirementsSystem) · ⭐ CE-2237: +1 (CrowdSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+            Assert.Equal(33, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2282: +1 (EngagementAreaSystem) · ⭐ CE-2273: +1 (ProficiencyFillSystem) · ⭐ CE-2293: +2 (the staff) · ⭐ CE-2291: +1 (ReportingRequirementsSystem) · ⭐ CE-2237: +1 (CrowdSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

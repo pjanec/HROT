@@ -529,9 +529,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (SquadAssignment.TargetOf(world, self, out long handle))
             {
                 var assigned = new Entity((ulong)handle);
-                if (world.IsAlive(assigned) && SightNow.Sees(world, self, assigned)) return assigned;
+                if (world.IsAlive(assigned) && SightNow.Sees(world, self, assigned)
+                    && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, assigned)) return assigned;   // ⭐ CE-2282
             }
-            return threat.IsPoint ? Entity.Null : threat.Entity;
+            if (threat.IsPoint) return Entity.Null;
+            // ⭐ CE-2282 DA-27 — the threat he hides from may lie outside his sector: then he shoots the first one inside it, if any
+            return Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, threat.Entity) ? threat.Entity : EqsTacticsNodes.FirstAllowedRemembered(world, self);
         }
 
         /// <summary>A burst of <c>BlindRounds</c> at the freshest evidence (D13) + <c>BlindAimHeight</c>; false = nowhere known.</summary>

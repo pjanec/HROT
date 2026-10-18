@@ -91,6 +91,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         HoldStunned,
         /// <summary>⭐ <c>CE-3256</c> (BR-4, CU-5) — the shooter is RESTRAINED (hands tied): no round leaves.</summary>
         HoldRestrained,
+        /// <summary>⭐ <c>CE-2282</c> (DA-L) — the round would end inside a NoFire area of the shooter's chain (friends' rooms, the assault
+        /// element): no round leaves, always — self-defence does not lift it.</summary>
+        HoldNoFireArea,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -176,6 +179,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldWarn           => "hold: warning",              // ⭐ CE-2239 part 3 — the ladder's Warn rung
             ActionReason.HoldStunned        => "hold: stunned",              // ⭐ CE-3255 (BR-2) — a flash-bang
             ActionReason.HoldRestrained     => "hold: restrained",           // ⭐ CE-3256 (BR-4) — hands tied
+            ActionReason.HoldNoFireArea     => "hold: no-fire area",         // ⭐ CE-2282 (DA-L) — a NoFire area of his chain
             ActionReason.NotControlled      => "hold: not controlled",       // ⭐ WS-3 — the weapon system
             ActionReason.NoGunner           => "hold: no gunner",
             ActionReason.NotDeployed        => "hold: not deployed",
@@ -192,7 +196,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
             or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
             or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldConduct or ActionReason.HoldWarn
-            or ActionReason.HoldStunned or ActionReason.HoldRestrained;   // ⭐ CE-3255 (BR-2) · CE-3256 (BR-4)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
+            or ActionReason.HoldStunned or ActionReason.HoldRestrained or ActionReason.HoldNoFireArea;   // ⭐ CE-3255 (BR-2) · CE-3256 (BR-4)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

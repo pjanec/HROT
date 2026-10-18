@@ -25,7 +25,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐⭐ **the command chain is BUILT and runs live** | steps 1–7 done: `CE-2289` ROE up the chain · `CE-2262` SL-0 · `CE-2291` CC-A · `CE-2292` CC-B · `CE-2293` CC-C · `CE-2295` CC-E · `CE-2294` CC-D — `cc-platoon-bound` passes all five end conditions live (`utility-demo-check.py cc-platoon-bound --launch`) and as an in-process twin. As-built: [Command Chain §8a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
-| ⭐ wave 0 | `CE-2273` proficiency ✅ ([Defend & Attack §8a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)); `CE-2282` sectors next, then `CE-2281` roles |
+| ⭐ wave 0 | `CE-2273` proficiency ✅ (§8a) · `CE-2282` sectors ✅ — the mechanism (§13c; leans DA-26…DA-30 await the user; nothing writes a sector until the plays) · `CE-2281` roles next (backend's BR-8 put the role values on the wire) — all in [Defend & Attack](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 | still open from the chain | `CE-2288` — one read route over every behaviour slot (its first consumer is the platoon demos watching a hosted squad play) |
 | other lanes | backend built BR-3 (reports on the wire), BR-12 (WorldSurvey), BR-13 (ROE / reporting across nodes), LD-1 / LD-2 (look); a note tells them proficiency landed (BR-6 / BR-7 may start). A note tells the coordinator lane one editor rail is red since CE-4031 |
 | civilians (`CE-2235`…`CE-2240`, `CE-2256` TC-7) | a different programme on this lane, still open; not part of this resume |
@@ -45,7 +45,7 @@ design section end to end before building it** (R-129) — the diagrams there ar
 | 5 ✅ | `CE-2293` | **CC-C**: the staff — `StaffComposerSystem` (PROGRESS on task end, SPOT, SITREP) + `StaffInboxSystem` | CC-A, SL-0 | ⭐ on ONE node first, with a local loopback; the wire (BR-3) comes later |
 | 6 ✅ (`CE-2288` open) | `CE-2295` + `CE-2288` | **CC-E**: reports over the debug HTTP (watch, fake, mute), `GET /entities/{id}/order` for every origin; **one read route over every behaviour slot** (R-2050) | CC-C | — |
 | 7 ✅ | `CE-2294` | **CC-D**: the first chain runs — `PlatoonBound` + `BasicPlatoonSop` + `PlatoonHold`, scenario `cc-platoon-bound` | CC-B, CC-C | its five end conditions are in Command Chain §8 |
-| 8 | wave 0 rest | proficiency `CE-2273` ✅ · sectors `CE-2282` · roles `CE-2281` | — | independent of steps 1–7; any order |
+| 8 | wave 0 rest | proficiency `CE-2273` ✅ · sectors `CE-2282` ✅ · roles `CE-2281` | — | independent of steps 1–7; any order |
 | 9 | wave 2 → 4 | `SquadDefend` `CE-2275`, clearing `CE-2257`…`CE-2259`, sensors `CE-2283`, LD-3 `CE-2297`, LD demos `CE-2298` → `PlatoonDefend` `CE-2276`, `PlatoonAttack` `CE-2277`, PL-1 `CE-2264`, smoke `CE-2278`, sniper `CE-2279`, urban `CE-2284` → repertoire `CE-2280` | waves 0–1 + the other lanes (§4) | the demo harness is `CE-2296` |
 | later | urban battle | [§4](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md) items ①–⑨: the headquarters play, mortar sound + locating, armed search, IED trigger man + ambush, convoy halt, insurgent mortar cell | the platoon programme | ⛔ not scheduled (R-2051); file each row when you start it |
 

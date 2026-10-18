@@ -445,6 +445,13 @@ namespace Hrot.AI.Behaviors.Brains
                 StopFiring(world, self, ref ws);
                 return true;
             }
+            // ⭐ CE-2282 DA-27 — he SHOOTS only inside his sector (he still HIDES from every threat — TopThreat is unchanged): the top
+            //   threat outside it gives way to the first remembered one inside, else he holds fire
+            if (!Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, threat))
+            {
+                threat = EqsTacticsNodes.FirstAllowedRemembered(world, self);
+                if (threat.IsNull) { StopFiring(world, self, ref ws); return true; }
+            }
             return Fire(world, self, ref ws, cooldown, rounds, threat, blind);
         }
 
