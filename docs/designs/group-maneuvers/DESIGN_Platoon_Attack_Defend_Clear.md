@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); PC-14…PC-16 (§6b) ✅ APPROVED 2026-10-18 (R-2047); work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
+updated: 2026-10-19
+build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); PC-14…PC-16 (§6b) ✅ APPROVED 2026-10-18 (R-2047); work split per lane in §13; BUILT: CE-2289 (PC-6, ROE through the chain, §10a); the rest not built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
 current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §6a sensors, sectors and the roof · §6b window switching and relocation (PC-14…PC-16) · §12 the demo scenarios (PC-11…PC-13) · §13 the work, split per lane
 stale-below: nothing.
 known-rot: none.
@@ -65,7 +65,7 @@ Task organisation (doctrine: support, assault, reserve) is decided by the platoo
 | HSM parallel regions | ✅ built and railed (`StateFlags.IsParallel`, rail ⑥) | `HsmKernelCore` | ⚠ **no production HSM uses them yet** — these two assets are the first |
 | a "10 s in this state" guard | ⛔ none found (`[SharedAiCondition]` names with Elapsed / TimeIn / Since / Timeout: 0) | — | `TimeInState(seconds)`: the state's entry action stamps sim time into its own state slot, the guard compares (PC-7) |
 | report requirements | 🆕 designed: `ReportingRequirements` (Superior · PirMask · FfirMask · SitrepEverySeconds · SetBy) | Command Chain §6 | ⚠ a PIR "element inside MY area" needs the area (PC-3) |
-| ROE reaching the men | ⚠ **per entity only**: `RoeOf.Fire(view, unit)` reads the unit's OWN `Roe`, unset ⇒ `FireAtWill`; `RoeSystem` writes one entity; nothing reads up the chain | `Behavior/Components/Roe.cs` (`RoeOf`), `RoeSystem` | ⛔ a platoon's `HoldFire` on a squad never reaches its soldiers, and the gate reads the soldier (PC-6, `CE-2289`) |
+| ROE reaching the men | ✅ **BUILT `CE-2289` (2026-10-19)**: `RoeOf` reads up the chain (§10a) — ⛔ *was:* per entity only, a platoon's `HoldFire` on a squad never reached its soldiers | `Behavior/Components/Roe.cs` (`RoeOf.Decide`), `RoeSystem` unchanged | — |
 | sectors, NoFire | 🆕 designed: `SquadSector` area entity · `MemberArc` in the order · NoFire looked up through the chain | Defend §13a (DA-24) | — reuse |
 | geometry on the brain | ⛔ ruled out (R-2037): posts, faces, rooms, visibility come from `WorldSurvey` answers solved on the muscle | Defend §13b | — reuse |
 
@@ -86,7 +86,7 @@ classDiagram
   class PictureConditions { <<Command Chain CB-46>> ProgressReached · SubordinateColour · SubordinateFresh · ElementsAt · PendingRequest · PirMet }
   class SquadPlays { <<ISquadPlay on SquadManeuverRunner>> SupportByFire · Approach · IsolateBuilding · ClearBuilding · FollowAndSupport · SquadDefend }
   class Roles { <<TacticalDesignation + fire team, DA-19>> }
-  class RoeChain { <<NEW, PC-6>> RoeOf reads the nearest set Roe up the chain }
+  class RoeChain { <<BUILT CE-2289, PC-6>> RoeOf reads the nearest order-set Roe up the chain }
   class WorldSurvey { <<backend BR-12, muscle>> BuildingSurvey · VisibilityFan · PointSurvey }
   class SectorPlanner { <<Defend DA-24, pure>> }
   PlatoonAttack ..> PlatoonActions
@@ -406,8 +406,8 @@ graph TD
   GATE:::new
 ```
 *Caption:* everything runs where it already runs: the plays on the brain node's `BrainTickSystem`, the staff before it, the geometry on
-the muscle. ⚠ **Not reached today:** no platoon has run over squads (SL-0), and **ROE set on a squad never reaches its men** — the gate
-reads each soldier's own `Roe` — which is why the gate box is yellow (PC-6).
+the muscle. ⚠ **Not reached today:** no platoon has run over squads (SL-0), and **ROE set on a squad never reached its men** — the gate
+read each soldier's own `Roe` — which is why the gate box is yellow (PC-6; ✅ built `CE-2289`, §10a: the gate now reads up the chain).
 
 ## 10. Decisions *(⭐ leans — for the user)*
 
@@ -423,6 +423,22 @@ reads each soldier's own `Roe` — which is why the gate box is yellow (PC-6).
 | **PC-8** | the picture's size | ⭐ `CommandPicture.Subordinates` **×6** (3 squads + the weapons squad + two attachments, e.g. a vehicle section), Elements ×8, Requests ×4 | ×4: full with a standard platoon, nothing can be attached |
 | **PC-9** | who becomes support / assault / reserve | ⭐ decided at **Plan** from the picture (the weapons squad supports; the strongest by SITREP assaults); re-decided only on Relieve | fixed by the roster: a squad that lost half its men would still lead |
 | **PC-10** | the sniper pair | ⭐ **bodied members of the platoon HQ**: their sightings feed the platoon's memory automatically (CB-36), and the platoon gives them `SniperTeam` by `AssignSubordinate` | a sniper "unit": a commander for two men, and their sightings would arrive only by report |
+
+
+## 10a. As built — PC-6, ROE through the chain *(`CE-2289`, 2026-10-19)*
+
+| question | as built | where |
+|---|---|---|
+| which ROE a man obeys, per field (fire · reactions · force level · ReturnFire window) | ① a value an ORDER set on him (`Roe.SetBy` ≠ `Unmarked`) · ② else the nearest commander up `UnitSubordinate.Commander` (≤ 8 levels, a cycle ends there) whose field an order set · ③ else his own TKB default · ④ else the built-in default | `RoeOf.Decide` (`Behavior/Components/Roe.cs`) |
+| a commander's TKB default | ⛔ reaches nobody — only an order set on a commander travels down; a man's own TKB default (the security types' `NonLethal`) yields to a commander's order | rail `CE2289_ATkbDefault_YieldsToTheChain_ButAppliesWhenTheChainIsSilent` |
+| ⚠ "set by an order" is per COMPONENT | `SetBy` is one byte for the whole `Roe`: once any order touched a man's ROE, every field he holds (a TKB default included) counts as his own and the chain stops reaching that field | accepted: the per-man override was asked for; a per-field origin would be a wire change |
+| ⚠ which node | the commander's `Roe` lives on the commander's BRAIN node; the chain reads it where the man's brain runs — the same node in every shipped scenario. Cross-node is `CE-2299` / backend BR-13 | — |
+| seen over HTTP | `GET /entities/{id}/state` → `roeEffective {fire, reactions, forceLevel, returnFireWindowSeconds}` (pc-defend-dry ②) | `DebugApiService.Reuse.cs` |
+| every reader | unchanged call sites — the firing gate, the SOP conditions, the reaction gate, the escalation ladder, the editor's AI section all call `RoeOf` | 9 production readers |
+
+Rails (the feature's own suite, `RoeAndRecentSensesTests`): a squad's `HoldFire` holds every member and a man's own order wins · the
+nearest set commander decides, per field · a TKB default yields to the chain · a cycle ends and a world without the hierarchy reads
+the man alone. ✅ Red-proof: the chain walk removed ⇒ the chain rails go red.
 
 ## 11. Slices — where each piece is built *(the owning slices stay the place)*
 

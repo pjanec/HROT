@@ -362,6 +362,20 @@ namespace Hrot.Editor.DebugApi
                 state["behavior"] = node;
             }
 
+            // ⭐ CE-2289 (PC-6) — the ROE the unit OBEYS: its own, else read up the chain of command (RoeOf). The platoon demos
+            //   assert "every man FireAtWill within 1 s" on this (pc-defend-dry ②); the raw component is in GET /entities/{id}.
+            if (_world.IsComponentTypeRegistered<Roe>()
+                && (_world.HasComponent<Roe>(entity)
+                    || (_world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()
+                        && _world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(entity))))
+                state["roeEffective"] = new JsonObject
+                {
+                    ["fire"]                    = RoeOf.Fire(_world, entity).ToString(),
+                    ["reactions"]               = RoeOf.Reactions(_world, entity).ToString(),
+                    ["forceLevel"]              = RoeOf.ForceLevel(_world, entity).ToString(),
+                    ["returnFireWindowSeconds"] = RoeOf.ReturnFireWindowSeconds(_world, entity),
+                };
+
             // ⚠ "grounded" is in the design's field list and is NOT here: measured, this engine has no
             // ground-contact component to read it from. Deriving it from the position would be a guess
             // wearing a fact's name — MX-007 records it rather than inventing one.

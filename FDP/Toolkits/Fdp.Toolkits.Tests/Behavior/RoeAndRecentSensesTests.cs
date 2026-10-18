@@ -198,5 +198,98 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Assert.Equal(10d + i, at);
             }
         }
+
+        // ── CE-2289 (PC-6): ROE up the chain of command ─────────────────────────────────────────────────────────────────
+
+        /// <summary>A platoon → squad → two men, the hierarchy registered.</summary>
+        private static (EntityRepository world, RoeSystem sys, Entity platoon, Entity squad, Entity a, Entity b) Chain()
+        {
+            var world = World();
+            if (!world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>())
+                world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var platoon = world.CreateEntity();
+            var squad = world.CreateEntity();
+            var a = world.CreateEntity();
+            var b = world.CreateEntity();
+            world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = platoon });
+            world.AddComponent(a, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });
+            world.AddComponent(b, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });
+            world.AddComponent(a, new Roe());   // the TKB's unset default, as BehaviorTkbTranslator stamps it
+            world.AddComponent(b, new Roe());
+            return (world, new RoeSystem(), platoon, squad, a, b);
+        }
+
+        /// <summary>⭐ <c>CE-2289</c> — a squad's <c>HoldFire</c> holds every member; a man's own order still wins. ✅ Red-proof: the
+        /// chain walk removed from <c>RoeOf.Decide</c> ⇒ both men read <c>FireAtWill</c>.</summary>
+        [Fact]
+        public void CE2289_ASquadsHoldFire_HoldsEveryMember_AndAMansOwnOrderWins()
+        {
+            var (world, sys, _, squad, a, b) = Chain();
+            Set(world, sys, squad, RoeFire.HoldFire, RoeReactions.StayOnTask, BehaviorOrigin.Superior);
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, a));
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, b));
+            Assert.Equal(RoeReactions.StayOnTask, RoeOf.Reactions(world, b));
+
+            Set(world, sys, a, RoeFire.FireAtWill, RoeReactions.ReactionsUnset, BehaviorOrigin.Superior);   // a per-man setting
+            Assert.Equal(RoeFire.FireAtWill, RoeOf.Fire(world, a));
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, b));
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2289</c> — the NEAREST set commander decides, per field: the platoon's ROE reaches the men through a squad
+        /// that set nothing; a squad's own setting beats the platoon's; a field the squad left unset still comes from the platoon.</summary>
+        [Fact]
+        public void CE2289_TheNearestSetCommanderDecides_PerField()
+        {
+            var (world, sys, platoon, squad, a, _) = Chain();
+            world.Bus.Publish(new SetRoeEvent { Entity = platoon, Fire = RoeFire.HoldFire, ForceLevel = RoeForceLevel.NonLethal,
+                                                ReturnFireWindowSeconds = 9f, Origin = BehaviorOrigin.Operator });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, a));                 // through a squad with no ROE at all
+            Assert.Equal(RoeForceLevel.NonLethal, RoeOf.ForceLevel(world, a));
+            Assert.Equal(9f, RoeOf.ReturnFireWindowSeconds(world, a));
+
+            Set(world, sys, squad, RoeFire.ReturnFire, RoeReactions.ReactionsUnset, BehaviorOrigin.Superior);
+            Assert.Equal(RoeFire.ReturnFire, RoeOf.Fire(world, a));               // the nearer one
+            Assert.Equal(RoeForceLevel.NonLethal, RoeOf.ForceLevel(world, a));   // the squad left it unset ⇒ still the platoon's
+            Assert.Equal(RoeReactions.React, RoeOf.Reactions(world, a));          // nobody set it ⇒ the built-in default
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2289</c> — a TKB default on the man (set by nobody) yields to a commander's ORDER, and still applies when
+        /// no commander set the field (the security types' <c>NonLethal</c>, §5j FL-1); a commander's own TKB default reaches nobody.</summary>
+        [Fact]
+        public void CE2289_ATkbDefault_YieldsToTheChain_ButAppliesWhenTheChainIsSilent()
+        {
+            var (world, sys, _, squad, a, _) = Chain();
+            world.GetComponentRW<Roe>(a) = new Roe { ForceLevel = RoeForceLevel.NonLethal };   // the man's TKB default
+            world.AddComponent(squad, new Roe { Fire = RoeFire.HoldFire });                     // the squad's TKB default
+            Assert.Equal(RoeForceLevel.NonLethal, RoeOf.ForceLevel(world, a));
+            Assert.Equal(RoeFire.FireAtWill, RoeOf.Fire(world, a));               // a commander's TKB default is not an order
+
+            world.Bus.Publish(new SetRoeEvent { Entity = squad, ForceLevel = RoeForceLevel.Lethal, Origin = BehaviorOrigin.Superior });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(RoeForceLevel.Lethal, RoeOf.ForceLevel(world, a));
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, a));                 // now the squad's ROE is an order's, every field
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2289</c> — a mis-authored cycle (A commands B commands A) ends at <c>RoeOf.MaxChainDepth</c>, and a world
+        /// without the hierarchy registered reads the man alone.</summary>
+        [Fact]
+        public void CE2289_ACycle_Ends_AndNoHierarchy_ReadsTheManAlone()
+        {
+            var (world, _, _, squad, a, _) = Chain();
+            world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitSubordinate>(squad).Commander = a;   // a ↔ squad
+            Assert.Equal(RoeFire.FireAtWill, RoeOf.Fire(world, a));
+            world.Dispose();
+
+            var bare = World();
+            var man = bare.CreateEntity();
+            Assert.Equal(RoeFire.FireAtWill, RoeOf.Fire(bare, man));
+            bare.Dispose();
+        }
 }
 }

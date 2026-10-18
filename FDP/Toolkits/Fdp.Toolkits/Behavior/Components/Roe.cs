@@ -1,5 +1,7 @@
+using System;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Behavior.Components
@@ -76,43 +78,70 @@ namespace Fdp.Toolkit.Behavior.Components
         public RoeForceLevel ForceLevel;
     }
 
-    /// <summary>⭐ <c>CE-2074</c> — reading a unit's ROE with the defaults applied, in one place.</summary>
+    /// <summary>⭐ <c>CE-2074</c> — reading a unit's ROE with the defaults applied, in one place.
+    /// <para>⭐⭐ <c>CE-2289</c> (PC-6, R-2046) — and UP THE CHAIN OF COMMAND, per field: a value an ORDER set on the man himself wins;
+    /// else the nearest commander (<see cref="UnitSubordinate.Commander"/>, walked up to <see cref="MaxChainDepth"/> levels) whose
+    /// field an order set; else the man's own TKB default; else the built-in default. ⇒ one <c>SetRoeEvent</c> on a squad or a
+    /// platoon reaches every man under it. ⚠ "Set by an order" is the whole component's <see cref="Roe.SetBy"/>: once an order
+    /// touched the man's ROE, every field he holds (a TKB default included) counts as his own. ⚠ The commander's <see cref="Roe"/>
+    /// must be on the man's node — it lives on the commander's brain node (<c>CE-2299</c>).
+    /// 📄 <c>docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md</c> §10 PC-6.</para></summary>
     public static class RoeOf
     {
         /// <summary>⭐ <c>CE-2095</c> — the ReturnFire window when nothing set one: the 5 s the design's own SOP example uses
         /// (<c>DESIGN_Decision_Layer.md</c> §4.3, "was hit within 5 s"; it was <c>AimAndFireExecutor</c>'s constant).</summary>
         public const float DefaultReturnFireWindowSeconds = 5f;
 
+        /// <summary>⭐ <c>CE-2289</c> — how many commanders up the chain is read (a team → squad → platoon → company …); also ends a
+        /// cycle in a mis-authored hierarchy.</summary>
+        public const int MaxChainDepth = 8;
+
         /// <summary>⭐ <c>CE-2095</c> — the unit's ReturnFire window, defaults applied.</summary>
         public static float ReturnFireWindowSeconds(ISimulationView view, Entity unit)
-        {
-            if (!view.HasComponent<Roe>(unit)) return DefaultReturnFireWindowSeconds;
-            float w = view.GetComponentRO<Roe>(unit).ReturnFireWindowSeconds;
-            return w > 0f ? w : DefaultReturnFireWindowSeconds;
-        }
+            => Decide(view, unit, static r => r.ReturnFireWindowSeconds > 0f, out var roe) ? roe.ReturnFireWindowSeconds : DefaultReturnFireWindowSeconds;
 
-        /// <summary>The unit's fire rule; <see cref="RoeFire.FireAtWill"/> when it has no ROE or it is unset.</summary>
+        /// <summary>The unit's fire rule; <see cref="RoeFire.FireAtWill"/> when nothing in its chain set one.</summary>
         public static RoeFire Fire(ISimulationView view, Entity unit)
-        {
-            if (!view.HasComponent<Roe>(unit)) return RoeFire.FireAtWill;
-            var fire = view.GetComponentRO<Roe>(unit).Fire;
-            return fire == RoeFire.FireUnset ? RoeFire.FireAtWill : fire;
-        }
+            => Decide(view, unit, static r => r.Fire != RoeFire.FireUnset, out var roe) ? roe.Fire : RoeFire.FireAtWill;
 
-        /// <summary>⭐ <c>CE-2239</c> part 1 — the unit's force level; <see cref="RoeForceLevel.Lethal"/> when it has no ROE or it is unset.</summary>
+        /// <summary>⭐ <c>CE-2239</c> part 1 — the unit's force level; <see cref="RoeForceLevel.Lethal"/> when nothing in its chain set one.</summary>
         public static RoeForceLevel ForceLevel(ISimulationView view, Entity unit)
+            => Decide(view, unit, static r => r.ForceLevel != RoeForceLevel.ForceUnset, out var roe) ? roe.ForceLevel : RoeForceLevel.Lethal;
+
+        /// <summary>The unit's reaction rule; <see cref="RoeReactions.React"/> when nothing in its chain set one.</summary>
+        public static RoeReactions Reactions(ISimulationView view, Entity unit)
+            => Decide(view, unit, static r => r.Reactions != RoeReactions.ReactionsUnset, out var roe) ? roe.Reactions : RoeReactions.React;
+
+        /// <summary>⭐ <c>CE-2289</c> — whose ROE decides one field (see the class remarks). <c>false</c> = nobody set it.</summary>
+        private static bool Decide(ISimulationView view, Entity unit, Func<Roe, bool> isSet, out Roe source)
         {
-            if (!view.HasComponent<Roe>(unit)) return RoeForceLevel.Lethal;
-            var level = view.GetComponentRO<Roe>(unit).ForceLevel;
-            return level == RoeForceLevel.ForceUnset ? RoeForceLevel.Lethal : level;
+            bool own = TryRoe(view, unit, out source) && isSet(source);
+            if (own && source.SetBy != BehaviorOrigin.Unmarked) return true;   // an order on the man himself
+            var tkb = source;
+
+            var commander = CommanderOf(view, unit);
+            for (int depth = 0; depth < MaxChainDepth && !commander.IsNull; depth++)
+            {
+                if (TryRoe(view, commander, out source) && source.SetBy != BehaviorOrigin.Unmarked && isSet(source)) return true;
+                commander = CommanderOf(view, commander);
+            }
+            source = tkb;
+            return own;                                                       // the man's TKB default, or nothing
         }
 
-        /// <summary>The unit's reaction rule; <see cref="RoeReactions.React"/> when it has no ROE or it is unset.</summary>
-        public static RoeReactions Reactions(ISimulationView view, Entity unit)
+        private static bool TryRoe(ISimulationView view, Entity e, out Roe roe)
         {
-            if (!view.HasComponent<Roe>(unit)) return RoeReactions.React;
-            var reactions = view.GetComponentRO<Roe>(unit).Reactions;
-            return reactions == RoeReactions.ReactionsUnset ? RoeReactions.React : reactions;
+            if (view.HasComponent<Roe>(e)) { roe = view.GetComponentRO<Roe>(e); return true; }
+            roe = default;
+            return false;
+        }
+
+        private static Entity CommanderOf(ISimulationView view, Entity e)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<UnitSubordinate>()) return Entity.Null;
+            if (!view.HasComponent<UnitSubordinate>(e)) return Entity.Null;
+            var commander = view.GetComponentRO<UnitSubordinate>(e).Commander;
+            return !commander.IsNull && commander != e && view.IsAlive(commander) ? commander : Entity.Null;
         }
     }
 }
