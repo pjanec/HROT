@@ -170,6 +170,9 @@ IG) holds no `EntityBrainIntent` ingress and no `Roe` — no reader there needs 
 the replica skip in `ReportingRequirementsSystem`. Rails `TacticalIntentEgressTranslatorTests.CE3251_ReportingRequirementsForARemoteBrain_*`,
 `TacticalIntentIngressTranslatorTests.CE3251_ForwardedReportingRequirements_*`, `CommandComponentsTests.CE3251_AReplicasReportingRequirements_*`.
 ⚠ Unlike `Roe`, `ReportingRequirements` is brain-local — no replica copy comes back, and none is needed (only the owner's staff reads it).
+⭐ Behaviors built the same twin in parallel (`CE-2299`, `2026-10-19`); at the merge backend's was kept and behaviors' duplicate
+rails dropped, except the cluster rail `EntityOrdersAcrossNodesTests.CE2299_ReportingSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate`
+(SimHost raises the requirements, the CGF brain applies them, a lower origin is refused there).
 
 ## 3. CLASSES
 

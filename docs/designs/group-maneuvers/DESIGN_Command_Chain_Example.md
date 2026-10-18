@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — CC-A ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
+build-state: BUILDING — CC-A ✅ CC-B ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
-known-rot: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
+known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea that needs REQUEST answered by a headquarters owning support assets (§4 ①)
@@ -399,3 +399,19 @@ paused, and it resumes in `WaitAlpha` when the element goes stale · ⑤ every r
 
 Rails: `CommandComponentsTests` (the ROE-twin gate and withdraw · every buffer a fixed list printing a plain array, enums as strings) ·
 `SquadManeuverTests.CE2291_ThePicture_SurvivesATaskSwitch_AndAReaction` (through the real ingress).
+
+**CC-B `CE-2292`** — the command actions (`Hrot.AI.Behaviors/Brains/CommandNodes.cs`) and the picture guards
+(`Fdp.Toolkits/Squad/Command/PictureConditions.cs`):
+
+| piece | as built | deviation from §6 / CB-46 |
+|---|---|---|
+| ⭐ one order helper | `CommandOrders.Order` (abstract, `Order.<name>`) and `CommandOrders.Assign` (concrete) — record in `SubordinateOrders` + publish at Superior; ⭐ `SquadManeuverRunner`'s private `Order` / `Publish` now CALL them (one implementation, CC-4) | a fresh order from a play (`newOrder: true`) makes the picture forget that subordinate's progress (`CommandPictureOps.OrderGiven`), so "wait for Set" waits for THIS leg's Set; the runner's re-sends keep it |
+| a subordinate's name | its **roster slot** (`int Slot`) — a play is written once for any platoon | the sketch's `p.Subordinate` left open what it was |
+| `OrderSubordinate` | `[SharedAiAction]` `{Slot, Order, Point, Speed, ArrivalRadius}` — **Move and Hold** (built from the order DTOs); Attack / Strike / ObserveFire name a target and are given from C# via `CommandOrders.Order` | ⚠ `AssignSubordinate` is a **C# helper only** (`CommandOrders.Assign`): a node would need a behaviour NAME and its params JSON, which unmanaged node params cannot carry — the generator's `SopOrder` path is the model when a play needs it |
+| `SetSubordinateReporting` | `{Slot, Pir, Ffir, SitrepEverySeconds, PirArea}` → `SetReportingEvent` at Superior (crosses nodes, `CE-2299`) | — |
+| `SendReport` | `{Kind, Subtype, Count}` — PROGRESS or REQUEST only (CC-8: the staff composes the rest), queued through `ReportQueue.Enqueue` (the one writer of the outbox, numbering `Seq`) due `ReportDelaySeconds` = 3 s later | — |
+| the guards | `ProgressReached(Slot, Progress)` (the LATEST progress equals it — not ordinal) · `SubordinateColour(Slot, AtLeast)` · `SubordinateFresh(Slot, WithinSeconds)` (false = overdue) · `ElementReported(MinSize, WithinMetres, FreshSeconds)` · `PendingRequest(Kind)` | ⚠ **not built yet:** `PirMet` (no consumer, semantics open) · `TimeInState` (PC-7's 10 s lift fall-back: first consumer is `PlatoonAttack`) · `AnswerRequest` (needs requests flowing, CC-C) — each waits for its first consumer |
+
+Rails: `CommandComponentsTests.CE2292_*` (slot + reset, the other guards, the outbox numbering) · `SquadManeuverTests.CE2292_*` (an
+abstract order recorded and resetting progress while the runner's re-send does not; reporting extras reach the subordinate; a play's
+milestone queued 3 s out, a SPOT refused).

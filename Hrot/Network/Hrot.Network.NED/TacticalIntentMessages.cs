@@ -66,7 +66,8 @@ namespace Hrot.NED.Messages
         public const byte Clear = 1;
         /// <summary>A <c>SetRoeEvent</c> for a unit whose brain runs elsewhere — <c>RoeDirectiveJson</c> in the JSON.</summary>
         public const byte SetRoe = 2;
-        /// <summary>Reserved for behaviors' <c>SetReportingEvent</c> (Command Chain CC-2, <c>CE-2291</c>) — not decoded yet.</summary>
+        /// <summary>A <c>SetReportingEvent</c> (Command Chain CC-2) for a unit whose brain runs elsewhere — <c>ReportingDirectiveJson</c> in
+        /// the JSON. ⭐ <c>CE-2299</c> (behaviors, 2026-10-19).</summary>
         public const byte SetReporting = 3;
     }
 }
