@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1
-current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
+current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: none. (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none.
@@ -274,6 +274,83 @@ history, and would be the brain-local state R-2031 rules out.
 | 7 | **BC-4** `CE-2260` | behaviors | grenades by `Intensity` (CB-6); demo `bc-house-high-intensity` | BC-3, BR-2 |
 | 8 | **BC-5** `CE-2261` | behaviors | contact and casualties (CB-12, §6a); demo `bc-house-defended` | BC-3 |
 | — | **BR-1** · **BR-2** · **BR-3** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic on the wire | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) |
+
+## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
+
+### Engine and wire *(backend)*
+| block | kind | what | slice |
+|---|---|---|---|
+| `RoomGraph` + `RoomOf` + the CQB house | 🆕 | rooms, portals (doors, gaps, stairs) with their two rooms, corners, area; the §8 house in `bt-range` | BR-1 |
+| stun holds every class | ⚙ | `Effects.IsStunned` stops the fire gate (`HoldStunned`) and the mover for any person — today only civilian code reads it | BR-2 |
+| `SquadReport` topic | 🆕 | the event topic on the `BehaviorFaultReport` precedent | BR-3 |
+
+### Squad layer *(FDP `Squad` toolkit, behaviors)*
+| block | kind | what | slice |
+|---|---|---|---|
+| `CombatEffective` | 🆕 | a unit member is in the fight while ≥ `MinEffective` of its men are; read by `SquadManeuverRunner.Live(i)` and `UnitCentroidSystem` | SL-0 |
+| `Unit_InfantryPlatoon` | 🆕 | the composite type (3 squads, body-less, commander SOP) — none exists | SL-0 |
+| `SquadReportNotification` | 🆕 event | the local event the egress drains and the ingress raises on every node | RP-1 |
+| `ReportOutbox` + `ReportOutboxSystem` | 🆕 | per squad commander: queued reports, sent by the leader in the fight after `ReportDelaySeconds`; silent in the leader-down lull | RP-1 |
+| `PlatoonPicture` | 🆕 | on the platoon: contacts from Contact reports, each squad's last report + age + men in the fight | RP-1 |
+| `SensorChange.SubordinateContact` · `SubordinateUnderFire` · `SubordinateIneffective` | 🆕 events (18–20) | raised on the platoon commander when such a report ARRIVES — so the platoon SOP / HSM reacts as a squad's does to `SquadContact` | RP-1 |
+| `SquadReportLog` + `GET /squad/reports` + the platoon block on `/entities/{id}/squad` | 🆕 | §5a | RP-1 |
+| `SquadPerceptionMergeSystem` | ✅ | unchanged inside a squad (automatic, CB-15) | — |
+| `SquadSensing.Succession` · `MemberDown` · `SquadLeaderDown` | ✅ | the leader's lull also silences reports | — |
+
+### The runner's member orders *(`MemberOrderKind`, measured: Hold · AdvanceTo · Disembark · Suppress · CarryCasualty · Watch · Embark · FireAtPoint · Stay)*
+| order | kind | what it starts on the member | slice |
+|---|---|---|---|
+| `Watch` · `AdvanceTo` · `Hold` · `CarryCasualty` · `FireAtPoint` · `Suppress` | ✅ | stack points, foothold, isolating watch points, grenades (stun 6037 / M67 6001 exist as munitions), casualties | — |
+| `OperateDoor` (9) | 🆕 | the library door behaviour on the shared `DoorNodes` (MoveToDoor · OperateDoor Open / Breach — `DoorLocksmith` is built from them) | BC-1 |
+| `Enter` (10) | 🆕 | `EnterRoom`: along the wall to a point of domination WITH a sector; never stops in the doorway | BC-1 |
+| `Control` (11) | 🆕 | `ControlPerson` | BC-2 |
+| `Search` (12) | 🆕 | `SearchPerson` | BC-2 |
+
+### Member behaviours *(library, behaviors)*
+| behaviour | kind | what | slice |
+|---|---|---|---|
+| `EnterRoom {Point, Sector}` | 🆕 | move to the point, then hold and engage only in the sector; Success when the sector is empty, down or complying | BC-1 |
+| `ControlPerson {Target}` | 🆕 | cover him, order him down (a `Gesture` now, G1 speech later); he complies ⇒ Success; refuses ⇒ watch only (CB-7); attacks ⇒ the butt-stroke | BC-2 |
+| `SearchPerson {Target}` | 🆕 | go to a complying man, 3 s; a Hidden weapon ⇒ laid down + `Detained`; none ⇒ `Held` | BC-2 |
+| `MeleeResponse` (SOP reaction) | 🆕 | struck in melee by an unarmed man in reach (`Hit` from a Blunt `DamageAssessedEvent` whose `Source` is in reach) ⇒ one `Melee.Strike` back (the existing 3 s knock-down), then the order resumes — any soldier, not only indoors | BC-2 |
+| `CombatPosture` · `CasualtyCare` (the R-2012 medic) · `CarryCasualty` · `Surrender` · `StationWeapon` (B3 draw) | ✅ | the defenders, casualties, a surrendering insurgent, the covert one's draw | — |
+
+### Squad and platoon plays *(behaviors)*
+| play | kind | what | slice |
+|---|---|---|---|
+| `ClearBuildingPlay` (kind 5) | 🆕 over the existing stub `StackAndRoomEntryManeuver` | Stack · Breach · (Grenade) · Enter · Dominate · Control · Search · Clear · Next · Consolidate; entry + security fire teams swapping; bump-up; casualties per §6a; runs with ROE `StayOnTask` so the squad SOP's `SquadMemberDown` reaction does not pause it (✅ `RoeReactions.StayOnTask` refuses every reaction — `SopSlotTests.CE2078_…`) | BC-1, BC-3, BC-5 |
+| `IsolateBuildingPlay` | 🆕 | the support squad: `Watch` on watch points that cover every exit and window face from outside; engagement limited to rooms not Cleared (CB-18) | PL-1 |
+| `IsolateAndClearPlay` | 🆕 on the platoon | Isolate · Foothold · Clear · Relieve (on `SubordinateIneffective`) · Consolidate | PL-1 |
+| the reserve | ✅ | `SquadMarch` to the foothold, then `SquadHold` | — |
+
+### Pure planners and state *(behaviors)*
+| block | kind | what | slice |
+|---|---|---|---|
+| `RoomEntryPlan` | 🆕 | stack side, entry order, points of domination, sectors, 2- or 4-man — recomputed from the live members (bump-up) | BC-1 |
+| `RoomOrder` | 🆕 | the next room: nearest uncleared by a portal from a Cleared one; hallways and stairs as rooms; bottom-up / Roof top-down | BC-3 |
+| `IsolationPlan` | 🆕 | watch points outside covering each exit and window face, out of each other's line | PL-1 |
+| `EngagementArea` | 🆕 component, read by the target pick BEFORE the gate | allowed arcs / polygons per member — ONE mechanism for the room sector (CB-4) and the support squad's "rooms not Cleared" (CB-18); never a new firing rule | BC-1, PL-1 |
+| `BuildingClearance` | 🆕 | per room Unknown / Suspected / Cleared / Blocked, the held and detained, the casualty point; on the clearing echelon's commander, rebuilt from reports | BC-3, PL-1 |
+| `GrenadeCheck` | 🆕 | Intensity × room state × no non-combatant known × no friend within the munition's lethal radius of the aim point | BC-4 |
+
+### The civilians *(the civilian HSM, behaviors)*
+| block | kind | what | slice |
+|---|---|---|---|
+| `Comply` state | 🆕 | entered when a forces person controls him (`Covering.By` + the control order) and fear ≥ 0.3 or attitude ≤ 0; hands up, kneel, stay; wins over Panic while controlled | BC-2 |
+| refusal | 🆕 (a guard, no state) | the rest stay in their state — protest, shout, insult — never forced | BC-2 |
+| the attack | ✅ | the existing `Riot` state (fist on a forces person in reach) — what the soldier's `MeleeResponse` answers | — |
+| `Detained` | 🆕 flag | out of the fight (like a laid-down surrender): not searched again, guarded | BC-2 |
+| the covert insurgent | ✅ | B3 draw + CO-1 aiming ⇒ Hostile; the gate frees itself | — |
+
+### Demos and checks
+| block | kind | slice |
+|---|---|---|
+| the 7 scenarios of §8 + their twins + `utility-demo-check.py` runners | 🆕 | each slice ships its own |
+| ⛔ **to measure:** how a scenario incapacitates men at a scripted moment (the relief demo) · whether a rifleman's loadout carries M67 / stun grenades or the scenario must give them (`PersonHands.Give`) · what a failed breach leaves (`DoorState`) for `RoomBlocked` | — | before the slice that needs it |
+
+**Count:** 3 backend blocks · 9 squad-layer · 4 new member orders · 4 member behaviours · 3 plays · 6 planners / state · 3 civilian ·
+3 new sensor events + 1 new local event + 1 wire topic — and the firing gate, the doors, the casualty care, the melee strike, the
+munitions and the squad runner are all reused.
 
 ## 8. Demos *(each with an HTTP live check and an in-process twin, as every drill)*
 
