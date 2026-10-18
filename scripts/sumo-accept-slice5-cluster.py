@@ -73,7 +73,8 @@ if converted:
     c = converted[0]
     e = comps(CGF, c)
     mind = e.get("CivilianState") or {}
-    check("he keeps the pedestrian's network id", any(c in v for v in peds.values()) or c not in before, {"id": c})
+    # ⛔ strict: his id must be one a pedestrian replica had (📌 2026-10-18 a fallback "or not seen before" hid the id being lost on the wire)
+    check("he keeps the pedestrian's network id", any(c in v for v in peds.values()), {"id": c, "replica ids": sorted(set().union(*peds.values()))[:12]})
     check("CGF owns him (the brain node)", (e.get("NetworkAuthority") or {}).get("PrimaryOwnerId") not in (None,) , e.get("NetworkAuthority"))
     # ⭐ The fright crossed the wire: he knows where it came from although he never HEARD it himself (HeardAt / LastFrightAt 0 are the
     #   fear system's marks), so only the creation attributes can have told him. His fear was 1 at birth and decays 0.05/s (CE-2235):

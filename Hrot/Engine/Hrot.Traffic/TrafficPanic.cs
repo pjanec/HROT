@@ -114,6 +114,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
             ? world.GetComponentRO<SimTransform>(hit.Source).Position
             : world.GetComponentRO<SimTransform>(e).Position;
         _runtime.ReportHit(new TrafficHit(id.ToString(CultureInfo.InvariantCulture), car, from));
+        Fdp.Core.Logging.FdpLog<TrafficPanicSystem>.Info("[Traffic] hit on SUMO {0} {1} ({2:0} damage): giving it up", car ? "car" : "pedestrian", id, hit.TotalDamage);
         _held[id] = (hit, now + HoldSeconds);
     }
 
@@ -158,6 +159,8 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         if (!long.TryParse(c.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var netId) || netId <= 0) return;
         _replicas()?.Release(netId);
+        Fdp.Core.Logging.FdpLog<TrafficPanicSystem>.Info("[Traffic] SUMO gave up {0} {1}: requesting our {2}", c.IsVehicle ? "car" : "pedestrian", netId,
+            c.IsVehicle ? "car type " + (c.ExternalType > 0 ? c.ExternalType : UrbanCombatTkbCatalog.TkbCivilianCar) + (double.IsNaN(c.X) ? " (no pose: skipped)" : "") : "civilian");
         if (c.IsVehicle) { RequestCar(world, placement, c, netId); return; }
         var (x, y) = placement.ToLocal(c.X, c.Y);
         var (ax, ay) = placement.ToLocal(c.X + Math.Cos(c.Heading), c.Y + Math.Sin(c.Heading));   // the heading through the placement

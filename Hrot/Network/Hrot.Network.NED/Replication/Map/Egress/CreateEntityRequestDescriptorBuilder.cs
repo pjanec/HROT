@@ -69,7 +69,8 @@ namespace Hrot.Map.Common.Replication.Egress
             string? initialAttributesJson,
             Vector3? anchor,
             IReadOnlyList<object>? initialComponents,
-            IGeographicTransform? geoTransform)
+            IGeographicTransform? geoTransform,
+            long preAllocatedNetworkId = 0)
         {
             double lat, lon, alt;
 
@@ -95,7 +96,11 @@ namespace Hrot.Map.Common.Replication.Egress
                 new EntityDescriptorUnion
                 {
                     _d           = EDescriptorType.dtEntityMaster,
-                    EntityMaster = new EntityMaster { TkbType = tkbType },
+                    // ⭐ CE-4024 — a pre-allocated network id rides the master's EntityId (0 = the processor allocates), as replication
+                    //   carries every entity's id. 📌 Measured 2026-10-18: it was dropped, so a SUMO pedestrian converted on the traffic node
+                    //   came back from CGF under a NEW id (AQ93 §15 K5 / R-4029 "keeps its network id" held only in the editor).
+                    EntityMaster = new EntityMaster { TkbType = tkbType,
+                                                   EntityId = preAllocatedNetworkId is > 0 and <= int.MaxValue ? (int)preAllocatedNetworkId : 0 },
                 },
                 new EntityDescriptorUnion
                 {

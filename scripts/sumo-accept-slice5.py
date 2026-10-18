@@ -70,7 +70,7 @@ if converted:
     c = converted[0]
     e = comps(c)
     mind = e.get("CivilianState") or {}
-    check("he keeps the pedestrian's network id", c in peds or c not in before, {"id": c, "wasReplica": c in peds})
+    check("he keeps the pedestrian's network id", c in peds, {"id": c, "wasReplica": c in peds})
     check("he is in panic (fear ≥ 0.6, or his HSM in Panic/Shelter)", (mind.get("Fear") or 0) >= 0.6 or str(mind.get("Mode")) in ("Panic", "Shelter", "4", "5"),
           {k: mind.get(k) for k in ("Fear", "Mode", "HasFrightFrom", "FrightFrom")})
     check("he is no longer SUMO's (no TrafficCar)", "TrafficCar" not in e, list(e.keys())[:20])
