@@ -503,6 +503,7 @@ public sealed class RecastNavmeshFactoryTests
     [InlineData("office-4f", 10f, -6f, "lobby 5,6,0 · storey 2 5,6,3.2 · storey 3 5,6,6.4 · storey 4 5,6,9.6 · roof 5,6,12.8")]
     [InlineData("shop-2f", 6f, -6f, "shop 4,3,0 · store 4,8.5,0 · flat 4,5,3.5")]
     [InlineData("market-hall", 12f, -6f, "under the roof 12,4,0 · far side 20,12,0")]
+    [InlineData("cqb-house", -6f, 5f, "hallway 7,5,0 · A 3.5,8,0 · B 10.5,8,0 · C 4.5,2,0 · D 10.4,2,0 · closet E 12.9,2,0")]   // UI-3: the front door is in the WEST wall
     public void UI9_EachQuarterTemplate_ThePathReachesEveryRoom_AndTheOfficeRoof(string template, float startX, float startY, string targets)
     {
         var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);

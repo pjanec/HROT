@@ -76,6 +76,15 @@
         { "id": "a rifle round from B goes through the east window", "kind": "fire", "round": "rifle", "from": [107.5, 81.0, 1.7], "to": [107.1, 100.9, 4.1], "expect": "passes" },
         { "id": "the brick between the upstairs windows hides", "kind": "sight", "from": [104.6, 81.0, 1.7], "to": [104.6, 100.9, 4.1], "expect": "blocks" }
       ]
+    },
+    "bt-cqb-house": {
+      "summary": "UI-3 - the CQB test house (cqb-house, SW corner (40,100), front door WEST): the support squad outside the north window sees into room A and the east window into B; the brick beside the window hides; inside, the closet E is hidden from D by its wall beside the door",
+      "premises": [
+        { "id": "the north window of A is clear for sight", "kind": "sight", "from": [42.75, 114, 1.6], "to": [42.75, 108, 1.6], "expect": "seesThrough" },
+        { "id": "the brick beside A's north window hides the room", "kind": "sight", "from": [41.0, 114, 1.6], "to": [41.0, 108, 1.6], "expect": "blocks" },
+        { "id": "the east window of B is clear for sight", "kind": "sight", "from": [58, 108, 1.6], "to": [52, 108, 1.6], "expect": "seesThrough" },
+        { "id": "the wall between D and the closet E hides E", "kind": "sight", "from": [50.5, 103.5, 1.6], "to": [53, 103.5, 1.6], "expect": "blocks" }
+      ]
     }
   }
 }

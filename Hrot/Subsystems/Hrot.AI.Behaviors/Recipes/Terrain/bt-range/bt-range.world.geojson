@@ -9,7 +9,7 @@
    200
   ],
   "groundZ": 0,
-  "description": "Buildings programme range (Stage 1 skeleton): one panel of each material, a fence row, a 0.5 m low wall, two two-storey houses with inner walls, stairs, windows and doors (House A front locked, hall open), and a solid block. Local metres, X east, Y north, Z up."
+  "description": "Buildings programme range (Stage 1 skeleton): one panel of each material, a fence row, a 0.5 m low wall, two two-storey houses with inner walls, stairs, windows and doors (House A front locked, hall open), the one-storey CQB test house (hallway, rooms A-D, closet E; 60 m west of House A), and a solid block. Local metres, X east, Y north, Z up."
  },
  "features": [
   {
@@ -275,6 +275,23 @@
     "type": "Point",
     "coordinates": [
      160,
+     100
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "cqb-house",
+    "label": "CQB House",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     40,
      100
     ]
    }
