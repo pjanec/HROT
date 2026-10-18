@@ -55,6 +55,7 @@ namespace Hrot.Editor.DebugApi
                         ["networkId"] = r.UnitNetId, ["progress"] = r.Progress.ToString(), ["strength"] = r.Strength.ToString(),
                         ["ammo"] = r.Ammo.ToString(), ["phase"] = r.Phase, ["lastSeq"] = r.LastSeq,
                         ["lastReportAt"] = r.LastReportAt > 0f ? r.LastReportAt : null,
+                        ["orderedAt"] = r.OrderedAt > 0f ? r.OrderedAt : null,
                         ["ageSeconds"] = float.IsInfinity(age) ? null : age, ["overdue"] = age > ReportOverdueSeconds,
                     };
                     if (_entityMap.TryGetEntity(r.UnitNetId, out var sub) && _world.HasComponent<EntityInfo>(sub))

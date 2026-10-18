@@ -34,6 +34,19 @@ namespace Hrot.AI.Behaviors.Brains
             });
         }
 
+        /// <summary>⭐ <c>CE-2294</c> CC-D — the order the commander's TICKING run gave <paramref name="member"/> still stands: nothing
+        /// else (a reaction's order, released when it ended, or an operator's) replaced it since. A run resumed after a reaction finds
+        /// its orders gone and gives them again.</summary>
+        public static bool Stands(EntityRepository world, Entity commander, Entity member)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null) return false;
+            foreach (var e in held.Orders)
+                if (e.Member.Equals(member)) return e.Run == run;
+            return false;
+        }
+
         /// <summary>A CONCRETE order: <paramref name="member"/> runs <paramref name="behaviour"/> with <paramref name="json"/>. Its release
         /// names the behaviour.</summary>
         public static void Assign(EntityRepository world, Entity commander, Entity member, string behaviour, string json, bool newOrder = false)
@@ -62,6 +75,38 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         /// <summary>Move: how near counts as there (0 = the receiver's own default).</summary>
         public float ArrivalRadius;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — params of <see cref="CommandNodes.MoveLeg"/>: one leg of a play, one subordinate moving to one point.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MoveLegParams
+    {
+        /// <summary>Which subordinate: its slot in the commander's roster.</summary>
+        public int Slot;
+        /// <summary>Where (local metres).</summary>
+        public Vector3 Point;
+        /// <summary>m/s (0 = the receiver's own default).</summary>
+        public float Speed;
+        /// <summary>How near counts as there (0 = the receiver's own default).</summary>
+        public float ArrivalRadius;
+        /// <summary>The extra SITREP asked with the order (s; 0 = none) — CC-2, CC-8.</summary>
+        public float SitrepEverySeconds;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — what <see cref="CommandNodes.MoveLeg"/> keeps: how many times it gave its order.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MoveLegState
+    {
+        public int Orders;
+    }
+
+    /// <summary>⭐ <c>CE-2294</c> — params of <see cref="CommandNodes.WithdrawReporting"/>: the subordinates whose extras a play takes back.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct WithdrawReportingParams
+    {
+        public int SlotA;
+        /// <summary>A second slot (-1 = none).</summary>
+        public int SlotB;
     }
 
     /// <summary>Params of <see cref="CommandNodes.SetSubordinateReporting"/>.</summary>
@@ -119,6 +164,46 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Failure;
             }
             CommandOrders.Order(world, self, member, p.Order.ToString(), json, newOrder: true);
+            return NodeStatus.Success;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2294</c> CC-D — one LEG of a play, as an HSM ACTIVITY (it runs every tick of its state): the subordinate in
+        /// <see cref="MoveLegParams.Slot"/> moves to <see cref="MoveLegParams.Point"/> (an abstract Move, CC-9) with the extra SITREP asked
+        /// beside it (CC-2). ⭐ The order is given whenever this run's order to it does not STAND (<see cref="CommandOrders.Stands"/>): on
+        /// the state's first tick, and again when the run RESUMES after a reaction whose orders replaced it (an HSM resumes in its state,
+        /// its activities tick on — Decision Layer §4.1 — so this is how the plan picks up where it was). The progress the picture keeps is
+        /// reset each time (a fresh order), so the leg's guard waits for THIS order's Set. Running while the subordinate exists; the
+        /// state's guard ends it.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus MoveLeg(ref MoveLegParams p, ref MoveLegState ws, Entity self, EntityRepository world)
+        {
+            var member = CommandPictureOps.Subordinate(world, self, p.Slot);
+            if (member.IsNull || !world.IsAlive(member)) return NodeStatus.Failure;
+            if (CommandOrders.Stands(world, self, member)) return NodeStatus.Running;
+            var move = new OrderSubordinateParams { Slot = p.Slot, Order = OrderKind.Move, Point = p.Point, Speed = p.Speed, ArrivalRadius = p.ArrivalRadius };
+            if (OrderSubordinate(ref move, self, world) != NodeStatus.Success) return NodeStatus.Failure;
+            if (p.SitrepEverySeconds > 0f)
+            {
+                var extras = new SetSubordinateReportingParams { Slot = p.Slot, SitrepEverySeconds = p.SitrepEverySeconds };
+                SetSubordinateReporting(ref extras, self, world);
+            }
+            ws.Orders++;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2294</c> — a play takes back the extra reports it asked of its subordinates (all zero withdraws them, CC-A).</summary>
+        [SharedAiAction]
+        public static NodeStatus WithdrawReporting(ref WithdrawReportingParams p, Entity self, EntityRepository world)
+        {
+            var none = new SetSubordinateReportingParams { Slot = p.SlotA };
+            SetSubordinateReporting(ref none, self, world);
+            if (p.SlotB >= 0)
+            {
+                none = new SetSubordinateReportingParams { Slot = p.SlotB };
+                SetSubordinateReporting(ref none, self, world);
+            }
             return NodeStatus.Success;
         }
 

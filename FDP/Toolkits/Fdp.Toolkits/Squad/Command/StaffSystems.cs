@@ -7,6 +7,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Events;
 
 namespace Fdp.Toolkit.Squad.Command
@@ -34,6 +35,9 @@ namespace Fdp.Toolkit.Squad.Command
         public const float ReportDelaySeconds = 3f;
         /// <summary>CB-37 — an element that moved this far is news.</summary>
         public const float SpotMoveMetres = 25f;
+        /// <summary>⭐ CE-2294 (CB-33, CB-34) — a still-held element is SPOTted again this often, so the superior's picture keeps it
+        /// fresh while the squad still sees it (and a stale one means it is really gone) — the engaged heartbeat.</summary>
+        public const float SpotRefreshSeconds = 15f;
 
         private readonly bool _gateOnAuthority;
         private EntityQuery? _commanders;
@@ -97,12 +101,26 @@ namespace Fdp.Toolkit.Squad.Command
         {
             if (!repo.HasComponent<SquadCognitiveState>(unit)) return;
             ref readonly var squad = ref repo.GetComponentRO<SquadCognitiveState>(unit);
-            int n = squad.Contacts.Count;
             var pool = squad.Contacts.Contacts;
-            var sum = Vector3.Zero;
-            for (int i = 0; i < n; i++)
+            // ⭐ CE-2294 (R-214, CE-3080) — only contacts still IN THE FIGHT are an element: a killed or incapacitated man stays in memory
+            //   by design (every threat reader filters him, ThreatDanger), and a neutral is no enemy (CV-8). 📌 Measured live in
+            //   cc-platoon-bound: three dead enemies kept a count-3 SPOT going forever, so the platoon never stopped holding.
+            Span<int> live = stackalloc int[16];   // the pool holds at most 16 (SquadContactPool)
+            int n = 0;
+            for (int i = 0; i < squad.Contacts.Count && n < live.Length; i++)
             {
-                var c = pool[i];
+                long id = pool[i].EntityId;
+                if (id > 0)
+                {
+                    var e = new Entity((ulong)id);
+                    if (ThreatDanger.IsOutOfTheFight(repo, e) || ThreatDanger.IsNeutral(repo, e)) continue;
+                }
+                live[n++] = i;
+            }
+            var sum = Vector3.Zero;
+            for (int k = 0; k < n; k++)
+            {
+                var c = pool[live[k]];
                 sum += new Vector3(c.PositionX, c.PositionY, c.PositionZ);
             }
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
@@ -115,14 +133,16 @@ namespace Fdp.Toolkit.Squad.Command
             }
             var centre = sum / n;
             float radius = 0f;
-            for (int i = 0; i < n; i++)
+            for (int k = 0; k < n; k++)
             {
-                var c = pool[i];
+                var c = pool[live[k]];
                 radius = MathF.Max(radius, Vector3.Distance(centre, new Vector3(c.PositionX, c.PositionY, c.PositionZ)));
             }
             var size = SizeOf(n);
-            if (outbox.SpotSent != 0 && outbox.SpotSize == size && Vector3.Distance(outbox.SpotAt, centre) <= SpotMoveMetres) return;
+            if (outbox.SpotSent != 0 && outbox.SpotSize == size && Vector3.Distance(outbox.SpotAt, centre) <= SpotMoveMetres
+                && now - outbox.SpotSentAt < SpotRefreshSeconds) return;
             outbox.SpotSent = 1;
+            outbox.SpotSentAt = now;
             outbox.SpotAt = centre;
             outbox.SpotSize = size;
             ReportQueue.Enqueue(repo, unit, new CommandReport
@@ -238,7 +258,9 @@ namespace Fdp.Toolkit.Squad.Command
                 sub.LastReportAt = MathF.Max(now, 1e-3f);
                 switch (r.Kind)
                 {
-                    case ReportKind.Progress: sub.Progress = (ProgressKind)r.Subtype; break;
+                    case ReportKind.Progress:
+                        if (r.ObservedAt >= sub.OrderedAt) sub.Progress = (ProgressKind)r.Subtype;   // CE-2294: older = the last order's
+                        break;
                     case ReportKind.Sitrep:   sub.Strength = r.Strength; sub.Ammo = r.Ammo; sub.Phase = r.Phase; sub.LastSitrepAt = sub.LastReportAt; break;
                     case ReportKind.Lace:     sub.Ammo = r.Ammo; break;
                 }

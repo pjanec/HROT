@@ -528,4 +528,117 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         }
         finally { NasScenarioStaging.Remove(scenarioId); }
     }
+
+    // ── CE-2294 CC-D — the first command chain, cc-platoon-bound (Command Chain §8; the live check's in-process twin) ─────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2294</c> CC-D — <c>scenarios/cc-platoon-bound</c> in-process (the twin of <c>utility-demo-check.py cc-platoon-bound</c>;
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md §8, §8a): ① Bravo is ordered first and its SET reaches the
+    /// platoon's picture · ② only then is Alpha ordered · ③ the enemies turn hostile and Alpha's staff SPOTs them as ONE element · ④ the
+    /// platoon's SOP reacts with <c>PlatoonHold</c>, both squads hold; the enemies die, the lost SPOT ends the hold and the task resumes
+    /// in its leg — Alpha ordered on, Bravo not — and Alpha's SET completes it · ⑤ every report is in the node's report log.
+    /// ⚠ The side flip and the deaths are written on every host's world directly (the live check goes through the HTTP routes).
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE2294_CcPlatoonBound_SupportThenAssault_HoldOnASpot_ResumeInTheLeg()
+    {
+        var scenarioId = "cc_platoon_bound_" + Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        try
+        {
+            File.Copy(Path.Combine(RepoRoot(), "scenarios", "cc-platoon-bound", "scenario.json"),
+                Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
+            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+            var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+            {
+                harness.PumpFrames(1);
+                Thread.Sleep(10);
+            }
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+                $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+            var cgf = harness.Cgf!.World!;
+            var sim = harness.SimHost.World!;
+            var ig = harness.Ig.App.World;
+            string[] enemyNames = { "Enemy 1", "Enemy 2", "Enemy 3" };
+            Assert.True(harness.PumpUntil(() => new[] { "Platoon", "Alpha", "Bravo" }.Concat(enemyNames).All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull),
+                timeoutFrames: 3000), "the platoon, its squads and the enemies must spawn on CGF and SimHost");
+            var platoon = ByName(cgf, "Platoon");
+            var alpha = ByName(cgf, "Alpha");
+            var bravo = ByName(cgf, "Bravo");
+            int bound = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonBound);
+            int hold = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonHold);
+            int squadMove = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove);
+            int squadHold = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadHold);
+            int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash : 0;
+            Fdp.Toolkit.Squad.Command.ProgressKind Progress(Entity squad)
+            {
+                if (!cgf.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(platoon)) return default;
+                var pic = cgf.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(platoon);
+                int row = Fdp.Toolkit.Squad.Command.CommandPictureOps.RowOf(pic, Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(cgf, squad));
+                return row < 0 ? default : pic.Subordinates.Items[row].Progress;
+            }
+            string State() => $"platoon {Task(platoon)} alpha {Task(alpha)} bravo {Task(bravo)} · Alpha {Progress(alpha)} Bravo {Progress(bravo)}";
+
+            // ①② Bravo first; Alpha only after Bravo's SET is in the picture
+            Assert.True(harness.PumpUntil(() => Task(platoon) == bound && Task(bravo) == squadMove, timeoutFrames: 3000), $"Bravo is ordered first; {State()}");
+            Assert.NotEqual(squadMove, Task(alpha));
+            bool alphaEarly = false;
+            Assert.True(harness.PumpUntil(() => { if (Task(alpha) == squadMove && Progress(bravo) != Fdp.Toolkit.Squad.Command.ProgressKind.Set) alphaEarly = true;
+                                                   return Progress(bravo) == Fdp.Toolkit.Squad.Command.ProgressKind.Set; }, timeoutFrames: 40000),
+                $"① Bravo reaches the support point and its SET reaches the platoon; {State()}");
+            Assert.False(alphaEarly, "② Alpha was ordered before Bravo's SET");
+            Assert.True(harness.PumpUntil(() => Task(alpha) == squadMove, timeoutFrames: 2000), $"② then Alpha is ordered; {State()}");
+
+            // ③ the enemies turn hostile: ONE element from Alpha
+            foreach (var w in new[] { cgf, sim, ig })
+                foreach (var n in enemyNames)
+                {
+                    var e = ByName(w, n);
+                    if (e.IsNull) continue;
+                    var info = w.GetComponentRO<EntityInfo>(e);
+                    info.ForceId = ForceId.Hostile;
+                    w.SetComponent(e, info);
+                }
+            Assert.True(harness.PumpUntil(() => Task(platoon) == hold, timeoutFrames: 6000), $"④ the platoon's SOP reacts with PlatoonHold; {State()}");
+            var picture = cgf.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(platoon);
+            long alphaId = Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(cgf, alpha);
+            int fromAlpha = 0;
+            for (int i = 0; i < picture.Elements.Count; i++) if (picture.Elements.Items[i].FromNetId == alphaId) fromAlpha++;
+            Assert.Equal(1, fromAlpha);                                                    // ③ one element, not one per contact
+            Assert.True(harness.PumpUntil(() => Task(alpha) == squadHold && Task(bravo) == squadHold, timeoutFrames: 2000), $"④ both squads hold; {State()}");
+
+            // ④ the enemies die: the lost SPOT ends the hold, the task resumes in its leg
+            foreach (var w in new[] { cgf, sim, ig })
+                foreach (var n in enemyNames)
+                {
+                    var e = ByName(w, n);
+                    if (e.IsNull || !w.HasComponent<Health>(e)) continue;
+                    var h = w.GetComponentRO<Health>(e);
+                    h.Current = 0f;
+                    w.SetComponent(e, h);
+                }
+            Assert.True(harness.PumpUntil(() => Task(platoon) == bound && Task(alpha) == squadMove, timeoutFrames: 6000),
+                $"④ the hold ends and the task resumes, ordering Alpha on; {State()}");
+            Assert.NotEqual(squadMove, Task(bravo));
+            Assert.True(harness.PumpUntil(() => Task(platoon) != bound && Task(platoon) != hold, timeoutFrames: 40000),
+                $"Alpha reaches the objective, reports SET, and the task completes; {State()}");
+
+            // ⑤ the node's report log holds them, each with its ObservedAt
+            var log = Fdp.Toolkit.Squad.Command.SquadReportLog.Peek(cgf);
+            Assert.NotNull(log);
+            Assert.True(log!.Count >= 4, $"the report log holds the run's reports ({log.Count})");
+            Assert.All(log.Recent(64), e => Assert.True(e.Report.ObservedAt > 0f));
+            _out.WriteLine("done: " + State());
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
+    }
 }

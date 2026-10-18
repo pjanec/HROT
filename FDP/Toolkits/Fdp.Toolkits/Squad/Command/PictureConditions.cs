@@ -60,7 +60,9 @@ namespace Fdp.Toolkit.Squad.Command
         {
             int row = EnsureRow(world, commander, NetIdOf(world, subordinate));
             if (row < 0) return;
-            world.GetComponentRW<CommandPicture>(commander).Subordinates.Items[row].Progress = ProgressKind.NoProgress;
+            ref var sub = ref world.GetComponentRW<CommandPicture>(commander).Subordinates.Items[row];
+            sub.Progress = ProgressKind.NoProgress;
+            sub.OrderedAt = Now(world);   // CE-2294: a PROGRESS observed before this order is the last order's
         }
 
         /// <summary>The latest progress the subordinate in <paramref name="slot"/> reported for its current order.</summary>
