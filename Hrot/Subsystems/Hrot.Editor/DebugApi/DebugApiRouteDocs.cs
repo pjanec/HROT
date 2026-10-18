@@ -1798,6 +1798,71 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000,\"target\":1002}",
             ExampleGist: "see which weapon a unit would fire at a target, and why"),
 
+        [("GET", "/entities/{networkId}/reports")] = new RouteDoc(
+            Tool:    "get_entity_reports",
+            Group:   "K — AI behavior traces",
+            Summary: "Reports up the chain of command (CE-2295, CC-12): on a commander its picture — the elements its subordinates reported, each subordinate's last progress / colours / age / overdue, open requests; on any unit the extra requirements its superior set and its outbox (queued, posture, muted).",
+            Returns: "{ networkId, now, onBrainNode?, picture?:{elements:[{from, size, count, activity, equipment, at, radius, observedAt, ageSeconds, receivedAt, seq, synthetic}], subordinates:[{networkId, name?, progress, strength, ammo, phase, lastSeq, lastReportAt, ageSeconds, overdue}], requests:[{from, kind, at, receivedAt, seq}]}, requirements?:{pir, ffir, sitrepEverySeconds, pirArea, setBy}, outbox?:{queued:[report + dueAt], nextSeq, posture, muted, mutedUntil} }",
+            Hint:    "Req: networkId of a commander (a platoon, a squad). Read on its BRAIN node (Scenario on a cluster). Example: get_entity_reports({networkId:5001})",
+            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
+            Notes: new[]
+            {
+                "The INTERPRETED view; the raw components (CommandPicture, ReportingRequirements, ReportOutbox) are in get_entity, each buffer a plain array (CC-16).",
+                "A report ages from observedAt (when the sender saw it), not from its arrival; overdue = nothing heard for 60 s.",
+            },
+            ExampleArgsJson: "{\"networkId\":5001}",
+            ExampleGist: "what has the platoon heard from its squads"),
+
+        [("POST", "/entities/{networkId}/reports")] = new RouteDoc(
+            Tool:    "fake_entity_report",
+            Group:   "K — AI behavior traces",
+            Summary: "A report AS IF this unit's staff sent it to its superior (CE-2295, CC-13) — it enters before the wire, ages from observedAgoSeconds, and the superior's whole decision path runs as for a real one. Marked synthetic: always taken, replaced by the unit's next real report (CC-14).",
+            Returns: "{ networkId, sent:true, synthetic:true, report }",
+            Hint:    "Req: networkId of the SENDING unit (a squad), kind. Example: fake_entity_report({networkId:5002, kind:'Spot', size:'Team', count:3, at:[200,320,0]})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "The unit the report comes FROM (its superior receives it)"),
+                new("kind", "string", true, "Contact · Spot · Sitrep · Lace · Progress · Request"),
+                new("subtype", "string", false, "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"),
+                new("count", "number", false, "Spot / Contact: how many (0 = the element is lost); PhaseLine: the line's index"),
+                new("size", "string", false, "Individual · Team · SquadSize · PlatoonSize"),
+                new("at", "array", false, "[x, y, z] where (default: the unit's own position)"),
+                new("strength", "string", false, "Sitrep: Green · Amber · Red · Black"),
+                new("observedAgoSeconds", "number", false, "how old the observation already is"),
+            },
+            Notes: new[] { "Run on any node that holds the unit; BR-3 carries the report to the superior's brain node." },
+            ExampleArgsJson: "{\"networkId\":5002,\"kind\":\"Spot\",\"size\":\"Team\",\"count\":3,\"at\":[200,320,0]}",
+            ExampleGist: "tell the platoon squad 5002 sees three enemies"),
+
+        [("POST", "/entities/{networkId}/reports/mute")] = new RouteDoc(
+            Tool:    "mute_entity_reports",
+            Group:   "K — AI behavior traces",
+            Summary: "Lost comms (CE-2295, CC-15): the unit's staff sends nothing for `seconds` — CONTACT included; its outbox keeps filling. 0 restores the radio.",
+            Returns: "{ networkId, mutedSeconds }",
+            Hint:    "Req: networkId, seconds. Run on the unit's BRAIN node (the outbox lives there). Example: mute_entity_reports({networkId:5002, seconds:60})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "The unit whose radio fails"),
+                new("seconds", "number", true, "How long (0 = restore)"),
+            },
+            ExampleArgsJson: "{\"networkId\":5002,\"seconds\":60}",
+            ExampleGist: "squad 5002 goes silent for a minute"),
+
+        [("GET", "/squad/reports")] = new RouteDoc(
+            Tool:    "get_squad_reports",
+            Group:   "K — AI behavior traces",
+            Summary: "The reports this node's inbox saw, newest first (CE-2295, PC-11) — folded, stale (a late older one dropped) or not addressed here; a ring of 256 per node.",
+            Returns: "{ count, returned, reports:[{serial, seenAt, from, to, originNode, verdict, kind, subtype, at, observedAt, ageSeconds, seq, synthetic, …}] }",
+            Hint:    "Optional: last (default 50), unit (from or to). Read on a brain node. Example: get_squad_reports({last:20, unit:5001})",
+            Params: new RouteParam[]
+            {
+                new("last", "number", false, "How many (default 50)"),
+                new("unit", "number", false, "Only reports from or to this unit"),
+            },
+            Notes: new[] { "⛔ Not GET /events: that ring holds 500 events of every type and a fight's shots evict a report within seconds." },
+            ExampleArgsJson: "{\"last\":20}",
+            ExampleGist: "the last reports up the chain"),
+
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",
             Group:   "K — AI behavior traces",
@@ -1890,7 +1955,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_order",
             Group:   "Z — Entity control (orders)",
             Summary: "A unit's operator order: running · paused (a reaction interrupted it) · succeeded · failed · faulted · none — and what it runs now.",
-            Returns: "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin} }",
+            Returns: "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin}, task?:{behavior, origin, since, params} }",
             Hint:    "Req: networkId. Read on the unit's brain node (the Scenario perspective on a cluster). Example: get_entity_order({networkId:1000})",
             Params: new RouteParam[] { new("networkId", "integer", true, "Network id of the unit") },
             ExampleArgsJson: "{\"networkId\":1000}",

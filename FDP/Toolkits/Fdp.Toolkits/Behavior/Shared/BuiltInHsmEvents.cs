@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             "Sensor.AirThreat",         // ⭐ CE-2165 V8 — id 0xFF10, an air contact entered memory
             "Sensor.MissileWarning",    // ⭐ CE-2189 — id 0xFF11, a missile launched at this aircraft
             "Sensor.SurveyReady",       // ⭐ CE-3249 — id 0xFF12, a WorldSurvey answer arrived or changed
+            "Sensor.ReportReceived",    // ⭐ CE-2293 — id 0xFF13, a subordinate's report reached this commander's picture
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>
