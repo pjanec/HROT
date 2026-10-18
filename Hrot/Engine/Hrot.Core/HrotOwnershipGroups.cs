@@ -109,6 +109,8 @@ public static class HrotOwnershipGroups
         muscle.SetBit(GlobalComponentIds.TurretPose);
         // ⭐ CE-3210 (hit location HL-8) — where rounds struck a body: the Muscle resolves the hit (dtHitMarks).
         muscle.SetBit(GlobalComponentIds.HitMarks);
+        // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks: the Muscle turns the head and the body (dtLookState).
+        muscle.SetBit(GlobalComponentIds.LookState);
         // ⭐ Airborne insertion B-1 (D-1) — a man coming down a rope or under a canopy: moved by the node that owns his position (dtDescent).
         muscle.SetBit(GlobalComponentIds.Descent);
         muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task

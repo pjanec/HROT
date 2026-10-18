@@ -41,9 +41,7 @@ namespace Hrot.MuscleCharacter.Animation.Translators
         }
 
         /// <summary>
-        /// ⚠ Includes the two components <see cref="Inject"/> adds only when <c>AimConfig</c> is present
-        /// (<see cref="LookAtChannel"/>, <see cref="LookAtExecutorState"/>) — over-declaring is the safe
-        /// direction; see the interface's contract. ⭐ None carries <c>[PerInstanceValue]</c>: animation
+        /// ⭐ <c>CE-3252</c> (LD-F): the look-at components are added to every character now, <c>AimConfig</c> or not. ⭐ None carries <c>[PerInstanceValue]</c>: animation
         /// channels and executor state legitimately start empty on tick 0.
         /// </summary>
         public IEnumerable<Type> GetProducedComponents()
@@ -57,6 +55,7 @@ namespace Hrot.MuscleCharacter.Animation.Translators
             yield return typeof(CharacterAnimationDefRuntime);
             yield return typeof(AnimationExecutorState);
             yield return typeof(LookAtExecutorState);
+            yield return typeof(Fdp.Toolkit.Perception.Look.LookState);
         }
 
         /// <summary>
@@ -97,8 +96,9 @@ namespace Hrot.MuscleCharacter.Animation.Translators
             if (repo.IsComponentTypeRegistered<AnimationChannelStatus>())
                 repo.AddComponent(entity, new AnimationChannelStatus { DispatchedInstanceId = 0, Status = NodeStatus.Failure });
 
-            // LookAtChannel only if AimConfig is present
-            if (repo.IsComponentTypeRegistered<LookAtChannel>() && def.AimConfig != null)
+            // ⭐ CE-3252 (LD-F, G2) — every PERSON can be told where to look (a character def is a humanoid body); ⛔ it used to need an
+            //   AimConfig, which the shipped mannequin has none of, so the look-at path was inert on every unit.
+            if (repo.IsComponentTypeRegistered<LookAtChannel>())
             {
                 repo.AddComponent(entity, new LookAtChannel
                 {
@@ -109,7 +109,7 @@ namespace Hrot.MuscleCharacter.Animation.Translators
             }
 
             // ⭐ CE-513 / R-180 — the Muscle's report beside the Brain's request (DispatchedInstanceId 0, Failure = nothing picked up).
-            if (repo.IsComponentTypeRegistered<LookAtChannelStatus>() && def.AimConfig != null)
+            if (repo.IsComponentTypeRegistered<LookAtChannelStatus>())
                 repo.AddComponent(entity, new LookAtChannelStatus { DispatchedInstanceId = 0, Status = NodeStatus.Failure });
 
             // Stance components
@@ -174,11 +174,14 @@ namespace Hrot.MuscleCharacter.Animation.Translators
                 repo.AddComponent(entity, default(AnimationExecutorState));
             }
 
-            // LookAtExecutorState only if AimConfig is present
-            if (repo.IsComponentTypeRegistered<LookAtExecutorState>() && def.AimConfig != null)
+            if (repo.IsComponentTypeRegistered<LookAtExecutorState>())
             {
                 repo.AddComponent(entity, default(LookAtExecutorState));
             }
+
+            // ⭐ CE-3252 (LD-E) — where he looks, written on the muscle and read everywhere.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>())
+                repo.AddComponent(entity, default(Fdp.Toolkit.Perception.Look.LookState));
         }
 
         /// <summary>

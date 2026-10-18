@@ -44,7 +44,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
         D(EDescriptorType.dtWeaponTaskStatus),   // ⭐ CE-1049 WL-2 — the weapon muscle's report
         D(EDescriptorType.dtHitMarks),   // ⭐ CE-3210 (HL-8) — where the rounds struck, written by the muscle
-        D(EDescriptorType.dtDescent) };  // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
+        D(EDescriptorType.dtDescent),   // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
+        D(EDescriptorType.dtLookState) };  // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 
     private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)

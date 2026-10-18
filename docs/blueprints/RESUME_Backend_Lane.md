@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-current-answer: ⭐⭐⭐⭐ §0000000 (2026-10-18) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250) built; LD-1/LD-2 (CE-3252) next — its backend design is Look Direction §3.2a. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-19
+current-answer: ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b) built; BR-8 next. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -22,8 +22,11 @@ related-designs:
 [`CE-3249`](Blueprint_Issues_Tracker.md) BR-12 WorldSurvey ([design + as-built](../DESIGN_World_Survey_Sensor.md)) ·
 [`CE-3250`](Blueprint_Issues_Tracker.md) BR-3 SquadReport (Building Clearing §5d "BR-3 as built"). Answer to behaviors:
 [`NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md`](batches/NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md).
-⭐ **Next: [`CE-3252`](Blueprint_Issues_Tracker.md) LD-1/LD-2** — the backend detail is designed in
-[Look Direction §3.2a](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) (six gaps G1–G6, LD-E…LD-I). ⚠ The other armed-people
+⭐ **Built `2026-10-19`: [`CE-3252`](Blueprint_Issues_Tracker.md) LD-1/LD-2** — as-built
+[Look Direction §3.2b](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) (G1–G6 closed + G7 found: the look-at egress sent a raw
+entity index). ⭐ **At the behaviors merges:** BR-3 rebased onto their `CommandReport` (`SquadReportNotification`, one vocabulary); the
+survey ids moved to 410–412 (they took 407–409); `SetReportingEvent` forwarding is THEIR `CE-2299` (my identical copy dropped).
+⭐ **Next: BR-8**, then BR-6/BR-7, BR-9, BR-2/BR-4/BR-5, CE-2287 (the note's order). ⚠ The other armed-people
 backend session finished CE-3229…CE-3248 on 2026-10-17/18; its open rows are CE-3246, CE-3247, CE-3248 (and CE-2244, CE-3222).
 
 ## 000000. NOW (`2026-10-17`, later) — the queue is [`batches/HANDOFF_Backend_Continuation_2026_10_17.md`](batches/HANDOFF_Backend_Continuation_2026_10_17.md) *(🔒 user: "write a handoff for your future self to continue in what you are doing as well as the new armed civilian stuff")*

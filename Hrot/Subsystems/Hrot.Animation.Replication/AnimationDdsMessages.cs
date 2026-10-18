@@ -34,9 +34,16 @@ internal struct DdsAnimationChannelStatus
     public uint DispatchedInstanceId;
 }
 
+// ⭐ CE-3252 (LD-F, G5) — the look-at pair put on REAL DDS, as CE-2121 did for the stance pair. ⛔ Before, it had no generated
+//   serialiser and the first live reader threw "does not have a public static GetDescriptorOps()" at boot (measured when the pair was
+//   first registered on SimHost / CGF). State-bearing: Reliable + TransientLocal + KeepLast 1 (the QoS table's State()).
+[DdsTopic("hrot/anim/intent/LookAtChannel")]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
-internal unsafe struct DdsLookAtChannelIntent
+public unsafe partial struct DdsLookAtChannelIntent
 {
+    [DdsKey]
     public long EntityId;
     public ushort ActiveAction;
     public ushort Pad1;
@@ -46,9 +53,13 @@ internal unsafe struct DdsLookAtChannelIntent
     public fixed byte ActionParams[32];
 }
 
+[DdsTopic("hrot/anim/status/LookAtChannel")]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsLookAtChannelStatus
+public partial struct DdsLookAtChannelStatus
 {
+    [DdsKey]
     public long EntityId;
     public byte Status;           // NodeStatus cast to byte
     public byte Pad1;
@@ -60,7 +71,8 @@ internal struct DdsLookAtChannelStatus
 
 // ⭐ CE-2121 slice ② — the first animation topics put on REAL DDS: [DdsTopic] + the CycloneDDS generator. ⛔ Before, these structs
 //   had no generated serialiser (only the loopback tests' fake writers used them) and the first live DdsWriter threw
-//   "does not have a public static GetDescriptorOps()" at boot. The other animation topics stay test-only (CE-3010).
+//   "does not have a public static GetDescriptorOps()" at boot. ⭐ CE-3252 added the look-at pair (above); the montage / channel topics
+//   stay test-only (CE-3010).
 [DdsTopic("hrot/anim/StanceIntent")]
 [DdsIdlFile("hrot-anim-msgs")]
 [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

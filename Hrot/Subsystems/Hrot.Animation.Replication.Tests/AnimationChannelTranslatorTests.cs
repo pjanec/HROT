@@ -406,4 +406,30 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         Assert.Equal(2, translator.SentSampleCount);
         Assert.Equal(1, translator.DirtyFalsePositiveCount);
     }
+    // ── ⭐ CE-3252 (G7): a LookAtEntity crosses as the TARGET's network id ─────────────────────────────────────────────
+
+    /// <summary>⭐ CE-3252 (G7) — the brain names a target by ITS entity index; the wire must carry the target's NETWORK id, which the
+    /// ingress (SC-8) maps back. A target with no network id is held back (not sent, not remembered) until it has one.
+    /// ✅ Red-proof: drop the remap ⇒ the raw index crosses.</summary>
+    [Fact]
+    public unsafe void CE3252_LookAtEntityEgress_SendsTheTargetsNetworkId_AndHoldsAnUnmappedOne()
+    {
+        var writer = new CapturingWriter<DdsLookAtChannelIntent>();
+        var translator = new LookAtChannelIntentEgressTranslator(writer, _entityMap);
+        var man = SpawnEntity(500L);
+        var stranger = _world.CreateEntity();            // no network id yet
+        var channel = new LookAtChannel { ActiveAction = LookAtActionIds.LookAtEntity, ActionInstanceId = 1 };
+        ((LookAtEntityParams*)channel.Params)->TargetEntityId = (uint)stranger.Index;
+        _world.AddComponent(man, channel);
+
+        translator.ScanAndPublish(_world);
+        Assert.Empty(writer.Written);
+        Assert.Equal(1, translator.UnmappedTargetCount);
+
+        _world.AddComponent(stranger, new NetworkIdentity(777L));
+        _entityMap.Register(777L, stranger);
+        translator.ScanAndPublish(_world);
+        var msg = Assert.Single(writer.Written);
+        Assert.Equal(777u, ((LookAtEntityParams*)msg.ActionParams)->TargetEntityId);
+    }
 }

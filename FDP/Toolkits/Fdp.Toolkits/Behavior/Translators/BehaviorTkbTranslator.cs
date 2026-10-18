@@ -69,6 +69,9 @@ namespace Fdp.Toolkit.Behavior.Translators
             //   StanceTransitionSystem acks every request and ignores it. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
             var anim = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CharacterAnimationDefDto>();
             if (anim != null && anim.SupportedStances.Count > 1) caps |= ActorCapabilities.CanChangeStance;
+            // ⭐ CE-3252 (LD-F, G3) — a body with an animation definition can be told where to look; ⛔ without CanAim
+            //   LookAtDispatcherSystem failed every look request.
+            if (anim != null) caps |= ActorCapabilities.CanAim;
 
             if (repo.IsComponentTypeRegistered<ActorCapabilityState>() && !repo.HasComponent<ActorCapabilityState>(entity))
                 repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });

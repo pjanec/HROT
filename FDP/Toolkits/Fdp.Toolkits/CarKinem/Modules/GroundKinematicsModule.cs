@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
             PostSimulationSystems = new IEcsModuleSystem[]
             {
                 new CarKinematicsSystem(TrajectoryPool),
+                new Fdp.Toolkit.Perception.Look.LookFollowSystem(),   // ⭐ CE-3252 (LD-1) — the head, after the gait moved the body
                 new LinearKinematicsSystem(),
                 new PathTraceSystem(TrajectoryPool),   // ⭐ CE-3117 — the planned path as recorded state, for the map
             };

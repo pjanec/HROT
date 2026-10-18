@@ -36,6 +36,8 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.BlendOutWeight = 1f;
                 state.TargetType = 1; // point
             }
+            // ⭐ CE-3252 (LD-E) — the wanted look, for the gait, LookFollowSystem, vision and the wire.
+            Fdp.Toolkit.Perception.Look.LookOf.Want(world, entity, new System.Numerics.Vector3(p.WorldPointX, p.WorldPointY, p.WorldPointZ));
 
             channel.Report.Status = NodeStatus.Running;
         }
@@ -49,6 +51,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 ref var state = ref world.GetComponentRW<LookAtExecutorState>(entity);
                 state.TargetType = 0;
             }
+            Fdp.Toolkit.Perception.Look.LookOf.Release(world, entity);   // ⭐ CE-3252
         }
     }
 
@@ -80,6 +83,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.BlendOutWeight = 1f;
                 state.TargetType = 2; // entity
             }
+            // ⭐ CE-3252 (LD-E) — follow the entity (its index is THIS node's: the intent ingress remapped it from the network id).
+            var target = p.TargetEntityId <= int.MaxValue ? world.GetEntityByIndex((int)p.TargetEntityId) : Entity.Null;
+            if (!target.IsNull && world.IsAlive(target))
+                Fdp.Toolkit.Perception.Look.LookOf.Want(world, entity, default, target);
 
             channel.Report.Status = NodeStatus.Running;
         }
@@ -94,6 +101,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.TargetType = 0;
                 state.BlendInWeight = 0f;
             }
+            Fdp.Toolkit.Perception.Look.LookOf.Release(world, entity);   // ⭐ CE-3252
         }
     }
 
@@ -123,6 +131,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.BlendOutWeight = p.BlendOutTime;
                 state.TargetType = 0; // releasing
             }
+            Fdp.Toolkit.Perception.Look.LookOf.Release(world, entity);   // ⭐ CE-3252 — the head returns to the body
 
             channel.Report.Status = NodeStatus.Success;
         }

@@ -298,7 +298,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtTurretPose),       // ⭐ WL-1b (CE-1049) — the turret part's pose
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTaskStatus),   // ⭐ WL-2b — the muscle's report on it
                     D(Hrot.NED.Descriptors.EDescriptorType.dtHitMarks),           // ⭐ CE-3210 (HL-8) — where the rounds struck
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtDescent) },          // ⭐ airborne insertion B-1 — a body coming down
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtDescent),            // ⭐ airborne insertion B-1 — a body coming down
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtLookState) },        // ⭐ CE-3252 (LD-E) — where a person looks, the Muscle turns the head
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

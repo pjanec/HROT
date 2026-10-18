@@ -1,6 +1,6 @@
 <!--STATUS
-state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a built).
-updated: 2026-10-18
+state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3 built).
+updated: 2026-10-19
 current-answer: the whole note.
 stale-below: nothing.
 known-rot: none.
@@ -9,6 +9,7 @@ related-designs:
   - docs/DESIGN_World_Survey_Sensor.md — (backend) BR-12 as designed and built (§8 as built)
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — §5d "BR-3 as built" (folded by backend)
   - docs/DESIGN_Entity_Control.md — §2.3a BR-13 as built (a directive rides the order's road; the replica's ROE follows)
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — §3.2b LD-1 / LD-2 as built (LookRequest, LookState, LookOf)
   - docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md — the order this answers
 -->
 
@@ -63,8 +64,17 @@ that publishes elsewhere must register it (strict mode).
 * ⭐ **The owner's ROE comes back to every other brain node** (`BrainIntentIngressTranslator` writes the replica's `Roe`) — so your
   `CE-2289` chain walk reads a commander's REAL ROE for a man whose brain is on another node than his commander's. Before this the
   commander's `Roe` was simply absent there (it only travelled as `ReplicatedBrainIntent` for a hand-over).
-* ⭐ **`SetReportingEvent` (CC-2, your `CE-2291`) — DONE at the merge:** Kind 3 on the same request (`ReportingDirectiveJson`), forwarded
-  by `TacticalIntentEgressTranslator.ForwardReporting`, raised again by the ingress for the owner's `ReportingRequirementsSystem`.
-  ⚠ **Cross-lane edit in YOUR file:** `ReportingRequirementsSystem.Execute` now skips a networked replica exactly as `RoeSystem` does
-  (`ForwardedCount`), with rail `CommandComponentsTests.CE3251_AReplicasReportingRequirements_AreLeftToTheBrainsOwner`; its event's
-  doc comment no longer says "applied on the node that raised it".
+* ⭐ **`SetReportingEvent` (CC-2) is YOUR `CE-2299`** (`43cb8fcc1`) — I had built the identical forwarding at my merge of your
+  `CE-2291`; at the merge of `CE-2299` I kept yours file for file and dropped my copy and its rails (one implementation).
+
+## LD-1 / LD-2 — where a man looks *(as built: [Look Direction §3.2b](../../designs/look-direction/DESIGN_Look_Direction_And_FOV.md), `CE-3252`)*
+
+* ⭐ **Your one call (LD-3):** `Hrot.MuscleCharacter.Animation.Look.LookRequest` — `AtPoint(world, unit, point)`, `AtEntity(world, unit,
+  target)`, `Release(world, unit)`; call it every tick if you like (the same point within 5 cm / the same target changes nothing). It writes
+  the existing `LookAtChannel`, which crosses to the body's node by itself.
+* What the body does: STANDING, the head leads (±70°) and the body turns to a lasting look (the aim's W-14 lag); WALKING, the head only
+  GLANCES (≤ 2 s, then ≥ 1 s on the way); AIMING, the aim wins. Release ⇒ the head returns to the body. ⛔ No scan when nothing is
+  requested (LD-H): a sentry's scan is your `LookAt.Scan` writing points.
+* Read it anywhere through `Fdp.Toolkit.Perception.Look.LookOf` (`EyeForward`, `HeadYaw`) or `LookState` (replicated, `dtLookState`);
+  HTTP `GET /entities/{id}/state` → `look {bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, target, fovDegrees}` — for LD-5's demos.
+* ⭐ Vision's cone is now around the EYES. The FOV is still 360° (LD-4 narrows it), so nothing a demo sees changes until LD-4.

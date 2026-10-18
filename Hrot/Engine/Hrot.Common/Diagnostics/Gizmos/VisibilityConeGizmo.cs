@@ -24,10 +24,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var pos = tf.Position;
             var q   = tf.Rotation;
 
-            // Extract yaw (rotation around Z) from quaternion.
+            // Extract yaw (rotation around Z) from quaternion — ⭐ CE-3252 (LD-2): turned by the head, the cone vision uses.
             float yawRad = MathF.Atan2(
                 2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
+                1f - 2f * (q.Y * q.Y + q.Z * q.Z)) + Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(view, entity);
 
             float halfAngle = MathF.Acos(Math.Clamp(receptor.FieldOfViewCos, -1f, 1f));
 

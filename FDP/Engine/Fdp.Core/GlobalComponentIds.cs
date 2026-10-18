@@ -1015,6 +1015,10 @@ namespace Fdp.Core
         public const int WorldSurveyStatus = 411;
         /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyAnswer</c> (managed): the survey's latest answer on the brain.</summary>
         public const int WorldSurveyAnswer = 412;
+        /// <summary>⭐ <c>CE-3252</c> (backend, LD-1 / LD-2) — <c>LookState</c>: where a person looks (the wanted look, the head turn),
+        /// Muscle group, replicated as <c>dtLookState</c> (147). 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.2a.
+        /// ⚠ 413 measured free on backend, ui, coordinator and behaviors 2026-10-18.</summary>
+        public const int LookState = 413;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

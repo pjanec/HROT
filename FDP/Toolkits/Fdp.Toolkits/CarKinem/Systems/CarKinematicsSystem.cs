@@ -341,6 +341,22 @@ namespace CarKinem.Systems
                 aimedPerson = toAim.LengthSquared() > 0.01f;
             }
 
+            // ⭐ CE-3252 (LD-C, R-2049) — a STANDING person with a look and no aim turns his body to it (the W-14 lag — a lasting look
+            //   ends with the body facing it; the head leads, LookFollowSystem). ⛔ Walking he keeps his way: the head only glances.
+            //   The aim wins by construction — this is only reached when he does not aim.
+            bool lookingPerson = false;
+            if (!aimedPerson && @params.Class == VehicleClass.Pedestrian && targetSpeed <= 0.01f
+                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>()
+                && repo.HasComponent<Fdp.Toolkit.Perception.Look.LookState>(entity))
+            {
+                ref readonly var look = ref repo.GetComponentRO<Fdp.Toolkit.Perception.Look.LookState>(entity);
+                if (look.HasTarget != 0)
+                {
+                    toAim = new Vector2(look.Target.X - pos2D.X, look.Target.Y - pos2D.Y);
+                    lookingPerson = toAim.LengthSquared() > 0.01f;
+                }
+            }
+
             // Calculate desired velocity
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
@@ -407,7 +423,7 @@ namespace CarKinem.Systems
             // Integrate: a person's gait, else the bicycle model
             float yawRate;
             Vector2 planarOut = default;
-            if (person && aimedPerson)
+            if (person && (aimedPerson || lookingPerson))
             {
                 // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
                 Vector2 travel = avoidanceVelocity.LengthSquared() > 1e-6f ? Vector2.Normalize(avoidanceVelocity)
