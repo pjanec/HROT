@@ -33,6 +33,7 @@ related-designs:
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — OWNS the one pick broker and IMapPickContext; §13.12 (P5b) adds the entity LIST pick to it and one preset filter for every host (CE-1060)
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.6b OWNS the one params form (BehaviorParamsForm) the order form draws
   - docs/DESIGN_Map_3D_Mode.md — §3.8 OWNS picking in 3-D, which the order form's picks use unchanged
+  - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — its ClearBuilding order names a building and an entry door
 -->
 
 # Orders, params DTOs and entity classes

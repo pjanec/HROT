@@ -1105,31 +1105,42 @@ public static partial class BlockFigure
     /// <summary>
     /// ⭐ CE-1166 (§8.7 U6-a, U6-c) — the ARMS of a standing or crouched figure showing <paramref name="gesture"/>, the shape of
     /// <see cref="CarrierArms"/>: only the four arm parts change (the legs keep their gait), a soldier's rifle is slung across his back, and
-    /// <see cref="ArmGesture.HoldSign"/> appends a pole held in both hands with a board above his head. Static: the brain cycles a
-    /// gesture, the drawing does not animate it. <see cref="ArmGesture.None"/> returns the figure as it is.
+    /// <see cref="ArmGesture.HoldSign"/> appends a pole held in both hands with a board above his head. <see cref="ArmGesture.None"/>
+    /// returns the figure as it is.
+    /// ⭐ CE-1175 (docs/DESIGN_People_Display.md §5 U14) — ANIMATED on <paramref name="t"/>, the man's own clock in seconds (sim time plus
+    /// his seed's offset, so neighbours are out of step), with no state: the fist PUMPS (forearm ±25° about the elbow, 1.4 Hz), the sign
+    /// BOBS (hands and board ±6 cm, 0.8 Hz), hands-up SWAYS (both arms ±8° about the shoulders, 0.5 Hz), the wave WAVES (forearm ±30°,
+    /// 1.8 Hz); the warning and the wind-up hold still. ⭐ <c>t = 0</c> is the static pose.
     /// </summary>
-    public static KitPart[] GestureArms(KitPart[] parts, ArmGesture gesture, bool crouched, bool soldier)
+    public static KitPart[] GestureArms(KitPart[] parts, ArmGesture gesture, bool crouched, bool soldier, float t = 0f)
     {
         if (gesture == ArmGesture.None || parts.Length < TorsoIndex + 2 + 4) return parts;
         var drop = crouched ? CrouchDrop : Vector3.Zero;
         var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        float Swing(float degrees, float hz) => degrees * (MathF.PI / 180f) * MathF.Sin(2f * MathF.PI * hz * t);
+        float pump = gesture == ArmGesture.FistRaised ? Swing(25f, 1.4f) : 0f;
+        float sway = gesture == ArmGesture.HandsUp ? Swing(8f, 0.5f) : 0f;
+        float wave = gesture == ArmGesture.Waving ? Swing(30f, 1.8f) : 0f;
+        var bob = gesture == ArmGesture.HoldSign ? new Vector3(0f, 0f, 0.06f * MathF.Sin(2f * MathF.PI * 0.8f * t)) : Vector3.Zero;
         var hangL = Arm(l, l + new Vector3(0f, 0.02f, -0.30f), l + new Vector3(0.02f, 0.02f, -0.60f), PartRole.Hull);
         var hangR = Arm(r, r + new Vector3(0f, -0.02f, -0.30f), r + new Vector3(0.02f, -0.02f, -0.60f), PartRole.Hull);
         KitPart[] arms = gesture switch
         {
             // both arms straight up, a little apart: "don't shoot"
-            ArmGesture.HandsUp => [.. Arm(l, l + new Vector3(0.02f, 0.06f, 0.30f), l + new Vector3(0.04f, 0.10f, 0.60f), PartRole.Hull),
-                                   .. Arm(r, r + new Vector3(0.02f, -0.06f, 0.30f), r + new Vector3(0.04f, -0.10f, 0.60f), PartRole.Hull)],
-            // the right fist punched up, the left arm hanging
-            ArmGesture.FistRaised => [.. hangL, .. Arm(r, r + new Vector3(0.04f, -0.04f, 0.30f), r + new Vector3(0.06f, -0.02f, 0.60f), PartRole.Hull)],
-            // both hands on the pole in front of his face, one above the other
-            ArmGesture.HoldSign => [.. Arm(l, l + new Vector3(0.22f, 0.08f, -0.10f), new Vector3(0.32f, 0.02f, 1.30f) + drop, PartRole.Hull),
-                                    .. Arm(r, r + new Vector3(0.24f, -0.08f, 0.08f), new Vector3(0.34f, -0.02f, 1.62f) + drop, PartRole.Hull)],
+            ArmGesture.HandsUp => [.. Arm(l, l + Sideways(new Vector3(0.02f, 0.06f, 0.30f), sway), l + Sideways(new Vector3(0.04f, 0.10f, 0.60f), sway), PartRole.Hull),
+                                   .. Arm(r, r + Sideways(new Vector3(0.02f, -0.06f, 0.30f), sway), r + Sideways(new Vector3(0.04f, -0.10f, 0.60f), sway), PartRole.Hull)],
+            // the right fist punched up, the left arm hanging; the forearm pumps forward and back about the elbow
+            ArmGesture.FistRaised => [.. hangL, .. Arm(r, r + new Vector3(0.04f, -0.04f, 0.30f),
+                                                       r + new Vector3(0.04f, -0.04f, 0.30f) + Forward(new Vector3(0.02f, 0.02f, 0.30f), pump), PartRole.Hull)],
+            // both hands on the pole in front of his face, one above the other; hands, pole and board bob together
+            ArmGesture.HoldSign => [.. Arm(l, l + new Vector3(0.22f, 0.08f, -0.10f) + bob, new Vector3(0.32f, 0.02f, 1.30f) + drop + bob, PartRole.Hull),
+                                    .. Arm(r, r + new Vector3(0.24f, -0.08f, 0.08f) + bob, new Vector3(0.34f, -0.02f, 1.62f) + drop + bob, PartRole.Hull)],
             // ⭐ the police WARNING (behaviors' escalation ladder, EL-3): the right arm straight out in front at shoulder height, the palm up —
             //   "stop" — the left hanging
             ArmGesture.Warning => [.. hangL, .. Arm(r, r + new Vector3(0.30f, 0.02f, 0.02f), r + new Vector3(0.56f, 0.04f, 0.12f), PartRole.Hull)],
             // the right arm up and out, the forearm tilted outward
-            ArmGesture.Waving => [.. hangL, .. Arm(r, r + new Vector3(0.02f, -0.24f, 0.16f), r + new Vector3(0.04f, -0.36f, 0.44f), PartRole.Hull)],
+            ArmGesture.Waving => [.. hangL, .. Arm(r, r + new Vector3(0.02f, -0.24f, 0.16f),
+                                                   r + new Vector3(0.02f, -0.24f, 0.16f) + Sideways(new Vector3(0.02f, -0.12f, 0.28f), wave), PartRole.Hull)],
             // the wind-up: the throwing hand back above the shoulder, the other arm forward toward the target
             _ => [.. Arm(l, l + new Vector3(0.28f, 0.02f, -0.04f), l + new Vector3(0.56f, -0.02f, 0.02f), PartRole.Hull),
                   .. Arm(r, r + new Vector3(-0.22f, -0.06f, 0.10f), r + new Vector3(-0.30f, -0.04f, 0.38f), PartRole.Hull)],
@@ -1138,7 +1149,23 @@ public static partial class BlockFigure
         for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
         if (soldier && shaped.Length > WeaponIndex)
             shaped[WeaponIndex] = Limb(new Vector3(-0.16f, 0.22f, 1.55f) + drop, new Vector3(-0.14f, -0.24f, 0.85f) + drop, 0.05f, 0.08f, ColourRole.Metal);   // slung
-        return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop)] : shaped;
+        return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop + bob)] : shaped;
+    }
+
+    /// <summary>⭐ CE-1175 — <paramref name="v"/> turned by <paramref name="radians"/> in the figure's side plane (about its forward axis X).</summary>
+    private static Vector3 Sideways(Vector3 v, float radians)
+    {
+        if (radians == 0f) return v;
+        float c = MathF.Cos(radians), s = MathF.Sin(radians);
+        return new Vector3(v.X, v.Y * c - v.Z * s, v.Y * s + v.Z * c);
+    }
+
+    /// <summary>⭐ CE-1175 — <paramref name="v"/> turned by <paramref name="radians"/> in the figure's fore-aft plane (about its side axis Y).</summary>
+    private static Vector3 Forward(Vector3 v, float radians)
+    {
+        if (radians == 0f) return v;
+        float c = MathF.Cos(radians), s = MathF.Sin(radians);
+        return new Vector3(v.X * c + v.Z * s, v.Y, -v.X * s + v.Z * c);
     }
 
     /// <summary>⭐ CE-1166 (U6-d) — the protest sign: a pole through both hands (from below the low hand to above the head) and a board on top.</summary>

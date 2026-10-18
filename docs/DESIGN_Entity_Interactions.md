@@ -26,6 +26,7 @@ related-designs:
   - FDP/Docs/projects/behavior-control/Behavior Control Subsystem Design.json.md §3.A–B — OWNS the interaction channel and its executors (the actor side)
   - docs/DESIGN_Entity_Control.md — OWNS the Possess / Release / ControlFrame interaction cases (M-6)
   - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ad — OWNS cross-role infrastructure capabilities (CE-221); embarkation is one (§7.1d)
+  - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — its breacher opens and breaches doors through the door interactions
 -->
 
 # DESIGN — **entity interactions** *(one way for an actor to act on an entity it does not own)*

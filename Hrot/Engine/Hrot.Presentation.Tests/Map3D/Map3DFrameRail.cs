@@ -2439,6 +2439,94 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1178 + CE-1175 (docs/DESIGN_People_Display.md §5 U17, U14) — four protesters (hands up, fist raised, a sign, waving) and a
+    /// police officer giving the WARNING, in 3-D, with the production card gizmos (frame, name, and the effect / gesture line as the card's
+    /// row 50): every line sits in a card ABOVE the man's head, none at his feet; the arms are caught mid-motion. Screenshot
+    /// <c>people-1-lines-above.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1178_V_TheLinesSitAboveTheHeads()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        long net = 7100;
+        var men = new System.Collections.Generic.List<Entity>();
+
+        Entity Man(long type, float dx, Fdp.Toolkit.Combat.GestureKind gesture, string name)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)),
+                                                     Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f) });   // facing the camera
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new NetworkIdentity(++net));
+            world.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = ForceId.Neutral });
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, e, gesture));
+            men.Add(e);
+            return e;
+        }
+        long civ = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
+        Man(civ, -4f, Fdp.Toolkit.Combat.GestureKind.HandsUp, "Civilian");
+        Man(civ, -2f, Fdp.Toolkit.Combat.GestureKind.FistRaised, "Civilian");
+        Man(civ, 0f, Fdp.Toolkit.Combat.GestureKind.HoldSign, "Civilian");
+        Man(civ, 2f, Fdp.Toolkit.Combat.GestureKind.Waving, "Civilian");
+        Man(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, 4.5f, Fdp.Toolkit.Combat.GestureKind.Warning, "Police");
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus()) { CurrentCamera = () => canvas.Camera };
+        gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        gizmos.LabelLift = bodies.TopAbove;   // as MapInteractionPack wires it
+        canvas.AddLayer(gizmos);
+        var frameGizmo = new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo();
+        var nameGizmo = new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo();
+        var lineGizmo = new Hrot.Common.Diagnostics.Gizmos.GestureGizmo();
+        foreach (var e in men)
+        {
+            var at = world.GetComponentRO<SimTransform>(e).Position;
+            buffer.DrawSpatialAnchor(world.GetComponentRO<NetworkIdentity>(e).Value, at.X, at.Y, at.Z, 0f, 0f, 0f);
+            frameGizmo.Draw(world, e, buffer);
+            nameGizmo.Draw(world, e, buffer);
+            lineGizmo.Draw(world, e, buffer);
+        }
+
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.4f), 11f, MathF.PI * 1.5f, -0.12f);   // from the south, eye height
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-1-lines-above.png"));
+        Assert.Equal(men.Count, gizmos.Cards.CardsDrawn);
+        Assert.Equal(0, gizmos.LabelsDrawn3D);   // no loose line left on the ground
+        Assert.All(men, e => Assert.NotNull(bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(e).Value)));
+        float? TopOf(int k) => bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(men[k]).Value);
+        Assert.True(TopOf(2) > TopOf(1) + 0.3f, "the sign carrier's card does not clear his sign");
+    }
+
+    /// <summary>
     /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8) — the (V) acceptance for the clouds: a tear-gas cloud
     /// (6 m, 3 m high) over three civilians and a smoke cloud (8 m, 4 m high) beside them, from backend's replicated
     /// <c>AreaEffectCloud</c>; 3-D from the south, then the 2-D map with the production symbol gizmo (the civilians get symbols, the clouds
