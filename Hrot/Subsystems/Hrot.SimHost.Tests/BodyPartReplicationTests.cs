@@ -29,6 +29,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();   // ⭐ CE-3252
             w.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();   // ⭐ CE-3256
             w.RegisterComponent<Fdp.Toolkit.Combat.Lean>();   // ⭐ CE-3257
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-3259
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -198,6 +199,33 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, default));
+        }
+
+        /// <summary>⭐ <c>CE-3259</c> (BR-6) — a soldier's proficiency reaches the node that resolves his shots with every source and set bit, so
+        /// the muscle's spread reads the AUTHORED value (not only the type default it projected at spawn). ✅ Red-proof: the ingress dropping
+        /// <c>Authored</c> ⇒ 0 behind its set bit ⇒ 2.5, not Militia's 1.6 ⇒ red.</summary>
+        [Fact]
+        public void CE3259_CombatProficiency_ReachesTheMuscle_TheAuthoredValueWins()
+        {
+            var p = new Fdp.Toolkit.Behavior.Components.CombatProficiency
+            {
+                Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, TypeDefault = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular,
+                Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet | Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet,
+            };
+            var sample = EntityCombatProficiencyEgressTranslator.ToSample(49L, p);
+
+            var (node, unit, map) = Node(49L);
+            using (node)
+            {
+                var ingress = new EntityCombatProficiencyIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(1.6f, Fdp.Toolkit.Behavior.Components.ProficiencyOf.SpreadFactor(node, unit));   // Militia — ⚠ not Untrained: a
+                                                                                                           // dropped Authored reads 0 = Untrained
+            }
+
+            Assert.NotEqual(sample, EntityCombatProficiencyEgressTranslator.ToSample(49L, p with { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite }));
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

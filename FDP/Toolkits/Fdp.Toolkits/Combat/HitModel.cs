@@ -38,7 +38,8 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>
         /// σ (radians, the half-width of a uniform spread) of <paramref name="shooter"/> firing <paramref name="mount"/>: the mount's
-        /// <see cref="WeaponMountDto.DispersionMils"/> (0 = exact aim ⇒ 0) × 2 moving × 2 under fire × stance (prone 0.5, crouched 0.75).
+        /// <see cref="WeaponMountDto.DispersionMils"/> (0 = exact aim ⇒ 0) × 2 moving × 2 under fire × stance (prone 0.5, crouched 0.75)
+        /// × a wounded arm × ⭐ the shooter's proficiency (<c>CE-3259</c>, DA-2 — 1.0 at Regular and with none).
         /// ⭐ The stance is the LOGICAL one — the brain's <see cref="StanceIntent.TargetStance"/>, applied the tick it is ordered
         /// (DESIGN_Building_Interiors.md §3f); no stance component ⇒ standing. Range is NOT a factor (it comes from geometry).
         /// </summary>
@@ -55,6 +56,9 @@ namespace Fdp.Toolkit.Combat
                 sigma *= UnderFireFactor;
             sigma *= StanceFactor(LogicalStance(repo, body));
             sigma *= Fdp.Toolkit.Physics.BodyParts.Wounds.AimFactor(repo, body);   // ⭐ CE-3210 (HL-7) — a wounded arm aims worse
+            // ⭐ CE-3259 (BR-6, DA-2) — the shooter's PROFICIENCY: Untrained 2.5 … Regular 1.0 (bit-identical) … Elite 0.65. Read on the node
+            //   resolving the shot (the muscle) — CombatProficiency is replicated (dtCombatProficiency), so the authored value reaches it
+            sigma *= Fdp.Toolkit.Behavior.Components.ProficiencyOf.SpreadFactor(repo, body);
             return sigma;
         }
 

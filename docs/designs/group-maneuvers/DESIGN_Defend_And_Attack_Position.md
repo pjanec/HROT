@@ -436,7 +436,14 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 | the scope in use | ⭐ **the binocular rule on a weapon**: `HeldItems.ScopeUp` — AIMED (`WeaponPostureKind.Aimed`) with an own mount (`ActiveMount` < 32) that has a scope ⇒ `VisualPerception.Optics` multiplies the range and narrows the cone (binoculars first: one or the other); `HeldItems.IdentificationOptics` returns the magnification. Lowered (Ready / Idle) ⇒ the naked eye | `HeldItems.cs`, `VisualPerception.cs` | `HeldItemsTests.CE3254_*` (500 → 2000 m: a man at 600 m becomes reachable; ×4 identification) |
 | the rifles | `ScopedRifle` mount (small arms, the 7.62 ball, ×4 scope, 1.5 s aim): **M24-class** sniper 0.3 mil, 5 rounds, 800 m, 4° · **M110-class** DMR 1 mil, 20 rounds, 600 m, 6° · **SVD-class** DMR 1 mil, 10 rounds, 600 m, 6° | `NedTkbCatalog.ScopedRifle` (BdcTkbCatalog.cs) | the same |
 | the men | `Infantry_Sniper` **209** (US) · `Infantry_Marksman` **210** (US) · `Infantry_MarksmanSvd` **211** (Russia, faction 2) — the rifleman's body with the scoped rifle; the role is `TacticalDesignation.Marksman` (BR-8) | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` | the same |
-| ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6, blocked on `CE-2273`) | | |
+| ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6 — ✅ built since, §12c) | | |
+
+### 12c. BR-6 as built — the shooter's proficiency in the spread *(backend, `CE-3259`, 2026-10-19 — cross-lane fold by backend; DA-2)*
+
+| piece | as built | where | rail |
+|---|---|---|---|
+| the factor | `HitModel.Sigma` × `ProficiencyOf.SpreadFactor(body)` — Untrained 2.5 · Militia 1.6 · Regular 1.0 · Veteran 0.8 · Elite 0.65, linear between; a man with no component and an authored Regular are **bit-identical** to before. `body` is `HitModel.BodyOf`: a man's own, a carried weapon system's carrier, a station weapon's host (a vehicle reads Regular) | `Combat/HitModel.cs` | `HitModelTests.CE3259_*` |
+| ⭐ **who can read it** | ⚠ found while building: `CombatProficiency` was registered on every node but NOT replicated — the muscle, which resolves the shot (`FireProcessingSystem`), held only the TYPE default it projected at spawn; an authored "this squad is elite" never reached the spread. ⇒ **replicated**: Brain group, `dtCombatProficiency` (150), all three sources and the set bits (the precedence stays in `ProficiencyOf`, the one reader). BR-7's acquisition reads it on the muscle too | `EntityCombatProficiencyTranslators.cs`, `HrotOwnershipGroups`, `NedOwnershipGroupBinding` | `BodyPartReplicationTests.CE3259_*`, both descriptor-map rails |
 
 ### 12c. DA-K — what is built, what is blocked *(`CE-2281`, behaviors, 2026-10-19)*
 
@@ -602,7 +609,7 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 ```mermaid
 classDiagram
   direction LR
-  class EngagementArea { <<NEW component 417, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
+  class EngagementArea { <<NEW component 416, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
   class SetEngagementAreaEvent { <<NEW event 3107, the SetRoeEvent twin>> replaces the set · all empty withdraws }
   class EngagementAreaSystem { <<NEW, Input, after ReportingRequirementsSystem>> origin-gated · a replica left to its owner }
   class EngagementAreas { <<NEW pure reader, the ONLY one>> Allows(view, man, point) · AllowsUnit(view, commander, point) · IsNoFire(view, shooter, point) · FirstAllowed }
@@ -665,7 +672,7 @@ brain node in another process needs the commander's component there (the CE-2289
 replicate it).
 
 **As built (2026-10-19, `CE-2282`)** — as drawn above, with DA-27 as corrected (the Suppress order and step, not `TopContact`):
-`EngagementArea` (component 417, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
+`EngagementArea` (component 416, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
 (`MissionControlModule`, after `ReportingRequirementsSystem`), `EngagementAreas` (`Allows`, `AllowsUnit`, `IsNoFire`, `InArc`),
 `EqsTacticsNodes.FirstAllowedRemembered`; the picks in `PostureNodes.Fire`, `PeekAndFireNodes.LockTarget`,
 `ThreatMatrixAssignmentSystem`, `SquadManeuverRunner.Suppress`, `SuppressNodes.SuppressContact`; the gates in

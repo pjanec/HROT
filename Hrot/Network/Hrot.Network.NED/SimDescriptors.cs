@@ -428,6 +428,20 @@ namespace Hrot.NED.Descriptors
         public byte Side;
     }
 
+    // ⭐ CE-3259 (BR-6/BR-7) — a soldier's combat proficiency (behaviors' CombatProficiency, CE-2273), his brain's owner → every node, all
+    //   three sources and the set bits (the precedence stays in ProficiencyOf, the one reader). Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic("EntityCombatProficiency")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityCombatProficiency
+    {
+        [DdsKey] public long EntityId;
+        public float Authored;
+        public float Unit;
+        public float TypeDefault;
+        public byte Set;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
