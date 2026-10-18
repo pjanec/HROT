@@ -172,9 +172,12 @@ namespace Fdp.Toolkit.Perception.Sensors
                 ref var c = ref candidates[i];
                 if (c.EntityId <= 0) continue;
                 var target = new Entity((ulong)c.EntityId);
-                bool visible = unitOk && view.IsAlive(target) && view.HasComponent<SimTransform>(target)
-                            && _strategy.IsVisible(view, unit, target);
-                if (!visible) c.EntityId = -1L;
+                // ⭐ CE-3260 (BR-7, §5.7 AQ-3) — how many of his body points show rides the result to the memory stage (the acquisition delay)
+                int total = 0;
+                int clear = unitOk && view.IsAlive(target) && view.HasComponent<SimTransform>(target)
+                          ? _strategy.VisiblePoints(view, unit, target, out total) : 0;
+                if (clear <= 0) c.EntityId = -1L;
+                else Acquisition.Encode(ref c, clear, total);
             }
         }
     }

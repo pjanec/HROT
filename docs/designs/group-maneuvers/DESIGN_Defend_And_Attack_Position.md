@@ -438,6 +438,14 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 | the men | `Infantry_Sniper` **209** (US) · `Infantry_Marksman` **210** (US) · `Infantry_MarksmanSvd` **211** (Russia, faction 2) — the rifleman's body with the scoped rifle; the role is `TacticalDesignation.Marksman` (BR-8) | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` | the same |
 | ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6 — ✅ built since, §12c) | | |
 
+### 12d. BR-7 as built — acquisition time by exposure *(backend, `CE-3260`, 2026-10-19 — the engine of DA-3; its design lives in [Sensors and Doctrine §5.7](../../DESIGN_Sensors_And_Doctrine.md), not here)*
+
+`delay = 2 s × (max(0, range − 100 m) / 400 m + (1 − clear points / his stance's)) × the observer's factor` (Untrained 1.8 · Militia 1.4 ·
+Regular 1.0 · Veteran 0.85 · Elite 0.7, through `ProficiencyOf`). A fully exposed man within 100 m: 0, as before. One of three points at
+300 m: ≈ 2.3 s. Fully exposed at 300 m: 1 s. A hide longer than the lost threshold (20 ticks) starts the dwell over. ⭐ Only SIGHT waits
+(vision, and thermal, which shares the sight test); a radar contact does not. ⇒ Your short peek and the set-back window post now protect
+from being SEEN, not only from being hit (DA-3's point).
+
 ### 12c. BR-6 as built — the shooter's proficiency in the spread *(backend, `CE-3259`, 2026-10-19 — cross-lane fold by backend; DA-2)*
 
 | piece | as built | where | rail |
@@ -609,7 +617,7 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 ```mermaid
 classDiagram
   direction LR
-  class EngagementArea { <<NEW component 416, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
+  class EngagementArea { <<NEW component 417, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
   class SetEngagementAreaEvent { <<NEW event 3107, the SetRoeEvent twin>> replaces the set · all empty withdraws }
   class EngagementAreaSystem { <<NEW, Input, after ReportingRequirementsSystem>> origin-gated · a replica left to its owner }
   class EngagementAreas { <<NEW pure reader, the ONLY one>> Allows(view, man, point) · AllowsUnit(view, commander, point) · IsNoFire(view, shooter, point) · FirstAllowed }
@@ -672,7 +680,7 @@ brain node in another process needs the commander's component there (the CE-2289
 replicate it).
 
 **As built (2026-10-19, `CE-2282`)** — as drawn above, with DA-27 as corrected (the Suppress order and step, not `TopContact`):
-`EngagementArea` (component 416, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
+`EngagementArea` (component 417, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
 (`MissionControlModule`, after `ReportingRequirementsSystem`), `EngagementAreas` (`Allows`, `AllowsUnit`, `IsNoFire`, `InArc`),
 `EqsTacticsNodes.FirstAllowedRemembered`; the picks in `PostureNodes.Fire`, `PeekAndFireNodes.LockTarget`,
 `ThreatMatrixAssignmentSystem`, `SquadManeuverRunner.Suppress`, `SuppressNodes.SuppressContact`; the gates in

@@ -143,3 +143,18 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 * ⚠ **I replicated your `CombatProficiency`** (Brain group, `dtCombatProficiency` 150): it was registered everywhere but not sent, so the
   muscle — which resolves every shot — only ever saw the TYPE default. Write it on the brain as you do; the muscle now sees the authored
   and the unit values too. No change to your reader or your fill system.
+
+## BR-7 — acquisition time by exposure *(as built: [Sensors and Doctrine §5.7](../../DESIGN_Sensors_And_Doctrine.md), `CE-3260`)*
+
+* A seen man is ACQUIRED after a dwell: `2 s × (beyond-100 m range / 400 m + the hidden share of his body points) × the observer's
+  factor` (Untrained 1.8 … Regular 1.0 … Elite 0.7, read through your `ProficiencyOf`). Fully exposed within 100 m ⇒ the same tick, as
+  before. One of three points at 300 m ⇒ ≈ 2.3 s.
+* ⭐ Your peek / window post now matters for being SEEN: a man up for less than his dwell is never acquired, and a hide longer than
+  20 ticks starts it over. `SensorChange.Contact` simply arrives later; nothing in your API changes.
+* ⚠ Only sight waits (vision, and thermal, which shares the sight test); radar and other sensors acquire as before.
+
+## ⚠ Component ids — I adopted YOUR resolution
+
+We both moved at once on the 416 clash (my `Lean` → 417, your `EngagementArea` → 417). I took yours: **`Lean` 416, `EngagementArea`
+417**, so your next merge of `backend` finds identical lines. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
+proposes per-lane component-id blocks for the user to decide.

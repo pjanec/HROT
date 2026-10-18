@@ -51,5 +51,26 @@ namespace Fdp.Toolkit.Perception.Tests
             SensorContactList.UpdateSighting(ref list, 42, edge + 3);
             Assert.Equal((42L, SensorTrackStatus.Acquired), Assert.Single(Apply(ref list, edge + 3)));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3260</c> (BR-7, §5.7 AQ-1) — the DWELL: a sighting that needs 2 s is not acquired before it has been seen for 2 s without a
+        /// break; a sighting needing 0 is acquired at once (the rule above, unchanged).
+        /// </summary>
+        [Fact]
+        public void CE3260_ASightingWithADwell_IsAcquiredOnlyAfterIt()
+        {
+            Span<(long, SensorTrackStatus)> buf = stackalloc (long, SensorTrackStatus)[PerceptionConstants.MaxTrackedTargets];
+            var list = new SensorContactList();
+            SensorContactList.UpdateSighting(ref list, 7, 10, 1.0f, 2f);
+            SensorContactList.UpdateSighting(ref list, 8, 10, 1.0f, 0f);
+            int n = ContactHysteresis.Apply(ref list, 10, buf, out _, 1.0);
+            Assert.Equal((8L, SensorTrackStatus.Acquired), Assert.Single(buf.Slice(0, n).ToArray()));
+
+            SensorContactList.UpdateSighting(ref list, 7, 11, 2.9f, 2f);
+            Assert.Equal(0, ContactHysteresis.Apply(ref list, 11, buf, out _, 2.9));
+            SensorContactList.UpdateSighting(ref list, 7, 12, 3.0f, 2f);
+            n = ContactHysteresis.Apply(ref list, 12, buf, out _, 3.0);
+            Assert.Equal((7L, SensorTrackStatus.Acquired), Assert.Single(buf.Slice(0, n).ToArray()));
+        }
     }
 }

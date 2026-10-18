@@ -448,18 +448,32 @@ namespace Fdp.Toolkit.Perception.Components
         /// <summary>Hysteresis state of each contact slot.</summary>
         public fixed byte State[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>⭐ <c>CE-3260</c> (BR-7, §5.7 AQ-5) — when the current unbroken run of sightings began (sim s): a man unseen longer than
+        /// the lost threshold starts a new run.</summary>
+        public fixed float VisibleSince[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>CE-3260</c> (AQ-1/AQ-2) — how long he must stay seen before he is acquired (s), from the latest sighting's range,
+        /// exposure and the observer's proficiency. 0 ⇒ the tick he is seen (a fully exposed man within 100 m).</summary>
+        public fixed float AcquireAfter[PerceptionConstants.MaxTrackedTargets];
+
         /// <summary>
         /// Updates the last-seen tick for an existing contact, or adds a new
         /// <see cref="SensorContactState.Pending"/> slot if the entity is not yet tracked.
         /// Does nothing if the list is full and the entity is not already tracked.
         /// </summary>
-        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick)
+        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick) => UpdateSighting(ref list, entityId, tick, 0f, 0f);
+
+        /// <summary>⭐ <c>CE-3260</c> — <see cref="UpdateSighting(ref SensorContactList, long, uint)"/> with the time and the dwell this
+        /// sighting needs (<see cref="AcquireAfter"/>); a sighting after a silence longer than the lost threshold starts a new run.</summary>
+        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick, float now, float acquireAfter)
         {
             for (int i = 0; i < list.Count; i++)
             {
                 if (list.EntityIds[i] == entityId)
                 {
+                    if (tick - list.LastSeenTick[i] > Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks) list.VisibleSince[i] = now;
                     list.LastSeenTick[i] = tick;
+                    list.AcquireAfter[i] = acquireAfter;
                     return;
                 }
             }
@@ -470,6 +484,8 @@ namespace Fdp.Toolkit.Perception.Components
                 list.EntityIds[idx]    = entityId;
                 list.LastSeenTick[idx] = tick;
                 list.State[idx]        = (byte)SensorContactState.Pending;
+                list.VisibleSince[idx] = now;
+                list.AcquireAfter[idx] = acquireAfter;
             }
         }
     }

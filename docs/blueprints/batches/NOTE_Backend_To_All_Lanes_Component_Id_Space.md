@@ -17,8 +17,9 @@ correct, and it still collided twice, because a measurement is only true until s
 | id | behaviors | backend | resolved |
 |---|---|---|---|
 | 415 | `CombatProficiency` (`CE-2273`) | `Lean` (`CE-3257`) | backend merged second → `Lean` 416 |
-| 416 | `EngagementArea` (`CE-2282`) | `Lean`, moved | backend merged second → `Lean` **417** |
+| 416 | `EngagementArea` (`CE-2282`) | `Lean`, moved | ⚠ BOTH lanes moved at once — backend `Lean` → 417, behaviors `EngagementArea` → 417 — a third clash; backend adopted behaviors' resolution: **`Lean` 416, `EngagementArea` 417** |
 
+⇒ Even the repair collided: two lanes each "merging second" from their own point of view. That is the strongest argument for blocks.
 Moving one was cheap: `Lean` is a runtime id and NoScenario, so nothing persisted. ⚠ A component that is persisted or used on the wire
 by id would not be.
 
