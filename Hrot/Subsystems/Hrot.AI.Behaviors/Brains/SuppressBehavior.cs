@@ -62,6 +62,15 @@ namespace Hrot.AI.Behaviors.Brains
             float cooldown = p.CooldownSeconds > 0f ? p.CooldownSeconds : 1f;
 
             var target = p.Target;
+            // ⭐ CE-2282 DA-27 — his own sector: a target (or point) outside it is not fired at, he holds his position
+            var aimAt = !target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+                ? world.GetComponentRO<SimTransform>(target).Position : p.Point;
+            if ((p.HasPoint != 0 || !target.IsNull) && !Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, aimAt))
+            {
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
+                StopPoint(world, self, ref ws);
+                return NodeStatus.Running;
+            }
             bool known = !target.IsNull && world.IsAlive(target) && Injury.IsInTheFight(world, target)
                       && (Fdp.Toolkit.Perception.SightNow.Sees(world, self, target) || HiddenTargetThrow.LastKnown(world, self, target, out _));
             if (known)

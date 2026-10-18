@@ -501,6 +501,9 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Suppress(EntityRepository world, Entity commander, Entity member, Entity target, Vector3 reported, Vector3 at, float speed)
         {
             if (IsUnit(world, member)) { Hold(world, commander, member, at, speed); return; }
+            // ⭐ CE-2282 DA-27 — the squad's sector (its commander's Allow, DA-24's squad level): a contact outside it is not suppressed;
+            //   the member holds instead (TopContact is unchanged: the play still hides and moves from it)
+            if (!Fdp.Toolkit.Behavior.Components.EngagementAreas.AllowsUnit(world, commander, reported)) { Hold(world, commander, member, at, speed); return; }
             Publish(world, commander, member, BehaviorNames.Suppress, JsonSerializer.Serialize(new SuppressParamsJsonDto
             {
                 Target = Fdp.Toolkit.Replication.EntityRef.Of(world, target), X = reported.X, Y = reported.Y, Z = reported.Z,

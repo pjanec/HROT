@@ -352,6 +352,21 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool Engageable(EntityRepository world, Entity e)
             => Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
 
+        /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
+        /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>
+        internal static unsafe Entity FirstAllowedRemembered(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (TargetMemory.IsAnonymous(in mem, i)) continue;
+                var e = new Entity((ulong)mem.EntityIds[i]);
+                if (Engageable(world, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
+            }
+            return Entity.Null;
+        }
+
         /// <summary>⭐ CE-2202 — the first identified, live entity in memory (slots are score-ordered), or none.</summary>
         private static unsafe Entity FirstLiveRemembered(EntityRepository world, Entity self)
         {

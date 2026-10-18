@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Combat
             if (flat > range) return false;
             if (!AimAndFireExecutor.RoePermitsFire(world, unit)) return false;
             if (FriendlyInBurst(world, unit, point, warhead.BlastLethalRadiusM)) return false;
+            if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point)) return false;   // ⭐ CE-2282 DA-L
 
             world.Bus.Publish(new WeaponFireIntent
             {

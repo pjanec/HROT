@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 for the user) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
@@ -545,6 +545,96 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
+
+### 13c. DA-L in detail — the mechanism *(`CE-2282`, behaviors, 2026-10-19 — leans refining the approved DA-20 / DA-24, for the user)*
+
+**INVENTORY** (a read-only sweep of every site, 2026-10-19; codebase-memory CLI earlier found no `Sector` / `EngagementArea` /
+`WatchBearing` / `FireArc` type — grep agrees; `check_index_coverage` NOT run, CLI only):
+
+| need | measured | where |
+|---|---|---|
+| ⛔ ONE choke point for "what to shoot" | **none**. `TopThreat` serves BOTH hiding (TakeCover, FallBack, posture sensors) and fire (`PostureNodes.Fire`); `LockTarget` picks for PeekAndFire / VehicleFightFromCover; `ThreatMatrixAssignment` assigns per member; `TopContact` feeds the plays' Suppress orders | `EqsTacticsNodes.cs:322,223,235`; `PostureNodes.cs:443`; `PeekAndFireNodes.cs:527`; `ThreatMatrixAssignmentSystem.cs:105`; `SquadManeuverRunner.cs:693` |
+| the gates | aimed: `AimAndFireExecutor.HoldOf` (:585, shared by the aimed and the turret path) and friendly / neutral on the line (:253, :261); blind `FireBlind` (:438-442); point `ShootAtPoint` (:257-263); the hidden-target throw (`HiddenTargetThrow.TryThrow`) | `AimAndFireExecutor.cs`, `FireAtPointExecutor.cs`, `HiddenTargetThrow.cs` |
+| ⛔ who shot at me | nothing: `Hit` and `NearMiss` are timestamps in `RecentSenses`; `NearMissEvent` has the round's closest point but no shooter (the projectile's `Shooter` is not copied) | `RecentSenses.cs`; `NearMissEvent.cs:16-28`; `BallisticsSystem.cs:345-370` |
+| an area | `EditablePolyline` (Hrot.Core) on every node, read from the toolkit as `IAreaOutline` through `WeatherField.TryOutline`; `PolygonMath.Contains` | `IAreaOutline.cs`; `WeatherField.cs:236`; `PolygonMath.cs:29` |
+| a network id → entity | `NetworkIdResolver.ResolveNetworkId` (the ONE resolver) | `Replication/Services/NetworkIdResolver.cs:105` |
+| the operator's sector | ⛔ `Designate › Set sector` writes a station-local remembered field, not an order field — no AI effect | `OrderDesignations.cs:24-112` |
+
+```mermaid
+classDiagram
+  direction LR
+  class EngagementArea { <<NEW component 416, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
+  class SetEngagementAreaEvent { <<NEW event 3107, the SetRoeEvent twin>> replaces the set · all empty withdraws }
+  class EngagementAreaSystem { <<NEW, Input, after ReportingRequirementsSystem>> origin-gated · a replica left to its owner }
+  class EngagementAreas { <<NEW pure reader, the ONLY one>> Allows(view, man, point) · AllowsUnit(view, commander, point) · IsNoFire(view, shooter, point) · FirstAllowed }
+  class ProficiencyOf { <<CE-2273>> Tier }
+  class RecentSenses { <<EXISTING>> Hit · NearMiss times }
+  class IAreaOutline { <<EXISTING>> the polygon of an area entity }
+  class NetworkIdResolver { <<EXISTING>> }
+  class PostureNodes_Fire { <<EXISTING, + Allow>> the top threat, else the first allowed one }
+  class LockTarget { <<EXISTING, + Allow>> }
+  class ThreatMatrixAssignment { <<EXISTING, + Allow>> a pair outside the man's Allow is not assigned }
+  class TopContact { <<EXISTING, unchanged: it also moves the squad>> }
+  class SquadSuppress { <<EXISTING runner order + Suppress fire step, + Allow>> }
+  class AimAndFire_and_FireAtPoint { <<EXISTING gates, + NoFire>> HoldNoFireArea }
+  SetEngagementAreaEvent ..> EngagementAreaSystem
+  EngagementAreaSystem --> EngagementArea
+  EngagementAreas ..> EngagementArea : the man's, and his commanders' NoFire
+  EngagementAreas ..> ProficiencyOf : below Regular no member Allow, Untrained none
+  EngagementAreas ..> RecentSenses : self-defence
+  EngagementAreas ..> IAreaOutline
+  EngagementAreas ..> NetworkIdResolver
+  PostureNodes_Fire ..> EngagementAreas
+  LockTarget ..> EngagementAreas
+  ThreatMatrixAssignment ..> EngagementAreas
+  SquadSuppress ..> EngagementAreas
+  AimAndFire_and_FireAtPoint ..> EngagementAreas
+```
+*What the picture shows that prose hid:* with no single choke point, `Allow` must sit in each place that chooses what to
+SHOOT — and never in `TopThreat` or `TopContact`, which also decide what to HIDE from and where to MOVE (a man hides from every threat, he shoots only inside
+his sector). `NoFire` is one check at every gate. Everything reads one pure class; nothing else interprets the component.
+
+```mermaid
+sequenceDiagram
+  participant PLAY as commander's play (later slices)
+  participant BUS as the bus (and the wire, kind 4 later)
+  participant SYS as EngagementAreaSystem (the man's brain node)
+  participant PICK as a fire pick (posture, LockTarget, matrix, TopContact)
+  participant GATE as the firing gate
+  PLAY->>BUS: SetEngagementAreaEvent(man, arc, origin Superior) beside his order
+  BUS->>SYS: origin-gated, replaces the set
+  SYS->>SYS: EngagementArea on the man
+  PICK->>PICK: the top threat outside Allow and no self-defence: take the first remembered one inside, or hold fire
+  PLAY->>BUS: SetEngagementAreaEvent(platoon commander, NoFire = the assault's area)
+  GATE->>GATE: the shot ends in a NoFire area of his chain: HoldNoFireArea, always (self-defence does not lift it)
+```
+*What the picture shows that prose hid:* the sector travels the way ROE and reporting do (CC-2's shape, R-2044), not inside every
+order's params — so no play's params change and a shift of fire is one event.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-26** | how a sector reaches the man | ⭐ **the ROE twin** `SetEngagementAreaEvent` beside the order (origin-gated, replace, all-empty withdraws), the shape CC-2 (R-2044) chose for reporting; across nodes on the tactical-intent road like kinds 2 and 3 (a kind 4 — asked of backend) | inside every order's params (DA-20's first wording): each play's DTO grows a sector, and CB-42 lost to CC-2 for the same reason |
+| **DA-27** | where `Allow` applies | ⭐ the FIRE picks: the posture fire step (falls back to the first remembered, engageable, allowed contact, else holds fire), `LockTarget`, the threat matrix (a pair outside the man's `Allow` is not assigned), the runner's **Suppress order** (the squad commander's `Allow`: outside it the member holds) and the **Suppress behaviour's fire step** (the man's own). **Not** `TopThreat` nor `TopContact` — both also decide where to HIDE and MOVE (break contact, flank, cover) | in `TopThreat`: a man would stop hiding from a threat outside his sector · only at the gate: DA-20's "he would freeze" |
+| **DA-28** | self-defence | ⭐ a contact within **50 m** is allowed while the man has a `Hit` or `NearMiss` within **5 s** — the timestamps `ReturnFire` already reads; the shooter is not known today (DA-14's round origin, backend, will tighten it to "the one who shot at me") | wait for the round's origin: no sector would work in a fight until then |
+| **DA-29** | tiers (DA-24) | ⭐ a man's own `Allow` counts from Regular up; a commander's (the squad level) from Militia up; Untrained none — read through `ProficiencyOf.Tier`. `NoFire` for everyone, always | the tier gate inside every pick: four copies |
+| **DA-30** | shapes and ids | ⭐ `Allow` = an arc (origin, left / right compass bearing, min / max range) and / or an area entity (network id, the `PirArea` precedent), the union; `NoFire` = up to 4 area entities on the unit that owns them, looked up through the man's chain (`UnitSubordinate.Commander`, ≤ 8); compass bearings: 0 = north (+Y), 90 = east (+X) | entity handles in the component: not meaningful on another node, and the wire carries network ids |
+
+⚠ **Not in this slice:** who WRITES sectors (the plays: `SquadDefend` `CE-2275`, the SBF, the clearing `CE-2257`, the march) and the
+`SectorPlanner` (§13a) · the wire (kind 4, backend) — until it lands a superior on another node than the man's brain sets a sector with no
+effect, exactly as CC-2 did before kind 3 · `WatchBearing` pointing the eyes (LD-3, `CE-2297`) · a commander's `NoFire` read on a man's
+brain node in another process needs the commander's component there (the CE-2289 ROE question; backend's answer for ROE was to
+replicate it).
+
+**As built (2026-10-19, `CE-2282`)** — as drawn above, with DA-27 as corrected (the Suppress order and step, not `TopContact`):
+`EngagementArea` (component 416, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
+(`MissionControlModule`, after `ReportingRequirementsSystem`), `EngagementAreas` (`Allows`, `AllowsUnit`, `IsNoFire`, `InArc`),
+`EqsTacticsNodes.FirstAllowedRemembered`; the picks in `PostureNodes.Fire`, `PeekAndFireNodes.LockTarget`,
+`ThreatMatrixAssignmentSystem`, `SquadManeuverRunner.Suppress`, `SuppressNodes.SuppressContact`; the gates in
+`AimAndFireExecutor.HoldOf` + `FireBlind`, `FireAtPointExecutor.ShootAtPoint` (`obeyRoe`), `HiddenTargetThrow.TryThrow`, reason
+`ActionReason.HoldNoFireArea`. Rails: `EngagementAreaTests` (6, four red-proofed) · `CgfLogicPackTests`, `MissionControlModuleTests`
+(+1 input system). Backend asked for the kind 4, the commander's component on the men's nodes, and DA-14's round origin
+([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sectors.md)). ⚠ Nothing WRITES a sector yet — the plays that do are the next
+slices (`CE-2275` SquadDefend, `CE-2257` the clearing, the march), so no demo shows it until then.
 
 ### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; DA-25 the survey sensor, amended by the user 2026-10-18 — R-2038)*
 

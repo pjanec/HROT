@@ -265,6 +265,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (obeyRoe && CombatTkb.MountOf(world, firing, mountIndex) is var aimed && roundWarhead is not { Indirect: true }
                 && LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world))))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
+            // ⭐ CE-2282 DA-L — the AI's round never ends inside a NoFire area of its chain (an operator — obeyRoe false — decides himself)
+            if (obeyRoe && Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNoFireArea;
             // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
             if (!Magazine.Ready(weapon))
             {

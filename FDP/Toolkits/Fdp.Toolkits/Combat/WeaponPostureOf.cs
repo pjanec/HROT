@@ -39,6 +39,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.HoldWarn      // ⭐ CE-2239 part 3 — warned, covered, ready, never fired
                 or ActionReason.HoldStunned   // ⭐ CE-3255 (BR-2) — stunned: the weapon stays ready, never fired
                 or ActionReason.HoldRestrained // ⭐ CE-3256 (BR-4) — hands tied: never fired
+                or ActionReason.HoldNoFireArea // ⭐ CE-2282 (DA-L) — a NoFire area: covered, ready, never fired
                 => WeaponPostureKind.Ready,
             _ => null,
         };

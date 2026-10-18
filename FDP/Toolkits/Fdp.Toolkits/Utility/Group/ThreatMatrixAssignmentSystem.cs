@@ -101,6 +101,8 @@ namespace Fdp.Toolkit.Utility
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
                     var target = new Entity((ulong)targets[tIdx]);
+                    // ⭐ CE-2282 DA-27 — a target outside the member's sector is never assigned to him (score 0 is never taken)
+                    if (!Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(repo, member, target)) { matrixBuf[memberIdx * maxTargets + tIdx] = 0f; continue; }
                     // Score this (member, target) pair directly via the static scorer.
                     // EvaluateOption will call readers with ctx.Self=member, ctx.Context=target.
                     UtilityScorer.Evaluate(repo, member, in def, target, ref tmpBuffer, null);

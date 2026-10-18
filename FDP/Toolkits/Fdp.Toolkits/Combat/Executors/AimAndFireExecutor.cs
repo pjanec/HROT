@@ -439,6 +439,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world))))
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (LineOfFire.MuzzleMasked(world, shooter, mountIndex, loadedAmmo, point)) { Say(world, entity, ActionReason.Masked, p.Target); return; }   // ⭐ CE-2218
+            if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
             world.Bus.Publish(new WeaponFireIntent
@@ -594,6 +595,8 @@ namespace Fdp.Toolkit.Combat.Executors
             //   picked it (a ranking, a squad assignment, an order): the last gate before a round, on both paths. A possessed unit's
             //   fire (OperatorFire) does not come here — a human decides.
             if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target)) return ActionReason.HoldNeutral;
+            // ⭐ CE-2282 DA-L — never a target inside a NoFire area of his chain (friends' rooms, the assault element): always, both paths
+            if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, target)) return ActionReason.HoldNoFireArea;
             // ⭐ CV-13a (R-2024) — nor at a man showing HANDS UP, even Hostile (a surrender is honoured; a feint is read live)
             if (Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(world, target)) return ActionReason.HoldSurrender;
             // ⭐ CE-2238 part 4 (AW-21/AW-22, §5h.7b CH-1) — CONDUCT: no lethal round at a civilian this unit neither sees armed nor knows
