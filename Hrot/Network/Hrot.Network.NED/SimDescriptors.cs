@@ -442,6 +442,33 @@ namespace Hrot.NED.Descriptors
         public byte Set;
     }
 
+    // ⭐ CE-3261 — a man's or a commander's sector (behaviors' EngagementArea, CE-2282), his brain's owner → every node, field for field
+    //   (the four NoFire network ids flattened). Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic("EntityEngagementArea")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityEngagementArea
+    {
+        [DdsKey] public long EntityId;
+        public byte ArcSet;
+        public float ArcOriginX;
+        public float ArcOriginY;
+        public float ArcOriginZ;
+        public float LeftBearing;
+        public float RightBearing;
+        public float MinRange;
+        public float MaxRange;
+        public long AllowArea;
+        public float WatchBearing;
+        public byte WatchSet;
+        public int NoFireCount;
+        public long NoFire0;
+        public long NoFire1;
+        public long NoFire2;
+        public long NoFire3;
+        public byte SetBy;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

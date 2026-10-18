@@ -128,6 +128,12 @@ namespace Hrot.NED.Messages
         public float X;
         public float Y;
         public float Z;
+
+        /// <summary>⭐ <c>CE-3262</c> (DA-14) — where the round was fired from (its muzzle), when <see cref="HasOrigin"/> = 1. APPENDED.</summary>
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+        public byte HasOrigin;
     }
 
     // ── Round impact (CE-1128, DESIGN_Visual_Effects §10) ──────────────────

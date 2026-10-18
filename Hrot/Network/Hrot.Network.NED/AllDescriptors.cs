@@ -140,6 +140,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3259 (BR-6/BR-7) — behaviors' CombatProficiency (CE-2273), its brain → every node: the hit model (the muscle) and the
         //   visual sensor read it where they resolve. Measured free on ui, behaviors, backend, coordinator 2026-10-19.
         dtCombatProficiency           = 150,
+        // ⭐ CE-3261 — behaviors' EngagementArea (CE-2282), its brain → every node: a commander's NoFire reaches the brain nodes of the men
+        //   under him, wherever they run. Measured free on ui, behaviors, backend, coordinator 2026-10-19.
+        dtEngagementArea              = 151,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,

@@ -255,6 +255,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 var friendNear = Unit(new Vector2(25f, 1f), ForceId.Friend);    // own side
 
                 var bullet = SpawnBullet(new Vector3(40f, 0f, 0f), 0, shooter, previousPosition: new Vector3(10f, 0f, 0f));
+                _world.GetComponentRW<BallisticProjectile>(bullet).Muzzle = new Vector3(0.5f, 0f, 1.4f);   // ⭐ CE-3262 — where it left the barrel
                 _sys.Execute(_world, 0.016f);
                 ((EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer()).Playback(_world);
                 _world.Bus.SwapBuffers();
@@ -262,6 +263,9 @@ namespace Fdp.Toolkit.Combat.Tests
                 Assert.Equal(1, events.Length);
                 Assert.Equal(enemyNear, events[0].Unit);
                 Assert.Equal(30f, events[0].X, 2);
+                // ⭐ CE-3262 (DA-14) — the round's ORIGIN rides it (the muzzle), not the shooter. ✅ Red-proof: origin not set ⇒ red.
+                Assert.True(events[0].HasOrigin);
+                Assert.Equal((0.5f, 0f, 1.4f), (events[0].OriginX, events[0].OriginY, events[0].OriginZ));
 
                 // The same round still near the same unit next tick ⇒ not reported again.
                 ref var tf = ref _world.GetComponentRW<SimTransform>(bullet);

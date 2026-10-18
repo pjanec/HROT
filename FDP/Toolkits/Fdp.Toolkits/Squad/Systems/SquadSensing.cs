@@ -89,6 +89,9 @@ namespace Fdp.Toolkit.Squad.Systems
         /// SILENT for its unit type's <see cref="UnitEntity.CommandDisruptionSeconds"/> (6 s without a type); and
         /// <see cref="SensorChange.SquadLeaderDown"/> is published on it. A squad that never had a designated leader has none to lose.
         /// </summary>
+        /// <summary>The <c>EntityInfo</c> descriptor ordinal (1) — the one that carries a man's designation.</summary>
+        private const long EntityInfoDescriptorOrdinal = 1L;
+
         public static void Succession(EntityRepository repo, Entity commander, double now)
         {
             if (!repo.IsComponentTypeRegistered<SquadLeadership>()) return;
@@ -115,7 +118,12 @@ namespace Fdp.Toolkit.Squad.Systems
             var successor = roster.SubordinateEntities[next];
             roster.TacticalDesignations[next] = (ushort)TacticalDesignation.SquadLeader;
             if (repo.HasComponent<UnitSubordinate>(successor))
+            {
                 repo.GetComponentRW<UnitSubordinate>(successor).Designation = TacticalDesignation.SquadLeader;
+                // ⭐ CE-3263 (behaviors' sectors note ⑤) — the new designation reaches the other nodes on his EntityInfo (descriptor 1); their
+                //   assign updates the roster entry in place (UnitHierarchySystem's duplicate guard), never a second entry
+                Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.MarkDirty(repo, successor, EntityInfoDescriptorOrdinal);
+            }
             leadership.Leader = successor;
             float lull = repo.HasComponent<UnitEntity>(commander) ? repo.GetComponentRO<UnitEntity>(commander).CommandDisruptionSeconds : 6f;
             leadership.SilentUntil = now + (lull > 0f ? lull : 6f);

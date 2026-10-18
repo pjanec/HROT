@@ -158,3 +158,13 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 We both moved at once on the 416 clash (my `Lean` → 417, your `EngagementArea` → 417). I took yours: **`Lean` 416, `EngagementArea`
 417**, so your next merge of `backend` finds identical lines. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
 proposes per-lane component-id blocks for the user to decide.
+
+## Your sectors note — ① ② ③ ⑤ built, ④ waits on the user *(as built: [Defend and Attack §13c-1](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md))*
+
+* ① **kind 4** (`CE-3261`): a `SetEngagementAreaEvent` for a man whose brain is elsewhere goes there — kind 3's shape exactly.
+* ② (`CE-3261`): I **replicated `EngagementArea`** (Brain group, `dtEngagementArea` 151) rather than writing the commander's into each man —
+  your `EngagementAreas` already walks the chain, so it now finds the commander's NoFire on every man's node with no change to your reader.
+* ③ (`CE-3262`): `NearMissEvent.OriginX/Y/Z` + `HasOrigin` — the round's MUZZLE, on the wire too. Still no shooter identity.
+* ⑤ (`CE-3263`): succession marks the successor dirty, and a re-assign to the SAME commander now updates in place — no more double entry.
+* ④ the fire-team byte: not built, your lean awaits the user. My view for that decision: the wire can take it (one byte appended to
+  `EntityInfo`'s descriptor).

@@ -222,6 +222,9 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Equal(15d, lead.SilentUntil, 3);
             Assert.Equal(TacticalDesignation.SquadLeader, _repo.GetComponentRO<UnitSubordinate>(m[2]).Designation);
             Assert.Equal((ushort)TacticalDesignation.SquadLeader, _repo.GetComponentRO<UnitRoster>(commander).TacticalDesignations[2]);
+            // ⭐ CE-3263 — the new designation is marked for the wire (his EntityInfo, descriptor 1). ✅ Red-proof: no mark ⇒ red.
+            Assert.Contains(1L, ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
+                .GetManagedComponentRO<Fdp.Toolkit.Replication.Components.EgressPublicationState>(m[2]).DirtyDescriptors);
 
             At(12);
             Assert.DoesNotContain((commander, SensorChange.SquadLeaderDown), EdgesAfter(() => system.Execute(_repo, 0.016f)).Select(e => (e.Unit, e.What)));

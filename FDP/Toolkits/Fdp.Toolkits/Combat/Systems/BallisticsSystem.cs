@@ -364,7 +364,12 @@ namespace Fdp.Toolkit.Combat.Systems
                 var closest = a + ab * t;
                 if (System.Numerics.Vector2.DistanceSquared(p, closest) > CombatConstants.NearMissRadius * CombatConstants.NearMissRadius) continue;
                 float z = start.Z + (end.Z - start.Z) * t;
-                cmd.PublishEvent(new Events.NearMissEvent { Unit = unit, X = closest.X, Y = closest.Y, Z = z });
+                cmd.PublishEvent(new Events.NearMissEvent
+                {
+                    Unit = unit, X = closest.X, Y = closest.Y, Z = z,
+                    // ⭐ CE-3262 (DA-14) — where it was fired from (the muzzle R-217 keeps on the round); no shooter identity
+                    OriginX = proj.Muzzle.X, OriginY = proj.Muzzle.Y, OriginZ = proj.Muzzle.Z, HasOrigin = proj.Muzzle != System.Numerics.Vector3.Zero,
+                });
                 HitModel.StampUnderFire(repo, unit, HitModel.Now(repo));   // ⭐ AQ85 E — a near miss suppresses (spoils its aim)
                 proj.LastNearMiss = unit;
             }

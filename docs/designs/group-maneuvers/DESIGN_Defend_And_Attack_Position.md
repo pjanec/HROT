@@ -690,6 +690,17 @@ replicate it).
 ([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sectors.md)). ⚠ Nothing WRITES a sector yet — the plays that do are the next
 slices (`CE-2275` SquadDefend, `CE-2257` the clearing, the march), so no demo shows it until then.
 
+
+#### 13c-1. Backend's half, as built *(`CE-3261`, `CE-3262`, `CE-3263` — 2026-10-19; behaviors' [sectors note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sectors.md) ① ② ③ ⑤ — cross-lane fold by backend)*
+
+| ask | as built | rail |
+|---|---|---|
+| ① a sector set across nodes | `TacticalIntentWireKind.SetEngagementArea` (4): the egress forwards a `SetEngagementAreaEvent` whose man's brain runs elsewhere (kind 3's shape, after the frame's orders, on the same writer); the owner's ingress raises it again for `EngagementAreaSystem`'s origin gate. [Entity Control §2.3a](../../DESIGN_Entity_Control.md) | `TacticalIntentEgressTranslatorTests.CE3261_*`, `TacticalIntentIngressTranslatorTests.CE3261_*` |
+| ② a commander's sector on his men's brain nodes | ⭐ **replicated**, not copied into each man: `EngagementArea` is Brain group, `dtEngagementArea` (151), field for field (the four NoFire ids flattened). `EngagementAreas` already walks the man's chain, so a commander's NoFire reaches every man's node with no reader change | `BodyPartReplicationTests.CE3261_*`, both descriptor-map rails |
+| ③ the round's origin (DA-14) | `NearMissEvent.Origin{X,Y,Z}` + `HasOrigin` — the round's MUZZLE (R-217 keeps it on the round); on the wire (`NearMiss`, appended). ⛔ still no shooter identity: a man under fire knows where it came from, not who. DA-28's self-defence can now ask "a contact near the origin" | `BallisticsSystemTests…CE3064` (extended), `NearMissTranslatorTests.CE3262_*` |
+| ⑤ succession on the wire | `SquadSensing.Succession` marks the successor's `EntityInfo` dirty; ⭐ `UnitHierarchySystem` updates a re-assign to the SAME commander IN PLACE (the roster entry + the man's designation) — ⛔ it used to append him a second time | `SquadCoordinationSystemTests.CE2125_*` (extended), `UnitHierarchySystemTests.CE3263_*` |
+| ④ a fire-team index on the wire | ⏳ not built — your lean awaits the user. ⭐ Backend's view: the wire can take it — one byte appended to `EntityInfo`'s descriptor, the `TacticalDesignation` road | — |
+
 ### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; DA-25 the survey sensor, amended by the user 2026-10-18 — R-2038)*
 
 🔒 User, `2026-10-18`, on DA-25: *"sensors on the simhost (perception role) might keep working and providing the data on the background and keep delivering the results automatically so The brain just reads them without re-asking and without waiting"* · *"Reasking every time is also valid if it goes with diffetent imputs."* · *"The room graph is probably something also the EQS query or the sensor can create on its own based on the building geometry. It shouldn't be something the scenario or terrain needs to provide. That way we could apply the behavior to any building without prior knowledge."*

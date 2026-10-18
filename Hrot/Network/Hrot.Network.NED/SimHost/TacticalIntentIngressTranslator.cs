@@ -96,6 +96,13 @@ namespace Hrot.Network.NED.SimHost
                     repo.Bus.Publish(reporting);
                     return;
                 }
+                if (request.Kind == TacticalIntentWireKind.SetEngagementArea   // ⭐ CE-3261
+                    && repo.Bus.IsRegistered<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>()
+                    && EngagementAreaDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var sector))
+                {
+                    repo.Bus.Publish(sector);
+                    return;
+                }
                 UnhandledDirectiveCount++;   // an unknown kind (a newer sender), bad JSON or no ROE here — never read as an order
                 return;
             }

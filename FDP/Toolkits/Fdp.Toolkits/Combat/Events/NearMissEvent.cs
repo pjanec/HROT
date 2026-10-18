@@ -23,5 +23,13 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>True when this event arrived from another node (ingress), not from local ballistics.</summary>
         [MarshalAs(UnmanagedType.I1)] public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-3262</c> (DA-14, R-2035; behaviors' sectors note ③) — where the round was FIRED from (its muzzle): the bearing a
+        /// counter-sniper drill reports, and what tightens self-defence (DA-28) to "the one who shot at me". ⛔ Still no shooter identity —
+        /// a man under fire knows where it came from, not who. Valid when <see cref="HasOrigin"/>.</summary>
+        public float OriginX, OriginY, OriginZ;
+
+        /// <summary>⭐ <c>CE-3262</c> — the round knew its muzzle (every fired round does; a round spawned by hand may not).</summary>
+        [MarshalAs(UnmanagedType.I1)] public bool HasOrigin;
     }
 }
