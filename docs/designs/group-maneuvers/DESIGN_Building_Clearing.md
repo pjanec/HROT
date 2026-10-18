@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
+updated: 2026-10-19 (SL-0 built, §7.0)
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -547,13 +547,18 @@ re-stamped.
 
 | piece | as built | where |
 |---|---|---|
-| the local event | `SquadReportEvent` (managed) — `FromUnit`, `ToUnit`, `KindId` (`ReportKindId`: Contact 1 · Spot 2 · Sitrep 3 · Lace 4 · Progress 5 · Request 6), `Subtype` (`ProgressSubtype` incl. `FireLifted` 11, `RequestSubtype`), `Subject`, `Building` (−1 none), `Position`, `Count` (PhaseLine's index), SPOT `Radius` · `Size` · `Activity` · `Equipment`, SITREP / LACE `Strength` · `Ammo` · `Phase` · `Wounded` · `Killed`, `ObservedAt`, `SentAt`, `Seq`, `RequestId`, `Synthetic`, `OriginNodeId` (0 = raised on this node) | `FDP/Toolkits/Fdp.Toolkits/Squad/Reports/SquadReportEvent.cs` |
-| the wire | event topic `"SquadReport"` (`dtSquadReport` 146), units / subject as network ids | `Hrot.Network.NED/SquadReportMessages.cs` |
+| the local event | ⭐ `SquadReportNotification` (managed; the Command Chain §3 box of that name) — the ENVELOPE `FromUnit`, `ToUnit`, `Subject`, `Building` (−1 none; a room is a point inside it), `SentAt`, `OriginNodeId` (0 = raised on this node) around behaviors' **`CommandReport`** (`CE-2291`: `Kind` `ReportKind` 1–6, `Subtype` `ProgressKind` / `RequestKind`, `At`, `Radius`, `Count`, `Size`, `Activity`, `Equipment`, `Strength`, `Ammo`, `Wia`, `Kia`, `Phase`, `ObservedAt`, `Seq`, `Synthetic`) — ONE report vocabulary for the outbox, the notification and the wire | `FDP/Toolkits/Fdp.Toolkits/Squad/Command/SquadReportNotification.cs` |
+| the wire | event topic `"SquadReport"` (`dtSquadReport` 146): the envelope with units / subject as network ids + `CommandReport`'s fields one for one | `Hrot.Network.NED/SquadReportMessages.cs` |
 | egress | sends the reports raised HERE (`OriginNodeId` 0; an arrived one is never re-sent); a unit or subject with no network id ⇒ refused, `RefusedCount` | `SquadReportEgressTranslator` |
-| ingress | raises `SquadReportEvent` on every other node (own sample skipped), units as that node's entities (null when not known yet); an unknown kind still arrives, `UnknownKindCount` | `SquadReportIngressTranslator` |
+| ingress | raises `SquadReportNotification` on every other node (own sample skipped), units as that node's entities (null when not known yet); an unknown kind still arrives, `UnknownKindCount` | `SquadReportIngressTranslator` |
 | installed | ⭐ BOTH in `SharedTranslatorPack` (every node — a synthetic report over HTTP may be raised on any node; R-3015) | — |
 | replay | recorded and played back like every managed bus event (no `NoReplay`) | rail `CE3250_ReplayRecordsAReport_AndPlaysItBack` |
 | ⛔ not here | the sender (`ReportOutbox` / staff, `CE-2293`), the log + `GET /squad/reports` (§5a) | behaviors |
+
+⛔ **SUPERSEDED the same day, at backend's merge of behaviors' `CE-2291` CC-A:** the first build carried its own `SquadReportEvent`
+with its own enums (`ReportKindId`, `ProgressSubtype`, `SpotSize`, `ReportColour` …) — a second copy of `CommandReport`'s closed set.
+Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `RequestId` (a REQUEST is named by its sender + `Seq`, as
+`PendingRequest` already does).
 
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
@@ -624,6 +629,21 @@ re-stamped.
 | 8 | **BC-5** `CE-2261` | behaviors | contact and casualties (CB-12, §6a); demo `bc-house-defended` | BC-3 |
 | 0 | **CP-1** `CE-2265` | behaviors | the civilians' poses (CB-24): Cower Prone + `CoverHead`; the four gesture values; `ShowsHandsUp` counts HandsOnHead / Restrained, never CoverHead — buildable now | — |
 | — | **BR-1** … **BR-5** | backend | the room graph + a CQB test house · stun holds every class · the `SquadReport` topic · the Search / Detain / Restrain interactions · the `Lean` body state | [handoff 1](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing.md) (BR-1, BR-2) · [handoff 2](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Reports.md) (BR-3) · [handoff 3](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Interactions.md) (BR-4, BR-5) |
+
+### 7.0 As built — SL-0 *(`CE-2262`, 2026-10-19)*
+
+| piece | as built | where |
+|---|---|---|
+| combat effective (CB-16) | `CombatEffective.IsInTheFight(view, member)`: a soldier by `Injury.IsInTheFight`; a UNIT (`UnitEntity`) while ≥ `MinEffective(n)` = min(4, ⌈n/2⌉) of its roster members are, recursively (a platoon counts its squads, ≤ 6 levels). ⚠ Two edges decided while building: a unit with **no** `UnitRoster` is taken as in the fight (nothing to judge by — what the existing unit-member rails build); a roster that **emptied** (its men destroyed, `UnitHierarchySystem` drops them) is out of it | `FDP/Toolkits/Fdp.Toolkits/Squad/CombatEffective.cs` |
+| the runner | `SquadPlayContext.Live(i)` reads `CombatEffective` ⇒ a wiped-out squad gets no order and holds no bound | `SquadManeuverRunner.cs` |
+| the centre | `UnitCentroidSystem` counts a unit member only while it is combat effective (a soldier member: alive, as before) | `UnitCentroidSystem.cs` |
+| the platoon type | `Unit_InfantryPlatoon` **305**: infantry arm, platoon echelon, roster 3 × `Unit_InfantrySquad`, a brain, ⚠ **no default SOP yet** (`BasicPlatoonSop` is CC-D, `CE-2294`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `BehaviorCatalog.cs` (Commander list) |
+| the nested run | ✅ the existing runner already orders a UNIT member with an ORDER (`CE-2141`): a platoon marching its squads sends each `Order.Move` / `Order.Hold`, and each squad resolves it by its own class (`InfantrySquadMove` → its own `SquadMarch`). Nothing new was needed for that | rail `SquadManeuverTests.CE2262_…`; demo `sl0-platoon-march` |
+
+Rails: `SquadCoordinationSystemTests.CE2262_*` (the rule, an emptied roster, the platoon's centre) · `SquadManeuverTests.CE2262_*` (a
+platoon marching three squads orders the two effective ones and not the wiped one) · `NedTkbBuilderCombatTests.CE2262_*` (the type).
+Demo `sl0-platoon-march` (test-town, ids 5001–5022): ① the platoon runs `SquadMarch` · ② Alpha and Bravo fulfil its order their own
+way · ③ Charlie (every man dead) is given nothing · ④ the men reach the objective area · ⑤ the platoon stands with its effective squads.
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 

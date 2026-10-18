@@ -50,8 +50,8 @@ classDiagram
   class SensorConfigPayload { <<existing, managed>> Kind · Json — rides EqsSensorConfigTopic }
   class EqsSolverSystem { <<existing, SimHost>> +TemplateId branch → SolveWorldSurvey }
   class WorldSurveyChildSensor { <<NEW static, brain>> TemplateId · Ensure(world, unit, site, request) · Configure · Release · Read(world, child, now) }
-  class WorldSurveyRequest { <<NEW managed component 407>> Kind · Points ≤ 12 · Arc · Rays ≤ 24 · Range · EyeHeight · Buildings ≤ 4 · Area · RefreshSeconds }
-  class WorldSurveyAnswer { <<NEW managed component 408, the brain's buffer>> Epoch · RefreshTick · UpdatedAt · Version · Rays · Buildings · Points }
+  class WorldSurveyRequest { <<NEW managed component 410>> Kind · Points ≤ 12 · Arc · Rays ≤ 24 · Range · EyeHeight · Buildings ≤ 4 · Area · RefreshSeconds }
+  class WorldSurveyAnswer { <<NEW managed component 412, the brain's buffer>> Epoch · RefreshTick · UpdatedAt · Version · Rays · Buildings · Points }
   class WorldSurveyRequestJson { <<NEW>> Kind "WorldSurvey" · Encode · TryDecode }
   class WorldSurveySolve { <<NEW pure, muscle>> Solve(view, request) → payload }
   class BuildingLayout { <<NEW pure, stand-in>> Levels · Rooms · Portals · Faces · RoomAt(point) }
@@ -125,7 +125,7 @@ graph TD
   AUX[SimHostAuxiliaryTranslatorPack] -->|Brain role| IN[WorldSurveyResultIngress]
   AUX -->|Perception / MuscleGround roles| EG[WorldSurveyResultEgress]
   AUX -->|existing| CI[EqsSensorConfigIngress: + the WorldSurvey kind]
-  REG[PerceptionRoleComponentRegistry + CognitiveComponentRegistry] --> C407[WorldSurveyRequest 407 · WorldSurveyAnswer 408 · the result event]
+  REG[PerceptionRoleComponentRegistry + CognitiveComponentRegistry] --> C407[WorldSurveyRequest 410 · WorldSurveyAnswer 412 · the result event]
   IG[IG / map hosts] -. no EqsModule, no brain: never solve, never apply .-> AP
   style IG stroke-dasharray: 5 5
 ```
@@ -194,7 +194,7 @@ they move onto this sensor afterwards; a wall breach (Structure Damage).
 
 | # | as built | ⛔ the design above said |
 |---|---|---|
-| A1 | the brain's buffer is TWO components: `WorldSurveyStatus` (408, unmanaged — `EqsChildSensor.Ensure<TResult>` takes an unmanaged result) + `WorldSurveyAnswer` (409, managed payload); the request is `WorldSurveyRequest` (407) | §2: one managed `WorldSurveyAnswer` |
+| A1 | the brain's buffer is TWO components: `WorldSurveyStatus` (411, unmanaged — `EqsChildSensor.Ensure<TResult>` takes an unmanaged result) + `WorldSurveyAnswer` (412, managed payload); the request is `WorldSurveyRequest` (410) — ids moved from 407–409 at the behaviors merge (their CE-2291 took them) | §2: one managed `WorldSurveyAnswer` |
 | A2 | the answer rides as JSON (WS-11, added) | §2: a typed topic |
 | A3 | a child survey is solved only for a unit with a network id (`EqsSensorKey`: a child of a local-only parent is `None`) — as every sensor child; every unit in the editor and on a cluster has one | not stated |
 | A4 | the solver's per-survey memo (epoch, solved at, published at, hash) is node-local in `EqsSolverSystem`; a not-due survey costs 1 unit | WS-7: "solved only when due" — the cost of the skip not stated |

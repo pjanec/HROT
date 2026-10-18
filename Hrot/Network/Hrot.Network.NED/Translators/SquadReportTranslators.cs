@@ -5,7 +5,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Toolkit.Squad.Reports;
+using Fdp.Toolkit.Squad.Command;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -14,7 +14,7 @@ namespace Hrot.Network.Translators
 {
     /// <summary>
     /// ⭐ <b><c>CE-3250</c> (BR-3) — a report raised on this node leaves it.</b> 📄 <c>docs/designs/group-maneuvers/DESIGN_Building_Clearing.md</c>
-    /// §3, §5b. Drains the local <see cref="SquadReportEvent"/>s this node raised (<see cref="SquadReportEvent.OriginNodeId"/> 0 — one that
+    /// §3, §5b. Drains the local <see cref="SquadReportNotification"/>s this node raised (<see cref="SquadReportNotification.OriginNodeId"/> 0 — one that
     /// ARRIVED is never sent again) and writes one <see cref="SquadReport"/> each, the units as network ids. ⛔ A report naming an entity
     /// with no network id is REFUSED (<see cref="RefusedCount"/>) — it could not be read anywhere else.
     /// Installed by <c>SharedTranslatorPack</c>: any node may raise a report (a staff on a brain node, a synthetic one over HTTP).
@@ -56,8 +56,8 @@ namespace Hrot.Network.Translators
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (view is EntityRepository repo && !repo.Bus.IsRegisteredManaged<SquadReportEvent>()) return;
-            foreach (var r in view.ReadManagedEvents<SquadReportEvent>())
+            if (view is EntityRepository repo && !repo.Bus.IsRegisteredManaged<SquadReportNotification>()) return;
+            foreach (var r in view.ReadManagedEvents<SquadReportNotification>())
             {
                 if (r is null || r.OriginNodeId != 0) continue;   // it arrived from another node
                 if (!_entityMap.TryGetNetworkId(r.FromUnit, out long from)
@@ -78,13 +78,25 @@ namespace Hrot.Network.Translators
             return e.IsNull || _entityMap.TryGetNetworkId(e, out id);
         }
 
-        internal static SquadReport ToWire(SquadReportEvent r, long from, long to, long subject, long origin) => new()
+        internal static SquadReport ToWire(SquadReportNotification n, long from, long to, long subject, long origin)
         {
-            FromUnit = from, ToUnit = to, OriginNodeId = origin, KindId = (ushort)r.KindId, Subtype = r.Subtype, Subject = subject,
-            Building = r.Building, PositionX = r.Position.X, PositionY = r.Position.Y, PositionZ = r.Position.Z, Count = r.Count,
-            Radius = r.Radius, Size = (byte)r.Size, Activity = (byte)r.Activity, Equipment = (byte)r.Equipment, Strength = (byte)r.Strength,
-            Ammo = (byte)r.Ammo, Phase = r.Phase, Wounded = r.Wounded, Killed = r.Killed, ObservedAt = r.ObservedAt, SentAt = r.SentAt,
-            Seq = r.Seq, RequestId = r.RequestId, Synthetic = r.Synthetic ? (byte)1 : (byte)0,
+            ref readonly var r = ref n.Report;
+            return new SquadReport
+            {
+                FromUnit = from, ToUnit = to, OriginNodeId = origin, Subject = subject, Building = n.Building, SentAt = n.SentAt,
+                Kind = (byte)r.Kind, Subtype = r.Subtype, AtX = r.At.X, AtY = r.At.Y, AtZ = r.At.Z, Radius = r.Radius, Count = r.Count,
+                Size = (byte)r.Size, Activity = (byte)r.Activity, Equipment = (byte)r.Equipment, Strength = (byte)r.Strength,
+                Ammo = (byte)r.Ammo, Wia = r.Wia, Kia = r.Kia, Phase = r.Phase, ObservedAt = r.ObservedAt, Seq = r.Seq, Synthetic = r.Synthetic,
+            };
+        }
+
+        /// <summary>The wire's report back as behaviors' <see cref="CommandReport"/>.</summary>
+        internal static CommandReport FromWire(in SquadReport w) => new()
+        {
+            Kind = (ReportKind)w.Kind, Subtype = w.Subtype, At = new Vector3(w.AtX, w.AtY, w.AtZ), Radius = w.Radius, Count = w.Count,
+            Size = (ElementSize)w.Size, Activity = (ElementActivity)w.Activity, Equipment = (ElementEquipment)w.Equipment,
+            Strength = (StatusColour)w.Strength, Ammo = (StatusColour)w.Ammo, Wia = w.Wia, Kia = w.Kia, Phase = w.Phase,
+            ObservedAt = w.ObservedAt, Seq = w.Seq, Synthetic = w.Synthetic,
         };
 
         /// <inheritdoc/>
@@ -95,8 +107,8 @@ namespace Hrot.Network.Translators
     }
 
     /// <summary>
-    /// ⭐ <b><c>CE-3250</c> (BR-3) — a report raised on another node arrives here.</b> Raises the same local <see cref="SquadReportEvent"/>
-    /// (units as this node's entities, <see cref="SquadReportEvent.OriginNodeId"/> = the sender's node) for the staff and the log to read.
+    /// ⭐ <b><c>CE-3250</c> (BR-3) — a report raised on another node arrives here.</b> Raises the same local <see cref="SquadReportNotification"/>
+    /// (units as this node's entities, <see cref="SquadReportNotification.OriginNodeId"/> = the sender's node) for the staff and the log to read.
     /// Skips this node's own samples. A unit not known here yet is read as null (the report still arrives — a log can show it).
     /// An unknown kind still arrives and is counted (<see cref="UnknownKindCount"/>). Installed by <c>SharedTranslatorPack</c> (every node).
     /// </summary>
@@ -141,22 +153,18 @@ namespace Hrot.Network.Translators
         {
             ReceivedSampleCount++;
             if (report.OriginNodeId == _localNodeId) return false;   // our own report — raised here already
-            if (!Enum.IsDefined(typeof(ReportKindId), report.KindId) || report.KindId == 0)
+            if (report.Kind == 0 || !Enum.IsDefined(typeof(ReportKind), report.Kind))
             {
                 UnknownKindCount++;
                 Fdp.Core.Logging.FdpLog<SquadReportIngressTranslator>.Warn(
-                    "[SquadReport] unknown kind {0} from unit {1} (node {2}) — raised as is.", report.KindId, report.FromUnit, report.OriginNodeId);
+                    "[SquadReport] unknown kind {0} from unit {1} (node {2}) — raised as is.", report.Kind, report.FromUnit, report.OriginNodeId);
             }
-            if (!repo.Bus.IsRegisteredManaged<SquadReportEvent>()) repo.Bus.RegisterManaged<SquadReportEvent>();
-            repo.Bus.PublishManaged(new SquadReportEvent
+            if (!repo.Bus.IsRegisteredManaged<SquadReportNotification>()) repo.Bus.RegisterManaged<SquadReportNotification>();
+            repo.Bus.PublishManaged(new SquadReportNotification
             {
-                FromUnit = EntityOf(report.FromUnit), ToUnit = EntityOf(report.ToUnit), KindId = (ReportKindId)report.KindId,
-                Subtype = report.Subtype, Subject = report.Subject == 0 ? Entity.Null : EntityOf(report.Subject), Building = report.Building,
-                Position = new Vector3(report.PositionX, report.PositionY, report.PositionZ), Count = report.Count, Radius = report.Radius,
-                Size = (SpotSize)report.Size, Activity = (SpotActivity)report.Activity, Equipment = (ReportEquipment)report.Equipment,
-                Strength = (ReportColour)report.Strength, Ammo = (ReportColour)report.Ammo, Phase = report.Phase, Wounded = report.Wounded,
-                Killed = report.Killed, ObservedAt = report.ObservedAt, SentAt = report.SentAt, Seq = report.Seq, RequestId = report.RequestId,
-                Synthetic = report.Synthetic != 0, OriginNodeId = report.OriginNodeId,
+                FromUnit = EntityOf(report.FromUnit), ToUnit = EntityOf(report.ToUnit),
+                Subject = report.Subject == 0 ? Entity.Null : EntityOf(report.Subject), Building = report.Building, SentAt = report.SentAt,
+                Report = SquadReportEgressTranslator.FromWire(in report), OriginNodeId = report.OriginNodeId,
             });
             return true;
         }

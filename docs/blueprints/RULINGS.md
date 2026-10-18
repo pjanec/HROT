@@ -10,6 +10,9 @@ id-blocks: 2026-10-12 — NEW rulings take ids from their lane's block (§0a: ui
 id-collision: 2026-10-11 — the ui and backend lanes BOTH allocated R-269 the same day (ui: wrecks + Lifespan; backend: AQ89
   suppress-and-close). ⛔ Not renumbered (ids are written into sources, commits and designs): each row carries a lane tag,
   R-269 (ui) and R-269 (backend). R-271 was ALSO allocated by both lanes the same day (ui: lightweight replicated rounds; backend: entity control messaging) — tagged the same way, R-271 (ui) and R-271 (backend); the behaviors lane used R-271 too (passengers) — R-271 (behaviors). Next free R-273.
+re-read: 2026-10-19 (behaviors) — Blueprint_Issues_Tracker.md and DESIGN_Platoon_Attack_Defend_Clear.md changed after the
+  ledger: PURELY ADDITIVE — CE-2289 / CE-2262 rows closed with their as-built text, the platoon design gained §10a (PC-6 as built) and
+  two state lines; R-2046's §10 / §12 / §13 rows are untouched and every quote resolves.
 re-read: 2026-10-15 — BOTH warned sources changed in the SAME commit that added the rows citing them, so the
   WARN is self-referential, not rot. Architect_Question_91: the edits are the review amendments (§4-A′, §4-D′,
   §4-E′, §4-G′ and the NEW §4-H), all ADDITIVE except two corrections marked in place and listed in its

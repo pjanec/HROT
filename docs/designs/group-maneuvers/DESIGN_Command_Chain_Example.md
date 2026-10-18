@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
+updated: 2026-10-19
+build-state: BUILDING — CC-A ✅ BUILT 2026-10-19 (§8a); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
@@ -79,11 +79,11 @@ its own slots — which is exactly why a reaction can run without disturbing the
 ```mermaid
 classDiagram
   direction LR
-  class CommandPicture { <<NEW component, on a commander>> Elements x8 · Subordinates x4 · Requests x4 }
-  class ReportingRequirements { <<NEW component, on a subordinate commander>> Superior · PirMask · FfirMask · SitrepEverySeconds · SetBy origin }
-  class ReportOutbox { <<NEW component, on a commander>> queued reports x8 · each due time }
-  class SetReportingEvent { <<NEW event, the SetRoeEvent twin>> Entity · Origin · PirMask · FfirMask · SitrepEverySeconds }
-  class ReportingRequirementsSystem { <<NEW, the RoeSystem twin>> origin-gated write }
+  class CommandPicture { <<BUILT CC-A, on a commander>> Elements x8 · Subordinates x6 · Requests x4 }
+  class ReportingRequirements { <<BUILT CC-A, on a subordinate commander>> Pir · Ffir · SitrepEverySeconds · PirArea · SetBy }
+  class ReportOutbox { <<BUILT CC-A, on a commander>> Queued x8 with DueAt · NextSeq · Posture · MutedUntil }
+  class SetReportingEvent { <<BUILT CC-A, the SetRoeEvent twin>> Entity · Origin · Pir · Ffir · SitrepEverySeconds · PirArea }
+  class ReportingRequirementsSystem { <<BUILT CC-A, the RoeSystem twin>> origin-gated write }
   class StaffComposerSystem { <<NEW>> SPOT from the squad pool · SITREP on rate · PROGRESS on task end · flush the outbox }
   class StaffInboxSystem { <<NEW>> fold a report into the addressee picture · raise ReportReceived }
   class SquadReportNotification { <<NEW local event, BR-3 carries it>> }
@@ -383,3 +383,19 @@ Bravo's `SquadMarch` finishing · ② only THEN is Alpha ordered (`SubordinateOr
 enemy, ONE `SPOT` reaches the platoon (not one per contact) · ④ the platoon's SOP starts `PlatoonHold`, both squads hold, the task is
 paused, and it resumes in `WaitAlpha` when the element goes stale · ⑤ every report is visible over HTTP (`GET /entities/{id}/reports`, CC-12) with its
 `ObservedAt` and arrival time.
+
+## 8a. As built *(2026-10-19)*
+
+**CC-A `CE-2291`** — `FDP/Toolkits/Fdp.Toolkits/Squad/Command/`:
+
+| piece | as built | deviation from §6 |
+|---|---|---|
+| `CommandPicture` (407) | `Elements` (×8 `ReportedElement`: at, radius, count, size, activity, equipment, `FromNetId`, `ObservedAt`, `ReceivedAt`, `Seq`, `Synthetic`) · `Subordinates` (×6 `SubordinateRow`: `UnitNetId`, `Progress`, strength / ammo colours, phase, `LastReportAt`, `LastSitrepAt`, `LastSeq`) · `Requests` (×4 `PendingRequest`) — each a fixed-list wrapper (CC-16) | `ReceivedAt` and `LastReportAt` added for CC-12's age / overdue; net ids are `long` (`NetworkIdentity.Value`), not `uint` |
+| `ReportingRequirements` (408) | `Pir` (`PirFlags`) · `Ffir` (`FfirFlags`) · `SitrepEverySeconds` · `PirArea` (PC-3) · `SetBy` | ⛔ no `SuperiorNetId`: the addressee is always the direct superior, `UnitSubordinate.Commander` (R-2040) — one source, not two |
+| `ReportOutbox` (409) | `Queued` (×8 `QueuedReport` = a `CommandReport` + `DueAt`) · `NextSeq` · `Posture` (Normal / Silent, CC-8) · `MutedUntil` (CC-15) | the posture and mute live here (one place the composer reads) |
+| `CommandReport` | the closed set's one struct (CB-43): `Kind` (`ReportKind`), `Subtype`, the SALUTE / SITREP / LACE fields, `ObservedAt`, `Seq`, `Synthetic` — the outbox entry, the local notification and (BR-3) the wire payload | enum members are unique across the enums (`NoReport`, `SizeUnknown`, `SquadSize` …) for BR-3's IDL (the `Roe` precedent) |
+| `SetReportingEvent` (event 3106) + `ReportingRequirementsSystem` | Input phase, in `MissionControlModule` right after `RoeSystem`; origin-gated exactly as ROE; ⭐ the event REPLACES the set, and an all-zero event WITHDRAWS it (then `SetBy` is cleared so anyone may set them again) — how a play takes its requirements back when it ends | ROE keeps an unset field; requirements are one set, so replace-and-withdraw is the simpler contract |
+| registration | the three components and the event in `CognitiveComponentRegistry` (every brain host); `CgfLogicPackTests` 5 → 6 input systems, 28 → 29 total | — |
+
+Rails: `CommandComponentsTests` (the ROE-twin gate and withdraw · every buffer a fixed list printing a plain array, enums as strings) ·
+`SquadManeuverTests.CE2291_ThePicture_SurvivesATaskSwitch_AndAReaction` (through the real ingress).

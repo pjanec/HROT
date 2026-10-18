@@ -264,11 +264,13 @@ namespace Hrot.AI.Behaviors.Brains
         public ref SquadCognitiveState Squad => ref World.GetComponentRW<SquadCognitiveState>(Commander);
 
         /// <summary>Member <paramref name="i"/> when it is IN THE FIGHT (neither dead nor down) and has a body. ⭐ <c>CE-2152</c> C-c
-        /// (R-2012 K6): a man who is down gets no order and holds no bound — ⛔ SUPERSEDED: "alive" (<c>CombatLife.IsAlive</c>).</summary>
+        /// (R-2012 K6): a man who is down gets no order and holds no bound — ⛔ SUPERSEDED: "alive" (<c>CombatLife.IsAlive</c>).
+        /// ⭐ <c>CE-2262</c> SL-0 (CB-16): a UNIT member (a squad under a platoon) is in the fight while enough of its men are
+        /// (<see cref="Fdp.Toolkit.Squad.CombatEffective"/>) — its "body" is the centroid <c>SimTransform</c> its owner keeps.</summary>
         public bool Live(int i, out Entity member)
         {
             member = Roster.SubordinateEntities[i];
-            return !member.IsNull && Injury.IsInTheFight(World, member) && World.HasComponent<SimTransform>(member);
+            return !member.IsNull && Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(World, member) && World.HasComponent<SimTransform>(member);
         }
 
         public Vector3 At(Entity member) => World.GetComponentRO<SimTransform>(member).Position;

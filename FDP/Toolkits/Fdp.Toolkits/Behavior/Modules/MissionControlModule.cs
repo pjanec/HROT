@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Behavior.Modules
             InputSystems = new IEcsModuleSystem[]
             {
                 new RoeSystem(),                       // ⭐ CE-2074 — orders change the ROE, gated by origin
+                new Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem(),   // ⭐ CE-2291 CC-A — its twin: a superior's reporting extras
                 new BehaviorIngressSystem(_registry),
             };
             SimulationSystems = new IEcsModuleSystem[]

@@ -35,7 +35,7 @@ namespace Hrot.Network.NED.SimHost
         public long   SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE event here).</summary>
+        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE / reporting event here).</summary>
         public long UnhandledDirectiveCount { get; private set; }
 
         /// <summary>
@@ -87,6 +87,13 @@ namespace Hrot.Network.NED.SimHost
                     && RoeDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var roe))
                 {
                     repo.Bus.Publish(roe);
+                    return;
+                }
+                if (request.Kind == TacticalIntentWireKind.SetReporting
+                    && repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()
+                    && ReportingDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var reporting))
+                {
+                    repo.Bus.Publish(reporting);
                     return;
                 }
                 UnhandledDirectiveCount++;   // an unknown kind (a newer sender), bad JSON or no ROE here — never read as an order

@@ -1249,6 +1249,36 @@ def run_squad_march_loose(c, timeout):
     c.ok(end, "③ … and the file closes up behind it (every man within 35 m)")
 
 
+def task_name(nid):
+    return ((data(call("GET", f"/entities/{nid}/state")) or {}).get("behavior") or {}).get("name")
+
+
+def run_sl0_platoon_march(c, timeout):
+    """⭐ CE-2262 SL-0 (Building Clearing §7, CB-16) — the first NESTED hierarchy: a body-less PLATOON (305) marching three SQUADS
+    (302) 110 m north up the open street. Each effective squad gets an ORDER and fulfils it its own way (Order.Move -> its class's
+    InfantrySquadMove, a SquadMarch of its men); the squad whose men are all dead gets nothing, and the platoon's centre ignores it."""
+    ids = ids_by_name()
+    pl, sq = ids.get("Platoon"), {n: ids.get(n) for n in ("Alpha", "Bravo", "Charlie")}
+    men = {n: [ids.get(f"{n} {k}") for k in range(1, 5)] for n in ("Alpha", "Bravo")}
+    if not c.ok(pl and None not in sq.values() and None not in men["Alpha"] + men["Bravo"], "the platoon, three squads and their men are loaded"):
+        return
+    goal = (200.0, 150.0)
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(pl) == "SquadMarch", 10), f"① the platoon runs SquadMarch (task: {task_name(pl)})")
+    squad_tasks = ("InfantrySquadMove", "InfantrySquadHold")
+    ok = wait_for(lambda: all(task_name(sq[n]) in squad_tasks for n in ("Alpha", "Bravo")), 15)
+    c.ok(ok, f"② Alpha and Bravo each fulfil the platoon's order their own way: {[task_name(sq[n]) for n in ('Alpha', 'Bravo')]}")
+    c.ok(task_name(sq["Charlie"]) not in squad_tasks,
+         f"③ Charlie, every man dead, is given nothing (task: {task_name(sq['Charlie'])})")
+    def near(n):
+        return all((p := position(m)) and ((p[0] - goal[0]) ** 2 + (p[1] - goal[1]) ** 2) ** 0.5 <= 40 for m in men[n])
+    arrived = wait_for(lambda: near("Alpha") or near("Bravo"), 200, every=2)
+    c.ok(arrived, "④ the platoon's men reach the objective area (every man of a squad within 40 m)")
+    pp, cp = position(pl), position(sq["Charlie"])
+    c.ok(pp and cp and pp[1] - cp[1] > 40,
+         f"⑤ the platoon stands with its effective squads, not pulled back to the dead one (platoon y={pp and round(pp[1])}, Charlie y={cp and round(cp[1])})")
+
+
 def run_squad_bound_open_ground(c, timeout):
     """⭐ CE-2161 (Squad Tactics §7.7.7 D3; CE-3081 OpenGround) — a squad marching with OpenGround on leaves Shed Row's cover for the
     ~100 m open field to (175, 60): the commander's route sensor lists the field as OpenGround, the crossing choice picks BOUND, the
@@ -3761,6 +3791,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-squad-danger-crossing": run_squad_danger_crossing,
              "ua-squad-danger-crossing-contact": run_squad_danger_crossing_contact,
              "ua-squad-march-loose": run_squad_march_loose,
+             # ⭐ CE-2262 SL-0 — the first nested hierarchy: a platoon of squads (Building Clearing §7)
+             "sl0-platoon-march": run_sl0_platoon_march,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

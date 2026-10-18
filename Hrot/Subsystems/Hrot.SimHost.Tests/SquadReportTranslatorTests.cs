@@ -5,7 +5,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Toolkit.Squad.Reports;
+using Fdp.Toolkit.Squad.Command;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
 using Hrot.Network.Translators;
@@ -32,8 +32,8 @@ namespace Hrot.SimHost.Tests
 
         public SquadReportTranslatorTests()
         {
-            _sender.Bus.RegisterManaged<SquadReportEvent>();
-            _receiver.Bus.RegisterManaged<SquadReportEvent>();
+            _sender.Bus.RegisterManaged<SquadReportNotification>();
+            _receiver.Bus.RegisterManaged<SquadReportNotification>();
         }
 
         public void Dispose() { _sender.Dispose(); _receiver.Dispose(); }
@@ -45,15 +45,17 @@ namespace Hrot.SimHost.Tests
             return (squad, platoon, contact);
         }
 
-        private static SquadReportEvent Spot(Entity from, Entity to, Entity subject) => new()
+        private static SquadReportNotification Spot(Entity from, Entity to, Entity subject) => new()
         {
-            FromUnit = from, ToUnit = to, KindId = ReportKindId.Spot, Subject = subject, Building = 7, Position = new Vector3(120f, 80f, 3f),
-            Count = 2, Radius = 15f, Size = SpotSize.Team, Activity = SpotActivity.Firing, Equipment = ReportEquipment.MachineGun,
-            ObservedAt = 41.0, SentAt = 44.0, Seq = 5,
+            FromUnit = from, ToUnit = to, Subject = subject, Building = 7, SentAt = 44.0,
+            Report = new CommandReport { Kind = ReportKind.Spot, At = new Vector3(120f, 80f, 3f), Count = 2, Radius = 15f,
+                Size = ElementSize.Team, Activity = ElementActivity.Firing, Equipment = ElementEquipment.MachineGun, ObservedAt = 41f, Seq = 5 },
         };
 
+        private static SquadReportNotification Of(Entity from, Entity to, CommandReport report) => new() { FromUnit = from, ToUnit = to, Report = report };
+
         // sender publishes → its egress writes → the receiver's ingress raises
-        private SquadReportEvent RoundTrip(SquadReportEvent sent, out CapturingWriter<SquadReport> writer)
+        private SquadReportNotification RoundTrip(SquadReportNotification sent, out CapturingWriter<SquadReport> writer)
         {
             writer = new CapturingWriter<SquadReport>();
             var egress = new SquadReportEgressTranslator(writer, _senderMap, localNodeId: 3);
@@ -63,7 +65,7 @@ namespace Hrot.SimHost.Tests
             var ingress = new SquadReportIngressTranslator(null, _receiverMap, localNodeId: 1);
             foreach (var s in writer.Written) Assert.True(ingress.ProcessSample(s, _receiver));
             _receiver.Bus.SwapBuffers();
-            return Assert.Single(_receiver.Bus.ReadManaged<SquadReportEvent>());
+            return Assert.Single(_receiver.Bus.ReadManaged<SquadReportNotification>());
         }
 
         [Fact]
@@ -76,37 +78,41 @@ namespace Hrot.SimHost.Tests
             var wire = Assert.Single(writer.Written);
             Assert.Equal((11L, 12L, 13L, 3L), (wire.FromUnit, wire.ToUnit, wire.Subject, wire.OriginNodeId));
             Assert.Equal((rSquad, rPlatoon, rContact), (got.FromUnit, got.ToUnit, got.Subject));
-            Assert.Equal((ReportKindId.Spot, 7, new Vector3(120f, 80f, 3f), 2, 15f), (got.KindId, got.Building, got.Position, got.Count, got.Radius));
-            Assert.Equal((SpotSize.Team, SpotActivity.Firing, ReportEquipment.MachineGun), (got.Size, got.Activity, got.Equipment));
-            Assert.Equal((41.0, 44.0, 5u, 3L), (got.ObservedAt, got.SentAt, got.Seq, got.OriginNodeId));
-            Assert.True(got.ObservedAt < got.SentAt, "a report held 3 s arrives with ObservedAt before SentAt");
+            var r = got.Report;
+            Assert.Equal((ReportKind.Spot, 7, new Vector3(120f, 80f, 3f), (byte)2, 15f), (r.Kind, got.Building, r.At, r.Count, r.Radius));
+            Assert.Equal((ElementSize.Team, ElementActivity.Firing, ElementEquipment.MachineGun), (r.Size, r.Activity, r.Equipment));
+            Assert.Equal((41f, 44.0, 5u, 3L), (r.ObservedAt, got.SentAt, r.Seq, got.OriginNodeId));
+            Assert.True(r.ObservedAt < got.SentAt, "a report held 3 s arrives with ObservedAt before SentAt");
         }
 
         [Fact]
-        public void CE3250_ASitrep_AProgressFireLifted_APhaseLine_AndASyntheticRequest_RoundTrip()
+        public void CE3250_ASitrep_ALace_AProgressFireLifted_APhaseLine_AndASyntheticRequest_RoundTrip()
         {
             var (squad, platoon, _) = Units(_sender, _senderMap);
             Units(_receiver, _receiverMap);
 
-            var sitrep = RoundTrip(new SquadReportEvent { FromUnit = squad, ToUnit = platoon, KindId = ReportKindId.Sitrep,
-                Strength = ReportColour.Amber, Ammo = ReportColour.Red, Phase = 3, Seq = 1 }, out _);
-            Assert.Equal((ReportColour.Amber, ReportColour.Red, (byte)3), (sitrep.Strength, sitrep.Ammo, sitrep.Phase));
+            var sitrep = RoundTrip(Of(squad, platoon, new CommandReport { Kind = ReportKind.Sitrep, Strength = StatusColour.Amber,
+                Ammo = StatusColour.Red, Phase = 3, Seq = 1 }), out _);
+            Assert.Equal((StatusColour.Amber, StatusColour.Red, (ushort)3), (sitrep.Report.Strength, sitrep.Report.Ammo, sitrep.Report.Phase));
             Assert.True(sitrep.Subject.IsNull);
 
             _receiver.Bus.SwapBuffers();
-            var lifted = RoundTrip(new SquadReportEvent { FromUnit = squad, ToUnit = platoon, KindId = ReportKindId.Progress,
-                Subtype = (byte)ProgressSubtype.FireLifted, Seq = 2 }, out _);
-            Assert.Equal((byte)ProgressSubtype.FireLifted, lifted.Subtype);
+            var lace = RoundTrip(Of(squad, platoon, new CommandReport { Kind = ReportKind.Lace, Wia = 2, Kia = 1, Seq = 2 }), out _);
+            Assert.Equal(((byte)2, (byte)1), (lace.Report.Wia, lace.Report.Kia));
 
             _receiver.Bus.SwapBuffers();
-            var phase = RoundTrip(new SquadReportEvent { FromUnit = squad, ToUnit = platoon, KindId = ReportKindId.Progress,
-                Subtype = (byte)ProgressSubtype.PhaseLine, Count = 2, Seq = 3 }, out _);
-            Assert.Equal(((byte)ProgressSubtype.PhaseLine, 2), (phase.Subtype, phase.Count));
+            var lifted = RoundTrip(Of(squad, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.FireLifted, Seq = 3 }), out _);
+            Assert.Equal((byte)ProgressKind.FireLifted, lifted.Report.Subtype);
 
             _receiver.Bus.SwapBuffers();
-            var request = RoundTrip(new SquadReportEvent { FromUnit = squad, ToUnit = platoon, KindId = ReportKindId.Request,
-                Subtype = (byte)RequestSubtype.Casevac, RequestId = 900, Synthetic = true, Seq = 4 }, out _);
-            Assert.Equal(((byte)RequestSubtype.Casevac, 900u, true), (request.Subtype, request.RequestId, request.Synthetic));
+            var phase = RoundTrip(Of(squad, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.PhaseLine,
+                Count = 2, Seq = 4 }), out _);
+            Assert.Equal(((byte)ProgressKind.PhaseLine, (byte)2), (phase.Report.Subtype, phase.Report.Count));
+
+            _receiver.Bus.SwapBuffers();
+            var request = RoundTrip(Of(squad, platoon, new CommandReport { Kind = ReportKind.Request, Subtype = (byte)RequestKind.Casevac,
+                Synthetic = 1, Seq = 5 }), out _);
+            Assert.Equal(((byte)RequestKind.Casevac, (byte)1, 5u), (request.Report.Subtype, request.Report.Synthetic, request.Report.Seq));
         }
 
         [Fact]
@@ -117,7 +123,7 @@ namespace Hrot.SimHost.Tests
             var writer = new CapturingWriter<SquadReport>();
             var egress = new SquadReportEgressTranslator(writer, _senderMap, localNodeId: 3);
             _sender.Bus.PublishManaged(Spot(squad, platoon, stranger));
-            _sender.Bus.PublishManaged(new SquadReportEvent { FromUnit = squad, ToUnit = platoon, KindId = ReportKindId.Sitrep, OriginNodeId = 9 });
+            _sender.Bus.PublishManaged(new SquadReportNotification { FromUnit = squad, ToUnit = platoon, Report = new CommandReport { Kind = ReportKind.Sitrep }, OriginNodeId = 9 });
             _sender.Bus.SwapBuffers();
             egress.ScanAndPublish(_sender);
             Assert.Empty(writer.Written);
@@ -129,10 +135,10 @@ namespace Hrot.SimHost.Tests
         {
             Units(_receiver, _receiverMap);
             var ingress = new SquadReportIngressTranslator(null, _receiverMap, localNodeId: 1);
-            Assert.False(ingress.ProcessSample(new SquadReport { FromUnit = 11, ToUnit = 12, OriginNodeId = 1, KindId = 1 }, _receiver));
-            Assert.True(ingress.ProcessSample(new SquadReport { FromUnit = 11, ToUnit = 12, OriginNodeId = 4, KindId = 77 }, _receiver));
+            Assert.False(ingress.ProcessSample(new SquadReport { FromUnit = 11, ToUnit = 12, OriginNodeId = 1, Kind = 1 }, _receiver));
+            Assert.True(ingress.ProcessSample(new SquadReport { FromUnit = 11, ToUnit = 12, OriginNodeId = 4, Kind = 77 }, _receiver));
             _receiver.Bus.SwapBuffers();
-            Assert.Equal((ReportKindId)77, Assert.Single(_receiver.Bus.ReadManaged<SquadReportEvent>()).KindId);
+            Assert.Equal((ReportKind)77, Assert.Single(_receiver.Bus.ReadManaged<SquadReportNotification>()).Report.Kind);
             Assert.Equal(1, ingress.UnknownKindCount);
         }
 
@@ -150,8 +156,8 @@ namespace Hrot.SimHost.Tests
                     writer.Write((uint)1);
                     writer.Write((ulong)0);
                     repo.Tick();
-                    bus.PublishManaged(new SquadReportEvent { KindId = ReportKindId.Progress, Subtype = (byte)ProgressSubtype.RoomClear,
-                                                              Building = 4, Position = new Vector3(1f, 2f, 3f), Seq = 8, Synthetic = true });
+                    bus.PublishManaged(new SquadReportNotification { Building = 4, Report = new CommandReport { Kind = ReportKind.Progress,
+                        Subtype = (byte)ProgressKind.RoomClear, At = new Vector3(1f, 2f, 3f), Seq = 8, Synthetic = 1 } });
                     new Fdp.Core.FlightRecorder.RecorderSystem().RecordDeltaFrame(repo, 0, writer, 0L, bus);
                     bus.SwapBuffers();
                 }
@@ -163,10 +169,10 @@ namespace Hrot.SimHost.Tests
                     reader.ReadUInt32();
                     reader.ReadUInt64();
                     new Fdp.Core.FlightRecorder.PlaybackSystem().ApplyFrame(repo, reader, bus);
-                    var back = Assert.Single(bus.ReadManaged<SquadReportEvent>());
-                    Assert.Equal((ReportKindId.Progress, (byte)ProgressSubtype.RoomClear, 4, 8u, true),
-                                 (back.KindId, back.Subtype, back.Building, back.Seq, back.Synthetic));
-                    Assert.Equal(new Vector3(1f, 2f, 3f), back.Position);
+                    var back = Assert.Single(bus.ReadManaged<SquadReportNotification>());
+                    Assert.Equal((ReportKind.Progress, (byte)ProgressKind.RoomClear, 4, 8u, (byte)1),
+                                 (back.Report.Kind, back.Report.Subtype, back.Building, back.Report.Seq, back.Report.Synthetic));
+                    Assert.Equal(new Vector3(1f, 2f, 3f), back.Report.At);
                 }
             }
             finally { File.Delete(path); }

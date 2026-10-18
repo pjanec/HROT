@@ -20,10 +20,12 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
 
             // Assert
             // ⭐ CE-2074 (2026-10-04): RoeSystem before the ingress — an order's ROE applies in the same frame as its task.
-            Assert.Equal(2, module.InputSystems.Count);
+            // ⭐ CE-2291 (2026-10-19): ReportingRequirementsSystem beside it — the twin, same frame.
+            Assert.Equal(3, module.InputSystems.Count);
             Assert.Single(module.SimulationSystems);
             Assert.IsType<RoeSystem>(module.InputSystems[0]);
-            Assert.IsType<BehaviorIngressSystem>(module.InputSystems[1]);
+            Assert.IsType<Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem>(module.InputSystems[1]);
+            Assert.IsType<BehaviorIngressSystem>(module.InputSystems[2]);
             Assert.IsType<MissionDirectorSystem>(module.SimulationSystems[0]);
         }
     }

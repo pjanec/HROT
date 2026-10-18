@@ -47,12 +47,14 @@ network id for its child sensors to be solved (as every unit has). ⚠ No wall c
 
 ## BR-3 — the report topic *(as built: [Building Clearing §5d](../../designs/group-maneuvers/DESIGN_Building_Clearing.md), "BR-3 as built")*
 
-Your staff publishes `Fdp.Toolkit.Squad.Reports.SquadReportEvent` (managed) on the sender's bus when the report is DUE, with
-`OriginNodeId = 0`; every other node gets the same event with `OriginNodeId` = the sender's node and the units as its own entities.
-Every field of the ageing note is in (`ObservedAt`, `Seq`, `KindId` closed set, the subtypes incl. `FireLifted`, PhaseLine in `Count`,
-SPOT fields, `Synthetic`, `RequestId`, `Building` + `Position` instead of a room id). A report naming an entity with no network id is
-refused at egress (`RefusedCount`). An unknown kind still arrives (`UnknownKindCount`). Replay records it. ⚠ The event is registered by
-the cognitive registry and lazily by the ingress; a host that publishes elsewhere must register it (strict mode).
+Your staff publishes **`Fdp.Toolkit.Squad.Command.SquadReportNotification`** (managed — the Command Chain §3 box) on the sender's bus
+when the report is DUE, with `OriginNodeId = 0`: the envelope (`FromUnit`, `ToUnit`, `Subject`, `Building`, `SentAt`) around **your
+`CommandReport`** — so a `QueuedReport.Report` goes out as is. Every other node gets the same event with `OriginNodeId` = the sender's
+node and the units as its own entities. ⭐ **One vocabulary:** my first build had its own enums; at the merge of your `CE-2291` I rebased
+it onto `CommandReport` and deleted them (unpushed, nothing to migrate). ⚠ No `RequestId`: a REQUEST is named by sender + `Seq`, as your
+`PendingRequest` does. A report naming an entity with no network id is refused at egress (`RefusedCount`). An unknown kind still
+arrives (`UnknownKindCount`). Replay records it. ⚠ The event is registered by the cognitive registry and lazily by the ingress; a host
+that publishes elsewhere must register it (strict mode).
 
 ## BR-13 — ROE across nodes *(as built: [Entity Control §2.3a](../../DESIGN_Entity_Control.md))*
 
@@ -61,6 +63,8 @@ the cognitive registry and lazily by the ingress; a host that publishes elsewher
 * ⭐ **The owner's ROE comes back to every other brain node** (`BrainIntentIngressTranslator` writes the replica's `Roe`) — so your
   `CE-2289` chain walk reads a commander's REAL ROE for a man whose brain is on another node than his commander's. Before this the
   commander's `Roe` was simply absent there (it only travelled as `ReplicatedBrainIntent` for a hand-over).
-* **`SetReportingEvent` (CC-2, your `CE-2291`):** Kind 3 is RESERVED on the same request. When you add the event, it needs one `case` in
-  each of `TacticalIntentEgressTranslator.ForwardRoe`'s twin and `TacticalIntentIngressTranslator.ProcessSample` (the same shape as
-  `RoeDirectiveJson`) — tell me and I add it, or add it yourself and name the cross-lane edit.
+* ⭐ **`SetReportingEvent` (CC-2, your `CE-2291`) — DONE at the merge:** Kind 3 on the same request (`ReportingDirectiveJson`), forwarded
+  by `TacticalIntentEgressTranslator.ForwardReporting`, raised again by the ingress for the owner's `ReportingRequirementsSystem`.
+  ⚠ **Cross-lane edit in YOUR file:** `ReportingRequirementsSystem.Execute` now skips a networked replica exactly as `RoeSystem` does
+  (`ForwardedCount`), with rail `CommandComponentsTests.CE3251_AReplicasReportingRequirements_AreLeftToTheBrainsOwner`; its event's
+  doc comment no longer says "applied on the node that raised it".

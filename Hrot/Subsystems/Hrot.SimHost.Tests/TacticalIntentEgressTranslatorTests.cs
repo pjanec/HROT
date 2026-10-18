@@ -229,5 +229,32 @@ namespace Hrot.SimHost.Tests
 
             Assert.Empty(writer.Written);
         }
+
+        /// <summary>⭐ CE-3251 (BR-13) — a superior's reporting requirements (CE-2291 CC-2) for a subordinate whose brain runs elsewhere
+        /// go there as kind SetReporting; for a brain owned here nothing goes on the wire.</summary>
+        [Fact]
+        public void CE3251_ReportingRequirementsForARemoteBrain_AreForwarded_AndForALocalOne_StayHere()
+        {
+            var (translator, writer) = BuildTranslator();
+            _world.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
+            var remote = _world.CreateEntity();
+            _world.AddComponent(remote, new BehaviorState());   // authority NOT set: the brain runs elsewhere
+            _entityMap.Register(42L, remote);
+            var local = _world.CreateEntity();
+            _world.AddComponent(local, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(local, true);
+            _entityMap.Register(43L, local);
+
+            _world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = remote, Origin = BehaviorOrigin.Superior,
+                Ffir = Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, SitrepEverySeconds = 60f });
+            _world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = local, SitrepEverySeconds = 10f });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((TacticalIntentWireKind.SetReporting, 42L, (byte)BehaviorOrigin.Superior), (sent.Kind, sent.TargetEntityId, sent.Origin));
+            Assert.True(ReportingDirectiveJson.TryDecode(sent.JsonParams, remote, BehaviorOrigin.Superior, out var back));
+            Assert.Equal((Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, 60f), (back.Ffir, back.SitrepEverySeconds));
+        }
     }
 }

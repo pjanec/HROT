@@ -31,6 +31,9 @@ namespace Hrot.SimHost
         {
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();          // ⭐ CE-2291 CC-A — what subordinates reported
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportingRequirements>();   // ⭐ CE-2291 CC-A — the superior's extras
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>();            // ⭐ CE-2291 CC-A — reports waiting to go up
             world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
             world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
@@ -104,9 +107,10 @@ namespace Hrot.SimHost
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();
             world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
-            world.RegisterManagedEvent<Fdp.Toolkit.Squad.Reports.SquadReportEvent>();   // CE-3250 — a report up the chain (BR-3)
+            world.RegisterManagedEvent<Fdp.Toolkit.Squad.Command.SquadReportNotification>();   // CE-3250 — a report up the chain (BR-3), envelope over CommandReport
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterEvent<SetRoeEvent>();        // CE-2074
+            world.RegisterEvent<Fdp.Toolkit.Squad.Command.SetReportingEvent>();   // ⭐ CE-2291 CC-A
             world.RegisterEvent<ClearSopEvent>();      // CE-3035
             world.RegisterManagedEvent<AssignSopEvent>();   // CE-3035
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();

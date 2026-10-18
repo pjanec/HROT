@@ -169,6 +169,10 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>⭐ <c>CE-3035</c> — <c>ClearSopEvent</c>. 3105 is free by the same census.</summary>
         public const int EventId_ClearSop = 3105;
 
+        /// <summary>⭐ <c>CE-2291</c> CC-A — <c>SetReportingEvent</c> (the <c>SetRoeEvent</c> twin). 3106 free by a census of every literal and
+        /// constant event id on all four lanes, 2026-10-19.</summary>
+        public const int EventId_SetReporting = 3106;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;

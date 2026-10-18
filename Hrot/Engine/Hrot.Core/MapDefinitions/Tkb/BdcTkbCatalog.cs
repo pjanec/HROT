@@ -752,6 +752,27 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .AsLandUnit(TkbEntityTypes.Unit_InfantrySquad, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);   // ⭐ CE-2139 — 11.1.225.1.2.1
 
+            // ⭐ CE-2262 SL-0 (CB-16, R-2030) — Infantry Platoon (Composite of composites): a body-less commander over three squad commanders.
+            //   No default SOP yet — BasicPlatoonSop is Command Chain CC-D (CE-2294); a scenario or an order gives it its play.
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_InfantryPlatoon, "Infantry Platoon")
+                .WithVisual(TkbEntityTypes.Unit_InfantryPlatoon, v =>
+                {
+                    v.IconName = "infantry_squad";
+                    v.SymbolCode = "SFGPUCI---H----";
+                    v.ColorHex = "#0000FF";
+                    v.Scale = 1.5f;
+                })
+                .WithFaction(TkbEntityTypes.Unit_InfantryPlatoon, 1)
+                .WithBehavior(TkbEntityTypes.Unit_InfantryPlatoon)
+                .AsComposite(TkbEntityTypes.Unit_InfantryPlatoon, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Unit_InfantrySquad, Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Echelon = "Platoon";
+                    comp.AutoCreateChildren = false;
+                })
+                .AsLandUnit(TkbEntityTypes.Unit_InfantryPlatoon, Hrot.Core.Tkb.UnitArm.Infantry, UnitedStates);
+
             // Tank Platoon (Auto-Spawning)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto Spawn)")
