@@ -493,6 +493,87 @@ public sealed class RecastNavmeshFactoryTests
         Assert.Contains(Enumerable.Range(0, n), i => wps[i].Position.Z > 5.6f && wps[i].Traversal == TraversalKind.Door);
     }
 
+    /// <summary>
+    /// ⭐ UI-9 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — each new shared template, placed at (20, 20) with every door open: a path
+    /// from the street ENDS in every room it has, on every storey, and on the office block's roof (through its stair house). Points are
+    /// template-local (x, y, floor z).
+    /// </summary>
+    [Theory]
+    [InlineData("courtyard-house", 8f, -6f, "yard 8,4,0 · west room 4,11,0 · east room 12,10,0 · upstairs 4,10,3")]
+    [InlineData("office-4f", 10f, -6f, "lobby 5,6,0 · storey 2 5,6,3.2 · storey 3 5,6,6.4 · storey 4 5,6,9.6 · roof 5,6,12.8")]
+    [InlineData("shop-2f", 6f, -6f, "shop 4,3,0 · store 4,8.5,0 · flat 4,5,3.5")]
+    [InlineData("market-hall", 12f, -6f, "under the roof 12,4,0 · far side 20,12,0")]
+    public void UI9_EachQuarterTemplate_ThePathReachesEveryRoom_AndTheOfficeRoof(string template, float startX, float startY, string targets)
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var world = TerrainWorldParser.Parse($$$"""
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","template":"{{{template}}}","label":"T"},"geometry":{"type":"Point","coordinates":[20,20]}}]}
+            """, "range", TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, world.Doors.Select(d => (d.Key, TerrainDoorState.Open)).ToArray());
+        const uint Inf = (uint)NavLayerMask.Infantry;
+
+        var start = new Vector3(20 + startX, 20 + startY, 0);
+        var wps = new NavWaypoint[512];
+        var misses = new System.Collections.Generic.List<string>();
+        foreach (var t in targets.Split(" · "))
+        {
+            var parts = t.Split(' ');
+            var xyz = parts[^1].Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            var goal = new Vector3(20 + xyz[0], 20 + xyz[1], xyz[2]);
+            int n = nav.PlanPath(start, goal, wps, Inf, open);
+            var last = n > 0 ? wps[n - 1].Position : default;
+            if (n < 2 || MathF.Abs(last.Z - goal.Z) > 0.4f || Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(goal.X, goal.Y)) > 0.5f)
+                misses.Add($"{string.Join(' ', parts[..^1])} {goal}: ends at {(n > 0 ? last.ToString() : "nothing")}");
+        }
+        Assert.True(misses.Count == 0, $"{template}: " + string.Join(" | ", misses));
+    }
+
+    /// <summary>
+    /// ⭐ UI-10 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city WITH ITS QUARTERS bakes, and every quarter building is entered
+    /// from its street: a path from 3 m outside its front door (or a compound's gate) ends 2 m inside, all doors open. The bake time is
+    /// printed (the terrain loads on every host — DESIGN_Urban_Battle_Demo §4a records it).
+    /// </summary>
+    [Fact]
+    public void UI10_DemoCity_EveryQuarterBuilding_IsEnteredFromItsStreet_ThroughItsFrontDoor()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city");
+        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "demo-city.world.geojson")), "demo-city",
+            TerrainAssets.ForFolder(folder));
+        static bool Quarter(string label) => label.StartsWith("res-") || label.StartsWith("com-") || label.StartsWith("biz-");
+        Assert.True(world.Buildings.Count(b => Quarter(b.Label)) >= 130, $"{world.Buildings.Count(b => Quarter(b.Label))} quarter buildings");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = null }.Build(world)!;
+        long bakeMs = sw.ElapsedMilliseconds;
+        var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, world.Doors.Select(d => (d.Key, TerrainDoorState.Open)).ToArray());
+        const uint Inf = (uint)NavLayerMask.Infantry;
+
+        var wps = new NavWaypoint[256];
+        var misses = new System.Collections.Generic.List<string>();
+        int entered = 0;
+        foreach (var door in world.Doors)
+        {
+            var parts = door.Key.Split('/');
+            if (parts.Length < 3 || !Quarter(parts[1]) || (parts[2] != "front" && parts[2] != "gate")) continue;
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EnterableDoorGenerator.TryInside(world, door, 2f, out var inside), $"{door.Key}: no inside");
+            var outward = Vector2.Normalize(door.Center - inside);
+            var outside = door.Center + outward * 3f;
+            int n = nav.PlanPath(new Vector3(outside, door.SillZ), new Vector3(inside, door.SillZ), wps, Inf, open);
+            var last = n > 0 ? wps[n - 1].Position : default;
+            if (n < 2 || Vector2.Distance(new Vector2(last.X, last.Y), inside) > 0.5f) misses.Add($"{door.Key} (ends at {last})");
+            else entered++;
+        }
+        Console.WriteLine($"[UI-10] demo-city: {world.Buildings.Count} buildings, {world.Doors.Count} doors; infantry bake {bakeMs} ms; {entered} front doors / gates entered");
+        Assert.True(entered >= 130, $"only {entered} quarter front doors were tried");
+        Assert.True(misses.Count == 0, $"{misses.Count} quarter buildings not entered from their street: " + string.Join(" | ", misses.Take(12)));
+    }
+
     // ── CE-3111 · CE-1029 · R-218 P2 — the tiled bake (📄 Navigation_Design_v2_0.md §14 "P2 as built") ─────────────────
 
     /// <summary>A world of two rooms, 100 m apart, each with ONE real-width (0.9 m) door in its south wall; <paramref name="eastDoorAt"/>

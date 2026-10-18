@@ -790,6 +790,34 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.All(cover, p => Assert.Equal(1, p.StanceHeight));
         }
 
+        /// <summary>
+        /// ⭐ UI-11 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city's LANDING SQUARE (565..615 × 295..345, behind the battle
+        /// street's west row) is clear: no building, wall or slab stands in it, and a helicopter coming in from the open south edge at
+        /// 60 m and settling onto it — the rotor disc's centre and both tips (±8 m) — passes nothing. 🔴 Red-proof: a lot moved into
+        /// the square fails the first assertion.
+        /// </summary>
+        [Fact]
+        public void UI11_DemoCity_TheLandingSquareIsClear_AndAHelicopterComesInFromTheSouthWithoutACollision()
+        {
+            var folder = ShippedTerrain("demo-city");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "demo-city.world.geojson")), "demo-city",
+                TerrainAssets.ForFolder(folder));
+            const float X0 = 565, Y0 = 295, X1 = 615, Y1 = 345;
+            bool In(Vector2 p) => p.X > X0 && p.X < X1 && p.Y > Y0 && p.Y < Y1;
+            Assert.DoesNotContain(w.Buildings, b => b.Footprint.Any(In) || In(new Vector2((X0 + X1) / 2, (Y0 + Y1) / 2)) && PolygonMath.Contains(b.Footprint, new Vector2((X0 + X1) / 2, (Y0 + Y1) / 2)));
+            Assert.DoesNotContain(w.Prisms, p => p.Footprint.Any(q => In(new Vector2(q.X, q.Y))));
+            for (float x = X0 + 2; x < X1; x += 4)
+                for (float y = Y0 + 2; y < Y1; y += 4)
+                    Assert.Equal(new[] { 0f }, w.SurfacesAt(x, y));                  // nothing over the ground anywhere in it
+
+            var pad = new Vector2(590, 320);
+            foreach (float dx in new[] { -8f, 0f, 8f })
+            {
+                Assert.False(w.SegmentBlocked(new Vector3(pad.X + dx, 120, 60), new Vector3(pad.X + dx, pad.Y, 12)), $"the approach at {dx:+0;-0;0} m");
+                Assert.False(w.SegmentBlocked(new Vector3(pad.X + dx, pad.Y, 12), new Vector3(pad.X + dx, pad.Y, 0.5f)), $"the descent at {dx:+0;-0;0} m");
+            }
+        }
+
         /// <summary>⭐ CE-3128 (R-231) — a road POLYGON is refused, naming where roads live now: the terrain's road network.</summary>
         [Fact]
         public void CE3128_SurfaceRoad_IsRetired_AndTheErrorNamesTheRoadNetwork()

@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
+updated: 2026-10-18 (§4b the quarter plan — ui, UI-8…UI-12)
 build-state: IDEA — recorded, not scheduled (R-2051); the infrastructure in §4 comes first, the demos after it
-current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §5 the order
+current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Building_Interiors.md — OWNS the building templates the quarters place (§3g.1: the shared Recipes/Buildings folder, the roof storey)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the request / report machinery route B escalates through (CC-A…CC-E)
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — OWNS the platoon attack / defence plays the infantry fight uses; this scene is its final act
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS defensive positions and proficiency tiers (the insurgents' side)
@@ -113,6 +114,52 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 | where | ⭐ **demo-city, given quarters** — it alone has the road net, traffic and crowds the scene needs; new buildings can be made in whatever way suits — authored placements (`demo-city.houses.json`, merged by the coordinator's `terrain-from-sumo.py --houses`), a generator, new templates (R-2053: R-4052's "no procedural buildings" is SumoSharp's viewer buildings only) | grow `cqb-village` (~330 × 232 m, no road net or traffic; its sight lines are pinned by the platoon demos' rails) · a third terrain (redoes demo-city's road and traffic work) |
 | what | residential (2–3 storey houses, walled courtyard houses, alleys), business (office blocks, 3–4 storeys, stairs, windows on every storey, flat roofs), commercial (shops with flat roofs, a market square), and **one battle street** through them | — |
 | street cover | ⭐ **in the scenario**, not the terrain: the existing static obstacles (cars, sandbags, concrete blocks, crates) | baked into the terrain: every demo on demo-city would inherit them |
+
+### 4b. The quarter plan *(UI-8 — ui, `2026-10-18`; [hand-off](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md); built by `scripts/demo-city-quarters.py`)*
+
+![demo-city with its quarters](img/demo-city-quarters.svg)
+
+*What the picture shows that prose could not:* the battle street (Avenue E, red) runs 400 m from the open south edge between two
+rows of houses into the market square; the business quarter wraps the existing tower; the landing square **H** sits one row behind
+the battle street, reached by a gap in its west row. Everything west of Avenue M stays the coordinator's CE-4028 suburb (grey).
+
+| | ⭐ decision | rejected — one line each |
+|---|---|---|
+| the battle street | ⭐ **Avenue E** (x ≈ 650): two lanes each way, sidewalks on BOTH sides, from the open south edge to Street M (400 m), into the square at its NE corner | Avenue M (x ≈ 405, narrower) — **measured: one-way, a sidewalk on its EAST side only** (`demo-city.net.xml`, edge `e_d_4_2_d_4_3`), so a west row's front doors could face no sidewalk (fence §2) |
+| residential | rows of `house-2f` / `house-3f` / `courtyard-house` along both sides of the battle street and both sides of Street S east of Avenue M, 4 m alleys between them; every front door (a compound's gate) on the sidewalk | an inner-block back row — its doors would face no sidewalk |
+| commercial | the **market square** (x 661..758, y 411..488): `shop-2f` round its east and north sides facing it, a `market-hall` in it, shop rows facing it across Avenue E and north of it | ⚠ the square's shops face the **square** (a pedestrian plaza), not a sidewalk — the one place the fence's wording bends; the shelter promise is unaffected (checked over every SUMO sidewalk point) |
+| business | `office-4f` round the tower (`bldg_office_10`): Street M north side, Avenue M east side, Street N both sides | offices on Avenue E — it is the battle street |
+| replaced CE-4028 houses | six, where a quarter stands: `house-1f-26`, `house-1f-13` (battle street), `house-1f-23`, `house-1f-1` (square / Avenue E), `shop-1f-8`, `house-1f-22` (Street N) | keeping them — each sat on a quarter lot |
+| landing square | **H** = x 565..615, y 295..345 (50 × 50 m), open ground, entered by the gap at y 304..318 in the battle street's west row | in the market square — the hall and the crowd |
+
+**Placements by quarter** (labels are `<quarter>-<street side>-<n>`; the script's `--table` prints this):
+
+| quarter | street side | buildings |
+|---|---|---|
+| residential | battle street, west side | `res-bw-01` … `res-bw-21` — 11 × house-2f, 5 × house-3f, 5 × courtyard-house |
+| residential | battle street, east side | `res-be-01` … `res-be-22` — 12 × house-2f, 5 × house-3f, 5 × courtyard-house |
+| residential | Street S, north side, west of the battle street | `res-sgn-01` … `res-sgn-13` — 8 × house-2f, 3 × house-3f, 2 × courtyard-house |
+| residential | Street S, south side, west of the battle street | `res-sgs-01` … `res-sgs-10` — 7 × house-2f, 2 × house-3f, 1 × courtyard-house |
+| residential | Street S, north side, east of the battle street | `res-shn-01` … `res-shn-08` — 5 × house-2f, 2 × house-3f, 1 × courtyard-house |
+| residential | Street S, south side, east of the battle street | `res-shs-01` … `res-shs-06` — 4 × house-2f, 1 × house-3f, 1 × courtyard-house |
+| commercial | market square, east side · north side | `com-se-01` … `05`, `com-sn-01` … `07` — 12 × shop-2f |
+| commercial | the market square | `com-hall` — market-hall |
+| commercial | Avenue E, east side north of the square · west side facing it | `com-ee-01` … `08`, `com-ew-01` … `06` — 14 × shop-2f |
+| business | Street M north · Avenue M east · Street N south · Street N north | `biz-ms-01` … `07`, `biz-mw-01` … `06`, `biz-ns-01` … `08`, `biz-nn-01` … `08` — 29 × office-4f |
+| **total** | | **136 new** (80 residential, 27 commercial, 29 business) + 28 CE-4028 houses kept + the 5 SUMO data buildings |
+
+The battle street's own promises (§1): buildings on both sides with upper windows facing it (every `house-2f` / `house-3f` front
+has two upper windows) · walled compounds on it (`res-bw-03`, `-07`, `-12`, `-16`, `-20` and five on the east side) · roofs that see
+along it (`res-bw-01` at the south end, `res-be-22` at the north end, both `house-3f`) — the last two and the landing square are rows
+of `demo-city/premises.json`.
+
+**As built** (`CE-1183` … `CE-1187`): `scripts/demo-city-quarters.py` holds the rows and writes `demo-city.houses.json` + the world
+file (`--check` re-verifies the fences and that the files are current — rerun it after editing a row, never hand-edit the files) ·
+templates in [Building Interiors §3g.1](../../DESIGN_Building_Interiors.md) · rails: `UI10_DemoCity_EveryQuarterBuilding_IsEnteredFromItsStreet_ThroughItsFrontDoor`
+(135 front doors / gates entered from 3 m outside; the infantry navmesh of the whole terrain bakes in **14.4 s** in that run, uncached) ·
+`UI11_DemoCity_TheLandingSquareIsClear_…` · `CE4028_DemoCity_EverySidewalkPoint_…` (the shelter promise, unchanged and green) ·
+`DemoPremisesTests.UI12_ADemoCityPremise_Holds_…` (6 rows) · `ShippedTerrainFilesAreDeployedTests` (the world loads from the build
+output). ⚠ Not measured: a live cluster load of demo-city with the quarters (the vehicle layer's bake and the tile cache on a node).
 
 ## 5. The order
 
