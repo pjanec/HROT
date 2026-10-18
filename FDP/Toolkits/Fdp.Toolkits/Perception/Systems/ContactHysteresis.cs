@@ -21,8 +21,17 @@ namespace Fdp.Toolkit.Perception.Systems
         /// (target id, new status) into <paramref name="transitions"/>. Returns the number written; <paramref name="changed"/>
         /// is true when any slot changed.
         /// </summary>
+        public static int Apply(ref SensorContactList list, uint tick,
+                                Span<(long TargetId, SensorTrackStatus State)> transitions, out bool changed)
+            => Apply(ref list, tick, transitions, out changed, double.PositiveInfinity);
+
+        /// <summary>
+        /// ⭐ <c>CE-3260</c> (BR-7, DESIGN_Sensors_And_Doctrine §5.7 AQ-1) — the rule with the DWELL: a Pending / Lost contact seen now is
+        /// acquired only once it has been seen without a break for its <see cref="SensorContactList.AcquireAfter"/> (from
+        /// <see cref="SensorContactList.VisibleSince"/> to <paramref name="now"/>, sim seconds). 0 ⇒ the tick he is seen, as before.
+        /// </summary>
         public static unsafe int Apply(ref SensorContactList list, uint tick,
-                                       Span<(long TargetId, SensorTrackStatus State)> transitions, out bool changed)
+                                       Span<(long TargetId, SensorTrackStatus State)> transitions, out bool changed, double now)
         {
             changed = false;
             int n = 0;
@@ -34,6 +43,9 @@ namespace Fdp.Toolkit.Perception.Systems
                 if (state is SensorContactState.Pending or SensorContactState.Lost)
                 {
                     if (age != 0) continue;
+                    // ⭐ CE-3260 — not seen long enough yet. ⚠ VisibleSince is a FLOAT and now a double: 0.1 − 0.1f is a hair below 0, so a zero
+                    //   dwell must pass outright and the rest compare to the millisecond (found by the rail: no contact was acquired at all)
+                    if (list.AcquireAfter[i] > 0f && now - list.VisibleSince[i] < list.AcquireAfter[i] - 1e-3) continue;
                     list.State[i] = (byte)SensorContactState.Acquired;
                     changed = true;
                     if (n < transitions.Length) transitions[n++] = (list.EntityIds[i], SensorTrackStatus.Acquired);

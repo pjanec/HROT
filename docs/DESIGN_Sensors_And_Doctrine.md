@@ -1,14 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
+updated: 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
-current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
+current-answer: the whole file — §5.7 acquisition time by exposure (CE-3260, BR-7) · §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4. · §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-3 OWNS the requirement (acquisition time by exposure, R-2035); §5.7 here is its engine (CE-3260); DA-1/DA-2 own the proficiency it reads
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §2 builds §11.2's G1: ThreatDanger.ToMe (the threat's weapon vs MY armour) for a vehicle self
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — proposes building §11.2's G1 lean (danger from weapons vs my armour) in ThreatDanger.Of (V1)
@@ -429,6 +430,61 @@ sequenceDiagram
 | ⭐ only a COMPLETED answer is shared | a leader waiting on async raycasts publishes nothing that tick, so neither does a twin; the twin never submits raycasts of its own |
 | ⚠ the wire is NOT halved | each twin keeps its own config and result samples (its own key); halving it would change what a sensor key IS |
 | ⚠ "starts warm" holds within a tick only | a newly spawned twin is scheduled at once (never solved = oldest); it gets the copy when its leader runs the same tick, else it solves and becomes the leader |
+
+
+### 5.7 Acquisition time by exposure — `CE-3260` *(backend, behaviors' BR-7 — [Defend and Attack frame](blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md); DA-3, R-2035; designed and built `2026-10-19`, leans under the overnight mandate)*
+
+🔒 DA-3 (approved R-2035): *a contact is acquired after a delay that grows with range and with how little of the man shows, and shrinks
+with the observer's proficiency; **0 for a fully exposed man within 100 m**.* ⛔ Before: §5.4's one rule acquired a contact the tick it was
+first seen, so a short peek or a set-back window post protected a man from being HIT but never from being SEEN.
+
+**INVENTORY** *(2026-10-19)*: the acquire rule is ONE function — `ContactHysteresis.Apply`, called only by `SensorMemoryStage.Observe`
+(grep: 1 production caller). The sight verdict is `StrategySightTest` → `ILosStrategy.IsVisible` (2 implementations: `PlanarCircleLosStrategy`,
+`TerrainWorldLosStrategy`). `SensorContactList` is muscle-only (no `dt` descriptor: grep `Hrot/Network` → 0). An entity result's `Flags`
+bits 8–12 carry the ACOUSTIC kind / class; a visual result's `Flags` are unused (its other test, `DistanceScoreTest`, writes `Score` only).
+
+```mermaid
+classDiagram
+  direction LR
+  class ILosStrategy { <<EXISTING, grows>> IsVisible · VisiblePoints NEW (default: IsVisible ? 1 of 1) }
+  class TerrainWorldLosStrategy { <<EXISTING>> VisiblePoints: clear body points of the stance's }
+  class StrategySightTest { <<EXISTING, grows>> writes the exposure into Flags 8-14 }
+  class SensorMemoryStage { <<EXISTING, grows>> each sighting: the dwell it needs (range, exposure, the observer's proficiency) }
+  class Acquisition { <<NEW static>> Encode · Decode · DelaySeconds }
+  class SensorContactList { <<EXISTING, grows>> + VisibleSince · AcquireAfter per slot }
+  class ContactHysteresis { <<EXISTING, grows>> Pending/Lost to Acquired only after the dwell }
+  class ProficiencyOf { <<behaviors' CE-2273>> Value · Lerp }
+  StrategySightTest ..> ILosStrategy : VisiblePoints
+  StrategySightTest ..> Acquisition : Encode
+  SensorMemoryStage ..> Acquisition : Decode, DelaySeconds
+  Acquisition ..> ProficiencyOf
+  SensorMemoryStage --> SensorContactList
+  ContactHysteresis --> SensorContactList
+```
+*What the picture shows that prose hid:* the rule stays ONE function (`ContactHysteresis`); the exposure travels on the result the sight
+test already returns (no second line-of-sight pass), and the delay is computed where the list is written — the memory stage, on the muscle.
+
+```mermaid
+sequenceDiagram
+  participant T as StrategySightTest (muscle, per candidate)
+  participant M as SensorMemoryStage.Observe
+  participant L as SensorContactList (the sensor's)
+  participant H as ContactHysteresis.Apply
+  T->>T: VisiblePoints(unit, target) ⇒ 2 of 3 clear ⇒ Flags 8-14
+  M->>M: range, exposure 2/3, observer proficiency ⇒ AcquireAfter (s)
+  M->>L: UpdateSighting: a NEW run (unseen > the lost threshold) ⇒ VisibleSince = now
+  M->>H: Apply(list, tick, now)
+  H->>H: Pending seen now AND now − VisibleSince ≥ AcquireAfter ⇒ Acquired
+```
+
+| id | decision (lean) | why | rejected — one line each |
+|---|---|---|---|
+| **AQ-1** | the delay is a DWELL in the one acquire rule: a Pending / Lost contact is acquired when seen now AND seen continuously for `AcquireAfter` | the rule stays one function; the brain gets nothing new — only a later `Acquired` | a delay on the brain (the brain sees `Acquired` already); a probability per tick (not deterministic across nodes, harder to rail) |
+| **AQ-2** | `delay = 2 s × (max(0, range − 100 m) / 400 m + (1 − exposure)) × observer factor`; exposure = clear body points / the stance's points; factor = Untrained 1.8 · Militia 1.4 · Regular 1.0 · Veteran 0.85 · Elite 0.7 (through `ProficiencyOf.Value` + `ProficiencyOf.Lerp`) | 0 for a fully exposed man within 100 m (DA-3); one of three points at 300 m ≈ 2.3 s, fully exposed at 300 m 1 s, at 500 m 2 s | an area-of-silhouette model (DA-3's own rejected) · a new method in behaviors' `ProficiencyOf` (its public `Lerp` already serves a table) |
+| **AQ-3** | the exposure rides the result: `Flags` bits 8–11 the clear points, 12–14 the stance's, `FlagsMeaningful` set (`Acquisition.Encode/Decode`) | the sight test already walks the points; no second pass; vision's `Flags` are free | a second LOS pass in the memory stage (doubles the sight cost) |
+| **AQ-4** | `ILosStrategy.VisiblePoints` — a DEFAULT interface method (`IsVisible ? 1 : 0` of 1), overridden by `TerrainWorldLosStrategy` (every point, not the first clear) | the planar strategy and test doubles keep working; a 3-point walk where the first clear point used to stop | a second interface (every host's composition would change) |
+| **AQ-5** | the run resets when the man is unseen longer than the lost threshold (`TrackLostThresholdTicks`) — "the delay resets when he hides" | the one existing notion of "gone"; a one-tick flicker at a window edge does not restart it | resetting on any unseen tick (the 10 Hz solver would never let a long dwell finish behind a flickering edge) |
+| **AQ-6** | ⭐ ONLY a sight-tested result waits (it carries the exposure: vision, and thermal, which shares `StrategySightTest`); any other sensor's contact (a radar, a host's own template) is acquired the tick it is seen, as before (`Acquisition.DwellOf`) | the frame names SIGHT; a radar's range term would be a behaviour change no one asked for | the range term for every sensor (the first draft: a 300 m radar contact would wait 1 s) |
 
 ## 6. Doctrine and origin — classes
 

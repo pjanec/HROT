@@ -77,10 +77,21 @@ namespace Fdp.Toolkit.Perception.Sensors
             }
             bool existed = view.HasComponent<SensorContactList>(sensor);
             var list = existed ? view.GetComponentRO<SensorContactList>(sensor) : default;
+            // ⭐ CE-3260 (BR-7, §5.7) — each sighting carries the dwell it needs: range, how much of him shows, the observer's proficiency
+            var unit = view.GetComponentRO<PartMetadata>(sensor).ParentEntity;
+            bool placed = view.IsAlive(unit) && view.HasComponent<SimTransform>(unit);
+            var from = placed ? view.GetComponentRO<SimTransform>(unit).Position : default;
+            float factor = placed ? Acquisition.ObserverFactor(view, unit) : 1f;
             foreach (ref readonly var r in results)
-                if (r.EntityId > 0) SensorContactList.UpdateSighting(ref list, r.EntityId, tick);
+            {
+                if (r.EntityId <= 0) continue;
+                var target = new Entity((ulong)r.EntityId);
+                float range = placed && view.IsAlive(target) && view.HasComponent<SimTransform>(target)
+                    ? System.Numerics.Vector3.Distance(from, view.GetComponentRO<SimTransform>(target).Position) : 0f;
+                SensorContactList.UpdateSighting(ref list, r.EntityId, tick, (float)_now, Acquisition.DwellOf(in r, range, factor));
+            }
             Span<(long, SensorTrackStatus)> ignored = stackalloc (long, SensorTrackStatus)[PerceptionConstants.MaxTrackedTargets];
-            ContactHysteresis.Apply(ref list, tick, ignored, out _);
+            ContactHysteresis.Apply(ref list, tick, ignored, out _, _now);
             Record(view, sensor, list, existed);
         }
 

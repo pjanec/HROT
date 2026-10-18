@@ -25,6 +25,17 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// <summary>True when <paramref name="observer"/> can see <paramref name="target"/>. Both are alive and
         /// carry a <see cref="SimTransform"/> — the caller checks.</summary>
         bool IsVisible(ISimulationView view, Entity observer, Entity target);
+
+        /// <summary>
+        /// ⭐ <c>CE-3260</c> (BR-7, DESIGN_Sensors_And_Doctrine §5.7 AQ-4) — HOW MUCH of <paramref name="target"/> the observer sees: the body
+        /// points with a clear line, of <paramref name="total"/> (his stance's). The acquisition delay grows as fewer show. Default: a strategy
+        /// with no body points answers 1 of 1 when visible.
+        /// </summary>
+        int VisiblePoints(ISimulationView view, Entity observer, Entity target, out int total)
+        {
+            total = 1;
+            return IsVisible(view, observer, target) ? 1 : 0;
+        }
     }
 
     /// <summary>
@@ -293,8 +304,15 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             return points;
         }
 
-        public bool IsVisible(ISimulationView view, Entity observer, Entity target)
+        public bool IsVisible(ISimulationView view, Entity observer, Entity target) => Count(view, observer, target, firstOnly: true, out _) > 0;
+
+        /// <summary>⭐ <c>CE-3260</c> (§5.7 AQ-4) — every body point walked, not only to the first clear one.</summary>
+        public int VisiblePoints(ISimulationView view, Entity observer, Entity target, out int total) => Count(view, observer, target, firstOnly: false, out total);
+
+        private int Count(ISimulationView view, Entity observer, Entity target, bool firstOnly, out int total)
         {
+            total = 0;
+            int clear = 0;
             var eye = EyeOf(view, observer, _stance?.Invoke(view, observer) ?? StanceId.Standing);   // ⭐ CE-3257 — the leaning eye
             var basePos = view.GetComponentRO<SimTransform>(target).Position;
             var stance = _stance?.Invoke(view, target) ?? StanceId.Standing;
@@ -304,15 +322,18 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var batch = _batch.Value!;
             var world = batch.World;
             var occlusion = batch.Occlusion;
-            // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen)
+            // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen); ⭐ CE-3260 — and HOW MANY
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
+                total++;
                 var aim = basePos with { Z = basePos.Z + f * scale };
                 if (leans) aim += Fdp.Toolkit.Combat.Leans.Offset(view, target, stance, f * scale, scale);
                 if (world != null && world.SightBlocked(eye, aim)) continue;
-                if (occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
+                if (occlusion.Blocking(eye, aim, observer, target, out _) != null) continue;
+                clear++;
+                if (firstOnly) return clear;
             }
-            return false;
+            return clear;
         }
     }
 

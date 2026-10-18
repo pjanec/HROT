@@ -438,6 +438,14 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 | the men | `Infantry_Sniper` **209** (US) · `Infantry_Marksman` **210** (US) · `Infantry_MarksmanSvd` **211** (Russia, faction 2) — the rifleman's body with the scoped rifle; the role is `TacticalDesignation.Marksman` (BR-8) | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` | the same |
 | ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6 — ✅ built since, §12c) | | |
 
+### 12d. BR-7 as built — acquisition time by exposure *(backend, `CE-3260`, 2026-10-19 — the engine of DA-3; its design lives in [Sensors and Doctrine §5.7](../../DESIGN_Sensors_And_Doctrine.md), not here)*
+
+`delay = 2 s × (max(0, range − 100 m) / 400 m + (1 − clear points / his stance's)) × the observer's factor` (Untrained 1.8 · Militia 1.4 ·
+Regular 1.0 · Veteran 0.85 · Elite 0.7, through `ProficiencyOf`). A fully exposed man within 100 m: 0, as before. One of three points at
+300 m: ≈ 2.3 s. Fully exposed at 300 m: 1 s. A hide longer than the lost threshold (20 ticks) starts the dwell over. ⭐ Only SIGHT waits
+(vision, and thermal, which shares the sight test); a radar contact does not. ⇒ Your short peek and the set-back window post now protect
+from being SEEN, not only from being hit (DA-3's point).
+
 ### 12c. BR-6 as built — the shooter's proficiency in the spread *(backend, `CE-3259`, 2026-10-19 — cross-lane fold by backend; DA-2)*
 
 | piece | as built | where | rail |
