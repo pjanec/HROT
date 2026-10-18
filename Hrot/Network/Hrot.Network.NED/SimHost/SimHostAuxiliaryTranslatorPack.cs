@@ -93,6 +93,13 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new MissileWarningIngressTranslator(participant, entityMap));
         }
 
+        // ⭐ CE-4024 (AQ93 §15 K7) — the TRAFFIC node takes the hits too: a hit on a SUMO car or pedestrian is addressed to the replica the
+        //   traffic node owns, and its TrafficPanicSystem turns it into a conversion. 📌 Measured 2026-10-17 on the cluster: Brain-only, so
+        //   a burst did 2 889 damage to a SUMO car on SimHost and the traffic node never heard of it. ⛔ Harmless for everything else:
+        //   HealthApplicationSystem is authority-gated, and the traffic node owns no one's health but its replicas'.
+        if (role.HasFlag(NodeRole.Traffic) && !role.HasFlag(NodeRole.Brain))
+            translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
+
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
         if (role.HasFlag(NodeRole.MuscleGround))
         {

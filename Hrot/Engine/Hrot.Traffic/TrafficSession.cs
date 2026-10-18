@@ -1,6 +1,7 @@
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Traffic;
 using Sim.LiveCity;
+using Sim.Pedestrians.Lod;
 using Sim.Replication;
 using Sim.Replication.Dds;
 
@@ -21,7 +22,10 @@ public sealed record TrafficServeOptions(Func<long> NextNetworkId, DdsParticipan
 /// allocator (H5); SUMO's clock STARTS at the cluster time the session starts (H6), so every sample on every wire is stamped in cluster
 /// time; the car types are the TKB's (H9, each carrying its TKB type on the spawn record, H7); and when the node has a participant the
 /// same steps are TEED to SumoSharp's DDS sink keyed by this node (H8) while its own mirror reads the in-memory wire (N7).</para>
-/// <para>⭐ <see cref="LiveCitySim"/> in <see cref="PedNavMode.RouteGraph"/> mode (the whole net, R-4040), pedestrians off (their slice), and
+/// <para>⭐ AQ93 §15 K1/K2 — pedestrians walk when the demand asks for them (<see cref="TrafficDemand.TargetPedestrians"/>, 0 = off), each
+/// named by the cluster's allocator as cars are (SumoSharp H14 <c>PedIdProvider</c>: a pedestrian's name IS its network id), their
+/// lifecycle on the wire and teed to DDS beside the cars; <see cref="Convert"/> gives frightened ones up (K4/K5).</para>
+/// <para>⭐ <see cref="LiveCitySim"/> in <see cref="PedNavMode.RouteGraph"/> mode (the whole net, R-4040), and
 /// <see cref="LiveCitySim.SelfPumpVehicleBus"/> false so the main thread alone drains the in-memory wire.</para>
 /// <para>⛔ <b>Threads.</b> <see cref="StepTo"/> runs on the stepping module's thread; <see cref="Source"/> is pumped and read on the main
 /// thread. <see cref="Dispose"/> and <see cref="StepTo"/> share a gate.</para>
@@ -33,6 +37,7 @@ public sealed class TrafficSession : IDisposable
 
     private readonly LiveCitySim _sim;
     private readonly DdsReplicationSink? _dds;
+    private readonly DdsPedReplicationSink? _ddsPeds;
     private readonly object _gate = new();
     private bool _disposed;
 
@@ -42,6 +47,7 @@ public sealed class TrafficSession : IDisposable
     {
         Key = key;
         var demand = key.Demand;
+        bool peds = demand.TargetPedestrians > 0;
         var cfg = new LiveCityConfig
         {
             DatasetDir = key.Folder,
@@ -50,8 +56,11 @@ public sealed class TrafficSession : IDisposable
             CarTargetConcurrent = Math.Max(0, demand.TargetCars),
             CarRngSeed = 0x243F6A8885A308D3UL ^ demand.Seed,
             Dt = demand.StepSeconds > 0f ? demand.StepSeconds : TrafficDemand.Default.StepSeconds,
-            PedPopulationCap = 0,
-            PedSpawnRatePerSecond = 0.0,
+            PedPopulationCap = peds ? demand.TargetPedestrians : 0,
+            PedSpawnRatePerSecond = peds ? PedSpawnRate(demand.TargetPedestrians) : 0.0,
+            // ⭐ K2 (H14) — named by the cluster's allocator; float64 start times, because cluster time is large (N3)
+            PedIdProvider = peds ? () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture) : null,
+            PedWireFloat64StartTimes = true,
             StartTime = startTime,
             VehicleIdProvider = () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture),
             VehicleTypes = types.Count == 0 ? null : types.Select(t => new LiveCityVehicleType(
@@ -59,8 +68,10 @@ public sealed class TrafficSession : IDisposable
                 ExternalType: t.TkbType, Color: 0u)).ToList(),
         };
         _dds = options.Participant is { } p ? new DdsReplicationSink(p, options.Source) : null;
-        _sim = new LiveCitySim(cfg, recordVehSink: _dds) { SelfPumpVehicleBus = false };
-        _sim.SetPedDensity(0, 0.0);
+        _ddsPeds = peds && options.Participant is { } pp ? new DdsPedReplicationSink(pp, options.Source, float64StartTimes: true) : null;
+        _sim = new LiveCitySim(cfg, recordVehSink: _dds, recordPedSink: _ddsPeds) { SelfPumpVehicleBus = false };
+        if (!peds) _sim.SetPedDensity(0, 0.0);
+        Pedestrians = new PedRemoteReconstructor(_sim.PedSource);
         StartTime = startTime;
         Volatile.Write(ref _time, startTime);
     }
@@ -74,6 +85,63 @@ public sealed class TrafficSession : IDisposable
     /// <summary>The car wire, in cluster time. ⛔ Main thread only: <see cref="IReplicationSource.Pump"/> and every read.</summary>
     public IReplicationSource Source => _sim.VehicleSource;
 
+    /// <summary>⭐ AQ93 §15 K3 — the pedestrian wire, read back through SumoSharp's own reconstructor. ⛔ Main thread only:
+    /// <see cref="PedRemoteReconstructor.Pump"/> and every read.</summary>
+    public PedRemoteReconstructor Pedestrians { get; }
+
+    /// <summary>SumoSharp's spawn rate for a population (its own scaling: 8/s per 160 walkers, never below 8/s).</summary>
+    public static double PedSpawnRate(int population) => 8.0 * Math.Max(1.0, population / 160.0);
+
+    /// <summary>Pedestrians given up so far (<see cref="Convert"/>), against <see cref="TrafficDemand.ConversionCap"/> (K6).</summary>
+    public int Converted { get; private set; }
+
+    private readonly List<string> _near = new();
+
+    /// <summary>⭐ AQ93 §15 K4/K5/K6 — removes from SUMO the pedestrians within <paramref name="incident"/>'s radius (H14 S1: each
+    /// Despawn rides the wire at once, so every mirror drops it) while under the cap, and APPENDS what each was to
+    /// <paramref name="into"/>. ⛔ Stepping thread, between steps.</summary>
+    /// <returns>How many were given up.</returns>
+    public int Convert(in TrafficIncident incident, List<TrafficConversion> into)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return 0;
+            int cap = Key.Demand.ConversionCap, n = 0;
+            if (Converted >= cap || _sim.PedestriansWithin(incident.NetX, incident.NetY, incident.Radius, _near) == 0) return 0;
+            foreach (var name in _near)
+            {
+                if (Converted >= cap) break;
+                if (!_sim.RemovePedestrian(name, out var st)) continue;
+                into.Add(new TrafficConversion(name, st.X, st.Y, st.Z, st.Heading, incident.At));
+                Converted++;
+                n++;
+            }
+            return n;
+        }
+    }
+
+    /// <summary>⭐ AQ93 §15 K7 — gives up the agent <paramref name="hit"/> names (a hit man is never capped: he is hurt, and counts toward
+    /// <see cref="Converted"/>) and APPENDS what he was — a pedestrian (H14 <c>RemovePedestrian</c>) or a car (H15 <c>RemoveVehicle</c>,
+    /// its centre and TKB type). ⛔ Stepping thread, between steps.</summary>
+    /// <returns>True when he was given up.</returns>
+    public bool ConvertHit(in TrafficHit hit, List<TrafficConversion> into)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return false;
+            if (hit.IsVehicle)
+            {
+                if (!_sim.RemoveVehicle(hit.Name, out var car)) return false;
+                into.Add(new TrafficConversion(hit.Name, car.X, car.Y, car.Z, car.Heading, hit.FrightFrom, IsVehicle: true, ExternalType: car.ExternalType));
+                return true;
+            }
+            if (!_sim.RemovePedestrian(hit.Name, out var st)) return false;
+            into.Add(new TrafficConversion(hit.Name, st.X, st.Y, st.Z, st.Heading, hit.FrightFrom));
+            Converted++;
+            return true;
+        }
+    }
+
     /// <summary>The net's lane shapes, for dead reckoning on the receiving side.</summary>
     public Sim.Core.NetworkLaneSource Lanes => _sim.LocalLanes;
 
@@ -83,6 +151,88 @@ public sealed class TrafficSession : IDisposable
 
     /// <summary>SUMO's step length (seconds).</summary>
     public double StepSeconds => _sim.Dt;
+
+    /// <summary>⭐ AQ93 §13 — our bodies for SUMO's next step (stepping thread, between steps).</summary>
+    public void SetBodies(TrafficBody[] bodies) => _bodies = bodies ?? Array.Empty<TrafficBody>();
+    private TrafficBody[] _bodies = Array.Empty<TrafficBody>();
+
+    /// <summary>The bodies SUMO was last told about.</summary>
+    public IReadOnlyList<TrafficBody> Bodies => _bodies;
+
+    /// <summary>What SUMO made of our bodies (SumoSharp H12): lane obstacles and crowd discs. Null until bodies were first told.</summary>
+    public Sim.Core.Bridge.ExternalBodyFeed? Feed => _sim.ExternalBodies;
+
+    /// <summary>⭐ AQ93 §14 G3 — the vehicles handed to SUMO, for the next step (stepping thread).</summary>
+    public void SetHandovers(TrafficHandover[] handovers) => _handovers = handovers ?? Array.Empty<TrafficHandover>();
+    private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();
+    private TrafficHandover[]? _appliedHandovers;
+
+    // id → the intent its shadow serves; a shadow that ARRIVED stays here (not respawned) until the intent changes.
+    private readonly Dictionary<long, uint> _shadows = new();
+    private readonly Dictionary<long, double> _refused = new();   // id → when SUMO last refused it (retried after RetrySeconds)
+    private readonly HashSet<long> _wanted = new();
+    private readonly List<long> _drop = new();
+
+    /// <summary>A refused hand-over (no lane near the vehicle, no route) is retried after this long, in SUMO time.</summary>
+    public const double RetrySeconds = 2.0;
+
+    /// <summary>The shadows SUMO is driving now (or has just arrived), by network id — rails and diagnostics.</summary>
+    public IReadOnlyCollection<long> Shadows => _shadows.Keys;
+
+    // ⭐ SumoSharp H13 (f252ddc): SpawnExternalVehicle routes "hrot:<id>" from the vehicle's lane to the destination's lane offset;
+    //   DespawnExternalVehicle takes it back. Ownership never moves — the body's owner follows the shadow (TrafficShadowFollowSystem).
+    private void ApplyHandovers()
+    {
+        var want = _handovers;
+        if (ReferenceEquals(want, _appliedHandovers) && _refused.Count == 0) return;
+        _appliedHandovers = want;
+        _wanted.Clear();
+        foreach (var h in want)
+        {
+            _wanted.Add(h.NetworkId);
+            if (_shadows.TryGetValue(h.NetworkId, out var intent) && intent == h.IntentId) continue;   // driving, or arrived for this intent
+            if (_shadows.ContainsKey(h.NetworkId))
+            {
+                _sim.DespawnExternalVehicle(TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId));   // a NEW Traffic intent: a new route
+                _shadows.Remove(h.NetworkId);
+            }
+            if (_refused.TryGetValue(h.NetworkId, out var at) && _sim.Time - at < RetrySeconds) continue;
+            string id = TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId);
+            bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t)
+                      || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY);   // an unmapped type: SUMO's default car
+            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); }
+            else _refused[h.NetworkId] = _sim.Time;
+        }
+        _drop.Clear();
+        foreach (var id in _shadows.Keys) if (!_wanted.Contains(id)) _drop.Add(id);
+        foreach (var id in _refused.Keys) if (!_wanted.Contains(id)) _drop.Add(id);
+        foreach (var id in _drop)
+        {
+            if (_shadows.Remove(id)) _sim.DespawnExternalVehicle(TrafficShadowFollowSystem.ShadowIdOf(id));   // the intent changed: take it back
+            _refused.Remove(id);
+        }
+    }
+
+    private TrafficBody[]? _applied;
+    private Sim.Core.Bridge.ExternalBody[] _external = Array.Empty<Sim.Core.Bridge.ExternalBody>();
+
+    // ⭐ SumoSharp H12 (f91c0f4): a vehicle becomes a moving obstacle on every vehicle lane its footprint overlaps, anything else a
+    //   crowd disc that cars brake for. Told only when the snapshot changed (the main thread writes a new array each frame).
+    private void ApplyBodies()
+    {
+        var bodies = _bodies;
+        if (ReferenceEquals(bodies, _applied)) return;
+        _applied = bodies;
+        if (_external.Length != bodies.Length) _external = new Sim.Core.Bridge.ExternalBody[bodies.Length];
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            var b = bodies[i];
+            _external[i] = new Sim.Core.Bridge.ExternalBody(b.NetworkId,
+                b.Kind == TrafficBodyKind.Vehicle ? Sim.Core.Bridge.ExternalBodyKind.Vehicle : Sim.Core.Bridge.ExternalBodyKind.Person,
+                b.X, b.Y, b.Vx, b.Vy, b.Length, b.Width);
+        }
+        _sim.SetExternalBodies(_external);
+    }
 
     /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
     /// that does not move — the cluster paused — steps nothing.</summary>
@@ -95,6 +245,7 @@ public sealed class TrafficSession : IDisposable
             int steps = 0;
             while (steps < MaxStepsPerCall && _sim.Time + _sim.Dt <= clusterTime + 1e-9)
             {
+                if (steps == 0) { ApplyBodies(); ApplyHandovers(); }   // ⭐ AQ93 §13/§14 — before SUMO moves its cars
                 _sim.Step();
                 steps++;
             }
@@ -111,6 +262,7 @@ public sealed class TrafficSession : IDisposable
             _disposed = true;
             _sim.Dispose();
             _dds?.Dispose();
+            _ddsPeds?.Dispose();
         }
     }
 }

@@ -53,6 +53,24 @@ public sealed class LiveCitySim : IDisposable
     // wire is always constructed; it simply carries no peds when these are null).
     private readonly PedLodManager? _manager;
     private readonly PedDemand? _demand;
+
+    // H12 (docs/HROT-INTEGRATION-DESIGN.md): the engine's OWN crowd source as the ctor wired it (null when peds are
+    // disabled), the host-body feed (null until the first non-empty SetExternalBodies), and the composite of the two
+    // that Engine.CrowdSource points at while the feed holds any disc.
+    private readonly ICrowdFootprintSource? _ownCrowdSource;
+    private ExternalBodyFeed? _externalBodies;
+    private ICrowdFootprintSource? _crowdWithBodies;
+
+    // H12/H13: the lane grid both the body feed and the external-vehicle spawn resolve against (built on first use).
+    private LaneSpatialIndex? _laneIndex;
+
+    // H13: host-owned shadow vehicles -- live ones by id (and the reverse map the arrival tally reads), plus the ids
+    // that ended by ARRIVING (not by DespawnExternalVehicle). Null until the first SpawnExternalVehicle.
+    private Dictionary<string, VehicleHandle>? _externalVehicles;
+    private Dictionary<VehicleHandle, string>? _externalVehicleIds;
+    private HashSet<string>? _externalArrived;
+    private readonly List<int> _externalLaneScratch = new();
+    private readonly List<string> _externalIdScratch = new();
     private readonly InterestField _field;
     // The single ped-ORCA promotion source, re-centred AND re-sized on the live high-realism zone by
     // SetLcRealismZone so peds promote to full ORCA across the WHOLE highlighted zone wherever the viewer
@@ -109,7 +127,7 @@ public sealed class LiveCitySim : IDisposable
 
     // The ped publish wire (mirrors CityLib/PedSimSource.cs).
     private readonly PedReplicationPublisher _pedWirePublisher;
-    private readonly InMemoryPedReplicationBus _pedBus = new();
+    private readonly InMemoryPedReplicationBus _pedBus; // H14: built in the ctor (PedWireFloat64StartTimes)
 
     // docs/LIVE-CITY-VIEWERS-DESIGN.md §7, -TASKS.md Stage E (E3): the ped-side twin of `_recordVehSink`/
     // `_recordPublisher` above -- an OPTIONAL tee onto a caller-supplied ped sink (e.g. a
@@ -140,6 +158,7 @@ public sealed class LiveCitySim : IDisposable
         IDemandRecordSink? recordDemandSink = null)
     {
         _cfg = cfg ?? throw new ArgumentNullException(nameof(cfg));
+        _pedBus = new InMemoryPedReplicationBus(cfg.PedWireFloat64StartTimes);
         // docs/HROT-INTEGRATION-DESIGN.md H6: the sim-side clock starts where the engine's `begin` will (0 = today).
         _now = cfg.StartTime;
         _recordVehSink = recordVehSink;
@@ -312,6 +331,9 @@ public sealed class LiveCitySim : IDisposable
                 CrosswalkSignals = cfg.YieldEnabled ? crosswalkSignals : null,
                 CrosswalkWaitSpreadRadius = cfg.PedCrosswalkWaitSpreadRadius,
                 SpeedVariationFrac = cfg.PedSpeedVariationFrac,
+                // H14: host-named peds + the ped lifecycle on the wire (both null/false by default).
+                IdProvider = cfg.PedIdProvider,
+                AnnounceLifecycle = cfg.PedLifecycleOnWire,
             };
 
             _manager = new PedLodManager(nav, _pedPublisher, arriveRadius: 0.3, dwellSeconds: 1.0);
@@ -616,11 +638,12 @@ public sealed class LiveCitySim : IDisposable
         // CrowdSource vehicle-only") when peds are disabled; footprints-only (walk-only, no crossing
         // composite) when crossings are disabled; the full composite otherwise -- byte-identical to
         // today's behaviour whenever both are enabled (the demo).
-        _engine.CrowdSource = _manager is null
+        _ownCrowdSource = _manager is null
             ? null
             : (cfg.YieldEnabled && _crossingOccupancy is not null)
                 ? new CompositeFootprintSource(_manager.HighPowerFootprints, _crossingOccupancy)
                 : _manager.HighPowerFootprints;
+        _engine.CrowdSource = _ownCrowdSource;
 
         // docs/EXTERNAL-NET-VIEWER-DESIGN.md §1: scrape the resolved route-file LIST (a `.sumocfg`'s
         // `<route-files>` is comma-separated and typically leads with vType files before the real
@@ -1291,6 +1314,465 @@ public sealed class LiveCitySim : IDisposable
         if (zone) SetLcRealismZone(zx, zy, zr);
     }
 
+    // H12 (docs/HROT-INTEGRATION-DESIGN.md): the host's own moving bodies, in NET coordinates, for the cars to react
+    // to -- a VEHICLE on the road becomes a moving lane obstacle on every vehicle lane its footprint overlaps; a
+    // PERSON (and a vehicle that overlaps no lane) becomes a crowd disc the cars yield to (ExternalBodyFeed has the
+    // exact rules). Each call REPLACES the previous set, diffed by ExternalBody.Id; an empty span removes every
+    // external obstacle and disc. Call on the stepping thread, between Step() calls. Never calling it leaves the
+    // engine exactly as before (no feed, Engine.CrowdSource untouched) -- every golden and parity path unchanged.
+    public void SetExternalBodies(ReadOnlySpan<ExternalBody> bodies)
+    {
+        if (_externalBodies is null)
+        {
+            if (bodies.IsEmpty)
+            {
+                return;
+            }
+
+            _externalBodies = new ExternalBodyFeed(_engine, LaneIndex);
+            _crowdWithBodies = _ownCrowdSource is null
+                ? _externalBodies
+                : new CompositeFootprintSource(_ownCrowdSource, _externalBodies);
+        }
+
+        _externalBodies.Apply(bodies);
+
+        // Attach the feed only while it actually holds a disc, so an all-on-lane body set (obstacles only) or an
+        // emptied feed leaves CrowdSource exactly as the ctor set it -- null on a peds-disabled sim.
+        _engine.CrowdSource = _externalBodies.DiscCount > 0 ? _crowdWithBodies : _ownCrowdSource;
+    }
+
+    // H12: the host-body feed (its obstacle/disc counts, LanesOf), or null before the first SetExternalBodies.
+    public ExternalBodyFeed? ExternalBodies => _externalBodies;
+
+    // ---- H14 (docs/HROT-INTEGRATION-DESIGN.md): pedestrians a host can name, remove and read ----
+
+    // H14 S1: remove the live ped `name` (its PedIdProvider name, or its id digits without one) mid-run, between
+    // Step() calls, returning its state at the sim's current time (position, elevation, velocity, heading in radians,
+    // 0 = +x, counter-clockwise). Its Despawn rides the ped wire when the lifecycle is published (PedIdProvider /
+    // PedLifecycleOnWire). Demand may refill the slot on a later step. False for an unknown or already-gone ped, or
+    // when pedestrians are disabled.
+    public bool RemovePedestrian(string name, out PedRemovalState state)
+    {
+        if (_demand is not null && name is not null && _demand.TryGetIdByName(name, out var id))
+        {
+            var before = _pedPublisher.Events.Count;
+            if (!_demand.RemovePed(id, _now, out state))
+            {
+                return false;
+            }
+
+            // The Despawn must reach the wire NOW -- a paused host steps nothing, and Step's batch starts after the
+            // events already in the history. Between steps the history is empty (Step clears it after publishing),
+            // so forward this call's tail and clear it, exactly as Step does with its own batch.
+            if (before == 0 && _pedPublisher.Events.Count > 0)
+            {
+                _pedPublisher.DrainInto(0, _removalEventBatch);
+                _pedWirePublisher.Publish(_removalEventBatch);
+                _recordPedPublisher?.Publish(_removalEventBatch);
+                _pedPublisher.ClearEvents();
+            }
+
+            return true;
+        }
+
+        state = default;
+        return false;
+    }
+
+    private readonly List<PedEvent> _removalEventBatch = new();
+
+    // H14: every live ped's name and position at the sim's current time into `into` (cleared first), ascending ped
+    // id. Reads the pose the step already computed for its arrival check (PedDemand.TryGetLastPose), so it is a copy,
+    // not a re-evaluation. Allocation: nothing per ped once `into` has grown (names are the stored provider strings;
+    // without a PedIdProvider each name is formatted from the id) beyond the live-set enumerator's one small stack per
+    // call. Empty when pedestrians are disabled.
+    public int CopyLivePedestrians(List<LivePedestrian> into)
+    {
+        into.Clear();
+        if (_demand is null || _manager is null)
+        {
+            return 0;
+        }
+
+        foreach (var id in _demand.LiveIds)
+        {
+            var pos = _demand.TryGetLastPose(id, _now, out _, out var cached) ? cached : _manager.PositionOf(id, _now);
+            into.Add(new LivePedestrian(_demand.NameOf(id), pos.X, pos.Y));
+        }
+
+        return into.Count;
+    }
+
+    // H14: the names of the live peds within `radius` of (x, y) (inclusive), ascending ped id, into `namesOut`
+    // (cleared first). A linear pass over the live set, like CopyLivePedestrians.
+    public int PedestriansWithin(double x, double y, double radius, List<string> namesOut)
+    {
+        namesOut.Clear();
+        if (_demand is null || _manager is null || !(radius >= 0.0))
+        {
+            return 0;
+        }
+
+        var rSq = radius * radius;
+        foreach (var id in _demand.LiveIds)
+        {
+            var pos = _demand.TryGetLastPose(id, _now, out _, out var cached) ? cached : _manager.PositionOf(id, _now);
+            var dx = pos.X - x;
+            var dy = pos.Y - y;
+            if ((dx * dx) + (dy * dy) <= rSq)
+            {
+                namesOut.Add(_demand.NameOf(id));
+            }
+        }
+
+        return namesOut.Count;
+    }
+
+    // `Network` is parsed from the same net file as the engine's, by the same parser, so its lane handles ARE the
+    // engine's (NetworkParser assigns them in parse order).
+    private LaneSpatialIndex LaneIndex => _laneIndex ??= new LaneSpatialIndex(Network);
+
+    // H13: how far from the requested point a start or destination lane may be (centre-line distance, m).
+    public const double ExternalVehicleSnapRadius = 10.0;
+
+    // H13 (docs/HROT-INTEGRATION-DESIGN.md): hand one of the HOST's vehicles to SUMO as a shadow car named `id`.
+    // Net coordinates; (x, y) is the vehicle's FRONT bumper (SUMO's position convention -- the same point the
+    // vehicle wire reports back). `heading` is in RADIANS, mathematical convention: 0 = +x (east), counter-clockwise
+    // positive, i.e. atan2(vy, vx). The start lane is the nearest vehicle lane (not a junction-internal one) within
+    // ExternalVehicleSnapRadius whose direction at the projected point is less than 90 degrees off `heading`; it
+    // departs at the projected offset on that lane, at `speed` clamped to [0, lane speed]. The destination is the
+    // nearest vehicle lane to (destX, destY) within the same radius; the car ARRIVES (leaves the sim) when it
+    // reaches the destination's projected offset on that edge (Engine's H13 arrivalPos), not at the edge end.
+    // Routed by the engine's own router. `vTypeId` null = the sim's default car type, else any type the engine
+    // knows (e.g. an H9 LiveCityConfig.VehicleTypes id).
+    //
+    // Returns false -- never throws -- for: no start lane, no destination lane, a destination behind the start on
+    // the same edge, no route, an unknown vTypeId, or an id that is already a live vehicle. The car rides the normal
+    // vehicle + lifecycle wire under its own name; car demand neither counts it toward CarTargetConcurrent nor
+    // counts its arrival in ArrivedTotal, and VehicleIdProvider is never called for it. Call between Step() calls.
+    public bool SpawnExternalVehicle(string id, double x, double y, double heading, double speed,
+        double destX, double destY, string? vTypeId = null)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return false;
+        }
+
+        if (_externalVehicles is not null && _externalVehicles.ContainsKey(id))
+        {
+            return false;
+        }
+
+        VTypeHandle vtype;
+        if (vTypeId is null)
+        {
+            vtype = _vtype;
+        }
+        else if (!_engine.TryGetVType(vTypeId, out vtype))
+        {
+            return false;
+        }
+
+        var start = NearestVehicleLane(x, y, Math.Cos(heading), Math.Sin(heading), useHeading: true);
+        var dest = NearestVehicleLane(destX, destY, 0.0, 0.0, useHeading: false);
+        if (start is not { } s || dest is not { } d)
+        {
+            return false;
+        }
+
+        var departPos = Math.Clamp(s.Offset, 0.0, s.Lane.Length);
+        var arrivalPos = Math.Clamp(d.Offset, 0.0, d.Lane.Length);
+        if (s.Lane.EdgeId == d.Lane.EdgeId && arrivalPos <= departPos)
+        {
+            return false; // the router's same-edge route would not loop back round to a point behind the start
+        }
+
+        VehicleHandle handle;
+        try
+        {
+            handle = _engine.SpawnVehicle(
+                vtype, s.Lane.EdgeId, d.Lane.EdgeId, id,
+                departPos, Math.Clamp(speed, 0.0, s.Lane.Speed), s.Lane.Index, departBestLane: false, arrivalPos);
+        }
+        catch (InvalidOperationException)
+        {
+            return false; // no route
+        }
+        catch (ArgumentException)
+        {
+            return false; // a live vehicle (demand's or a previous shadow's) already has this id
+        }
+
+        _externalVehicles ??= new Dictionary<string, VehicleHandle>(StringComparer.Ordinal);
+        _externalVehicleIds ??= new Dictionary<VehicleHandle, string>();
+        _externalArrived ??= new HashSet<string>(StringComparer.Ordinal);
+        _externalVehicles[id] = handle;
+        _externalVehicleIds[handle] = id;
+        _externalArrived.Remove(id);
+        return true;
+    }
+
+    // H13: take a shadow back. Removes it from the engine (Engine.Despawn -- safe between steps, Pending or Active)
+    // and, since H15, publishes its despawn record on the lifecycle wire immediately (RemoveVehicleCore) -- the same
+    // tombstone an arrival gets. False when `id` is not a live shadow (unknown, already arrived, or already despawned).
+    public bool DespawnExternalVehicle(string id)
+    {
+        if (id is null || _externalVehicles is null || !_externalVehicles.TryGetValue(id, out var handle))
+        {
+            return false;
+        }
+
+        return RemoveVehicleCore(handle, id, isShadow: true);
+    }
+
+    // ---- H15 (docs/HROT-INTEGRATION-DESIGN.md): remove a live car by name, mid-run, returning its state ----
+
+    // H15: remove the live car `name` -- a demand car by its VehicleIdProvider name (without a provider, by the name
+    // the vehicle wire carries for it, the engine's generated "__vehN"), or an H13 shadow by its id (then it is
+    // exactly DespawnExternalVehicle) -- between Step() calls, on the stepping thread, whether it is Pending or
+    // Active. Returns its state at the sim's current time (Time; the last snapshot, which between steps IS the
+    // engine's current state):
+    //   X, Y   the vehicle's CENTRE in net coordinates -- NOT the front bumper the vehicle wire and H13's
+    //          SpawnExternalVehicle use: centre = front - (Length / 2) * (cos Heading, sin Heading), the body's
+    //          mid-point along its heading at the front (the engine's parity tangent; on a tight curve the true
+    //          chord centre differs by a few cm).
+    //   Z      the snapshot's PosZ: the lane elevation under the front bumper (0 on a flat net).
+    //   Heading radians, 0 = +x (east), counter-clockwise positive (atan2(vy, vx), H13/H14's convention), in
+    //          (-pi, pi]; from the engine's navi Angle (0 = north, clockwise).
+    //   Speed  m/s (the parity-exact double).
+    //   VType  its resolved vehicle type id (the engine's VehicleTypes value; an H9 LiveCityConfig.VehicleTypes id).
+    //   ExternalType the H7/H9 external type its spawn record carries (0 when none).
+    // A Pending car (spawned, not yet inserted -- never on the wire) has no pose: X, Y, Z and Heading are NaN, Speed 0.
+    //
+    // Its despawn record reaches the vehicle lifecycle wire NOW (the live in-memory bus, self-pumped like Step, and
+    // the record/DDS tee), not at the next Step -- a paused host steps nothing -- and is not published a second time
+    // by the next snapshot diff (ReplicationPublisher.PublishDespawn). A Pending car was never announced, so it
+    // publishes nothing. Car demand: the car's slot is free from the next Step (CarTargetConcurrent may refill it,
+    // as after an arrival), but the removal is NOT an arrival -- ArrivedTotal is unchanged; RemovedVehicleCount
+    // counts it instead (demand cars only; a shadow is the host's). False -- never throws -- for null/empty, an
+    // unknown name, or a car that already arrived or was removed.
+    public bool RemoveVehicle(string name, out VehicleRemovalState state)
+    {
+        state = default;
+        if (string.IsNullOrEmpty(name) || !_engine.TryGetLiveVehicle(name, out var handle, out var vTypeId))
+        {
+            return false;
+        }
+
+        var isShadow = _externalVehicleIds is not null && _externalVehicleIds.ContainsKey(handle);
+        var removal = RemovalStateOf(handle, vTypeId);
+        if (!RemoveVehicleCore(handle, name, isShadow))
+        {
+            return false;
+        }
+
+        state = removal;
+        return true;
+    }
+
+    // H15: demand cars removed by RemoveVehicle (cumulative). Not part of ArrivedTotal; shadows are not counted.
+    public long RemovedVehicleCount { get; private set; }
+
+    // H15: vehicles removed since the last Step (and whether each was on the road, i.e. in the engine's read set).
+    // Cleared at the end of the next Step's arrival tally: Engine.Despawn makes the NEXT step's lifecycle diff emit an
+    // Arrived event for the freed slot (Index), which the tally must not count, and the removed car stays in
+    // Engine.VehicleHandles (the previous step's read set) until that engine step, which the spawn pass must not count
+    // as occupied. Empty unless RemoveVehicle/DespawnExternalVehicle was called.
+    private readonly List<(VehicleHandle Handle, bool WasActive)> _removedSinceStep = new();
+
+    private bool RemoveVehicleCore(VehicleHandle handle, string name, bool isShadow)
+    {
+        var wasActive = _engine.GetLifecycle(handle) == VehicleLifecycle.Active;
+        if (!_engine.Despawn(handle))
+        {
+            return false;
+        }
+
+        if (isShadow)
+        {
+            _externalVehicles!.Remove(name);
+            _externalVehicleIds!.Remove(handle);
+        }
+        else
+        {
+            RemovedVehicleCount++;
+        }
+
+        _removedSinceStep.Add((handle, wasActive));
+
+        // The despawn must reach the wire NOW. Each publisher announces it only if it had announced the car (an
+        // Active one -- the snapshot diff ran on it) and then forgets it, so the next PublishStep stays silent.
+        if (_vehPublisher.PublishDespawn(handle, _vehBus.Sink) && SelfPumpVehicleBus)
+        {
+            _vehBus.Source.Pump(); // as Step does after publishing (a threaded host pumps from its consumer)
+        }
+
+        if (_recordVehSink is not null && _recordPublisher is not null)
+        {
+            _recordPublisher.PublishDespawn(handle, _recordVehSink);
+        }
+
+        return true;
+    }
+
+    private VehicleRemovalState RemovalStateOf(VehicleHandle handle, string vTypeId)
+    {
+        var externalType = _tagByVTypeId is not null && _tagByVTypeId.TryGetValue(vTypeId, out var tag) ? tag.ExternalType : 0L;
+        var vType = string.IsNullOrEmpty(vTypeId) ? null : vTypeId;
+        var snap = _lastSnapshot;
+        for (var i = 0; i < snap.Count; i++)
+        {
+            if (snap.Handles[i] != handle)
+            {
+                continue;
+            }
+
+            var navi = snap.Angle[i] * Math.PI / 180.0; // 0 = north, clockwise
+            var fx = Math.Sin(navi);
+            var fy = Math.Cos(navi);
+            var half = 0.5 * snap.Length[i];
+            return new VehicleRemovalState(
+                snap.PosX[i] - (half * fx),
+                snap.PosY[i] - (half * fy),
+                snap.PosZ[i],
+                Math.Atan2(fy, fx),
+                snap.SpeedExact[i],
+                vType,
+                externalType);
+        }
+
+        return new VehicleRemovalState(double.NaN, double.NaN, double.NaN, double.NaN, 0.0, vType, externalType); // Pending
+    }
+
+    private bool WasRemovedSinceStep(VehicleHandle handle)
+    {
+        foreach (var r in _removedSinceStep)
+        {
+            if (r.Handle == handle) return true;
+        }
+
+        return false;
+    }
+
+    private bool WasSlotRemovedSinceStep(uint index)
+    {
+        foreach (var r in _removedSinceStep)
+        {
+            if (r.Handle.Index == index) return true;
+        }
+
+        return false;
+    }
+
+    private int RemovedActiveSinceStep()
+    {
+        var n = 0;
+        foreach (var r in _removedSinceStep)
+        {
+            if (r.WasActive) n++;
+        }
+
+        return n;
+    }
+
+    // H13: did shadow `id` ARRIVE at its destination (as opposed to being despawned or still driving)? Stays true
+    // until the id is spawned again.
+    public bool ExternalVehicleArrived(string id) => _externalArrived is not null && _externalArrived.Contains(id);
+
+    // H13: is `id` a live shadow (spawned, not yet arrived or despawned)?
+    public bool IsExternalVehicleLive(string id) => _externalVehicles is not null && _externalVehicles.ContainsKey(id);
+
+    // H13: live shadows.
+    public int ExternalVehicleCount => _externalVehicles?.Count ?? 0;
+
+    private (Lane Lane, double Offset)? NearestVehicleLane(double x, double y, double hx, double hy, bool useHeading)
+    {
+        LaneIndex.LanesNear(x, y, ExternalVehicleSnapRadius, _externalLaneScratch);
+        (Lane Lane, double Offset)? best = null;
+        var bestDist = double.PositiveInfinity;
+        foreach (var h in _externalLaneScratch)
+        {
+            var lane = Network.LanesByHandle[h];
+            if (!lane.AllowsRoadVehicle || lane.Shape.Count < 2 || lane.EdgeId.StartsWith(":", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var (offset, _, dist) = LaneProjection.Project(lane.Shape, x, y);
+            if (useHeading)
+            {
+                // Lane direction at the projected point (LaneGeometry's naviDegree: 0 = +y, clockwise).
+                var navi = LaneGeometry.PositionAtOffset(lane.Shape, offset).AngleDeg * Math.PI / 180.0;
+                if ((Math.Sin(navi) * hx) + (Math.Cos(navi) * hy) <= 0.0)
+                {
+                    continue; // 90 degrees or more off the requested heading
+                }
+            }
+
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = (lane, offset);
+            }
+        }
+
+        return best;
+    }
+
+    // H13: after each engine step, move shadows the engine has finished with (arrived, or removed by the engine
+    // itself) out of the live set -- an arrival into _externalArrived. The tally loop has already routed this
+    // step's Arrived events here; this sweep catches anything that left without one.
+    private void SweepExternalVehicles()
+    {
+        if (_externalVehicles is null || _externalVehicles.Count == 0)
+        {
+            return;
+        }
+
+        _externalIdScratch.Clear();
+        foreach (var kv in _externalVehicles)
+        {
+            var state = _engine.GetLifecycle(kv.Value);
+            if (state != VehicleLifecycle.Pending && state != VehicleLifecycle.Active)
+            {
+                _externalIdScratch.Add(kv.Key);
+            }
+        }
+
+        foreach (var id in _externalIdScratch)
+        {
+            MarkExternalArrived(id);
+        }
+    }
+
+    private void MarkExternalArrived(string id)
+    {
+        if (_externalVehicles!.TryGetValue(id, out var handle))
+        {
+            _externalVehicles.Remove(id);
+            _externalVehicleIds!.Remove(handle);
+            _externalArrived!.Add(id);
+        }
+    }
+
+    // H13: shadows currently on the road -- subtracted from car demand's occupancy so they never displace a demand car.
+    private int ActiveExternalVehicles()
+    {
+        if (_externalVehicles is null || _externalVehicles.Count == 0)
+        {
+            return 0;
+        }
+
+        var n = 0;
+        foreach (var handle in _externalVehicles.Values)
+        {
+            if (_engine.GetLifecycle(handle) == VehicleLifecycle.Active) n++;
+        }
+
+        return n;
+    }
+
     public void Step()
     {
         // §5: apply any render-thread requests at this fixed point -- BEFORE `dt` is read, so a requested
@@ -1329,7 +1811,13 @@ public sealed class LiveCitySim : IDisposable
         var tSpawn = PhaseStart();
         if (_cropEdges.Count >= 2)
         {
-            var live = _engine.VehicleHandles.Length;
+            // H13: host shadows are not demand -- they never count toward the occupancy cap.
+            // H15: nor do cars removed since the last step, still in the engine's (previous-step) read set.
+            var live = _engine.VehicleHandles.Length - ActiveExternalVehicles();
+            if (_removedSinceStep.Count > 0)
+            {
+                live -= RemovedActiveSinceStep();
+            }
 
             // A3 (design §1b): how many insertions to ATTEMPT this step.
             //   closed-loop (default) -- up to CarSpawnPerStep, and only while below the occupancy cap. The
@@ -1409,7 +1897,9 @@ public sealed class LiveCitySim : IDisposable
         // as ONE fused phase; it is not separable at this seam without touching Sim.Pedestrians.
         var beforeCount = _pedPublisher.Events.Count;
         var tPedDemand = PhaseStart();
-        _demand?.Step(_now, dt, _field, NoEntities);
+        // H12: a pedestrian crowd walks around the host's external bodies (every one, as discs -- see
+        // ExternalBodyFeed.PedestrianDiscs). NoEntities, exactly as before, until SetExternalBodies is called.
+        _demand?.Step(_now, dt, _field, _externalBodies is { } bodyFeed ? bodyFeed.PedestrianDiscs : NoEntities);
         PhaseEnd("pedDemandStep", tPedDemand);
         var tNext = _now + dt;
 
@@ -1491,8 +1981,21 @@ public sealed class LiveCitySim : IDisposable
         var tArrival = PhaseStart();
         foreach (var ev in _engine.Events)
         {
-            if (ev.Kind == SimEventKind.Arrived) ArrivedTotal++;
+            if (ev.Kind != SimEventKind.Arrived) continue;
+            // H15: the lifecycle diff reports a car removed since the last step as Arrived -- it is not a trip completed.
+            if (_removedSinceStep.Count > 0 && WasSlotRemovedSinceStep(ev.Handle.Index)) continue;
+            // H13: a host shadow's arrival is the host's, not demand's -- route it to the shadow set instead.
+            if (_externalVehicleIds is not null && _externalVehicleIds.TryGetValue(ev.Handle, out var shadowId))
+            {
+                MarkExternalArrived(shadowId);
+                continue;
+            }
+
+            ArrivedTotal++;
         }
+
+        SweepExternalVehicles();
+        _removedSinceStep.Clear(); // H15: this engine step has emitted (and the tally skipped) their slots' events
 
         if (_engine.VehicleHandles.Length > PeakCars) PeakCars = _engine.VehicleHandles.Length;
         if (_demand is not null && _demand.LiveCount > PeakPeds) PeakPeds = _demand.LiveCount;
@@ -2158,6 +2661,7 @@ public sealed class LiveCitySim : IDisposable
             var x = _lastSnapshot.PosX[i];
             var y = _lastSnapshot.PosY[i];
             if (!InCrop(x, y)) continue;
+            if (_removedSinceStep.Count > 0 && WasRemovedSinceStep(_lastSnapshot.Handles[i])) continue; // H15: gone already
             _carSampleScratch.Add(new LiveCityCar(
                 _lastSnapshot.Handles[i], x, y, _lastSnapshot.PosZ[i], _lastSnapshot.Angle[i],
                 _lastSnapshot.Length[i], _lastSnapshot.Width[i], _lastSnapshot.VehicleId[i]));
@@ -2298,6 +2802,7 @@ public sealed class LiveCitySim : IDisposable
             var x = _lastSnapshot.PosX[i];
             var y = _lastSnapshot.PosY[i];
             if (!InCrop(x, y)) continue;
+            if (_removedSinceStep.Count > 0 && WasRemovedSinceStep(_lastSnapshot.Handles[i])) continue; // H15: gone already
             cars.Add(new LiveCityCar(
                 _lastSnapshot.Handles[i], x, y, _lastSnapshot.PosZ[i], _lastSnapshot.Angle[i],
                 _lastSnapshot.Length[i], _lastSnapshot.Width[i], _lastSnapshot.VehicleId[i]));
@@ -2586,3 +3091,12 @@ public sealed class LiveCitySim : IDisposable
         _pedBus.Source.Dispose();
     }
 }
+
+// HROT H14: one live pedestrian's name and position (LiveCitySim.CopyLivePedestrians).
+public readonly record struct LivePedestrian(string Name, double X, double Y);
+
+// HROT H15: a removed car's state at removal (LiveCitySim.RemoveVehicle). X/Y the CENTRE in net coordinates (front bumper
+// minus half the length along the heading), Z the lane elevation, Heading radians (0 = +x, CCW), Speed m/s, VType the
+// resolved vehicle type id, ExternalType the H7/H9 external type of its spawn record (0 = none). NaN pose = it was Pending.
+public readonly record struct VehicleRemovalState(
+    double X, double Y, double Z, double Heading, double Speed, string? VType, long ExternalType);

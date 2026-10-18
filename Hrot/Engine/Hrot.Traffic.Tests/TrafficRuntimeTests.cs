@@ -43,6 +43,23 @@ public sealed class TrafficRuntimeTests
         Assert.Equal(TrafficSession.MaxStepsPerCall, session.StepTo(1000.0));
     }
 
+    /// <summary>⭐ CE-4020 — the stepping module's time budget covers the tick that builds a session and runs a full catch-up, with room
+    /// to spare (📌 measured 2026-10-17: the default 100 ms timed both out on the cluster, the circuit opened for 10 s, and SUMO crawled).</summary>
+    [Fact]
+    public void CE4020_TheSteppingBudget_CoversASessionBuildAndAFullCatchUp()
+    {
+        var key = Key();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using (var session = new TrafficSession(key, Options(), NoTypes, startTime: 0.0))
+            session.StepTo(1000.0);
+        watch.Stop();
+
+        var budget = new TrafficSteppingModule(new TrafficRuntime(Options())).Policy.MaxExpectedRuntimeMs;
+        Assert.Equal(TrafficSteppingModule.MaxTickMs, budget);
+        Assert.True(watch.ElapsedMilliseconds * 3 < budget,
+            $"a session build plus {TrafficSession.MaxStepsPerCall} steps took {watch.ElapsedMilliseconds} ms; the budget is {budget} ms");
+    }
+
     /// <summary>N2 — every car's SUMO vehicle id is a network id from the allocator; T1 — every car is one of the TKB's mapped types,
     /// at that type's footprint.</summary>
     [Fact]
@@ -327,7 +344,7 @@ public sealed class TrafficRuntimeTests
         return world;
     }
 
-    private static void RegisterReplicaComponents(EntityRepository world)
+    internal static void RegisterReplicaComponents(EntityRepository world)
     {
         world.RegisterComponent<SimTransform>();
         world.RegisterComponent<PhysicsCollider>();

@@ -82,6 +82,9 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
+    // ⭐ AQ93 §14 G2 (R-4023) — a node that SERVES traffic reads the bodies' NavigationIntent (read-only): a vehicle handed to SUMO
+    //   says so in its intent, and the shadow car is spawned where SUMO runs. Not built when the Muscle pack already reads it.
+    private readonly IEnumerable<FdpIDescriptorTranslator>? _trafficTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
 
     // ── Reliable-init construction barrier (CE-283, §3a.4) ────────────────────
@@ -290,6 +293,12 @@ public sealed class NedReplicationModule : INedReplicationModule
                 _kinematicTranslators = KinematicTranslatorPack.Create(
                     participant, entityMap, geoTransform, localNodeId: localNodeId);
 
+            if (role.HasFlag(NodeRole.Traffic) && !_roleHasMuscle)
+                _trafficTranslators = new FdpIDescriptorTranslator[]
+                {
+                    new Hrot.Map.Common.Replication.Ingress.NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId),
+                };
+
             if (_roleHasBrain)
                 _cognitiveTranslators = CognitiveTranslatorPack.Create(
                     participant, entityMap, geoTransform,
@@ -347,6 +356,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             _sharedTranslators    = System.Array.Empty<INetworkTranslator>();
             _kinematicTranslators = null;
             _cognitiveTranslators = null;
+            _trafficTranslators   = null;
         }
 
         // CE-291 (piece C): the SHARED cluster-membership machinery. The wait-set provider works off the cache
@@ -393,6 +403,8 @@ public sealed class NedReplicationModule : INedReplicationModule
             allTranslators.AddRange(_kinematicTranslators);
         if (_roleHasBrain && _cognitiveTranslators != null)
             allTranslators.AddRange(_cognitiveTranslators);
+        if (_trafficTranslators != null)
+            allTranslators.AddRange(_trafficTranslators);
         // The peer status egress (publishes Active) + creator status ingress (drives the gateway) are
         // routed by Direction like any other translator. CE-283 §3a.4.
         if (_reliableStatusEgress != null)  allTranslators.Add(_reliableStatusEgress);
@@ -600,6 +612,9 @@ public sealed class NedReplicationModule : INedReplicationModule
                 _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
         if (_cognitiveTranslators != null)
             foreach (var t in _cognitiveTranslators)
+                _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+        if (_trafficTranslators != null)
+            foreach (var t in _trafficTranslators)
                 _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
 
         // ⭐ S3 — the explicit dtWorldPos / dtNavigationStatus mappings moved INTO NedOwnershipGroupBinding.Apply

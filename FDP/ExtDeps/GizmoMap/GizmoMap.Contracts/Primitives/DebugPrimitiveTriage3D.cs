@@ -131,6 +131,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 }
 
                 if ((p.TargetView & AcceptedTargets) == 0) { CulledByTarget++; continue; }
+                if ((p.TargetView & PipelineTarget.FlatOnly) != 0) { CulledByTarget++; continue; }   // ⭐ a 2-D symbol, never in 3-D
                 // ⭐ CE-3149 — a panel is not a map layer (the 2-D renderer's exemption, kept identical).
                 if (HonourLayerMask && p.Shape != DebugPrimitiveShape.StructInspector && !layers.IsSet(p.DebugLayer))
                 { CulledByLayer++; continue; }

@@ -211,6 +211,15 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.HasArrived  = 0;
                         break;
 
+                    case NavigationMode.Traffic:
+                        // ⭐ AQ93 R-4023 — SUMO drives; the body follows its shadow car (TrafficShadowFollowSystem) to the destination.
+                        nav.Mode             = KinematicsMode.Traffic;
+                        nav.FinalDestination = NavigationDestination.Of(repo, entity, intent);
+                        nav.TargetSpeed      = intent.TargetSpeed;
+                        nav.ArrivalRadius    = intent.ArrivalRadius;
+                        nav.HasArrived       = 0;
+                        break;
+
                     case NavigationMode.FollowRoute:
                         // ⭐⭐ CE-2171 — the route ENTITY resolves to this node's own compiled trajectory; the intent's TrajectoryId is
                         //   a pool index of the node that wrote it (0 on a split cluster). Not compiled yet ⇒ retried every tick below.

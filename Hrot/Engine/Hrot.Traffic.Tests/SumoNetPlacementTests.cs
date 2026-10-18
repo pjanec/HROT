@@ -80,6 +80,27 @@ public sealed class SumoNetPlacementTests
         Assert.InRange(Math.Abs(y1), 0.0, 3.0);
     }
 
+    /// <summary>⭐ AQ93 §13 F5 — what SUMO is told about our bodies goes back through the exact inverse: ToNet ∘ ToLocal is the identity,
+    /// for an anchored net and a UTM one.</summary>
+    [Fact]
+    public void F5_ToNet_InvertsToLocal_AnchoredAndUtm()
+    {
+        var anchored = SumoNetPlacement.For(NetworkParser.Parse(DemoCityNet()), new TerrainSumoNet("demo-city.net.xml", 2200, 2200), null);
+        var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
+        var utm = SumoNetPlacement.For(NetworkParser.ParseXml(
+                $"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>"),
+            new TerrainSumoNet("x.net.xml", 0, 0), new TerrainGeoOrigin(52.52, 13.405, 0));
+
+        foreach (var place in new[] { anchored, utm })
+            foreach (var (x, y) in new[] { (0.0, 0.0), (386.0, 386.0), (-1500.0, 720.0), (2400.0, -900.0) })
+            {
+                var (nx, ny) = place.ToNet(x, y);
+                var (lx, ly) = place.ToLocal(nx, ny);
+                Assert.Equal(x, lx, 1);   // float local frame: decimetre
+                Assert.Equal(y, ly, 1);
+            }
+    }
+
     [Fact]
     public void E1_AnUnsupportedProjection_IsRefused()
     {

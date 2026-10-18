@@ -42,6 +42,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             // Extract TkbType and DisType from EntityMaster descriptor only.
             long  tkbType = 0;
             ulong disType = 0;
+            long  preAllocated = 0;   // ⭐ CE-4024 — the master's EntityId: an id the author fixed (0 = allocate here)
 
             if (msg.InitialDescriptors != null)
             {
@@ -50,6 +51,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                     if (desc._d == EDescriptorType.dtEntityMaster)
                     {
                         tkbType = desc.EntityMaster.TkbType;
+                        preAllocated = desc.EntityMaster.EntityId;
                         var d = desc.EntityMaster.DisType;
                         disType = ((ulong)d.Kind        << 56)
                                 | ((ulong)d.Domain      << 48)
@@ -84,6 +86,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 RequestId             = msg.RequestId,
                 OwnerAppInstanceId    = msg.Owner.AppInstanceId,
                 TkbType               = tkbType,
+                PreAllocatedNetworkId = preAllocated,
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,
                 InitialComponents     = initialComponents,

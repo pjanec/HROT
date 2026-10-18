@@ -63,6 +63,20 @@ public class NedEntityCreationRequestEgressRails
         Assert.Equal(1, egress.SentSampleCount);
     }
 
+    /// <summary>⭐ CE-4024 (AQ93 §15 K5, R-4029) — an id the author fixed travels in the master's EntityId: a SUMO pedestrian converted on the
+    /// traffic node keeps his network id on the brain node. 📌 It was dropped, so the cluster gave him a new one.</summary>
+    [Fact]
+    public void Send_CarriesThePreAllocatedNetworkIdOntoTheWire()
+    {
+        var (egress, writer) = NewEgress();
+        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = 1101L, PreAllocatedNetworkId = 1216 });
+        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = 1101L });
+
+        var master = writer.Publishes.Select(p => p.InitialDescriptors.Single(d => d._d == EDescriptorType.dtEntityMaster).EntityMaster).ToArray();
+        Assert.Equal(1216, master[0].EntityId);
+        Assert.Equal(0, master[1].EntityId);   // none fixed: the processor allocates, as before
+    }
+
     /// <summary>
     /// ⭐⭐⭐ D2 across the node boundary. Without the flag bit the receiving node has no way to know the
     /// entity is a sketch, and <c>CollectSaveableEntities</c> writes it into the scenario.

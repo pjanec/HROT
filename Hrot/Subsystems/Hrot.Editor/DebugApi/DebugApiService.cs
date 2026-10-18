@@ -1084,6 +1084,13 @@ namespace Hrot.Editor.DebugApi
             catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
         }
 
+        /// <summary>
+        /// ⭐ CE-4024 — whether sim time is advancing: in preview (a host with no preview controller — a cluster node — is always live)
+        /// and not paused. 📌 Measured 2026-10-17: the spawn route read <c>_preview</c> directly AFTER publishing the request, so on CGF it
+        /// created the entity and then answered <c>NOT_SUPPORTED_HERE(preview.control)</c>.
+        /// </summary>
+        private bool TimeAdvancing() => InPreviewOrNull() != false && IsPausedOrNull() != true;
+
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)
         {
@@ -1425,7 +1432,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Unknown eventType: '{eventTypeName}'. List publishable events with GET /commands.");
 
             // Determine if time is advancing (InPreview && !Paused).
-            bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
+            bool timeAdvancing = TimeAdvancing();
 
             // Deserialize the payload JSON to the target CLR type.
             // We use System.Text.Json (default options) for the payload fields since that's
@@ -1709,7 +1716,7 @@ namespace Hrot.Editor.DebugApi
                                            ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
                                            : (TimeSpan?)null);
 
-            bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
+            bool timeAdvancing = TimeAdvancing();
             return (new JsonObject
             {
                 ["spawned"]     = true,

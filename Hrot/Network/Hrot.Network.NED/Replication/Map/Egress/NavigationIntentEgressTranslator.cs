@@ -205,6 +205,7 @@ namespace Hrot.Map.Common.Replication.Egress
             EcsNavMode.RoadGraph     => ENavigationMode.NAV_ROAD_GRAPH,
             EcsNavMode.PathToPoint   => ENavigationMode.NAV_PATH_TO_POINT,
             EcsNavMode.Manual        => ENavigationMode.NAV_MANUAL,   // ⭐ CE-3173
+            EcsNavMode.Traffic       => ENavigationMode.NAV_TRAFFIC,  // ⭐ AQ93 R-4023
             _                        => ENavigationMode.NAV_NONE,
         };
     }

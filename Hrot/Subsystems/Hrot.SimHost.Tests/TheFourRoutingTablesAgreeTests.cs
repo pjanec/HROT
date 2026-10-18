@@ -60,6 +60,11 @@ public class TheFourRoutingTablesAgreeTests
         // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time and its display offset
         ("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    "{\"ScenarioStartUtcTicks\":638450000000000000}"),
         ("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, "{\"ScenarioUtcOffsetMinutes\":120}"),
+        // ⭐ CE-4024 (AQ93 §15 K5) — a civilian's fright: a converted SUMO pedestrian is born in panic
+        ("Fear",         AttributeIds.CivilianFear,        "{\"Fear\":1.0}"),
+        ("FrightFrom.X", AttributeIds.CivilianFrightFromX, "{\"FrightFrom\":{\"X\":10.0}}"),
+        ("FrightFrom.Y", AttributeIds.CivilianFrightFromY, "{\"FrightFrom\":{\"Y\":20.0}}"),
+        ("FrightFrom.Z", AttributeIds.CivilianFrightFromZ, "{\"FrightFrom\":{\"Z\":1.0}}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -95,7 +100,8 @@ public class TheFourRoutingTablesAgreeTests
     {
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
                            "\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}," +
-                           "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120}";
+                           "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120," +
+                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -171,6 +177,20 @@ public class TheFourRoutingTablesAgreeTests
     /// about. ⚠ A wrong <c>AttributeId</c> in the edge table would pass ① *(a record IS emitted)* and fail
     /// here.</para>
     /// </summary>
+    /// <summary>⭐ CE-4024 (AQ93 §15 K5) — a creation request's fright gives the new entity a terrified mind that knows where it came from
+    /// (the request carries no <c>CivilianState</c>: it is brain-local, never on the wire).</summary>
+    [Fact]
+    public void AFrightOnACreationRequest_BearsAMindInPanic()
+    {
+        var ctx = new ListPatchContext(new List<object>());
+        AttributeCompilerFactory.Build(geoTransform: null).Compile("{\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}", ctx);
+
+        var mind = Assert.IsType<Fdp.Toolkit.Civilians.CivilianState>(Assert.Single(ctx.FlushComponents()));
+        Assert.Equal(1f, mind.Fear);
+        Assert.Equal(new System.Numerics.Vector3(10f, 20f, 1f), mind.FrightFrom);
+        Assert.Equal(1, mind.HasFrightFrom);
+    }
+
     [Fact]
     public void BothRoutesProduceTheSameEntityState()
     {
@@ -392,9 +412,12 @@ public class TheFourRoutingTablesAgreeTests
         repo.AddComponent(e, default(Fdp.Core.EntityInfo));
         repo.AddComponent(e, default(SimTransform));
         repo.AddComponent(e, default(Fdp.Toolkit.Weather.ScenarioClock));   // ⭐ CE-3216 — the clock's two attributes
+        if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>()) repo.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+        repo.AddComponent(e, default(Fdp.Toolkit.Civilians.CivilianState));   // ⭐ CE-4024 — the fright's four attributes
         repo.SetAuthority<Fdp.Core.EntityInfo>(e, true);
         repo.SetAuthority<SimTransform>(e, true);
         repo.SetAuthority<Fdp.Toolkit.Weather.ScenarioClock>(e, true);
+        repo.SetAuthority<Fdp.Toolkit.Civilians.CivilianState>(e, true);
         return (repo, e);
     }
 

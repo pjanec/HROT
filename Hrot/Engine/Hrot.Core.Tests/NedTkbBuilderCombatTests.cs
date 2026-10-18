@@ -211,6 +211,23 @@ namespace Hrot.Map.Common.Tests
         /// placed or in a boot; its round (6043) takes its warhead from the library's "8 kg demolition charge" (8 kg: a wider blast than a grenade's);
         /// the civilian car (1002) has one concealed, stowed boot after its four seats. ✅ Red-proof: the library entry renamed ⇒ no warhead ⇒ red.
         /// </summary>
+        /// <summary>⭐ CE-4030 — every civilian road vehicle (our civilian car and SUMO's traffic types, AQ93 T1) is a soft skin that can be
+        /// hit, as the technical's pickup: a burst damages it, and a SUMO car converted by a hit (AQ93 §15 K7) takes the hit.</summary>
+        [Fact]
+        public void CE4030_CivilianRoadVehicles_AreSoftSkinsThatCanBeHit()
+        {
+            var full = new TkbDatabase();
+            Hrot.Map.Common.HrotEnvironment.RegisterBuiltInTkb(full);
+            foreach (var type in new long[] { Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbTrafficHatchback,
+                                              Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbTrafficVan, Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbTrafficBus,
+                                              Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbTrafficTruck })
+            {
+                var p = full.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>();
+                Assert.NotNull(p);
+                Assert.Equal((300f, 0.6f, 5f), (p!.MaxHealth, p.MobilityKillBelowFraction, p.ArmorSide));
+            }
+        }
+
         [Fact]
         public void CE3233_TheCharge_IsDetonatedOnly_ItsWarheadIsTheLibrarys_AndTheCarHasABoot()
         {

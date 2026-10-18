@@ -43,6 +43,11 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>⭐ CE-3173 (M-1, docs/DESIGN_Entity_Control.md §8b) — the operator drives the body through <c>ManualDrive</c>;
         /// entered ONCE (the bridge applies an intent only on an IntentId change), the axes then flow every frame.</summary>
         Manual = 6,
+
+        /// <summary>⭐ AQ93 R-4023 (§14 G1) — hand the body to SUMO: a shadow car <c>hrot:&lt;networkId&gt;</c> drives it to
+        /// <see cref="NavigationIntent.FinalDestination"/> on SUMO's roads and the body FOLLOWS it; ownership never moves. Ends
+        /// <c>Arrived</c> when the shadow arrives near the destination.</summary>
+        Traffic = 7,
     }
 
     /// <summary>
@@ -180,6 +185,10 @@ namespace Fdp.Toolkit.Navigation
         Prefer = 3,
         /// <summary>Road metres count a quarter (a convoy over distance).</summary>
         StronglyPrefer = 4,
+        /// <summary>⭐ AQ93 R-4023 — drive IN THE CIVILIAN TRAFFIC: the vehicle is handed to SUMO (a shadow car on SUMO's roads, its
+        /// lights and queues) and follows it to the destination; ownership never moves. <c>MoveToExecutor</c> asks
+        /// <see cref="NavigationMode.Traffic"/> instead of planning a path.</summary>
+        InTraffic = 5,
     }
 
     /// <summary>

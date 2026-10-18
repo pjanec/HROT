@@ -41,4 +41,16 @@ public sealed class TrafficLayer3DTests
         Assert.Equal(6, positions.Length);
         Assert.DoesNotContain(TrafficLayer3D.GroundColor, colours);
     }
+
+    /// <summary>⭐ CE-4026 — every SUMO pedestrian that is not an entity is drawn; a replica is not (the entity layer draws him as a civilian).</summary>
+    [Fact]
+    public void CE4026_ThePedestriansThatAreNotEntities_AreDrawn()
+    {
+        var walker = new TrafficPedPose(1, 7, "7", 10f, 0f, 0f, 0f);
+        var replica = new TrafficPedPose(1, 8, "8", 12f, 0f, 0f, 0f);
+        var frame = new TrafficFrame(System.Array.Empty<TrafficCarPose>(), _ => false, new System.Collections.Generic.Dictionary<int, byte>(),
+                                     new[] { walker, replica }, p => p.NetworkId == 8);
+
+        Assert.Equal(new[] { walker }, TrafficLayer3D.PedestriansToDraw(frame));
+    }
 }

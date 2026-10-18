@@ -9,8 +9,8 @@ build-state: BUILT — ⭐⭐⭐ APPROVED and BUILT 2026-08-26. §10 is the AS-B
   module IS superseded. Read §13, not §12.4's lean. ⭐ §14 is the AS-BUILT: M2 done (module DELETED, both
   docs corrected) plus AX-022.
   §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
-updated: 2026-08-26
-current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
+updated: 2026-10-17
+current-answer: ⭐ §15 (2026-10-17, CE-4024) adds four BRAIN-LOCAL attributes and a fix to the editor; then, as before: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
   REVISES §3 and §4. Read §7 FIRST, then §4's revised leans, then §8. Nothing here is approved yet.
   ⭐⭐ §8 answers two follow-ups: (a) the multiple-tables issue is NOT solved — AX-018 went 4 tables to 3
   and added a RAIL, which detects drift rather than preventing it; (b) Heading vs GeoHeading is a real
@@ -792,3 +792,14 @@ the *same* knowledge is cosmetic; one holding *less* was not.
 | `Hrot.SimHost.Tests` | **771 · 3 failed** | ⚠ `HillAttackNodeTests` + `EditLoadCluster` are the rotating static-order flake — 📐 **51/51 in isolation**; `FullBranchPipeline` is the known stable pre-existing red |
 | `Hrot.ClusterRunner.Tests` | **273 · 2 failed** | 📐 **`DataDrivenGizmoPredicateTests` fails IDENTICALLY at the previous commit `2e6aa64fe`** — an `InvalidCastException` in `DataDrivenGizmoSystem`, unrelated ⇒ **PRE-EXISTING**. ⚠ First time this suite was run in the batch, so it had no baseline until now |
 | builds | ✅ **14 projects, 0 errors** | |
+
+## 15. AS-BUILT `2026-10-17` — **`CE-4024`: four brain-local attributes, and the editor applies request attributes at all**
+
+| what | as built | why (measured) |
+|---|---|---|
+| `Fear`, `FrightFrom.X/Y/Z` (`AttributeIds` 30–33) → `CivilianState` | a vocabulary row each, the JSON setters in `AttributeCompilerFactory.Build`, the binary arm `CivilianFrightAttributeInstaller` (applied only where the entity HAS a `CivilianState`: a runtime edit never gives a soldier a mind) | a SUMO pedestrian converted on the traffic node must reach the brain node already terrified ([AQ93 §15.7](Architect_Question_93_Sumo_Traffic_Node.md)); `CivilianState` is brain-local and the request wire carries no component but the anchor transform and a few descriptors |
+| `AttributeDefinition.BrainLocal` + `AttributeVocabulary.ReplicatedComponents` | the coverage rail (`TheDescriptorMapIsWiredTests`) asks a translator to cover only REPLICATED components | ⭐ §7's split, extended: an attribute of a component nothing republishes is legitimate when the component is brain-local by design. ⛔ Not a way out of coverage for a replicated component |
+| ⭐ the networkless editor passes `JsonAttributeCompiler` to its `EntityCreationPack` | `EditorSubsystem` builds it from its geo transform, as every networked host's factory does (`NedNetworkFactory`); `CreateEntityRequestSystem.AppliesAttributes` + the rail `TheEditorAppliesRequestAttributesTests` | 📌 measured live: the editor passed NONE, so every request's `InitialAttributesJson` — a debug-API `spawn`'s `attributesJson` included — was silently dropped there (the SILENT-DEFAULT shape: the caller held the dependency) |
+
+Rails: `TheFourRoutingTablesAgreeTests` (45/45, +4 vocabulary cases, *a creation request's fright bears a mind in panic*).
+

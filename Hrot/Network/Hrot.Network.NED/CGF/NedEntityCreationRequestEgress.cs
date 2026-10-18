@@ -102,7 +102,8 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
             anchor:                CreateEntityRequestDescriptorBuilder.ResolveAnchor(
                                        explicitTransform: null, request.InitialComponents),
             initialComponents:     request.InitialComponents,
-            geoTransform:          _geoTransform);
+            geoTransform:          _geoTransform,
+            preAllocatedNetworkId: request.PreAllocatedNetworkId);   // ⭐ CE-4024 — the id the author fixed travels
 
         // ⭐ The address travels: the builder is owner-agnostic, so the routing fields are applied here.
         sample.Owner = new NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };

@@ -33,8 +33,21 @@ case "${1:-}" in
   get)    curl_ "http://localhost:$2$3"; echo ;;
   post)   curl_ -X POST "http://localhost:$2$3" -H 'Content-Type: application/json' -d "${4:-{\}}"; echo ;;
   kill)
-    # the xvfb-run wrapper's child is the dotnet process; kill the whole session (setsid made it a group)
-    pid=$(cat /tmp/n-$2.pid 2>/dev/null) && pkill -KILL -s "$(ps -o sid= -p "$pid" | tr -d ' ')" 2>/dev/null
+    # the xvfb-run wrapper's child is the dotnet process; kill the whole session (setsid made it a group).
+    # ⭐ CE-4029 — find EVERY node serving this port by its own environment (HROT_DEBUG_API_PORT), not only the pid file: a later
+    #   `start` of the same port overwrites the file and orphaned the earlier node (measured: ten processes survived a full kill).
+    sids=""
+    pid=$(cat /tmp/n-$2.pid 2>/dev/null) && sids="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    for p in $(pgrep -f 'ClusterRunner[.]dll'); do
+      tr '\0' '\n' < /proc/$p/environ 2>/dev/null | grep -qx "HROT_DEBUG_API_PORT=$2" && sids="$sids $(ps -o sid= -p "$p" | tr -d ' ')"
+    done
+    for sid in $sids; do [ -n "$sid" ] && pkill -KILL -s "$sid" 2>/dev/null; done
+    rm -f /tmp/n-$2.pid
+    for _ in $(seq 1 20); do
+      left=$(for p in $(pgrep -f 'ClusterRunner[.]dll'); do tr '\0' '\n' < /proc/$p/environ 2>/dev/null | grep -qx "HROT_DEBUG_API_PORT=$2" && echo $p; done)
+      [ -z "$left" ] && break; sleep 0.5
+    done
+    if [ -n "$left" ]; then echo "STILL RUNNING on port $2: $left"; exit 1; fi
     echo "killed node on port $2" ;;
   stop-all)
     pkill -f 'ClusterRunner[.]dll'; sleep 1; pkill -9 -f 'ClusterRunner[.]dll'; pkill -f '[X]vfb'

@@ -1,84 +1,71 @@
-using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Services;
-using Sim.Scene;
 
 namespace Hrot.Traffic.Tests;
 
 /// <summary>
-/// ⭐ AQ93 slice 1 acceptance — the SUMO road layer leaves room in the 2-D map's gizmo buffer for everything drawn after it.
+/// ⭐ AQ93 §12.4 — the SUMO road layer on the 2-D map is a SYMBOL that fits its budget and is never drawn in 3-D.
 ///
-/// <para>📌 Measured 2026-10-17, editor live on demo-city: the layer drew the 3-D meshes (~51.8k triangles a frame) into the map's
-/// 4096-primitive buffer, ground first; roads, lights, cars and every entity gizmo were dropped (48.5k a frame) and the map showed
-/// nothing. 📄 <c>TrafficRoadPlan</c>.</para>
+/// <para>📌 Measured 2026-10-17, editor live on demo-city: the layer drew the 3-D meshes flat (~51.8k triangles a frame) into the
+/// map's 4096-primitive buffer; roads, lights, cars and every entity gizmo were dropped and the map showed nothing (CE-4019).
+/// 🔒 User: <i>"symbolic is more than enough (lane centerlines, traffic light as single colored dot). The triangle one is for 3d
+/// render"</i> · <i>"no 2d road net gizmo should be shown in 3d map"</i>.</para>
 /// </summary>
 public sealed class TheRoadLayerFitsTheMapBufferTests
 {
-    /// <summary>The map buffer's default (<c>MapInteractionContext.DefaultBufferCapacity</c>, Hrot.Presentation — not referenced here).</summary>
-    private const int MapBuffer = 16384;
-
     [Fact]
-    public void DemoCity_TheRoadLayer_TakesAtMostAQuarterOfTheMapBuffer()
+    public void DemoCity_IsDrawnAsLaneCentrelinesAndLightDots_WithinTheBudget_AndNeverIn3D()
     {
         using var world = LoadedWorld();
         var net = TrafficNetCache.Of(world)!;
         world.SetSingletonManaged(new TrafficFrame(Array.Empty<TrafficCarPose>(), _ => false,
             net.Roads.Signals.Select(s => s.LaneHandle).Distinct().ToDictionary(h => h, _ => (byte)'G')));
 
-        var buffer = new DebugPrimitiveBuffer(MapBuffer);
+        var buffer = new DebugPrimitiveBuffer(16384);
         new TrafficRoadGizmo().Draw(world, buffer);
+        var frame = buffer.GetFrame().ToArray();
 
+        Assert.Equal(TrafficPlanDetail.Lanes, net.Roads.Plan.Detail);
         Assert.Equal(0, buffer.DroppedCount);
-        Assert.True(buffer.Count > 1000, $"the layer drew {buffer.Count} primitives — the roads are missing, the rail proves nothing");
-        Assert.True(buffer.Count <= MapBuffer / 4,
-            $"the road layer drew {buffer.Count} primitives; terrain and entity gizmos share the {MapBuffer}-primitive map buffer");
+        Assert.True(frame.Length > 500, $"the layer drew {frame.Length} primitives — the roads are missing, the rail proves nothing");
+        Assert.True(frame.Length <= TrafficRoadPlan.Budget, $"the road layer drew {frame.Length} primitives; its budget is {TrafficRoadPlan.Budget}");
+        Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.FilledTriangle);   // no surfaces in 2-D
+        Assert.All(frame, p => Assert.True((p.TargetView & PipelineTarget.FlatOnly) != 0, $"a {p.Shape} would be drawn in 3-D too"));
+        Assert.Equal(net.Roads.Plan.Lines.Count, frame.Count(p => p.Shape == DebugPrimitiveShape.Line));
     }
 
-    /// <summary>The ground rows cover exactly the cells they merge — no cell lost or doubled by the merge.</summary>
+    /// <summary>Every segment of every normal vehicle lane, and nothing else (no sidewalk, no junction interior).</summary>
     [Fact]
-    public void TheGroundRows_CoverTheSameAreaAsTheGroundCells()
-    {
-        var roads = TrafficRoadSceneTests.Load().Roads;
-        var ground = roads.Meshes.Single(m => m.Kind == SceneKind.AmbientGround);
-        double cells = 0;
-        for (int t = 0; t + 2 < ground.Indices.Length; t += 3)
-            cells += Area(Flat(ground.Vertices[ground.Indices[t]]), Flat(ground.Vertices[ground.Indices[t + 1]]), Flat(ground.Vertices[ground.Indices[t + 2]]));
-        double rows = roads.Plan.Ground.Sum(q => Area(q.P00, q.P10, q.P11) + Area(q.P00, q.P11, q.P01));
-
-        Assert.True(roads.Plan.Ground.Count < ground.TriangleCount / 20, $"{roads.Plan.Ground.Count} rows for {ground.TriangleCount / 2} cells — the merge did not merge");
-        Assert.InRange(rows / cells, 0.999, 1.001);
-    }
-
-    /// <summary>V8 kept by the merge — no ground row reaches over our terrain (the demo-city box is local 0..800).</summary>
-    [Fact]
-    public void NoGroundRow_CoversOurTerrain()
-    {
-        var rows = TrafficRoadSceneTests.Load().Roads.Plan.Ground;
-        foreach (var q in rows)
-        {
-            float minX = MathF.Min(MathF.Min(q.P00.X, q.P10.X), MathF.Min(q.P11.X, q.P01.X));
-            float maxX = MathF.Max(MathF.Max(q.P00.X, q.P10.X), MathF.Max(q.P11.X, q.P01.X));
-            float minY = MathF.Min(MathF.Min(q.P00.Y, q.P10.Y), MathF.Min(q.P11.Y, q.P01.Y));
-            float maxY = MathF.Max(MathF.Max(q.P00.Y, q.P10.Y), MathF.Max(q.P11.Y, q.P01.Y));
-            bool overlaps = minX < 780f && maxX > 20f && minY < 780f && maxY > 20f;
-            Assert.False(overlaps, $"a ground row spans ({minX:0},{minY:0})–({maxX:0},{maxY:0}), over our terrain");
-        }
-    }
-
-    /// <summary>Every normal lane is on the map — the strips start where the lanes start.</summary>
-    [Fact]
-    public void EveryNormalLane_HasAStrip()
+    public void TheLanes_AreEveryVehicleLaneSegment()
     {
         var net = TrafficRoadSceneTests.Load();
-        int lanes = net.Model.LanesByHandle.Count(l => !l.EdgeId.StartsWith(':') && l.Shape.Count >= 2);
-        int segments = net.Model.LanesByHandle.Where(l => !l.EdgeId.StartsWith(':')).Sum(l => Math.Max(0, l.Shape.Count - 1));
+        int segments = net.Model.LanesByHandle.Where(l => !l.EdgeId.StartsWith(':') && l.AllowsRoadVehicle).Sum(l => Math.Max(0, l.Shape.Count - 1));
 
-        Assert.True(lanes > 0);
-        Assert.Equal(segments, net.Roads.Plan.Strips.Count);
-        Assert.Contains(net.Roads.Plan.Strips, s => s.Sidewalk);
-        Assert.Contains(net.Roads.Plan.Strips, s => !s.Sidewalk);
+        Assert.Equal(segments, net.Roads.Plan.Lines.Count);
+    }
+
+    /// <summary>🔒 <i>"some simplification might be necessary - maybe even like not rendering larger road net in 2d map at all"</i>:
+    /// lanes → one line per edge → nothing, by the budget.</summary>
+    [Fact]
+    public void ALargerNet_FallsBackToEdges_ThenToNothing()
+    {
+        var net = TrafficRoadSceneTests.Load();
+        int lights = net.Roads.Signals.Count;
+        int lanes = TrafficRoadPlan.LaneCentrelines(net.Model, net.Placement).Count;
+        int edges = TrafficRoadPlan.EdgeCentrelines(net.Model, net.Placement).Count;
+        Assert.True(edges < lanes, $"edges {edges}, lanes {lanes}");
+
+        var byEdges = TrafficRoadPlan.For(net.Model, net.Placement, lights, budget: edges + lights);
+        Assert.Equal(TrafficPlanDetail.Edges, byEdges.Detail);
+        Assert.Equal(edges, byEdges.Lines.Count);
+        Assert.True(byEdges.DrawsLights);
+
+        var none = TrafficRoadPlan.For(net.Model, net.Placement, lights, budget: edges + lights - 1);
+        Assert.Equal(TrafficPlanDetail.None, none.Detail);
+        Assert.Empty(none.Lines);
+        Assert.False(none.DrawsLights);
     }
 
     private static EntityRepository LoadedWorld()
@@ -89,8 +76,4 @@ public sealed class TheRoadLayerFitsTheMapBufferTests
         residency.Commit(world, residency.Prepare("demo-city"));
         return world;
     }
-
-    private static Vector2 Flat(Vector3 v) => new(v.X, v.Y);
-
-    private static double Area(Vector2 a, Vector2 b, Vector2 c) => Math.Abs((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y)) / 2.0;
 }

@@ -18,4 +18,11 @@ public struct TrafficCar
 
     /// <summary>SumoSharp's <c>VehicleHandle.Generation</c> (a recycled slot is a different car).</summary>
     public ushort Generation;
+
+    /// <summary>⭐ AQ93 §15 K3 — <see cref="KindCar"/>, or <see cref="KindPedestrian"/> (then <see cref="VehicleIndex"/> is SumoSharp's ped
+    /// id and <see cref="Generation"/> 0).</summary>
+    public byte Kind;
+
+    public const byte KindCar = 0;
+    public const byte KindPedestrian = 1;
 }

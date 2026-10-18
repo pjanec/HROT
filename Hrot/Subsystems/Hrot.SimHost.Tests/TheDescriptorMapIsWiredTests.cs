@@ -202,13 +202,15 @@ public class TheDescriptorMapIsWiredTests
 
         var map = AttributeInterpreterProvider.GetDescriptorMap(repo);
 
-        var uncovered = AttributeVocabulary.WrittenComponents
+        // ⭐ CE-4024 — a brain-local component (CivilianState) is never republished, by design: it is not asked to be covered
+        var uncovered = AttributeVocabulary.ReplicatedComponents
             .Where(t => map.GetDescriptorsForComponentId(
                             ComponentTypeRegistry.GetOrRegisterManaged(t)).IsEmpty)
             .Select(t => t.Name)
             .ToList();
 
         Assert.Empty(uncovered);
+        Assert.Contains(typeof(Fdp.Toolkit.Civilians.CivilianState), AttributeVocabulary.WrittenComponents.Except(AttributeVocabulary.ReplicatedComponents));
     }
 
     /// <summary>
