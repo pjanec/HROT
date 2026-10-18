@@ -9,6 +9,7 @@ related-designs:
   - docs/DESIGN_Decision_Layer.md — §3.3 OWNS how BTree / HSM / blueprint call the scorer now (UtilityNodes, ScoreDecision), superseding §7.1–§7.2 here.
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns the runtime bootstrap call site (CgfLogicPack ctor) and why no Utility tick system exists
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — the commander-tier ManeuverSelect recursion (§8.0)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; adds three damping inputs to the posture decision (neutral 1.0), nothing to the scorer
 -->
 
 # Utility AI (Decision Scoring) — Design v1.2

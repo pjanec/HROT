@@ -54,6 +54,7 @@ related-designs:
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md — U-6, the gesture poses and the placard on a pole (CV-13).
   - docs/blueprints/batches/NOTE_Behaviors_To_Backend_CivilianHsm_Landed.md — CE-2235 landed; B-4 (the perf harness) may go.
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — obeys §5h indoors and adds the civilian Comply state (CB-7)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; combatants only — the civilians keep this design's own fear / anger / attitude
 -->
 
 # DESIGN — **civilians and crowd control** *(the CIV programme)*
