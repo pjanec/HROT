@@ -284,7 +284,8 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new IDescriptorTranslator[]
         {
             new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
-            new DestroyEntityCommandEgressTranslator(participant, bus, nodeId),
+            // ⭐ CE-2247 — DestroyEntityCommandEgressTranslator moved to SharedTranslatorPack: every node forwards a destroy it cannot
+            //   dispose (R-3015), not the IG alone.
         };
     }
 
