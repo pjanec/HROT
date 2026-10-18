@@ -327,6 +327,9 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
+            // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
+            //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
+            if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
 
             // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person (his weapon brain's replicated WeaponPosture)
             //   turns his body to the aim — snapping beyond his twist, smoothly inside it — and moves along his way independently of

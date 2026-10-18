@@ -1337,6 +1337,29 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-3255</c> (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED soldier on his path stands still until the stun ends,
+        /// then walks on (path and progress kept). ✅ Red-proof: drop the stun line in <c>CarKinematicsSystem</c> ⇒ he walks while stunned.</summary>
+        [Fact]
+        public void CE3255_AStunnedSoldier_StandsStill_UntilTheStunEnds()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = Fdp.Toolkit.Combat.HitModel.Now(repo) + 1000.0 });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            void RunFor(float seconds) { for (int i = 0; i < (int)(seconds * 60); i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); } }
+
+            var start = repo.GetComponent<SimTransform>(e).Position;
+            RunFor(3f);
+            Assert.True(Vector3.Distance(start, repo.GetComponent<SimTransform>(e).Position) < 0.05f, "stunned, he stood");
+
+            repo.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(e).StunnedUntil = 0.0;
+            RunFor(3f);
+            Assert.True(Vector3.Distance(start, repo.GetComponent<SimTransform>(e).Position) > 1f, "the stun over, he walks on");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3195</c> (W-14c) — a BRIEF aim inside the twist barely turns him (a snap shot), and when the posture is no
         /// longer Aimed he stops turning.</summary>
         [Fact]

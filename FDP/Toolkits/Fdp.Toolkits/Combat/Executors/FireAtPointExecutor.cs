@@ -247,6 +247,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (obeyArc && BodyAim.OutsideFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
+            // ⭐ CE-3255 (BR-2) — a stunned man fires nothing at a point either (the AI's; an operator's own stun is his screen's, not this gate)
+            if (obeyRoe && Effects.IsStunned(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldStunned;
             // ⭐ CE-2239 part 1 (CV-8, §5j FL-2) — the FORCE LEVEL, for a round at a point (no target ⇒ no self-defence lift); an operator decides himself
             if (obeyRoe && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel;

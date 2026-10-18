@@ -86,6 +86,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-6) — the escalation ladder's WARN rung: the warning is given, no round (an armed man
         /// at ease, or a unit whose force level is Warn).</summary>
         HoldWarn,
+        /// <summary>⭐ <c>CE-3255</c> (BR-2; DESIGN_Building_Clearing CB-6) — the SHOOTER is stunned (a flash-bang, <c>Effects.IsStunned</c>): no round
+        /// leaves, whoever he is (Running, nothing spent), until the stun ends.</summary>
+        HoldStunned,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -169,6 +172,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldForceLevel     => "hold: force level",          // ⭐ CE-2239 — the ROE caps the force
             ActionReason.HoldConduct        => "hold: unarmed civilian",     // ⭐ CE-2238 part 4 — non-lethal force only
             ActionReason.HoldWarn           => "hold: warning",              // ⭐ CE-2239 part 3 — the ladder's Warn rung
+            ActionReason.HoldStunned        => "hold: stunned",              // ⭐ CE-3255 (BR-2) — a flash-bang
             ActionReason.NotControlled      => "hold: not controlled",       // ⭐ WS-3 — the weapon system
             ActionReason.NoGunner           => "hold: no gunner",
             ActionReason.NotDeployed        => "hold: not deployed",
@@ -184,7 +188,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
             or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
-            or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldConduct or ActionReason.HoldWarn;   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
+            or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldConduct or ActionReason.HoldWarn
+            or ActionReason.HoldStunned;   // ⭐ CE-3255 (BR-2)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

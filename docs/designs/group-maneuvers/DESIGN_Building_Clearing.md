@@ -651,7 +651,7 @@ way · ③ Charlie (every man dead) is given nothing · ④ the men reach the ob
 | block | kind | what | slice |
 |---|---|---|---|
 | `RoomGraph` + `RoomOf` + the CQB house | 🆕 | rooms, portals (doors, gaps, stairs) with their two rooms, corners, area; the §8 house in `bt-range` (⭐ the HOUSE is built — UI-3, `CE-1188`; BR-1 keeps the room graph) | BR-1 |
-| stun holds every class | ⚙ | `Effects.IsStunned` stops the fire gate (`HoldStunned`) and the mover for any person — today only civilian code reads it | BR-2 |
+| stun holds every class | ✅ **BUILT** (backend `CE-3255`, 2026-10-19) | `Effects.IsStunned` holds both places a round leaves — `AimAndFireExecutor.HoldOf` (first: whatever the target) and `FireAtPointExecutor` (the AI's) — as `ActionReason.HoldStunned` (posture Ready, amber "hold: stunned"), and `CarKinematicsSystem` stands a stunned PERSON still (path and progress kept, like a blocked one). Rails `AimAndFireExecutorTests.CE3255_*`, `CarKinematicsSystemTests.CE3255_*` | BR-2 |
 | `SquadReport` topic | 🆕 | the event topic on the `BehaviorFaultReport` precedent | BR-3 |
 | interactions `Search` · `Detain` · `Restrain` | 🆕 | `EInteractionKind` cases applied by the civilian's owner (CB-19): reveal + lay down a Hidden weapon, the replicated `Detained` flag, hands tied | BR-4 |
 | `Lean` body state | 🆕 | replicated None · Left · Right; the eye point offset for perception, the exposed silhouette for hits (CB-21) | BR-5 |

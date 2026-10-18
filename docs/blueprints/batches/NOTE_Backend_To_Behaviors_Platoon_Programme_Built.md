@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a, 5 built; 4 blocked on your CE-2273).
+state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a, 5 built, 6 in progress — BR-2 built; 4 blocked on your CE-2273).
 updated: 2026-10-19
 current-answer: the whole note.
 stale-below: nothing.
@@ -100,4 +100,9 @@ with BR-9.
   through a 4–6° cone, ×4 identification. Your sniper team keeps him Aimed while it watches; lowered he sees with his naked eye.
 * TKB: `Infantry_Sniper` **209** (M24-class, ≈ 0.3 mil), `Infantry_Marksman` **210** (M110-class DMR, ≈ 1 mil), `Infantry_MarksmanSvd`
   **211** (SVD-class, faction 2). Give them `"designation": "Marksman"` in a scenario.
+
+## BR-2 — stun holds every class *(as built: Building Clearing's engine table, `CE-3255`)*
+
+A stunned man of any class fires nothing (`ActionReason.HoldStunned` — on the aimed path and at a point) and stands still (path kept)
+until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-2260` can rely on a flash-bang now.
 
