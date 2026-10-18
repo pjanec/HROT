@@ -105,6 +105,9 @@ namespace Hrot.Common.Systems
                     {
                         NetworkId = request.EntityId,
                         Reason    = $"DeleteEntityRequest:{request.RequestId}",
+                        // ⭐ CE-2247 — it came off the wire: never forwarded back out as another request (every node now
+                        //   carries the forwarder, DestroyEntityCommandEgressTranslator).
+                        IsRemote  = true,
                     });
                 }
 

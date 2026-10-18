@@ -1401,6 +1401,38 @@ sequenceDiagram
 hazard `CLAUDE.md` names *(*"`dotnet test --no-build` runs a STALE BINARY and prints PASSED"*, here in its
 inverted form)*. ⇒ ⭐⭐ **after an inverse-edit red-proof, REBUILD before believing the next result.**
 
+#### ✅ AS-BUILT `2026-10-18` — `CE-2247`: **a destroy where this node does NOT own the master reaches the owner**
+
+📌 **Found by behaviors** (`ua-armed-bomber`, Civilians §5l.1): a worn charge bursts on the node that owns its POSITION (SimHost,
+the wearer's Muscle); `Charges.End` publishes the one `DestroyEntityCommand` there — and SimHost's teardown is **local only**,
+because step ④ above: only the MASTER's owner (CGF, which created it) writes the dispose. 2 s later CGF and the IG still held a
+live charge. ⭐ The protocol already had the answer — `DeleteEntityRequest`, *"issued by non-owning nodes"*, read by
+`DeleteEntityRequestSystem` on every node — but its forwarder, `DestroyEntityCommandEgressTranslator`, was built for the IG alone
+(`CreateIgEgressTranslators`; `DESIGN_Node_Roles_And_Policies.md` §3.5 lists it as host-kind divergence, R-3015).
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (owns the position)
+  participant CG as CGF (owns the master)
+  participant IG as IG (replica)
+  SH->>SH: Charges.Detonate: the burst, then DestroyEntityCommand (local)
+  SH->>SH: ProcessDestroy: local teardown only (no master, no dispose)
+  SH->>CG: DestroyEntityCommandEgressTranslator: not the master's owner, so DeleteEntityRequest
+  CG->>CG: DeleteEntityRequestSystem: DestroyEntityCommand (IsRemote) then ProcessDestroy
+  CG->>IG: the ELM teardown disposes EntityMaster on the wire
+  IG->>IG: EntityMasterIngressTranslator: DestroyEntityCommand (IsRemote), the replica goes
+```
+*What the picture shows that prose hid: the request travels only from a node that CANNOT dispose — the owner's own destroy and
+every wire-born one are never forwarded, so no echo.*
+
+| built | where |
+|---|---|
+| the forwarder is in **`SharedTranslatorPack`** (every NED node), out of the IG's list | `SharedTranslatorPack.cs`, `NedNetworkFactory.CreateIgEgressTranslators` |
+| it skips a destroy on the master's owner (`HasAuthority(PackKey(dtEntityMaster, 0))`) — its own teardown disposes | `DestroyEntityCommandEgressTranslator.OwnsMaster` |
+| a request off the wire becomes a `DestroyEntityCommand { IsRemote = true }` ⇒ never forwarded back (it was, from the IG, an echo) | `DeleteEntityRequestSystem` |
+| ⚠ **found while building:** it did its work in `PollIngress`, but `NedReplicationModule` routes translators by `Direction` and never calls an EGRESS translator's `PollIngress` — it ran only on the IG, whose hand-built list went to both systems. ⇒ the work moved to `ScanAndPublish`. 📐 Probed live: SimHost forwards, every node receives the request, the master's owner (CGF) disposes | `DestroyEntityCommandEgressTranslator.ScanAndPublish` |
+| ⭐ **no message change** (R-158/R-169) | — |
+
 #### ⭐ BLAST RADIUS, and the one cost
 
 | | |
