@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 (memory at every command level) lean awaiting the user
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 (memory at every command level) and §5c CB-37…CB-41 (what is reported, who processes it) leans awaiting the user
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -310,6 +310,110 @@ the buffer the reports are folded into, and the picture is where ageing happens.
 ⚠ **Changes to BR-3** (the `SquadReport` topic, backend, unstarted — `git merge-base` checked): the fields gain `ObservedAt` and `Seq`,
 the kinds gain `Status` (with men in the fight, effective, ammo-low, phase in `Count` and a small flags field). Sent as
 [`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md).
+
+## 5c. What is reported up, what each level needs, and who processes it *(⭐ leans CB-37…CB-41, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"Higher level commanders are usually not interested in the lowest details. What kind of report could the squad
+commander report up, What kind of knowledge the platoon level commander actually needs … How this report processing will be
+implemented … Note that different behaviors might need different reports and different kind of processing them."* · *"Use your real
+world knowledge of doctrines and tactics and command"*.
+
+**Doctrine** *(US Army FM 6-0 / ATP 6-0.5 command post and reporting, ATP 3-21.8 platoon and squad, the standard report formats)*:
+
+| idea | what real forces do |
+|---|---|
+| **the commander says what he needs** | **CCIR** — the commander's critical information requirements: **PIR** (about the enemy: *"any machine gun on the objective"*, *"enemy reinforcing from the north"*) and **FFIR** (about own forces: *"a squad below 70 % strength"*, *"crossing phase line BLUE"*). Subordinates report those **at once**, everything else by routine or by exception |
+| **standard formats, so a report is short** | **contact report** (*"contact, north, 200 m, two riflemen in the window, returning fire"*) · **SALUTE spot report** (Size, Activity, Location, Unit, Time, Equipment) · **SITREP** (where we are, what we do, our status) · **LACE / ACE** (liquids, ammunition, casualties, equipment — after contact and on consolidation) · **phase reports** (*SET* in position, phase line crossed, foothold, objective secure) · **requests** (CASEVAC 9-line, fire support, resupply, reinforcement, permission) |
+| **one level up sees ELEMENTS, not men** | a squad reports *"enemy fire team, building C first floor, one MG"*, not seven contacts; the platoon reports *"enemy squad in buildings C and D"* to its company. Each level summarises for the next |
+| **status as a colour** | combat power GREEN ≥ 85 % · AMBER 70–84 % · RED 50–69 % · BLACK < 50 % (combat ineffective); the same for ammunition |
+
+**What the platoon commander needs to coordinate** *(what its plays actually read)*:
+
+| play | about the enemy (PIR) | about own squads (FFIR) |
+|---|---|---|
+| `AttackPosition` / `AttackBuilding` | enemy elements by building / face / storey, their size and heavy weapons (MG, sniper, AT) — to pick the axis and the support-by-fire targets; reinforcement approaching | each squad's position, phase (SET, phase line, foothold, room / building clear), combat power and ammo colour — to time shift / lift fire and commit the reserve; requests |
+| `DefendPosition` | enemy elements approaching or inside the engagement area, enemy outside a sector (flank) | posts manned (SET), combat power per sector, displacing — to reinforce or fall back |
+| `UrbanMovement` | contact and its building | position on the route, crossings done, combat power |
+
+**The report vocabulary (CB-37):**
+
+| report | from → to | sent when | carries | the receiver folds it into |
+|---|---|---|---|---|
+| **CONTACT** | squad → platoon | the first shot or first sighting of a NEW element | direction · distance · element ref · own action | the element memory + an edge (urgent) |
+| **SPOT** (SALUTE) | squad → platoon | an element is new, changes size / equipment / activity, moves > 25 m, or is lost | **S** count + size class (individual · team · squad · platoon) · **A** firing · moving · static · withdrawing · surrendering · **L** point + radius (+ building / storey from a PointSurvey) · **U** combatant class · **T** `ObservedAt` · **E** MG · sniper · AT · vehicle | the element memory |
+| **SITREP** | squad → platoon | every 15 s engaged, 60 s otherwise, at once on a change (CB-34's `Status`) | position · task · phase · combat power colour · ammo colour | the status table (Fresh / Stale / Silent, CB-34) |
+| **LACE** | squad → platoon | after contact and on consolidation, or when a colour changes | ammo · casualties (WIA / KIA count) · key equipment lost (MG, AT) | the status table |
+| **PROGRESS** | squad → platoon | the play reaches it | SET · phase line · foothold · room clear · building clear · objective secure · displacing | the progress record / `BuildingClearance` (facts, CB-31…35) |
+| **REQUEST** | squad → platoon | the play needs it | an id · CASEVAC · fire support at a location · resupply · reinforcement · permission | the inbox; answered by an ORDER down that cites the id |
+| *behaviour-defined* | any | the play sends it | a registered payload | the inbox only (CB-41) |
+
+**Aggregation (CB-38).** The sender summarises, never the receiver: a squad's **staff** clusters its contact pool into **elements**
+(contacts within 15 m, or in the same building and storey once a PointSurvey places them), each with a count, a size class and
+equipment flags, and reports elements. The platoon's memory holds **elements, not individuals**, and when it reports to a company it
+clusters again, more coarsely (50 m, a building block). The same code at every level, with a radius that grows per level.
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposer { <<NEW system, every commander, brain>> CONTACT and SPOT from its memory · SITREP heartbeat · LACE on change · ElementClusterer }
+  class ReportOutbox { <<designed RP-1>> delay · leader in the fight }
+  class SquadReportTopic { <<backend BR-3>> header + standard fields + payload }
+  class StaffInbox { <<NEW system, every commander, brain>> fold standard kinds · keep the last N per kind · raise ReportReceived }
+  class ElementMemory { <<the commander's own memory, CB-36>> enemy elements, aged }
+  class StatusTable { <<CB-34>> per subordinate: position, phase, colours, age }
+  class InformationRequirements { <<NEW, in the ORDER>> PIR and FFIR: kinds + triggers + rate }
+  class ReportKindRegistry { <<NEW>> standard kinds 1-99 · behaviour kinds 100+ with a payload DTO }
+  class PlayNodes { <<NEW nodes, BTree HSM blueprint>> SendReport · ReadReports · WaitForReport · AnswerRequest }
+  class SensorChangedEvent { <<existing 1-17, + ReportReceived>> }
+  StaffComposer ..> InformationRequirements : what my superior asked for
+  StaffComposer --> ReportOutbox
+  PlayNodes --> ReportOutbox : task reports, custom kinds
+  ReportOutbox --> SquadReportTopic
+  SquadReportTopic --> StaffInbox : on the addressee's brain node
+  StaffInbox --> ElementMemory
+  StaffInbox --> StatusTable
+  StaffInbox ..> SensorChangedEvent : ReportReceived
+  PlayNodes ..> StaffInbox : ReadReports, WaitForReport
+  ReportKindRegistry ..> StaffInbox : how to fold a kind
+```
+*What the picture shows that prose hid:* the report work is split exactly like EQS. The **staff** is generic engine systems doing the
+same job for every play: composing standard reports, folding them, ageing. The **play** decides only three things: what it asks its
+subordinates to report (the requirements in its orders), which task reports and custom kinds it sends, and how it reacts. No play
+parses reports by hand, and no play is stuck with reports it never asked for.
+
+```mermaid
+sequenceDiagram
+  participant PP as platoon play (AttackBuilding)
+  participant SQ as squad play (SupportByFire)
+  participant SC as squad staff (composer + outbox)
+  participant W as wire
+  participant PS as platoon staff (inbox)
+  PP->>SQ: order + InformationRequirements (PIR: MG or sniper on the objective · FFIR: below AMBER, SET)
+  SQ->>SC: SendReport PROGRESS SET (the play reached its position)
+  SC->>SC: memory changed: 3 contacts, one MG, building C storey 1, cluster into ONE element
+  SC->>W: SPOT team-size, firing, building C storey 1, MG (a PIR, so sent at once)
+  SC->>W: SITREP every 15 s (combat power GREEN, ammo GREEN)
+  W->>PS: on the platoon's brain node
+  PS->>PS: fold: element into memory, status table, progress
+  PS-->>PP: SensorChange ReportReceived (PIR met)
+  PP->>PP: read the picture, pick the axis away from the MG face
+```
+*What the picture shows that prose hid:* the platoon play never sees the squad's three contacts — it sees one element, at once because
+it ASKED for machine guns, and it is woken by an edge, not by polling.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **CB-37** | what is reported | the doctrinal set: **CONTACT · SPOT (SALUTE) · SITREP · LACE · PROGRESS · REQUEST**, plus behaviour-defined kinds; status as GREEN / AMBER / RED / BLACK | free-form reports: every receiving play would need its own parser · forwarding raw contacts: the platoon would hold every soldier's sighting, which is what CB-36 rejects |
+| **CB-38** | the level of detail | the **sender summarises into elements** (15 m or same building and storey at squad level; coarser per level); the receiver's memory holds elements | the receiver aggregating: it would need the raw contacts, sent upward |
+| **CB-39** | where the processing runs | ⭐ **generic "staff" ECS systems on each commander's brain node** (Squad toolkit, behaviors): a composer (standard reports from memory and state, under the requirements) and an inbox (fold the standard kinds, keep the last N per kind, age, raise `SensorChange.ReportReceived` 18). ⛔ **Not a backend service** — backend owns only the wire (BR-3); ⛔ **not per-play code** for the standard kinds | each play composing and parsing its own reports: the same SALUTE code in every play · a central service: it would hold every commander's knowledge in one place, against R-2031 |
+| **CB-40** | different plays need different reports | **information requirements in the ORDER** (CCIR): each play declares defaults (its PIR / FFIR: which kinds, which triggers, which rate) and sends them down with its order; the subordinate's staff reports those at once and the rest by routine | every subordinate reporting everything: noise and wire load for nothing · the receiver filtering: the sender still pays for it |
+| **CB-41** | custom reports | a **report kind registry**: standard kinds 1–99 folded by the staff; behaviour kinds 100+ declare a small payload DTO (in the one DTO registry, Orders F9) and are **inbox-only** — the play reads them with `ReadReports` / `WaitForReport`; a REQUEST is answered by an order that cites its id (`AnswerRequest`) | a new topic per behaviour: the wire would grow with every play |
+
+⚠ **The §3 `ReportKind` list maps onto this set** (it stays the clearing's vocabulary, now as kinds of the doctrinal reports): `Contact` → CONTACT / SPOT · `UnderFire` → CONTACT + SITREP · `Casualty` → LACE · `RoomClear`, `RoomBlocked`, `BuildingClear`, `Detained` → PROGRESS · `CombatIneffective` → SITREP BLACK.
+
+⚠ **Changes to BR-3 again** (still unstarted): the header gains `KindId` (ushort, the registry) and a small `Payload` (≤ 64 bytes); the
+SPOT fields (size class, activity, equipment flags) ride in the standard fields; CB-34's `Status` is the SITREP. Folded into
+[`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md) (re-stamped).
 
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
