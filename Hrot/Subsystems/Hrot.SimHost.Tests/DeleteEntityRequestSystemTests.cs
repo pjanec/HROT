@@ -132,6 +132,7 @@ namespace Hrot.SimHost.Tests
             var cmds = ((ISimulationView)world).ReadManagedEvents<DestroyEntityCommand>();
             Assert.Single(cmds);
             Assert.Equal(entityId, cmds[0].NetworkId);
+            Assert.True(cmds[0].IsRemote);   // ⭐ CE-2247 — off the wire: never forwarded back out as another request
         }
     }
 }

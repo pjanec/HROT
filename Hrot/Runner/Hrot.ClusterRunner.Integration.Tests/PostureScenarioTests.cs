@@ -1107,7 +1107,7 @@ public sealed class PostureScenarioTests : IDisposable
     /// position owner (SimHost) has it gone, CGF and IG still hold it as a LIVE charge (it could burst twice). Skipped until backend fixes it —
     /// unskip as its acceptance rail.
     /// </summary>
-    [Fact(Timeout = 600_000, Skip = "CE-2247 (backend): a spent charge's replicas stay live on CGF and IG")]
+    [Fact(Timeout = 600_000)]
     public async Task CE2247_Bomber_TheSpentVest_LeavesEveryNode()
     {
         using var harness = await StartShippedScenario("ua-armed-bomber");

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons DESIGNED, CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -3730,6 +3730,96 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
+
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: DESIGN — backend leans TC-1…TC-7 for approval; TC-7 is behaviors' to rule)*
+
+⭐ **The question** *(user, `2026-10-18`)*: *"Thrown knife or axe or spear or shuriken is worth investigating, if this is melee at all or more a
+cold weapon fire."* ⇒ **cold-weapon FIRE.** A blow (`Melee.Strike`, §5i) has no flight; a thrown blade flies, can miss, stops on a wall,
+strikes the first body on its line and lands where it can be picked up again — every one of which the THROWN STONE already does.
+
+INVENTORY *(grep + reads at `backend@5856585c0`; codebase-memory CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| is a thrown stone a round? | ✅ a munition (6038) with `WarheadDto { Kind = Blunt, Indirect = true }`, damage 3 — it flies the arc like the M67 | `MunitionTkbCatalog.cs:294` (H-6, §7.9) |
+| does a flying round strike a body on its line? | ✅ every round is a ballistic entity raycast each tick; a unit in its path is struck (a contact burst for an arc round), a wall stops it | `BallisticsSystem.cs:110`, `:173`, `:217` |
+| how does the hit reach the victim's owner? | ✅ resolved on the Muscle (SimHost): `DamageAssessedEgressTranslator` → `EntityHitDamage` → the Brain's ingress → the `Health` owner applies it. ⭐ NOT the melee gap (`CE-3246`) | `SimHostAuxiliaryTranslatorPack.cs:86`, `:100` |
+| what kinds a warhead has | `Kinetic` (direct hit only — a bullet), HE, Frag, Shaped, `Blunt`, `Irritant`, `Stun`, `Smoke` | `WarheadDto.cs:9` |
+| who throws, from what | the HANDS mount on every person (`PersonHands`, 15 m/s, its `Range`), up to 4 kinds in its `AmmoLoadout` (`Give`); `FireAtPoint` on the hands index throws the LOADED round | `PersonHands.cs:20-28`, §7.9 H-1…H-5 |
+| does a thrown thing lie and get picked up? | ✅ `HandItemDto.LiesSeconds` ⇒ it lies `Landed`; `RoundPickUp` (kinds 9/10) grants it back into a hand | §7.10 PU-1…PU-6 |
+| how a round is drawn | `MunitionVisualDto.Shape`: Grenade · Bomb · Shell · Rocket · Missile · Bullet — no blade | `MunitionVisualDto.cs:7` |
+| how a held throwable is judged armed | `Armament.OfHands`: every held kind is a `SmallObject`, lethal by `ItemAppearances.IsLethal(ammo)`, **`ReachM` 0** ⇒ `IdentifiedLethal` at ANY identified distance | `Armament.cs:333` |
+| is a hand throw a gunshot? | ⚠ `SoundEmissionSystem` gives a shot report for EVERY `WeaponFireNotification` but a flare / chaff (`IsExpendable`); thermal, muzzle-flash, tracer, `RecentShots` read the same event — **not measured for a throw** | `SoundEmissionSystem.cs:55-60`, §5 consumers list in `CE-3248` |
+
+```mermaid
+classDiagram
+  direction LR
+  class MunitionTkbCatalog { <<existing>> + ThrowingKnife · Hatchet · Javelin · ThrowingStar }
+  class WarheadDto { <<existing>> Kind = Kinetic · Indirect = true }
+  class HandItemDto { <<existing>> LiesSeconds — it lies and can be picked up }
+  class MunitionVisualDto { <<existing, + 4 shapes>> Knife · Axe · Spear · Star }
+  class PersonHands { <<existing>> Give(world, man, ammo, n) · the throw's one speed }
+  class FireAtPointExecutor { <<existing>> throws the LOADED round from the hands }
+  class BallisticsSystem { <<existing>> the flight, the strike on the line, the wall }
+  class DamageAssessedEgressTranslator { <<existing, SimHost>> the hit to the Health owner }
+  class Armament { <<existing>> OfHands — TC-7 is behaviors' }
+  class HandThrow { <<NEW static, CE-3248>> IsHandThrow(world, notification) — a hand throw is no gunshot }
+  class SoundEmissionSystem { <<existing>> skips a hand throw }
+  MunitionTkbCatalog ..> WarheadDto
+  MunitionTkbCatalog ..> HandItemDto
+  MunitionTkbCatalog ..> MunitionVisualDto
+  PersonHands ..> MunitionTkbCatalog : holds
+  FireAtPointExecutor ..> PersonHands
+  FireAtPointExecutor ..> BallisticsSystem : the round flies
+  BallisticsSystem ..> DamageAssessedEgressTranslator : a struck body
+  SoundEmissionSystem ..> HandThrow
+  Armament ..> PersonHands
+```
+*What the picture shows that prose hid:* every box but one EXISTS — the four blades are rows of data on the stone's path, and the only new
+code is the "a hand throw is no gunshot" test that the stone needed already (`CE-3248`).
+
+```mermaid
+sequenceDiagram
+  participant B as thrower's brain (CGF)
+  participant S as SimHost (the round's owner)
+  participant O as the victim's Health owner (CGF)
+  participant V as every node (IG)
+  B->>B: PersonHands.Give(knife, 3) — a scenario loadout or a pick-up (PU-6)
+  B->>S: FireAtPoint on the hands — WeaponFireIntent(knife, at point)
+  S->>S: FireProcessing: the knife flies the throw arc (Indirect)
+  S->>V: the round replicates (its look: Knife)
+  S->>S: Ballistics: the first body on its line is struck — direct hit, Kinetic
+  S->>O: EntityHitDamage (damage, Source = the thrower)
+  O->>O: HealthApplication applies it
+  S->>S: no body: it stops on the ground or a wall and LIES (LiesSeconds)
+  B->>S: PickUpRound (kind 9) — the knife can be thrown again
+```
+*What the picture shows that prose hid:* the whole life of a thrown blade crosses nodes on paths that are already live for the stone —
+none of it waits for `CE-3246` (that row is the BLOW raised on a brain).
+
+```mermaid
+graph TD
+  CGF[CGF - brain] -->|FireAtPoint, WeaponFireIntent| SH[SimHost - FireProcessing, Ballistics]
+  SH -->|the round: EntityMaster + WorldPos + look| IG[IG - draws the blade in flight and lying]
+  SH -->|EntityHitDamage - Muscle egress| CGF
+  CGF -->|PickUpRound kind 9| SH
+  SH -->|PickUpGrant kind 10| CGF
+```
+*What the picture shows that prose hid:* who runs what each frame — the throw is decided on the brain, the flight and the strike on
+SimHost, and the hit comes back to the `Health` owner; no new module, no new registration.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **TC-1** | **a thrown blade is a MUNITION (a round), never melee**: it flies, can miss, is stopped by a wall, strikes the first body on its line through the direct-hit chain | `Melee.Strike` at range: no flight, no miss, no cover, no lying · a `StrikeNotification` for a throw: a throw is a round, already on the wire |
+| **TC-2** | **four starter munitions**: throwing knife, hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, knife 25, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
+| **TC-3** | **four appended `MunitionShape` members** — `Knife`, `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
+| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. A FIGHTING knife (AW-19, the melee item of ui's G4) is a different item; throwing your one fighting knife is later — it needs a held weapon to become a round, the canister's shape (§7.15) on a weapon mount | one item that is both: the conversion is not built and no demo needs it yet |
+| **TC-5** | **one throw speed** — the hands' (15 m/s, its `Range`) — for v1 | a speed per munition: a javelin outranges a knife in life; the per-charge machinery exists (`charges`, IF-1) — add it when a demo needs the difference |
+| **TC-6** | **a hand throw is not a gunshot** (`CE-3248`): no shot report, no barrel heat, no muzzle flash, no tracer — one test, *"fired from a hands mount"*, read by each `WeaponFireNotification` consumer; ⭐ it fixes the stone and the hand grenade too | a flag per munition: every throwable would need it, and a hand never makes a report · a separate throw notification: the round, `RecentShots` and replay already ride this one |
+| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). Lean: its lethal reach is the hand's throw `Range` (25 m) — "lethality is an item's reach" | leave it: a man with throwing stars reads armed-lethal at 150 m · a per-munition reach: one hand, one throw |
+
+⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
+a sound for the throw's whoosh (none is wanted).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

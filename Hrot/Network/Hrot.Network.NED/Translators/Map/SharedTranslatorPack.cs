@@ -169,6 +169,10 @@ namespace Hrot.Map.Common.Translators
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new MapRouteIngressTranslator(participant, entityMap, geoTransform);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
+            // ⭐ CE-2247 — a destroy on a node that does not own the entity's master goes to the owner (DeleteEntityRequest), whose
+            //   teardown disposes it everywhere. Was the IG's alone (CreateIgEgressTranslators); a charge set off on SimHost stayed live
+            //   on CGF and the IG. 📄 DESIGN_Entity_Creation_Unification.md §3.4c, DESIGN_Node_Roles_And_Policies.md §3.5 (R-3015).
+            yield return new DestroyEntityCommandEgressTranslator(participant, eventBus, entityMap, localNodeId);
             // ⭐ CE-484 — every node may host an operator window: a behaviour fault raised on any node becomes a row of
             //   the Message Log's "Behaviour faults" tab here. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
             yield return new Hrot.Network.Translators.BehaviorFaultIngressTranslator(participant, localNodeId);
