@@ -199,7 +199,7 @@ graph TD
 | **slot 1 / slot 2** are what it is aimed at: an entity, or a POINT (`ContextPoint1` + `Point1Bit`, e.g. a heard shot) — the owner need not have seen the entity | `EqsContext.cs:41-75`; `EqsTacticsNodes.cs:362-364` |
 | it is **solved on SimHost** (the navmesh and terrain live there); the answer comes back to the owner's node | `EqsSensorConfigEgress/IngressTranslator.cs` |
 | ⛔ **the AI node (CGF) has no navmesh** — a point computed there can land off the walkable area, and a move to a point more than 2 m from it FAILS (the soldier then retries forever). ⇒ **ask the terrain through EQS**, never compute a destination in the brain and hope | `DotRecastNavmeshProvider.cs:43,428-431`; `PostureNodes.cs:242-247` |
-| ⛔⛔ **R-2037 — the brain never reads world geometry** (sight, buildings, surfaces): ask the muscle (EQS, or the `WorldSurvey` sensor designed in [Defend_And_Attack §13b](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)) and decide on the answer. ⚠ Measured 2026-10-18: several brain sites still read `IWorldQuery` directly (`CE-2286`) — do not copy them | 🔒 R-2037 |
+| ⛔⛔ **R-2037 — the brain never reads world geometry** (sight, buildings, surfaces): ask the muscle (EQS, or the `WorldSurvey` sensor designed in [Defend_And_Attack §13b](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)) and decide on the answer. ⭐ the brain's terrain exists to DRAW THE MAP (user, 2026-10-18). ⚠ Measured 2026-10-18: several brain sites still read `IWorldQuery` directly — tracked defects `CE-2286` (behaviors) and `CE-2287` (backend's) — do not copy them | 🔒 R-2037 |
 
 ## 6. Ready-made behaviours to reuse
 
