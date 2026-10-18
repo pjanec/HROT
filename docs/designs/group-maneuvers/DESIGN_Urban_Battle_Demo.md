@@ -62,6 +62,7 @@ headquarters sends next all come out of the fight itself.
 | FPV drone: searches ~150 m around a point, picks, dives | ✅ (placed by the scenario) | `ua-drone-shelter` |
 | mortar adjusted by an observer; time on target; danger close | ✅ (target ordered) | `ua-indirect-fire` |
 | mortar team type that can be Hostile; insurgent may crew a tube | ✅ data (`MortarTeam`, `ManWeapon`) | no live check |
+| cover obstacles placed by a scenario: parked car, sandbag wall, concrete block, crate | ✅ (`TkbEntityTypes.Obstacles`, `StaticObstacleDto`, CE-3136) | — |
 | mission plans: ≤ 8 phases on ONE unit; triggers timer · under attack · health · behaviour finished, all on that unit | ✅ operator-only | `MissionComponents.cs` |
 | a behaviour ordering other units (`OrderSubordinate`, the blueprint *Send Behaviour Intent* node) | ✅ | Command Chain §2 |
 
@@ -97,9 +98,19 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 | ④ | **an IED trigger man and an ambush**: a behaviour that sets off another entity's charge when a vehicle enters a kill zone; insurgents that hold an ambush position and fire (an un-ordered insurgent only hides today) | behaviors | Civilians AW-12 (remote trigger, designed) · Defend positions |
 | ⑤ | **a convoy halt drill**: vehicles stop or push through on contact; dismount at a halt | behaviors | Squad Tactics (new) |
 | ⑥ | **an insurgent mortar cell**: a spotter calls his mortar on enemies he sees (the observer adjust loop, started by the spotter himself) | behaviors | Indirect Fire (new) |
-| ⑦ | **two-storey houses in demo-city** (upper windows, roofs) | ui | after UI-1's shared building folder |
+| ⑦ | ⭐ **demo-city gets QUARTERS** (§4a): residential, business and commercial, plus one battle street — multi-storey buildings with upper windows and reachable roofs, a walled compound, a landing square | ui | [hand-off UI-8…UI-12](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md), after UI-1 / UI-2 |
 | ⑧ | data fixes: the Humvee type has no health block; our generic APC is unarmed (the Bradley is fine) | backend | not filed |
 | ⑨ | *(later)* FPV launch by an operator; aircraft evading outside an attack | behaviors | FPV R-263 · Air Operations |
+
+## 4a. The stage — demo-city with quarters *(user, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"The democity terrain was anyway too boring, adding building there to create some quarters like living ones and business onr and commercial ones would help. Obstacles to cover behing on the streets could be added as part of the scenario."*
+
+| | ⭐ decision | rejected — one line each |
+|---|---|---|
+| where | ⭐ **demo-city, given quarters** — it alone has the road net, traffic and crowds the scene needs; its houses are authored placements (`demo-city.houses.json`, a template per house) that the coordinator's `terrain-from-sumo.py --houses` merges, so new buildings are data | grow `cqb-village` (~330 × 232 m, no road net or traffic; its sight lines are pinned by the platoon demos' rails) · a third terrain (redoes demo-city's road and traffic work) |
+| what | residential (2–3 storey houses, walled courtyard houses, alleys), business (office blocks, 3–4 storeys, stairs, windows on every storey, flat roofs), commercial (shops with flat roofs, a market square), and **one battle street** through them | — |
+| street cover | ⭐ **in the scenario**, not the terrain: the existing static obstacles (cars, sandbags, concrete blocks, crates) | baked into the terrain: every demo on demo-city would inherit them |
 
 ## 5. The order
 
