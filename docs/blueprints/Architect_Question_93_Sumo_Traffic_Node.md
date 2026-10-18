@@ -1375,6 +1375,11 @@ stays SUMO's replica, which is §8's *"a new leg and a promotion"*. Rail `K6_Abo
 still on the wire 10 s later; most, and on average all, ran away — ⚠ not every one: when no route leads straight away H16 takes
 any route ENDING ≥ `minDistance` off, and a street can bend back past the blast first, measured one of four). Traffic 56/56.
 
+**Live (cluster, domain 89, `2026-10-18`, on D7's one node frame + per-node staging, H16 vendored, the three lanes merged): 17/17** —
+two pedestrians given up as CGF civilians keeping their ids, born in Panic from the attributes; the M67 step took two bursts (the first car
+was moving — the check now aims at the slowest car and retries) and car 1282 became OUR car 1002 at 150/300 with its driver out. ⚠ Two
+conversions stay far under the cap of 30, so the H16 flee did not run live — the rail covers it.
+
 **Live (cluster, `2026-10-18`): 16/17** — two pedestrians converted, **keeping their ids** (1264 was a replica id), CGF-owned, born in
 Panic; an M67 burst published on SimHost at SUMO car 1518 → the traffic node: *"hit on SUMO car 1518 (863 damage): giving it up"* → CGF
 holds car 1518 as OUR entity (type 1053, owner 400) and its driver beside it. The one row that could not pass: type 1053 has **no
