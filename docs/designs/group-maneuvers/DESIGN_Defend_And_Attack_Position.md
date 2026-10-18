@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) and DA-25 (§13b, the WorldSurvey sensor) leans awaiting the user; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: none.
@@ -374,7 +374,7 @@ that makes shifting and lifting fire safe.
 |---|---|---|---|
 | **DA-20** | sectors | one **`EngagementArea`** per member — the component Building Clearing already designed (CB-4, CB-18), now with two lists: **`Allow`** (arcs from his post: left and right bearing and a max range, or a polygon such as a building face's windows) and **`NoFire`** (polygons: rooms the friends hold, the assault element's area). **Who assigns:** the play of his commander writes the sector into the ORDER it gives him — the defence plan per post, the SBF its window faces, the clearing its room sectors, the march each man's watch sector by file place — and the member's own brain stamps the component from the order, so it crosses nodes with the order (R-2031: nothing hidden in one brain). **Shift and lift** = the platoon sends the SBF squad a new order with moved shapes. **How he uses it:** contacts outside `Allow` are not chosen, **except** one that hit or near-missed him in the last 5 s within 50 m (self-defence, as `ReturnFire` already reads); a shot whose line ends inside `NoFire` is **refused at the gate, always**. Below Regular: no `Allow` (they fire at anything); `NoFire` still applies, since it is the friends' safety. Once LD-1 lands, `WatchBearing` is also where he looks | a sector as a new firing rule only in the gate: he would keep choosing a target he may not shoot and freeze · a sector per behaviour: five places would each grow their own |
 
-### 13a. Sector shapes, who finds them, who gets them — two levels *(⭐ lean DA-24, refines DA-20)*
+### 13a. Sector shapes, who finds them, who gets them — two levels *(✅ DA-24 approved 2026-10-18, R-2038; refines DA-20)*
 
 **Measured:** ⭐ **a sector is already ruled to be an AREA ENTITY** (R-2003, user *"Sector as area for sure"*; Orders design F10): a
 tactical graphic, a polygon (`EditablePolyline : IAreaOutline`, vertices relative to the entity's position,
@@ -446,7 +446,11 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
 
-### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; ⭐ lean DA-25, the survey sensor)*
+### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; DA-25 the survey sensor, amended by the user 2026-10-18 — R-2038)*
+
+🔒 User, `2026-10-18`, on DA-25: *"sensors on the simhost (perception role) might keep working and providing the data on the background and keep delivering the results automatically so The brain just reads them without re-asking and without waiting"* · *"Reasking every time is also valid if it goes with diffetent imputs."* · *"The room graph is probably something also the EQS query or the sensor can create on its own based on the building geometry. It shouldn't be something the scenario or terrain needs to provide. That way we could apply the behavior to any building without prior knowledge."*
+
+⭐ **Measured — this is how EQS sensors already work:** a live sensor is **re-solved continuously** on a Perception node by `EqsSolverSystem` (Muscle tier, driven at 10 Hz; every live sensor ordered by band, then oldest result; a counted budget, `EqsSolverSystem.cs:15-25, 67-74`); each answer carries its `RefreshTick` (`EqsDdsTopics.cs:130-132`); the Brain picks the least-loaded Perception node per sensor (R-179, `EqsDdsTopics.cs:50-52`); **re-asking with new inputs** is `EqsChildSensor.Refresh(view, child, config)`, which bumps the epoch so only answers for the new inputs count (`EqsChildSensor.cs:168-190`). ⇒ `WorldSurvey` reuses exactly that: a **standing** sensor, not a request.
 
 🔒 User, `2026-10-18`: *"The line of sight must always be a sensor or raycast query which goes to the muscle and returns back as a result.
  It is nothing that is calculatable immediately on the brain It always needs to go to muscle and back."* — because smoke,
@@ -462,32 +466,35 @@ SUPERSEDED — see HISTORY.
 | splitting a polygon by bearing, an arc around a post, the overlap | pure math, no world | immediate, on the brain |
 | the posts (walkable, in cover, seeing the EA) | world | EQS, solved on the muscle (exists) |
 | what each post can SEE across its arc (walls, windows, smoke, rubble) | world | 🆕 a **visibility fan** asked of the muscle |
-| the building faces, windows, storeys, rooms, doors as they are NOW | world | 🆕 a **building survey** asked of the muscle (the room graph BR-1 lives there) |
+| the building faces, windows, storeys, rooms, doors as they are NOW | world | 🆕 a **building survey** from the muscle — ⭐ it DERIVES the rooms itself from the building's current walls and openings (any building, no authored or pre-baked rooms) |
 | which building / storey / room a point is in; heights and roof surfaces | world | 🆕 a **point survey** asked of the muscle (replaces BR-10's direct `BuildingOf`) |
 
 ```mermaid
 sequenceDiagram
   participant C as commander play (brain)
   participant S as WorldSurvey child sensor (brain side)
-  participant M as muscle (SimHost: live world, smoke, doors, damage)
+  participant M as Perception node (SimHost: live world, smoke, doors, damage)
   participant P as SectorPlanner (pure, brain)
-  C->>S: ask: posts (EQS template) + building survey + visibility fan per post
+  C->>S: create once: posts (EQS template) + building survey + visibility fan per post
   S->>M: sensor config on the wire (the EQS road: owner, epoch)
-  Note over C: WAITING — the squads keep their current orders
-  M->>M: solve against the CURRENT world
-  M-->>S: answer on the wire, stamped with the muscle's time
-  S-->>C: SensorChange SurveyReady (wakes the play)
-  C->>P: Split(the answer, the plan)
+  Note over C: only the FIRST answer is waited for, the squads keep their current orders
+  loop standing sensor, re-solved in the background (10 Hz scheduler, banded, oldest first)
+    M->>M: solve against the CURRENT world (rooms derived from the current walls)
+    M-->>S: answer on the wire with its RefreshTick
+  end
+  S-->>C: SensorChange SurveyReady on the first answer and when it changes
+  C->>P: Split(the latest answer, the plan) whenever the play needs it
   P-->>C: squad polygons + member arcs (pure, immediate)
-  C->>C: create the SquadSector areas, send the orders
-  Note over C: re-ask on a smoke cloud or damage near the area, a displacement, or every 10 s while engaged
+  C->>C: create or move the SquadSector areas, send the orders that changed
+  Note over C: NEW INPUTS (a new post, a new area) = Refresh(child, config): a new epoch, wait for its first answer
 ```
-*What the picture shows that prose hid:* planning is a **round trip with a wait**, so it is a STATE of the play (ask → wait → decide),
-not a function call. Only the last step, the decision over the muscle's answer, is immediate and stays on the brain.
+*What the picture shows that prose hid:* the wait happens **once per input set**, not per decision. After the first answer the sensor keeps
+solving in the background and the brain just reads the latest; it re-asks only when the INPUTS change. The decision over the answer is
+immediate and stays on the brain.
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **DA-25** | how the brain gets geometry | ⭐ **one `WorldSurvey` sensor in the EQS family** (backend frame): a child sensor of any unit (the same lifecycle, epoch and config / answer translators as EQS — `EqsChildSensor`), solved on the muscle against the live world (`Trace` with the sight purpose: walls, openings, doors, clouds, damage), its answer applied into a cognitive buffer on the brain (the danger-area sensor's shape) and announced by `SensorChange.SurveyReady`. Three question shapes: **VisibilityFan** (≤ 12 origins, an arc each, eye height, range, ≤ 24 rays → per ray the free distance and what stopped it) · **BuildingSurvey** (an area or building → storeys, faces, window and door openings, rooms, as they are now) · **PointSurvey** (points → building, storey, room, indoors, ground and surface heights). The answer carries the muscle's time; the brain re-asks on change or after 10 s in a fight. ⭐ The SectorPlanner is a pure function over that answer | a raycast batch per ray: the existing `RaycastRequestEvent` solver casts against entity circles (`RaycastSolverSystem.cs:18-24`), ⛔ not measured whether it sees walls and smoke, and a fan would be hundreds of loose events · a new EQS generator only: an EQS answer is ranked points, not a visibility profile or a building's openings · the brain's terrain copy (the superseded lean): breaks the rule |
+| **DA-25** | how the brain gets geometry | ⭐ **one `WorldSurvey` sensor in the EQS family** (backend frame): a child sensor of any unit (the same lifecycle, epoch and config / answer translators as EQS — `EqsChildSensor`), solved on the muscle against the live world (`Trace` with the sight purpose: walls, openings, doors, clouds, damage), its answer applied into a cognitive buffer on the brain (the danger-area sensor's shape) and announced by `SensorChange.SurveyReady`. **Standing** (R-2038): created once, re-solved in the background on its band, the brain reads the latest answer; new inputs go through `Refresh`. Three question shapes: **VisibilityFan** (≤ 12 origins, an arc each, eye height, range, ≤ 24 rays → per ray the free distance and what stopped it) · **BuildingSurvey** (an area or building → storeys, faces, window and door openings, and **the room graph it derives itself** from those walls and openings — rooms, portals, corners — so any building works with no prior knowledge; cached per building and re-derived when that building is damaged) · **PointSurvey** (points → building, storey, room, indoors, ground and surface heights). The answer carries its `RefreshTick`; a stale answer (older than its band's period × 3) is reported as stale, never silently used. ⭐ The SectorPlanner is a pure function over the latest answer | a raycast batch per ray: the existing `RaycastRequestEvent` solver casts against entity circles (`RaycastSolverSystem.cs:18-24`), ⛔ not measured whether it sees walls and smoke, and a fan would be hundreds of loose events · a new EQS generator only: an EQS answer is ranked points, not a visibility profile or a building's openings · the brain's terrain copy (the superseded lean): breaks the rule |
 
 **Existing code that breaks the rule — found while measuring this** *(grep for `WorldQuery.Of`, `TerrainWorld`, `SightBlocked`,
 `SegmentBlocked`, `InsideTest` in code that runs on the brain; codebase-memory CLI not used for this sweep — a text sweep, so the list is
