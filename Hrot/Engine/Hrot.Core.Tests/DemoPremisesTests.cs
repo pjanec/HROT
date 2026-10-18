@@ -11,6 +11,7 @@ using Fdp.Toolkit.Tkb.Parameters;
 using Fdp.Toolkit.Tkb.Reference;
 using Hrot.Map.Common;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hrot.Core.Tests
 {
@@ -30,23 +31,52 @@ namespace Hrot.Core.Tests
         /// <summary>Sight must be ≥ this (sees through) or ≤ <see cref="BlocksBelow"/>: the 0.5 threshold ± 0.1.</summary>
         public const float SeesAbove = 0.6f, BlocksBelow = 0.4f;
 
-        private static string RangeFolder()
+        private readonly ITestOutputHelper _out;
+        public DemoPremisesTests(ITestOutputHelper output) => _out = output;
+
+        private static string TerrainFolder(string name)
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors")))
                 dir = dir.Parent;
             Assert.NotNull(dir);
-            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
         }
 
-        private static readonly Lazy<(JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb)> s_fixture = new(() =>
+        private static (JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb) Load(string terrain)
         {
-            var folder = RangeFolder();
+            var folder = TerrainFolder(terrain);
             var root = JsonNode.Parse(File.ReadAllText(Path.Combine(folder, "premises.json")))!;
-            var world = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+            var world = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, terrain + ".world.geojson")), terrain,
                 TerrainAssets.ForFolder(folder));
             return ((JsonObject)root["demos"]!, world, HrotEnvironment.CreateTkb());
-        });
+        }
+
+        private static readonly Lazy<(JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb)> s_fixture = new(() => Load("bt-range"));
+
+        /// <summary>⭐ UI-12 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city's premises: the urban battle's stage
+        /// (DESIGN_Urban_Battle_Demo §4a) — the battle street seen from upper windows and two roofs, the landing square from an office
+        /// roof, a compound's yard hidden from the street.</summary>
+        private static readonly Lazy<(JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb)> s_demoCity = new(() => Load("demo-city"));
+
+        public static IEnumerable<object[]> DemoCityPremises()
+        {
+            foreach (var (demo, node) in s_demoCity.Value.Demos)
+                foreach (var p in (JsonArray)node!["premises"]!)
+                    yield return new object[] { demo, (string)p!["id"]! };
+        }
+
+        [Fact]
+        public void UI12_DemoCity_TheTable_HoldsTheStagesSightLines()
+        {
+            Assert.Contains("urban-battle-street", s_demoCity.Value.Demos.Select(d => d.Key));
+            Assert.True(DemoCityPremises().Count() >= 6, "demo-city's premise table is near-empty");
+        }
+
+        [Theory]
+        [MemberData(nameof(DemoCityPremises))]
+        public void UI12_ADemoCityPremise_Holds_WithAMarginFromEveryThreshold(string demo, string premise)
+            => Check(s_demoCity.Value, demo, premise);
 
         public static IEnumerable<object[]> Premises()
         {
@@ -65,9 +95,11 @@ namespace Hrot.Core.Tests
 
         [Theory]
         [MemberData(nameof(Premises))]
-        public void APremise_Holds_WithAMarginFromEveryThreshold(string demo, string premise)
+        public void APremise_Holds_WithAMarginFromEveryThreshold(string demo, string premise) => Check(s_fixture.Value, demo, premise);
+
+        private void Check((JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb) fixture, string demo, string premise)
         {
-            var (demos, world, tkb) = s_fixture.Value;
+            var (demos, world, tkb) = fixture;
             var d = (JsonObject)demos[demo]!;
             var row = ((JsonArray)d["premises"]!).Single(p => (string)p!["id"]! == premise)!;
             string kind = (string)row["kind"]!, expect = (string)row["expect"]!;
@@ -87,6 +119,7 @@ namespace Hrot.Core.Tests
                     _ => throw new ArgumentException($"sight expect '{expect}' (seesThrough | blocks)"),
                 };
                 if (!ok) Assert.Fail(report.Append($"  ⛔ needs {(expect == "seesThrough" ? $"≥ {SeesAbove}" : $"≤ {BlocksBelow}")}").ToString());
+                _out.WriteLine(report.ToString());
                 return;
             }
 
@@ -106,6 +139,7 @@ namespace Hrot.Core.Tests
             }
             if (!(expect switch { "stops" => stopped, "passes" => !stopped, _ => throw new ArgumentException($"fire expect '{expect}' (stops | passes)") }))
                 Assert.Fail(report.Append($"  ⛔ the round {(stopped ? "stopped" : "got through")}").ToString());
+            _out.WriteLine(report.ToString());
         }
 
         private static (float Pen, string Text) Round(JsonObject r, Fdp.Toolkit.Tkb.TkbDatabase tkb)
