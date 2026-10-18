@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons DESIGNED, CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -3904,7 +3904,11 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
-### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: DESIGN — backend leans TC-1…TC-7 for approval; TC-7 is behaviors' to rule)*
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule)*
+
+🔒 **Approved, user, `2026-10-18`:** *"Approved. Lethality depends also on what the man is holding in hands i guess.
+Knife is usually not thrown unless by a circus artist."* ⇒ ⭐ TC-2 carries **no throwing knife** (a knife is the MELEE item of AW-19, never thrown by the AI — TC-4); ⭐ TC-7's
+lean is now **per held item**, not one reach for the hand.
 
 ⭐ **The question** *(user, `2026-10-18`)*: *"Thrown knife or axe or spear or shuriken is worth investigating, if this is melee at all or more a
 cold weapon fire."* ⇒ **cold-weapon FIRE.** A blow (`Melee.Strike`, §5i) has no flight; a thrown blade flies, can miss, stops on a wall,
@@ -3927,10 +3931,10 @@ INVENTORY *(grep + reads at `backend@5856585c0`; codebase-memory CLI)*:
 ```mermaid
 classDiagram
   direction LR
-  class MunitionTkbCatalog { <<existing>> + ThrowingKnife · Hatchet · Javelin · ThrowingStar }
+  class MunitionTkbCatalog { <<existing>> + Hatchet · Javelin · ThrowingStar }
   class WarheadDto { <<existing>> Kind = Kinetic · Indirect = true }
   class HandItemDto { <<existing>> LiesSeconds — it lies and can be picked up }
-  class MunitionVisualDto { <<existing, + 4 shapes>> Knife · Axe · Spear · Star }
+  class MunitionVisualDto { <<existing, + 3 shapes>> Axe · Spear · Star }
   class PersonHands { <<existing>> Give(world, man, ammo, n) · the throw's one speed }
   class FireAtPointExecutor { <<existing>> throws the LOADED round from the hands }
   class BallisticsSystem { <<existing>> the flight, the strike on the line, the wall }
@@ -3948,7 +3952,7 @@ classDiagram
   SoundEmissionSystem ..> HandThrow
   Armament ..> PersonHands
 ```
-*What the picture shows that prose hid:* every box but one EXISTS — the four blades are rows of data on the stone's path, and the only new
+*What the picture shows that prose hid:* every box but one EXISTS — the three throwables are rows of data on the stone's path, and the only new
 code is the "a hand throw is no gunshot" test that the stone needed already (`CE-3248`).
 
 ```mermaid
@@ -3957,15 +3961,15 @@ sequenceDiagram
   participant S as SimHost (the round's owner)
   participant O as the victim's Health owner (CGF)
   participant V as every node (IG)
-  B->>B: PersonHands.Give(knife, 3) — a scenario loadout or a pick-up (PU-6)
-  B->>S: FireAtPoint on the hands — WeaponFireIntent(knife, at point)
-  S->>S: FireProcessing: the knife flies the throw arc (Indirect)
-  S->>V: the round replicates (its look: Knife)
+  B->>B: PersonHands.Give(hatchet, 2) — a scenario loadout or a pick-up (PU-6)
+  B->>S: FireAtPoint on the hands — WeaponFireIntent(hatchet, at point)
+  S->>S: FireProcessing: the hatchet flies the throw arc (Indirect)
+  S->>V: the round replicates (its look: Axe)
   S->>S: Ballistics: the first body on its line is struck — direct hit, Kinetic
   S->>O: EntityHitDamage (damage, Source = the thrower)
   O->>O: HealthApplication applies it
   S->>S: no body: it stops on the ground or a wall and LIES (LiesSeconds)
-  B->>S: PickUpRound (kind 9) — the knife can be thrown again
+  B->>S: PickUpRound (kind 9) — it can be thrown again
 ```
 *What the picture shows that prose hid:* the whole life of a thrown blade crosses nodes on paths that are already live for the stone —
 none of it waits for `CE-3246` (that row is the BLOW raised on a brain).
@@ -3984,12 +3988,12 @@ SimHost, and the hit comes back to the `Health` owner; no new module, no new reg
 | id | decision *(backend lean)* | rejected — one line each |
 |---|---|---|
 | **TC-1** | **a thrown blade is a MUNITION (a round), never melee**: it flies, can miss, is stopped by a wall, strikes the first body on its line through the direct-hit chain | `Melee.Strike` at range: no flight, no miss, no cover, no lying · a `StrikeNotification` for a throw: a throw is a round, already on the wire |
-| **TC-2** | **four starter munitions**: throwing knife, hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, knife 25, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
-| **TC-3** | **four appended `MunitionShape` members** — `Knife`, `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
-| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. A FIGHTING knife (AW-19, the melee item of ui's G4) is a different item; throwing your one fighting knife is later — it needs a held weapon to become a round, the canister's shape (§7.15) on a weapon mount | one item that is both: the conversion is not built and no demo needs it yet |
+| **TC-2** | **three starter munitions** *(as approved — ⛔ no throwing knife: "a knife is usually not thrown unless by a circus artist")*: hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
+| **TC-3** | **three appended `MunitionShape` members** — `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
+| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. ⭐ A KNIFE is the melee item of AW-19 (ui's G4) and is **never thrown** (approved) | one item that is both melee and thrown: not wanted — a knife is not thrown |
 | **TC-5** | **one throw speed** — the hands' (15 m/s, its `Range`) — for v1 | a speed per munition: a javelin outranges a knife in life; the per-charge machinery exists (`charges`, IF-1) — add it when a demo needs the difference |
 | **TC-6** | **a hand throw is not a gunshot** (`CE-3248`): no shot report, no barrel heat, no muzzle flash, no tracer — one test, *"fired from a hands mount"*, read by each `WeaponFireNotification` consumer; ⭐ it fixes the stone and the hand grenade too | a flag per munition: every throwable would need it, and a hand never makes a report · a separate throw notification: the round, `RecentShots` and replay already ride this one |
-| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). Lean: its lethal reach is the hand's throw `Range` (25 m) — "lethality is an item's reach" | leave it: a man with throwing stars reads armed-lethal at 150 m · a per-munition reach: one hand, one throw |
+| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). ⭐ Lean *(reframed by the user's "lethality depends also on what the man is holding")*: **the lethal reach is the HELD ITEM's** — a hand grenade or a javelin out to the hand's throw `Range` (25 m), a throwing star to its short effective range, a stone never lethal (as today), a knife only within melee reach (AW-19) — data on the item (`ReachM`), read by the existing `OfItem` rule | one reach for the whole hand: a star and a grenade are not the same threat · leave it: a man with throwing stars reads armed-lethal at 150 m |
 
 ⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
 a sound for the throw's whoosh (none is wanted).
