@@ -15,7 +15,7 @@ related-designs:
 **On `behaviors`, in the commit that carries this note.** Row: [`CE-2282`](../Blueprint_Issues_Tracker.md).
 Design: [Defend & Attack §13c](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md).
 
-**What landed (FYI, touches your combat files — said here):** a man's sector `EngagementArea` (component 417 — 416 went to your `Lean` the same hour; behaviors merged second and moved) set by
+**What landed (FYI, touches your combat files — said here):** a man's sector `EngagementArea` (component 416 — your `Lean` moved to 417 at your merge; behaviors adopted that) set by
 `SetEngagementAreaEvent` (event 3107, the `SetRoeEvent` twin) through `EngagementAreaSystem`; one reader `EngagementAreas`.
 `Allow` filters what a man CHOOSES to shoot (posture fire step, `LockTarget`, the threat matrix, the Suppress order and step).
 `NoFire` holds the round at the gates with a new reason `ActionReason.HoldNoFireArea` (appended last): `AimAndFireExecutor.HoldOf`

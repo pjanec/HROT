@@ -37,7 +37,7 @@ F the CGF-owned doors / clouds premise; ⏳ **waiting on the user**. E built as 
 never drifted under a scenario wind — fixed). ⭐ **BR-6 [`CE-3259`](Blueprint_Issues_Tracker.md)** (proficiency in the spread +
 `CombatProficiency` replicated, `dtCombatProficiency` 150) and **BR-7 [`CE-3260`](Blueprint_Issues_Tracker.md)** (acquisition time by
 exposure — [Sensors §5.7](../DESIGN_Sensors_And_Doctrine.md)) built once behaviors' `CE-2273` landed. ⚠ Component ids collided three times with
-behaviors (final: Lean **416**, their EngagementArea 417) — [NOTE](batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md) proposes per-lane component-id
+behaviors (FINAL after a ping-pong: EngagementArea 416, Lean **417** — keep it) — [NOTE](batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md) proposes per-lane component-id
 blocks (the mask is 512 bits; ~85 ids left), ⏳ the user decides. ⭐ **The platoon queue is DONE** except Q94's A–D/F. ⚠ The other armed-people
 backend session finished CE-3229…CE-3248 on 2026-10-17/18; its open rows are CE-3246, CE-3247, CE-3248 (and CE-2244, CE-3222).
 

@@ -1756,6 +1756,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐⭐ <c>CE-2288</c> (CC-16, R-2050) — every slot of a commander, named: the running task's params DECODED (PlatoonBound's
+        /// legs), the SOP's slots, and — once a reaction pauses the task — the paused task's slots under their own owner, the reaction's as
+        /// the task's. ✅ Red-proof: the catalog naming no candidates ⇒ every slot Unknown.</summary>
+        [Fact]
+        public void CE2288_EverySlotOfACommander_NamedByOwnerAndRole_TheParamsDecoded()
+        {
+            var p = new Platoon();
+            p.S.StartSop("BasicPlatoonSop");
+            p.Bound();
+            p.Ticks(3);
+            var slots = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(p.S.Repo, p.S.Commander, p.S.Registry);
+            Assert.NotEmpty(slots);
+            var task = Assert.Single(slots, x => x.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && x.Role == Fdp.Toolkit.Behavior.SlotRole.Params);
+            Assert.Equal(BehaviorNames.PlatoonBound, task.Behaviour);
+            var bb = Assert.IsType<Dictionary<string, object?>>(task.Value);              // the diagnostic mapper's shape
+            var support = Assert.IsType<Dictionary<string, object?>>(bb["Support"]);
+            Assert.Equal(1, support["Slot"]);                                            // Bravo supports
+            Assert.Contains(slots, x => x.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Sop && x.Behaviour == "BasicPlatoonSop");
+
+            p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 250f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
+            slots = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(p.S.Repo, p.S.Commander, p.S.Registry);
+            Assert.Contains(slots, x => x.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.PausedTask && x.Behaviour == BehaviorNames.PlatoonBound);
+            Assert.Contains(slots, x => x.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && x.Behaviour == BehaviorNames.PlatoonHold);
+        }
+
         /// <summary>⭐ <c>CE-2294</c> (R-214, CV-8) — only contacts still IN THE FIGHT make the element: dead men stay in memory by design
         /// and a neutral is no enemy, so neither is SPOTted; when the last enemy dies the squad sends the lost SPOT and the platoon's
         /// picture empties. 📌 Found live in cc-platoon-bound (three dead enemies, a count-3 SPOT every 15 s, the hold never ending).

@@ -155,8 +155,9 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 
 ## ⚠ Component ids — I adopted YOUR resolution
 
-We both moved at once on the 416 clash (my `Lean` → 417, your `EngagementArea` → 417). I took yours: **`Lean` 416, `EngagementArea`
-417**, so your next merge of `backend` finds identical lines. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
+We both moved at once on the 416 clash, then each adopted the other's STALE state (a ping-pong). ⭐ **FINAL: `EngagementArea` 416,
+`Lean` 417 — what your `b7264182a` holds.** ⛔ When you next merge `backend`, KEEP your 416 / 417 (the source comment in the conflict
+says so too). Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
 proposes per-lane component-id blocks for the user to decide.
 
 ## Your sectors note — ① ② ③ ⑤ built, ④ waits on the user *(as built: [Defend and Attack §13c-1](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md))*

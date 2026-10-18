@@ -1071,6 +1071,15 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐⭐ CE-2288 (CC-16, R-2050) — every occurrence slot a unit carries (task, SOP, paused task, hosted children), named and decoded.
+            _routes.Add(new("GET", "/entities/{networkId}/slots", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySlots(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // ⭐⭐ CE-3167 (docs/DESIGN_Entity_Control.md §4.1, R-270) — orders: the AI player's hands. One path (EntityOrders),
             //   shared with the map menu and the RTS tool; origin Operator; forwarded to the brain owner from any node.
             _routes.Add(new("POST", "/entities/{networkId}/order", ctx =>

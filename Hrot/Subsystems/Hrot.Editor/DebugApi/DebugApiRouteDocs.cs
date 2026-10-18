@@ -1920,6 +1920,25 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read what a unit remembers — seen and heard contacts, how fresh, and where"),
 
+        [("GET", "/entities/{networkId}/slots")] = new RouteDoc(
+            Tool:    "get_entity_slots",
+            Group:   "K — AI behavior traces",
+            Summary: "Every behaviour occurrence slot a unit carries — the task's, the SOP's, a paused task's, hosted children's — named and decoded (CE-2288).",
+            Returns: "{ networkId, count, slots:[{key, kind, payloadSize, structureHash, owner (Task|Sop|PausedTask|OwnerUnknown), behaviour, role (Params|State|Hsm|Working|HostedChild|RoleUnknown), label, layout, value}] }",
+            Hint:    "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — the slots live where the brain runs. Example: get_entity_slots({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "GET /entities/{id} projects only the running task's params; this route lists every slot, including a hosted drill's own block and the SOP's.",
+                "A slot stores no owner: each is named by recomputing the keys of the task, the SOP and a paused task; an unmatched slot is listed with owner OwnerUnknown.",
+                "value is the slot decoded through its behaviour's layout (params, a hosted child's params, a stateful node's working state); null when no layout is known.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "see a commander's whole brain — the play, the SOP, a paused task and the drill it hosts"),
+
         // ⭐⭐ CE-3167 — orders and the situation report (docs/DESIGN_Entity_Control.md §4.1, R-270): the AI player's API.
         [("POST", "/entities/{networkId}/order")] = new RouteDoc(
             Tool:    "order_entity",
