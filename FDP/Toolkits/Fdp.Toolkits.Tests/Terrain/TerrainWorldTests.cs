@@ -712,7 +712,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             var folder = ShippedTerrain("bt-range");
             var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
                 TerrainAssets.ForFolder(folder));
-            Assert.Equal(new[] { "House A", "House B" }, w.Buildings.Select(b => b.Label));   // the polygon block stays a plain prism
+            Assert.Equal(new[] { "House A", "House B", "CQB House" }, w.Buildings.Select(b => b.Label));   // UI-3 added the CQB house; the polygon block stays a plain prism
             Assert.Contains(w.Prisms, p => p.Label == "Solid Block" && p.Kind == TerrainPrismKind.Building && p.Panel == -1);
             foreach (var m in new[] { "concrete", "brick", "fence-wood", "fence-chainlink", "fence-metal-sheet", "hedge" })
                 Assert.Contains(w.Panels, p => p.Material.Name == m);
@@ -722,6 +722,53 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));   // inside House A's west room
         }
     
+        /// <summary>
+        /// ⭐ UI-3 (platoon demos hand-off, DESIGN_Building_Clearing §8 <c>img/cqb-house.svg</c>) — <c>bt-range</c> now stands THREE buildings: the
+        /// CQB test house (14 × 10 m, one storey) 60 m west of House A on clear ground. Its doors are the picture's: front (W) and back (E) into the
+        /// hallway, side N into A, side S into C, a / b / c / d hallway → A / B / C / D, and e from D into the closet — E has no other opening, so it
+        /// is reached ONLY through D. Every door is 1.0 m wide (a narrower one does not bake); the four exits start Closed, the room doors Open.
+        /// 🔴 Red-proof: move the closet door to the hallway wall ⇒ the "only e opens into E" assertion names it; shrink a door to 0.9 m ⇒ the width one.
+        /// </summary>
+        [Fact]
+        public void UI3_BtRange_CqbHouse_StandsApartFromHouseA_WithTheFourExitsAndTheRoomDoorsOfThePicture()
+        {
+            var folder = ShippedTerrain("bt-range");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+                TerrainAssets.ForFolder(folder));
+            var cqb = w.Buildings.Single(b => b.Label == "CQB House");
+            var houseA = w.Buildings.Single(b => b.Label == "House A");
+            Assert.Equal("cqb-house", cqb.Template);
+            Assert.Equal(1, cqb.Storeys);
+            Assert.Equal(0f, cqb.RotationDegrees);
+            Assert.True(Vector2.Distance(cqb.Position, houseA.Position) >= 55f, $"CQB house at {cqb.Position}, House A at {houseA.Position}");
+            float x0 = cqb.Footprint.Min(p => p.X), x1 = cqb.Footprint.Max(p => p.X), y0 = cqb.Footprint.Min(p => p.Y), y1 = cqb.Footprint.Max(p => p.Y);
+            Assert.Equal((14f, 10f), (MathF.Round(x1 - x0, 2), MathF.Round(y1 - y0, 2)));
+            // clear ground: no other panel of the range has an end within 2 m of the house's box
+            foreach (var p in w.Panels.Where(p => p.Label != "CQB House"))
+                foreach (var pt in new[] { p.A, p.B })
+                    Assert.False(pt.X > x0 - 2 && pt.X < x1 + 2 && pt.Y > y0 - 2 && pt.Y < y1 + 2, $"'{p.Label}' has an end at {pt} inside the CQB house's box");
+
+            // door id -> where it stands, in house-local metres (the picture; the house is placed at its south-west corner, rotation 0)
+            var expected = new (string Id, float X, float Y)[]
+            {
+                ("front", 0f, 5f), ("back", 14f, 5f), ("north", 5.4f, 10f), ("south", 1.4f, 0f),
+                ("a", 3.5f, 6f), ("b", 10.5f, 6f), ("c", 4.5f, 4f), ("d", 10.4f, 4f), ("e", 11.8f, 2f),
+            };
+            var doors = w.Doors.Where(d => d.Key.StartsWith("bt-range/CQB House/")).ToList();
+            Assert.Equal(expected.Select(e => e.Id).OrderBy(i => i), doors.Select(d => d.Key.Split('/')[2]).OrderBy(i => i));
+            foreach (var (id, lx, ly) in expected)
+            {
+                var d = doors.Single(x => x.Key == "bt-range/CQB House/" + id);
+                Assert.True(Vector2.Distance(d.Center, cqb.Position + new Vector2(lx, ly)) < 0.01f, $"door '{id}' stands at {d.Center - cqb.Position}, the picture has ({lx}, {ly})");
+                Assert.Equal(1.0f, w.Panels[d.Panel].Openings[d.Opening].Width);
+                Assert.Equal(id is "front" or "back" or "north" or "south" ? TerrainDoorState.Closed : TerrainDoorState.Open, d.Initial);   // the four exits start Closed, the room doors are open doorways
+            }
+            // the closet E (x 11.8..14, y 0..4) is entered ONLY through D: the one door on its boundary is 'e'
+            var intoE = doors.Where(d => d.Center.X >= cqb.Position.X + 11.7f && d.Center.X <= cqb.Position.X + 14.1f
+                                      && d.Center.Y >= cqb.Position.Y - 0.1f && d.Center.Y <= cqb.Position.Y + 4.1f).Select(d => d.Key.Split('/')[2]);
+            Assert.Equal(new[] { "e" }, intoE);
+        }
+
         /// <summary>
         /// ⭐ UI-1 (platoon demos hand-off) — the SHARED templates folder <c>Recipes/Buildings/</c>: <c>bt-range</c> places
         /// <c>house-2f</c> with no copy of its own (<see cref="TerrainAssets.RecipesSibling"/> finds it from the source tree, the build
@@ -739,7 +786,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
             var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
                 TerrainAssets.ForFolder(folder, sharedBuildingsRoot: Path.Combine(Path.GetTempPath(), "no-such-shared-root")));
-            Assert.Equal(new[] { "house-2f", "house-2f" }, w.Buildings.Select(b => b.Template));
+            Assert.Equal(new[] { "house-2f", "house-2f", "cqb-house" }, w.Buildings.Select(b => b.Template));   // UI-3 added the CQB house, found in the same shared folder
 
             var sharedNames = Directory.GetFiles(shared, "*" + TerrainAssets.TemplateSuffix).Select(Path.GetFileName).ToHashSet();
             var twice = Directory.GetDirectories(Path.GetDirectoryName(folder)!)

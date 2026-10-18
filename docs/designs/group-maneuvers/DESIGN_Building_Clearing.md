@@ -78,7 +78,7 @@ backend's room graph.
 | civilians indoors | ⚠ only violence frightens them: Alarmed crouches, Panic flees 20 m (through the soldiers), Inside stands then vanishes | `Brains/CivilianBehavior.cs:211-260`; `CivilianFearSystem.cs` | ⛔ **no reaction to soldiers, no compliance, no detain, no search** (Civilians §5h :1168, :1260) |
 | grenades | ✅ `FireAtPoint` throws; fragments stopped by walls; **stun** (`WarheadKind.Stun` → `StunnedUntil`) | `Combat/Systems/AreaEffectSystem.cs:34,221` | ⛔ no military behaviour or the gate reads stun; indoor blast under-modelled (W-7v2) |
 | shared squad memory | ✅ contacts pool, known combatants, claims (`CoverClaim`) | `SquadPerceptionMergeSystem.cs:32`; `KnownCombatants.cs:85`; `CoverClaim.cs:20` | room state (cleared / held) |
-| test buildings | ✅ `house-2f` (10 × 8 m, 2 storeys, inner wall + hall door, front / back doors, stairs) placed twice in `bt-range` | `Recipes/Terrain/bt-range/buildings/house-2f.building.json` | a CQB house (hallway + 4 rooms) |
+| test buildings | ✅ `house-2f` (10 × 8 m, 2 storeys, inner wall + hall door, front / back doors, stairs) placed twice in `bt-range` | `Recipes/Terrain/bt-range/buildings/house-2f.building.json` | ⭐ built by UI-3 (`CE-1188`): the CQB house `Recipes/Buildings/cqb-house.building.json`, placed in `bt-range` at (40, 100) — [DESIGN_Building_Interiors](../../DESIGN_Building_Interiors.md) §3g.1 |
 | a commander under a commander | ⚠ allowed (`UnitHierarchySystem` checks roster capacity only) but **never exercised** — 0 of the 20 shipped scenarios with a commander nest one | `Hrot.Common/Systems/UnitHierarchySystem.cs:112-160`; scenario sweep 2026-10-18 | a rail that runs it (SL-0) |
 | the platoon knowing what its squads know | ⛔ the merge reads each member's own `TargetMemory`; a squad unit has none ⇒ a platoon's pool stays empty | `SquadPerceptionMergeSystem.cs:51` | the report step (CB-15) |
 | the platoon hearing "under fire" / "a man down" | ⛔ both edges come from a member's Hit / `Health`; a squad unit has neither | `SquadCoordinationSystem.cs:73-74`, `SquadSensing.cs:131` | the report step |
@@ -650,7 +650,7 @@ way · ③ Charlie (every man dead) is given nothing · ④ the men reach the ob
 ### Engine and wire *(backend)*
 | block | kind | what | slice |
 |---|---|---|---|
-| `RoomGraph` + `RoomOf` + the CQB house | 🆕 | rooms, portals (doors, gaps, stairs) with their two rooms, corners, area; the §8 house in `bt-range` | BR-1 |
+| `RoomGraph` + `RoomOf` + the CQB house | 🆕 | rooms, portals (doors, gaps, stairs) with their two rooms, corners, area; the §8 house in `bt-range` (⭐ the HOUSE is built — UI-3, `CE-1188`; BR-1 keeps the room graph) | BR-1 |
 | stun holds every class | ⚙ | `Effects.IsStunned` stops the fire gate (`HoldStunned`) and the mover for any person — today only civilian code reads it | BR-2 |
 | `SquadReport` topic | 🆕 | the event topic on the `BehaviorFaultReport` precedent | BR-3 |
 | interactions `Search` · `Detain` · `Restrain` | 🆕 | `EInteractionKind` cases applied by the civilian's owner (CB-19): reveal + lay down a Hidden weapon, the replicated `Detained` flag, hands tied | BR-4 |
