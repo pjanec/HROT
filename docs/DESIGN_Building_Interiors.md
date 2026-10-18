@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - docs/DESIGN_World_Survey_Sensor.md — §6 BuildingLayout: the room / portal graph derived from the walls (B-8, sound v2, W-7v2), given to the brain as a survey answer
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key starts the door executors (§3j) from a possessed unit
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS structure damage (collapse, breach from a heavy charge); its geometry change is §14's

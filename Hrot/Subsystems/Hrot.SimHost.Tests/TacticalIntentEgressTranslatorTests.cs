@@ -180,5 +180,54 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(7L, Assert.Single(writer.Written).TargetEntityId);
         }
+
+        /// <summary>⭐ CE-3251 (BR-13) — an ROE change for a unit whose brain runs elsewhere goes to that node on the order's road:
+        /// kind SetRoe, its fields as JSON, the origin beside them. An order and an ROE raised in one frame leave in that order.</summary>
+        [Fact]
+        public void CE3251_AnRoeForARemoteBrain_IsForwarded_AfterTheFramesOrder()
+        {
+            var (translator, writer) = BuildTranslator();
+            _world.Bus.Register<SetRoeEvent>();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new BehaviorState());   // authority NOT set: the brain runs elsewhere
+            _entityMap.Register(42L, entity);
+
+            _world.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = RoeFire.HoldFire, Origin = BehaviorOrigin.Superior,
+                                                 ReturnFireWindowSeconds = 7.5f, ForceLevel = RoeForceLevel.NonLethal });
+            _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = "DefendArea", JsonParams = "{}" });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            Assert.Equal(2, writer.Written.Count);
+            Assert.Equal(TacticalIntentWireKind.Assign, writer.Written[0].Kind);
+            var roe = writer.Written[1];
+            Assert.Equal(TacticalIntentWireKind.SetRoe, roe.Kind);
+            Assert.Equal(42L, roe.TargetEntityId);
+            Assert.Equal((byte)BehaviorOrigin.Superior, roe.Origin);
+            Assert.True(RoeDirectiveJson.TryDecode(roe.JsonParams, entity, BehaviorOrigin.Superior, out var back));
+            Assert.Equal(RoeFire.HoldFire, back.Fire);
+            Assert.Equal(RoeReactions.ReactionsUnset, back.Reactions);
+            Assert.Equal(7.5f, back.ReturnFireWindowSeconds);
+            Assert.Equal(RoeForceLevel.NonLethal, back.ForceLevel);
+            Assert.Equal(2, translator.SentSampleCount);
+        }
+
+        /// <summary>⭐ CE-3251 — the brain's own node applies the ROE itself; nothing goes on the wire.</summary>
+        [Fact]
+        public void CE3251_AnRoeForABrainOwnedHere_StaysHere()
+        {
+            var (translator, writer) = BuildTranslator();
+            _world.Bus.Register<SetRoeEvent>();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(entity, true);
+            _entityMap.Register(42L, entity);
+
+            _world.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = RoeFire.HoldFire });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            Assert.Empty(writer.Written);
+        }
     }
 }

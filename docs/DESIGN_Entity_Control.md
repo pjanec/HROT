@@ -125,6 +125,43 @@ the extra hops are accepted latency (C-6).
 | ⭐ **every slice's FIRST rail runs in the networkless editor world**; the cluster rail comes second | the editor is the path a broken translator cannot hide |
 | ⭐ **`StationNodeId` is the local node id**, also in the editor | C-8; a second station is simulated in rails by a second id |
 
+### 2.3a ✅ BUILT — a DIRECTIVE rides the order's road *(`CE-3251`, behaviors' BR-13, `2026-10-18`)*
+
+📐 **Measured:** an order crossed nodes, an ROE change did not — `SetRoeEvent` was applied by `RoeSystem` on the node that RAISED
+it, so whenever a superior's brain and a subordinate's brain ran on different nodes the ROE (and, by the same copy, Command Chain
+CC-2's reporting requirements and CC-11's initiative) did nothing on the owner and only changed the raiser's copy. ⛔ No rule keeps a
+hierarchy's brains on one node (searched `DESIGN_Ownership_Groups_And_Grants.md`: the brain group is placed per unit).
+
+```mermaid
+sequenceDiagram
+  participant A as node A (raises it: HTTP, a superior's play, the editor panel)
+  participant EA as TacticalIntentEgressTranslator (A)
+  participant B as node B (owns the unit's brain)
+  participant R as RoeSystem (B)
+  A->>A: SetRoeEvent {Entity, Fire, Reactions, Window, Force, Origin}
+  Note over A: RoeSystem on A: a networked unit whose brain is not here ⇒ left to the owner (ForwardedCount)
+  EA->>EA: brain not here ⇒ TacticalIntentRequest Kind 2 (SetRoe), fields as JSON, Origin beside them — AFTER this frame's orders
+  EA-->>B: DDS "TacticalIntentRequest"
+  B->>B: TacticalIntentIngressTranslator: Kind ≥ 2 ⇒ raise SetRoeEvent again (unknown kind ⇒ counted, never an order)
+  B->>R: SetRoeEvent
+  R->>R: the origin gate (a lower origin than SetBy is refused) ⇒ Roe written by its ONE writer
+```
+*What the picture shows that prose hid:* the directive takes **the same writer** as the order, so an order and its ROE sent in one
+frame arrive in that order, and **only the owner writes `Roe`** — the raiser's copy is never touched, so there is no second writer to
+correct later.
+
+| as built | where |
+|---|---|
+| `TacticalIntentWireKind` — 0 Assign, 1 Clear, ⭐ 2 SetRoe, 3 SetReporting (reserved for `CE-2291`; not decoded yet) | `Hrot.Network.NED/TacticalIntentMessages.cs` |
+| `RoeDirectiveJson` — `{"Fire","Reactions","Window","Force"}`; an unset field stays unset | `Hrot.Network.NED/SimHost/RoeDirectiveJson.cs` |
+| egress forwards `SetRoeEvent` when the brain is not here (the order's gate), after the orders | `TacticalIntentEgressTranslator.ForwardRoe` |
+| ingress: kind ≥ 2 is a directive; SetRoe ⇒ `SetRoeEvent` with its origin; else `UnhandledDirectiveCount` | `TacticalIntentIngressTranslator.ProcessSample` |
+| `RoeSystem` leaves a NETWORKED unit whose brain is elsewhere to the owner (`ForwardedCount`) — ⚠ "networked" = has `NetworkIdentity`: a world with no network sets no authority bits, so authority alone cannot mean "replica" (two snapshot rails caught that) | `RoeSystem.Execute` |
+| rails: `TacticalIntentEgressTranslatorTests.CE3251_*` (2), `TacticalIntentIngressTranslatorTests.CE3251_*` (2), `RoeAndRecentSensesTests.CE3251_AReplicasRoe_IsLeftToTheBrainsOwner`, cluster `EntityOrdersAcrossNodesTests.CE3251_AnRoeSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate` (SimHost raises, CGF applies; a lower origin is refused on CGF) | — |
+
+⭐ **`SetReportingEvent` (CC-2) joins by one `case`:** behaviors adds the event (`CE-2291`); the egress forwards it as Kind 3 with its
+fields as JSON and the ingress raises it again — the same two places as SetRoe.
+
 ## 3. CLASSES
 
 ### 3.1 The order path *(HTTP · menu · RTS — one service)*

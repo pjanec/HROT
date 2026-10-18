@@ -23,9 +23,26 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<Roe>()) return;
 
+            bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
+                         && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             foreach (var evt in repo.Bus.Read<SetRoeEvent>())
+            {
+                // ⭐ CE-3251 (BR-13) — a NETWORKED unit whose brain runs on another node: the tactical-intent egress forwards the event
+                //   there and its owner applies it. ⛔ Applying it here too made a second writer: this node's copy showed the new ROE
+                //   while the owner kept the old one. ⚠ A world with no network identity (a test, a loaded scenario before it goes
+                //   live) sets no authority bits at all, so authority alone cannot mean "a replica".
+                if (replicas && repo.HasComponent<BehaviorState>(evt.Entity) && !repo.HasAuthority<BehaviorState>(evt.Entity)
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Entity))
+                {
+                    ForwardedCount++;
+                    continue;
+                }
                 if (!Apply(repo, evt)) RefusedCount++;
+            }
         }
+
+        /// <summary>⭐ <c>CE-3251</c> — events left to the brain's owner (a replica here) since this system was built.</summary>
+        public int ForwardedCount { get; private set; }
 
         /// <summary>⭐ <c>CE-3043</c> — what a <see cref="SetRoeEvent"/> does, applied NOW (the editor's paused edit and this
         /// system share it). <c>false</c> = refused by the gate, or a dead entity.</summary>

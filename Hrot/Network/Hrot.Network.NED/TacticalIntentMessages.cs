@@ -37,7 +37,9 @@ namespace Hrot.NED.Messages
         /// The receiving node's gate compares it with what the unit already runs.</summary>
         public byte Origin;
 
-        /// <summary>⭐ <c>CE-3167</c> — <c>TacticalIntentKind</c> as a byte: 0 = assign, 1 = clear the running behaviour.</summary>
+        /// <summary>⭐ <c>CE-3167</c> — <c>TacticalIntentKind</c> as a byte: 0 = assign, 1 = clear the running behaviour.
+        /// ⭐ <c>CE-3251</c> (BR-13) — or a DIRECTIVE to the brain's owner (<see cref="TacticalIntentWireKind"/>): 2 = set the ROE,
+        /// its fields as JSON in <see cref="JsonParams"/>; <see cref="IntentId"/> is empty then.</summary>
         public byte Kind;
 
         /// <summary>⭐ <c>CE-3167</c> — <see cref="TacticalIntentFlags"/>: bit 0 = <c>ClearsPriorIntent</c>.</summary>
@@ -50,5 +52,21 @@ namespace Hrot.NED.Messages
     {
         /// <summary>The owner clears the unit's plans (mission) before the order starts.</summary>
         public const byte ClearsPriorIntent = 1;
+    }
+
+    /// <summary>⭐ <c>CE-3251</c> (BR-13) — the values of <see cref="TacticalIntentRequest.Kind"/>. 0 and 1 are
+    /// <c>TacticalIntentKind</c> (an order); from 2 up a directive that changes what the unit's brain obeys, sent on the order's
+    /// own road so it reaches the node that owns the brain (an order and a directive written in one frame stay in order on the
+    /// one writer). 📄 <c>docs/DESIGN_Entity_Control.md</c> §2.3a.</summary>
+    public static class TacticalIntentWireKind
+    {
+        /// <summary>An order: start a behaviour (<c>TacticalIntentKind.Assign</c>).</summary>
+        public const byte Assign = 0;
+        /// <summary>An order: clear the running behaviour (<c>TacticalIntentKind.Clear</c>).</summary>
+        public const byte Clear = 1;
+        /// <summary>A <c>SetRoeEvent</c> for a unit whose brain runs elsewhere — <c>RoeDirectiveJson</c> in the JSON.</summary>
+        public const byte SetRoe = 2;
+        /// <summary>Reserved for behaviors' <c>SetReportingEvent</c> (Command Chain CC-2, <c>CE-2291</c>) — not decoded yet.</summary>
+        public const byte SetReporting = 3;
     }
 }

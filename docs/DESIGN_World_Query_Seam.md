@@ -12,6 +12,7 @@ known-rot: ⛔ 2026-10-18 R-2037 — §1's "the brain itself never touches it" i
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - docs/DESIGN_World_Survey_Sensor.md — the brain's geometry questions answered on the muscle (R-2037); WS-6 adds the Obscurant meaning to TraceCrossing; its BuildingLayout is the room/portal graph WQ-E's sound v2 reuses
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b: R-2037 (the brain never reads world geometry) and the WorldSurvey sensor; the inventory of brain-side IWorldQuery callers
   - docs/DESIGN_Visual_Effects.md — §10 IM-4: TraceCrossing gains EntryNormal / ExitNormal (init, zero = unknown) so an impact mark lies on the face it struck (CE-1128)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — the motion-model interface (IMotionModel) — the motion counterpart of this seam (§4a)

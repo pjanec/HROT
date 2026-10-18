@@ -35,6 +35,9 @@ namespace Hrot.Network.NED.SimHost
         public long   SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
+        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE event here).</summary>
+        public long UnhandledDirectiveCount { get; private set; }
+
         /// <summary>
         /// Production constructor. Pass <c>null</c> for <paramref name="participant"/>
         /// in unit tests; <see cref="PollIngress"/> becomes a no-op.
@@ -74,6 +77,21 @@ namespace Hrot.Network.NED.SimHost
         internal void ProcessSample(in TacticalIntentRequest request, EntityRepository repo)
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity)) return;
+
+            // ⭐ CE-3251 (BR-13) — a directive, not an order: raise the local event again for the owner's gate to apply.
+            if (request.Kind >= TacticalIntentWireKind.SetRoe)
+            {
+                var origin = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin;
+                if (request.Kind == TacticalIntentWireKind.SetRoe
+                    && repo.Bus.IsRegistered<SetRoeEvent>()
+                    && RoeDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var roe))
+                {
+                    repo.Bus.Publish(roe);
+                    return;
+                }
+                UnhandledDirectiveCount++;   // an unknown kind (a newer sender), bad JSON or no ROE here — never read as an order
+                return;
+            }
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
