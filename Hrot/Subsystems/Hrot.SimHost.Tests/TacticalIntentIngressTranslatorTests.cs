@@ -172,5 +172,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((sent.Pir, sent.Ffir, 30f, 4711L), (got.Pir, got.Ffir, got.SitrepEverySeconds, got.PirArea));
             Assert.Equal(0, translator.UnhandledDirectiveCount);
         }
+
+        /// <summary>⭐ CE-3261 — a forwarded SECTOR is raised again as the local <see cref="SetEngagementAreaEvent"/> with its origin, for
+        /// the owner's <c>EngagementAreaSystem</c>; never an order. ✅ Red-proof: the kind-4 branch removed ⇒ counted unhandled ⇒ red.</summary>
+        [Fact]
+        public void CE3261_AForwardedSector_IsRaisedAgain_NotAsAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.Bus.Register<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42L, entity);
+            var sent = new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent { ArcSet = 1, LeftBearing = 270f, RightBearing = 90f, AllowArea = 9L };
+            sent.NoFire.Items[0] = 77L; sent.NoFire.Count = 1;
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42L, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetEngagementArea,
+                Origin = (byte)BehaviorOrigin.Superior, JsonParams = EngagementAreaDirectiveJson.Encode(in sent),
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var got = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>().ToArray());
+            Assert.Equal((entity, BehaviorOrigin.Superior, (byte)1, 270f, 90f, 9L), (got.Entity, got.Origin, got.ArcSet, got.LeftBearing, got.RightBearing, got.AllowArea));
+            Assert.Equal((1, 77L), (got.NoFire.Count, got.NoFire.Items[0]));
+            Assert.Equal(0, translator.UnhandledDirectiveCount);
+        }
     }
 }

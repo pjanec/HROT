@@ -120,6 +120,9 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtCustody, GlobalComponentIds.Custody);                       // ⭐ CE-3256 — a man in custody
         map.RegisterMapping((long)EDescriptorType.dtLean, GlobalComponentIds.Lean);                             // ⭐ CE-3257 — a man leaning
         map.RegisterMapping((long)EDescriptorType.dtCombatProficiency, GlobalComponentIds.CombatProficiency);   // ⭐ CE-3259 — what he CAN do
+        map.RegisterMapping((long)EDescriptorType.dtEngagementArea, GlobalComponentIds.EngagementArea);         // ⭐ CE-3261 — a sector
+        map.RegisterMapping((long)EDescriptorType.dtUtterance, GlobalComponentIds.Utterance);                   // ⭐ CE-3264 — speech
+        map.RegisterMapping((long)EDescriptorType.dtDemeanour, GlobalComponentIds.Demeanour);                   // ⭐ CE-3265 — mood
         // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);
         map.RegisterMapping((long)EDescriptorType.dtEffectState, GlobalComponentIds.EffectState);               // ⭐ CE-3219 — non-lethal effects

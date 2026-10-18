@@ -17,10 +17,11 @@ namespace Hrot.Network.NED.SimHost
     /// message for each one.
     ///
     /// <para>
-    /// Registered on the authority node (Brain or collocated Muscle).  The authoritative node
-    /// receives the <see cref="EntityHitDamage"/> message back via
-    /// <c>EntityHitDamageIngressTranslator</c>, which republishes it as a local
-    /// <see cref="DamageAssessedEvent"/> for <c>HealthApplicationSystem</c> to consume.
+    /// ⭐⭐ <c>CE-3246</c> (docs/designs/brain-split/BS-1-DESIGN.md §6.4a, R-3015) — on EVERY node (<c>SharedTranslatorPack</c>): it sends
+    /// exactly the local hits this node does NOT apply (<see cref="Fdp.Toolkit.Combat.HealthOwnership.AppliesHere"/>, the rule
+    /// <c>HealthApplicationSystem</c> reads), stamped with this node's id. The owner receives it through
+    /// <c>EntityHitDamageIngressTranslator</c> and applies it once. ⛔ Before: Muscle / Traffic only, every hit — so a blow or a gas cloud
+    /// raised on a CGF brain never left it, and the editor (Brain + Muscle) applied its own hits twice off the wire.
     /// </para>
     /// </summary>
     public sealed class DamageAssessedEgressTranslator : IDescriptorTranslator
@@ -29,6 +30,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly IDdsWriter<EntityHitDamage> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
@@ -37,14 +39,15 @@ namespace Hrot.Network.NED.SimHost
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
-        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName), entityMap)
+        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor â€” accepts an injected writer stub.</summary>
-        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap)
+        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap, long localNodeId)
         {
+            _localNodeId = localNodeId;
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
@@ -58,11 +61,14 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (view is not EntityRepository repo) return;
             var events = view.ReadEvents<DamageAssessedEvent>();
 
             foreach (ref readonly var evt in events)
             {
                 if (evt.IsRemote) continue;
+                // ⭐ CE-3246 — the owner applies its own hit here (HealthApplicationSystem); only a hit this node cannot apply leaves it
+                if (Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, evt.HitEntity)) continue;
 
                 if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
                 // ⭐ CE-3237 (B-15, DS-2) — who caused it, by network id; an unmapped or unknown source reads 0 on the wire
@@ -75,6 +81,7 @@ namespace Hrot.Network.NED.SimHost
                     EffectKind    = (byte)evt.Effect,   // ⭐ CE-3219 — the non-lethal effect rides the same hit
                     EffectSeconds = evt.EffectSeconds,
                     SourceEntityId = sourceId,
+                    SourceNodeId   = _localNodeId,   // ⭐ CE-3246 — so this node drops its own sample
                 });
                 SentSampleCount++;
             }

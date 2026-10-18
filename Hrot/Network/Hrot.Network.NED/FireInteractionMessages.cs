@@ -128,6 +128,30 @@ namespace Hrot.NED.Messages
         public float X;
         public float Y;
         public float Z;
+
+        /// <summary>⭐ <c>CE-3262</c> (DA-14) — where the round was fired from (its muzzle), when <see cref="HasOrigin"/> = 1. APPENDED.</summary>
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+        public byte HasOrigin;
+    }
+
+    // ── Melee strike (CE-3266, G3) ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow was struck (any node → every map host): ui draws the swing once. The
+    /// <see cref="WeaponFire"/> shape: <see cref="SourceNodeId"/> so a node drops its own sample. Cosmetic ⇒ BestEffort.
+    /// </summary>
+    [DdsTopic("MeleeStrike")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct MeleeStrike
+    {
+        public long SourceNodeId;
+        public long StrikerEntityId;
+        public long TargetEntityId;
+        /// <summary><c>Fdp.Toolkit.Combat.MeleeWeapon</c>.</summary>
+        public byte Weapon;
     }
 
     // ── Round impact (CE-1128, DESIGN_Visual_Effects §10) ──────────────────
@@ -256,5 +280,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED) — network id of who caused it (the round's shooter, a melee striker);
         /// ⭐ 0 = unknown.</summary>
         public long SourceEntityId;
+
+        /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
+        /// sender (taken).</summary>
+        public long SourceNodeId;
     }
 }

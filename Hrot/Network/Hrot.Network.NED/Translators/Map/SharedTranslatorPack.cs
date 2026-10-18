@@ -135,6 +135,20 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3259 (BR-6) — a soldier's combat proficiency (Brain → every node).
             yield return new Hrot.Map.Common.Replication.Egress.EntityCombatProficiencyEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityCombatProficiencyIngressTranslator(participant, entityMap);
+            // ⭐ CE-3261 — a man's or a commander's sector (Brain → every node).
+            yield return new Hrot.Map.Common.Replication.Egress.EntityEngagementAreaEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityEngagementAreaIngressTranslator(participant, entityMap);
+            // ⭐ CE-3264..3266 (G1/G2/G3) — speech, mood (Brain → every node) and a blow struck (every node → every node).
+            yield return new Hrot.Map.Common.Replication.Egress.EntityUtteranceEgressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityUtteranceIngressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant, entityMap);
+            yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this
+            //   node does not apply (HealthOwnership.AppliesHere), the ingress drops its own sample; HealthApplicationSystem applies it once.
+            yield return new Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);

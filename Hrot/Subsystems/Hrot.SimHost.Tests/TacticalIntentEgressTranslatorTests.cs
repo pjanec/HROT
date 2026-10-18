@@ -256,5 +256,41 @@ namespace Hrot.SimHost.Tests
             Assert.True(ReportingDirectiveJson.TryDecode(sent.JsonParams, remote, BehaviorOrigin.Superior, out var back));
             Assert.Equal((Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, 60f), (back.Ffir, back.SitrepEverySeconds));
         }
+
+        /// <summary>⭐ CE-3261 (behaviors' sectors note ①) — a superior's SECTOR (CE-2282) for a man whose brain runs elsewhere goes there as
+        /// kind SetEngagementArea with every field (the arc, the Allow area, the watch, the NoFire ids); for a brain owned here nothing goes.
+        /// ✅ Red-proof: ForwardEngagementArea not called ⇒ nothing written ⇒ red.</summary>
+        [Fact]
+        public void CE3261_ASectorForARemoteBrain_IsForwarded_WithEveryField_AndForALocalOne_StaysHere()
+        {
+            var (translator, writer) = BuildTranslator();
+            _world.Bus.Register<SetEngagementAreaEvent>();
+            var remote = _world.CreateEntity();
+            _world.AddComponent(remote, new BehaviorState());   // authority NOT set: the brain runs elsewhere
+            _entityMap.Register(42L, remote);
+            var local = _world.CreateEntity();
+            _world.AddComponent(local, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(local, true);
+            _entityMap.Register(43L, local);
+
+            var evt = new SetEngagementAreaEvent
+            {
+                Entity = remote, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = new System.Numerics.Vector3(10f, 20f, 1.5f),
+                LeftBearing = 300f, RightBearing = 60f, MinRange = 5f, MaxRange = 400f, AllowArea = 4711L, WatchBearing = 15f, WatchSet = 1,
+            };
+            evt.NoFire.Items[0] = 4712L; evt.NoFire.Items[1] = 4713L; evt.NoFire.Count = 2;
+            _world.Bus.Publish(evt);
+            _world.Bus.Publish(new SetEngagementAreaEvent { Entity = local, ArcSet = 1 });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((TacticalIntentWireKind.SetEngagementArea, 42L, (byte)BehaviorOrigin.Superior), (sent.Kind, sent.TargetEntityId, sent.Origin));
+            Assert.True(EngagementAreaDirectiveJson.TryDecode(sent.JsonParams, remote, BehaviorOrigin.Superior, out var back));
+            Assert.Equal((evt.ArcSet, evt.ArcOrigin, evt.LeftBearing, evt.RightBearing, evt.MinRange, evt.MaxRange),
+                         (back.ArcSet, back.ArcOrigin, back.LeftBearing, back.RightBearing, back.MinRange, back.MaxRange));
+            Assert.Equal((4711L, 15f, (byte)1), (back.AllowArea, back.WatchBearing, back.WatchSet));
+            Assert.Equal((2, 4712L, 4713L), (back.NoFire.Count, back.NoFire.Items[0], back.NoFire.Items[1]));
+        }
     }
 }

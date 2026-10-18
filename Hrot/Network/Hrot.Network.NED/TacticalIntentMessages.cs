@@ -69,5 +69,8 @@ namespace Hrot.NED.Messages
         /// <summary>A <c>SetReportingEvent</c> (Command Chain CC-2) for a unit whose brain runs elsewhere — <c>ReportingDirectiveJson</c> in
         /// the JSON. ⭐ <c>CE-2299</c> (behaviors, 2026-10-19).</summary>
         public const byte SetReporting = 3;
+        /// <summary>⭐ <c>CE-3261</c> — a <c>SetEngagementAreaEvent</c> (behaviors' CE-2282 sector, the ROE twin) for a unit whose brain runs
+        /// elsewhere — <c>EngagementAreaDirectiveJson</c> in the JSON.</summary>
+        public const byte SetEngagementArea = 4;
     }
 }

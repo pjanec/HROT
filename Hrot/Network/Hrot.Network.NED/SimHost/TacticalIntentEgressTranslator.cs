@@ -98,6 +98,7 @@ namespace Hrot.Network.NED.SimHost
 
             ForwardRoe(repo, brainHere);
             ForwardReporting(repo, brainHere);
+            ForwardEngagementArea(repo, brainHere);
         }
 
         /// <summary>⭐ <c>CE-3251</c> (BR-13) — a <see cref="SetRoeEvent"/> about a unit whose brain runs on another node goes there on
@@ -150,6 +151,34 @@ namespace Hrot.Network.NED.SimHost
                     JsonParams     = ReportingDirectiveJson.Encode(in evt),
                     Origin         = (byte)evt.Origin,
                     Kind           = TacticalIntentWireKind.SetReporting,
+                });
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3261</c> — the <see cref="ForwardRoe"/> twin for behaviors' <see cref="SetEngagementAreaEvent"/> (CE-2282
+        /// DA-26): a superior's sector for a man or a commander whose brain runs on another node goes there
+        /// (<see cref="TacticalIntentWireKind.SetEngagementArea"/>) and its <c>EngagementAreaSystem</c> applies it. ⛔ Before, a superior on
+        /// another node set a sector with no effect (its <c>EngagementAreaSystem</c> left the replica to an owner that never heard of it).</summary>
+        private void ForwardEngagementArea(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
+            foreach (var evt in repo.Bus.Read<SetEngagementAreaEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // EngagementAreaSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its sector.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = EngagementAreaDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetEngagementArea,
                 });
                 SentSampleCount++;
             }

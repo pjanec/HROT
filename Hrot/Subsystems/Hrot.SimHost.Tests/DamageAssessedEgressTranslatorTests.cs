@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
             BuildTranslator()
         {
             var writer     = new CapturingWriter<EntityHitDamage>();
-            var translator = new DamageAssessedEgressTranslator(writer, _entityMap);
+            var translator = new DamageAssessedEgressTranslator(writer, _entityMap, localNodeId: 1);
             return (translator, writer);
         }
 

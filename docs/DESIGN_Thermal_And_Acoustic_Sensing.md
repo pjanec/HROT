@@ -399,7 +399,8 @@ FallBack from a heard contact.
 ⭐ **As-built `CE-3064` (`2026-10-05`, R-206):** `BallisticsSystem` checks each round's swept segment against the unit grid the
 raycast solver already uses (`SpatialGridData`): every unit within `CombatConstants.NearMissRadius` (3 m) of the segment, other than
 the shooter and the shooter's own force, gets ONE `NearMissEvent { Unit, closest point }` per pass (`BallisticProjectile.LastNearMiss`);
-no shooter is carried. Egress `NearMissEgressTranslator` (MuscleGround) → DDS `NearMiss` (descriptor 85, BestEffort) →
+no shooter is carried (⭐ `CE-3262`, 2026-10-19: the round's ORIGIN — its muzzle — is, for DA-14's counter-sniper bearing; still no
+shooter identity). Egress `NearMissEgressTranslator` (MuscleGround) → DDS `NearMiss` (descriptor 85, BestEffort) →
 `NearMissIngressTranslator` (Brain) → the same event, remote. On the Brain `NearMissSensingSystem` (registered in `CgfLogicPack`
 beside the threat system) turns it into `SensorChange.NearMiss` (= 7); `RecentSenses` records it, the HSM built-in event
 `Sensor.NearMiss` (id 0xFF07) exists, and `AimAndFireExecutor.RoePermitsFire` lets `ReturnFire` fire within the 5 s window after a

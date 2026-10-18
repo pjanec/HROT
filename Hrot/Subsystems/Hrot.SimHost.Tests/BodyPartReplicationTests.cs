@@ -30,6 +30,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();   // ⭐ CE-3256
             w.RegisterComponent<Fdp.Toolkit.Combat.Lean>();   // ⭐ CE-3257
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-3259
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();   // ⭐ CE-3261
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -226,6 +227,35 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityCombatProficiencyEgressTranslator.ToSample(49L, p with { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite }));
+        }
+
+        /// <summary>⭐ <c>CE-3261</c> (behaviors' sectors note ②) — a commander's sector reaches the other node with every field, so a man
+        /// whose brain runs there reads his commander's NoFire through the chain. ✅ Red-proof: the ingress dropping the NoFire ids ⇒ red.</summary>
+        [Fact]
+        public void CE3261_ASector_ReachesTheOtherNode_WithItsNoFireAreas()
+        {
+            var a = new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(1f, 2f, 3f), LeftBearing = 300f, RightBearing = 60f, MaxRange = 400f, AllowArea = 4711L,
+                WatchBearing = 15f, WatchSet = 1, SetBy = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
+            };
+            a.NoFire.Items[0] = 4712L; a.NoFire.Items[1] = 4713L; a.NoFire.Count = 2;
+            var sample = EntityEngagementAreaEgressTranslator.ToSample(50L, a);
+
+            var (node, unit, map) = Node(50L);
+            using (node)
+            {
+                var ingress = new EntityEngagementAreaIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(unit);
+                Assert.Equal((a.ArcSet, a.ArcOrigin, a.LeftBearing, a.RightBearing, a.MaxRange, a.AllowArea, a.WatchBearing, a.SetBy),
+                             (got.ArcSet, got.ArcOrigin, got.LeftBearing, got.RightBearing, got.MaxRange, got.AllowArea, got.WatchBearing, got.SetBy));
+                Assert.Equal((2, 4712L, 4713L), (got.NoFire.Count, got.NoFire.Items[0], got.NoFire.Items[1]));
+            }
+            var withdrawn = EntityEngagementAreaEgressTranslator.ToSample(50L, default);
+            Assert.NotEqual(sample, withdrawn);
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

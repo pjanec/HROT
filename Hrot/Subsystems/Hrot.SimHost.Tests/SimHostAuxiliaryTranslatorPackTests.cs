@@ -66,22 +66,21 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.TacticalIntentIngressTranslator>(set));
         }
 
-        /// <summary>⭐ CE-4024 (AQ93 §15 K7) — the hits reach the Brain AND the traffic node (a hit on a SUMO agent is addressed to the replica
-        /// it owns), exactly once each; a map or muscle node takes none.</summary>
+        /// <summary>⭐ CE-4024 (AQ93 §15 K7) / ⭐⭐ CE-3246 (BS-1 §6.4a) — the hits reach the traffic node (a hit on a SUMO agent is addressed to
+        /// the replica it owns) as they reach every node: through the SHARED pack's EntityHitDamage pair (NedReplicationModuleTests'
+        /// <c>CE1148_EveryRole_…</c> counts it once per role). This pack, built by role, carries none — a copy here would read every hit twice.</summary>
         [Theory]
-        [InlineData(NodeRole.Brain, 1)]
-        [InlineData(NodeRole.Traffic, 1)]
-        [InlineData(NodeRole.Brain | NodeRole.Traffic, 1)]
-        [InlineData(NodeRole.MuscleGround, 0)]
-        [InlineData(NodeRole.Map2D, 0)]
-        public void CE4024_TheTrafficNodeHearsTheHits_AsTheBrainDoes(NodeRole role, int ingress)
+        [InlineData(NodeRole.Brain)]
+        [InlineData(NodeRole.Traffic)]
+        [InlineData(NodeRole.Brain | NodeRole.Traffic)]
+        [InlineData(NodeRole.MuscleGround)]
+        [InlineData(NodeRole.Map2D)]
+        public void CE4024_TheHitPair_IsNotRoleBuilt_ItRidesTheSharedPack(NodeRole role)
         {
             using var participant = new DdsParticipant(231u);
             var set = Compose(participant, role);
-            Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator>(set));
-            // … and the traffic node SENDS the hit it re-addresses to a converted agent's new entity (a muscle sends its own)
-            bool sends = role.HasFlag(NodeRole.Traffic) || role.HasFlag(NodeRole.MuscleGround);
-            Assert.Equal(sends ? 1 : 0, Count<Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator>(set));
+            Assert.Equal(0, Count<Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator>(set));
+            Assert.Equal(0, Count<Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator>(set));
         }
 
         /// <summary>⭐ CE-3169 / CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG's own list no longer carries the order

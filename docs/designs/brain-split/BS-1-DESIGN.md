@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
-current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
+updated: 2026-10-19 (§6.4a NEW — CE-3246: a hit reaches the Health owner from any node; the EntityHitDamage pair in the shared pack, SourceNodeId appended, one ownership rule) · 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
+current-answer: whole document; §6.4a supersedes §6.3/§6.4/§7.2's role placement of the EntityHitDamage pair (now every node, CE-3246); §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
 stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
 known-rot: §5.4b's F4 slot (`WeaponSlots.Countermeasures = -1`) and its "Split" — superseded by §5.4c. §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
 known-conflict: none.
@@ -10,6 +10,8 @@ related-designs:
   - ../../DESIGN_Visual_Effects.md — OWNS the effects made from fire events on every map host (VE-A); §5.4b gives them the round actually fired and the expendable's look.
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes the aim deflection on the Muscle's FireProcessingSystem, per §2.1.
   - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
+  - ../../DESIGN_Node_Roles_And_Policies.md — OWNS R-3015 (one translator set on every node; an event ingress drops its own samples), §3.5 — §6.4a is that rule applied to the hit pair.
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the blow (§5i) and the gas cloud whose hits §6.4a carries off a CGF brain.
   - ../../DESIGN_Decision_Layer.md — owns the ROE (R-200, §4.4) and RecentSenses (§4.3) that §5.1a's ROE guard enforces.
 -->
 # BS-1 Design: Brain / Muscle Node Separation
@@ -578,6 +580,79 @@ When `EntityHitDamage` is received:
 
 In the future, entity-type-specific damage modules can replace or override this system.
 See Task **BS1-T014**.
+
+### 6.4a ⭐⭐ A hit reaches the `Health` owner from ANY node — `CE-3246` *(backend, `2026-10-19`; build-state: BUILT; R-3015's shape, Node Roles §3.5)*
+
+⛔ **Before:** §6.4's pair was registered by ROLE — the egress on `MuscleGround` (and `Traffic`), the ingress on `Brain` (and
+`Traffic`) (`SimHostAuxiliaryTranslatorPack`). It was built for bullets: SimHost resolves, CGF owns. 📐 Measured: a `DamageAssessedEvent`
+raised anywhere else — a blow (`Melee.Strike`) or a gas cloud (`AreaEffectCloudSystem`) on a CGF brain, on a victim whose `Health`
+SimHost, a player node or another CGF owns — never left its node and was dropped. ⚠ And the editor (`Brain | MuscleGround`, R-4057: it
+replicates) had both halves, with no own-sample skip ⇒ a hit it raised came back off the wire and its owner applied it TWICE.
+
+**INVENTORY** *(2026-10-19)*: readers of `DamageAssessedEvent` (grep, production): `HealthApplicationSystem` (authority-gated, on every
+live-simulation node — `CoreInfrastructureCapabilities.LiveSimulationPlan`), `TrafficPanicSystem` (a hit on a SUMO replica, deduped per
+agent), the egress. Writers: `DamageCalculationSystem`, `Melee.Strike`, `AreaEffectCloudSystem`, `DescentModels` (a fall),
+`EjectionSystem`, `TrafficPanicSystem.Deliver`, the ingress. Registration: `CgfComponentRegistry`, SimHost's `CombatComponentRegistry`,
+`TrafficPack` — ⛔ not the shared registry.
+
+```mermaid
+graph TD
+  subgraph BEFORE
+    MG[MuscleGround or Traffic] --> EG1[DamageAssessedEgress: every local hit]
+    BR[Brain or Traffic] --> IN1[EntityHitDamageIngress]
+    CGFH[a hit raised on a CGF brain]:::dead
+    CGFH -. no egress on Brain .-> LOST[lost]:::dead
+  end
+  subgraph AFTER
+    ANY[every NED node] --> SHP[SharedTranslatorPack]
+    SHP --> EG2[egress: a local hit this node cannot apply, SourceNodeId = self]
+    SHP --> IN2[ingress: drops SourceNodeId == self]
+    IN2 --> HA[HealthApplicationSystem on the Health owner]
+  end
+  classDef dead fill:#f88
+```
+*What the picture shows that prose hid:* the hit's route depended on the ROLE of the node that raised it; afterwards it depends only on
+who owns the victim's `Health` — the one question `HealthApplicationSystem` already asks.
+
+```mermaid
+classDiagram
+  class HealthOwnership { <<NEW static>> AppliesHere(view, entity) }
+  class HealthApplicationSystem { <<EXISTING>> applies where AppliesHere }
+  class DamageAssessedEgressTranslator { <<EXISTING, moved>> sends a local hit where NOT AppliesHere }
+  class EntityHitDamageIngressTranslator { <<EXISTING, moved>> drops its own node's sample }
+  class EntityHitDamage { <<wire, appended>> SourceNodeId }
+  class SharedTranslatorPack { <<EXISTING, grows>> }
+  class SimHostAuxiliaryTranslatorPack { <<EXISTING, shrinks>> }
+  HealthApplicationSystem ..> HealthOwnership
+  DamageAssessedEgressTranslator ..> HealthOwnership
+  SharedTranslatorPack --> DamageAssessedEgressTranslator
+  SharedTranslatorPack --> EntityHitDamageIngressTranslator
+  DamageAssessedEgressTranslator ..> EntityHitDamage
+  EntityHitDamageIngressTranslator ..> EntityHitDamage
+```
+*The one rule — "this node applies a hit on this entity" — has ONE body, read by the system that applies and by the egress that
+decides not to send; the two can never disagree, so a hit is applied exactly once.*
+
+```mermaid
+sequenceDiagram
+  participant A as node A (CGF brain of the striker)
+  participant D as DDS
+  participant B as node B (owns the victim's Health)
+  A->>A: Melee.Strike: DamageAssessedEvent (IsRemote false)
+  A->>A: HealthApplicationSystem: not the owner, skips
+  A->>D: EntityHitDamage (SourceNodeId = A), A does not own the Health
+  D-->>A: own sample, dropped
+  D-->>B: sample
+  B->>B: DamageAssessedEvent (IsRemote true): HealthApplicationSystem applies it once
+  Note over B: a hit raised ON B is applied locally and never sent
+```
+
+| id | decision | why | rejected — one line each |
+|---|---|---|---|
+| **HD-1** | the pair joins `SharedTranslatorPack`; `SimHostAuxiliaryTranslatorPack`'s three role branches go | R-3015: what a node receives never depends on its host kind | adding `Brain` to the egress list (a player node, a map node still lose their hits) |
+| **HD-2** | the egress sends a local hit only where `!HealthOwnership.AppliesHere` | the owner applies its own (§6.4); one apply, never a loop-back for it | sending every hit (a sample to every node for a hit its owner already applied — the old Muscle egress's habit) |
+| **HD-3** | `SourceNodeId` APPENDED on `EntityHitDamage`; the ingress drops its own node's sample | R-3015's event shape (`WeaponFire`, `MunitionDetonation`, `MeleeStrike`); without it the sender's bus carried every hit it sent twice | ⛔ the row's lean "no message change — the ingress already skips own samples": 📐 false, `EntityHitDamage` had no node id |
+| **HD-4** | `HrotSharedComponentRegistry` registers `DamageAssessedEvent` | every node now runs the ingress (the shared-registry rail, CE-4013 D19) | per-host registration (a map or traffic node would throw on the first hit) |
 
 ### 6.5 EntityDamageEgressTranslator (authority node → IG)
 

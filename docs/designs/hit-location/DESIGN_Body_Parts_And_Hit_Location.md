@@ -594,7 +594,7 @@ point, mast; the blades' height empty; parts off ⇒ one body) · `BodyPartDamag
 | grep `BodyProfile.Points\|Fractions` | 5 sites | being SEEN: `Points` (Explain, `AimPoint.For`, `AreaEffectSystem`) and two inline copies of its loop (`IsVisible`, EQS `CheapLineOfSightTest`) — every point on the man's vertical, no lateral term |
 | read `BodyPartRay.Person` / `BodyPartHit.Segment` | 1 | being HIT: the ONE person part test (the round's narrow phase AND the FPS crosshair, CE-1126) — sphere then boxes, in the body frame (x fwd, y LEFT, z up) |
 | `Gesture` recipe (`c194d559e`) | 17 files | the small brain-written replicated body state to copy: component · Brain group · `dt` · egress/ingress · pack · rails |
-| other lanes' `GlobalComponentIds` / `AllDescriptors` | — | 415 and `dt` 149 free on `behaviors`, `ui`, `coordinator` at design time — ⚠ behaviors took 415 the same day (`CombatProficiency`); `Lean` moved to **416**; behaviors then moved their `EngagementArea` from 416 to 417 |
+| other lanes' `GlobalComponentIds` / `AllDescriptors` | — | 415 and `dt` 149 free on `behaviors`, `ui`, `coordinator` at design time — ⚠ behaviors took 415 the same day (`CombatProficiency`); `Lean` **416**, `EngagementArea` 417 — CONVERGED on both lanes after two same-day clashes and a ping-pong |
 
 ```mermaid
 classDiagram

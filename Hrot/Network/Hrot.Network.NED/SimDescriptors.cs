@@ -442,6 +442,58 @@ namespace Hrot.NED.Descriptors
         public byte Set;
     }
 
+    // ⭐ CE-3261 — a man's or a commander's sector (behaviors' EngagementArea, CE-2282), his brain's owner → every node, field for field
+    //   (the four NoFire network ids flattened). Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic("EntityEngagementArea")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityEngagementArea
+    {
+        [DdsKey] public long EntityId;
+        public byte ArcSet;
+        public float ArcOriginX;
+        public float ArcOriginY;
+        public float ArcOriginZ;
+        public float LeftBearing;
+        public float RightBearing;
+        public float MinRange;
+        public float MaxRange;
+        public long AllowArea;
+        public float WatchBearing;
+        public byte WatchSet;
+        public int NoFireCount;
+        public long NoFire0;
+        public long NoFire1;
+        public long NoFire2;
+        public long NoFire3;
+        public byte SetBy;
+    }
+
+    // ⭐ CE-3264 (G1, §7.18) — what a man says now, his brain's owner → every node. Target = a NETWORK id (0 = everyone around).
+    [DdsTopic("EntityUtterance")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityUtterance
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>Fdp.Toolkit.Civilians.UtteranceKind</c>.</summary>
+        public byte Kind;
+        public long TargetId;
+        public double Until;
+    }
+
+    // ⭐ CE-3265 (G2, §7.18) — how a civilian seems: his mode, fear and anger in quarters, his brain's owner → every node.
+    [DdsTopic("EntityDemeanour")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityDemeanour
+    {
+        [DdsKey] public long EntityId;
+        public byte Mode;
+        public byte Fear;
+        public byte Anger;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

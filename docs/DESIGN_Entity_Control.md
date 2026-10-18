@@ -152,7 +152,8 @@ correct later.
 
 | as built | where |
 |---|---|
-| `TacticalIntentWireKind` — 0 Assign, 1 Clear, ⭐ 2 SetRoe, ⭐ 3 SetReporting (behaviors' `CE-2291` CC-2) | `Hrot.Network.NED/TacticalIntentMessages.cs` |
+| `TacticalIntentWireKind` — 0 Assign, 1 Clear, ⭐ 2 SetRoe, ⭐ 3 SetReporting (behaviors' `CE-2291` CC-2), ⭐ 4 SetEngagementArea (behaviors' `CE-2282` sector — backend `CE-3261`, 2026-10-19) | `Hrot.Network.NED/TacticalIntentMessages.cs` |
+| ⭐ `EngagementAreaDirectiveJson` — `{"Arc","O":[x,y,z],"L","R","Min","Max","Allow","Watch","W","NoFire":[ids]}`; all empty withdraws (the owner's `EngagementAreaSystem` gate decides) · ⭐ and the sector itself is REPLICATED (`dtEngagementArea` 151, Brain group) so a commander's NoFire reaches the brain nodes of the men under him | `Hrot.Network.NED/SimHost/EngagementAreaDirectiveJson.cs`, `EntityEngagementAreaTranslators.cs` |
 | `RoeDirectiveJson` — `{"Fire","Reactions","Window","Force"}`; an unset field stays unset | `Hrot.Network.NED/SimHost/RoeDirectiveJson.cs` |
 | `ReportingDirectiveJson` — `{"Pir","Ffir","Sitrep","Area"}`; all zero withdraws (the owner's gate decides) | `Hrot.Network.NED/SimHost/ReportingDirectiveJson.cs` |
 | egress forwards `SetRoeEvent`, then `SetReportingEvent`, when the brain is not here (the order's gate), after the orders | `TacticalIntentEgressTranslator.ForwardRoe` / `ForwardReporting` |

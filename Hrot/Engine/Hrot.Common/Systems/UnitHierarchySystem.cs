@@ -103,6 +103,43 @@ namespace Hrot.Common.Systems
 
         // ── Assign subordinate ────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ <c>CE-3263</c> (behaviors' sectors note ⑤) — <paramref name="sub"/> is already in <paramref name="cmd"/>'s roster: the assign is a
+        /// DESIGNATION change (a succession, a role move arriving from the wire), written in place on the roster entry and the man, and marked
+        /// for the wire. ⛔ Before, a second assign for the same commander appended him to the roster again — a man listed twice. False when
+        /// he is not in the roster (a stale UnitSubordinate): the caller assigns as usual.
+        /// </summary>
+        private static unsafe bool UpdateInPlace(EntityRepository repo, Entity cmd, Entity sub, TacticalDesignation designation)
+        {
+            if (!repo.HasComponent<UnitRoster>(cmd)) return false;
+            ref var roster = ref repo.GetComponentRW<UnitRoster>(cmd);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (!roster.SubordinateEntities[i].Equals(sub)) continue;
+                roster.TacticalDesignations[i] = (ushort)designation;
+                repo.GetComponentRW<UnitSubordinate>(sub).Designation = designation;
+                SmartEgressUtil.MarkDirty(repo, sub, EntityInfoDescriptorOrdinal);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>The <see cref="FormationFollower"/> an assign with <c>HasFormationSlot</c> puts on the man (both assign paths).</summary>
+        private static void ApplyFormationSlot(EntityRepository repo, Entity sub, in CmdAssignSubordinate evt)
+        {
+            if (evt.HasFormationSlot != 1) return;
+            var ff = new FormationFollower
+            {
+                SlotIndex     = evt.SlotIndex,
+                State         = FormationMemberState.Rejoining,
+                IsInFormation = 1,
+            };
+            if (repo.HasComponent<FormationFollower>(sub))
+                repo.SetComponent(sub, ff);
+            else
+                repo.AddComponent(sub, ff);
+        }
+
         private static void ProcessAssignSubordinates(EntityRepository repo)
         {
             var events = repo.Bus.Read<CmdAssignSubordinate>();
@@ -119,6 +156,11 @@ namespace Hrot.Common.Systems
                     var current = repo.GetComponent<UnitSubordinate>(sub);
                     if (!current.Commander.Equals(cmd))
                         RemoveFromHierarchy(repo, sub);
+                    else if (UpdateInPlace(repo, cmd, sub, evt.Designation))
+                    {
+                        ApplyFormationSlot(repo, sub, evt);
+                        continue;   // ⭐ CE-3263 — the same commander again: a designation change, never a second roster entry
+                    }
                 }
 
                 // Load or create commander's roster
@@ -160,19 +202,7 @@ namespace Hrot.Common.Systems
                 SquadStateProvisioning.EnsureForCommander(repo, cmd);
 
                 // c. FormationFollower when HasFormationSlot is set
-                if (evt.HasFormationSlot == 1)
-                {
-                    var ff = new FormationFollower
-                    {
-                        SlotIndex     = evt.SlotIndex,
-                        State         = FormationMemberState.Rejoining,
-                        IsInFormation = 1,
-                    };
-                    if (repo.HasComponent<FormationFollower>(sub))
-                        repo.SetComponent(sub, ff);
-                    else
-                        repo.AddComponent(sub, ff);
-                }
+                ApplyFormationSlot(repo, sub, evt);
 
                 SmartEgressUtil.MarkDirty(repo, sub, EntityInfoDescriptorOrdinal);
             }

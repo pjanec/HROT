@@ -430,5 +430,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, rejections.Length);
             Assert.Equal(overflow, rejections[0].Subordinate);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3263</c> (behaviors' sectors note ⑤) — a second assign of a man to the SAME commander (a succession arriving from the wire, a
+        /// role move) changes his designation in place: the roster still lists him ONCE. ✅ Red-proof: the in-place branch removed ⇒ a roster
+        /// of two ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3263_ReassigningToTheSameCommander_ChangesTheDesignation_NeverListsHimTwice()
+        {
+            using var repo = CreateRepo();
+            var cmd = repo.CreateEntity();
+            var sub = repo.CreateEntity();
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.TeamLeader });
+            Tick(repo);
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.SquadLeader });
+            Tick(repo);
+
+            var roster = repo.GetComponent<UnitRoster>(cmd);
+            Assert.Equal(1, roster.Count);
+            unsafe { Assert.Equal((ushort)TacticalDesignation.SquadLeader, roster.TacticalDesignations[0]); }
+            Assert.Equal(TacticalDesignation.SquadLeader, repo.GetComponent<UnitSubordinate>(sub).Designation);
+        }
     }
 }

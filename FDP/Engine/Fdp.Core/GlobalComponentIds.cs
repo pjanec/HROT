@@ -1031,12 +1031,23 @@ namespace Fdp.Core
         /// <c>dtLean</c> (149). 📄 docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §13. ⚠ 416: backend first took 415 the
         /// same day behaviors' CombatProficiency (CE-2273) did; backend merged second and moved (a runtime id, NoScenario — nothing persisted).
         /// 416 measured free on backend, ui, coordinator, behaviors 2026-10-19. ⚠ FINAL: behaviors' EngagementArea also took 416 and both
-        /// lanes then moved at once (backend Lean → 417, behaviors EngagementArea → 417); backend adopted behaviors' resolution — Lean 416.</summary>
+        /// lanes then moved at once (backend Lean → 417, behaviors EngagementArea → 417); backend adopted behaviors' resolution — Lean 416.
+        /// ⛔⛔ CONVERGED (2026-10-19, backend merging behaviors a43b4bd3c): Lean = 416, EngagementArea = 417 on BOTH lanes — the values
+        /// behaviors declared final. KEEP them; a later id goes in a lane block (NOTE_Backend_To_All_Lanes_Component_Id_Space.md).</summary>
         public const int Lean = 416;
         /// <summary>⭐ <c>CE-2282</c> (behaviors, DA-L) — <c>EngagementArea</c>: a man's or a commander's sector (Allow, NoFire), read
         /// through <c>EngagementAreas</c> only. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13c.
         /// ⚠ 417: 416 was taken in parallel by backend's Lean (CE-3257); behaviors merged second and moved (runtime id, NoScenario) — 417 measured free on every lane 2026-10-19.</summary>
         public const int EngagementArea = 417;
+
+        /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
+        /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
+        /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
+        public const int Utterance = 434;
+
+        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Demeanour</c>: a civilian's mode, fear and anger in quarters, Brain group, replicated as
+        /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
+        public const int Demeanour = 435;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

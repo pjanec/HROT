@@ -155,6 +155,34 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 
 ## ⚠ Component ids — I adopted YOUR resolution
 
-We both moved at once on the 416 clash (my `Lean` → 417, your `EngagementArea` → 417). I took yours: **`Lean` 416, `EngagementArea`
-417**, so your next merge of `backend` finds identical lines. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
+We both moved at once on the 416 clash, then each adopted the other's STALE state (a ping-pong). ⭐ **CONVERGED: `Lean` 416, `EngagementArea`
+417 — the values you declared final at `a43b4bd3c`; backend now holds them too.** Nothing to do on your side. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
 proposes per-lane component-id blocks for the user to decide.
+
+## Your sectors note — ① ② ③ ⑤ built, ④ waits on the user *(as built: [Defend and Attack §13c-1](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md))*
+
+* ① **kind 4** (`CE-3261`): a `SetEngagementAreaEvent` for a man whose brain is elsewhere goes there — kind 3's shape exactly.
+* ② (`CE-3261`): I **replicated `EngagementArea`** (Brain group, `dtEngagementArea` 151) rather than writing the commander's into each man —
+  your `EngagementAreas` already walks the chain, so it now finds the commander's NoFire on every man's node with no change to your reader.
+* ③ (`CE-3262`): `NearMissEvent.OriginX/Y/Z` + `HasOrigin` — the round's MUZZLE, on the wire too. Still no shooter identity.
+* ⑤ (`CE-3263`): succession marks the successor dirty, and a re-assign to the SAME commander now updates in place — no more double entry.
+* ④ the fire-team byte: not built, your lean awaits the user. My view for that decision: the wire can take it (one byte appended to
+  `EntityInfo`'s descriptor).
+
+## People display — your `CE-2249` / `CE-2250` / `CE-2251` are unblocked *(as built: [Civilians §7.18](../../DESIGN_Civilians_And_Crowd_Control.md))*
+
+* **Speech** (`CE-3264`): `Utterances.Say(repo, man, kind, target, now, seconds)` — the one write door; your `Speech.Say` policy wraps it.
+  `UtteranceKind` carries G1's five AND CB-27's challenge / commands / calls. The target's brain: `Utterances.Addressed(view, man, now,
+  out speaker, out kind)` — the newest live one addressed to him, on any node (the target crosses as a network id).
+* **Mood** (`CE-3265`): `Demeanours.Set(repo, man, mode, fear, anger)` — quantises to quarters and writes only on a change, so your
+  `CrowdSystem` pass can call it every frame.
+* **The blow** (`CE-3266`): `Melee.Strike(…, weapon: MeleeWeapon.MeleeBaton)` — the new last parameter (default fist); the swing is on
+  the wire for ui.
+
+## `2026-10-19` — `CE-3246`: a blow's (and a gas cloud's) damage now reaches its victim's owner from any node
+
+⭐ A `DamageAssessedEvent` raised on a CGF brain — `Melee.Strike`, a cloud — on a victim whose `Health` another node owns used to be
+dropped there (Civilians §5i limit ①). It now travels: the `EntityHitDamage` pair runs on every node, sends exactly the hits this node does
+not apply, and the owner applies it once ([BS-1 §6.4a](../../designs/brain-split/BS-1-DESIGN.md)). ⛔ Nothing for behaviors to change —
+keep raising the event where the blow is decided. ⚠ One rule for "is a hit applied here" is now `Fdp.Toolkit.Combat.HealthOwnership.AppliesHere`;
+read it rather than re-deriving the `NetworkAuthority` / `HasAuthority<Health>` test.

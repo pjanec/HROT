@@ -11,7 +11,8 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// Authority-node ingress translator: polls the <c>EntityHitDamage</c> DDS topic and
+    /// ⭐ <c>CE-3246</c> — on EVERY node (<c>SharedTranslatorPack</c>, BS-1 §6.4a); only the <c>Health</c> owner applies what it publishes.
+    /// Ingress translator: polls the <c>EntityHitDamage</c> DDS topic and
     /// re-publishes each decoded sample as a local <see cref="DamageAssessedEvent"/> ECS
     /// event for <c>HealthApplicationSystem</c> to apply.
     ///
@@ -27,6 +28,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly DdsReader<EntityHitDamage>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
@@ -40,9 +42,11 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public EntityHitDamageIngressTranslator(
             DdsParticipant? participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            long localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
             _reader    = participant is not null
                 ? new DdsReader<EntityHitDamage>(participant, DdsTopicName)
                 : null;
@@ -92,6 +96,8 @@ namespace Hrot.Network.NED.SimHost
             IEntityCommandBuffer cmd,
             ISimulationView view)
         {
+            // ⭐ CE-3246 (R-3015) — on every node now, so a node drops its OWN sample (DDS hands it back); 0 = an older sender, taken
+            if (msg.SourceNodeId != 0 && msg.SourceNodeId == _localNodeId) return;
             if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
 
             cmd.PublishEvent(new DamageAssessedEvent
