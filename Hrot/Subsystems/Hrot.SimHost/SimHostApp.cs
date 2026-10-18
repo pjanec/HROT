@@ -619,18 +619,10 @@ namespace Hrot.SimHost
 
         protected override void OnUpdate(float dt)
         {
-            // CMC-S016: translator tick BEFORE clusterSlave so DDS->bus ingress is processed first.
-            _slaveTranslator?.Tick();
-            _clusterSlave?.Tick();
-            _vis?.Update(dt);
-            // Clear the primitive buffer before backend ECS systems populate it.
-            _gizmoBuffer?.EndFrame(dt);
-            _kernel?.Update();
-            // NOTE: TimeNetworkModule translators (_timeModeTranslator, _lockstepTranslator) are now
-            // registered by SharedApplicationBootstrapper.BootstrapNode() in Phase 6c. They tick
-            // automatically as part of kernel.Update() via CycloneNetworkIngressSystem and
-            // CycloneEgressSystem. No manual tick calls needed here.
-            _eventBus?.SwapBuffers();
+            // ⭐ CE-4013 D7 — the one node frame (translator, then slave — CMC-S016 —, kernel, swap). This host's own pre-kernel work:
+            //   the window, and clearing the primitive buffer before the backend systems fill it. A node not (or no longer) running ticks nothing.
+            if (!_initialized || _context is null) return;
+            _context.Tick(beforeKernel: () => { _vis?.Update(dt); _gizmoBuffer?.EndFrame(dt); });
         }
 
         protected override void OnDrawWorld()

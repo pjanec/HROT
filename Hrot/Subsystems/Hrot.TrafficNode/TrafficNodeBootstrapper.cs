@@ -47,10 +47,7 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
     // UNIFY: identical to StrideNodeBootstrapper.cs:178-200 (minus its gizmo buffers) — the time controller owns time, not dt.
     public void Tick()
     {
-        Context.SlaveTranslator?.Tick();
-        Context.ClusterSlave.Tick();
-        Context.Kernel.Update();
-        Context.EventBus.SwapBuffers();
+        Context.Tick();   // ⭐ CE-4013 D7 — the one node frame
     }
 
     public void Dispose()

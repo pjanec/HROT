@@ -1066,29 +1066,10 @@ public class IgApplication : IDisposable
 
 
 
-    /// <summary>
 
-    /// Advances one frame of IG logic (input, ECS tick, viewport update).  
-
-    /// Must be called before <see cref="DrawWorld"/> and <see cref="DrawUI"/> each frame.
-
-    /// Called by both the standalone <see cref="Run"/> loop and the embedded orchestrator.
-
-    /// </summary>
-
-    public void Update(float dt)
-
+    /// <summary>⭐ CE-4013 D7 — IG's own pre-kernel work, run by <see cref="HrotNodeContext.Tick"/> after the cluster ticks.</summary>
+    private void FrameInput(float dt)
     {
-
-        _frameDt = dt;
-        // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
-        //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
-        // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
-        //    swapping the shared bus HERE as well as at the end of Update() would double-swap it,
-        //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
-        _slaveTranslator?.Tick();
-        _clusterSlave?.Tick();
-
         if (!_headless)
 
         {
@@ -1138,16 +1119,39 @@ public class IgApplication : IDisposable
         // kernel.Update() (which runs StatelessGizmoSystem in PostSimulation).
         _gizmoBuffer?.EndFrame(dt);
 
-        _kernel.Update();
+    }
 
-        // Clear gizmo undo stack on world/scenario reset.
-        foreach (ref readonly var _ in _world.Bus.Read<WorldResetEvent>())
-            _gizmoUndoStack?.Clear();
+    /// <summary>
 
-        // Swap the context event bus so that SlaveSyncController (time controller) sees events
-        // published by the time translators (SwitchTimeModeEvent, AdvanceFrameIntent) in the
-        // next kernel.Update() call. Mirrors the SimHostApp.OnUpdate() pattern.
-        _context?.EventBus.SwapBuffers();
+    /// Advances one frame of IG logic (input, ECS tick, viewport update).  
+
+    /// Must be called before <see cref="DrawWorld"/> and <see cref="DrawUI"/> each frame.
+
+    /// Called by both the standalone <see cref="Run"/> loop and the embedded orchestrator.
+
+    /// </summary>
+    public void Update(float dt)
+
+    {
+
+        _frameDt = dt;
+        // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
+        //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
+        // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
+        //    swapping the shared bus HERE as well as at the end of Update() would double-swap it,
+        //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
+        // ⭐ CE-4013 D7 — the one node frame: translator, slave (CMC-S016 / CE-164, on the node's ONE orchestration bus), this host's
+        //   own pre-kernel work (map input, the camera's viewport, the gizmo frame close), the kernel — always, even headless —, then
+        //   the reset read while this frame's events are readable, and the one swap.
+        if (_context is null || _clusterSlave is null) return;   // not yet up, or shut down (the slave is disposed and nulled first)
+        _context.Tick(
+            beforeKernel: () => FrameInput(dt),
+            afterKernel: () =>
+            {
+                // Clear gizmo undo stack on world/scenario reset.
+                foreach (ref readonly var _ in _world.Bus.Read<WorldResetEvent>())
+                    _gizmoUndoStack?.Clear();
+            });
 
         _fdpFrameCount++;
 

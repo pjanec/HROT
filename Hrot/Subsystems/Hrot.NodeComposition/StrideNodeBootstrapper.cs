@@ -129,12 +129,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </summary>
     public void Tick(float dt)
     {
-        ProducerBuffer.EndFrame(dt);
-        ConsumerBuffer.Clear();
-
-        Context.SlaveTranslator?.Tick();
-        Context.ClusterSlave.Tick();
-
+        // ⭐ CE-4013 D7 — the one node frame. This host's own pre-kernel work: closing the gizmo producer frame (it used to run before the
+        //   cluster ticks; it touches neither).
         // ST-021: the TIME CONTROLLER owns time, not the caller's frame delta.
         //
         // This used to call the [Obsolete] Update(float) overload behind a #pragma, justified as "a
@@ -153,8 +149,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //
         // `dt` is still the caller's frame delta for the gizmo producer buffer above; only the kernel
         // stops being driven by it. Same shape CgfSubsystem already uses.
-        Context.Kernel.Update();
-        Context.EventBus.SwapBuffers();
+        Context.Tick(beforeKernel: () => { ProducerBuffer.EndFrame(dt); ConsumerBuffer.Clear(); });
 
         // _gizmoIngress?.PollAndApply();  // fills ConsumerBuffer from DDS — wire in SM-006
     }

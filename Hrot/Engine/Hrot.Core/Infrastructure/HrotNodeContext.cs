@@ -44,6 +44,24 @@ public sealed record HrotNodeContext : IDisposable
     private bool _disposed;
 
     /// <summary>
+    /// ⭐ CE-4013 D7 — THE node frame, one place: the cluster translator and slave tick (so the frame sees this frame's cluster
+    /// commands and time), then the host's own pre-kernel work, the kernel, the host's own post-kernel work, then the bus swap (this
+    /// frame's events become next frame's reads). 📐 It was written four times (Stride, SimHost, IG, CGF) and a fifth (Traffic), with
+    /// the host's own work interleaved differently; the spine itself was the same everywhere. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+    /// </summary>
+    /// <param name="beforeKernel">The host's work after the cluster has ticked and before the kernel (input, a gizmo frame close, a canvas).</param>
+    /// <param name="afterKernel">The host's work after the kernel and before the swap, while this frame's events are still readable.</param>
+    public void Tick(System.Action? beforeKernel = null, System.Action? afterKernel = null)
+    {
+        SlaveTranslator?.Tick();
+        ClusterSlave.Tick();
+        beforeKernel?.Invoke();
+        Kernel.Update();
+        afterKernel?.Invoke();
+        EventBus.SwapBuffers();
+    }
+
+    /// <summary>
     /// ⭐ Disposes what the builder created: the <see cref="Kernel"/> first (so module providers and
     /// in-flight tasks are torn down while their storage is still valid), then the
     /// <see cref="World"/>. Idempotent — safe to call from a shutdown path that may run twice.
