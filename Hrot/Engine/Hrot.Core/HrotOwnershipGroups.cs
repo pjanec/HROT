@@ -81,6 +81,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.HostileAct);
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)
         brain.SetBit(GlobalComponentIds.Lean);      // ⭐ CE-3257 (BR-5) — a man leaning round a corner (dtLean)
+        brain.SetBit(GlobalComponentIds.Utterance);           // ⭐ CE-3264 (G1) — what a man says now (dtUtterance)
+        brain.SetBit(GlobalComponentIds.Demeanour);           // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
         brain.SetBit(GlobalComponentIds.EngagementArea);      // ⭐ CE-3261 — a man's or a commander's sector: his men's brain nodes read it (dtEngagementArea)
         brain.SetBit(GlobalComponentIds.CombatProficiency);   // ⭐ CE-3259 (BR-6) — what a soldier CAN do; the muscle's hit model and perception read it (dtCombatProficiency)
         // ⭐ CE-3210 (hit location HL-6) — the damage per body part, written beside Health by its owner (dtPartDamage).

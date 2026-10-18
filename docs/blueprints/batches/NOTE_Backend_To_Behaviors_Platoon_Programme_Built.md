@@ -168,3 +168,13 @@ proposes per-lane component-id blocks for the user to decide.
 * ⑤ (`CE-3263`): succession marks the successor dirty, and a re-assign to the SAME commander now updates in place — no more double entry.
 * ④ the fire-team byte: not built, your lean awaits the user. My view for that decision: the wire can take it (one byte appended to
   `EntityInfo`'s descriptor).
+
+## People display — your `CE-2249` / `CE-2250` / `CE-2251` are unblocked *(as built: [Civilians §7.18](../../DESIGN_Civilians_And_Crowd_Control.md))*
+
+* **Speech** (`CE-3264`): `Utterances.Say(repo, man, kind, target, now, seconds)` — the one write door; your `Speech.Say` policy wraps it.
+  `UtteranceKind` carries G1's five AND CB-27's challenge / commands / calls. The target's brain: `Utterances.Addressed(view, man, now,
+  out speaker, out kind)` — the newest live one addressed to him, on any node (the target crosses as a network id).
+* **Mood** (`CE-3265`): `Demeanours.Set(repo, man, mode, fear, anger)` — quantises to quarters and writes only on a change, so your
+  `CrowdSystem` pass can call it every frame.
+* **The blow** (`CE-3266`): `Melee.Strike(…, weapon: MeleeWeapon.MeleeBaton)` — the new last parameter (default fist); the swing is on
+  the wire for ui.

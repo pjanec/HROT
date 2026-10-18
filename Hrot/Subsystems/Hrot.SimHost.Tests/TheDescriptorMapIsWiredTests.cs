@@ -294,7 +294,9 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtCustody),               // ⭐ CE-3256 — a man in custody
                     D(Hrot.NED.Descriptors.EDescriptorType.dtLean),                  // ⭐ CE-3257 — a man leaning
                     D(Hrot.NED.Descriptors.EDescriptorType.dtCombatProficiency),     // ⭐ CE-3259 — what a soldier CAN do
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtEngagementArea) },      // ⭐ CE-3261 — a sector
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtEngagementArea),        // ⭐ CE-3261 — a sector
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtUtterance),             // ⭐ CE-3264 — speech
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtDemeanour) },           // ⭐ CE-3265 — mood
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

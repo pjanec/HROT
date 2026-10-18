@@ -469,6 +469,31 @@ namespace Hrot.NED.Descriptors
         public byte SetBy;
     }
 
+    // ⭐ CE-3264 (G1, §7.18) — what a man says now, his brain's owner → every node. Target = a NETWORK id (0 = everyone around).
+    [DdsTopic("EntityUtterance")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityUtterance
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>Fdp.Toolkit.Civilians.UtteranceKind</c>.</summary>
+        public byte Kind;
+        public long TargetId;
+        public double Until;
+    }
+
+    // ⭐ CE-3265 (G2, §7.18) — how a civilian seems: his mode, fear and anger in quarters, his brain's owner → every node.
+    [DdsTopic("EntityDemeanour")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityDemeanour
+    {
+        [DdsKey] public long EntityId;
+        public byte Mode;
+        public byte Fear;
+        public byte Anger;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

@@ -136,6 +136,24 @@ namespace Hrot.NED.Messages
         public byte HasOrigin;
     }
 
+    // ── Melee strike (CE-3266, G3) ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow was struck (any node → every map host): ui draws the swing once. The
+    /// <see cref="WeaponFire"/> shape: <see cref="SourceNodeId"/> so a node drops its own sample. Cosmetic ⇒ BestEffort.
+    /// </summary>
+    [DdsTopic("MeleeStrike")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct MeleeStrike
+    {
+        public long SourceNodeId;
+        public long StrikerEntityId;
+        public long TargetEntityId;
+        /// <summary><c>Fdp.Toolkit.Combat.MeleeWeapon</c>.</summary>
+        public byte Weapon;
+    }
+
     // ── Round impact (CE-1128, DESIGN_Visual_Effects §10) ──────────────────
 
     /// <summary>

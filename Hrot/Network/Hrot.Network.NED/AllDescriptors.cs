@@ -143,6 +143,11 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3261 — behaviors' EngagementArea (CE-2282), its brain → every node: a commander's NoFire reaches the brain nodes of the men
         //   under him, wherever they run. Measured free on ui, behaviors, backend, coordinator 2026-10-19.
         dtEngagementArea              = 151,
+        // ⭐ CE-3264..3266 (G1/G2/G3, Civilians §7.18) — what a man says, how a civilian seems (Brain group → every node), a blow struck (an
+        //   event topic, every node). Measured free on ui, behaviors, backend, coordinator 2026-10-19.
+        dtUtterance                   = 152,
+        dtDemeanour                   = 153,
+        dtMeleeStrike                 = 154,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,

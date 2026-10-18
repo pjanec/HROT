@@ -89,6 +89,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
         world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
@@ -133,6 +135,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-3266 (G3) — a blow struck (MeleeStrike topic)
         world.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();   // ⭐ CE-3256 (BR-4) — search / detain / restrain (interaction kind 13)
         world.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();   // ⭐ CE-3233 (B-11b) — set a charge off, on its position owner   // ⭐ CE-3233 (B-11) — draw / stow / conceal, applied by the list owner   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each

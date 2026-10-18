@@ -138,6 +138,13 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3261 — a man's or a commander's sector (Brain → every node).
             yield return new Hrot.Map.Common.Replication.Egress.EntityEngagementAreaEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityEngagementAreaIngressTranslator(participant, entityMap);
+            // ⭐ CE-3264..3266 (G1/G2/G3) — speech, mood (Brain → every node) and a blow struck (every node → every node).
+            yield return new Hrot.Map.Common.Replication.Egress.EntityUtteranceEgressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityUtteranceIngressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant, entityMap);
+            yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);

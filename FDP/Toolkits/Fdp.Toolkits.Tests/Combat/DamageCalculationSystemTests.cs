@@ -105,6 +105,22 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(striker, Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray()).Source);
         }
 
+        /// <summary>⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow also raises its <see cref="StrikeNotification"/> — who, whom, with
+        /// what — so ui can draw the swing. ✅ Red-proof: the notification not raised ⇒ red.</summary>
+        [Fact]
+        public void CE3266_ABlow_RaisesItsStrikeNotification_WithTheWeapon()
+        {
+            _world.RegisterComponent<SimTransform>();
+            _world.RegisterEvent<StrikeNotification>();
+            var target = SpawnTarget();
+            _world.AddComponent(target, new SimTransform { Position = System.Numerics.Vector3.Zero, Rotation = System.Numerics.Quaternion.Identity });
+            var striker = ShooterAt(1f, 0f);
+            Assert.True(Melee.Strike(_world, striker, target, weapon: MeleeWeapon.MeleeBaton));
+            _world.Bus.SwapBuffers();
+            var swing = Assert.Single(_world.Bus.Read<StrikeNotification>().ToArray());
+            Assert.Equal((striker, target, MeleeWeapon.MeleeBaton, false), (swing.Striker, swing.Target, swing.Weapon, swing.IsRemote));
+        }
+
         // ── SC-2: Non-authority → DamageAssessedEvent is still published ────────
 
         /// <summary>

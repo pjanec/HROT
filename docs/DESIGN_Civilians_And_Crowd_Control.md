@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-19 (backend: §7.18 G1/G2/G3 speech, mood, the blow on the wire — CE-3264…CE-3266) · 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -3998,6 +3998,64 @@ SimHost, and the hit comes back to the `Health` owner; no new module, no new reg
 
 ⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
 a sound for the throw's whoosh (none is wanted).
+
+### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's [people-display gaps](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md); `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
+
+The behaviour halves are §5o (behaviors' `CE-2249` speech writers, `CE-2250` the mood writer, `CE-2251` which weapon struck); this
+section is only what crosses the wire and the one helper each reads and writes through.
+
+**INVENTORY** *(2026-10-19)*: codebase-memory `search_graph name_pattern=.*(Utterance|Speech|Shout|Demeanour|Mood|Strike).*`
+(Class / Method / Enum, `*.cs`) ⇒ no speech, no mood, no strike notification (only `Melee.Strike` itself, `Combat/Melee.cs:42`, and
+unrelated air / artillery "strike" behaviours). The shapes copied: `Gesture` (`CE-3224` — a small Brain-group component, one writer, one
+reader) and `WeaponFireNotification` (a shot on the wire, `SourceNodeId` so a node drops its own sample). Mode = `CivilianMode`
+(`Civilians/CivilianState.cs:14`), brain-local today.
+
+```mermaid
+classDiagram
+  direction LR
+  class Utterance { <<NEW component 434, Brain group, dtUtterance 152>> UtteranceKind Kind · Entity Target · double Until }
+  class UtteranceKind { <<NEW>> Talk · Insult · Warning · Order · Chant · Challenge · CmdDown · CmdFreeze · CmdHandsUp · CmdDropIt · CmdComeOut · Announce · CallClear · CallManDown }
+  class Utterances { <<NEW static>> Say · Of · Addressed }
+  class Demeanour { <<NEW component 435, Brain group, dtDemeanour 153>> CivilianMode Mode · byte Fear 0-4 · byte Anger 0-4 }
+  class Demeanours { <<NEW static>> Quarter · Set (only on change) · Of }
+  class StrikeNotification { <<NEW event 5016>> Striker · Target · MeleeWeapon Weapon · IsRemote }
+  class Melee { <<EXISTING, grows>> Strike(..., weapon = Fist) also raises StrikeNotification }
+  class MeleeStrikeTranslators { <<NEW, SharedTranslatorPack>> egress (not remote) · ingress (drops own node) }
+  Utterances --> Utterance
+  Demeanours --> Demeanour
+  Melee ..> StrikeNotification : raises
+  MeleeStrikeTranslators ..> StrikeNotification
+```
+*What the picture shows that prose hid:* two of the three are STATE (a replicated component a late joiner gets — what he is saying now,
+how he feels) and one is an EVENT (a swing happens once, is drawn once — `WeaponFire`'s road). Each has ONE helper; behaviors' writers
+(§5o) call it, ui and the target's brain read it.
+
+```mermaid
+sequenceDiagram
+  participant P as police brain (node A)
+  participant U as Utterance (dtUtterance, every node)
+  participant T as the man's brain (node B)
+  participant UI as ui (every map host)
+  P->>U: Utterances.Say(officer, CmdDropIt, target man, 3 s)
+  U-->>T: replicated: Kind, Target (network id), Until
+  T->>T: Utterances.Addressed(man) ⇒ CmdDropIt from the officer ⇒ comply or not (behaviors)
+  U-->>UI: the speech bubble until Until
+  P->>P: Melee.Strike(officer, rioter, weapon: Baton)
+  P-->>UI: StrikeNotification on the wire ⇒ the baton swing drawn once
+```
+
+| id | decision (lean) | why | rejected — one line each |
+|---|---|---|---|
+| **SP-1** | `Utterance { Kind, Target, Until }` on the SPEAKER, Brain group; ONE utterance at a time (the newest replaces); expired when sim time ≥ `Until` | ui draws what he says NOW; the target's brain reads commands addressed to him (CB-27); a late joiner sees a shout still in the air | an event per shout (a late joiner and a slow brain miss it; CB-27's commands must be readable for their duration) · speech in `Gesture` (a man shouts AND gestures) |
+| **SP-2** | the kinds are G1's five + CB-27's challenge, five commands, announce and two team calls, appended in that order (member names unique — the enum crosses as a byte) | one enum both readers share | free text (nobody could answer it) |
+| **SP-3** | `Target` crosses as a NETWORK id (0 = everyone around) | the target's brain is often on another node | the local entity (meaningless elsewhere — the `LookState` G7 lesson) |
+| **MD-1** | `Demeanour { Mode, Fear, Anger }`, fear / anger quantised to QUARTERS (0–4); `Demeanours.Set` writes only when a value or the mode changes | G2: three bytes, written rarely — the egress publishes on change only | the floats (a sample every frame a crowd's fear moves) · `CivilianState` replicated (brain-private fields with it) |
+| **ST-1** | `StrikeNotification { Striker, Target, Weapon }` raised by `Melee.Strike` (it gains `weapon = Fist`), on the wire like `WeaponFire` (`MeleeStrike` topic, `SourceNodeId`) | G3: the swing is drawn even when it misses nothing — the damage chain cannot carry it (and `CE-3246`: a blow's damage can be lost across nodes; the notification is independent) | the swing read from the victim's knock-down (ui's U10 rejects it) |
+| **ID** | components 434 / 435 from the TOP of backend's proposed block (434–449, [component-id note](blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md)) — not the next sequential id, which collided three times on 2026-10-19 | — | 418 / 419 (the contested top) |
+
+**Rails** *(as built)*: `PeopleDisplayWireTests` (SimHost) — an utterance, a demeanour and a strike each reach the other node with every
+field (the target as a network id); `UtteranceTests` / `DemeanourTests` (Toolkits) — expiry, "addressed to me", quarters, write-only-on-change;
+`MeleeTests`-style rail — a strike raises its notification with the weapon.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

@@ -72,6 +72,10 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-3256</c> (BR-4) — <c>CustodyEvent</c>: search / detain / restrain / release a man (interaction kind 13).</summary>
         public const int CustodyEventId = 5015;
 
+        /// <summary>⭐ <c>CE-3266</c> (G3, §7.18 ST-1) — <c>StrikeNotification</c>: a blow was struck (who, whom, with what). Measured free
+        /// on every lane 2026-10-19.</summary>
+        public const int StrikeNotificationEventId = 5016;
+
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;
