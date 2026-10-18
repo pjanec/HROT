@@ -88,6 +88,37 @@ public sealed class PedestriansPanicIntoCiviliansTests
         Assert.Equal(2, h.Runtime.Session!.Converted);
     }
 
+    /// <summary>⭐ CE-4027 (AQ93 §8 P7's second half) — above the cap the frightened pedestrians stay SUMO's and FLEE there (SumoSharp H16):
+    /// same ids, still replicas on the wire, running away from the blast. ⛔ Before: they stayed in SUMO calm, walking their old trips.</summary>
+    [Fact]
+    public void K6_AboveTheCap_TheRestFleeInsideSumo_KeepingTheirIds()
+    {
+        using var h = Harness.Start(Walkers, maxConverted: 1);
+        h.Run(60.0);
+        const float Inside = TrafficDemand.DefaultBlastPanicRadius - 10f;
+        var all = h.Mirror.Pedestrians;
+        var ped = all.MaxBy(c => all.Count(p => Vector2.Distance(new(p.X, p.Y), new(c.X, c.Y)) < Inside))!;   // the blast where most walk
+        var at = new Vector2(ped.X, ped.Y);
+        float Dist(TrafficPedPose p) => Vector2.Distance(new(p.X, p.Y), at);
+        var near = all.Where(p => Dist(p) < Inside).ToDictionary(p => p.NetworkId, Dist);
+        Assert.True(near.Count >= 3, $"only {near.Count} pedestrians near the blast");
+
+        h.Blast(new Vector3(at, 0f));
+        var requests = h.RunCollecting(1.0);
+        Assert.Single(requests);
+        Assert.Equal(1, h.Runtime.Session!.Converted);
+        Assert.True(h.Runtime.Session.Fled >= near.Count - 2, $"fled {h.Runtime.Session.Fled} of {near.Count - 1} left in SUMO");
+
+        h.Run(10.0);
+        var stayed = h.Mirror.Pedestrians.Where(p => near.ContainsKey(p.NetworkId) && p.NetworkId != requests[0].PreAllocatedNetworkId).ToList();
+        Assert.NotEmpty(stayed);   // SUMO's still: same ids on the wire (a fleeing ped is a new leg, not a despawn)
+        // ⚠ not EVERY one: H16's second pass takes any route ENDING ≥ minDistance off when no route leads straight away, and a street can
+        //   bend back past the blast first (📌 measured: one of four, 81.7 → 58.8 m at 10 s). Most run away, and on average they do.
+        Assert.True(stayed.Count(p => Dist(p) > near[p.NetworkId]) * 2 > stayed.Count,
+            "most did not run away: " + string.Join(", ", stayed.Select(p => $"{p.NetworkId} {near[p.NetworkId]:0.#}→{Dist(p):0.#}")));
+        Assert.True(stayed.Average(p => Dist(p) - near[p.NetworkId]) > 10f, "the rest did not run away from the blast");
+    }
+
     [Fact]
     public void K7_AHitPedestrian_IsGivenUp_AndTheHitReachesTheCivilianHeBecomes()
     {

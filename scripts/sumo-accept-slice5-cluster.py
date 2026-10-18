@@ -104,17 +104,30 @@ while time.time() - t4 < 60 and not sim_cars:
 def dist(n):
     q = (comps(SIM, n).get("SimTransform") or {}).get("Position")
     return ((q[0] - spot[0]) ** 2 + (q[1] - spot[1]) ** 2) ** 0.5 if q else 1e9
-target = min(sim_cars, key=dist) if sim_cars else None   # the car nearest our riflemen: every node holds its replica
-if target:
-    tp = (comps(SIM, target).get("SimTransform") or {}).get("Position")
+def pos(n): return (comps(SIM, n).get("SimTransform") or {}).get("Position")
+def slowest(ns):   # ⭐ an M67 kills within ~5 m: a car moving 10 m/s leaves that between the read and the burst (📌 2026-10-18, car 1518
+    #   missed at 85 m from our men — nothing reached the traffic node). Two reads 1 s apart; the slowest (stopped at a light) is the target.
+    a = {n: pos(n) for n in ns}; time.sleep(1); b = {n: pos(n) for n in ns}
+    v = {n: ((b[n][0] - a[n][0]) ** 2 + (b[n][1] - a[n][1]) ** 2) ** 0.5 for n in ns if a.get(n) and b.get(n)}
+    return min(v, key=lambda n: (v[n], dist(n))) if v else None
+target, ours_car, b, tp, attempt = None, None, None, None, 0
+for attempt in range(3):   # a burst that missed a moving car is retried at a fresh (slowest) car, up to three times
+    cands = [n for n in sumo(SIM) if tkb(SIM, n) not in CIVILIANS] or sim_cars
+    target = slowest(cands) if cands else None
+    if not target: break
+    tp = pos(target)
+    if tp is None: continue   # it left the vicinity between the reads (📌 2026-10-18: a None pose crashed the check)
     b = call(SIM, "POST", "/entities/command", {"eventType": "DetonationNotification",
              "payload": {"HitX": tp[0], "HitY": tp[1], "HitZ": tp[2] + 0.5, "Ammo": 6001, "IsRemote": False}})
-    check("an M67 burst published at a SUMO car (SimHost)", (b or {}).get("ok"), {"car": target, "at": tp, "error": (b or {}).get("error")})
-    ours_car, t2 = None, time.time()
-    while time.time() - t2 < 60 and ours_car is None:
+    print(f"burst {attempt + 1} at car {target} {tp}: {(b or {}).get('ok')}", flush=True)
+    t2 = time.time()
+    while time.time() - t2 < 25 and ours_car is None:
         time.sleep(3)
         e = comps(CGF, target)
         if e and "TrafficCar" not in e and "SimTransform" in e: ours_car = e
+    if ours_car: break
+if target:
+    check("an M67 burst published at a SUMO car (SimHost)", (b or {}).get("ok"), {"car": target, "at": tp, "attempts": attempt + 1, "error": (b or {}).get("error")})
     check("the hit car left SUMO as OUR car on CGF, same id (K7)", ours_car,
           {"id": target, "type": (ours_car or {}).get("TkbIdentity"), "owner": (ours_car or {}).get("NetworkAuthority"),
            "health": (ours_car or {}).get("Health")})

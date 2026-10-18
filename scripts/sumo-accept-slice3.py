@@ -56,46 +56,38 @@ while time.time() - t_wait < 120 and not cars(): time.sleep(2)   # a cluster's t
 if len(cars()) < 12 and rifle and cars():
     p, _ = tf(cars()[0])
     if p: call("POST", "/entities/spawn", {"tkbType": rifle, "transform": {"position": {"x": p[0] + 8, "y": p[1] + 8, "z": 0}}}); time.sleep(8)
-outcomes = []
+# ⭐ CE-4025 — our vehicle goes ON a lane by construction: where a moving SUMO car is right now (80 m "ahead along its heading" lands
+#   off a curving street, where SumoSharp rightly makes it a crowd disc, not a lane obstacle — measured on the cluster, 2026-10-18).
+#   Then every car that comes up BEHIND it in that lane is judged: it stops, or changes lane before it; driving through it in its own
+#   lane is the only failure.
+def rel(q, at, fx, fy): return (q[0] - at[0]) * fx + (q[1] - at[1]) * fy, abs((q[0] - at[0]) * fy - (q[1] - at[1]) * fx)
+outcomes, judged = [], []
 for nid in cars()[:24]:
     p0, q = tf(nid); time.sleep(1.0); p1, q1 = tf(nid)
-    if not (p0 and p1 and q1) or math.dist(p0[:2], p1[:2]) < 3.0: continue      # moving cars only
-    h = yaw(q1); fx, fy = math.cos(h), math.sin(h)
-    at = (p1[0] + 80 * fx, p1[1] + 80 * fy)
+    if not (p0 and p1 and q1) or math.dist(p0[:2], p1[:2]) < 3.0: continue      # a moving car: its spot is a lane, its heading the lane's
+    h = math.atan2(p1[1] - p0[1], p1[0] - p0[0]); fx, fy = math.cos(h), math.sin(h)
+    at = (p1[0], p1[1])
     s = call("POST", "/entities/spawn", {"tkbType": tkb, "transform": {"position": {"x": at[0], "y": at[1], "z": 0},
              "rotation": {"x": 0, "y": 0, "z": math.sin(h / 2), "w": math.cos(h / 2)}}})
-    # ⭐ CE-4025 — TRACK it for 30 s (one sample at 20 s cannot tell "stopped in a queue" from "not braking"): the closest it came,
-    #   whether it ever passed our vehicle, its slowest speed, and any car between it and our vehicle at the end.
-    track, last = [], None
-    for _ in range(30):
+    tracks = {}
+    for _ in range(40):
         time.sleep(1.0)
-        p2, _ = tf(nid)
-        if not p2: break
-        along = (p2[0] - at[0]) * fx + (p2[1] - at[1]) * fy
-        lat = abs((p2[0] - p1[0]) * fy - (p2[1] - p1[1]) * fx)
-        speed = math.dist(p2[:2], last[:2]) if last else None
-        track.append((round(along, 1), round(lat, 1), None if speed is None else round(speed, 2)))
-        last = p2
-    if not track: outcomes.append((nid, "gone (left the vicinity)")); continue
-    along, lat = track[-1][0], track[-1][1]
-    passed = any(t[0] > 2.0 for t in track)
-    slowest = min((t[2] for t in track if t[2] is not None), default=None)
-    between = []
-    for other in cars():
-        if other == nid: continue
-        q, _ = tf(other)
-        if not q: continue
-        oa = (q[0] - at[0]) * fx + (q[1] - at[1]) * fy
-        ol = abs((q[0] - p1[0]) * fy - (q[1] - p1[1]) * fx)
-        if ol < 2.0 and along < oa < 0: between.append((other, round(oa, 1)))
-    outcomes.append((nid, f"lat {lat:.1f} m, along {along:.1f} m, passed {passed}, slowest {slowest} m/s, cars between {between}, "
-                          f"spawn ok {(s or {}).get('ok')}"[:300]))
-    json.dump(track, open(os.path.join(OUT, f"slice3-track-{nid}.json"), "w"))
-    if lat < 2.0:
-        check(f"SUMO car {nid} stops behind our vehicle (never passes it, comes to rest)",
-              not passed and slowest is not None and slowest < 0.5, outcomes[-1][1])
-        break
-check("a car stayed in its lane to judge (else inconclusive)", any("lat" in o[1] and float(o[1].split()[1]) < 2.0 for o in outcomes), outcomes)
+        for other in cars():
+            if other == nid: continue
+            qq, _ = tf(other)
+            if qq: tracks.setdefault(other, []).append(rel(qq, at, fx, fy))
+    for other, tr in tracks.items():
+        if not any(-80.0 <= a <= -5.0 and l < 1.5 for a, l in tr): continue        # never came up behind it in its lane
+        through = any(a > 2.0 and l < 1.2 for a, l in tr)
+        changed = any(a <= 0.0 and l >= 1.5 for a, l in tr)
+        stopped = any(-30.0 <= a <= -3.0 and l < 1.5 for a, l in tr[-5:]) and len(tr) >= 2 and abs(tr[-1][0] - tr[-2][0]) < 0.5
+        judged.append((other, "drove through" if through else "changed lane" if changed else "stopped behind" if stopped else "approaching"))
+    outcomes.append((nid, f"truck on its spot {at[0]:.0f},{at[1]:.0f}; behind it: {judged}; spawn ok {(s or {}).get('ok')}"[:300]))
+    if judged: break
+if judged:
+    check("SUMO cars respect our vehicle on their lane (stop behind it or change lane — none drives through it)",
+          not any(v == "drove through" for _, v in judged) and any(v in ("stopped behind", "changed lane") for _, v in judged), outcomes[-1][1])
+check("a car came up behind our vehicle to judge (else inconclusive)", bool(judged), outcomes)
 screenshot("after")
 json.dump([{"check": n, "pass": ok, "detail": str(d)} for n, ok, d in results], open(os.path.join(OUT, "slice3-results.json"), "w"), indent=1)
 print(f"\n{sum(ok for _, ok, _ in results)}/{len(results)} passed")

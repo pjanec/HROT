@@ -2,8 +2,8 @@
 
 - repository: https://github.com/pjanec/SumoSharp
 - ref: `hrot/slice2`
-- commit: `17e3cf1a9fafa56f3a9a61136347a45fb83480a1`
-- synced: 2026-10-17
+- commit: `7da452be85dc6e4ff0be4c97c2c6cb549a4a6da4`
+- synced: 2026-10-18
 - projects: Sim.Core Sim.Ingest Sim.Replication Sim.Replication.Dds Sim.Pedestrians Sim.LiveCity Sim.Evac Sim.Viewer.Motion Sim.Host Sim.Scene (+ src/Shared packaging/SumoSharp)
 
 ⛔ Do not edit these files in HROT. Change SumoSharp upstream, then run `scripts/sync-sumosharp.sh <ref>`;

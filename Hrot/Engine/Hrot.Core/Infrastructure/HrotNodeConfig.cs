@@ -9,6 +9,27 @@ namespace Hrot.Common.Infrastructure;
 /// </summary>
 public sealed class HrotNodeConfig
 {
+    /// <summary>
+    /// ⭐ CE-4013 D13 — THE node config every networked host starts from: its domain, node id, role token and DDS participant, its staging
+    /// under <c>&lt;staging&gt;/nodes/node-&lt;id&gt;</c> (<see cref="OrchestrationConstants.GetNodeStagingRoot(string, int)"/> — where the
+    /// orchestrator writes each node's scenarios and TKB, <c>docs/DESIGN_Artifact_Staging.md</c> V1) and its logs beside the binaries.
+    /// 📐 Five hosts built it inline and differed: IG and the Stride node took the BARE staging root (in a co-located run they read
+    /// where nothing is written for them). A host sets only what is genuinely its own afterwards (a geo transform, a skipped routing wait).
+    /// </summary>
+    /// <param name="stagingRoot">The staging root, when the host was given one; null/empty ⇒ <see cref="OrchestrationConstants.ResolveStagingRoot"/>.</param>
+    public static HrotNodeConfig ForNode(int domainId, int nodeId, string subsystemName, DdsParticipant? participant, string? stagingRoot = null)
+        => new()
+        {
+            DomainId            = domainId,
+            NodeId              = nodeId,
+            SubsystemName       = subsystemName,
+            Headless            = false,   // a networked host always has its participant; Headless here is not the window
+            ExternalParticipant = participant,
+            LocalTempRoot       = OrchestrationConstants.GetNodeStagingRoot(
+                                      string.IsNullOrEmpty(stagingRoot) ? OrchestrationConstants.ResolveStagingRoot() : stagingRoot, nodeId),
+            LogDirectory        = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
+        };
+
     /// <summary>CycloneDDS domain ID.</summary>
     public int DomainId { get; set; }
 

@@ -673,9 +673,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
         int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
-        string baseTempRoot = OrchestrationConstants.ResolveStagingRoot();
-        string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
-        string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
+        string isolatedTempRoot = OrchestrationConstants.GetNodeStagingRoot(cgfNodeId);   // ⭐ CE-4013 D13 — the same root ForNode gives the config
         // ⭐⭐⭐ THE NODE-BOOT HEAD IS A DECLARED PLAN (§4.1T) — the first INLINE ECS root to take one.
         //
         // The statements below are UNCHANGED and in the SAME ORDER; what is new is that each region
@@ -715,19 +713,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 run: v =>
             {
         var shellParticipant = v.Get<CycloneDDS.Runtime.DdsParticipant>("participant");
-        var nodeConfig = new HrotNodeConfig
-        {
-            DomainId            = config.DomainId,
-            NodeId              = cgfNodeId,
-            // CgfSubsystem always creates a DDS participant — Headless here controls only
-            // the Raylib/ImGui window (UI), not the network layer.
-            // This mirrors SimHostApp which also hardcodes Headless = false for HrotNodeConfig.
-            Headless            = false,
-            ExternalParticipant = shellParticipant,
-            LocalTempRoot       = isolatedTempRoot,
-            LogDirectory        = resolvedLogDir,
-            SubsystemName       = "CGF",
-        };
+        // ⭐ CE-4013 D13 — the one node config (Headless controls only the window here, never the network)
+        var nodeConfig = HrotNodeConfig.ForNode(config.DomainId, cgfNodeId, "CGF", shellParticipant);
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", DefaultRole)
             .WithNetworkFactory(_networkFactory)
@@ -1748,47 +1735,43 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
-        _context?.SlaveTranslator?.Tick();
-        _context?.ClusterSlave.Tick();
-        _clusterTimeAdapter?.Update();
+        // ⭐ CE-4013 D7 — the one node frame: translator, slave, [this host's pre-kernel work], kernel, [post], swap.
+        if (_context is null) return;
+        _context.Tick(
+            beforeKernel: () =>
+            {
+                _clusterTimeAdapter?.Update();
 
-        // ⭐⭐ CE-046 — pump the shared scenario session: it drains ClusterStateUpdateEvent and advances
-        //    the deferred edit-open state machine. ⚠ MUST run after ClusterSlave.Tick (which is what
-        //    publishes the state updates) and BEFORE the EventBus.SwapBuffers() at the end of this
-        //    method, or the events it needs are gone.
-        _scenarioSession?.Update();
+                // ⭐⭐ CE-046 — pump the shared scenario session: it drains ClusterStateUpdateEvent and advances the deferred edit-open
+                //    state machine. ⚠ MUST run after ClusterSlave.Tick (which publishes the state updates) and before the swap (the
+                //    Tick's order guarantees both), or the events it needs are gone.
+                _scenarioSession?.Update();
 
-        // ⭐⭐⭐ Slice 4 (DQ30) — fold the cluster's mode decision and apply DQ30-E's unanswered-freeze
-        //    rule. Runs alongside _clusterTimeAdapter.Update() and reads the same non-destructive
-        //    buffer; the two are different roles (toolbar transport vs breakpoint freeze), not a
-        //    duplicate — see the controller's class remarks.
-        _debugTimeController?.ObserveClusterTime();
+                // ⭐⭐⭐ Slice 4 (DQ30) — fold the cluster's mode decision and apply DQ30-E's unanswered-freeze rule. Reads the same
+                //    non-destructive buffer as _clusterTimeAdapter; different roles (toolbar transport vs breakpoint freeze).
+                _debugTimeController?.ObserveClusterTime();
 
-        // Evict transient primitives and advance persistence clock before backend population.
-        _cgfGizmoBuffer?.EndFrame(deltaTime);
+                // Evict transient primitives and advance persistence clock before backend population.
+                _cgfGizmoBuffer?.EndFrame(deltaTime);
 
-        // Use the no-args kernel update so the SlaveSyncController measures the real
-        // wall-clock delta between frames.  The legacy Update(float) path would receive
-        // dt=0 from the SubsystemOrchestrator in headless mode, zeroing out every
-        // DeltaTime-dependent system (e.g. ThreatEvaluationSystem boost/decay).
-        // ⭐⭐⭐ Slice 4 §3b — the step actuator brackets EXACTLY ONE kernel update. ⛔ A re-enable that
-        //    outlived this bracket would be a silent resume the operator reads as "one step".
-        _debugTimeController?.BeginFrame();
-        _context?.Kernel.Update();
-        _debugTimeController?.EndFrame();
+                // ⭐⭐⭐ Slice 4 §3b — the step actuator brackets EXACTLY ONE kernel update: BeginFrame is the last thing before it,
+                //    EndFrame the first after. ⛔ A re-enable that outlived this bracket would be a silent resume read as "one step".
+                //    (The kernel runs its no-args update: the SlaveSyncController measures the real wall-clock delta.)
+                _debugTimeController?.BeginFrame();
+            },
+            afterKernel: () =>
+            {
+                _debugTimeController?.EndFrame();
 
-        // ⭐⭐ CE-3004 — resolve mission commits, as EditorSubsystem does each frame. ⛔ Without it every
-        //    CommitMissionAsync/SendControlCommandAsync on this host stayed pending forever: the plan was
-        //    applied (MissionControlExecutionSystem, CgfLogicPack) and its MissionControlAckEvent published,
-        //    but nothing read it — so the Mission panel's commit never completed and `/missions/*` timed out.
-        _missionService?.PollAcks();
+                // ⭐⭐ CE-3004 — resolve mission commits, as EditorSubsystem does each frame (else every commit stays pending forever).
+                _missionService?.PollAcks();
 
-        if (!_headless && _context != null)
-        {
-            _fdpFrameCount++;
-            _canvas?.Update(deltaTime);
-        }
-        _context?.EventBus.SwapBuffers();
+                if (!_headless)
+                {
+                    _fdpFrameCount++;
+                    _canvas?.Update(deltaTime);
+                }
+            });
     }
 
     /// <inheritdoc/>

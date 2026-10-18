@@ -95,11 +95,22 @@ public sealed class TrafficSession : IDisposable
     /// <summary>Pedestrians given up so far (<see cref="Convert"/>), against <see cref="TrafficDemand.ConversionCap"/> (K6).</summary>
     public int Converted { get; private set; }
 
+    /// <summary>Pedestrians the cap left in SUMO that were sent fleeing (<see cref="Convert"/>, AQ93 §8 P7's second half, CE-4027).</summary>
+    public int Fled { get; private set; }
+
+    /// <summary>How far from the incident a fleeing pedestrian runs, at least (SumoSharp H16 picks a walkable point beyond it).</summary>
+    public const double FleeMinDistance = 80.0;
+
+    /// <summary>A fleeing pedestrian runs at this multiple of his normal walking speed (H16: of his NORMAL speed, never compounded).</summary>
+    public const double FleeSpeedFactor = 2.0;
+
     private readonly List<string> _near = new();
 
     /// <summary>⭐ AQ93 §15 K4/K5/K6 — removes from SUMO the pedestrians within <paramref name="incident"/>'s radius (H14 S1: each
     /// Despawn rides the wire at once, so every mirror drops it) while under the cap, and APPENDS what each was to
-    /// <paramref name="into"/>. ⛔ Stepping thread, between steps.</summary>
+    /// <paramref name="into"/>. ⭐ Above the cap (§8 P7, CE-4027) the rest stay SUMO's and FLEE there (H16 <c>FleePedestrian</c>: a new
+    /// running leg away from the incident, same id — on the wire only as a new leg and a promotion); one already fleeing is left on his
+    /// way, so a burst of shots does not re-route him every shot. ⛔ Stepping thread, between steps.</summary>
     /// <returns>How many were given up.</returns>
     public int Convert(in TrafficIncident incident, List<TrafficConversion> into)
     {
@@ -107,14 +118,18 @@ public sealed class TrafficSession : IDisposable
         {
             if (_disposed) return 0;
             int cap = Key.Demand.ConversionCap, n = 0;
-            if (Converted >= cap || _sim.PedestriansWithin(incident.NetX, incident.NetY, incident.Radius, _near) == 0) return 0;
+            if (_sim.PedestriansWithin(incident.NetX, incident.NetY, incident.Radius, _near) == 0) return 0;
             foreach (var name in _near)
             {
-                if (Converted >= cap) break;
-                if (!_sim.RemovePedestrian(name, out var st)) continue;
-                into.Add(new TrafficConversion(name, st.X, st.Y, st.Z, st.Heading, incident.At));
-                Converted++;
-                n++;
+                if (Converted < cap && _sim.RemovePedestrian(name, out var st))
+                {
+                    into.Add(new TrafficConversion(name, st.X, st.Y, st.Z, st.Heading, incident.At));
+                    Converted++;
+                    n++;
+                }
+                else if (Converted >= cap && !_sim.IsPedestrianFleeing(name)
+                         && _sim.FleePedestrian(name, incident.NetX, incident.NetY, FleeMinDistance, FleeSpeedFactor))
+                    Fled++;
             }
             return n;
         }
@@ -232,7 +247,15 @@ public sealed class TrafficSession : IDisposable
                 b.X, b.Y, b.Vx, b.Vy, b.Length, b.Width);
         }
         _sim.SetExternalBodies(_external);
+        // ⭐ CE-4025 — what SUMO MADE of our bodies, logged when it changes: lane obstacles (vehicles on a lane) and crowd discs
+        if (_sim.ExternalBodies is { } feed && (feed.ObstacleCount != _obstacles || feed.DiscCount != _discs))
+        {
+            _obstacles = feed.ObstacleCount; _discs = feed.DiscCount;
+            Fdp.Core.Logging.FdpLog<TrafficSession>.Info("[Traffic] SUMO holds {0} lane obstacles and {1} crowd discs from {2} of our bodies",
+                _obstacles, _discs, bodies.Length);
+        }
     }
+    private int _obstacles = -1, _discs = -1;
 
     /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
     /// that does not move — the cluster paused — steps nothing.</summary>

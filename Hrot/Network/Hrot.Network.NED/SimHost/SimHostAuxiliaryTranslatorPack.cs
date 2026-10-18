@@ -99,6 +99,10 @@ public static class SimHostAuxiliaryTranslatorPack
         //   HealthApplicationSystem is authority-gated, and the traffic node owns no one's health but its replicas'.
         if (role.HasFlag(NodeRole.Traffic) && !role.HasFlag(NodeRole.Brain))
             translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
+        // ⭐ … and SENDS one: the hit it held for a converted agent is re-published to our new entity as its own, and must reach that
+        //   entity's brain owner. 📌 Measured 2026-10-18: Muscle-only, so a converted car stood on CGF at 300/300 after an 863-damage hit.
+        if (role.HasFlag(NodeRole.Traffic) && !role.HasFlag(NodeRole.MuscleGround))
+            translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
         if (role.HasFlag(NodeRole.MuscleGround))
