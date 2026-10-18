@@ -298,7 +298,7 @@ Everything else that design ruled (the room drill, entry, sectors, reports, arre
 ```mermaid
 stateDiagram-v2
   direction LR
-  state "TASK: UrbanMovement (mission phases = route legs)" as Move
+  state "TASK: UrbanMovement (route legs in params)" as Move
   state "REACTION: ReactToFireFromBuilding" as React
   state "decide (platoon, on the reports)" as Decide
   state "AttackBuilding phases" as Attack
@@ -320,7 +320,7 @@ So the platoon's resumed task re-issues the legs to the squads from where they n
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **DA-17** | the town movement | a platoon task **`UrbanMovement`**: the route as mission legs; one squad leads in travelling overwatch, one bounds behind it, one is the reserve; each squad marches in a file along the building lines, each man given a **watch sector** (front, left windows, right windows, rear, upper storeys) by his place in the file (§13); intersections and open stretches go through the existing danger-area drill | one big "patrol" behaviour holding every reaction: the user's own SOP ruling (Decision Layer §4) forbids embedding reactions in tasks |
+| **DA-17** | the town movement | a platoon task **`UrbanMovement`**: the route as legs in the play's own params *(not a `MissionPlanQueue` — Command Chain §7b)*; one squad leads in travelling overwatch, one bounds behind it, one is the reserve; each squad marches in a file along the building lines, each man given a **watch sector** (front, left windows, right windows, rear, upper storeys) by his place in the file (§13); intersections and open stretches go through the existing danger-area drill | one big "patrol" behaviour holding every reaction: the user's own SOP ruling (Decision Layer §4) forbids embedding reactions in tasks |
 | **DA-18** | after fire from a building | the platoon SOP decides once from its picture: **clear** when the building is within 50 m of the remaining route, or the task says "secure the route" · **bypass** (suppress + smoke + cross out of its arcs) when it is off the route and the tier is Regular+ · Untrained and Militia always assault it head-on. Then the reaction ends and the task resumes | always clear: a unit would spend the day on every window that fires once · always bypass: leaves an enemy behind the column |
 
 ## 12. Roles in the squad *(✅ approved R-2036 — DA-19)*

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-18
 build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); nothing built
-current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
+current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
@@ -289,6 +289,32 @@ rises one step — doctrine's *"if in doubt, act on the commander's intent"*.
 
 ⚠ CC-2 clarified: the separate event is the **report-requirements** event (`SetReportingEvent`), NOT the behaviour order; it carries
 only the superior's EXTRA requirements (CC-8).
+
+## 7b. Mission plans and sub-behaviours on the subordinate *(⭐ answer, no change to CC-1…CC-11, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"Can it be useful for something on the subordinate entities, meaning the higher level commander sending
+mission plans to the subordinate? What about the sub-behaviors, could they be useful in some cases?"*
+
+| the mission plan, measured | code | design |
+|---|---|---|
+| a plan is ≤ 8 behaviours, each advanced by ONE trigger local to the entity running it (timer, under attack, health, finished) | `MissionPlanQueue`, `MissionDirectorSystem`, `MissionTriggerHelper.ResolveTrigger` | Decision Layer §2: *"an ordinary end-user-facing surface"* |
+| only the operator writes plans (editor, ExCon, IG, the wire) | `ScenarioMissionService`, `MissionControlIngressTranslator` | ⛔ searched `docs/` + `.dev/`: no design for an AI-authored plan; tactical-intent DESIGN unifies AI orders and mission tasks into ONE event pipeline instead |
+| an immediate order clears the plan; a reaction pauses its task | `MissionControlExecutionSystem.ClearFor`; `BehaviorOriginRank.Pauses` | Entity Control §2.1 C-4; Decision Layer §4.1 |
+
+⇒ ⭐ **Mission plans stay the OPERATOR's surface, on the TOP commander.** The layering is: the operator gives the platoon a plan
+(Move → Bound → Defend) · each task is a platoon play · the play orders its squads one task at a time (CC-9) · each squad's staff reports
+(CC-8). This works today with no change. ⛔ **A commander does not write its subordinates' plans**: its triggers would be the
+subordinate's own (none can say "when Bravo is set"), so the synchronisation stays in the commander's play where the picture is; and one
+plan slot with two authors (the operator and an AI commander) would overwrite each other.
+
+| sub-behaviours (hosted children, any tier — S5a) | ⭐ where they pay |
+|---|---|
+| a reusable phase shared by plays | `Consolidate` (360 security, LACE, redistribute ammo) after Attack, ClearBuilding and Defend; `BoundingControl` hosted by Approach (Building Clearing §5d) |
+| the class-specific "how" of an abstract order | `Order.Attack` resolves to the squad's attack play, which hosts the fire-team drill |
+| control beside the phases | a parallel `ControlRegion` in the play's HSM (Building Clearing §5d) |
+| ⛔ not for reporting | reporting is the staff's systems (CC-8) |
+
+A hosted child's storage is nested under its host's occurrence (S5b), so it already follows R-2042 (knowledge lives at its scope).
 
 ## 8. Slices and the check
 
