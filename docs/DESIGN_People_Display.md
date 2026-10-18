@@ -80,7 +80,7 @@ classDiagram
   class HandItemLook { <<NEW>> Rifle Pistol Knife Baton Taser Spray Phone Binoculars Stone Grenade Canister Toy }
   class HandItems { <<NEW, pure>> +Of(world, man, tkb) HandItemLook · reads HeldItem, ActiveMount, Appearance, the hands round }
   class StrikeTracker { <<NEW, PostureBlend shape>> 0.45 s swing per strike }
-  class GestureMotion { <<NEW, stateless>> phase = sin(simTime x rate + seed) }
+  class GestureMotion { <<BUILT as GestureClock + GestureArms t, no class>> t = simTime + seed offset, sin(t x rate) }
   class PoliceKit { <<NEW in Outfits + BodySurface>> cap or riot helmet · vest and belt painted }
   class OverheadMarkLayer { <<NEW IMapLayer, 2-D + 3-D>> one small mark per person, above the head }
   class MarkKind { <<NEW>> Insult Warning Order Talk · Fear Anger Pain Alarm · HandsUp }
@@ -157,7 +157,7 @@ graph TD
 *Caption:* every reader is already called each frame on every map host; the yellow boxes are the data that lives only on the brain node (or
 nowhere) — until they exist, the parts that read them draw nothing, and the rest builds now.
 
-## 5. Decisions — leans *(⏳ awaiting the user)*
+## 5. Decisions — leans *(✅ approved `2026-10-18`, `R-1005`)*
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -191,17 +191,24 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 
 | id | what | needs | state |
 |---|---|---|---|
-| `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ⏳ approve → READY |
-| `CE-1170` | U9 — aimed at a person: the line | on the wire today | ⏳ approve → READY |
+| `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ✅ READY |
+| `CE-1170` | U9 — aimed at a person: the line | on the wire today | ✅ READY |
 | `CE-1171` | U10 — the melee swing (fist, baton, knife) | G3 (and G4 for the baton / knife as items) | ⏳ waits G3 |
-| `CE-1172` | U11 — the police look (cap, riot helmet, vest, belt, baton in hand) | ui only (baton in hand from his type until G4) | ⏳ approve → READY |
-| `CE-1173` | U12 — the toy gun drawn orange | ✅ the data; a catalogue toy type is G6 | ⏳ approve → READY |
-| `CE-1174` | U13 — non-lethal weapons (launcher band; taser, spray) | the launcher today; taser / spray G5 | ⏳ approve → partly READY |
-| `CE-1175` | U14 — animated gestures | on the wire today | ⏳ approve → READY |
-| `CE-1176` | U15 — speech marks above the head | the warning today (`Gesture.Warning`); the rest G1 | ⏳ approve → partly READY |
-| `CE-1177` | U16 — mood on the face and the tiny dot | pain today (`Injury`); fear / anger / alarm G2 | ⏳ approve → partly READY |
-| `CE-1178` | U17 — the overhead text line above the head in 3-D | ui only | ⏳ approve → READY |
-| `CE-1179` | U18 — items on the ground (pick-up weapons, laid-down weapon, placed charge) | on the wire today | ⏳ approve → READY |
+| `CE-1172` | U11 — the police look (cap, riot helmet, vest, belt, baton in hand) | ui only (baton in hand from his type until G4) | ✅ READY |
+| `CE-1173` | U12 — the toy gun drawn orange | ✅ the data; a catalogue toy type is G6 | ✅ READY |
+| `CE-1174` | U13 — non-lethal weapons (launcher band; taser, spray) | the launcher today; taser / spray G5 | ✅ partly READY |
+| `CE-1175` | U14 — animated gestures | on the wire today | ✅ BUILT `2026-10-18` (§7a) |
+| `CE-1176` | U15 — speech marks above the head | the warning today (`Gesture.Warning`); the rest G1 | ✅ partly READY |
+| `CE-1177` | U16 — mood on the face and the tiny dot | pain today (`Injury`); fear / anger / alarm G2 | ✅ partly READY |
+| `CE-1178` | U17 — the overhead text line above the head in 3-D | ui only | ✅ BUILT `2026-10-18` (§7a) |
+| `CE-1179` | U18 — items on the ground (pick-up weapons, laid-down weapon, placed charge) | on the wire today | ✅ READY |
+
+### 7a. As built *(`2026-10-18`)*
+
+| item | as built | deviation from §2–§5 |
+|---|---|---|
+| `CE-1178` (U17) | `EffectStateGizmo` writes its line as **row 50 of the entity card** (`EffectStateGizmo.Row`) — the card sits above the body top in 3-D and above the symbol in 2-D (Map 3-D §3.6: *"extra lines — any gizmo, rows 30+"*); a man with no network id (no card) keeps the loose line; ⭐ a person's card point is the top of what is DRAWN (`EntityBodyLayer3D.LabelTop` — the protest sign's board, raised hands), found by the frame rail: the card covered the sign. Rail `CE1178_TheOverheadLine_IsARowOfHisCard_NotTextAtHisFeet` | ⭐ the card, not a new anchored text: the user's U20 (Map 3-D) asked for ONE mechanism for per-entity text in 2-D and 3-D, and the card is it. ⚠ 2-D moves too — the line is now in the card above the symbol, no longer loose under it |
+| `CE-1175` (U14) | `BlockFigure.GestureArms(…, t)` animates on `t` with no state (fist ±25° about the elbow 1.4 Hz · sign ±6 cm 0.8 Hz · hands-up ±8° about the shoulders 0.5 Hz · wave ±30° 1.8 Hz · warning and wind-up still); `t = 0` is the static pose. `EntityBodyLayer3D.GestureClock` = sim time + up to 10 s from his seed (network id, so the same on every node). Rail `CE1175_TheGestures_Move_OnEachMansOwnClock_AndStillReadAsTheGesture` | ⭐ no `GestureMotion` class: a clock function and a parameter carry it (§2 box updated) |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

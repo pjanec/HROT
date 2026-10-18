@@ -171,7 +171,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     _shouldering.Add(e);
                 }
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
-                parts = Gestured(world, e, look.Soldier, carriage, parts);
+                parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
                 if (jumping)
@@ -284,7 +284,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
-                _tops[net] = geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
+                _tops[net] = look.Family == VisualFamily.Person ? LabelTop(parts, size)   // ⭐ CE-1178 — above a raised sign or hands
+                           : geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
             if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
             {
                 ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
@@ -401,14 +402,25 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <c>Gesture</c> (backend B-6, <c>Gestures.Of</c>) over his standing or crouched figure (<see cref="BlockFigure.GestureArms"/>). The
     /// arms already have an owner — and nothing changes — when he is dead, cowering, prone, or carrying / dragging / on a team load.
     /// </summary>
-    public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts)
+    /// <remarks>⭐ CE-1175 (docs/DESIGN_People_Display.md §5 U14) — animated on <see cref="GestureClock"/>: <paramref name="simTime"/> plus
+    /// his seed's offset, so a crowd does not pump its fists in step.</remarks>
+    public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime = 0)
     {
         var gesture = (BlockFigure.ArmGesture)(byte)Fdp.Toolkit.Combat.Gestures.Of(world, e);   // U6-b: the same six, byte for byte
         if (gesture == BlockFigure.ArmGesture.None || carriage.Kind != CarriageKind.Free) return parts;
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
         var stance = LogicalStance.Of(world, e);
         if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
-        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier);
+        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier, GestureClock(world, e, simTime));
+    }
+
+    /// <summary>⭐ CE-1175 (U14) — a man's gesture clock in seconds: sim time plus up to 10 s from his seed (the same on every node).
+    /// Wrapped to an hour so the float keeps its precision.</summary>
+    public static float GestureClock(EntityRepository world, Entity e, double simTime)
+    {
+        long seed = SeedOf(world, e, world.IsComponentTypeRegistered<NetworkIdentity>());
+        double offset = (seed * 0.6180339887498949) % 1.0 * 10.0;
+        return (float)((simTime + offset) % 3600.0);
     }
 
     /// <summary>
@@ -1148,6 +1160,16 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private static readonly Color OtherSelection = new(240, 220, 60, 255);
 
     private readonly Dictionary<long, float> _tops = new();
+
+    /// <summary>⭐ CE-1178 (docs/DESIGN_People_Display.md §7a) — where a figure's card sits: its height, or higher when a drawn part rises
+    /// above it (a protest sign's board, hands up), so the card never covers what he holds up.</summary>
+    public static float LabelTop(KitPart[] parts, Vector3 size)
+    {
+        float top = size.Z;
+        foreach (var p in parts)
+            top = MathF.Max(top, Vector3.Transform(Vector3.Zero, p.BodyTransform(size)).Z + p.Extent.Z * size.Z / 2f);
+        return top;
+    }
 
     /// <summary>⭐ CE-1033 S3 (M13) — the height of the top of an entity's DRAWN body above its position, by network id, from
     /// the last 3-D frame; null when the body was not drawn. The gizmo label overlay lifts the entity's labels to it.</summary>
