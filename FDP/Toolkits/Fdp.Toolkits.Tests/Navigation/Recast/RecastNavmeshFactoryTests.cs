@@ -452,6 +452,47 @@ public sealed class RecastNavmeshFactoryTests
             $"any-layer request: the path must reach the west room — ends at {(m > 0 ? wps[m - 1].Position : default)}");
     }
 
+    /// <summary>
+    /// ⭐ UI-2 (Defend §16 DA-22, <c>CE-2285</c>) — <c>house-3f</c> (shared <c>Recipes/Buildings</c>): a path from the street through
+    /// the front door, up both flights and out of the STAIR HOUSE's door reaches the roof at 6 m. Between storeys it is only on a
+    /// flight; on the roof it leaves the stair house only by its door.
+    /// </summary>
+    [Fact]
+    public void UI2_House3f_APathFromTheFrontDoor_ReachesTheRoof_ThroughTheStairHouse()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var world = TerrainWorldParser.Parse("""
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","template":"house-3f","label":"H3"},"geometry":{"type":"Point","coordinates":[20,20]}}]}
+            """, "range", TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world,
+            ("range/H3/front", TerrainDoorState.Open), ("range/H3/hall", TerrainDoorState.Open), ("range/H3/roof", TerrainDoorState.Open));
+        const uint Inf = (uint)NavLayerMask.Infantry;
+
+        var roof = new Vector3(22, 22, 6);   // the roof's south-west part, outside the stair house
+        var wps = new NavWaypoint[256];
+        int n = nav.PlanPath(new Vector3(24.2f, 12, 0), roof, wps, Inf, open);
+        Assert.True(n >= 2, $"no path to the roof ({n} waypoints)");
+        var last = wps[n - 1].Position;
+        Assert.True(MathF.Abs(last.Z - 6f) < 0.4f && Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(roof.X, roof.Y)) < 0.5f,
+            $"the path must END on the roof at {roof}, not short of it — ends at {last}");
+        for (int i = 0; i < n; i++)
+        {
+            var p = wps[i].Position;
+            bool flight1 = p.X > 27.2f && p.X < 28.8f && p.Y > 20.5f && p.Y < 26.5f;   // x 27.5..28.5, y 21..26, 0 → 3
+            bool flight2 = p.X > 28.5f && p.X < 30.1f && p.Y > 23.5f && p.Y < 27.5f;   // x 28.8..29.8, y 27..24, 3 → 6
+            if ((p.Z > 0.4f && p.Z < 2.6f) || (p.Z > 3.4f && p.Z < 5.6f))
+                Assert.True(flight1 || flight2, $"waypoint {i} {p} is between storeys off the flights");
+            // on the roof, crossing the stair house's south wall (y 22, x 27..30) only at its door (x 27.5..28.4)
+            if (p.Z > 5.6f && MathF.Abs(p.Y - 22f) < 0.15f && p.X > 27f && p.X < 30f)
+                Assert.True(p.X > 27.3f && p.X < 28.6f, $"waypoint {i} {p} leaves the stair house outside its door");
+        }
+        Assert.Contains(Enumerable.Range(0, n), i => wps[i].Position.Z > 5.6f && wps[i].Traversal == TraversalKind.Door);
+    }
+
     // ── CE-3111 · CE-1029 · R-218 P2 — the tiled bake (📄 Navigation_Design_v2_0.md §14 "P2 as built") ─────────────────
 
     /// <summary>A world of two rooms, 100 m apart, each with ONE real-width (0.9 m) door in its south wall; <paramref name="eastDoorAt"/>

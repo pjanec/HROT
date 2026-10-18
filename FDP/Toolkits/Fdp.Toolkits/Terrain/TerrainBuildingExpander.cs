@@ -10,7 +10,8 @@ namespace Fdp.Toolkit.Terrain
     /// <summary>
     /// ⭐ Buildings programme Stage 1 — a building TEMPLATE placed by an INSTANCE becomes ordinary primitives at parse
     /// (📄 docs/DESIGN_Building_Interiors.md §3a): each wall a <see cref="TerrainWallPanel"/> expanded into thin prisms
-    /// around its openings, each upper storey a floor slab, each stair a ramp, the roof a slab. 🔒 <i>"Solid building is
+    /// around its openings, each upper storey a floor slab, each stair a ramp, the roof a slab (⭐ UI-2: or rings — a roof storey's
+    /// stair-house lid — and a wall may be LOW, a parapet). 🔒 <i>"Solid building is
     /// just special case of a generic building"</i> — <c>"solid": true</c> yields today's prism.
     /// <para>Template coordinates are LOCAL metres; the instance rotates them by <c>rotation</c> degrees counter-clockwise
     /// (engine yaw: 0 = east, 90 = north) about the template origin, then moves them to <c>position</c>.</para>
@@ -97,7 +98,16 @@ namespace Fdp.Toolkit.Terrain
                         var b = W(ReadPoint(wo["to"], ww + ".to"));
                         float thickness = wo["thickness"] is JsonNode t ? ReadFloat(t, ww + ".thickness") : 0.3f;
                         var material = materials.Get((string?)wo["material"] ?? defaultMaterial, ww);
-                        AddPanel(sink, a, b, thickness, floor, ceiling, material, wo["openings"] as JsonArray, buildingIndex, k,
+                        // ⭐ UI-2 (Defend §16 DA-22) — a LOW wall: "height" below the storey's (the roof's parapet); default full height
+                        float top = ceiling;
+                        if (wo["height"] is JsonNode hn)
+                        {
+                            float h = ReadFloat(hn, ww + ".height");
+                            if (h <= 0f || h > ceiling - floor + 1e-3f)
+                                throw new ArgumentException($"Terrain world {ww}: height {F(h)} must be in (0, storey height {F(ceiling - floor)}].");
+                            top = floor + h;
+                        }
+                        AddPanel(sink, a, b, thickness, floor, top, material, wo["openings"] as JsonArray, buildingIndex, k,
                             at.Label, terrainName, at.DoorOverrides, ww);
                     }
 
@@ -134,13 +144,22 @@ namespace Fdp.Toolkit.Terrain
                     }
             }
 
-            // roof
-            string roof = (string?)template["roof"] ?? "flat";
-            if (roof == "flat")
-                sink.Walkables.Add(TerrainWorldParser.MakeWalkableForExpander(TerrainWalkableKind.Slab,
-                    footprint.Select(p => new Vector3(p.X, p.Y, storeyZ[^1])).ToList(), null, where + ".roof"));
-            else if (roof != "none")
-                throw new ArgumentException($"Terrain world {where}: unknown roof '{roof}' (flat, none).");
+            // roof — "flat" (the footprint), "none", or ⭐ UI-2 (Defend §16 DA-22) RINGS like a storey's floor: the roof storey is then
+            //   a storey of its own (its floor leaves the stairwell open, its walls a stair house and a parapet) and these rings are
+            //   the only lid over it — the stair house's.
+            if (template["roof"] is JsonArray roofRings)
+                foreach (var r in ReadRings(roofRings, where + ".roof"))
+                    sink.Walkables.Add(TerrainWorldParser.MakeWalkableForExpander(TerrainWalkableKind.Slab,
+                        r.Select(p => { var q = W(p); return new Vector3(q.X, q.Y, storeyZ[^1]); }).ToList(), null, where + ".roof"));
+            else
+            {
+                string roof = (string?)template["roof"] ?? "flat";
+                if (roof == "flat")
+                    sink.Walkables.Add(TerrainWorldParser.MakeWalkableForExpander(TerrainWalkableKind.Slab,
+                        footprint.Select(p => new Vector3(p.X, p.Y, storeyZ[^1])).ToList(), null, where + ".roof"));
+                else if (roof != "none")
+                    throw new ArgumentException($"Terrain world {where}: unknown roof '{roof}' (flat, none, or rings).");
+            }
 
             sink.Buildings.Add(new TerrainBuilding
             {

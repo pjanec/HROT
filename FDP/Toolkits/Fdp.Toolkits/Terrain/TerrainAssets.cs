@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Terrain
     /// ⭐ Buildings programme Stage 1 — the side files a terrain world may reference (📄 docs/DESIGN_Building_Interiors.md
     /// §3a, §3c M2): building TEMPLATES (<c>&lt;name&gt;.building.json</c>) and the MATERIAL library.
     /// <para>Lookup, as designed: the terrain's own <c>buildings/</c> folder first, then the shared
+    /// <c>Recipes/Buildings/</c> — ⭐ UI-1: the one beside the terrain's <c>Recipes/Terrain</c> (<see cref="RecipesSibling"/>), then
     /// <c>{app}/Recipes/Buildings/</c>; materials = the shared library (embedded data) overlaid by the terrain folder's own
     /// <c>materials.json</c>.</para>
     /// </summary>
@@ -54,7 +55,7 @@ namespace Fdp.Toolkit.Terrain
                 {
                     if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
                         throw new ArgumentException($"Building template name '{name}' may not contain a path.");
-                    foreach (var dir in new[] { Path.Combine(terrainFolder, BuildingsFolderName), shared })
+                    foreach (var dir in new[] { Path.Combine(terrainFolder, BuildingsFolderName), RecipesSibling(terrainFolder), shared })
                     {
                         var path = Path.Combine(dir, name + TemplateSuffix);
                         if (File.Exists(path)) return File.ReadAllText(path);
@@ -62,6 +63,19 @@ namespace Fdp.Toolkit.Terrain
                     return null;
                 },
             };
+        }
+
+        /// <summary>
+        /// ⭐ UI-1 (platoon demos hand-off) — the shared <c>Buildings</c> folder of the <c>Recipes</c> tree a terrain lives in:
+        /// <c>Recipes/Terrain/&lt;name&gt;/</c> → <c>Recipes/Buildings/</c>. In the build output it IS
+        /// <see cref="DefaultSharedBuildingsRoot"/>; in the SOURCE tree (the editor and the unit suites read it) it is the folder the
+        /// build copies from, so a shipped terrain finds the shared templates wherever it is read from.
+        /// </summary>
+        public static string RecipesSibling(string terrainFolder)
+        {
+            var terrains = Path.GetDirectoryName(Path.GetFullPath(terrainFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var recipes = terrains == null ? null : Path.GetDirectoryName(terrains);
+            return recipes == null ? Path.Combine(terrainFolder, BuildingsFolderName) : Path.Combine(recipes, "Buildings");
         }
 
         /// <summary>The template <paramref name="name"/> as JSON; throws naming <paramref name="where"/> when absent or invalid.</summary>
