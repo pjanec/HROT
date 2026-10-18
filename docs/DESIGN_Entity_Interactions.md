@@ -1151,3 +1151,65 @@ Built to §7.5.1 / §7.5.2; the class diagram holds. What the build settled:
 | put down (T6) | `EmbarkedStateSystem` drops the load (`EjectAll`, on the node owning the list) when the carrier OR the named second man is down or gone; `EjectAll` and a person's `Disembark` drop the link and release him. ⚠ "a weapon left `Stowed`": a carried weapon is already stowed — nothing extra is written | T6 |
 | rails | ⚠ in the person-carrier feature suite (`PersonCarrierTests.TA_*`: the gate, the rear handle as he turns + derived on another node, either man down, the speeds) rather than `EmbarkationTests` / `EmbarkedStateSystemTests` (T-1: the feature's own suite) · `PassengerReplicationTests.TA_TheSecondMan_TravelsWithTheList_HeldUntilHeIsKnown` · `InteractionTransportTests` (the stretcher request's `Assistant` crosses) | §7.5.4 |
 
+
+### 7.6 Custody — search, detain, restrain *(backend, `CE-3256`, behaviors' BR-4 — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Building_Clearing_Interactions.md); Building Clearing CB-19, R-2032; build-state: BUILT 2026-10-19)*
+
+```mermaid
+classDiagram
+  direction LR
+  class CustodyEvent { <<NEW FDP event 5015>> Entity Man · Entity By · CustodyVerb Verb · bool IsRemote }
+  class CustodyVerb { <<NEW>> Search · Detain · Restrain · ReleaseCustody }
+  class Custody { <<NEW FDP component 414, Brain group, dtCustody 148>> Detained · Restrained · Searched · Searching · SearchedBy local · SearchUntil local }
+  class CustodyRules { <<NEW FDP static>> Owns · Ask · IsDetained · IsRestrained · InCustody · Complies · InReach }
+  class CustodySystem { <<NEW, Interactions capability>> applies where the man's list is owned, times the 3 s search }
+  class InteractionCodecs { <<EXISTING, + Custody case 13>> }
+  class Embarkation { <<EXISTING>> Disembark }
+  class CarryStations { <<EXISTING>> IsConcealed }
+  class ThreatDanger { <<EXISTING, grows>> IsOutOfTheFight + detained or restrained }
+  class AimAndFireExecutor { <<EXISTING, grows>> HoldOf: HoldRestrained }
+  CustodyRules ..> CustodyEvent : publishes
+  InteractionCodecs ..> CustodyEvent : carries to the owner
+  CustodySystem ..> CustodyEvent : reads
+  CustodySystem --> Custody
+  CustodySystem ..> CustodyRules : Owns gate
+  CustodySystem ..> Embarkation : Disembark the hidden weapons
+  CustodySystem ..> CarryStations : IsConcealed
+  ThreatDanger ..> Custody
+  AimAndFireExecutor ..> Custody
+```
+*What the picture shows that prose hid:* the three verbs are ONE kind (`Custody`, the `Door` precedent: one kind with a verb), applied by ONE
+system on the node that owns the man's passenger list — the node that can move his hidden weapons — and the result is ONE replicated
+component every node reads.
+
+```mermaid
+sequenceDiagram
+  participant S as soldier's brain (node A)
+  participant W as interaction transport
+  participant O as CustodySystem (the man's list owner, node B)
+  participant R as dtCustody / dtPassengerBuffer (every node)
+  S->>S: CustodyRules.Ask(man, soldier, Search)
+  S->>W: CustodyEvent (man not owned here)
+  W->>O: CustodyEvent IsRemote
+  O->>O: within 1.5 m AND complying (hands up / on head) or restrained? else refused, counted
+  O->>O: Searching = 1, SearchUntil = now + 3 s
+  O->>O: each frame: still in reach and complying? else aborted
+  O->>O: at 3 s: every thing in a CONCEALED station ⇒ Embarkation.Disembark (it lies at his feet, seen)
+  O-->>R: Searched = 1 · the list without the weapon
+  S->>W: CustodyEvent Detain / Restrain
+  O-->>R: Detained / Restrained ⇒ out of the fight everywhere
+```
+
+| id | decision | ⭐ as built | rejected — one line each |
+|---|---|---|---|
+| **CU-1** | the kinds | ⭐ ONE kind `Custody` (13) with a verb — `Door`'s shape (one kind, a verb), one event, one codec, one handler | three kinds (the frame's literal wording): three events and codecs for one applier and one component |
+| **CU-2** | who applies | ⭐ the node owning the man's `dtCustody` (`CustodyRules.Owns` = `HasAuthority(PackKey(148, 0))`, Brain group) — the same node that owns his passenger list, so it can move his hidden weapons; with no network authority (one node) it is always this node. ⛔ **SUPERSEDED as-built (2026-10-19):** the design said `Embarkation.OwnsVehicle` — it requires a `PassengerBuffer`, so a man carrying nothing could never be detained; the descriptor's own key is the same group with no such hole | his position's owner: cannot move his carried things |
+| **CU-3** | the search | ⭐ the OWNER times it (3 s), checks reach (1.5 m) and compliance at the start AND every frame; at the end every concealed carried thing is put down (`Embarkation.Disembark`) — "made visible and laid down": it lies at his feet | a brain-local timer on the searcher: the result hidden in one brain (CB-19's rejected) |
+| **CU-4** | compliance | ⭐ `ThreatDanger.ShowsHandsUp` (behaviors' `CE-2265` widens it to hands-on-head and restrained) OR already restrained | a pose check here: two readers of "complying" |
+| **CU-5** | what detained / restrained mean | ⭐ `ThreatDanger.IsOutOfTheFight` counts either (not a target, not a threat); a RESTRAINED man's fire gate holds (`ActionReason.HoldRestrained` — hands tied); he still walks (the mover ignores it) | restrained ⇒ cannot move: the frame says he walks |
+| **CU-6** | undoing it | ⭐ `ReleaseCustody` clears Detained and Restrained (any origin — the owner applies) | none: a detainee could never be let go |
+
+| rail | |
+|---|---|
+| `CustodyTests` (Toolkits) | a search of a complying man with a hidden pistol puts the pistol down after 3 s, not before; a non-complying man is refused; the searcher walking off aborts it; Detain / Restrain set the flags, out of the fight; a restrained man's fire holds; Release clears |
+| `InteractionTransportTests.CE3256_*` (SimHost) | the Custody case crosses to the man's owner with its verb and arrives marked remote; the owner's own ask is not sent |
+| `BodyPartReplicationTests.CE3256_*` (SimHost) | `Custody` reaches the other node (detained, restrained, searched, searching) and reads in custody there; a release is a new sample; `CustodyDescriptorOrdinal` = `dtCustody` |

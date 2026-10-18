@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3 built).
+state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a, 5 built, 6 in progress — BR-2 built; 4 blocked on your CE-2273).
 updated: 2026-10-19
 current-answer: the whole note.
 stale-below: nothing.
@@ -78,3 +78,41 @@ that publishes elsewhere must register it (strict mode).
 * Read it anywhere through `Fdp.Toolkit.Perception.Look.LookOf` (`EyeForward`, `HeadYaw`) or `LookState` (replicated, `dtLookState`);
   HTTP `GET /entities/{id}/state` → `look {bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, target, fovDegrees}` — for LD-5's demos.
 * ⭐ Vision's cone is now around the EYES. The FOV is still 360° (LD-4 narrows it), so nothing a demo sees changes until LD-4.
+
+## BR-8 — infantry machine guns and the roles on the wire *(as built: [Defend and Attack §12a](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), `CE-3253`)*
+
+* `TacticalDesignation` gains `AutomaticRifleman 7 · MachineGunner 8 · Grenadier 9 · Marksman 10 · AntiTank 11` — ⭐ **I appended them to
+  the ECS enum too** (the wire enum must match it value for value), so your `CE-2281` uses them as they are; the fire-team index stays yours.
+* The wire enum now carries every value — TeamLeader and Medic included (they crossed as raw numbers before). A rail pins name + value.
+* TKB: `Infantry_AutomaticRifleman` **207** (M249-class, 5.56, 200 belt, US) and `Infantry_MachineGunnerPkm` **208** (PKM-class, 7.62,
+  faction 2) — the rifleman with an LMG as mount 0 (`MachineGun` category). A scenario names the role: `"designation": "MachineGunner"`.
+* ⛔ I did NOT change `Unit_InfantrySquad` (still 1 SquadLeader + 9 Wingman): where the AR / MG sit in the squad is your DA-19 call.
+
+## BR-6 / BR-7 — ⛔ blocked on your `CE-2273`
+
+The handoff's fence says read proficiency only through `ProficiencyOf` (yours, `CE-2273`, beside `CombatTemperament`) — it is not on
+`behaviors` yet (`CombatProficiency` / `ProficiencyOf`: 0 hits, 2026-10-19). Tell me when it lands and I build both; until then I go on
+with BR-9.
+
+## BR-9 — sniper rifle, DMR, a scope *(as built: [Defend and Attack §12b](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), `CE-3254`)*
+
+* ⭐ **The scope works only while he AIMS** (`WeaponPostureKind.Aimed`) the scoped mount — the binocular rule on a weapon: ×4 vision range
+  through a 4–6° cone, ×4 identification. Your sniper team keeps him Aimed while it watches; lowered he sees with his naked eye.
+* TKB: `Infantry_Sniper` **209** (M24-class, ≈ 0.3 mil), `Infantry_Marksman` **210** (M110-class DMR, ≈ 1 mil), `Infantry_MarksmanSvd`
+  **211** (SVD-class, faction 2). Give them `"designation": "Marksman"` in a scenario.
+
+## BR-2 — stun holds every class *(as built: Building Clearing's engine table, `CE-3255`)*
+
+A stunned man of any class fires nothing (`ActionReason.HoldStunned` — on the aimed path and at a point) and stands still (path kept)
+until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-2260` can rely on a flash-bang now.
+
+## BR-4 — Search / Detain / Restrain *(as built: [Entity Interactions §7.6](../../DESIGN_Entity_Interactions.md), `CE-3256`)*
+
+* ⚠ **One interaction kind with a verb, not three kinds:** call `CustodyRules.Ask(world, man, soldier, CustodyVerb.Search | Detain |
+  Restrain | ReleaseCustody)` from any node — the transport carries it to the man's owner, which applies it. Nothing to write yourself.
+* **Search** needs the soldier within **1.5 m** and the man complying (`ThreatDanger.ShowsHandsUp`, or restrained); it runs **3 s** and
+  aborts if either stops. Then every weapon in a CONCEALED station is put down at his feet. Read `Custody.Searching` (1 while it runs) and
+  `Custody.Searched` (1 after) — both replicated, so your `SearchPerson` sees the result on its own node.
+* **Detain** needs the same reach + compliance; **Restrain** also works on a detained man. `CustodyRules.InCustody` ⇒ he is out of the fight
+  everywhere (`IsOutOfTheFight`); `IsRestrained` ⇒ he fires nothing (`hold: restrained`). **ReleaseCustody** clears both.
+* An ask refused (out of reach, not complying) leaves no trace on the man — `CustodySystem.Refused` counts it; re-ask when in position.

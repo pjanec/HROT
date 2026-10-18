@@ -585,6 +585,11 @@ namespace Fdp.Toolkit.Combat.Executors
         public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
         {
             long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED shooter of any class fires nothing until the stun ends (before, only
+            //   the civilian code read Effects.IsStunned). First: whatever the target, a dazed man does not shoot.
+            if (Effects.IsStunned(world, unit)) return ActionReason.HoldStunned;
+            // ⭐ CE-3256 (BR-4, CU-5) — nor a man whose hands are tied
+            if (Fdp.Toolkit.Civilians.CustodyRules.IsRestrained(world, unit)) return ActionReason.HoldRestrained;
             // ⭐⭐ CE-2233 (CIV-0, the safety gate; DESIGN_Civilians_And_Crowd_Control CV-8) — the AI never fires at a NEUTRAL, whoever
             //   picked it (a ranking, a squad assignment, an order): the last gate before a round, on both paths. A possessed unit's
             //   fire (OperatorFire) does not come here — a human decides.

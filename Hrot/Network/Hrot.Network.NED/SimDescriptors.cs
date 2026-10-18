@@ -402,6 +402,20 @@ namespace Hrot.NED.Descriptors
     //   EntityGesture: a late joiner must know who has acted, and how gravely.
     // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks, the Muscle → every node (vision on a Perception node, the map's cone, HTTP).
     //   Reliable + TransientLocal + KeepLast 1: a late joiner must know where everyone looks. Sent on change (≥ 1°, ≥ 0.25 m).
+    // ⭐ CE-3256 (BR-4) — a man in custody, his brain's owner → every node. Reliable + TransientLocal + KeepLast 1: a late joiner must know
+    //   who is held.
+    [DdsTopic("EntityCustody")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityCustody
+    {
+        [DdsKey] public long EntityId;
+        public byte Detained;
+        public byte Restrained;
+        public byte Searched;
+        public byte Searching;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

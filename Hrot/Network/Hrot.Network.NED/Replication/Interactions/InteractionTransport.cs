@@ -269,8 +269,19 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = target, By = actor, IsRemote = true });
 
+        /// <summary>⭐ CE-3256 (BR-4, §7.6) — search / detain / restrain / release a man: to the node that owns his <c>dtCustody</c>.</summary>
+        public static readonly IInteractionCodec Custody = new InteractionCodec<Fdp.Toolkit.Civilians.CustodyEvent>(
+            EInteractionKind.Custody,
+            target:      static (in Fdp.Toolkit.Civilians.CustodyEvent e) => e.Man,
+            actor:       static (in Fdp.Toolkit.Civilians.CustodyEvent e) => e.By,
+            isRemote:    static (in Fdp.Toolkit.Civilians.CustodyEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, man) => Fdp.Toolkit.Civilians.CustodyRules.Owns(repo, man),
+            toPayload:   static (in Fdp.Toolkit.Civilians.CustodyEvent e) => new InteractionPayload { Custody = new CustodyInteractionPayload { Verb = (byte)e.Verb } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Civilians.CustodyEvent { Man = target, By = actor, Verb = (Fdp.Toolkit.Civilians.CustodyVerb)p.Custody.Verb, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody };
     }
 
     /// <summary>

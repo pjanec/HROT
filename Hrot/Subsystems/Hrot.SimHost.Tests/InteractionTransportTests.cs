@@ -541,5 +541,53 @@ namespace Hrot.SimHost.Tests
             var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Combat.DetonateChargeEvent>().ToArray());
             Assert.Equal((ownersVest, ownersMan, true), (arrived.Charge, arrived.By, arrived.IsRemote));
         }
+
+        /// <summary>⭐ <c>CE-3256</c> (BR-4, §7.6 CU-2) — a soldier's custody ask about a man whose <c>dtCustody</c> is owned elsewhere crosses
+        /// as the <c>Custody</c> case (target = the man, actor = the soldier, the verb) and arrives on the owner as the same event, marked remote;
+        /// on a node that owns the man nothing is sent (he is applied here). ✅ Red-proof: <c>Custody</c> left out of
+        /// <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3256_ACustodyAsk_CrossesAsItsUnionCase_ToTheMansOwner_WithItsVerb()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();
+                w.RegisterComponent<NetworkAuthority>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsSoldier = brain.CreateEntity();
+            Entity ownersMan = owner.CreateEntity(), ownersSoldier = owner.CreateEntity();
+            brainMap.Register(820L, brainsMan); brainMap.Register(821L, brainsSoldier);
+            ownerMap.Register(820L, ownersMan); ownerMap.Register(821L, ownersSoldier);
+            brain.AddComponent(brainsMan, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // the man is node 2's
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            Assert.True(Fdp.Toolkit.Civilians.CustodyRules.Ask(brain, brainsMan, brainsSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Restrain));
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.Custody, 820L, 821L, (byte)Fdp.Toolkit.Civilians.CustodyVerb.Restrain),
+                         (sent.Payload.Kind, sent.TargetId, sent.ActorId, sent.Payload.Custody.Verb));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Civilians.CustodyEvent>().ToArray());
+            Assert.Equal((ownersMan, ownersSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Restrain, true), (arrived.Man, arrived.By, arrived.Verb, arrived.IsRemote));
+
+            // the owner's own ask is applied where it is raised: nothing goes out
+            var ownersWriter = new CapturingWriter<EntityInteractionRequest>();
+            Fdp.Toolkit.Civilians.CustodyRules.Ask(owner, ownersMan, ownersSoldier, Fdp.Toolkit.Civilians.CustodyVerb.Detain);
+            owner.Bus.SwapBuffers();
+            new InteractionEgressTranslator(ownersWriter, ownerMap).ScanAndPublish(owner);
+            Assert.Empty(ownersWriter.Written);
+        }
     }
 }

@@ -66,6 +66,12 @@ namespace Fdp.Toolkit.Perception.Sensors
                 range *= Fdp.Toolkit.Combat.HeldItems.BinocularsRangeFactor;
                 fovCos = MathF.Max(fovCos, MathF.Cos(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees * 0.5f * MathF.PI / 180f));
             }
+            // ⭐ CE-3254 (BR-9, DA-13) — a scoped weapon aimed: the same rule through the scope
+            else if (Fdp.Toolkit.Combat.HeldItems.ScopeUp(view, unit, out float magnification, out float scopeFov))
+            {
+                range *= magnification;
+                fovCos = MathF.Max(fovCos, MathF.Cos(scopeFov * 0.5f * MathF.PI / 180f));
+            }
             return true;
         }
 

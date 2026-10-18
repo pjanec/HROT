@@ -113,6 +113,45 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(1.5f, bradley.GetDescriptor<WeaponSuiteDto>()!.Mounts[1].AimSeconds);   // the TOW's lay
         }
 
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — the two infantry machine gunners carry an LMG as their own mount 0: a MachineGun-category,
+        /// belt-fed gun on the M249 / PKM ammunition, a person's body, on their sides. ✅ Red-proof: the M249 back to SmallArms ⇒ red.</summary>
+        [Fact]
+        public void CE3253_TheInfantryMachineGunners_CarryAnLmg()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, ammo, belt, faction, country) in new[]
+                     {
+                         (TkbEntityTypes.Infantry_AutomaticRifleman, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, 200, (byte)1, NedTkbCatalog.UnitedStates),
+                         (TkbEntityTypes.Infantry_MachineGunnerPkm, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, 100, (byte)2, NedTkbCatalog.Russia),
+                     })
+            {
+                var t = db.GetByType(type)!;
+                var lmg = t.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+                Assert.Equal((WeaponCategory.MachineGun, ammo, belt), (lmg.Category, lmg.AmmoGuid, lmg.MagazineSize));
+                Assert.Equal(CarKinem.Core.VehicleClass.Pedestrian, t.GetDescriptor<VehicleParametersDto>()!.VehicleClass);
+                Assert.Equal(country, t.DisType.Country);
+                Assert.NotNull(t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.InjuryDefDto>());
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13) — the sniper and the marksmen carry a scoped rifle as mount 0: the design's ≈ 0.3 mil sniper
+        /// and ≈ 1 mil DMR spread, a ×4 scope, on their sides. ✅ Red-proof: the M24's scope dropped from the builder's mapping ⇒ red.</summary>
+        [Fact]
+        public void CE3254_TheSniperAndTheMarksmen_CarryAScopedRifle()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, mils, fov, faction) in new[]
+                     {
+                         (TkbEntityTypes.Infantry_Sniper, 0.3f, 4f, (byte)1),
+                         (TkbEntityTypes.Infantry_Marksman, 1f, 6f, (byte)1),
+                         (TkbEntityTypes.Infantry_MarksmanSvd, 1f, 6f, (byte)2),
+                     })
+            {
+                var rifle = db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+                Assert.Equal((mils, 4f, fov, WeaponCategory.SmallArms), (rifle.DispersionMils, rifle.ScopeMagnification, rifle.ScopeFovDegrees, rifle.Category));
+            }
+        }
+
         [Fact]
         public void Stage0_Rifleman_HealthGeneratedFromBodyArmour_DamageExplicit()
         {

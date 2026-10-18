@@ -65,8 +65,32 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Are <paramref name="man"/>'s binoculars up?</summary>
         public static bool BinocularsUp(ISimulationView view, Entity man) => Of(view, man) == HeldItemKind.Binoculars;
 
-        /// <summary>HI-4 — <paramref name="observer"/>'s identification optics: <see cref="BinocularsOptics"/> while his binoculars are up, else 1.</summary>
-        public static float IdentificationOptics(ISimulationView view, Entity observer) => BinocularsUp(view, observer) ? BinocularsOptics : 1f;
+        /// <summary>HI-4 — <paramref name="observer"/>'s identification optics: <see cref="BinocularsOptics"/> while his binoculars are up;
+        /// ⭐ <c>CE-3254</c> (BR-9) his scope's magnification while he aims a scoped weapon; else 1.</summary>
+        public static float IdentificationOptics(ISimulationView view, Entity observer)
+            => BinocularsUp(view, observer) ? BinocularsOptics : ScopeUp(view, observer, out float magnification, out _) ? magnification : 1f;
+
+        /// <summary>⭐ <c>CE-3254</c> — a scope's field of view when its mount does not state one (degrees).</summary>
+        public const float ScopeFallbackFovDegrees = 6f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3254</c> (BR-9, DA-13) — is <paramref name="man"/> looking through a SCOPE: AIMED (<see cref="WeaponPostureKind.Aimed"/>) with
+        /// an own mount (<see cref="WeaponPosture.ActiveMount"/> &lt; 32) whose <see cref="WeaponMountDto.ScopeMagnification"/> &gt; 1 — the binocular
+        /// rule on a weapon: <paramref name="magnification"/> and <paramref name="fovDegrees"/> are what <c>VisualPerception.Optics</c> and the
+        /// identification read. Lowered (Ready, Idle) he looks with his naked eye.
+        /// </summary>
+        public static bool ScopeUp(ISimulationView view, Entity man, out float magnification, out float fovDegrees)
+        {
+            magnification = 1f; fovDegrees = 0f;
+            if (view is not EntityRepository world || !world.IsComponentTypeRegistered<WeaponPosture>()
+                || !world.IsAlive(man) || !world.HasComponent<WeaponPosture>(man)) return false;
+            ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(man);
+            if (posture.Kind != WeaponPostureKind.Aimed || posture.ActiveMount >= 32) return false;
+            if (CombatTkb.MountOf(world, man, posture.ActiveMount) is not { ScopeMagnification: > 1f } mount) return false;
+            magnification = mount.ScopeMagnification;
+            fovDegrees = mount.ScopeFovDegrees > 0f ? mount.ScopeFovDegrees : ScopeFallbackFovDegrees;
+            return true;
+        }
 
         /// <summary>
         /// HI-5 — the pocket item <paramref name="man"/> shows in his hand, as an item an observer judges (a small non-lethal object); false

@@ -31,6 +31,9 @@ namespace Hrot.NED.Messages
         Restation       = 11,
         // ⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off (target = the charge, actor = who; applied by its position owner).
         DetonateCharge  = 12,
+        // ⭐ CE-3256 (BR-4, Building Clearing CB-19; docs/DESIGN_Entity_Interactions.md §7.6) — search / detain / restrain / release a man (target =
+        //   the man, actor = the soldier; applied by the node that owns his dtCustody).
+        Custody         = 13,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -166,6 +169,15 @@ namespace Hrot.NED.Messages
         public byte Reserved;
     }
 
+    /// <summary>⭐ CE-3256 — the <see cref="EInteractionKind.Custody"/> case (target = the man, actor = the soldier): the verb.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct CustodyInteractionPayload
+    {
+        /// <summary><c>Fdp.Toolkit.Civilians.CustodyVerb</c>.</summary>
+        public byte Verb;
+    }
+
     /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -236,6 +248,9 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.DetonateCharge)]
         public DetonateChargeInteractionPayload DetonateCharge;   // ⭐ CE-3233 (B-11b)
+
+        [DdsCase(EInteractionKind.Custody)]
+        public CustodyInteractionPayload Custody;   // ⭐ CE-3256 (BR-4)
     }
 
     /// <summary>

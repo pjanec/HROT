@@ -1106,6 +1106,24 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(ShotsIn(shooter2, ref ch2, 60) > 0);
         }
 
+        /// <summary>⭐ <c>CE-3255</c> (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED shooter of any class (here a plain soldier, not a
+        /// civilian) with his target in sight fires nothing (<c>HoldStunned</c>) until the stun ends, then fires. ✅ Red-proof: drop the stun
+        /// check in <c>HoldOf</c> ⇒ he fires while stunned.</summary>
+        [Fact]
+        public void CE3255_AStunnedSoldier_FiresNothing_UntilTheStunEnds()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) _world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+            var (shooter, ch, enemy) = TypedShooter(rifle, range: 50f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = Fdp.Toolkit.Combat.HitModel.Now(_world) + 1000.0 });
+
+            Assert.Equal(0, ShotsIn(shooter, ref ch, 60));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldStunned, AimAndFireExecutor.HoldOf(_world, shooter, enemy, rifle, 0));
+
+            _world.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(shooter).StunnedUntil = 0.0;   // the stun ends
+            Assert.True(ShotsIn(shooter, ref ch, 60) > 0);
+        }
+
         /// <summary>⭐ <c>CV-13a</c> (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a HOSTILE showing HANDS UP is held like a
         /// neutral: no round (<c>HoldSurrender</c>) and no danger, his side unchanged; the moment his hands come down (a feint) he is
         /// fired at again and his danger is back. Any other gesture holds nothing.</summary>

@@ -81,6 +81,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((TacticalDesignation)3, intent.Designation);
         }
 
+        /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — a scenario names a squad role by name: "MachineGunner" reaches the subordinate's intent
+        /// as that role (a scenario squad with an MG gunner).</summary>
+        [Theory]
+        [InlineData("AutomaticRifleman", TacticalDesignation.AutomaticRifleman)]
+        [InlineData("MachineGunner", TacticalDesignation.MachineGunner)]
+        [InlineData("Marksman", TacticalDesignation.Marksman)]
+        public void CE3253_AScenarioRole_IsReadByName(string name, TacticalDesignation expected)
+        {
+            var commander = _repo.CreateEntity();
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 78L });
+            var resolver = new StubResolver();
+            resolver.Register(commander, "guid-platoon");
+            var dom = new Dictionary<string, object>
+            {
+                ["UnitSubordinate"] = new JsonObject { ["commanderGuid"] = "guid-platoon", ["designation"] = name },
+            };
+            var gunner = _repo.CreateEntity();
+            new UnitSubordinateTranslator().Inject(_repo, gunner, dom, resolver);
+            Assert.Equal(expected, ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(gunner)!.Designation);
+        }
+
         // CS013-T02: Inject with unresolvable GUID writes intent with CommanderNetworkId = 0
 
         // B (Fixture Gap TH-3): designation must be a string (enum name).

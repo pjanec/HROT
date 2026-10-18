@@ -266,7 +266,7 @@ node inside plays the runner already ticks. ⚠ **Not reached today:** a platoon
 ```mermaid
 classDiagram
   direction LR
-  class CombatProficiency { <<NEW component 414, beside CombatTemperament>> Authored · Unit · TypeDefault · Set bits }
+  class CombatProficiency { <<NEW component 415, beside CombatTemperament>> Authored · Unit · TypeDefault · Set bits }
   class ProficiencyOf { <<NEW reader, the ONLY one>> Value · Tier · SpreadFactor · ExposeFactor · ReactionDelaySeconds · Bursts · KeepsCoverDiscipline }
   class ProficiencyTier { <<NEW enum>> Untrained · Militia · Regular · Veteran · Elite }
   class ProficiencyFillSystem { <<NEW, brain node>> a man's Unit = the nearest commander's Authored }
@@ -317,7 +317,7 @@ frame; a man moved to another squad takes the new squad's.
 ⚠ Not in DA-A: the wire (BR-6 decides whether the component replicates or the hit model runs on the brain node) · the repertoire's
 "commander's tier = his unit's median man" (DA-16, `CE-2280`).
 
-**As built (2026-10-19, `CE-2273`)** — as drawn above: `CombatProficiency` (component 414, registered on every node beside
+**As built (2026-10-19, `CE-2273`)** — as drawn above: `CombatProficiency` (component 415, registered on every node beside
 `CombatTemperament`), `ProficiencyOf` (`Value`, `Tier`, `SpreadFactor`, `ExposeFactor`, `ReactionDelaySeconds`, `Bursts`,
 `KeepsCoverDiscipline`), `ProficiencyFillSystem` (CgfLogicPack, after the staff), `BehaviorProfileDto.DefaultProficiency` projected by
 `BehaviorTkbTranslator`, `CombatProficiencyTranslator` (scenario key `"Proficiency"`). Deviations:
@@ -415,6 +415,27 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-19** | roles | **append** `AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank` to `TacticalDesignation`, plus a **fire team index** (A / B) per member — the doctrinal 9-man squad: a leader + two teams of four (team leader, automatic rifleman, grenadier, rifleman). Readers: the element split goes **by fire team**, not by roster halves · the base of fire and the SBF take the AR / MG first · a defence puts the MG on the post with the longest view down the EA (its final protective line) · the clearing stack never puts the AR first · the sniper team is two Marksmen · a casualty's role is taken over (the next rifleman picks up the AR's role). ⚠ Needs from backend / TKB: an **infantry LMG** (M249-class, and a PKM-class for the other side) and a soldier type carrying it; the wire enum gains the new values | a role component separate from the designation: two stores of one fact · roles inferred from the weapon carried: a rifleman who picks up the MG would need re-inferring every frame, and the medic carries a rifle |
+
+### 12a. BR-8 as built *(backend, `CE-3253`, 2026-10-19 — cross-lane fold by backend)*
+
+| piece | as built | where | rail |
+|---|---|---|---|
+| the roles | `TacticalDesignation` gains `AutomaticRifleman 7 · MachineGunner 8 · Grenadier 9 · Marksman 10 · AntiTank 11` (appended) | `Fdp.Core/CommandHierarchy/TacticalDesignation.cs` | — |
+| on the wire | `eTacticalDesignation` carries EVERY value by the same name and value — ⭐ `TeamLeader 5` and `Medic 6` too (⛔ before, they crossed as raw numbers outside the enum) | `Hrot.Network.NED/GenericDescriptors.cs` | `TacticalDesignationMapperTests.CE3253_*` (every member, name + value) · `EntityInfoTranslatorTests.CE3253_*` (a MachineGunner arrives as one) |
+| from a scenario | by name (`"designation": "MachineGunner"`) — the existing `UnitSubordinateTranslator` parse, nothing new | — | `UnitSubordinateTranslatorTests.CE3253_*` |
+| the guns | `InfantryLmg` mount (mount 0, `MachineGun` category, belt, 1 in 5 traces, the rifleman's aim error): an **M249-class** (5.56, 200 belt, 750 rpm, 800 m) and a **PKM-class** (the 7.62 ball, 100 box, 650 rpm, 1000 m) | `NedTkbCatalog.InfantryLmg` | `NedTkbBuilderCombatTests.CE3253_*` |
+| the men | `Infantry_AutomaticRifleman` **207** (US, faction 1) and `Infantry_MachineGunnerPkm` **208** (Russia, faction 2): the rifleman's body, sensor, injury, carrier and brain with the LMG | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` (BdcTkbCatalog.cs) | the same |
+| ⛔ not here | the fire-team index, the element split by team, the MG first into the base of fire, role takeover (behaviors' `CE-2281`) · the squad's composition (still 1 SquadLeader + 9 Wingman — behaviors decides where the AR / MG go) · the grenadier's launcher and the AT gunner's weapon (no new weapon: the role only) | | |
+
+### 12b. BR-9 as built — the sniper rifle, the DMR, the scope *(backend, `CE-3254`, 2026-10-19 — cross-lane fold by backend; DA-13)*
+
+| piece | as built | where | rail |
+|---|---|---|---|
+| the scope (data) | `WeaponMountDto.ScopeMagnification` (0 / 1 = none) + `ScopeFovDegrees` (appended), mapped from the builder's `WeaponMount` | `WeaponSuiteDto.cs`, `SimCombatDef.cs`, `BdcTkbBuilder.cs` | `NedTkbBuilderCombatTests.CE3254_*` |
+| the scope in use | ⭐ **the binocular rule on a weapon**: `HeldItems.ScopeUp` — AIMED (`WeaponPostureKind.Aimed`) with an own mount (`ActiveMount` < 32) that has a scope ⇒ `VisualPerception.Optics` multiplies the range and narrows the cone (binoculars first: one or the other); `HeldItems.IdentificationOptics` returns the magnification. Lowered (Ready / Idle) ⇒ the naked eye | `HeldItems.cs`, `VisualPerception.cs` | `HeldItemsTests.CE3254_*` (500 → 2000 m: a man at 600 m becomes reachable; ×4 identification) |
+| the rifles | `ScopedRifle` mount (small arms, the 7.62 ball, ×4 scope, 1.5 s aim): **M24-class** sniper 0.3 mil, 5 rounds, 800 m, 4° · **M110-class** DMR 1 mil, 20 rounds, 600 m, 6° · **SVD-class** DMR 1 mil, 10 rounds, 600 m, 6° | `NedTkbCatalog.ScopedRifle` (BdcTkbCatalog.cs) | the same |
+| the men | `Infantry_Sniper` **209** (US) · `Infantry_Marksman` **210** (US) · `Infantry_MarksmanSvd` **211** (Russia, faction 2) — the rifleman's body with the scoped rifle; the role is `TacticalDesignation.Marksman` (BR-8) | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` | the same |
+| ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6, blocked on `CE-2273`) | | |
 
 ## 13. Sectors — how they are assigned and how a man keeps to his *(✅ approved R-2036 — DA-20)*
 
