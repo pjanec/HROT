@@ -232,7 +232,15 @@ public sealed class TrafficSession : IDisposable
                 b.X, b.Y, b.Vx, b.Vy, b.Length, b.Width);
         }
         _sim.SetExternalBodies(_external);
+        // ⭐ CE-4025 — what SUMO MADE of our bodies, logged when it changes: lane obstacles (vehicles on a lane) and crowd discs
+        if (_sim.ExternalBodies is { } feed && (feed.ObstacleCount != _obstacles || feed.DiscCount != _discs))
+        {
+            _obstacles = feed.ObstacleCount; _discs = feed.DiscCount;
+            Fdp.Core.Logging.FdpLog<TrafficSession>.Info("[Traffic] SUMO holds {0} lane obstacles and {1} crowd discs from {2} of our bodies",
+                _obstacles, _discs, bodies.Length);
+        }
     }
+    private int _obstacles = -1, _discs = -1;
 
     /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
     /// that does not move — the cluster paused — steps nothing.</summary>

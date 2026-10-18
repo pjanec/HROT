@@ -36,6 +36,8 @@ public readonly record struct TrafficBody(long NetworkId, TrafficBodyKind Kind, 
 [UpdateInPhase(SystemPhase.Input)]
 public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
 {
+    private int _toldVehicles = -1, _toldPersons = -1;
+
     /// <summary>A person's disc radius when its footprint names no width.</summary>
     public const float PersonRadius = 0.4f;
 
@@ -48,7 +50,20 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
         var net = TrafficNetCache.Of(world);
-        _runtime.SetBodies(net is null ? Array.Empty<TrafficBody>() : Gather(world, net.Placement, _scratch));
+        var bodies = net is null ? Array.Empty<TrafficBody>() : Gather(world, net.Placement, _scratch);
+        _runtime.SetBodies(bodies);
+        // ⭐ CE-4025 — what SUMO is told, logged when its make-up changes (never per frame): the one way to see it on a remote node
+        int vehicles = 0, persons = 0;
+        foreach (var b in bodies) { if (b.Kind == TrafficBodyKind.Vehicle) vehicles++; else persons++; }
+        if (vehicles != _toldVehicles || persons != _toldPersons)
+        {
+            _toldVehicles = vehicles; _toldPersons = persons;
+            var sb = new System.Text.StringBuilder();
+            foreach (var b in bodies)
+                if (b.Kind == TrafficBodyKind.Vehicle)
+                    sb.Append(System.FormattableString.Invariant($" [{b.NetworkId} net ({b.X:0.0},{b.Y:0.0}) {b.Length:0.0}x{b.Width:0.0} v ({b.Vx:0.00},{b.Vy:0.00})]"));
+            Fdp.Core.Logging.FdpLog<TrafficBodyFeedSystem>.Info("[Traffic] SUMO is told {0} of our vehicles and {1} of our people{2}", vehicles, persons, sb.ToString());
+        }
     }
 
     /// <summary>The bodies of <paramref name="world"/> in net coordinates, a new array (the stepping thread keeps it).</summary>

@@ -77,7 +77,11 @@ namespace Hrot.SimHost.Tests
         public void CE4024_TheTrafficNodeHearsTheHits_AsTheBrainDoes(NodeRole role, int ingress)
         {
             using var participant = new DdsParticipant(231u);
-            Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator>(Compose(participant, role)));
+            var set = Compose(participant, role);
+            Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator>(set));
+            // … and the traffic node SENDS the hit it re-addresses to a converted agent's new entity (a muscle sends its own)
+            bool sends = role.HasFlag(NodeRole.Traffic) || role.HasFlag(NodeRole.MuscleGround);
+            Assert.Equal(sends ? 1 : 0, Count<Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator>(set));
         }
 
         /// <summary>⭐ CE-3169 / CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG's own list no longer carries the order
