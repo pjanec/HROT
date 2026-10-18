@@ -1097,7 +1097,7 @@ public static partial class BlockFigure
     /// ⭐ CE-1166 (civilian U-6, docs/DESIGN_Civilians_And_Crowd_Control.md §8.7 U6-c) — what a man's ARMS show (CV-13, R-2024): the
     /// drawing's own names for backend's replicated <c>Gesture</c> (B-6), the same six, byte for byte (U6-b).
     /// </summary>
-    public enum ArmGesture : byte { None, HandsUp, FistRaised, HoldSign, Waving, Throwing }
+    public enum ArmGesture : byte { None, HandsUp, FistRaised, HoldSign, Waving, Throwing, Warning }
 
     /// <summary>⭐ CE-1166 (U6-d) — the placard's pole and board, appended after every indexed part (no index moves).</summary>
     public const int PlacardParts = 2;
@@ -1125,6 +1125,9 @@ public static partial class BlockFigure
             // both hands on the pole in front of his face, one above the other
             ArmGesture.HoldSign => [.. Arm(l, l + new Vector3(0.22f, 0.08f, -0.10f), new Vector3(0.32f, 0.02f, 1.30f) + drop, PartRole.Hull),
                                     .. Arm(r, r + new Vector3(0.24f, -0.08f, 0.08f), new Vector3(0.34f, -0.02f, 1.62f) + drop, PartRole.Hull)],
+            // ⭐ the police WARNING (behaviors' escalation ladder, EL-3): the right arm straight out in front at shoulder height, the palm up —
+            //   "stop" — the left hanging
+            ArmGesture.Warning => [.. hangL, .. Arm(r, r + new Vector3(0.30f, 0.02f, 0.02f), r + new Vector3(0.56f, 0.04f, 0.12f), PartRole.Hull)],
             // the right arm up and out, the forearm tilted outward
             ArmGesture.Waving => [.. hangL, .. Arm(r, r + new Vector3(0.02f, -0.24f, 0.16f), r + new Vector3(0.04f, -0.36f, 0.44f), PartRole.Hull)],
             // the wind-up: the throwing hand back above the shoulder, the other arm forward toward the target

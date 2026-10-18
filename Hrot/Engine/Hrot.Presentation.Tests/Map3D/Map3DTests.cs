@@ -1481,6 +1481,7 @@ public sealed class Map3DTests
     [InlineData(BlockFigure.ArmGesture.HoldSign)]
     [InlineData(BlockFigure.ArmGesture.Waving)]
     [InlineData(BlockFigure.ArmGesture.Throwing)]
+    [InlineData(BlockFigure.ArmGesture.Warning)]
     public void CE1166_EachGesture_ChangesOnlyTheArms(BlockFigure.ArmGesture gesture)
     {
         var size = ShapeKits.DefaultSize(VisualFamily.Person);
@@ -1537,6 +1538,13 @@ public sealed class Map3DTests
             Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HoldSign));
             Assert.Equal(plain.Length + BlockFigure.PlacardParts, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain).Length);
             Assert.Equal("PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            // ⭐ behaviors' police WARNING (EL-3) is its own pose and word — not the throwing wind-up, not "PROTEST"
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.Warning));
+            Assert.NotEqual(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.Throwing, false, false),
+                            EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Equal("WARNING", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HoldSign));
 
             Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));   // cowering owns the arms
             Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
