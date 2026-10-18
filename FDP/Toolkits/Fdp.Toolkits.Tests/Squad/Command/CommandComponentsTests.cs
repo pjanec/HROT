@@ -57,6 +57,35 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-2299</c> — the <c>RoeSystem</c> rule (CE-3251): on a node holding a REPLICA of the unit's brain the requirements are
+        /// left to the owner (the egress forwards them, wire kind 3); a world with no network identity applies them as before.</summary>
+        [Fact]
+        public void CE2299_AReplicasRequirements_AreLeftToTheBrainsOwner()
+        {
+            var world = World();
+            world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var sys = new ReportingRequirementsSystem();
+            var replica = world.CreateEntity();
+            world.AddComponent(replica, new BehaviorState());   // no authority: the brain runs on another node
+            world.AddComponent(replica, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7 });
+            var owned = world.CreateEntity();
+            world.AddComponent(owned, new BehaviorState());
+            world.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 8 });
+            world.SetAuthority<BehaviorState>(owned, true);
+            var offline = world.CreateEntity();
+            world.AddComponent(offline, new BehaviorState());
+
+            foreach (var e in new[] { replica, owned, offline })
+                Send(world, sys, new SetReportingEvent { Entity = e, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = 10f });
+
+            Assert.False(world.HasComponent<ReportingRequirements>(replica));
+            Assert.Equal(10f, world.GetComponentRO<ReportingRequirements>(owned).SitrepEverySeconds);
+            Assert.Equal(10f, world.GetComponentRO<ReportingRequirements>(offline).SitrepEverySeconds);
+            Assert.Equal(1, sys.ForwardedCount);
+            world.Dispose();
+        }
+
         /// <summary>⭐ CC-16 (R-2050) — every buffer is a fixed-list wrapper, so the entity dump prints the USED elements as a plain array —
         /// no special reader. ✅ Red-proof: a third field in a wrapper ⇒ <c>FixedListShape</c> refuses it and the dump shows raw slots.</summary>
         [Fact]

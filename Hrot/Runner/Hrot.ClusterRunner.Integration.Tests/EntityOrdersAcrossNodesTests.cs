@@ -171,6 +171,61 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ CE-2299 (behaviors, Command Chain CC-2; the CE3251 twin) — a superior's reporting requirements raised on a node that does NOT own
+    /// the unit's brain travel the order's road as kind 3 to the brain's owner, whose ReportingRequirementsSystem gate applies them; a
+    /// LOWER origin sent the same way is refused there.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2299_ReportingSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on both nodes");
+        var onBrain = ByName(cgf, "Rifleman");
+        var onMuscle = ByName(sim, "Rifleman");
+        Assert.True(cgf.HasComponent<BehaviorState>(onBrain) && cgf.HasAuthority<BehaviorState>(onBrain), "CGF must own the Rifleman's brain");
+
+        Fdp.Toolkit.Squad.Command.ReportingRequirements OnBrain()
+            => cgf.HasComponent<Fdp.Toolkit.Squad.Command.ReportingRequirements>(onBrain)
+                ? cgf.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(onBrain) : default;
+        void RaiseOnSimHost(float sitrep, BehaviorOrigin origin)
+        {
+            if (!sim.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) sim.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
+            sim.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent
+            {
+                Entity = onMuscle, Origin = origin, SitrepEverySeconds = sitrep, Pir = Fdp.Toolkit.Squad.Command.PirFlags.AnyElement,
+            });
+        }
+
+        RaiseOnSimHost(15f, BehaviorOrigin.Operator);
+        bool set = harness.PumpUntil(() => OnBrain().SitrepEverySeconds == 15f, timeoutFrames: 600);
+        _out.WriteLine($"CGF requirements: sitrep {OnBrain().SitrepEverySeconds} pir {OnBrain().Pir} set by {OnBrain().SetBy}");
+        Assert.True(set, "requirements raised on SimHost must reach the CGF brain");
+        Assert.Equal((Fdp.Toolkit.Squad.Command.PirFlags.AnyElement, BehaviorOrigin.Operator), (OnBrain().Pir, OnBrain().SetBy));
+
+        RaiseOnSimHost(60f, BehaviorOrigin.Superior);   // lower than the operator who set them
+        harness.PumpFrames(120);
+        Assert.Equal(15f, OnBrain().SitrepEverySeconds);
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession across the cluster: SimHost is the STATION (it does
     /// not own the brain). Its request, frames and release cross as interaction cases to CGF; CGF runs <c>OperatorControl</c> at origin
     /// Possession; <c>dtPossessedBy</c> tells every node who holds the unit; <c>dtManualDrive</c> + <c>dtNavigationIntent</c> (Manual)

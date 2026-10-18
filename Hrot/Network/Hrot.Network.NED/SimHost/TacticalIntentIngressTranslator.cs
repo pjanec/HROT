@@ -89,6 +89,14 @@ namespace Hrot.Network.NED.SimHost
                     repo.Bus.Publish(roe);
                     return;
                 }
+                // ⭐ CE-2299 (behaviors) — kind 3: a superior's reporting requirements (Command Chain CC-2), the ROE twin.
+                if (request.Kind == TacticalIntentWireKind.SetReporting
+                    && repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()
+                    && ReportingDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var reporting))
+                {
+                    repo.Bus.Publish(reporting);
+                    return;
+                }
                 UnhandledDirectiveCount++;   // an unknown kind (a newer sender), bad JSON or no ROE here — never read as an order
                 return;
             }

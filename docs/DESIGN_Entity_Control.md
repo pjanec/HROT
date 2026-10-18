@@ -152,7 +152,7 @@ correct later.
 
 | as built | where |
 |---|---|
-| `TacticalIntentWireKind` — 0 Assign, 1 Clear, ⭐ 2 SetRoe, 3 SetReporting (reserved for `CE-2291`; not decoded yet) | `Hrot.Network.NED/TacticalIntentMessages.cs` |
+| `TacticalIntentWireKind` — 0 Assign, 1 Clear, ⭐ 2 SetRoe, ⭐ 3 SetReporting (✅ `CE-2299`, behaviors, 2026-10-19 — see below) | `Hrot.Network.NED/TacticalIntentMessages.cs` |
 | `RoeDirectiveJson` — `{"Fire","Reactions","Window","Force"}`; an unset field stays unset | `Hrot.Network.NED/SimHost/RoeDirectiveJson.cs` |
 | egress forwards `SetRoeEvent` when the brain is not here (the order's gate), after the orders | `TacticalIntentEgressTranslator.ForwardRoe` |
 | ingress: kind ≥ 2 is a directive; SetRoe ⇒ `SetRoeEvent` with its origin; else `UnhandledDirectiveCount` | `TacticalIntentIngressTranslator.ProcessSample` |
@@ -160,7 +160,13 @@ correct later.
 | rails: `TacticalIntentEgressTranslatorTests.CE3251_*` (2), `TacticalIntentIngressTranslatorTests.CE3251_*` (2), `RoeAndRecentSensesTests.CE3251_AReplicasRoe_IsLeftToTheBrainsOwner`, cluster `EntityOrdersAcrossNodesTests.CE3251_AnRoeSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate` (SimHost raises, CGF applies; a lower origin is refused on CGF) | — |
 
 ⭐ **`SetReportingEvent` (CC-2) joins by one `case`:** behaviors adds the event (`CE-2291`); the egress forwards it as Kind 3 with its
-fields as JSON and the ingress raises it again — the same two places as SetRoe.
+fields as JSON and the ingress raises it again — the same two places as SetRoe. ✅ **BUILT `2026-10-19` (`CE-2299`, behaviors —
+a cross-lane edit in these translators):** `ReportingDirectiveJson` `{"Pir","Ffir","Sitrep","Area"}` (the event REPLACES the set, so
+an all-zero directive withdraws it on the owner too) · `ForwardReporting` beside `ForwardRoe` · the ingress's kind-3 branch ·
+`ReportingRequirementsSystem` leaves a networked replica to its owner exactly as `RoeSystem` does. Rails:
+`TacticalIntentEgressTranslatorTests.CE2299_*`, `TacticalIntentIngressTranslatorTests.CE2299_*` (and `CE3251_AnUnknownDirective`
+now uses kind 9), `CommandComponentsTests.CE2299_AReplicasRequirements_AreLeftToTheBrainsOwner`, cluster
+`EntityOrdersAcrossNodesTests.CE2299_ReportingSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate`.
 
 ## 3. CLASSES
 

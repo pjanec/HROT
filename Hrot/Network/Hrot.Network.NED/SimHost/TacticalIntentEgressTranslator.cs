@@ -96,6 +96,7 @@ namespace Hrot.Network.NED.SimHost
             }
 
             ForwardRoe(repo, brainHere);
+            ForwardReporting(repo, brainHere);   // ⭐ CE-2299 (behaviors) — the twin, kind 3
         }
 
         /// <summary>⭐ <c>CE-3251</c> (BR-13) — a <see cref="SetRoeEvent"/> about a unit whose brain runs on another node goes there on
@@ -121,6 +122,33 @@ namespace Hrot.Network.NED.SimHost
                     JsonParams     = RoeDirectiveJson.Encode(in evt),
                     Origin         = (byte)evt.Origin,
                     Kind           = TacticalIntentWireKind.SetRoe,
+                });
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2299</c> (behaviors, Command Chain CC-2) — the <see cref="ForwardRoe"/> twin for a superior's reporting
+        /// requirements (<see cref="Fdp.Toolkit.Squad.Command.SetReportingEvent"/>, <see cref="TacticalIntentWireKind.SetReporting"/>): a
+        /// subordinate commander whose brain runs elsewhere gets them on the order's road, after the frame's orders.</summary>
+        private void ForwardReporting(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) return;
+            foreach (var evt in repo.Bus.Read<Fdp.Toolkit.Squad.Command.SetReportingEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // ReportingRequirementsSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its reporting requirements.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = ReportingDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetReporting,
                 });
                 SentSampleCount++;
             }

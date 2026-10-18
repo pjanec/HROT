@@ -10,7 +10,8 @@ namespace Fdp.Toolkit.Squad.Command
     /// ⭐ <c>CE-2291</c> CC-A (CC-2, R-2044) — a superior sets a subordinate commander's EXTRA reporting requirements: the
     /// <c>SetRoeEvent</c> twin. Sent with an order or on its own (<c>SetSubordinateReporting</c>, CC-B); applied by
     /// <see cref="ReportingRequirementsSystem"/>. ⭐ It REPLACES the whole set — all zero withdraws them (a play that set requirements
-    /// withdraws them when it ends). ⚠ Applied on the node that raised it (the ROE pattern, <c>CE-2299</c> / BR-13 for cross-node).
+    /// withdraws them when it ends). ⭐ Cross-node (<c>CE-2299</c>): for a unit whose brain runs elsewhere the tactical-intent egress forwards it
+    /// on the order's road (wire kind 3, backend's BR-13 road) and the owner raises it again.
     /// </summary>
     [EventId(BehaviorConstants.EventId_SetReporting)]
     [StructLayout(LayoutKind.Sequential)]
@@ -44,9 +45,24 @@ namespace Fdp.Toolkit.Squad.Command
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<ReportingRequirements>() || !repo.Bus.IsRegistered<SetReportingEvent>()) return;
 
+            bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
+                         && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             foreach (var evt in repo.Bus.Read<SetReportingEvent>())
+            {
+                // ⭐ CE-2299 — the RoeSystem rule (CE-3251): a NETWORKED unit whose brain runs on another node is left to its owner (the
+                //   tactical-intent egress forwards the event there, wire kind 3); applying it here too would make a second writer.
+                if (replicas && repo.HasComponent<BehaviorState>(evt.Entity) && !repo.HasAuthority<BehaviorState>(evt.Entity)
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Entity))
+                {
+                    ForwardedCount++;
+                    continue;
+                }
                 if (!Apply(repo, evt)) RefusedCount++;
+            }
         }
+
+        /// <summary>⭐ <c>CE-2299</c> — events left to the brain's owner (a replica here) since this system was built.</summary>
+        public int ForwardedCount { get; private set; }
 
         /// <summary>What a <see cref="SetReportingEvent"/> does, applied NOW. <c>false</c> = refused by the gate, or a dead entity.</summary>
         public static bool Apply(EntityRepository repo, in SetReportingEvent evt)
