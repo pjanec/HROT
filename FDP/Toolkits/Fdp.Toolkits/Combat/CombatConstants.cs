@@ -69,6 +69,8 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>⭐ <c>CE-3233</c> (B-11b) — <c>DetonateChargeEvent</c>: set an explosive charge off where it stands.</summary>
         public const int DetonateChargeEventId = 5014;
+        /// <summary>⭐ <c>CE-3256</c> (BR-4) — <c>CustodyEvent</c>: search / detain / restrain / release a man (interaction kind 13).</summary>
+        public const int CustodyEventId = 5015;
 
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>

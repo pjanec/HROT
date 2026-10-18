@@ -126,6 +126,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
             yield return new EntityGestureEgressTranslator(participant);
             yield return new EntityGestureIngressTranslator(participant, entityMap);
+            // ⭐ CE-3256 (BR-4) — a man in custody (Brain → every node).
+            yield return new Hrot.Map.Common.Replication.Egress.EntityCustodyEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityCustodyIngressTranslator(participant, entityMap);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);

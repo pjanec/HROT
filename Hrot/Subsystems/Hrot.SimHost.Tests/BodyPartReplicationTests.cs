@@ -27,6 +27,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
             w.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();   // ⭐ CE-3252
+            w.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();   // ⭐ CE-3256
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -149,6 +150,32 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityHostileActEgressTranslator.ToSample(46L, shot with { Kind = Fdp.Toolkit.Civilians.HostileActKind.NonLethal }));
+        }
+
+        /// <summary>⭐ <c>CE-3256</c> (BR-4, §7.6 CU-5) — a man's custody reaches the other node (detained, restrained, searched, being searched),
+        /// so every node reads him out of the fight; a release is a change the egress publishes; the FDP-side ordinal is the NED one.
+        /// ✅ Red-proof: the ingress dropping <c>Restrained</c> ⇒ the replica's fire is not held ⇒ red.</summary>
+        [Fact]
+        public void CE3256_Custody_ReachesTheOtherNode_AndAReleaseIsAChange()
+        {
+            Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtCustody, Fdp.Toolkit.Civilians.CustodyRules.CustodyDescriptorOrdinal);
+            var held = new Fdp.Toolkit.Civilians.Custody { Detained = 1, Restrained = 1, Searched = 1, Searching = 0 };
+            var sample = EntityCustodyEgressTranslator.ToSample(47L, held);
+
+            var (node, unit, map) = Node(47L);
+            using (node)
+            {
+                var ingress = new EntityCustodyIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<Fdp.Toolkit.Civilians.Custody>(unit);
+                Assert.Equal(((byte)1, (byte)1, (byte)1, (byte)0), (got.Detained, got.Restrained, got.Searched, got.Searching));
+                Assert.True(Fdp.Toolkit.Civilians.CustodyRules.IsRestrained(node, unit));
+                Assert.True(Fdp.Toolkit.Civilians.CustodyRules.InCustody(node, unit));
+            }
+
+            Assert.NotEqual(sample, EntityCustodyEgressTranslator.ToSample(47L, held with { Detained = 0, Restrained = 0 }));
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

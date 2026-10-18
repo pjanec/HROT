@@ -131,6 +131,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks: the wanted look and the head turn (Muscle group → every node).
         //   📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.2a. Measured free on ui, behaviors, backend, coordinator 2026-10-18.
         dtLookState                   = 147,
+        // ⭐ CE-3256 (BR-4) — a man in custody: detained, restrained, searched (Brain group → every node). 📄 DESIGN_Entity_Interactions §7.6.
+        //   Measured free on ui, behaviors, backend, coordinator 2026-10-19. ⚠ FDP states it too (CustodyRules.CustodyDescriptorOrdinal; a rail pins it).
+        dtCustody                     = 148,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,

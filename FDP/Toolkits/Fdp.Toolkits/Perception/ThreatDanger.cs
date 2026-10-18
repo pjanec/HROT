@@ -216,7 +216,9 @@ namespace Fdp.Toolkit.Perception
             => Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated
                // ⭐ CE-2241 ① (AW-21, R-2027; DESIGN_Civilians_And_Crowd_Control §5h.5) — or he SURRENDERED: every weapon laid down (B-10) AND
                //    his hands up; hands up alone (a feint, a weapon still up) is CV-13a's hold, not out of the fight
-               || (Fdp.Toolkit.Combat.WeaponLaying.AllLaidDown(view, target) && ShowsHandsUp(view, target));
+               || (Fdp.Toolkit.Combat.WeaponLaying.AllLaidDown(view, target) && ShowsHandsUp(view, target))
+               // ⭐ CE-3256 (BR-4, CU-5) — or in CUSTODY: detained or restrained (every node reads the replicated Custody)
+               || Fdp.Toolkit.Civilians.CustodyRules.InCustody(view, target);
 
         /// <summary>
         /// ⭐ <c>CE-3063</c> (§6.1a K3, R-207) — the danger of memory slot <paramref name="slot"/>: an identified contact through

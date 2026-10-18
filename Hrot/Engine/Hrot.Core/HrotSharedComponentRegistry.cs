@@ -88,6 +88,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
@@ -131,6 +132,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Civilians.CustodyEvent>();   // ⭐ CE-3256 (BR-4) — search / detain / restrain (interaction kind 13)
         world.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();   // ⭐ CE-3233 (B-11b) — set a charge off, on its position owner   // ⭐ CE-3233 (B-11) — draw / stow / conceal, applied by the list owner   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
         //   kind's event on EVERY host — the ingress republishes it wherever a request lands).

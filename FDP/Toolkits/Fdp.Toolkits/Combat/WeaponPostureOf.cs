@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.HoldConduct   // ⭐ CE-2238 part 4 — an unarmed civilian: covered, ready, never fired
                 or ActionReason.HoldWarn      // ⭐ CE-2239 part 3 — warned, covered, ready, never fired
                 or ActionReason.HoldStunned   // ⭐ CE-3255 (BR-2) — stunned: the weapon stays ready, never fired
+                or ActionReason.HoldRestrained // ⭐ CE-3256 (BR-4) — hands tied: never fired
                 => WeaponPostureKind.Ready,
             _ => null,
         };

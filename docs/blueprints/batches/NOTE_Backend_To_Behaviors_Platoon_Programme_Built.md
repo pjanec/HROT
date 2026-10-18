@@ -106,3 +106,13 @@ with BR-9.
 A stunned man of any class fires nothing (`ActionReason.HoldStunned` — on the aimed path and at a point) and stands still (path kept)
 until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-2260` can rely on a flash-bang now.
 
+## BR-4 — Search / Detain / Restrain *(as built: [Entity Interactions §7.6](../../DESIGN_Entity_Interactions.md), `CE-3256`)*
+
+* ⚠ **One interaction kind with a verb, not three kinds:** call `CustodyRules.Ask(world, man, soldier, CustodyVerb.Search | Detain |
+  Restrain | ReleaseCustody)` from any node — the transport carries it to the man's owner, which applies it. Nothing to write yourself.
+* **Search** needs the soldier within **1.5 m** and the man complying (`ThreatDanger.ShowsHandsUp`, or restrained); it runs **3 s** and
+  aborts if either stops. Then every weapon in a CONCEALED station is put down at his feet. Read `Custody.Searching` (1 while it runs) and
+  `Custody.Searched` (1 after) — both replicated, so your `SearchPerson` sees the result on its own node.
+* **Detain** needs the same reach + compliance; **Restrain** also works on a detained man. `CustodyRules.InCustody` ⇒ he is out of the fight
+  everywhere (`IsOutOfTheFight`); `IsRestrained` ⇒ he fires nothing (`hold: restrained`). **ReleaseCustody** clears both.
+* An ask refused (out of reach, not complying) leaves no trace on the man — `CustodySystem.Refused` counts it; re-ask when in position.

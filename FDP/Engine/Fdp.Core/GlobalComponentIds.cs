@@ -1019,6 +1019,9 @@ namespace Fdp.Core
         /// Muscle group, replicated as <c>dtLookState</c> (147). 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.2a.
         /// ⚠ 413 measured free on backend, ui, coordinator and behaviors 2026-10-18.</summary>
         public const int LookState = 413;
+        /// <summary>⭐ <c>CE-3256</c> (backend, BR-4) — <c>Custody</c>: a man detained / restrained / searched, Brain group, replicated as
+        /// <c>dtCustody</c> (148). 📄 docs/DESIGN_Entity_Interactions.md §7.6. ⚠ 414 measured free on backend, ui, coordinator, behaviors 2026-10-19.</summary>
+        public const int Custody = 414;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
