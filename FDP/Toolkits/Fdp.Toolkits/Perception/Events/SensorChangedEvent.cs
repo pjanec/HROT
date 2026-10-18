@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-3249</c> (WS-10) — a WorldSurvey sensor has its first answer for its inputs, or the answer changed (a door opened,
         /// smoke drifted in front of a window). <c>Sensor</c> is the survey; read it with <c>WorldSurveyChildSensor.Read</c>.</summary>
         SurveyReady = 18,
+
+        /// <summary>⭐ <c>CE-2293</c> CC-C (Command Chain §4) — a REPORT from a subordinate was folded into this commander's
+        /// <c>CommandPicture</c> (by <c>StaffInboxSystem</c>). <c>Target</c> is not set; the play reads the picture, not the report.</summary>
+        ReportReceived = 19,
     }
 
     /// <summary>

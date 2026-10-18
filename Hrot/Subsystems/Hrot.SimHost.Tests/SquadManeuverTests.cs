@@ -1424,6 +1424,152 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, CommandNodes.SendReport(ref spot, s.Commander, s.Repo));
         }
 
+        // ── CE-2293 CC-C — the staff: a squad reports to its platoon, on one node (the BR-3 event, looped back) ──────────────
+
+        /// <summary>The squad <paramref name="s"/> under a body-less platoon commander; the staff's two systems, ticked with it.</summary>
+        private sealed class Chain
+        {
+            public readonly Squad S;
+            public readonly Entity Platoon;
+            public readonly Fdp.Toolkit.Squad.Command.StaffComposerSystem Composer = new();
+            public readonly Fdp.Toolkit.Squad.Command.StaffInboxSystem Inbox = new();
+            public readonly List<Fdp.Toolkit.Perception.Events.SensorChange> PlatoonSensed = new();
+
+            public Chain(int members)
+            {
+                S = new Squad(members);
+                Platoon = S.Repo.CreateEntity();
+                S.Repo.AddComponent(Platoon, new UnitEntity());
+                var roster = new UnitRoster();
+                UnitRoster.Add(ref roster, S.Commander);
+                S.Repo.AddComponent(Platoon, roster);
+                S.Repo.AddComponent(S.Commander, new UnitSubordinate { Commander = Platoon });
+            }
+
+            /// <summary>One frame: the squad's own systems, then the staff (as the pack orders them), the bus swapped between.</summary>
+            public void Tick()
+            {
+                S.Tick();
+                Composer.Execute(S.Repo, 0.016f);
+                Inbox.Execute(S.Repo, 0.016f);
+                foreach (var e in S.Repo.Bus.Read<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
+                    if (e.Unit.Equals(Platoon)) PlatoonSensed.Add(e.What);
+            }
+
+            public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
+
+            public Fdp.Toolkit.Squad.Command.CommandPicture Picture
+                => S.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(Platoon)
+                    ? S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(Platoon) : default;
+
+            public Fdp.Toolkit.Squad.Command.ProgressKind SquadProgress
+                => Fdp.Toolkit.Squad.Command.CommandPictureOps.ProgressOf(S.Repo, Platoon, 0);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2293</c> CC-C (CC-5, cc-platoon-bound ①) — the squad's TASK ends and its staff, with no play changing, reports
+        /// PROGRESS Set: 3 s later (not before) the platoon's picture shows it, the platoon senses <c>ReportReceived</c>, and its
+        /// <c>ProgressReached</c> guard turns true. ✅ Red-proof: the composer's BehaviorFinishedEvent read removed ⇒ nothing arrives.</summary>
+        [Fact]
+        public void CE2293_ATaskThatEnds_ReportsSet_ThreeSecondsLater_IntoThePlatoonsPicture()
+        {
+            var c = new Chain(members: 3);
+            c.S.Order("{\"DurationSeconds\":0.5}", BehaviorNames.SquadHold);
+            bool done = false;
+            for (int i = 0; i < 80 && !done; i++) { c.Tick(); done = c.S.Finished(out _); }
+            Assert.True(done);
+            c.Ticks(2);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.NoProgress, c.SquadProgress);   // held for the delay
+            c.Ticks(60);                                                                        // ~1 s more: still held
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.NoProgress, c.SquadProgress);
+            c.S.Pause(2.5);
+            c.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
+            Assert.Contains(Fdp.Toolkit.Perception.Events.SensorChange.ReportReceived, c.PlatoonSensed);
+            var set = new Fdp.Toolkit.Squad.Command.ProgressReachedParams { Slot = 0, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
+            Assert.True(Fdp.Toolkit.Squad.Command.PictureConditions.ProgressReached(ref set, c.Platoon, c.S.Repo));
+            Assert.Equal(1, c.Composer.SentCount);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2293</c> CC-C (CC-7, cc-platoon-bound ③) — three contacts in the squad's pool are ONE element: one SPOT (size
+        /// Team, count 3), not one per contact; the element moving 10 m sends nothing new, 40 m sends an update that REPLACES it; the pool
+        /// emptying sends a lost SPOT that removes it. ✅ Red-proof: the size/move check removed ⇒ a SPOT every frame.</summary>
+        [Fact]
+        public void CE2293_ThePoolIsOneElement_OneSpot_MovedOnlyWhenItMoves_LostWhenItEmpties()
+        {
+            var c = new Chain(members: 3);
+            c.S.PoolMany(3, new Vector3(0f, 200f, 0f));
+            c.Ticks(2);
+            c.S.Pause(3.1);
+            c.Ticks(2);
+            var pic = c.Picture;
+            Assert.Equal(1, pic.Elements.Count);
+            Assert.Equal((Fdp.Toolkit.Squad.Command.ElementSize.Team, (byte)3), (pic.Elements.Items[0].Size, pic.Elements.Items[0].Count));
+            int sent = c.Composer.SentCount;
+
+            MoveAll(c.S, new Vector3(0f, 210f, 0f));
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(sent, c.Composer.SentCount);                                   // 10 m: not news
+
+            MoveAll(c.S, new Vector3(0f, 250f, 0f));
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            pic = c.Picture;
+            Assert.Equal(1, pic.Elements.Count);                                         // the update replaced it
+            Assert.InRange(pic.Elements.Items[0].At.Y, 249f, 251f);
+
+            c.S.ClearPool();
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Picture.Elements.Count);                                   // lost
+        }
+
+        private static void MoveAll(Squad s, Vector3 at)
+        {
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            for (int i = 0; i < squad.Contacts.Count; i++)
+            {
+                var c = squad.Contacts.Contacts[i];
+                c.PositionX = at.X; c.PositionY = at.Y; c.PositionZ = at.Z;
+                squad.Contacts.Contacts[i] = c;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2293</c> CC-C — a SITREP at the superior's requested rate (none without a request), its strength a colour from
+        /// the men in the fight; lost comms (mute) and a Silent posture hold the outbox, CONTACT excepted under Silent.</summary>
+        [Fact]
+        public void CE2293_SitrepAtTheRequestedRate_MuteAndSilentHoldTheOutbox()
+        {
+            var c = new Chain(members: 4);
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Composer.SentCount);                                       // no request ⇒ no routine SITREP
+            c.S.Repo.AddComponent(c.S.Commander, new Fdp.Toolkit.Squad.Command.ReportingRequirements { SitrepEverySeconds = 15f });
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Composer.SentCount);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.StatusColour.Green, c.Picture.Subordinates.Items[0].Strength);
+            c.S.Pause(5); c.Ticks(2);
+            Assert.Equal(1, c.Composer.SentCount);                                       // not yet 15 s
+
+            ref var outbox = ref c.S.Repo.GetComponentRW<Fdp.Toolkit.Squad.Command.ReportOutbox>(c.S.Commander);
+            outbox.MutedUntil = (float)c.S.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime + 60f;
+            c.S.Pause(11); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Composer.SentCount);                                       // muted: queued, not sent
+            Assert.True(c.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(c.S.Commander).Queued.Count > 0);
+        }
+
+        /// <summary>⭐ <c>CE-2293</c> CC-C (CB-32, CC-14) — the inbox keeps the newest per sender: a late OLDER report is dropped, a
+        /// Synthetic one (the HTTP fake) is always taken.</summary>
+        [Fact]
+        public void CE2293_TheInbox_DropsALateOlderReport_TakesASyntheticOne()
+        {
+            var c = new Chain(members: 2);
+            float now = 10f;
+            Fdp.Toolkit.Squad.Command.CommandReport R(Fdp.Toolkit.Squad.Command.ProgressKind p, uint seq, byte synthetic = 0)
+                => new() { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)p, Seq = seq, Synthetic = synthetic };
+            Assert.True(Fdp.Toolkit.Squad.Command.StaffInboxSystem.Fold(c.S.Repo, c.S.Commander, c.Platoon, R(Fdp.Toolkit.Squad.Command.ProgressKind.Foothold, 5), now));
+            Assert.False(Fdp.Toolkit.Squad.Command.StaffInboxSystem.Fold(c.S.Repo, c.S.Commander, c.Platoon, R(Fdp.Toolkit.Squad.Command.ProgressKind.Set, 4), now));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Foothold, c.SquadProgress);
+            Assert.True(Fdp.Toolkit.Squad.Command.StaffInboxSystem.Fold(c.S.Repo, c.S.Commander, c.Platoon, R(Fdp.Toolkit.Squad.Command.ProgressKind.Set, 0, synthetic: 1), now));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)

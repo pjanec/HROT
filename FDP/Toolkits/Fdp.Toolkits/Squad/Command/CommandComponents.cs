@@ -183,5 +183,12 @@ namespace Fdp.Toolkit.Squad.Command
         public ReportingPosture Posture;
         /// <summary>CC-15 — lost comms: nothing is sent before this sim time.</summary>
         public float MutedUntil;
+        /// <summary>⭐ CE-2293 — the composer's memory of the element it last SPOTted (1 = one is reported and not yet lost), where, and
+        /// its size class: a new SPOT goes only when the element is new, changes size or moves.</summary>
+        public byte SpotSent;
+        public System.Numerics.Vector3 SpotAt;
+        public ElementSize SpotSize;
+        /// <summary>⭐ CE-2293 — when the composer last queued a routine SITREP (sim s; 0 = never).</summary>
+        public float LastSitrepAt;
     }
 }

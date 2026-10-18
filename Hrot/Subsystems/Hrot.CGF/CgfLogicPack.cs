@@ -241,6 +241,10 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             simList.Add(new Fdp.Toolkit.Squad.Systems.UnitCentroidSystem());   // ⭐ CE-2125 / CE-514 (R-272) — the owner places a unit at its members' centre
+            // ⭐⭐ CE-2293 CC-C (Command Chain §5) — the staff: compose and send the standing reports, then fold the ones that arrived into
+            //   each commander's picture — after the merge (the pool is fresh), before the brain tick (this frame's guards see it).
+            simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
+            simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);
