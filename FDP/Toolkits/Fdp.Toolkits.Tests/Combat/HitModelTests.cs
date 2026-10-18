@@ -92,5 +92,31 @@ namespace Fdp.Toolkit.Combat.Tests
             HitModel.StampUnderFire(repo, e, 7);
             Assert.Equal(7, repo.GetComponent<UnderFire>(e).LastTime);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3259</c> (BR-6, DA-2) — the shooter's PROFICIENCY in the spread: Untrained × 2.5, Elite × 0.65, linear between; a man with
+        /// no component, and an authored Regular, are BIT-IDENTICAL to before (× 1.0); the authored value wins over the type default.
+        /// ✅ Red-proof: the factor left out of <c>Sigma</c> ⇒ an Untrained shot is 0.006 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3259_TheShootersProficiency_ScalesTheSpread_RegularAndNoneAreUnchanged()
+        {
+            var (repo, e) = Unit();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();
+            float plain = HitModel.Sigma(repo, e, Rifle, 0);
+            Assert.Equal(0.006f, plain, 6);
+
+            void Authored(float v) => repo.AddComponent(e, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+            {
+                Authored = v, TypeDefault = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite,
+                Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet | Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet,
+            });
+            Authored(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular);
+            Assert.Equal(plain, HitModel.Sigma(repo, e, Rifle, 0));   // bit-identical
+            Authored(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Untrained);
+            Assert.Equal(0.006f * 2.5f, HitModel.Sigma(repo, e, Rifle, 0), 6);
+            Authored(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite);
+            Assert.Equal(0.006f * 0.65f, HitModel.Sigma(repo, e, Rifle, 0), 6);
+        }
     }
 }

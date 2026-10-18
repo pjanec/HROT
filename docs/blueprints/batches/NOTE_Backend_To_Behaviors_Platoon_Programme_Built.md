@@ -136,3 +136,10 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
   wind).
 * ⚠ Found while measuring, for your `CE-2286` too: doors and clouds are CGF-owned today, so the brain's mirror of them is not stale. Only
   wall DESTRUCTION is muscle-only. R-2037 stands; Q94 §F says what follows.
+
+## BR-6 — proficiency in the spread *(as built: [Defend and Attack §12c](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), `CE-3259`)*
+
+* `HitModel.Sigma` × `ProficiencyOf.SpreadFactor` — Regular and "none" are bit-identical, so nothing you have moves.
+* ⚠ **I replicated your `CombatProficiency`** (Brain group, `dtCombatProficiency` 150): it was registered everywhere but not sent, so the
+  muscle — which resolves every shot — only ever saw the TYPE default. Write it on the brain as you do; the muscle now sees the authored
+  and the unit values too. No change to your reader or your fill system.

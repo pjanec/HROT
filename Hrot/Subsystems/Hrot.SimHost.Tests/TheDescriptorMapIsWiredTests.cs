@@ -292,7 +292,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtGesture),               // ⭐ CE-3224 — a person's gesture
                     D(Hrot.NED.Descriptors.EDescriptorType.dtHostileAct),            // ⭐ CE-3238 — a man's hostile act
                     D(Hrot.NED.Descriptors.EDescriptorType.dtCustody),               // ⭐ CE-3256 — a man in custody
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtLean) },                // ⭐ CE-3257 — a man leaning
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtLean),                  // ⭐ CE-3257 — a man leaning
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtCombatProficiency) },   // ⭐ CE-3259 — what a soldier CAN do
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

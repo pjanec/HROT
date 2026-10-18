@@ -132,6 +132,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3257 (BR-5) — a man leaning round a corner (Brain → every node).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLeanEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLeanIngressTranslator(participant, entityMap);
+            // ⭐ CE-3259 (BR-6) — a soldier's combat proficiency (Brain → every node).
+            yield return new Hrot.Map.Common.Replication.Egress.EntityCombatProficiencyEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityCombatProficiencyIngressTranslator(participant, entityMap);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);
