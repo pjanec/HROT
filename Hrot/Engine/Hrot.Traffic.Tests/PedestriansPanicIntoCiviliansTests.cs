@@ -37,7 +37,7 @@ public sealed class PedestriansPanicIntoCiviliansTests
         h.Run(0.5);
 
         var e = Assert.Single(h.Mirror.Replicas!.Pedestrians.Where(kv => kv.Key.NetworkId == ped.NetworkId)).Value;
-        Assert.Equal(TrafficReplicas.PedestrianType, h.World.GetComponentRO<TkbIdentity>(e).TkbType);
+        Assert.Equal(TrafficPanicSystem.TypeOf(ped.NetworkId), h.World.GetComponentRO<TkbIdentity>(e).TkbType);   // CE-4031: the type he converts into
         Assert.Equal(TrafficCar.KindPedestrian, h.World.GetComponentRO<TrafficCar>(e).Kind);
         Assert.Equal(ForceId.Neutral, h.World.GetComponentRO<EntityInfo>(e).ForceId);
         Assert.True(h.Map.TryGetEntity(ped.NetworkId, out var mapped) && mapped == e);

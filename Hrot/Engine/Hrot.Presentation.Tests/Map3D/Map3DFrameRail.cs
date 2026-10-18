@@ -2949,6 +2949,79 @@ public sealed class Map3DFrameRail
         }
         finally { Raylib.UnloadImage(image); }
     }
+
+    /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's FAR pedestrians and cars (no entities) are drawn as ours: civilians in their own clothes,
+    /// faces and hair (typed and seeded by their network ids), walking; cars as their types' kits in their paint. 🔒 User, 2026-10-18:
+    /// <i>"definitely not a gray uniform figures please"</i>. ⛔ Before: one grey box a person, one blue box a car (TrafficLayer3D).
+    /// Screenshot <c>map3d-ce4031-sumo-people.png</c>.</summary>
+    [SkippableFact]
+    public void CE4031_SumoFarPeopleAndCars_AreDrawnAsOurFiguresAndKits()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float Z(float x, float y) => query.GroundHeightAt(x, y);
+
+        // ten walkers (ids 1001..1010: every civilian type by the id rule) and four cars (the T1 traffic types, two painted)
+        Hrot.Traffic.TrafficFrame FrameAt(float t)
+        {
+            var peds = new List<Hrot.Traffic.TrafficPedPose>();
+            for (int i = 0; i < 10; i++)
+            {
+                float x = spot.X - 6f + 1.4f * i + 1.3f * t, y = spot.Y - 3f + (i % 2) * 1.5f;
+                peds.Add(new Hrot.Traffic.TrafficPedPose(1, 1001 + i, (1001 + i).ToString(), x, y, Z(x, y), 0f));
+            }
+            var cars = new List<Hrot.Traffic.TrafficCarPose>();
+            long[] types = { UrbanCombatTkbCatalog.TkbTrafficHatchback, UrbanCombatTkbCatalog.TkbTrafficVan, UrbanCombatTkbCatalog.TkbTrafficTruck, UrbanCombatTkbCatalog.TkbTrafficHatchback };
+            uint[] paint = { 0, 0xC03028, 0, 0x2A5BA8 };
+            for (int i = 0; i < 4; i++)
+            {
+                float x = spot.X - 10f + 7f * i + 8f * t, y = spot.Y + 5f;
+                cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, "veh" + i, 2001 + i, types[i], paint[i], x, y, Z(x, y), 0f, 4f, 1.8f));
+            }
+            return new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), peds, _ => false);
+        }
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 8f, spot.Y + 800f / 8f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, ambient: Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => Z(x, y);
+        sw.Set(true);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, Z(spot.X, spot.Y)), 22f, MathF.PI * 0.62f, -0.30f);
+        for (int k = 0; k < 12; k++)   // they walk and drive a few frames: the gait is the tracker's, keyed by id
+        {
+            world.SetSingletonManaged(FrameAt(k / 30f));
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "map3d-ce4031-sumo-people.png"));
+
+        Assert.Equal(0, bodies.BodiesDrawn);            // no entity at all
+        Assert.Equal(14, bodies.AmbientDrawn);          // every far walker and car, as a body
+        Assert.True(bodies.PartsDrawn > 10 * 10, $"parts drawn: {bodies.PartsDrawn} — figures and kits, not one box each");
+        Assert.True(bodies.FacesPainted >= 10, $"faces painted: {bodies.FacesPainted}");
+        Assert.True(bodies.DetailsDrawn > 0, "the outfits' details (hair, collars…) are drawn");
+        // the clothes differ walker to walker (seeded by the id), never one uniform colour
+        var tops = Enumerable.Range(0, 10).Select(i => Outfits.For(1001 + i, Hrot.Traffic.TrafficReplicas.PedestrianTypeOf(1001 + i), false, false, null,
+                                                                   Fdp.Core.ForceId.Neutral)).Select(o => o.ToString()).Distinct().Count();
+        Assert.True(tops >= 5, $"only {tops} distinct outfits among ten walkers");
+    }
 }
 
 /// <summary>Runs <see cref="Map3DFrameRail"/> alone, after the parallel tests (the Blueprints frame rails do the same).</summary>

@@ -42,15 +42,33 @@ public sealed class TrafficLayer3DTests
         Assert.DoesNotContain(TrafficLayer3D.GroundColor, colours);
     }
 
-    /// <summary>⭐ CE-4026 — every SUMO pedestrian that is not an entity is drawn; a replica is not (the entity layer draws him as a civilian).</summary>
+    /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's agents that are not entities become bodies the entity layer draws as ours: a pedestrian
+    /// typed by his id (the type his replica and his civilian also have), a car by its TKB type (else the generic traffic car) in its
+    /// own paint, each keyed by its network id; a replica is left to the entity pass. ⛔ Before: grey and blue boxes (CE-4026).</summary>
     [Fact]
-    public void CE4026_ThePedestriansThatAreNotEntities_AreDrawn()
+    public void CE4031_TheFarAgents_AreBodiesTypedAsTheirReplicasAre()
     {
-        var walker = new TrafficPedPose(1, 7, "7", 10f, 0f, 0f, 0f);
+        var walker = new TrafficPedPose(1, 7, "7", 10f, 0f, 0f, 0.5f);
         var replica = new TrafficPedPose(1, 8, "8", 12f, 0f, 0f, 0f);
-        var frame = new TrafficFrame(System.Array.Empty<TrafficCarPose>(), _ => false, new System.Collections.Generic.Dictionary<int, byte>(),
-                                     new[] { walker, replica }, p => p.NetworkId == 8);
+        var car = new TrafficCarPose(1, default, "c1", 41, 0, 0x336699, 20f, 5f, 0f, 1f, 4.5f, 1.8f);
+        var near = new TrafficCarPose(1, default, "c2", 42, 1050, 0, 30f, 5f, 0f, 0f, 4.5f, 1.8f);
+        using var world = new Fdp.Core.EntityRepository();
+        world.SetSingletonManaged(new TrafficFrame(new[] { car, near }, c => c.NetworkId == 42, new System.Collections.Generic.Dictionary<int, byte>(),
+                                                   new[] { walker, replica }, p => p.NetworkId == 8));
 
-        Assert.Equal(new[] { walker }, TrafficLayer3D.PedestriansToDraw(frame));
+        var bodies = TrafficAmbientBodies.Of(world);
+
+        Assert.Equal(2, bodies.Count);
+        var man = Assert.Single(bodies, b => b.Key == 7);
+        Assert.Equal(TrafficPanicSystem.TypeOf(7), man.TkbType);
+        Assert.Equal(TrafficReplicas.PedestrianTypeOf(7), man.TkbType);
+        Assert.Equal(new Vector3(10f, 0f, 0f), man.Position);
+        Assert.Equal(0.5f, man.YawRad);
+        var auto = Assert.Single(bodies, b => b.Key == 41);
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.TrafficCar, auto.TkbType);
+        Assert.Equal(0x336699u, auto.Colour);
+        Assert.NotEqual(0, TrafficAmbientBodies.KeyOf(0, "veh7"));
+        Assert.Equal(TrafficAmbientBodies.KeyOf(0, "veh7"), TrafficAmbientBodies.KeyOf(0, "veh7"));
+        Assert.True(TrafficAmbientBodies.KeyOf(0, "veh7") < 0, "a hashed key never meets a real network id");
     }
 }

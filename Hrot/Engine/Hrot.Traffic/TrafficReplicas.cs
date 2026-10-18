@@ -43,9 +43,14 @@ public sealed class TrafficReplicas
     /// gates "alive": the hit converts the agent, and OUR entity takes it with its own TKB health.</summary>
     public const float ReplicaHealth = 100f;
 
-    /// <summary>⭐ AQ93 §15 K3 — a pedestrian replica's type: the civilian family's adult (the civilian a conversion makes is typed by
-    /// its id, <see cref="TrafficPanicSystem.TypeOf"/>; the replica is the same person before he has a brain).</summary>
-    public const long PedestrianType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
+    /// <summary>⭐ AQ93 §15 K3 / §15.8 (CE-4031) — a SUMO pedestrian's type, by his id (<see cref="TrafficPanicSystem.TypeOf"/>): the far
+    /// figure, the replica and the civilian a conversion makes are ONE person — same type, and the map seeds his clothes and face by the
+    /// same id. ⛔ Before: the replica was always the adult man, so he changed sex and age the moment he was converted.</summary>
+    public static long PedestrianTypeOf(long networkId) => TrafficPanicSystem.TypeOf(networkId);
+
+    /// <summary>⭐ AQ93 §12 T1 — a SUMO car's type: the one its sender mapped, else the generic traffic car. The replica and the map's far
+    /// car (§15.8) both read it.</summary>
+    public static long CarTypeOf(in TrafficCarPose car) => car.TkbType != 0 ? car.TkbType : TkbEntityTypes.TrafficCar;
 
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap? _entityMap;
@@ -168,7 +173,7 @@ public sealed class TrafficReplicas
         var e = _world.CreateEntity();
         _world.AddComponent(e, new NetworkIdentity(ped.NetworkId));
         _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: ped.Owner, localNodeId: _localNodeId));
-        _world.AddComponent(e, new TkbIdentity { TkbType = PedestrianType });
+        _world.AddComponent(e, new TkbIdentity { TkbType = PedestrianTypeOf(ped.NetworkId) });
         _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
         _world.AddComponent(e, new TrafficCar { VehicleIndex = 0, Kind = TrafficCar.KindPedestrian });
         _world.AddComponent(e, new ScenarioIgnoreTag());
@@ -243,7 +248,7 @@ public sealed class TrafficReplicas
         var e = _world.CreateEntity();
         _world.AddComponent(e, new NetworkIdentity(car.NetworkId));
         _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: car.Owner, localNodeId: _localNodeId));
-        _world.AddComponent(e, new TkbIdentity { TkbType = car.TkbType != 0 ? car.TkbType : TkbEntityTypes.TrafficCar });
+        _world.AddComponent(e, new TkbIdentity { TkbType = CarTypeOf(car) });
         _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
         _world.AddComponent(e, new TrafficCar { VehicleIndex = car.Handle.Index, Generation = car.Handle.Generation });
         _world.AddComponent(e, new ScenarioIgnoreTag());

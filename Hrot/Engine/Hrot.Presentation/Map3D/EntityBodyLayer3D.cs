@@ -32,6 +32,19 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
     private readonly Func<EntityRepository, Entity, ArticulationPose>? _poseOf;
+    private readonly Func<EntityRepository, IReadOnlyList<AmbientBody>>? _ambient;
+    private readonly HashSet<long> _ambientDrawn = new();
+
+    /// <summary>⭐ AQ93 §15.8 (CE-4031) — a body with NO entity, drawn as an entity of <paramref name="TkbType"/> would be: its look by
+    /// the type, its clothes, face or paint seeded by <paramref name="Key"/> (its network id — the seed its replica would use), standing
+    /// at <paramref name="Position"/> facing <paramref name="YawRad"/>; <paramref name="Colour"/> (0xRRGGBB, 0 = none) is a car's own paint.</summary>
+    public readonly record struct AmbientBody(long Key, long TkbType, Vector3 Position, float YawRad, uint Colour = 0);
+
+    /// <summary>⭐ CE-4031 — the ambient bodies drawn by the last 3-D frame (people and vehicles).</summary>
+    public int AmbientDrawn { get; private set; }
+
+    /// <summary>⭐ CE-4031 — the ambient source this layer was built with (the forwarding rail reads it).</summary>
+    public bool HasAmbientSource => _ambient != null;
     private Mesh _cube, _cylinder, _cone;
     private bool _meshes;
 
@@ -53,10 +66,14 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⭐ WL-1 — in
     /// production it is <see cref="TurretPoseSource.PoseOf"/> (the turret part's <c>TurretPose</c>, DESIGN_Weapon_Layers W-9), plugged in
     /// at ONE place, <c>MapInteractionPack.AttachMapLayers</c>. Null = every turret faces forward.</param>
+    /// <param name="ambient">⭐ AQ93 §15.8 (CE-4031) — bodies with NO entity to draw as ours (SUMO's far pedestrians and cars): in
+    /// production <see cref="TrafficAmbientBodies.Of"/>, plugged at the same ONE place. Null = none.</param>
     public EntityBodyLayer3D(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb,
-                             Func<EntityRepository, Entity, ArticulationPose>? poseOf = null)
+                             Func<EntityRepository, Entity, ArticulationPose>? poseOf = null,
+                             Func<EntityRepository, IReadOnlyList<AmbientBody>>? ambient = null)
     {
         _poseOf = poseOf;
+        _ambient = ambient;
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _tkb = tkb ?? throw new ArgumentNullException(nameof(tkb));
     }
@@ -78,6 +95,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
+        AmbientDrawn = 0;
         BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
         _ropeUsers.Clear();
@@ -229,57 +247,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
-            for (int pi = 0; pi < parts.Length; pi++)
-            {
-                var part = parts[pi];
-                if (look.Child && pi == BlockFigure.HeadIndex)   // ⭐ CE-1099 (O-3) — a child's head is larger, sitting on his shoulders
-                    part = part with
-                    {
-                        Extent = part.Extent * ChildHead,
-                        Centre = part.Face == FaceOn.Front ? part.Centre + new Vector3(0f, 0f, part.Extent.Z * (ChildHead - 1f) / 2f) : part.Centre,
-                    };
-                if (geometry != null && part.Role == PartRole.Gear) continue;
-                // ⭐ CE-1070 — a figure's rifle (its weapon part): remember where its muzzle end was drawn, for the muzzle flash.
-                //   ⭐ CE-1090 — a shouldered launcher is that part too; its tip is also the CARRIED weapon's muzzle (its shot is the weapon's)
-                if (look.Family == VisualFamily.Person && look.Soldier && pi == BlockFigure.WeaponIndex)
-                {
-                    var tip = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
-                    _weaponTips[e] = tip;
-                    if (_shouldering.Contains(e) && !carriage.Load.IsNull) _weaponTips[carriage.Load] = tip;
-                }
-                // ⭐ CE-1073 (§6l) — a figure's head: remember its eyes (in the body's frame) for the first-person camera, and do not
-                //   draw the head of the unit seen FROM it (the camera sits inside it)
-                if (look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
-                {
-                    _eyes[e] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
-                    if (e == FirstPerson) continue;
-                }
-                var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
-                var model = HrotToRaylib.ModelFromHrot(placed);
-                var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-                var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
-                Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
-                Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
-                _surface.Plain(shader);
-                PartsDrawn++;
-                if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
-                for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
-                    if (_details[k].Part == pi)
-                    {
-                        var d = _details[k];
-                        var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
-                        if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
-                        Raylib.DrawMesh(_cube, shader.Tinted(d.Colour), HrotToRaylib.ModelFromHrot(local * placed));
-                        DetailsDrawn++;
-                    }
-                for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
-                    if (_stains[k].Part == pi)
-                    {
-                        Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Char ? Charred : _stains[k].Fresh ? BloodFresh : BloodDark),
-                                        HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)));
-                        StainsDrawn++;
-                    }
-            }
+            DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
+                      geometry, carriage, shader);
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
@@ -296,11 +265,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             }
             BodiesDrawn++;
         }
+        DrawAmbient(world, tkb, shader, simTime);   // ⭐ CE-4031 (AQ93 §15.8) — SUMO's far people and cars, as ours
         _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
         DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _teamPartner.Clear();
         _motion.EndFrame(_drawn);
+        _motion.EndFrame(_ambientDrawn);
         _fall.EndFrame(_drawn);
         _down.EndFrame(_drawn);
         _drops.EndFrame(_drawn);
@@ -312,6 +283,116 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         foreach (var k in _eyes.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
         foreach (var k in _tipsGone) _eyes.Remove(k);
         _postures.EndFrame(_drawn);
+    }
+
+    /// <summary>⭐ AQ93 §15.8 (CE-4031) — the bodies with NO entity (<see cref="AmbientBody"/>): a person is a civilian walking upright (no
+    /// stance, posture, carriage or gesture — he has no components to say otherwise), a vehicle its type's kit with its paint; each through
+    /// the same look, gait and part loop as an entity. 🔒 User, 2026-10-18: *"pedestrians from sumo should be mapped to various character
+    /// models we are using, definitely not a gray uniform figures please"*.</summary>
+    private void DrawAmbient(EntityRepository world, ITkbDatabase? tkb, LitShader shader, double simTime)
+    {
+        _ambientDrawn.Clear();
+        if (_ambient == null) return;
+        foreach (var a in _ambient(world))
+        {
+            var look = LookOf(a.TkbType, tkb);
+            if (look.Family == VisualFamily.Unit) continue;
+            var size = look.Size;
+            var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, a.YawRad);
+            var body = Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(a.Position);
+            var motion = _motion.Advance(a.Key, a.Position, rotation, look.Family, size, simTime);
+            _ambientDrawn.Add(a.Key);
+            KitPart[] parts;
+            KitPivots pivots = default;
+            Outfit? outfit = null;
+            var headFace = FaceOn.Front;
+            var colour = look.Colour;
+            Color? own = a.Colour != 0 ? new Color((byte)(a.Colour >> 16), (byte)(a.Colour >> 8), (byte)a.Colour, (byte)255) : null;
+            if (look.Family == VisualFamily.Person)
+            {
+                parts = BlockFigure.Parts(StanceId.Standing, look.Soldier, WeaponPostureKind.AtEase, WeaponPostureKind.AtEase, 1f);
+                motion = Stepping(motion, StanceId.Standing);
+                outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, own ?? (look.TypeColoured ? colour : null), ForceId.Neutral,
+                                     look.Kit, look.Elderly);
+                Outfits.Details(outfit.Value, a.Key, _details);
+                if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
+            }
+            else
+            {
+                (parts, pivots) = PlacedKit(ShapeKits.For(look.Family), a.TkbType, tkb, size);
+                if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, own ?? (look.TypeColoured ? colour : null));
+                else if (own is { } c) colour = c;
+            }
+            var geometry = look.Geometry;
+            var kitToBody = geometry == null
+                ? Matrix4x4.Identity
+                : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
+            DrawParts(null, parts, look, size, pivots, ArticulationPose.Neutral, motion, kitToBody, body, outfit, headFace,
+                      Outfits.CamoSeed(a.Key), colour, wreck: false, stains: 0, details: outfit != null ? _details.Count : 0, geometry,
+                      FigureCarriage.Free, shader);
+            if (geometry != null) DrawGear(world, geometry, a.Position, body, shader);
+            AmbientDrawn++;
+        }
+    }
+
+    /// <summary>⭐ AQ93 §15.8 (CE-4031) — ONE part loop for a body: an entity (<paramref name="e"/> — its weapon tip, its eyes, the
+    /// first-person skip) or a body with no entity (null — SUMO's far agents), each part in its outfit or paint, its face, its details and
+    /// its stains (<paramref name="stains"/>/<paramref name="details"/> of the shared lists).</summary>
+    private void DrawParts(Entity? e, KitPart[] parts, in TypeLook look, Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion,
+                           Matrix4x4 kitToBody, Matrix4x4 body, Outfit? outfit, FaceOn headFace, float camoSeed, Color colour, bool wreck,
+                           int stains, int details, BodyGeometryDto? geometry, in FigureCarriage carriage, LitShader shader)
+    {
+        for (int pi = 0; pi < parts.Length; pi++)
+        {
+            var part = parts[pi];
+            if (look.Child && pi == BlockFigure.HeadIndex)   // ⭐ CE-1099 (O-3) — a child's head is larger, sitting on his shoulders
+                part = part with
+                {
+                    Extent = part.Extent * ChildHead,
+                    Centre = part.Face == FaceOn.Front ? part.Centre + new Vector3(0f, 0f, part.Extent.Z * (ChildHead - 1f) / 2f) : part.Centre,
+                };
+            if (geometry != null && part.Role == PartRole.Gear) continue;
+            // ⭐ CE-1070 — a figure's rifle (its weapon part): remember where its muzzle end was drawn, for the muzzle flash.
+            //   ⭐ CE-1090 — a shouldered launcher is that part too; its tip is also the CARRIED weapon's muzzle (its shot is the weapon's)
+            if (e is { } ent && look.Family == VisualFamily.Person && look.Soldier && pi == BlockFigure.WeaponIndex)
+            {
+                var tip = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
+                _weaponTips[ent] = tip;
+                if (_shouldering.Contains(ent) && !carriage.Load.IsNull) _weaponTips[carriage.Load] = tip;
+            }
+            // ⭐ CE-1073 (§6l) — a figure's head: remember its eyes (in the body's frame) for the first-person camera, and do not
+            //   draw the head of the unit seen FROM it (the camera sits inside it)
+            if (e is { } who && look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
+            {
+                _eyes[who] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
+                if (who == FirstPerson) continue;
+            }
+            var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
+            var model = HrotToRaylib.ModelFromHrot(placed);
+            var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
+            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+            Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
+            Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
+            _surface.Plain(shader);
+            PartsDrawn++;
+            if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
+            for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
+                if (_details[k].Part == pi)
+                {
+                    var d = _details[k];
+                    var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
+                    if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
+                    Raylib.DrawMesh(_cube, shader.Tinted(d.Colour), HrotToRaylib.ModelFromHrot(local * placed));
+                    DetailsDrawn++;
+                }
+            for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
+                if (_stains[k].Part == pi)
+                {
+                    Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Char ? Charred : _stains[k].Fresh ? BloodFresh : BloodDark),
+                                    HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)));
+                    StainsDrawn++;
+                }
+        }
     }
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
@@ -351,14 +432,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (soldier) _postures.Aim(e, 0f, 0f, simTime);
             return motion with { Lean = 0f, Twist = 0f, KneeFlexL = 0f, KneeFlexR = 0f };
         }
-        float swingThrough = MathF.Cos(motion.GaitPhase);   // > 0: the left leg is coming forward, < 0: the right one
-        float lift = motion.Stride * KneeLift;
-        motion = motion with
-        {
-            HipZ = BlockFigure.HipFraction(stance),
-            KneeFlexL = lift * MathF.Max(0f, swingThrough),
-            KneeFlexR = lift * MathF.Max(0f, -swingThrough),
-        };
+        motion = Stepping(motion, stance);
         if (stance == StanceId.Crouched && crouchRun > 0f)
             motion = motion with
             {
@@ -377,6 +451,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (!TryAim(world, e, tf, size, stance, out float twist, out float pitch)) twist = pitch = 0f;
         var (t, p) = _postures.Aim(e, twist, pitch, simTime);
         return motion with { Twist = t, Lean = motion.Lean - p };
+    }
+
+    /// <summary>⭐ WL-6c — the gait's legs for <paramref name="stance"/>: the hips at the stance's height, each shin bent back as its leg
+    /// swings through. ⭐ CE-4031 — shared by an entity's figure and a body with no entity (<see cref="DrawAmbient"/>).</summary>
+    public static MotionPose Stepping(MotionPose motion, StanceId stance)
+    {
+        float swingThrough = MathF.Cos(motion.GaitPhase);   // > 0: the left leg is coming forward, < 0: the right one
+        float lift = motion.Stride * KneeLift;
+        return motion with
+        {
+            HipZ = BlockFigure.HipFraction(stance),
+            KneeFlexL = lift * MathF.Max(0f, swingThrough),
+            KneeFlexR = lift * MathF.Max(0f, -swingThrough),
+        };
     }
 
     /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is

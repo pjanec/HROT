@@ -14,7 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
-  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058)
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: the sun, the sky, fog and cloud layers come from WeatherField
   - designs/audio/DESIGN_FPS_Audio.md — OWNS the AudioLayer the pack attaches beside PossessionStation, and the audio files' CC0 licence table (AU-8)
   - designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the descent (rope, canopy) the map draws (U-1); ⚠ its D-8 keeps §6m C-4 only for a hop ≤ 3 m and SIMULATES rope / parachute descents

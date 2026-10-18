@@ -56,14 +56,33 @@ public sealed class MotionTracker
     }
 
     private readonly Dictionary<Entity, State> _states = new();
-    private int _sweep;
+    private readonly Dictionary<long, State> _keyed = new();   // ⭐ AQ93 §15.8 (CE-4031) — bodies with no entity (SUMO's far agents)
+    private int _sweep, _keyedSweep;
 
     /// <summary>The pose of <paramref name="e"/>'s moving parts this frame. <paramref name="simTime"/> is the simulation clock
     /// (seconds); <paramref name="moving"/> spins a rotor (airborne or under way).</summary>
     public MotionPose Advance(Entity e, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
                               bool rotorTurning)
     {
-        if (!_states.TryGetValue(e, out var st) || !st.Seen)
+        _states.TryGetValue(e, out var st);
+        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning);
+        _states[e] = st;
+        return pose;
+    }
+
+    /// <summary>⭐ AQ93 §15.8 (CE-4031) — the same, for a body with no entity, by a stable <paramref name="key"/> (its network id).</summary>
+    public MotionPose Advance(long key, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime)
+    {
+        _keyed.TryGetValue(key, out var st);
+        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning: false);
+        _keyed[key] = st;
+        return pose;
+    }
+
+    private static MotionPose Step(ref State st, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
+                                   bool rotorTurning)
+    {
+        if (!st.Seen)
             st = new State { Last = position, SimTime = simTime, Seen = true, RotorRate = rotorTurning ? 1f : 0f };   // first seen flying: at speed
 
         var delta = position - st.Last;
@@ -124,7 +143,6 @@ public sealed class MotionTracker
 
         st.Last = position;
         st.SimTime = simTime;
-        _states[e] = st;
         return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl);
     }
 
@@ -135,6 +153,15 @@ public sealed class MotionTracker
         _sweep = 0;
         foreach (var e in _states.Keys.ToList())
             if (!drawn.Contains(e)) _states.Remove(e);
+    }
+
+    /// <summary>⭐ CE-4031 — forgets keyed bodies not seen for a while (<see cref="Advance(long, Vector3, Quaternion, VisualFamily, Vector3, double)"/>).</summary>
+    public void EndFrame(HashSet<long> drawn)
+    {
+        if (++_keyedSweep < 120 || _keyed.Count <= drawn.Count) return;
+        _keyedSweep = 0;
+        foreach (var k in _keyed.Keys.ToList())
+            if (!drawn.Contains(k)) _keyed.Remove(k);
     }
 
     private static float Wrap(float a) => a % (MathF.PI * 2f);

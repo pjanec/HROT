@@ -97,8 +97,19 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     public void WL1_TheTurretPoseNeedsNoPerHostWiring()
     {
         var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
-        Assert.Contains("new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf)", pack);
+        Assert.Contains("new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf, Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TurretPoseSource")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires the turret pose itself: " + string.Join(", ", hostMentions));
+    }
+
+    /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's far people and cars reach the 3-D bodies at ONE place, the shared attach (the
+    /// silent-default rule: the one production caller that has the source passes it); no host draws them itself.</summary>
+    [Fact]
+    public void CE4031_SumoFarAgents_ReachTheBodies_AtTheSharedAttach()
+    {
+        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        Assert.Contains("Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
+        var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TrafficAmbientBodies")).Select(f => f.Rel).ToList();
+        Assert.True(hostMentions.Count == 0, "a host wires SUMO's far bodies itself: " + string.Join(", ", hostMentions));
     }
 }

@@ -4,7 +4,7 @@ updated: 2026-10-17
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
   slice 2 (the networked pack + the traffic node, §12) BUILT 2026-10-17: §12.1 is its as-built; the rest of §6 is DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
-current-answer: §15.7 (slice 5a/5b AS BUILT — pedestrians, panic, conversion) · §14.6 (slice 4) · §13.7 (slice 3) · §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §15.8 (SUMO people and cars drawn as ours, CE-4031) · §15.9 (demo-city houses, CE-4028) · §15.7 (slice 5a/5b AS BUILT — pedestrians, panic, conversion) · §14.6 (slice 4) · §13.7 (slice 3) · §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimHost, CGF and IG compose the mirror since slice 2 (§12.1);
@@ -1401,6 +1401,96 @@ preview controller for a hint) — `DebugApiService.TimeAdvancing()` degrades no
 ⚠ Observation for the civilians lane, not changed: a converted pedestrian calms back to Routine about 20 s after birth when nothing new
 frightens him (CE-2235's fade). §8.2 intends panic, then an openable building.
 
+
+### 15.8 SUMO's people and cars are drawn as OURS — the same figures, not boxes *(2026-10-18, CE-4031 — build-state: BUILT, as drawn)*
+
+> 🔒 **User, `2026-10-18`:** *"pedestrians from sumo should be mapped to various character models we are using, definitely not a gray
+> uniform figures please"*
+
+**INVENTORY** *(graph CLI `search_graph` on `Map3D`, grep `new EntityBodyLayer3D` / `TrafficFrame`)*: the 3-D map has ONE person/vehicle
+renderer — `EntityBodyLayer3D` (block-figure kit, `Outfits.For` clothes/hair/face seeded by the network id, `MotionTracker` gait,
+`Outfits.CarColour` paint, `KitFromTkb` car kits) — built at ONE place, `MapInteractionPack.cs:470`. SUMO's far agents bypass it:
+`TrafficLayer3D` draws each non-entity pedestrian as one grey box (`:92`) and each car as one blue box (`:84`). A near pedestrian's
+replica is typed `1101` always (`TrafficReplicas.PedestrianType`), while the civilian he converts into is typed by id
+(`TrafficPanicSystem.TypeOf`) — so he can change sex and age on conversion.
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBodyLayer3D { <<grown>> +ctor(world, tkb, poseOf, ambient) Draw3D() DrawAmbient() DrawParts() }
+  class AmbientBody { <<NEW record>> Key TkbType Position YawRad Colour }
+  class TrafficAmbientBodies { <<NEW static>> +Of(world) non-entity peds and cars from TrafficFrame }
+  class MotionTracker { <<grown>> +Advance(long key, ...) gait for a body with no entity }
+  class TrafficReplicas { <<grown>> +PedestrianTypeOf(id) +CarTypeOf(car) }
+  class TrafficPanicSystem { <<existing>> +TypeOf(id) 4 men 4 women 1 child 1 elderly in 10 }
+  class TrafficLayer3D { <<shrunk>> roads, lights only }
+  class Outfits { <<existing>> For(seed, type, ...) CarColour(seed, type, own) }
+  class MapInteractionPack { <<existing>> AttachMapLayers: the one wiring point }
+  MapInteractionPack --> EntityBodyLayer3D : ambient = TrafficAmbientBodies.Of
+  EntityBodyLayer3D ..> AmbientBody
+  TrafficAmbientBodies ..> AmbientBody
+  TrafficAmbientBodies --> TrafficReplicas : the same type rule
+  TrafficReplicas --> TrafficPanicSystem : TypeOf
+  EntityBodyLayer3D --> Outfits
+  EntityBodyLayer3D --> MotionTracker
+```
+*What the picture shows that prose hid: the far body, the replica and the converted civilian all reach ONE type rule
+(`TrafficPanicSystem.TypeOf`) and ONE seed (the network id), so a pedestrian keeps his face and clothes from the far street to our
+civilian — and there is still one renderer.*
+
+```mermaid
+sequenceDiagram
+  participant M as TrafficMirrorSystem
+  participant F as TrafficFrame
+  participant L as EntityBodyLayer3D
+  participant A as TrafficAmbientBodies
+  M->>F: peds and cars this frame, IsPedEntity / IsEntity
+  L->>L: entity pass: every entity body (replicas and our civilians included)
+  L->>A: Of(world)
+  A->>F: non-entity peds: key = network id, type = PedestrianTypeOf(id)
+  A->>F: non-entity cars: key = network id, type = CarTypeOf(car), colour = car.Color
+  A-->>L: AmbientBody list
+  L->>L: per body: LookOf(type), MotionTracker.Advance(key), a walking figure or the car kit
+  L->>L: DrawParts: outfit or paint from the key, the same part loop as an entity
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers, every map host] -->|registers| BL[EntityBodyLayer3D]
+  MIP -->|registers| TL[TrafficLayer3D: roads, lights]
+  CAN[Map canvas, each 3-D frame] -->|Draw3D| BL
+  CAN -->|Draw3D| TL
+  BL -->|ambient source| TAB[TrafficAmbientBodies.Of]
+  TAB -->|reads| TF[TrafficFrame singleton, written by TrafficMirrorSystem on every node with the mirror]
+```
+*Who calls it each frame: the canvas, on every host that attaches `MapInteractionPack`; a host with no SUMO mirror has no
+`TrafficFrame`, and the source yields nothing.*
+
+Decision: the body layer gets an `ambient` source and draws a non-entity agent through the SAME look, gait and part loop as an entity
+(the loop extracted into `DrawParts`); pedestrians are typed by id everywhere (the far body, the replica, the civilian); `TrafficLayer3D`
+keeps the roads and the lights.
+Rejected: a figure renderer inside `TrafficLayer3D` — a second person renderer, the outfits and gait copied · making every far agent an
+entity — R-4020 keeps far traffic off the ECS, and 160 + cars would cost every system each frame · keeping the replica `1101` — he changes
+sex and age the moment he is converted.
+**As built, matching the diagrams:** `EntityBodyLayer3D.AmbientBody` is a nested record (the layer's own vocabulary); the far car takes
+its type's size (as its replica does — the replica carries no `VehicleParams`), its paint from `car.Color` as the replica's
+`EntityAppearance` would; an agent its sender named without an id keys by an FNV hash of its name, negative so it never meets a real id.
+Frame rail `Map3DFrameRail.CE4031_…`: ten far walkers and four cars, 0 entities, 14 bodies, every walker a different outfit, faces painted,
+walking mid-stride (`map3d-ce4031-sumo-people.png`).
+
+Design docs checked: [DESIGN_Map_3D_Mode.md](../DESIGN_Map_3D_Mode.md) §6q (outfits seeded by the network id, CE-1099/1100) — applies,
+it is the look reused · §3.7 (one colour rule) — applies to the far car's colour (`EntityAppearance` ≡ `car.Color`) · §12 T1/T2 here —
+applies: a car's model is its TKB type, its paint per car from its id.
+
+### 15.9 demo-city offers shelter — enterable houses *(2026-10-18, CE-4028 — BUILT)*
+
+📐 Measured: demo-city's 5 data buildings are polygon prisms (`TerrainWorldParser.cs:137`, the solid case) and it had **0 doors**, so
+`FindEnterableShelter` answered nothing anywhere and every converted pedestrian cowered and calmed (Civilians §5e: none ⇒ Cower).
+Built: two door-bearing templates in `demo-city/buildings/` (`house-1f` brick 9 × 8 m, `shop-1f` concrete 12 × 9 m; front door
+closed, not locked) and **34 AUTHORED placements** (`demo-city.houses.json`) beside the sidewalks, front doors facing them, clear of
+every lane and data building, so every sidewalk point is within 70 m of a front door (the query searches 80 m).
+`terrain-from-sumo.py --houses` merges them (default `<name>.houses.json`) — placements are data, not generated at load (R-4052: no
+procedural buildings). Rail `EnterableShelterTests.CE4028_DemoCity_EverySidewalkPoint_HasAnEnterableHouseWithinTheShelterRadius`.
 
 ## 7. ⛔ HISTORY
 
