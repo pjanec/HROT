@@ -117,6 +117,32 @@ public sealed class PedestriansPanicIntoCiviliansTests
     }
 
     [Fact]
+    public void K7_AHitCar_LeavesSumo_AsOurStoppedCar_KeepingItsId_AndItsDriverGetsOutInPanic()
+    {
+        using var h = Harness.Start(Walkers);
+        h.Run(60.0);
+        var car = h.Mirror.Cars.First(c => c.NetworkId > 0 && !TrafficReplicas.IsShadow(c));
+        h.Body(car.X + 3f, car.Y + 3f);
+        h.Run(0.5);
+        var replica = h.Mirror.Replicas!.Replicas.Values.First(e => h.World.GetComponentRO<NetworkIdentity>(e).Value == car.NetworkId);
+
+        h.World.Bus.Publish(new DamageAssessedEvent { HitEntity = replica, TotalDamage = 120f, IsRemote = true });
+        var requests = h.RunCollecting(1.0);
+
+        var ours = Assert.Single(requests, r => r.PreAllocatedNetworkId == car.NetworkId);
+        Assert.Equal(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, ours.TkbType);   // no TKB car types here (T1): our civilian car
+        Assert.True(ours.IsTransient);
+        var at = Assert.IsType<SimTransform>(Assert.Single(ours.InitialComponents!)).Position;
+        Assert.True(Vector2.Distance(new(at.X, at.Y), new(car.X, car.Y)) < 15f, "our car stands where SUMO's was");
+        var driver = Assert.Single(requests, r => r.PreAllocatedNetworkId == 0);
+        Assert.InRange(driver.TkbType, CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianElderly);
+        Assert.Contains("\"Fear\":1", driver.InitialAttributesJson);
+        Assert.DoesNotContain(h.Mirror.Cars, c => c.NetworkId == car.NetworkId);   // gone from SUMO's wire (H15)
+        Assert.Contains(car.NetworkId, h.Panic.HeldHits);                          // its hit waits for our car
+        Assert.False(h.World.IsAlive(replica));
+    }
+
+    [Fact]
     public void K5_AReleasedPedestrian_LosesItsReplica_AndIsNotRemade()
     {
         var world = new EntityRepository();

@@ -84,5 +84,31 @@ if converted:
     check("every node sees him as an entity", all(seen.values()), seen)
     sumo_now = {NODES[p]: c in sumo(p) for p in (CGF, SIM, IG, TRAFFIC)}
     check("no node keeps him as a SUMO replica", not any(sumo_now.values()), sumo_now)
+# ⭐ K7 (5c) — a CAR hit: an M67's burst published on SimHost (where AreaEffectSystem runs) at a SUMO car near our units; its area
+#   damage hits the car's replica, the hit reaches the traffic node by NED, and the car leaves SUMO (H15) as OUR civilian car (CGF).
+sim_cars = [n for n in sumo(SIM) if tkb(SIM, n) not in CIVILIANS]
+target = sim_cars[0] if sim_cars else None
+if target:
+    tp = (comps(SIM, target).get("SimTransform") or {}).get("Position")
+    b = call(SIM, "POST", "/entities/command", {"eventType": "DetonationNotification",
+             "payload": {"HitX": tp[0], "HitY": tp[1], "HitZ": tp[2] + 0.5, "Ammo": 6001, "IsRemote": False}})
+    check("an M67 burst published at a SUMO car (SimHost)", (b or {}).get("ok"), {"car": target, "at": tp, "error": (b or {}).get("error")})
+    ours_car, t2 = None, time.time()
+    while time.time() - t2 < 60 and ours_car is None:
+        time.sleep(3)
+        e = comps(CGF, target)
+        if e and "TrafficCar" not in e and "SimTransform" in e: ours_car = e
+    check("the hit car left SUMO as OUR car on CGF, same id (K7)", ours_car,
+          {"id": target, "type": (ours_car or {}).get("TkbIdentity"), "owner": (ours_car or {}).get("NetworkAuthority"),
+           "health": (ours_car or {}).get("Health")})
+    if ours_car:
+        cp = ours_car["SimTransform"]["Position"]
+        drivers = [r["networkId"] for r in rows(CGF) if "CivilianState" in r.get("components", []) and r["networkId"] not in converted]
+        near = [n for n in drivers if (lambda q: q and abs(q[0] - cp[0]) < 6 and abs(q[1] - cp[1]) < 6)((comps(CGF, n).get("SimTransform") or {}).get("Position"))]
+        check("its driver got out a civilian beside it", near, {"near": near})
+        h = (ours_car.get("Health") or {})
+        check("our car took the hit (Health below Max)", h and h.get("Current", 0) < h.get("Max", 0), h)
+else:
+    check("a SUMO car replica on SimHost to hit", False, "none")
 json.dump([{"check": n, "pass": ok, "detail": str(d)} for n, ok, d in results], open(os.path.join(OUT, "slice5-cluster-results.json"), "w"), indent=1)
 print(f"\n{sum(ok for _, ok, _ in results)}/{len(results)} passed")

@@ -52,6 +52,7 @@ public sealed class TrafficNodeBootstrapperTests
         // ⭐ CE-4024 — our units' replicas get a collider here (the combat translator adds one only to a registered type): the vicinity
         //   anchors, SUMO's view of our bodies and the replicas all key on it.
         Assert.True(node.Context.World.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>());
+        Assert.True(node.Context.World.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>());   // a vehicle is told apart and sized
     }
 
     /// <summary>

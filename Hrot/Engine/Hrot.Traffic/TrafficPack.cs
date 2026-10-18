@@ -64,6 +64,11 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         //   the combat translator gave our units no collider there — no anchor, no replica, and SUMO saw none of our bodies.
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
             context.World.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        // ⭐ CE-4024 — and a VEHICLE is told apart (Locomotions.Of: people carry Locomotion, vehicles only VehicleParams) and sized by
+        //   VehicleParams. 📌 Measured on the cluster: the traffic node registered neither, so our trucks resolved to Unknown and SUMO
+        //   never saw one (the riflemen, carrying Locomotion, it did).
+        if (!context.World.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>())
+            context.World.RegisterComponent<CarKinem.Core.VehicleParams>();
         if (_serves)
         {
             long local = 0;

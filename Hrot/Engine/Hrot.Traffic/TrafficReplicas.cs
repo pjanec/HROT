@@ -53,6 +53,7 @@ public sealed class TrafficReplicas
     private readonly HashSet<(int, long)> _pedSeen = new();
     private readonly List<(int, long)> _pedDrop = new();
     private readonly HashSet<long> _released = new();
+    private readonly HashSet<long> _seenIds = new();
 
     /// <param name="entityMap">The node's network entity map (null in a world with no network layer, e.g. a rail).</param>
     public TrafficReplicas(EntityRepository world, NetworkEntityMap? entityMap, int localNodeId)
@@ -71,13 +72,16 @@ public sealed class TrafficReplicas
     /// <summary>Is this pedestrian a replica now (the entity layer draws it)?</summary>
     public bool IsPedReplica(TrafficPedPose ped) => _peds.ContainsKey((ped.Owner, ped.NetworkId));
 
-    /// <summary>⭐ AQ93 §15 K5 — the pedestrian <paramref name="networkId"/> is becoming OUR civilian: its replica goes now (so the id is
-    /// free when he is registered) and is not re-made while SUMO still shows the pedestrian.</summary>
+    /// <summary>⭐ AQ93 §15 K5/K7 — the pedestrian or car <paramref name="networkId"/> is becoming OUR entity: its replica goes now (so the
+    /// id is free when ours is registered) and is not re-made while SUMO's wire still shows it.</summary>
     public void Release(long networkId)
     {
         _released.Add(networkId);
         foreach (var kv in _peds.ToArray())
             if (kv.Key.NetworkId == networkId) DestroyPed(kv.Key, kv.Value);
+        foreach (var kv in _replicas.ToArray())
+            if (_world.IsAlive(kv.Value) && _world.HasComponent<NetworkIdentity>(kv.Value)
+                && _world.GetComponentRO<NetworkIdentity>(kv.Value).Value == networkId) Destroy(kv.Key, kv.Value);
     }
 
     /// <summary>Is this car a replica now (so a car layer skips drawing it: the entity layer draws it)?</summary>
@@ -96,12 +100,15 @@ public sealed class TrafficReplicas
     {
         CollectAnchors();
         _seen.Clear();
+        _seenIds.Clear();
         float enter2 = Radius * Radius, leave2 = (Radius + Hysteresis) * (Radius + Hysteresis);
 
         foreach (var car in cars)
         {
             var key = (car.Owner, car.Handle);
             _seen.Add(key);
+            _seenIds.Add(car.NetworkId);
+            if (_released.Contains(car.NetworkId)) continue;   // ⭐ K7 — becoming our car: not re-made
             float d2 = NearestAnchor2(new Vector2(car.X, car.Y));
             bool have = _replicas.TryGetValue(key, out var e) && _world.IsAlive(e);
             if (have)
@@ -130,6 +137,7 @@ public sealed class TrafficReplicas
         {
             var key = (ped.Owner, ped.NetworkId);
             _pedSeen.Add(key);
+            _seenIds.Add(ped.NetworkId);
             if (ped.NetworkId == 0 || _released.Contains(ped.NetworkId)) continue;
             float d2 = NearestAnchor2(new Vector2(ped.X, ped.Y));
             bool have = _peds.TryGetValue(key, out var e) && _world.IsAlive(e);
@@ -147,13 +155,7 @@ public sealed class TrafficReplicas
         foreach (var kv in _peds)
             if (!_pedSeen.Contains(kv.Key) || !_world.IsAlive(kv.Value)) _pedDrop.Add(kv.Key);
         foreach (var k in _pedDrop) DestroyPed(k, _peds[k]);
-        _released.RemoveWhere(id => !Seen(id));   // SUMO no longer shows it: the release is done
-    }
-
-    private bool Seen(long id)
-    {
-        foreach (var (_, n) in _pedSeen) if (n == id) return true;
-        return false;
+        _released.RemoveWhere(id => !_seenIds.Contains(id));   // SUMO no longer shows it: the release is done
     }
 
     private Entity CreatePed(in TrafficPedPose ped)

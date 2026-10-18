@@ -121,13 +121,21 @@ public sealed class TrafficSession : IDisposable
     }
 
     /// <summary>⭐ AQ93 §15 K7 — gives up the agent <paramref name="hit"/> names (a hit man is never capped: he is hurt, and counts toward
-    /// <see cref="Converted"/>) and APPENDS what he was. ⏳ A car waits for SumoSharp H15. ⛔ Stepping thread, between steps.</summary>
+    /// <see cref="Converted"/>) and APPENDS what he was — a pedestrian (H14 <c>RemovePedestrian</c>) or a car (H15 <c>RemoveVehicle</c>,
+    /// its centre and TKB type). ⛔ Stepping thread, between steps.</summary>
     /// <returns>True when he was given up.</returns>
     public bool ConvertHit(in TrafficHit hit, List<TrafficConversion> into)
     {
         lock (_gate)
         {
-            if (_disposed || hit.IsVehicle || !_sim.RemovePedestrian(hit.Name, out var st)) return false;
+            if (_disposed) return false;
+            if (hit.IsVehicle)
+            {
+                if (!_sim.RemoveVehicle(hit.Name, out var car)) return false;
+                into.Add(new TrafficConversion(hit.Name, car.X, car.Y, car.Z, car.Heading, hit.FrightFrom, IsVehicle: true, ExternalType: car.ExternalType));
+                return true;
+            }
+            if (!_sim.RemovePedestrian(hit.Name, out var st)) return false;
             into.Add(new TrafficConversion(hit.Name, st.X, st.Y, st.Z, st.Heading, hit.FrightFrom));
             Converted++;
             return true;

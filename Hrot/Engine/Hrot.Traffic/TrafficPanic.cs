@@ -17,7 +17,10 @@ public readonly record struct TrafficIncident(double NetX, double NetY, double R
 
 /// <summary>⭐ AQ93 §15 K5 — one pedestrian SUMO gave up (H14 S1): its name (= its network id, K2), its state when removed (NET
 /// coordinates, heading in radians, 0 = +x, counter-clockwise) and the incident that frightened it (terrain-local).</summary>
-public readonly record struct TrafficConversion(string Name, double X, double Y, double Z, double Heading, Vector3 FrightFrom);
+/// <para>⭐ K7 — or one CAR SUMO gave up (H15 <c>RemoveVehicle</c>): (X, Y) is then its CENTRE, and <paramref name="ExternalType"/> the TKB
+/// type it carried on its spawn record (T1; 0 = none).</para>
+public readonly record struct TrafficConversion(string Name, double X, double Y, double Z, double Heading, Vector3 FrightFrom,
+                                                bool IsVehicle = false, long ExternalType = 0);
 
 /// <summary>⭐ AQ93 §15 K7 — one of SUMO's agents was HIT (it is a replica near our units): its name (= its network id), whether it is a
 /// car, and where the harm came from (terrain-local), for the fright.</summary>
@@ -38,8 +41,9 @@ public readonly record struct TrafficHit(string Name, bool IsVehicle, Vector3 Fr
 /// <para>⭐ Both events reach every node (the shared pack, CE-1148) — on the traffic node they arrive by NED ingress.</para>
 /// <para>⭐ K7 (5c) — a <see cref="DamageAssessedEvent"/> on a pedestrian replica gives that pedestrian up the same way (never capped: he is
 /// hurt), and the hit is HELD until our civilian exists under the same network id, then re-published to him as a local hit, so the
-/// existing damage path (<c>DamageAssessedEgressTranslator</c> → the brain's <c>HealthApplicationSystem</c>) applies it. ⏳ A hit car waits
-/// for SumoSharp H15 (removing a car by name).</para>
+/// existing damage path (<c>DamageAssessedEgressTranslator</c> → the brain's <c>HealthApplicationSystem</c>) applies it. A hit CAR leaves
+/// SUMO too (H15 <c>RemoveVehicle</c>): it becomes OUR civilian car, stopped where it was, keeping its id and taking the hit, and its
+/// driver gets out a civilian in panic (§8.7 G4).</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
 public sealed class TrafficPanicSystem : IEcsModuleSystem
@@ -106,7 +110,6 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         long id = world.GetComponentRO<NetworkIdentity>(e).Value;
         if (_held.ContainsKey(id)) return;   // a burst on one man is one conversion; his first hit is the one he is born with
         bool car = world.GetComponentRO<TrafficCar>(e).Kind == TrafficCar.KindCar;
-        if (car) return;   // ⏳ SumoSharp H15 — a car cannot be removed by name yet
         var from = world.IsAlive(hit.Source) && world.HasComponent<SimTransform>(hit.Source)
             ? world.GetComponentRO<SimTransform>(hit.Source).Position
             : world.GetComponentRO<SimTransform>(e).Position;
@@ -155,6 +158,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         if (!long.TryParse(c.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var netId) || netId <= 0) return;
         _replicas()?.Release(netId);
+        if (c.IsVehicle) { RequestCar(world, placement, c, netId); return; }
         var (x, y) = placement.ToLocal(c.X, c.Y);
         var (ax, ay) = placement.ToLocal(c.X + Math.Cos(c.Heading), c.Y + Math.Sin(c.Heading));   // the heading through the placement
         double yaw = Math.Atan2(ay - y, ax - x);
@@ -168,6 +172,45 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
             InitType = Fdp.Toolkit.Replication.ReliableInitType.None,     // a panicking man waits for nobody
             IsTransient = true,                                           // traffic, never the scenario's
             InitialComponents = new List<object> { new SimTransform { Position = at, Rotation = SimMath.FromYaw((float)yaw) } },
+            InitialAttributesJson = FrightJson(yaw, c.FrightFrom),
+        });
+    }
+
+    /// <summary>How far beside a hit car's centre its driver gets out (metres, to the left of its heading).</summary>
+    public const float DriverOffsetMetres = 1.8f;
+
+    // ⭐ K7 / §8.7 G4 — the car: OUR civilian car (its TKB type, T1), stopped where SUMO left it, keeping its id; its driver: a civilian
+    //   in panic beside it (a new id — the system allocates one).
+    private static void RequestCar(EntityRepository world, SumoNetPlacement placement, in TrafficConversion c, long netId)
+    {
+        if (double.IsNaN(c.X) || double.IsNaN(c.Y)) return;   // H15: a car not yet on the road has no pose (never hit, never seen)
+        var (x, y) = placement.ToLocal(c.X, c.Y);
+        var (ax, ay) = placement.ToLocal(c.X + Math.Cos(c.Heading), c.Y + Math.Sin(c.Heading));
+        double yaw = Math.Atan2(ay - y, ax - x);
+        var rot = SimMath.FromYaw((float)yaw);
+        var at = new Vector3((float)x, (float)y, (float)c.Z);
+        string heading = string.Create(CultureInfo.InvariantCulture, $"{{\"Heading\":{90.0 - yaw * 180.0 / Math.PI:0.###}}}");
+        world.Bus.PublishManaged(new EntityCreationRequest
+        {
+            RequestId = Guid.NewGuid(),
+            OwnerAppInstanceId = 0,
+            TkbType = c.ExternalType > 0 ? c.ExternalType : UrbanCombatTkbCatalog.TkbCivilianCar,
+            PreAllocatedNetworkId = netId,
+            InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
+            IsTransient = true,
+            InitialComponents = new List<object> { new SimTransform { Position = at, Rotation = rot } },
+            InitialAttributesJson = heading,
+        });
+        var left = new Vector2(-MathF.Sin((float)yaw), MathF.Cos((float)yaw)) * DriverOffsetMetres;
+        var door = new Vector3(at.X + left.X, at.Y + left.Y, at.Z);
+        world.Bus.PublishManaged(new EntityCreationRequest
+        {
+            RequestId = Guid.NewGuid(),
+            OwnerAppInstanceId = 0,
+            TkbType = TypeOf(netId),
+            InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
+            IsTransient = true,
+            InitialComponents = new List<object> { new SimTransform { Position = door, Rotation = rot } },
             InitialAttributesJson = FrightJson(yaw, c.FrightFrom),
         });
     }

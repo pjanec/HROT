@@ -48,8 +48,16 @@ tkb = (cand[0].get("tkbType") or cand[0].get("id") or cand[0].get("type")) if ca
 check("a wheeled TKB type exists", tkb, [ (t.get("name"), t.get("tkbType") or t.get("id")) for t in cand[:5] ])
 
 def cars(): return [r["networkId"] for r in rows() if "TrafficCar" in r.get("components", [])]
+# ⭐ On a cluster node only the cars near OUR units are entities (R-4041): place a rifleman on a car to pull a street's cars in.
+types_all = types
+rifle = next((t.get("tkbType") or t.get("id") for t in types_all if "rifleman" in json.dumps(t).lower()), None)
+t_wait = time.time()
+while time.time() - t_wait < 120 and not cars(): time.sleep(2)   # a cluster's traffic node starts SUMO once its grant lands
+if len(cars()) < 12 and rifle and cars():
+    p, _ = tf(cars()[0])
+    if p: call("POST", "/entities/spawn", {"tkbType": rifle, "transform": {"position": {"x": p[0] + 8, "y": p[1] + 8, "z": 0}}}); time.sleep(8)
 outcomes = []
-for nid in cars()[:12]:
+for nid in cars()[:24]:
     p0, q = tf(nid); time.sleep(1.0); p1, q1 = tf(nid)
     if not (p0 and p1 and q1) or math.dist(p0[:2], p1[:2]) < 3.0: continue      # moving cars only
     h = yaw(q1); fx, fy = math.cos(h), math.sin(h)
@@ -63,7 +71,7 @@ for nid in cars()[:12]:
     along = (p2[0] - at[0]) * fx + (p2[1] - at[1]) * fy
     p3, _ = tf(nid); time.sleep(2); p4, _ = tf(nid)
     still = p3 and p4 and math.dist(p3[:2], p4[:2]) < 0.5
-    outcomes.append((nid, f"lat {lat:.1f} m, along {along:.1f} m, still {still}, spawn ok {(s or {}).get('ok')}"))
+    outcomes.append((nid, f"lat {lat:.1f} m, along {along:.1f} m, still {still}, spawn ok {(s or {}).get('ok')} {(s or {}).get('error') or ''}"[:300]))
     if lat < 2.0:
         check(f"SUMO car {nid} stops behind our vehicle", along < -2.0 and still, outcomes[-1][1])
         break
