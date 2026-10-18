@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons DESIGNED, CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -14,6 +14,8 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/DESIGN_People_Display.md — (ui) OWNS how a person is DRAWN — what he holds, his gestures, marks above the head; its §8 gaps G1–G8 are answered by §5o here
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015): every node receives the same event data (detonations included); it owns who receives, §7.3a here owns the cloud.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the civilian catalogue (CIV-1…CIV-7, ASY-5, SQD-13) and the rulings
@@ -406,7 +408,7 @@ shot" could mean "not seen").
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ✅ §5j.1 — live 6/6 (force at 4.1 s, four stun grenades, all five stunned, the riot broken: a Casualty and four Cower), twin green |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ✅ §5k.1 — ⭐ *as built:* the armed rioter is a Hostile GUNMAN who draws a hidden rifle, holds it at ease 6 s (warned, no round), then fires into the air (ready ⇒ lethal after the ignored warning); ③ is its own scenario `ua-civ-escalation-warn` · live 6/6 + 6/6, twins green |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
-| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest, each protester an authored `Attitude` (four at −1); three policemen (SecurityForce, NonLethal) walk from 60 m to 15 m, hold the line there facing the crowd 60 s (the presence, PV-1), `BatonCharge` the front rank 12 s, then `HoldTheLine` (§5m) | ① before the police are within 30 m, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ every Hostile civilian rioted first, the same on every node · ④ ⚠ *as built:* no member of attitude −1 riots (the deterministic half of "the same members" — the seed is the authored attitude, §5m PV-3) | ✅ §5m.1 — live 7/7, twin green |
 | **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
@@ -2238,6 +2240,161 @@ Failure with no charge. No deviation.
 | live `ua-armed-bomber` | ✅ 5/5 — Neutral and 0 rounds until the blast; the vest bursts at 37.7 s, he is dead; everyone within 3 m hurt; the rifleman at 31 m unhurt |
 | ⛔ finding `CE-2247` (backend) | 2 s after the burst the position owner (SimHost) has the spent vest GONE, but CGF and IG still hold it as a LIVE charge — `Charges.End` promises every replica goes. Rail `CE2247_Bomber_TheSpentVest_LeavesEveryNode`, skipped until fixed; [note](blueprints/batches/NOTE_Behaviors_To_Backend_SpentChargeReplicas.md) |
 
+## 5m. B7 — CV-14, the security forces provoke a crowd *(behaviors, `CE-2241` ② / handoff B7, 2026-10-18; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** CV-14 (§4, R-2024) on the crowd built in §5f/§5i: police near the crowd, facing it, raise its anger slowly; force used on a
+member spikes his neighbours' anger; each member's hidden **attitude** sets HIS riot threshold, so only a fraction riots. Demo
+`ua-civ-provocation` (§5c). ⏳ Not here: an arrest (a person led away), anger from a death, attitude for a civilian with no authored value
+(it stays 0 — every existing demo keeps its thresholds).
+
+**INVENTORY** *(2026-10-18; codebase-memory MCP `search_graph` `.*(Provok|Provoc|BatonCharge|Disperse|Arrest|Attitude|Anger).*` ⇒
+`CivilianState.Anger` (5 readers), `CivilianState.Attitude` (**0 readers**), `CrowdRules.AngerFade` — ⛔ **no provocation input, no order
+that strikes a protester**; grep `Melee.Strike` ⇒ `HoldTheLine` (Hostiles only) and the rioter · `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| where anger rises today | `CrowdSystem.Rouse`: an instigator's 1; a crowd member near one rises `InstigateRate × near`; otherwise fades `AngerFade` | `Civilians/CrowdSystem.cs` ⑤ |
+| who riots | `CivilianBehavior.Rioting`: a protester with `Anger ≥ RiotAt` (0.6); `Calmed` below half | `Brains/CivilianBehavior.cs:770` |
+| how force shows on a man | `EffectState` Until fields grow (Blunt ⇒ KnockedDown, Irritant, Stun); `CivilianFearSystem` already turns a NEW stun/irritation into fear once per effect (`EffectFrightUntil`) | `Combat/Effects.cs`, `CivilianFearSystem.cs:92` |
+| who is police | `Armament.IsSecurityForce` (DIS 3.1.*.3) | `Combat/Armament.cs:185` |
+| a man's facing | `SimTransform.Rotation`, X-forward | `EmbarkedStateSystem.Forward` |
+| who strikes a NEUTRAL protester | ⛔ nobody — `HoldTheLine.Nearest` skips Neutral | `Brains/HoldTheLineBehavior.cs:131` |
+
+```mermaid
+classDiagram
+  direction LR
+  class CrowdSystem { <<existing, + CV-14>> Rouse: + presence · Provoke: force spike }
+  class CrowdRules { <<existing, + CV-14>> ProvokeMetres 30 · ProvokeRate · FacingCos · ForceSpike · SpikeMetres · AttitudeWeight }
+  class CivilianState { <<existing>> Anger · Attitude (now written) · + ForceSeenUntil }
+  class CivilianBehavior { <<existing>> Rioting / Calmed read RiotAtFor(RiotAt, Attitude) }
+  class CivilianParamsJsonDto { <<existing>> + Attitude }
+  class BatonChargeBehavior { <<NEW, Brains>> BatonCharge(X,Y,Z, Reach, Seconds) }
+  class Melee { <<existing>> Strike }
+  class ForceLevels { <<existing>> LevelFor }
+  class Armament { <<existing>> IsSecurityForce }
+  class EffectState { <<existing>> }
+  CrowdSystem ..> Armament : police near and facing
+  CrowdSystem ..> EffectState : a new effect on a member
+  CrowdSystem --> CivilianState : anger
+  CivilianBehavior ..> CivilianState : anger vs his threshold
+  BatonChargeBehavior ..> Melee : strike a protester in reach
+  BatonChargeBehavior ..> ForceLevels : no blow below NonLethal (EL-7)
+  Melee ..> EffectState : Blunt ⇒ knocked down
+```
+*What the picture shows that prose hid:* the provocation has NO new system — both inputs land in the `CrowdSystem` pass that already owns
+anger, and the only new class is the order that puts force on a Neutral crowd (nothing could before).
+
+```mermaid
+sequenceDiagram
+  participant P as police (CGF brains)
+  participant C as CrowdSystem (CGF)
+  participant M as protester's HSM
+  P->>P: PersonMove to 15 m, facing the crowd
+  loop every frame within 30 m and facing
+    C->>M: Anger += ProvokeRate × near (no fade)
+  end
+  P->>M: BatonCharge — Melee.Strike ⇒ KnockedDown
+  C->>C: a NEW effect on a member (ForceSeenUntil)
+  C->>M: every member within SpikeMetres: Anger += ForceSpike × near
+  M->>M: Anger ≥ RiotAt − 0.5 × Attitude ⇒ Riot (a fraction)
+  M->>P: the rioter's blow ⇒ HostileActs.Commit ⇒ Hostile
+```
+
+```mermaid
+graph TD
+  CGF[CGF] --> CRS[CrowdSystem — already registered: + presence, + force spike]
+  CGF --> BT[BrainTickSystem]
+  BT --> HSM[CivilianHsm — Rioting reads his threshold]
+  BT --> BC[BatonCharge — a police plan step]
+  BC --> MEL[Melee.Strike — DamageAssessedEvent]
+```
+*Caption:* nothing new is scheduled; `CgfLogicPackTests`' system count is unchanged.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **PV-1** | ⭐ **presence**: each `SecurityForce` person alive and standing within `ProvokeMetres` 30 of a crowd member, facing him (forward · direction ≥ `FacingCos` 0.5, ±60°), raises his anger `ProvokeRate` 0.01/s × (1 − 0.5·d/30) — the strongest one counts, added to an instigator's pull; while provoked his anger does not fade | the crowd's centroid: a long crowd's far end is not provoked · per-person sight: CV-2's cost |
+| **PV-2** | ⭐ **force**: a NEW or longer effect on a crowd member (`EffectState` KnockedDown/Stunned/Irritated past `ForceSeenUntil`) adds `ForceSpike` 0.3 × (1 − 0.5·d/10) to every OTHER member of his crowd within `SpikeMetres` 10 — once per effect | the struck man too: CV-14 says neighbours; his own answer is fear (FL-6) · every member: a blow at the front does not reach the back rank |
+| **PV-3** | ⭐ **attitude**: authored `Attitude` (−1 friendly … +1 hostile at heart; default 0) sets HIS threshold `RiotAt − 0.5 × Attitude` (−1 ⇒ 1.1: never riots; +1 ⇒ 0.1); `Calmed` is below half of it; the HSM writes it into `CivilianState.Attitude` | a seeded random per entity: entity ids differ per run — ④ "the same members riot" fails · a hash of the network id for unauthored civilians: moves every existing demo's thresholds |
+| **PV-4** | ⭐ **the order**: a library behaviour `BatonCharge {X,Y,Z, Reach 8, Seconds 10}` for the police — walk at the point, strike the nearest standing `Civilian`-class person within `Reach` of it (close on him, `Melee.Strike` in reach, every `Melee.CooldownSeconds`; a man down or stunned is left), only when `ForceLevels.LevelFor ≥ NonLethal` (EL-7); Success after `Seconds` | baton rounds by `FireAtPoint`: a fixed point misses a milling protester · `HoldTheLine` striking Neutrals: its rule is "Hostiles only" (FL-5) |
+| **PV-6** *(found building the demo, 2026-10-18)* | ⭐ **Riot → Panic is §2.2's "fear beats anger"**: a rioter panics only when his fear is past `PanicAt` AND at least his anger (`FearBeatsAnger`). Contagion gives at most 0.9 of its source, so the crowd's fright does not turn a man angrier than that; force on HIM (fear 1) still does. Protest → Panic and Alarmed → Panic keep `Panicked` | the old guard (fear ≥ `PanicAt` alone) — measured: every rioter panicked by contagion from his struck neighbour within a second, so the live run saw no riot · contagion skipping rioters: hides a rioter's fear from readers that are not the HSM |
+| **PV-5** | ⭐ the fraction is the TWO knobs together — presence makes a crowd angry, force tips the ones whose threshold the spike reaches; a calm crowd (no presence) under the same blows stays below 0.6 and its struck men panic instead (§2.2's Dispersing edge) | — |
+
+### 5m.1 As built *(2026-10-18)*
+
+⭐ The diagrams above hold as drawn — PV-1…PV-4 in `CrowdSystem` (`Police`, `Provocation`, `Provoke`; `CrowdRules.Provoke*`,
+`ForceSpike`, `SpikeMetres`, `AttitudeWeight`, `RiotAtFor`), `CivilianState.ForceSeenUntil`, the `Attitude` param read by
+`CivilianBehavior.Rioting`/`Calmed` (and written to `CivilianState.Attitude`), `BatonChargeBehavior` + `BatonChargeParamsJsonDto`
+(`BehaviorNames.BatonCharge`). No new system.
+
+| deviation | why |
+|---|---|
+| ④ "the same members riot on every run" is checked as "no member of attitude −1 riots" | the WHO among the willing depends on which members the blows land near (timing); the deterministic part is the threshold, and that is what the seed (the authored attitude) fixes |
+| the struck man's own anger is not spiked (PV-2) | as designed — his answer is fear; measured live: the struck front rank mostly panics, the spike tips their neighbours |
+
+| proof | result |
+|---|---|
+| rails `CrowdSystemTests.CE2241_…` ×3 (presence 0.0075/s at 15 m · facing away / beyond 30 m nothing · the spike 0.24 at 4 m, once per effect, not himself, not beyond 10 m · the threshold literals) | ✅ |
+| rails `CivilianHsmTests.CE2241_HisAttitude_…` · `CE2241_ARioter_PanicsOnlyWhenFearBeatsAnger` · `HoldTheLineBehaviorTests.CE2241_BatonCharge_…` ×2 | ✅ (the two classes share one xunit collection: both read the process-wide `Melee.Strikes`) |
+| twin `PostureScenarioTests.CE2241_Provocation_…`, first cut (no presence phase, the old Riot → Panic guard) | ✅ twice — rioted {4, 6, 8} of 12 at the first blow; ⛔ but every rioter PANICKED within a second (trace: the struck man's fear spread to his whole crowd at 0.6) |
+| live, first cut | ⛔ 0 of 12 rioted — the riots were too short to be sampled, nobody struck the police ⇒ PV-6 and the 60 s presence phase |
+| twin, as built (60 s presence, `FearBeatsAnger`) | ✅ police within 30 m at 22.3 s; the first riot at 51.5 s (presence alone, a hostile-at-heart member); the first baton blow at 58.6 s; rioted {1, 4, 6}, all three Hostile (each struck the police); no attitude −1 member riots |
+| ⭐ live `ua-civ-provocation`, as built | ✅ **7/7** — police within 30 m at 20.5 s, the first riot at 48.0 s, the first blow at 60.0 s; rioted {1, 6} of 12, Hostile {1, 6} on CGF, SimHost and IG alike; no attitude −1 member riots |
+
+## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** ui's finding G7 ([handoff](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md)): `HeldItems.Set`
+(backend HI-2, `Combat/HeldItems.cs:30`) has no production caller, so the display never shows a phone or a stone in hand. ⏳ Not here:
+binoculars (no lookout behaviour exists to raise them — a later role), speech (G1) and the replicated mood (G2) — both need backend's
+component first.
+
+**INVENTORY** *(2026-10-18; grep `HeldItems\.(Set|Of|Shows|BinocularsUp)` outside tests ⇒ readers only: `Charges.Ask` (a phone in hand
+triggers a remote charge, HI-6), `VisualPerception` (binoculars), `HeldItems.Shows` (an observer judges a small non-lethal object);
+⛔ no writer · the owner's `WeaponPosture` is added beside the weapon channel by `BehaviorTkbTranslator.cs:145` — a civilian type has
+`CanShoot` (§5i.2a), so he has one · codebase-memory CLI not used for this one-symbol question)*.
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianBehavior { <<existing, + G7>> Routine: phone out for a share of his pauses · Riot: Throwable while a stone is in hand · deactivators put it away }
+  class HeldItems { <<existing, backend HI-2>> Set(man, kind) · Of(man) }
+  class WeaponPosture { <<existing, replicated>> HeldItem }
+  class Stones { <<existing>> InHand }
+  CivilianBehavior ..> HeldItems : Set
+  HeldItems --> WeaponPosture : HeldItem (dtWeaponPosture)
+  CivilianBehavior ..> Stones : InHand
+```
+*What the picture shows that prose hid:* the brain only WRITES the existing replicated byte — the display, the observer's judgement and
+the remote trigger already read it, so nothing new crosses the wire.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **HD-1** | ⭐ **the phone**: when a Routine walk ends and he pauses, he takes his phone out on `PhoneShare` 0.3 of his pauses (his own seeded draw, the same per man per pause); he puts it away when he walks on or leaves Routine | a phone for everyone at once: a street of statues · a phone in Panic: he runs |
+| **HD-2** | ⭐ **the stone**: while he riots with a stone in his hands (`Stones.InHand`) he holds `Throwable`; empty-handed, or out of Riot, `None` | the hands mount's ammo read by ui: it is not replicated as a held item; the byte is |
+| **HD-3** | ⭐ only the owning HSM writes it, only through `HeldItems.Set`, and only clears what it set (a Phone or a Throwable — never a drawn weapon) | clearing on every state entry: it would put away a weapon `StationWeapon` drew |
+| **HD-4** | ⚠ a phone in hand is a small NON-lethal object to an observer (`HeldItems.Shows`): no rule fires a round at it, and a Neutral is held first anyway (CIV-0) | — |
+
+## 5o. The people display's gaps — the BEHAVIOUR halves *(behaviors, 2026-10-18; build-state: DESIGN — frames with leans, for review)*
+
+⭐ **Scope.** ui's [DESIGN_People_Display.md](DESIGN_People_Display.md) §8 (findings [G1–G8](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))
+needs data that nothing writes. Backend owns the components and the wire; **this section owns WHO writes them, WHEN**. G7 is built in §5n.
+⏳ Each row designs fully (UML) when backend's component lands; until then it is a frame with a lean.
+
+**INVENTORY** *(2026-10-18; grep `Gestures.Set(` outside tests ⇒ writers of FistRaised, HandsUp, None (`CivilianBehavior`), HandsUp
+(`SurrenderBehavior`), Warning (`EscalationLadder`) — ⛔ **nobody writes `Waving`**, and `HoldSign` only through the protest's sign share;
+`Melee.Strike` callers ⇒ the rioter's fist (`CivilianBehavior`), the police baton (`HoldTheLineBehavior`, `BatonChargeBehavior`), neither
+says WHICH weapon; no speech, no mood on the wire — ui's §1.1 sweep agrees)*.
+
+| row | gap | ⭐ lean — who writes it, when | waits on | rejected — one line each |
+|---|---|---|---|---|
+| **`CE-2249`** · G1 speech | ⭐ **one writer per kind, through one helper `Speech.Say(man, kind, target, seconds)`**: **warning** — `EscalationLadder` (beside today's `Gesture.Warning`, 2 s); **order** — `BatonCharge` and `HoldTheLine` when the line moves ("disperse", 3 s); **insult** — a protester at anger ≥ half his threshold, on his own seeded clock (one every 6–12 s), aimed at the nearest forces person; **chant** — the protest ring (the sign-holders, a shared phase); **talk** — two civilians standing in Routine / Gather within 2 m, now and then | backend's `Utterance` component (G1) | the HSM writing the component directly: four writers would invent four rules · speech as a gesture kind: one byte, but a man can shout AND raise his fist |
+| **`CE-2250`** · G2 mood | ⭐ **one writer, `CrowdSystem`'s pass (it already touches every civilian each frame)**: quantise `Fear`/`Anger` to quarters and write `Demeanour {Mode, Fear, Anger}` ONLY when a quarter or the mode changes | backend's `Demeanour` (G2) | the HSM writing it: a crowd's contagion moves fear between HSM ticks · every tick: G2 says never |
+| **`CE-2251`** · G3/G4 melee | ⭐ **`Melee.Strike` takes the weapon** (`Fist` · `Baton` · `Knife`) and backend's notification carries it; the callers say which: the rioter's fist, the police line and the charge a `Baton` (from the 1202's item once G4 gives it); ⭐ **AW-19 the knife** (§5h): a man with a knife ITEM closes and strikes — lethal within its reach; demo `ua-armed-knife` (§5c) | backend's `StrikeNotification` (G3), the knife / baton items (G4) | the swing read from the victim's knock-down: ui's U10 rejects it (a miss shows nothing) |
+| **`CE-2252`** · G5 taser, spray | ⭐ **they are ladder RUNGS between Warn and NonLethal**: a policeman who may use non-lethal force on a man within 7 m (taser) / 3 m (spray) chooses them before the baton round — the weapon choice (`ForceLevels.AllowsMount`, EL-9) reads the mount's effect and range; `HoldTheLine` closes to them only when the target is already within reach | backend's munitions and effects (G5) | a new force level: the ladder already has NonLethal; these are mounts under it |
+| **`CE-2253`** · G6 toy gun | ⭐ **the toy gun needs no behaviour** — `Armament.Judge` already reads its LOOK (AW-15); the work is the demo **`ua-armed-identify`** (§5c): a toy rifle at 80 m is warned / held, closer the soldier sees it is harmless | backend's toy type (G6) | — |
+| **`CE-2254`** · G8 riot shield | ⭐ **the shield man faces the throwers**: `HoldTheLine` turns the shield man toward the nearest thrower within 20 m; a stone hitting the shield arc is stopped (backend's blocker) | backend's shield item + blocker (G8) | the shield as cover in EQS: a moving 1 m board is not a cover point |
+| **`CE-2256`** · TC-7 (backend §7.17) a held throwable's reach | ⭐ **lethal only within the hand's throw**: `Armament.OfHands` gives a held throwable the hands mount's `Range` (25 m) as its `ReachM`, so beyond it the observer reads Unidentified ⇒ warned and held, not shot — AW-19's *"lethality is an item's reach"*; the closing-fast rule stays its own row. Demo: `ua-armed-knife`'s thrower variant (knives from 8 m) | backend's knives (`CE-3247`) for the demo; the reach itself builds now | lethal at any identified distance (today): throwing stars read lethal at 150 m · a reach per munition: one hand, one throw (TC-5) |
+| **`CE-2255`** · gestures and items nobody writes | ⭐ **Waving**: a civilian in Routine waves at a passing patrol now and then (a cue, never an act); ⭐ **binoculars**: a lookout role (an `Observe {point}` order — raise them, report) — the ISR half belongs with the AW-14 phone spotter | nothing | a Waving written by the protest: it is a greeting, not a slogan |
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
@@ -3728,6 +3885,96 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
+
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: DESIGN — backend leans TC-1…TC-7 for approval; TC-7 is behaviors' to rule)*
+
+⭐ **The question** *(user, `2026-10-18`)*: *"Thrown knife or axe or spear or shuriken is worth investigating, if this is melee at all or more a
+cold weapon fire."* ⇒ **cold-weapon FIRE.** A blow (`Melee.Strike`, §5i) has no flight; a thrown blade flies, can miss, stops on a wall,
+strikes the first body on its line and lands where it can be picked up again — every one of which the THROWN STONE already does.
+
+INVENTORY *(grep + reads at `backend@5856585c0`; codebase-memory CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| is a thrown stone a round? | ✅ a munition (6038) with `WarheadDto { Kind = Blunt, Indirect = true }`, damage 3 — it flies the arc like the M67 | `MunitionTkbCatalog.cs:294` (H-6, §7.9) |
+| does a flying round strike a body on its line? | ✅ every round is a ballistic entity raycast each tick; a unit in its path is struck (a contact burst for an arc round), a wall stops it | `BallisticsSystem.cs:110`, `:173`, `:217` |
+| how does the hit reach the victim's owner? | ✅ resolved on the Muscle (SimHost): `DamageAssessedEgressTranslator` → `EntityHitDamage` → the Brain's ingress → the `Health` owner applies it. ⭐ NOT the melee gap (`CE-3246`) | `SimHostAuxiliaryTranslatorPack.cs:86`, `:100` |
+| what kinds a warhead has | `Kinetic` (direct hit only — a bullet), HE, Frag, Shaped, `Blunt`, `Irritant`, `Stun`, `Smoke` | `WarheadDto.cs:9` |
+| who throws, from what | the HANDS mount on every person (`PersonHands`, 15 m/s, its `Range`), up to 4 kinds in its `AmmoLoadout` (`Give`); `FireAtPoint` on the hands index throws the LOADED round | `PersonHands.cs:20-28`, §7.9 H-1…H-5 |
+| does a thrown thing lie and get picked up? | ✅ `HandItemDto.LiesSeconds` ⇒ it lies `Landed`; `RoundPickUp` (kinds 9/10) grants it back into a hand | §7.10 PU-1…PU-6 |
+| how a round is drawn | `MunitionVisualDto.Shape`: Grenade · Bomb · Shell · Rocket · Missile · Bullet — no blade | `MunitionVisualDto.cs:7` |
+| how a held throwable is judged armed | `Armament.OfHands`: every held kind is a `SmallObject`, lethal by `ItemAppearances.IsLethal(ammo)`, **`ReachM` 0** ⇒ `IdentifiedLethal` at ANY identified distance | `Armament.cs:333` |
+| is a hand throw a gunshot? | ⚠ `SoundEmissionSystem` gives a shot report for EVERY `WeaponFireNotification` but a flare / chaff (`IsExpendable`); thermal, muzzle-flash, tracer, `RecentShots` read the same event — **not measured for a throw** | `SoundEmissionSystem.cs:55-60`, §5 consumers list in `CE-3248` |
+
+```mermaid
+classDiagram
+  direction LR
+  class MunitionTkbCatalog { <<existing>> + ThrowingKnife · Hatchet · Javelin · ThrowingStar }
+  class WarheadDto { <<existing>> Kind = Kinetic · Indirect = true }
+  class HandItemDto { <<existing>> LiesSeconds — it lies and can be picked up }
+  class MunitionVisualDto { <<existing, + 4 shapes>> Knife · Axe · Spear · Star }
+  class PersonHands { <<existing>> Give(world, man, ammo, n) · the throw's one speed }
+  class FireAtPointExecutor { <<existing>> throws the LOADED round from the hands }
+  class BallisticsSystem { <<existing>> the flight, the strike on the line, the wall }
+  class DamageAssessedEgressTranslator { <<existing, SimHost>> the hit to the Health owner }
+  class Armament { <<existing>> OfHands — TC-7 is behaviors' }
+  class HandThrow { <<NEW static, CE-3248>> IsHandThrow(world, notification) — a hand throw is no gunshot }
+  class SoundEmissionSystem { <<existing>> skips a hand throw }
+  MunitionTkbCatalog ..> WarheadDto
+  MunitionTkbCatalog ..> HandItemDto
+  MunitionTkbCatalog ..> MunitionVisualDto
+  PersonHands ..> MunitionTkbCatalog : holds
+  FireAtPointExecutor ..> PersonHands
+  FireAtPointExecutor ..> BallisticsSystem : the round flies
+  BallisticsSystem ..> DamageAssessedEgressTranslator : a struck body
+  SoundEmissionSystem ..> HandThrow
+  Armament ..> PersonHands
+```
+*What the picture shows that prose hid:* every box but one EXISTS — the four blades are rows of data on the stone's path, and the only new
+code is the "a hand throw is no gunshot" test that the stone needed already (`CE-3248`).
+
+```mermaid
+sequenceDiagram
+  participant B as thrower's brain (CGF)
+  participant S as SimHost (the round's owner)
+  participant O as the victim's Health owner (CGF)
+  participant V as every node (IG)
+  B->>B: PersonHands.Give(knife, 3) — a scenario loadout or a pick-up (PU-6)
+  B->>S: FireAtPoint on the hands — WeaponFireIntent(knife, at point)
+  S->>S: FireProcessing: the knife flies the throw arc (Indirect)
+  S->>V: the round replicates (its look: Knife)
+  S->>S: Ballistics: the first body on its line is struck — direct hit, Kinetic
+  S->>O: EntityHitDamage (damage, Source = the thrower)
+  O->>O: HealthApplication applies it
+  S->>S: no body: it stops on the ground or a wall and LIES (LiesSeconds)
+  B->>S: PickUpRound (kind 9) — the knife can be thrown again
+```
+*What the picture shows that prose hid:* the whole life of a thrown blade crosses nodes on paths that are already live for the stone —
+none of it waits for `CE-3246` (that row is the BLOW raised on a brain).
+
+```mermaid
+graph TD
+  CGF[CGF - brain] -->|FireAtPoint, WeaponFireIntent| SH[SimHost - FireProcessing, Ballistics]
+  SH -->|the round: EntityMaster + WorldPos + look| IG[IG - draws the blade in flight and lying]
+  SH -->|EntityHitDamage - Muscle egress| CGF
+  CGF -->|PickUpRound kind 9| SH
+  SH -->|PickUpGrant kind 10| CGF
+```
+*What the picture shows that prose hid:* who runs what each frame — the throw is decided on the brain, the flight and the strike on
+SimHost, and the hit comes back to the `Health` owner; no new module, no new registration.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **TC-1** | **a thrown blade is a MUNITION (a round), never melee**: it flies, can miss, is stopped by a wall, strikes the first body on its line through the direct-hit chain | `Melee.Strike` at range: no flight, no miss, no cover, no lying · a `StrikeNotification` for a throw: a throw is a round, already on the wire |
+| **TC-2** | **four starter munitions**: throwing knife, hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, knife 25, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
+| **TC-3** | **four appended `MunitionShape` members** — `Knife`, `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
+| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. A FIGHTING knife (AW-19, the melee item of ui's G4) is a different item; throwing your one fighting knife is later — it needs a held weapon to become a round, the canister's shape (§7.15) on a weapon mount | one item that is both: the conversion is not built and no demo needs it yet |
+| **TC-5** | **one throw speed** — the hands' (15 m/s, its `Range`) — for v1 | a speed per munition: a javelin outranges a knife in life; the per-charge machinery exists (`charges`, IF-1) — add it when a demo needs the difference |
+| **TC-6** | **a hand throw is not a gunshot** (`CE-3248`): no shot report, no barrel heat, no muzzle flash, no tracer — one test, *"fired from a hands mount"*, read by each `WeaponFireNotification` consumer; ⭐ it fixes the stone and the hand grenade too | a flag per munition: every throwable would need it, and a hand never makes a report · a separate throw notification: the round, `RecentShots` and replay already ride this one |
+| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). Lean: its lethal reach is the hand's throw `Range` (25 m) — "lethality is an item's reach" | leave it: a man with throwing stars reads armed-lethal at 150 m · a per-munition reach: one hand, one throw |
+
+⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
+a sound for the throw's whoosh (none is wanted).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

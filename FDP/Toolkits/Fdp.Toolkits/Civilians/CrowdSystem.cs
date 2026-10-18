@@ -58,6 +58,22 @@ namespace Fdp.Toolkit.Civilians
         public const float InstigateRate = 0.15f;
         /// <summary>⭐ <c>CE-2238</c> — how fast a man's anger fades with no instigator near him (per second).</summary>
         public const float AngerFade = 0.02f;
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-1) — a security-forces person this close to a crowd member, facing him, provokes him.</summary>
+        public const float ProvokeMetres = 30f;
+        /// <summary>⭐ PV-1 — how fast a facing policeman beside him raises his anger (per second); half at <see cref="ProvokeMetres"/>.</summary>
+        public const float ProvokeRate = 0.01f;
+        /// <summary>⭐ PV-1 — "facing him": the cosine of the widest angle off the policeman's heading (±60°).</summary>
+        public const float FacingCos = 0.5f;
+        /// <summary>⭐ PV-2 — how much force used on a member adds to the anger of a neighbour beside him; half at <see cref="SpikeMetres"/>.</summary>
+        public const float ForceSpike = 0.3f;
+        /// <summary>⭐ PV-2 — how far force on a member reaches his neighbours.</summary>
+        public const float SpikeMetres = 10f;
+        /// <summary>⭐ PV-3 — how far his attitude moves his riot threshold: <c>RiotAt − AttitudeWeight × Attitude</c>.</summary>
+        public const float AttitudeWeight = 0.5f;
+
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-3) — his riot threshold: <paramref name="riotAt"/> lowered by a hostile attitude, raised by a
+        /// friendly one (−1 ⇒ above 1: he never riots).</summary>
+        public static float RiotAtFor(float riotAt, float attitude) => riotAt - AttitudeWeight * Math.Clamp(attitude, -1f, 1f);
 
         /// <summary>The modes a member SHOWS fear in — the ones his neighbours catch it from.</summary>
         public static bool ShowsFear(CivilianMode mode)
@@ -74,7 +90,9 @@ namespace Fdp.Toolkit.Civilians
     /// <c>CivilianHsm</c>'s Gather state walks to); ② the crowds — civilians linked within <see cref="CrowdRules.LinkMetres"/>, at least
     /// <see cref="CrowdRules.MinMembers"/> of them, each keeping the id most of its members had; ③ each crowd's <see cref="Crowd"/> entity
     /// (mean fear and anger, focus); ④ contagion: a member's fear rises toward what a frightened member of his crowd nearby shows;
-    /// ⑤ <c>CE-2238</c> (§5i) anger: an instigator raises the anger of his crowd near him; with none near, anger fades.
+    /// ⑤ <c>CE-2238</c> (§5i) anger: an instigator raises the anger of his crowd near him; with none near, anger fades;
+    /// ⑥ <c>CE-2241</c> ② (§5m, CV-14) the security forces provoke: facing a member nearby they raise his anger slowly, and force used on a
+    /// member spikes his neighbours'.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class CrowdSystem : IEcsModuleSystem
@@ -98,6 +116,11 @@ namespace Fdp.Toolkit.Civilians
         private readonly Dictionary<int, Entity> _crowdEntity = new();
         private readonly HashSet<int> _live = new();
         private int _nextId = 1;
+        // ⭐ CE-2241 ② (§5m PV-1) — the security forces standing this frame: where, and which way they face
+        private readonly List<Vector3> _police = new();
+        private readonly List<Vector3> _policeFacing = new();
+        // ⭐ PV-2 — the members a new effect landed on this frame
+        private readonly List<int> _forced = new();
 
         /// <summary>The crowd entity of id <paramref name="crowdId"/> on this node, or <see cref="Entity.Null"/>.</summary>
         public Entity EntityOf(int crowdId) => _crowdEntity.TryGetValue(crowdId, out var e) ? e : Entity.Null;
@@ -121,7 +144,74 @@ namespace Fdp.Toolkit.Civilians
             Link();
             Assign(repo, now);
             Spread(repo, deltaTime);
+            Police(repo);
             Rouse(repo, deltaTime);
+            Provoke(repo, now);
+        }
+
+        // ⭐ CE-2241 ② (§5m PV-1) — every security-forces person alive and on his feet, and his heading
+        private void Police(EntityRepository repo)
+        {
+            _police.Clear();
+            _policeFacing.Clear();
+            if (!repo.IsComponentTypeRegistered<Health>()) return;
+            foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
+            {
+                if (!Armament.IsSecurityForce(repo, e) || !CombatLife.IsAlive(repo, e) || Effects.IsKnockedDown(repo, e) || Effects.IsStunned(repo, e)) continue;
+                ref readonly var t = ref repo.GetComponentRO<SimTransform>(e);
+                var f = Vector3.Transform(Vector3.UnitX, t.Rotation);
+                f.Z = 0f;
+                _police.Add(t.Position);
+                _policeFacing.Add(f.LengthSquared() > 1e-6f ? Vector3.Normalize(f) : Vector3.UnitX);
+            }
+        }
+
+        // PV-1 — the strongest pull of a facing policeman on civilian i (0 when none)
+        private float Provocation(int i)
+        {
+            float best = 0f, reach = CrowdRules.ProvokeMetres * CrowdRules.ProvokeMetres;
+            for (int k = 0; k < _police.Count; k++)
+            {
+                float d2 = Flat2(_at[i], _police[k]);
+                if (d2 > reach || d2 < 1e-6f) continue;
+                float d = MathF.Sqrt(d2);
+                var to = new Vector3((_at[i].X - _police[k].X) / d, (_at[i].Y - _police[k].Y) / d, 0f);
+                if (Vector3.Dot(to, _policeFacing[k]) < CrowdRules.FacingCos) continue;
+                best = MathF.Max(best, 1f - 0.5f * d / CrowdRules.ProvokeMetres);
+            }
+            return best;
+        }
+
+        // ⑥ ⭐ CE-2241 ② (§5m PV-2) — force used on a member (a NEW or longer knock-down, stun or irritation) spikes the anger of the other
+        //   members of his crowd within SpikeMetres, once per effect
+        private void Provoke(EntityRepository repo, double now)
+        {
+            if (!repo.IsComponentTypeRegistered<EffectState>()) return;
+            double effectsNow = HitModel.Now(repo);
+            _forced.Clear();
+            for (int i = 0; i < _civs.Count; i++)
+            {
+                if (!repo.HasComponent<EffectState>(_civs[i])) continue;
+                ref readonly var fx = ref repo.GetComponentRO<EffectState>(_civs[i]);
+                double until = Math.Max(fx.KnockedDownUntil, Math.Max(fx.StunnedUntil, fx.IrritatedUntil));
+                ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
+                if (until <= effectsNow || until <= mind.ForceSeenUntil) continue;
+                mind.ForceSeenUntil = until;
+                if (mind.CrowdId != 0) _forced.Add(i);
+            }
+            float reach = CrowdRules.SpikeMetres * CrowdRules.SpikeMetres;
+            foreach (int i in _forced)
+            {
+                Near(i, sameCrowd: true);
+                foreach (int j in _near)
+                {
+                    if (j == i) continue;
+                    float d2 = Flat2(_at[i], _at[j]);
+                    if (d2 > reach) continue;
+                    ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[j]);
+                    mind.Anger = MathF.Min(1f, mind.Anger + CrowdRules.ForceSpike * (1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.SpikeMetres));
+                }
+            }
         }
 
         // ① incidents and who is drawn to them
@@ -333,7 +423,8 @@ namespace Fdp.Toolkit.Civilians
             }
         }
 
-        // ⑤ anger (CE-2238): an instigator's is 1; a member near one rises toward 1, faster the nearer; everyone else's fades
+        // ⑤ anger (CE-2238): an instigator's is 1; a member near one (or near a facing policeman, CE-2241 ②) rises toward 1, faster the
+        //   nearer; everyone else's fades
         private void Rouse(EntityRepository repo, float dt)
         {
             if (dt <= 0f) return;
@@ -354,7 +445,10 @@ namespace Fdp.Toolkit.Civilians
                         best = MathF.Max(best, 1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.ContagionMetres);
                     }
                 }
-                mind.Anger = best > 0f ? MathF.Min(1f, mind.Anger + CrowdRules.InstigateRate * best * dt)
+                // ⭐ CE-2241 ② (§5m PV-1) — a facing policeman near a crowd member raises it too (slowly); with neither, it fades
+                float provoked = mind.CrowdId != 0 ? Provocation(i) : 0f;
+                float rise = CrowdRules.InstigateRate * best + CrowdRules.ProvokeRate * provoked;
+                mind.Anger = rise > 0f ? MathF.Min(1f, mind.Anger + rise * dt)
                                        : MathF.Max(0f, mind.Anger - CrowdRules.AngerFade * dt);
             }
         }

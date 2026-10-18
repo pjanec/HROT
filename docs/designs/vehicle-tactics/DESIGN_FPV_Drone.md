@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
 known-conflict: none. ⚠ §2's FpvAttackNodes / FpvAttackParams / FpvAttackState are SUPERSEDED by B5 (R-2015): the drone's attack is AirAttack's Dive profile (DESIGN_Air_Operations.md §7); the phases and DroneTargetDecision carry over.
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Map_3D_Mode.md — §6n draws the drone in the 3-D map: a quadcopter sized from its flight body, four rotors spinning
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the drone's ATTACK now: AirAttack's Dive profile (B5, R-2015) replaces §2's FpvAttackNodes; this file keeps the Muscle half
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (on the MuscleGround node, R-3005), autonomous AND manual (FPS possession)

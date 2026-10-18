@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): every node receives the bursts; supersedes §3.8's Brain-only ingress branch.
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a heavy round does to a structure (a bunker, a building)
   - docs/DESIGN_Map_3D_Mode.md — §6n draws the tubes, the towed and SP howitzers, their crews, the laid elevation (a default until IF-1 replicates it) and the firing blast (the §5 ui row)

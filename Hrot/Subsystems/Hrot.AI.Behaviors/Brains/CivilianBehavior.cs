@@ -92,6 +92,8 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2238
             public byte Instigator;
             public float RiotAt;
+            // ⭐ CE-2241 ② (§5m PV-3)
+            public float Attitude;
         }
 
         /// <summary>⭐ <c>CE-2238</c> — the rioter's working memory: the forces person he goes for, the point he last ran at, his blow's clock.</summary>
@@ -196,6 +198,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (authored.Protest) { p.ProtestAt = authored.ProtestAt; p.HasProtest = 1; }   // ⭐ CE-2240
             if (authored.Instigator) p.Instigator = 1;   // ⭐ CE-2238
             if (authored.RiotAt > 0f) p.RiotAt = authored.RiotAt;
+            p.Attitude = Math.Clamp(authored.Attitude, -1f, 1f);   // ⭐ CE-2241 ② — 0 (the default) is a real value
             block = new CivilianBlackboard { Params = p };
         }
 
@@ -242,7 +245,7 @@ namespace Hrot.AI.Behaviors.Brains
             routine.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Protesting).Polled();   // ⭐ CE-2240
             protest.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
             protest.On(0).GoTo("Riot").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Rioting).Polled();   // ⭐ CE-2238
-            riot.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
+            riot.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, FearBeatsAnger).Polled();   // ⭐ CE-2241 ② — §2.2 "fear beats anger"
             riot.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Calmed).Polled();
             routine.On(0).GoTo("Gather").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Attracted).Polled();   // ⭐ CE-2237
             gather.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
@@ -688,11 +691,14 @@ namespace Hrot.AI.Behaviors.Brains
             => !e.IsNull && world.IsAlive(e) && !(world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f)
                && !Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, e);
 
-        /// <summary>⭐ <c>CE-2238</c> — an instigator says so on his mind, where the <see cref="CrowdSystem"/> reads it.</summary>
+        /// <summary>⭐ <c>CE-2238</c> — an instigator says so on his mind, where the <see cref="CrowdSystem"/> reads it (and, <c>CE-2241</c> ②,
+        /// every protester his attitude).</summary>
         private static void MarkInstigator(in CivilianParams p, Entity self, EntityRepository world)
         {
-            if (p.Instigator == 0 || !world.HasComponent<CivilianState>(self)) return;
+            if (!world.HasComponent<CivilianState>(self)) return;
             ref var mind = ref world.GetComponentRW<CivilianState>(self);
+            mind.Attitude = p.Attitude;   // ⭐ CE-2241 ② (§5m PV-3) — his hidden attitude, on his mind for a reader that is not the HSM
+            if (p.Instigator == 0) return;
             if (mind.Instigator == 0) { mind.Instigator = 1; mind.Anger = 1f; }
         }
 
@@ -750,6 +756,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool Panicked(ref CivilianParams p, Entity self, EntityRepository world)
             => CivilianMind.FearOf(world, self) >= p.PanicAt;
 
+        /// <summary>⭐ <c>CE-2241</c> ② (§2.2 "Riot → Panic : fear beats anger", §5m PV-6) — a RIOTER panics only when his fear is past panic
+        /// AND at least his anger: the crowd's fright (contagion, at most 0.9 of what he caught it from) does not turn a man angrier than
+        /// it; force on HIM (a hit, a stun, gas — fear 1) still does.</summary>
+        [SharedAiCondition]
+        public static bool FearBeatsAnger(ref CivilianParams p, Entity self, EntityRepository world)
+        {
+            float fear = CivilianMind.FearOf(world, self);
+            return fear >= p.PanicAt && (!world.HasComponent<CivilianState>(self) || fear >= world.GetComponentRO<CivilianState>(self).Anger);
+        }
+
         /// <summary>⭐ <c>CE-2236</c> — his fear has fallen below panic (the cowering ends).</summary>
         [SharedAiCondition]
         public static bool BelowPanic(ref CivilianParams p, Entity self, EntityRepository world)
@@ -765,15 +781,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool Uncovered(ref CivilianParams p, ref SurrenderState ws, Entity self, EntityRepository world)
             => ws.CoveredAt > 0 && world.SimulationTime - ws.CoveredAt >= SurrenderHoldSeconds && Covering.By(world, self).IsNull;
 
-        /// <summary>⭐ <c>CE-2238</c> — a protester whose anger has reached <see cref="CivilianParams.RiotAt"/> riots.</summary>
+        /// <summary>⭐ <c>CE-2238</c> — a protester whose anger has reached <see cref="CivilianParams.RiotAt"/> riots — ⭐ <c>CE-2241</c> ②:
+        /// HIS threshold, moved by his attitude (<see cref="CrowdRules.RiotAtFor"/>).</summary>
         [SharedAiCondition]
         public static bool Rioting(ref CivilianParams p, Entity self, EntityRepository world)
-            => p.HasProtest != 0 && world.HasComponent<CivilianState>(self) && world.GetComponentRO<CivilianState>(self).Anger >= p.RiotAt;
+            => p.HasProtest != 0 && world.HasComponent<CivilianState>(self) && world.GetComponentRO<CivilianState>(self).Anger >= CrowdRules.RiotAtFor(p.RiotAt, p.Attitude);   // ⭐ CE-2241 ② — HIS threshold (PV-3)
 
-        /// <summary>⭐ <c>CE-2238</c> — his anger has fallen below half of <see cref="CivilianParams.RiotAt"/>: back to the protest.</summary>
+        /// <summary>⭐ <c>CE-2238</c> — his anger has fallen below half of his threshold (<see cref="CrowdRules.RiotAtFor"/>): back to the protest.</summary>
         [SharedAiCondition]
         public static bool Calmed(ref CivilianParams p, Entity self, EntityRepository world)
-            => !world.HasComponent<CivilianState>(self) || world.GetComponentRO<CivilianState>(self).Anger < p.RiotAt * 0.5f;
+            => !world.HasComponent<CivilianState>(self) || world.GetComponentRO<CivilianState>(self).Anger < CrowdRules.RiotAtFor(p.RiotAt, p.Attitude) * 0.5f;
 
         /// <summary>⭐ <c>CE-2240</c> — he was told to protest.</summary>
         [SharedAiCondition]

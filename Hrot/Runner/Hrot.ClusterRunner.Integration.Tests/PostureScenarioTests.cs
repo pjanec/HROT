@@ -1046,6 +1046,65 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2241</c> ② (CV-14, B7; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5m) — <c>ua-civ-provocation</c> in-process (the live
+    /// check's twin): twelve protesters with hidden attitudes (four at −1) and three policemen who walk to 15 m of the crowd, baton-charge its
+    /// front rank, then hold the line. Sampled every frame on CGF: ① nobody riots before a policeman is within 30 m of a protester ·
+    /// ② a protester is knocked down, and then at least one and fewer than all riot · ③ every Hostile civilian rioted first, and one is ·
+    /// ④ no protester of attitude −1 riots (his threshold is above 1).
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2241_Provocation_PoliceNearAndForce_TipAFractionIntoRiot_NeverTheFriendly()
+    {
+        using var harness = await StartShippedScenario("ua-civ-provocation");
+        var cgf = harness.Cgf!.World!;
+        var civNames = Enumerable.Range(1, 12).Select(i => $"Protester {i}").ToArray();
+        var policeNames = new[] { "Police shield", "Police baton 1", "Police baton 2" };
+        Assert.True(harness.PumpUntil(() => civNames.Concat(policeNames).All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var police = policeNames.Select(n => ByName(cgf, n)).ToArray();
+        var never = new[] { 2, 5, 7, 10 };   // authored Attitude −1
+        double t0 = cgf.SimulationTime;
+        double? nearAt = null, blowAt = null, firstRiot = null;
+        var rioted = new System.Collections.Generic.HashSet<int>();
+        var lastMode = new Fdp.Toolkit.Civilians.CivilianMode[12];
+        var trace = new System.Text.StringBuilder();
+        Vector3 At(Entity e) => cgf.GetComponentRO<SimTransform>(e).Position;
+        void Sample()
+        {
+            double now = cgf.SimulationTime, fxNow = HitModel.Now(cgf);
+            if (nearAt == null && police.Any(p => civs.Any(c => Vector2.Distance(new Vector2(At(p).X, At(p).Y), new Vector2(At(c).X, At(c).Y)) <= 30f)))
+                nearAt = now;
+            for (int i = 0; i < civs.Length; i++)
+            {
+                if (Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, civs[i]) == Fdp.Toolkit.Civilians.CivilianMode.Riot && rioted.Add(i + 1))
+                    firstRiot ??= now;
+                if (blowAt == null && cgf.HasComponent<EffectState>(civs[i]) && cgf.GetComponentRO<EffectState>(civs[i]).KnockedDownUntil > fxNow) blowAt = now;
+                var m = Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, civs[i]);
+                if (m != lastMode[i] && cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(civs[i]))
+                {
+                    var st = cgf.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(civs[i]);
+                    trace.Append($" {i + 1}:{m}@{now:0.0}(f{st.Fear:0.00},a{st.Anger:0.00})");
+                    lastMode[i] = m;
+                }
+            }
+        }
+        var hostile = () => Enumerable.Range(1, 12).Where(i => cgf.GetComponentRO<EntityInfo>(civs[i - 1]).ForceId == ForceId.Hostile).ToArray();
+        string State() => $"near at {nearAt}, blow at {blowAt}, first riot at {firstRiot}, rioted [{string.Join(",", rioted.OrderBy(i => i))}], " +
+                          $"hostile [{string.Join(",", hostile())}], anger [{string.Join(",", civs.Select(c => cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(c) ? cgf.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(c).Anger.ToString("0.00") : "-"))}], " +
+                          $"modes [{string.Join(",", civs.Select(c => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c)))}]";
+
+        harness.PumpUntil(() => { Sample(); return cgf.SimulationTime - t0 >= 170.0; }, timeoutFrames: 20000);
+        _out.WriteLine(State());
+        _out.WriteLine("modes:" + trace);
+        Assert.True(nearAt != null && (firstRiot == null || firstRiot >= nearAt), $"① nobody riots before the police are within 30 m; {State()}");
+        Assert.True(blowAt != null, $"② the baton charge knocks a protester down; {State()}");
+        Assert.True(rioted.Count >= 1 && rioted.Count < civs.Length, $"② a FRACTION riots; {State()}");
+        Assert.True(hostile().Length > 0 && hostile().All(rioted.Contains), $"③ every Hostile civilian rioted first, and one is; {State()}");
+        Assert.True(!rioted.Overlaps(never), $"④ no protester of attitude −1 riots; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2238</c> part 5 (AW-12, B5; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5l) — <c>ua-armed-bomber</c> in-process: a civilian
     /// with a charge HIDDEN walks into a crowd of ten and sets it off (<c>DetonateCharge</c>); a rifleman 30 m off watches. Sampled every frame
     /// on CGF: ① until the blast nobody sees him armed (<c>Armament.Judge</c> from the rifleman and from a civilian) and the rifleman spends no
@@ -1107,7 +1166,7 @@ public sealed class PostureScenarioTests : IDisposable
     /// position owner (SimHost) has it gone, CGF and IG still hold it as a LIVE charge (it could burst twice). Skipped until backend fixes it —
     /// unskip as its acceptance rail.
     /// </summary>
-    [Fact(Timeout = 600_000, Skip = "CE-2247 (backend): a spent charge's replicas stay live on CGF and IG")]
+    [Fact(Timeout = 600_000)]
     public async Task CE2247_Bomber_TheSpentVest_LeavesEveryNode()
     {
         using var harness = await StartShippedScenario("ua-armed-bomber");

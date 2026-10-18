@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS fast-rope and parachute insertion from the helicopter (the Rope / Drop holds, Roping / Dropping phases, D-7) and slice 2's ejecting pilot (spawned before the kill, R-2021)
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a strike DOES to a building, bunker, bridge or runway (founded 2026-10-15, CE-2181); W1 here names the kind
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — §7 OWNS what a burst does to a vehicle (the §9c live miss: fragments and blast vs hulls)

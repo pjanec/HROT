@@ -359,7 +359,7 @@ staging folder (`/tmp/FDP_Temp/nodes/node-0/scenarios/…`), nothing is overwrit
 | `EntityStatesIngressPack` | **pure IG only** (`pureIg`) | host kind | `NedReplicationModule.cs:421-455` — its 21 ingresses are **all** in the shared pack; the shared ingress is skipped there, so the IG misses `ManualDrive`, `WeaponTask`, `WeaponTaskStatus`, `FireInteractionEvent` (and missed `OwnershipUpdate` until seam ⑥) |
 | `SimHostAuxiliaryTranslatorPack` | CGF, SimHost, Stride (`CgfSubsystem.cs:1103`, `SimHostNodeBootstrapper.cs:612`, `StrideNodeBootstrapper.cs:535`) — ⛔ **not the IG** | role branches, two of them **exclusions** (`Perception && !MuscleGround`, `Brain && !MuscleGround && !Perception`) | the exclusions exist only because a node would re-ingest its OWN event samples (CE-3065, IF-3, VE §10 captions) |
 | `NedIgTranslators` | **IG only** | host kind | duplicates `TacticalIntentEgress`, `WeaponFireIngress`, `MunitionDetonationIngress`, `RoundImpactIngress`; plus 3 map-only ingresses (S4) |
-| `CreateIgEgressTranslators` | **IG only** | host kind | `UpdateEntityCommand` / `DestroyEntityCommand` egress (S4) |
+| `CreateIgEgressTranslators` | **IG only** | host kind | `UpdateEntityCommand` egress (S4). ✅ the `DestroyEntityCommand` egress moved to `SharedTranslatorPack` `2026-10-18` (`CE-2247`, forwards only a destroy this node cannot dispose — Entity Creation §3.4c) |
 | `RegisterStanceOn` / `RegisterStanceViewerOn` | CGF / SimHost / IG by hand | host kind | `CE-1147` (ui) |
 
 ```mermaid

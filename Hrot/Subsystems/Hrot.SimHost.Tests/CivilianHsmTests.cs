@@ -27,6 +27,9 @@ namespace Hrot.SimHost.Tests
     /// <c>AlarmAt</c> stops and crouches him; calm again, he goes back to his routine; wounded — from his routine or his alarm — he lies
     /// down and stays a casualty however frightened he becomes. And the new civilian types start it by default.
     /// </summary>
+    // ⭐ CE-2241 ② — one collection with every class that strikes: their rails read the process-wide Melee.Strikes counter, so they
+    //   must not run in parallel (a BatonCharge rail in another class made a CivilianHsm rail count one blow too many)
+    [Collection("MeleeStrikes")]
     public sealed class CivilianHsmTests
     {
         private sealed class World
@@ -329,6 +332,63 @@ namespace Hrot.SimHost.Tests
         /// <summary>⭐ <c>CE-2238</c> part 1 (§5i) — a protester whose anger reaches <c>RiotAt</c> riots: fist raised, he runs at the nearest
         /// forces person; in reach he strikes (a Blunt <c>DamageAssessedEvent</c>), and that first blow is his hostile act — his side flips
         /// to Hostile, once; a knocked-down man is not struck again; calm again (anger below half) he goes back to the protest.</summary>
+        /// <summary>⭐ <c>CE-2241</c> ② (§2.2 "Riot → Panic : fear beats anger", §5m PV-6) — a rioter at anger 1 with fear 0.9 (the most the
+        /// crowd's contagion can give) keeps rioting; at fear 1 (force on HIM) he panics; a rioter at anger 0.7 panics at fear 0.7.
+        /// ✅ Red-proof: the anger comparison removed ⇒ he panics at 0.9 ⇒ red.</summary>
+        [Fact]
+        public void CE2241_ARioter_PanicsOnlyWhenFearBeatsAnger()
+        {
+            var w = new World();
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = 1f;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Fear = 0.9f;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Riot", w.State());                                  // 0.9 < his anger 1: he keeps rioting
+            w.Repo.GetComponentRW<CivilianState>(w.Unit).Fear = 1f;
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Panic", w.State());
+
+            var v = new World();
+            v.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
+            for (int i = 0; i < 4; i++) v.Tick();
+            v.Repo.GetComponentRW<CivilianState>(v.Unit).Anger = 0.7f;
+            for (int i = 0; i < 4; i++) v.Tick();
+            Assert.Equal("Riot", v.State());
+            v.Repo.GetComponentRW<CivilianState>(v.Unit).Fear = 0.7f;
+            for (int i = 0; i < 4; i++) v.Tick();
+            Assert.Equal("Panic", v.State());
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-3) — his ATTITUDE sets his threshold: a friendly protester (−1) stays at the protest at anger 1; a
+        /// hostile-at-heart one (+1) riots at 0.15; the HSM writes his attitude on his mind.</summary>
+        [Fact]
+        public void CE2241_HisAttitude_SetsHisRiotThreshold_AFriendlyManNeverRiots_AHostileOneRiotsEarly()
+        {
+            var friendly = new World();
+            friendly.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Attitude\":-1}");
+            for (int i = 0; i < 4; i++) friendly.Tick();
+            Assert.Equal(-1f, friendly.Repo.GetComponentRO<CivilianState>(friendly.Unit).Attitude);
+            friendly.Repo.GetComponentRW<CivilianState>(friendly.Unit).Anger = 1f;
+            for (int i = 0; i < 10; i++) friendly.Tick();
+            Assert.Equal("Protest", friendly.State());
+
+            var hostile = new World();
+            hostile.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Attitude\":1}");
+            for (int i = 0; i < 4; i++) hostile.Tick();
+            hostile.Repo.GetComponentRW<CivilianState>(hostile.Unit).Anger = 0.09f;
+            for (int i = 0; i < 4; i++) hostile.Tick();
+            Assert.Equal("Protest", hostile.State());                         // under 0.1: not yet
+            hostile.Repo.GetComponentRW<CivilianState>(hostile.Unit).Anger = 0.15f;
+            for (int i = 0; i < 4; i++) hostile.Tick();
+            Assert.Equal("Riot", hostile.State());
+            hostile.Repo.GetComponentRW<CivilianState>(hostile.Unit).Anger = 0.04f;   // below half of HIS 0.1
+            for (int i = 0; i < 4; i++) hostile.Tick();
+            Assert.Equal("Protest", hostile.State());
+        }
+
         [Fact]
         public unsafe void CE2238_AnAngryProtester_Riots_StrikesTheNearestForcesPerson_AndHisFirstBlowFlipsHisSide()
         {

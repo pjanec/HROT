@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon systems the technicals (M9 / D-K) are rebuilt from; the host still fires its stations (R-2016)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how every vehicle, the drone and later boats / aircraft move (domains, roles, the motion-model seam)
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — a BUILD design of this programme (§4a)

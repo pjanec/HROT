@@ -9,6 +9,7 @@ known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount part
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — poses its S2 turret and gun parts by TurretPose (W-9), so a round meets the turret where it is turned
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the gun's fire solution (charges, low / high) beside the L-1 lob, and the first Mortar mounts
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon-system entities (placeable / mountable / carried / deployable weapons) and widens the weapon brain's mount list to the weapons a unit controls (WeaponSystems.ControllerOf, R-2016); the three layers and the one firing path stay here
