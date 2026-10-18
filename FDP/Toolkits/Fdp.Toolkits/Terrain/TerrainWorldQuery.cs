@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Terrain
                         {
                             var cl = clouds[i];
                             if (!Fdp.Toolkit.Combat.CloudTable.Crosses(in cl, from, to, out float along)) continue;
-                            into.Add(new TraceCrossing(along, 0f, cl.Transmittance, cl.TopZ, false, "cloud", null, "cloud", null, 0));
+                            into.Add(new TraceCrossing(along, 0f, cl.Transmittance, cl.TopZ, false, "cloud", null, "cloud", null, 0) { Obscurant = true });   // CE-3249 WS-6
                         }
                         into.Sort(static (x, y) => x.T.CompareTo(y.T));
                     }

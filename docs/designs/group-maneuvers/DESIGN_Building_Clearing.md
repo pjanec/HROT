@@ -543,6 +543,18 @@ requirements cross nodes with it.
 ⚠ **BR-3 again:** CB-43 drops the free `Payload`; a report carries `KindId` + `Subtype` + the fixed fields. The amendment note is
 re-stamped.
 
+#### BR-3 as built *(backend, `CE-3250`, `2026-10-18` — cross-lane fold by backend; the report-ageing note's fields all in)*
+
+| piece | as built | where |
+|---|---|---|
+| the local event | `SquadReportEvent` (managed) — `FromUnit`, `ToUnit`, `KindId` (`ReportKindId`: Contact 1 · Spot 2 · Sitrep 3 · Lace 4 · Progress 5 · Request 6), `Subtype` (`ProgressSubtype` incl. `FireLifted` 11, `RequestSubtype`), `Subject`, `Building` (−1 none), `Position`, `Count` (PhaseLine's index), SPOT `Radius` · `Size` · `Activity` · `Equipment`, SITREP / LACE `Strength` · `Ammo` · `Phase` · `Wounded` · `Killed`, `ObservedAt`, `SentAt`, `Seq`, `RequestId`, `Synthetic`, `OriginNodeId` (0 = raised on this node) | `FDP/Toolkits/Fdp.Toolkits/Squad/Reports/SquadReportEvent.cs` |
+| the wire | event topic `"SquadReport"` (`dtSquadReport` 146), units / subject as network ids | `Hrot.Network.NED/SquadReportMessages.cs` |
+| egress | sends the reports raised HERE (`OriginNodeId` 0; an arrived one is never re-sent); a unit or subject with no network id ⇒ refused, `RefusedCount` | `SquadReportEgressTranslator` |
+| ingress | raises `SquadReportEvent` on every other node (own sample skipped), units as that node's entities (null when not known yet); an unknown kind still arrives, `UnknownKindCount` | `SquadReportIngressTranslator` |
+| installed | ⭐ BOTH in `SharedTranslatorPack` (every node — a synthetic report over HTTP may be raised on any node; R-3015) | — |
+| replay | recorded and played back like every managed bus event (no `NoReplay`) | rail `CE3250_ReplayRecordsAReport_AndPlaysItBack` |
+| ⛔ not here | the sender (`ReportOutbox` / staff, `CE-2293`), the log + `GET /squad/reports` (§5a) | behaviors |
+
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
 | id | decision | ✅ ruled | rejected — one line each |

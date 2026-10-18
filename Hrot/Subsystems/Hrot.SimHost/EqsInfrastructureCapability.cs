@@ -34,6 +34,8 @@ public sealed class EqsResultUpdateCapability : INodeCapability
     // ⭐ CE-3072 B3/B4 — the danger-area sensor's Brain half (apply answers, rate, edges) rides the same capability: every
     //   host that takes in sensor answers takes in this family's too. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
     private readonly Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem _dangerAreas = new();
+    // ⭐ CE-3249 — the WorldSurvey sensor's brain half (apply, SurveyReady) rides it too (docs/DESIGN_World_Survey_Sensor.md §4).
+    private readonly Fdp.Toolkit.Perception.Survey.WorldSurveyApplySystem _surveys = new();
 
     public string Key => CapabilityKeys.EqsResultUpdate;
 
@@ -48,6 +50,7 @@ public sealed class EqsResultUpdateCapability : INodeCapability
         if (simulation is null) throw new ArgumentNullException(nameof(simulation));
         simulation.Add(_system);
         simulation.Add(_dangerAreas);
+        simulation.Add(_surveys);
     }
 }
 

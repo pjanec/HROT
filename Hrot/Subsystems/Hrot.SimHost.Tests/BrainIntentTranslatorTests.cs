@@ -121,6 +121,28 @@ namespace Hrot.SimHost.Tests
             Assert.False(_world.HasManagedComponent<ReplicatedBrainIntent>(own));  // our own sample came back
         }
 
+        /// <summary>⭐ CE-3251 (BR-13) — the owner's ROE, carried in its intent, becomes this node's copy of the unit's <see cref="Roe"/>:
+        /// "A's replica follows", and what a subordinate's brain here reads up its chain (CE-2289). ✅ Red-proof: drop the Roe write in
+        /// <c>BrainIntentIngressTranslator.Apply</c> ⇒ the copy keeps FireAtWill.</summary>
+        [Fact]
+        public void CE3251_TheOwnersRoe_BecomesThisNodesCopy()
+        {
+            var ingress = new BrainIntentIngressTranslator(null, _map);
+            var e = Unit(1005, owner: Other);
+            _world.AddComponent(e, new Roe { Fire = RoeFire.FireAtWill });
+            string json = JsonSerializer.Serialize(new InitialBrainIntent
+            {
+                Roe = new SavedRoe { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Operator,
+                                     ForceLevel = RoeForceLevel.NonLethal },
+            }, FdpJsonOptionsRegistry.DefaultRelaxed);
+            ingress.Receive(new EntityBrainIntent { EntityId = 1005, IntentJson = json });
+            Play(ingress);
+
+            var roe = _world.GetComponentRO<Roe>(e);
+            Assert.Equal((RoeFire.HoldFire, RoeReactions.StayOnTask, BehaviorOrigin.Operator, RoeForceLevel.NonLethal),
+                         (roe.Fire, roe.Reactions, roe.SetBy, roe.ForceLevel));
+        }
+
         private void Play(BrainIntentIngressTranslator ingress)
         {
             var cmd = new EntityCommandBuffer();

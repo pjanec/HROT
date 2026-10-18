@@ -62,6 +62,10 @@ namespace Fdp.Toolkit.Perception.Events
         /// <c>MissileWarningSensingSystem</c> on the aircraft's brain; the details (bearing, seeker, time to impact) are in its
         /// <c>MissileWarning</c> component.</summary>
         MissileWarning = 17,
+
+        /// <summary>⭐ <c>CE-3249</c> (WS-10) — a WorldSurvey sensor has its first answer for its inputs, or the answer changed (a door opened,
+        /// smoke drifted in front of a window). <c>Sensor</c> is the survey; read it with <c>WorldSurveyChildSensor.Read</c>.</summary>
+        SurveyReady = 18,
     }
 
     /// <summary>

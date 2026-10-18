@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: BUILDING — designed 2026-10-18 from behaviors' frame (BR-12, R-2037 / R-2038, DA-25 approved); slices S1…S5 in §7
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions WS-1…WS-10 · §6 the room derivation · §7 slices and rails · §8 as built (when slices land)
+build-state: BUILT 2026-10-18 — S1…S5 (§8); designed the same day from behaviors' frame (BR-12, R-2037 / R-2038, DA-25 approved)
+current-answer: §8 as built FIRST (what deviated), then §2 classes · §3 sequence · §4 modules · §5 decisions WS-1…WS-11 · §6 the room derivation · §7 slices
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/DESIGN_World_Query_Seam.md row "rooms derived from walls — inside the stand-in's sound solver only; never in the interface" (written before R-2038). Reconciled here (WS-3): the IWorldQuery interface still carries no rooms; the rooms reach the brain only as a SURVEY ANSWER, derived on the muscle by the one BuildingLayout that sound v2 (WQ-E) and blast confinement (W-7v2) will reuse.
@@ -146,6 +146,7 @@ survey is a BRAIN's sensor. In the editor both halves run in one world and the r
 | **WS-8** | staleness | ⭐ `Read(child, now)` reports `Stale` when the answer is older than 3 s (3 × the heartbeat) — ⛔ never silently used (DA-25) | no staleness — a dead solver node would be invisible |
 | **WS-9** | sizes | ⭐ fan ≤ 12 origins × ≤ 24 rays; BuildingSurvey ≤ 4 buildings per request (or every building whose footprint meets an area, max 4); ≤ 64 rooms, ≤ 128 portals, ≤ 64 faces per building; PointSurvey ≤ 16 points. Over a cap ⇒ truncated and `Truncated` set | unbounded — a city block in one answer |
 | **WS-10** | the notification | ⭐ `SensorChange.SurveyReady` (18) on the first answer of an epoch and whenever `Version` moves (the content hash changed) | polling `IsReady` only — the frame asks for an announced answer |
+| **WS-11** *(added while building)* | the answer's form | ⭐ ONE plain payload class (`WorldSurveyPayload`: rays, buildings, rooms, portals, faces, points) carried as **JSON** on the topic and in the result event, decoded once on the brain when its content hash moved; the brain's buffer is `WorldSurveyStatus` (unmanaged: tick, time, version, hash) + `WorldSurveyAnswer` (managed: the payload) | typed DDS structs per list — six wire structs and two mappings for an answer read at most a few times a second; the `EntityBrainIntent` / `TacticalIntentRequest` precedent already carries JSON |
 
 ## 6. The room derivation *(`BuildingLayout`, stand-in, muscle only)*
 
@@ -173,6 +174,8 @@ room, and its door is the portal between it and the roof room.
 | a door portal carries its door key and its LIVE state (open · closed · locked · destroyed) | WS-5 |
 | corners = the room's extent corners in the building frame, 0.4 m inside | v1 rooms are rectilinear in the building's frame; a point of domination is a corner |
 | indoors = a slab or the roof above the room's floor; the roof room is OUTDOORS, a roofed stair house is indoors | the platoon note's rail |
+| ⭐ *(as built)* the LAST `StoreyZ` (the roof's height) is a level only when its slabs cover ≥ 50 % of the footprint | `house-3f`'s roof rings are the stair house's LID, not a walkable roof |
+| ⭐ *(as built)* the roof level = the topmost level with a room open to the sky | a flat roof (`house-2f`) and a roof storey (`house-3f`) answer alike, with no storey numbers |
 
 ## 7. Slices and rails *(red-proved; the feature's suite is `WorldSurveyTests` / `BuildingLayoutTests`, created here — none existed)*
 
@@ -186,3 +189,25 @@ room, and its door is the portal between it and the roof room.
 
 ⛔ **Not in this item:** behaviors' own brain-side geometry reads (`CE-2286`) and backend's (`CE-2287`, R-2037's conformance allow-list) —
 they move onto this sensor afterwards; a wall breach (Structure Damage).
+
+## 8. As built *(`2026-10-18`, `CE-3249`)*
+
+| # | as built | ⛔ the design above said |
+|---|---|---|
+| A1 | the brain's buffer is TWO components: `WorldSurveyStatus` (408, unmanaged — `EqsChildSensor.Ensure<TResult>` takes an unmanaged result) + `WorldSurveyAnswer` (409, managed payload); the request is `WorldSurveyRequest` (407) | §2: one managed `WorldSurveyAnswer` |
+| A2 | the answer rides as JSON (WS-11, added) | §2: a typed topic |
+| A3 | a child survey is solved only for a unit with a network id (`EqsSensorKey`: a child of a local-only parent is `None`) — as every sensor child; every unit in the editor and on a cluster has one | not stated |
+| A4 | the solver's per-survey memo (epoch, solved at, published at, hash) is node-local in `EqsSolverSystem`; a not-due survey costs 1 unit | WS-7: "solved only when due" — the cost of the skip not stated |
+| A5 | `BuildingLayout` reuses `PolygonMath.Contains` (no second point-in-polygon) and the walkables' triangles for floor cover; roof rules in §6 (two rows added) | — |
+| A6 | `TraceCrossing.Obscurant` is set on the cloud crossings `TerrainWorldQuery.Trace(Sight)` adds | WS-6 as designed |
+| A7 | ⚠ `Trace(Sight)` still allocates its crossings (`QuerySight` is the terrain's diagnostic form): a 12 × 24 fan is 288 small lists per solve, at most twice a second | not stated — measure before a fan-heavy demo (a non-allocating free-distance query is the fix, on the World Query seam) |
+
+| rail | proves |
+|---|---|
+| `BuildingLayoutTests` ×6 (`Fdp.Toolkits.Tests`) | rooms / portals / faces of `house-2f` (House A, House B rotated 90°), the stairwell in no room, the cache; ⭐ `house-3f`: the roof room, the stair house, the `roof` door between them, the lid no level |
+| `WorldSurveySolveTests` ×7 (`Fdp.Toolkits.Tests`) | a fan through a window and not through a wall; a smoke cloud in front of the window stops it as `Obscurant`; the locked door stops it until opened; door states live in the building survey; area survey; point survey; JSON round trip + stable hash |
+| `WorldSurveySensorTests` ×3 (`Hrot.SimHost.Tests`) | fused world: answered, held, `SurveyReady` once; re-pointed ⇒ old answer dropped (`StaleEpochCount`), announced again; stale after 3 s |
+| `EqsDistributedTests.CE3249_AWorldSurvey_AcrossHosts_TheSolverAnswersTheBrain` (cluster) | SimHost solves, CGF holds House A's rooms, stair, the locked front door |
+
+⛔ **Not built here (§7 "not in this item"):** `CE-2286` / `CE-2287` (moving the brain-side geometry reads onto this sensor, and the
+conformance allow-list) · a wall breach (Structure Damage) — `BuildingLayoutCache.Invalidate` is its hook.

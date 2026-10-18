@@ -223,6 +223,15 @@ namespace Hrot.SimHost.Systems
                 return EqsCost.Sensor + EqsCost.Path;
             }
 
+            // ⭐ CE-3249 (R-2037, WS-1) — a WorldSurvey sensor is not a ranked query either: geometry asked of this node's live world,
+            //   answered on its own result path (WorldSurveyResultEvent). 📄 docs/DESIGN_World_Survey_Sensor.md.
+            if (sensor.BlueprintId == Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.TemplateId)
+            {
+                int surveyCost = SolveWorldSurvey(entity, parentNetworkId, localChildIndex, in sensor);
+                evalState.Phase = EqsEvalPhase.Idle;
+                return surveyCost;
+            }
+
             // Try to look up the template from the registry singleton.
             IEqsTemplateRegistry? registry = repo.HasSingletonManaged<IEqsTemplateRegistry>()
                 ? repo.GetSingletonManaged<IEqsTemplateRegistry>()
@@ -396,6 +405,52 @@ namespace Hrot.SimHost.Systems
             //   played back into the live world, as the ranked answer's EqsResultEvent is.
             if (_currentCmd is EntityCommandBuffer ecb) ecb.PublishManagedEvent(answer);
             else _currentRepo.Bus.PublishManaged(answer);   // a synchronous caller (tests) with no recording buffer
+        }
+
+        // ⭐ CE-3249 (WS-7) — per survey: when it was last solved and published, and what it said (node-local; the epoch restarts it).
+        private readonly record struct SurveyMemo(uint Epoch, double SolvedAt, double PublishedAt, ulong Hash);
+        private readonly Dictionary<(long, int), SurveyMemo> _surveys = new();
+        private readonly List<Fdp.Toolkit.World.TraceCrossing> _surveyScratch = new();
+
+        /// <summary>⭐ CE-3249 — the survey heartbeat: an unchanged answer is still published this often (s), so its age is measurable (WS-8).</summary>
+        public const double SurveyHeartbeatSeconds = 1.0;
+
+        // Solves a survey when it is DUE (its RefreshSeconds, or a new epoch); publishes when the content changed, on a new epoch, or on the
+        // heartbeat. Returns the work units spent (1 when not due).
+        private int SolveWorldSurvey(Entity entity, long parentNetworkId, int localChildIndex, in EqsSensor sensor)
+        {
+            var repo = _currentRepo;
+            if (!repo.TryGetTable(typeof(Fdp.Toolkit.Perception.Survey.WorldSurveyRequest), out _)
+                || !_currentView.HasManagedComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(entity))
+                return 0;   // the request has not arrived yet
+            var request = _currentView.GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(entity);
+            double now = _currentView.Time;
+            var key = (parentNetworkId, localChildIndex);
+            bool known = _surveys.TryGetValue(key, out var memo);
+            bool newEpoch = !known || memo.Epoch != sensor.Epoch;
+            if (!newEpoch && now - memo.SolvedAt < Math.Max(0.1, request.RefreshSeconds)) return 1;
+
+            var payload = Fdp.Toolkit.Perception.Survey.WorldSurveySolve.Solve(_currentView, request, _surveyScratch);
+            string json = Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.EncodeAnswer(payload);
+            ulong hash = Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.Hash(json);
+            bool publish = newEpoch || hash != memo.Hash || now - memo.PublishedAt >= SurveyHeartbeatSeconds;
+            _surveys[key] = new SurveyMemo(sensor.Epoch, now, publish ? now : memo.PublishedAt, hash);
+            if (publish)
+            {
+                var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyResultEvent
+                {
+                    ParentNetworkId = parentNetworkId,
+                    LocalChildIndex = localChildIndex,
+                    Epoch           = sensor.Epoch,
+                    RefreshTick     = _currentTick,
+                    PayloadJson     = json,
+                    ContentHash     = hash,
+                };
+                // ⛔ never _currentRepo.Bus — this runs on a snapshot (see SolveDangerArea)
+                if (_currentCmd is EntityCommandBuffer ecb) ecb.PublishManagedEvent(answer);
+                else _currentRepo.Bus.PublishManaged(answer);
+            }
+            return Fdp.Toolkit.Perception.Survey.WorldSurveySolve.CostOf(request);
         }
 
         private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)

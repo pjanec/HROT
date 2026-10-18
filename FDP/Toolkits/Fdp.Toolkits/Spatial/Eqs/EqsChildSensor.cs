@@ -212,6 +212,17 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     area.LastUpdateTick = 0;
                     area.LastUpdateTimeSeconds = 0f;   // CE-3072 Q4
                 }
+                else if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>()
+                         && repo.HasComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child))
+                {
+                    // ⭐ CE-3249 — a survey clears ITS answer: the next one is the first of the new epoch (SurveyReady again)
+                    ref var survey = ref repo.GetComponentRW<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child);
+                    survey.LastUpdateTick = 0;
+                    survey.LastUpdateTimeSeconds = 0f;
+                    survey.ContentHash = 0;
+                    if (repo.HasManagedComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer>(child))
+                        repo.SetManagedComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer());
+                }
                 else
                 {
                     repo.AddComponent(child, default(EqsCognitiveBuffer));

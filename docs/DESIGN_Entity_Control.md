@@ -159,6 +159,12 @@ correct later.
 | `RoeSystem` leaves a NETWORKED unit whose brain is elsewhere to the owner (`ForwardedCount`) — ⚠ "networked" = has `NetworkIdentity`: a world with no network sets no authority bits, so authority alone cannot mean "replica" (two snapshot rails caught that) | `RoeSystem.Execute` |
 | rails: `TacticalIntentEgressTranslatorTests.CE3251_*` (2), `TacticalIntentIngressTranslatorTests.CE3251_*` (2), `RoeAndRecentSensesTests.CE3251_AReplicasRoe_IsLeftToTheBrainsOwner`, cluster `EntityOrdersAcrossNodesTests.CE3251_AnRoeSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate` (SimHost raises, CGF applies; a lower origin is refused on CGF) | — |
 
+⭐ **The owner's ROE comes back to every other brain node** (BR-13's *"A's replica follows"*, and what `CE-2289`'s chain walk reads for
+a subordinate whose brain is on another node than its commander's): `BrainIntentIngressTranslator` writes the unit's `Roe` from the
+owner's `EntityBrainIntent` (it already carried the ROE, for a hand-over). With `RoeSystem` leaving the replica alone, that ingress is
+the replica's one writer. Rail: `BrainIntentTranslatorTests.CE3251_TheOwnersRoe_BecomesThisNodesCopy`. ⚠ A node with no brain (SimHost,
+IG) holds no `EntityBrainIntent` ingress and no `Roe` — no reader there needs one.
+
 ⭐ **`SetReportingEvent` (CC-2) joins by one `case`:** behaviors adds the event (`CE-2291`); the egress forwards it as Kind 3 with its
 fields as JSON and the ingress raises it again — the same two places as SetRoe.
 

@@ -191,6 +191,21 @@ namespace Hrot.Network.Translators
 
                 if (!repo.TryGetTable(typeof(ReplicatedBrainIntent), out _)) repo.RegisterManagedComponent<ReplicatedBrainIntent>();
                 cmd.SetManagedComponent(entity, new ReplicatedBrainIntent { Intent = intent });
+
+                // ⭐ CE-3251 (BR-13) — the unit's ROE follows its owner here too: a superior's ROE raised on this node went to the owner
+                //   (TacticalIntentRequest SetRoe) and comes back in the owner's intent; and a subordinate's brain on this node reads
+                //   its commander's ROE (CE-2289's chain walk) from this copy. RoeSystem never writes it (the replica's ROE is left to
+                //   the owner), so this is the one writer here.
+                if (intent.Roe is { } saved && repo.IsComponentTypeRegistered<Roe>())
+                {
+                    var roe = new Roe
+                    {
+                        Fire = saved.Fire, Reactions = saved.Reactions, SetBy = saved.SetBy,
+                        ReturnFireWindowSeconds = saved.ReturnFireWindowSeconds, ForceLevel = saved.ForceLevel,
+                    };
+                    if (repo.HasComponent<Roe>(entity)) cmd.SetComponent(entity, roe);
+                    else cmd.AddComponent(entity, roe);
+                }
             }
             if (done != null) foreach (long id in done) _held.Remove(id);
         }

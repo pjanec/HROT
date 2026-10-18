@@ -999,6 +999,13 @@ namespace Fdp.Core
         /// <summary><c>WarningLog</c> — ⭐ CE-2239 part 3 (B2; docs/DESIGN_Civilians_And_Crowd_Control.md §5k EL-3): the men a police unit has
         /// WARNED and when — brain-local on the warner, never saved. ⚠ 406 measured free on backend, ui and behaviors 2026-10-17.</summary>
         public const int WarningLog = 406;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyRequest</c> (managed): what a WorldSurvey sensor asks (the brain's child and the
+        /// solver's carrier). 📄 docs/DESIGN_World_Survey_Sensor.md.</summary>
+        public const int WorldSurveyRequest = 407;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyStatus</c>: when a survey was last answered, its content version and hash.</summary>
+        public const int WorldSurveyStatus = 408;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyAnswer</c> (managed): the survey's latest answer on the brain.</summary>
+        public const int WorldSurveyAnswer = 409;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

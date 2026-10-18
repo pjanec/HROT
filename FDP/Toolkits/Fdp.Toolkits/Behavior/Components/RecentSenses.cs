@@ -35,6 +35,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public double MissileWarning;
         /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 31; ⚠ a ushort until CE-2165 V8 — kind 16 would have been dropped).</summary>
         public uint SeenMask;
+        /// <summary>⭐ <c>CE-3249</c> — kind 18: a WorldSurvey sensor's answer arrived or changed. Last, so the earlier fields keep their offsets.</summary>
+        public double SurveyReady;
 
         /// <summary>Record a change of <paramref name="kind"/> at <paramref name="now"/>.</summary>
         public void Record(SensorChange kind, double now)
@@ -58,6 +60,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.SquadMemberDown: SquadMemberDown = now; break;
                 case SensorChange.AirThreat:      AirThreat      = now; break;
                 case SensorChange.MissileWarning: MissileWarning = now; break;
+                case SensorChange.SurveyReady:    SurveyReady    = now; break;   // CE-3249
                 default: return;
             }
             SeenMask |= 1u << (int)kind;
@@ -91,6 +94,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.SquadMemberDown => SquadMemberDown,
                 SensorChange.MissileWarning  => MissileWarning,   // ⭐ CE-2189
                 SensorChange.AirThreat       => AirThreat,
+                SensorChange.SurveyReady     => SurveyReady,      // ⭐ CE-3249
                 _                        => double.NegativeInfinity,
             };
             return true;
