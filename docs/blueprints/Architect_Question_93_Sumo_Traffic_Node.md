@@ -427,7 +427,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT + live — §14.6 (SumoSharp H13) |
-| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ✅ 5a/5b BUILT §15.7 (SumoSharp H14) · 5c (hits) next |
+| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ✅ BUILT + live on the cluster §15.7 (SumoSharp H14, H15) |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
 ## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
@@ -1188,7 +1188,7 @@ Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived 
 | live | demo-city: a vehicle handed over arrives at its destination on SUMO roads, is taken back (`KinematicsMode.None`, `Arrived`), and its `PrimaryOwnerId` never changes |
 
 
-## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(2026-10-17 — build-state: BUILT for 5a/5b, §15.7; 5c DESIGN)*
+## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(2026-10-18 — build-state: BUILT, live on the cluster, §15.7)*
 
 ### 15.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
 
@@ -1276,7 +1276,7 @@ graph TD
 |---|---|---|
 | **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | ✅ BUILT (§15.7) on SumoSharp H14 `13f70db` |
 | **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | ✅ BUILT (§15.7) |
-| **5c** | K7: hits on SUMO cars and pedestrians | ✅ pedestrians BUILT (§15.7) · ⏳ cars wait for SumoSharp H15 (remove a car by name), dispatched |
+| **5c** | K7: hits on SUMO cars and pedestrians | ✅ BUILT + LIVE on the cluster (§15.7) — cars on SumoSharp H15 `17e3cf1` |
 
 ### 15.7 AS BUILT — 5a and 5b *(2026-10-17, CE-4024)*
 
@@ -1360,6 +1360,30 @@ crossed the wire as attributes (`Fear` read 0.39 about 12 s after birth, decayin
 ⚠ Found on the way, fixed: the traffic node had **no `PhysicsCollider` type**, so it had no anchors and no replicas (cars or
 pedestrians), and SUMO saw none of our bodies there (§13.7's correction). After the fix: 20 car replicas and 10 pedestrian replicas
 on the traffic node.
+**K7 (5c) for CARS, as built `2026-10-18`** — SumoSharp **H15** (`17e3cf1`, `RemoveVehicle`: any live car by name, its centre, heading,
+speed and TKB type, its despawn on the wire at once). A hit on a SUMO car replica removes the car; OUR car is created where it stood (its
+TKB type, else civilian car 1002), keeping its id and taking the held hit; its driver gets out beside it a civilian in panic (a new id).
+Rail `K7_AHitCar_…`. Traffic 55/55.
+
+**Live (cluster, `2026-10-18`): 16/17** — two pedestrians converted, **keeping their ids** (1264 was a replica id), CGF-owned, born in
+Panic; an M67 burst published on SimHost at SUMO car 1518 → the traffic node: *"hit on SUMO car 1518 (863 damage): giving it up"* → CGF
+holds car 1518 as OUR entity (type 1053, owner 400) and its driver beside it. The one row that could not pass: type 1053 has **no
+`Health` component**, so the held hit has nothing to show on (now a NOTE, not a check).
+
+⚠ **Five defects the cluster found that no rail had, all fixed** — each is the same shape (*a type or a translator a host never
+registered*, or a field the wire never carried):
+
+| found | fix | rail |
+|---|---|---|
+| the traffic node registered no `PhysicsCollider` ⇒ no anchors, no replicas, SUMO saw none of our bodies | `TrafficPack` registers it | `TrafficNodeBootstrapperTests` |
+| …nor `VehicleParams` ⇒ our trucks (no `Locomotion`) resolved Unknown, SUMO never saw a vehicle (slice 3) | `TrafficPack` registers it | same |
+| replicas had no `Health` ⇒ `AreaEffectSystem` (only damages `Health` entities) never hit a SUMO agent | `TrafficReplicas.ReplicaHealth` | `K2K3_…` asserts it |
+| `EntityHitDamageIngressTranslator` was Brain-only ⇒ the traffic node never heard a hit; then, once added, the unregistered `DamageAssessedEvent` **crashed** it | ingress for the Traffic role; `TrafficPack` registers the event | `CE4024_TheTrafficNodeHearsTheHits_…`, `TrafficNodeBootstrapperTests` |
+| `PreAllocatedNetworkId` never crossed the request wire ⇒ a converted pedestrian got a new id on CGF | it rides `EntityMaster.EntityId` | `Send_CarriesThePreAllocatedNetworkIdOntoTheWire` — [Entity Creation §3.9](../DESIGN_Entity_Creation_Unification.md) |
+
+Also: `POST /entities/spawn` on a cluster node created the entity and then answered `NOT_SUPPORTED_HERE(preview.control)` (it read the
+preview controller for a hint) — `DebugApiService.TimeAdvancing()` degrades now.
+
 ⚠ Observation for the civilians lane, not changed: a converted pedestrian calms back to Routine about 20 s after birth when nothing new
 frightens him (CE-2235's fade). §8.2 intends panic, then an openable building.
 

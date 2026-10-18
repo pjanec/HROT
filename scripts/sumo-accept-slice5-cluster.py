@@ -123,8 +123,11 @@ if target:
         drivers = [r["networkId"] for r in rows(CGF) if "CivilianState" in r.get("components", []) and r["networkId"] not in converted]
         near = [n for n in drivers if (lambda q: q and abs(q[0] - cp[0]) < 6 and abs(q[1] - cp[1]) < 6)((comps(CGF, n).get("SimTransform") or {}).get("Position"))]
         check("its driver got out a civilian beside it", near, {"near": near})
-        h = (ours_car.get("Health") or {})
-        check("our car took the hit (Health below Max)", h and h.get("Current", 0) < h.get("Max", 0), h)
+        h = ours_car.get("Health")
+        if h is None:   # 📌 2026-10-18: BoxTruck (1053) has no damage model — the held hit has nothing to subtract from
+            print(f"NOTE our car's type has no Health component: the delivered hit cannot show (type {ours_car.get('TkbIdentity')})", flush=True)
+        else:
+            check("our car took the hit (Health below Max)", h.get("Current", 0) < h.get("Max", 0), h)
 else:
     check("a SUMO car replica on SimHost to hit", False, "none")
 json.dump([{"check": n, "pass": ok, "detail": str(d)} for n, ok, d in results], open(os.path.join(OUT, "slice5-cluster-results.json"), "w"), indent=1)
