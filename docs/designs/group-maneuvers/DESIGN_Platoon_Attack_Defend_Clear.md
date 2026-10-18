@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — PC-1…PC-10 leans awaiting the user; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain)
-current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices
+build-state: DESIGN — PC-1…PC-13 leans awaiting the user; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
+current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §12 the demo scenarios (PC-11…PC-13)
 stale-below: nothing.
 known-rot: none.
 known-conflict: none — it makes concrete, and in two places revises, DESIGN_Defend_And_Attack_Position (§3/§4 PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken are now CommandPicture and the closed PROGRESS / SPOT set, PC-2; DA-7's ROE lift needs PC-6)
@@ -123,7 +123,7 @@ stateDiagram-v2
       Lift --> Enter : support PROGRESS FireLifted, or 10 s
       Enter --> Clear : assault PROGRESS Foothold
       Clear --> Consolidate : clearer PROGRESS BuildingClear
-      Approach --> AssaultThrough : open position preset
+      Lift --> AssaultThrough : open position preset
       AssaultThrough --> Consolidate : assault PROGRESS ObjectiveSecure
       Consolidate --> [*] : every squad PROGRESS Set
     }
@@ -173,7 +173,7 @@ shifting fire, relieving the assault and answering a CASEVAC never stop the plan
 | preset (the order) | runs | skips |
 |---|---|---|
 | `AttackBuilding` | Plan → Support → Approach → Lift → Enter → Clear → Consolidate | — |
-| `AttackPosition` | Plan → Support → Approach → AssaultThrough → Consolidate | Lift, Enter, Clear |
+| `AttackPosition` | Plan → Support → Approach → Lift → AssaultThrough → Consolidate (the support lifts off the objective as the assault closes) | Enter, Clear |
 | `ClearBuilding` | Plan → Enter (support isolates first) → Clear → Consolidate | Support, Approach, Lift — re-entered only if a squad reports CONTACT from the objective |
 | `ReactToFireFromBuilding` | the squad in contact IS the support: Plan → Approach → Lift → Enter → Clear → Consolidate, or **Bypass** (DA-18) | Support |
 
@@ -384,3 +384,88 @@ BuildingClear → Set ×3; `tq-police-arrest-surprise` the ClearBuilding preset 
 **`dp-platoon-house`** (two line squads + reserve in `house-3f` against a regular platoon) the Ready → Engage edge on the first SPOT
 inside the EA, and a Reinforce or Counterattack in the report log. ⭐ Each can be driven without the other side, by faking the reports
 over HTTP (CC-13).
+
+## 12. The demo scenarios *(⭐ leans PC-11…PC-13, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"And not just design the behaviors, but design the demo scenarios."*
+
+### 12.1 The stage — a new terrain, `cqb-village`
+
+![cqb-village, the proposed demo terrain](img/cqb-village.svg)
+
+*What the picture shows that prose hid:* every demo below is ONE place — the objective with a building on each side, a street
+through an intersection for the movement and the ambush, a sniper hide in range of both the objective and the support line, a walled
+compound for the open-position attack, and an approach field whose only cover is a hedge, a low wall, a wreck and two berms, so the
+covered route (west) and the open one (centre) differ.
+
+**Why not the terrains that exist** *(measured 2026-10-18, the world geojson of each)*:
+
+| terrain | buildings | ⇒ |
+|---|---|---|
+| `test-town` | 6, **all solid prisms** (height + floors, no template, no interior) | ⛔ nothing can be entered — the approved `tq-urban-ambush-counterattack` (Defend §17) **cannot clear its building there** |
+| `bt-range` | 2 × `house-2f` 60 m apart + 1 solid block; walls are a test row of materials at y = 40 | no approach cover, no street, no second building at sniper range; its `premises.json` (DemoPremisesTests) pins its sight lines, so adding features risks the existing demos |
+| `demo-city` | 5, solid | — |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **PC-12** | where the demos run | ⭐ (`CE-2290`) **a new terrain `cqb-village`** (the picture; local metres, flat ground) with its own `premises.json` rows for the sight lines the demos need (support line ⇒ OBJ's south windows · SNP ⇒ OBJ and ⇒ the support line · the hedge route hidden from OBJ's south face); ⭐ the building templates (`house-2f`, `house-3f` DA-O, the CQB house BR-1) move to the **shared `Recipes/Buildings/`** — `TerrainAssets` already looks there after the terrain's own folder, but no such folder exists yet — so `bt-range` and `cqb-village` use the same files | grow `bt-range`: its premises would have to be re-proven · copy the templates per terrain: two copies of one house drift |
+
+### 12.2 The ladder — logic first, then each squad play, then the whole fight
+
+Network ids: attacking platoon **Blue 1** = HQ 9200, squads 9210 / 9220 / 9230 (men +1…+9), weapons squad 9240 (two MG teams),
+sniper pair 9251–9252 (bodied, under the HQ) · defending platoon **Red** = HQ 9300, squads 9310 / 9320 / 9330. Every demo has an HTTP
+live check (`scripts/utility-demo-check.py`, one `run_*` each) and an in-process twin (`PlatoonScenarioTests`, one test each).
+
+| stage | demo | proves | cast and settings | driven by | must end with *(read over HTTP)* | needs |
+|---|---|---|---|---|---|---|
+| **A** logic | `pc-attack-dry` | `PlatoonAttack`'s decisions on reports alone | Blue 1 (Regular) at the AA, order **AttackBuilding** OBJ; **no enemy** | the squads move for real; the enemy and the clearing are **faked** (CC-13): a SPOT MG at OBJ's south face 5 s after the support's Set; Foothold, RoomClear ×4, BuildingClear from the assault; later a SITREP BLACK from the assault | ① each squad's behaviours in the order of §4 (`GET /entities/{squad}/order`, polled: `current` + origin Superior + `since`) · ② the Approach axis is the WEST one after the faked MG (its params vs the pre-SPOT plan) · ③ a new support sector at PhaseLine 2 · ④ the NoFire area over the entry face exists BEFORE ClearBuilding is ordered · ⑤ the BLACK ⇒ the reserve gets ClearBuilding within 1 s, over the rooms still not Cleared · ⑥ every faked report is `Synthetic` and replaced by the next real one | CC-A…E, `PlatoonAttack`, `SupportByFire` |
+| **A** logic | `pc-defend-dry` | `PlatoonDefend`'s decisions, and ROE reaching the men | Red (Regular) in OBJ, H1 + H3, reserve in H4, OP team at the low wall; order **DefendPosition** {the EA}; no enemy | faked SPOTs: outside the EA · inside it · on the west flank · inside OBJ storey 1; a SITREP RED from squad 9310 | ① no ROE change on the outside SPOT · ② **every Red man's effective ROE `FireAtWill` within 1 s** of the inside SPOT (`roeEffective` on `GET /entities/{id}/state`, PC-6) · ③ the OP squad re-ordered (OpBack) · ④ the west squad to its supplementary posts · ⑤ RED + a SPOT in its sector ⇒ the reserve to its alternates · ⑥ the storey-1 SPOT ⇒ Veteran: reserve ClearBuilding storey 1, Regular: reserve SquadDefend at the stair (run twice) | CC-A…E, `CE-2289`, `PlatoonDefend`, `SquadDefend` |
+| **B** squad | `sq-support-by-fire` | `SupportByFire` and the roles in it | one Blue squad (Regular, AR, grenadier) at the support line; 3 Red dummies peeking at OBJ's south windows, both storeys, unkillable (Health 100 000) | its orders posted over HTTP: rate Low → High → shift (sector off the west face) → lift (NoFire on the entry face) | ① PROGRESS Set · ② the AR fires the most rounds of the squad, the grenadier's at the nearer windows · ③ rounds per 10 s at High ≥ 2 × Low · ④ after the lift **no round crosses an entry-face window** (`/combat/shots`) · ⑤ PROGRESS FireLifted within 3 s + 1 frame of the lift | DA-K roles, `SupportByFire` |
+| **B** squad | `sq-isolate` | `IsolateBuilding` | one Blue squad around H3; inside, 1 insurgent and 1 civilian, both leave by the back door (30 s, 50 s — a scenario script) | its order | ① Set with two teams at diagonal corners · ② the insurgent engaged, a SPOT sent · ③ the civilian never a target, only watched | BC isolate |
+| **B** squad | `sq-defend-house` | `SquadDefend` in a 3-storey house | one Red squad (Regular) in OBJ; a Blue fire team walks in from the south | its order {posts: every storey + the roof parapet, HoldFire} | ① ≥ 1 post per storey, the roof manned · ② the AR's post has the longest view down the EA · ③ no Red round before the first Blue enters the EA, then every post fires within 1 s · ④ a man with 3 near misses moves to his alternate (Displacing) | DA-D, DA-O |
+| **C** platoon | ⭐ `pc-attack-house` | the whole attack and clear, both sides AI | Blue 1 (Regular, **AttackBuilding**, Eliminate, smoke) vs 8 Red Militia in OBJ (windows on both storeys, 2 on the roof parapet, an MG at the upper corner window) + a Red Marksman in SNP | AI on both sides | ① **the report log in order**: Set (support) → SPOT MG → PhaseLine 1, 2 → Set (assault) → FireLifted → Foothold → RoomClear … → BuildingClear → Set ×3 (`GET /squad/reports`, PC-11) · ② a SPOT with the sniper flag, then rounds into SNP · ③ **no support round into a room after its RoomClear** · ④ the log identical on CGF, SimHost, IG · ⑤ every defender dead or surrendered (Resolve) | everything above + DA-F, DA-G, DA-H, BC-3 |
+| **C** platoon | ⭐ `pc-defend-house` | the whole defence against a real attack | Red (Regular): squad 9310 in OBJ, 9320 in H1 + H3, reserve 9330 in H4, OP team at the low wall vs Blue 1 (Regular, AttackBuilding) | AI on both sides; ⛔ the winner is NOT asserted | ① the OP's SPOT, then OpBack · ② Ready → Engage on the first SPOT inside the EA, no Red round before it · ③ Supplementary once Blue's west axis is reported · ④ Reinforce or Counterattack in the log · ⑤ Blue's log meets `pc-attack-house` ① | `pc-defend-dry` + `pc-attack-house` |
+| **C** platoon | `pc-attack-compound` | the open-position preset | Blue 1 (**AttackPosition** CMP) vs 6 Red Militia at the 4 sandbag posts, an MG at the NE post | AI | ① no Enter / Clear state (preset) · ② the support suppresses the posts that see the gate, lifts before the assault enters it · ③ ObjectiveSecure, then SquadDefend facing east | DA-F |
+| **C** platoon | `pc-clear-police` | the ClearBuilding preset (police) | `tq-police-arrest-surprise` (Defend §17) moved to OBJ | AI | as Defend §17, plus: no Support / Approach state in the trace | PL-1, CE-2266 |
+| **C** platoon | `pc-urban-ambush` | movement → reaction → clear → resume | `tq-urban-ambush-counterattack` (Defend §17) moved here: Blue 1 on **UrbanMovement** along Main Street (legs west → intersection → east), 4 Militia in H5 (Ambush preset) | AI | as Defend §17 (resumes at leg 2) | DA-N |
+| **C** platoon | `pc-ambush-bypass` | the bypass branch | the same, but the route turns south down the Cross Road at the intersection, so the fire comes from SNP, 100 m off the rest of the route | AI | no squad enters SNP · suppress + smoke + cross · the movement resumes | DA-N |
+| **C** platoon | `pc-tier-ladder` | the repertoire | `pc-attack-house` five times, both sides at each tier | AI | attacker losses and time to BuildingClear fall as the tier rises (a table in the run report) | DA-I |
+
+⭐ **Kept where they are** (Building Clearing §8, the CQB test house): `bc-platoon-house` (the clearing alone, no defence) and
+`bc-platoon-house-relief` (scripted casualties ⇒ relief) already prove the Clear phase and Relieve; they are not copied here.
+
+### 12.3 The flagship's script — what the viewer sees, minute by minute *(`pc-attack-house`)*
+
+| time | on the map | in the report log (the platoon's) |
+|---|---|---|
+| 0:00 | Blue 1 at the AA; the platoon plans (survey asked) | — |
+| 0:20 | the weapons squad bounds to the berm on the support line; squads 2, 3 wait behind it | — |
+| 1:10 | the support squad is down behind the berm, watching OBJ's windows | **PROGRESS Set** (support) |
+| 1:15 | a Red MG fires from OBJ's upper corner window | **SPOT** team, firing, OBJ storey 2, MG |
+| 1:20 | the platoon re-plans: the axis goes west (hedge, low wall) | — |
+| 1:25 | the support opens at a high rate; squad 2 moves up the hedge row by bounds; smoke at the open gap | — |
+| 2:30 | squad 2 at the low wall | **PROGRESS PhaseLine 1** |
+| 3:10 | squad 2 behind H1 (30 m); the support's sector leaves the west face | **PROGRESS PhaseLine 2** |
+| 3:20 | the Red Marksman in SNP fires at the support line | **SPOT** individual, SNP, sniper |
+| 3:25 | the sniper pair and one MG team engage SNP | — |
+| 3:40 | squad 2 stacks at OBJ's west door | **PROGRESS Set** (assault) |
+| 3:42 | the support lifts off the west face | **PROGRESS FireLifted** |
+| 3:45 | squad 2 breaches and enters | — |
+| 3:55 | the first room is held | **PROGRESS Foothold** |
+| 4:00–7:30 | room by room, up the stair, the roof last; the support isolates the other faces; squad 3 waits at H1 | **RoomClear** × n · **REQUEST Casevac** once · `SquadCasualtyCare` ordered to squad 3 |
+| 7:40 | — | **PROGRESS BuildingClear** |
+| 8:00 | all three squads take hasty posts facing north and east | **PROGRESS Set** × 3; the platoon's task ends |
+
+### 12.4 What every live check also asserts *(beside Building Clearing §8.2)*
+
+- **The check reads only HTTP, never a brain component:** the report log, each unit's `GET /entities/{id}/order`, the shots, the area entities, the entity state.
+- ⚠ **Measured:** `GET /entities/{id}/order` returns the running behaviour's `params` only when its origin is **Operator** (`DebugApiService.GetOrder`); a platoon's order to a squad is origin **Superior**, so ② (the axis in the Approach params) needs the params shown for every origin — one line, folded into **CC-E**.
+- **The report log is the same on every node** (CGF, SimHost, IG) — R-2031's proof.
+- **Every report's `ObservedAt` ≤ its arrival time**, and the arrival is 3 s (+ 1 frame) after the sender's event (the delay is real).
+- **No round ever ends inside a NoFire area of the shooter's chain of command** (`/combat/shots` × the area entities and their creation times).
+- **No faked report survives the next real one** (stage A only): a `Synthetic` element or status is replaced, never stuck.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **PC-11** | where a check reads the full report log | ⭐ **Building Clearing §5a's `SquadReportLog`**: a ring per node written by the report ingress (the `ShotLog` precedent), `GET /squad/reports` — ⚠ this **revises CC-12's** *"the raw stream is the existing `GET /events?type=`"*: §5a measured that ring at **500 events of every type**, so a firefight evicts a report within seconds, and its payloads carry node-local ids | `GET /events` only (CC-12 as approved): a long demo loses its first reports · `GET /entities/{id}/reports` only: the last 16 per commander, not the log |
+| **PC-13** | the order of the demos | ⭐ **stage A first** — the commander logic proven with faked reports (CC-13) before any fight exists; stage B one squad play each; stage C the whole fights. A red in C is then narrowed by the A and B that still pass | the flagship first: a red there could be any of 20 behaviours |

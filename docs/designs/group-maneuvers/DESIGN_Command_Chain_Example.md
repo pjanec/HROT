@@ -5,7 +5,7 @@ build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 20
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: none.
-known-conflict: docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
+known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the full-size plays on this machinery; asks CommandPicture Subordinates x6, PirArea, PROGRESS FireLifted, TimeInState (PC-3, PC-4, PC-7, PC-8)
   - docs/REFERENCE_Command_Building_Blocks_Measured.md — the measured blocks this example is built from, symbol by symbol
@@ -374,7 +374,7 @@ the ecs components in the usual way, as is supported now, or do we need anything
 | 1 | **CC-A** | the three components (+ ids) — every buffer a fixed-list wrapper (`Count` + `[InlineArray]`) so `GET /entities/{id}` shows it (CC-16); `SetReportingEvent` + `ReportingRequirementsSystem`; rails: the picture survives a behaviour switch and a reaction; the play's own slots do not leak into the reaction; an origin below the setter's is refused | — |
 | 2 | **CC-B** | `OrderSubordinate` (sharing `SquadManeuverRunner.Order`'s helper), `SetSubordinateReporting`, `SendReport`, `ProgressReached`, `ElementReported` | CC-A |
 | 3 | **CC-C** | `StaffComposerSystem` (PROGRESS on task end, SPOT from the pool, SITREP) + `StaffInboxSystem` (fold, `ReportReceived`) — first on ONE node with a local loopback of the notification, so it is provable before BR-3 | CC-A, SL-0 |
-| 5 | **CC-E** | the debug HTTP: `GET` / `POST /entities/{id}/reports`, `…/reports/mute`, `ReportInjection` (CC-12…CC-15) + the route docs (they feed the ai-debug MCP catalogue); rails: a fake SPOT reaches the platoon's picture with `Synthetic` set and is replaced by Alpha's next real one; a muted squad goes *overdue* | CC-C (the `Synthetic` wire flag: BR-3) |
+| 5 | **CC-E** | the debug HTTP: `GET` / `POST /entities/{id}/reports`, `…/reports/mute`, `ReportInjection` (CC-12…CC-15), `GET /entities/{id}/order` showing the params for every origin (not only Operator — the platoon demos read a Superior order's params, Platoon_Attack_Defend_Clear §12.4) + the route docs (they feed the ai-debug MCP catalogue); rails: a fake SPOT reaches the platoon's picture with `Synthetic` set and is replaced by Alpha's next real one; a muted squad goes *overdue* | CC-C (the `Synthetic` wire flag: BR-3) |
 | 4 | **CC-D** | `PlatoonBound` (HSM) + `BasicPlatoonSop` + `PlatoonHold`; the scenario `cc-platoon-bound`; then on the wire once BR-3 lands | CC-B, CC-C |
 
 **`cc-platoon-bound` must end with:** ① Bravo reaches its point and the platoon's picture shows `Bravo: Set` within 3 s (+ one frame) of

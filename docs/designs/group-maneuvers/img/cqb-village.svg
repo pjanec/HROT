@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 786 684" font-family="Helvetica, Arial, sans-serif" font-size="11">
+<rect width="786" height="684" fill="#ffffff"/>
+<text x="16" y="24" font-size="15" font-weight="bold" fill="#222">cqb-village (proposed demo terrain) — the 330 × 232 m action area, north up, 1 m = 2.2 px</text>
+<text x="16" y="42" fill="#555">enterable buildings are templates (house-2f, house-3f, footprints to scale); everything else is a world-geojson wall, berm or obstacle</text>
+<rect x="30.0" y="64.0" width="726.0000000000001" height="510.4000000000001" fill="#f3f1e8" stroke="#999"/>
+<rect x="30.0" y="143.2" width="726.0" height="26.4" fill="#d8d8d8" stroke="none" stroke-width="1"/>
+<text x="38.8" y="163.0" fill="#555" text-anchor="start" font-size="10">Main Street — route legs 1 (west) · 2 · 3 (east)</text>
+<rect x="456.8" y="64.0" width="26.4" height="510.4" fill="#d8d8d8" stroke="none" stroke-width="1"/>
+<text x="487.6" y="565.6" fill="#555" text-anchor="start" font-size="10">Cross Road</text>
+<rect x="456.8" y="143.2" width="26.4" height="26.4" fill="#c8c8c8" stroke="none" stroke-width="1"/>
+<text x="496.4" y="182.8" fill="#555" text-anchor="start" font-size="10">intersection</text>
+<polyline points="162.0,266.4 426.0,266.4 470.0,442.4 118.0,442.4 162.0,266.4" fill="none" stroke="#c03030" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="360.0" y="433.6" fill="#c03030" text-anchor="start" font-size="10" font-weight="bold">EA (defence)</text>
+<rect x="195.0" y="222.4" width="22.0" height="17.6" fill="#e6c9a8" stroke="#333" stroke-width="1"/>
+<text x="206.0" y="235.2" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">H1</text>
+<rect x="283.0" y="218.0" width="22.0" height="22.0" fill="#f0a080" stroke="#a03020" stroke-width="2"/>
+<text x="294.0" y="233.0" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">OBJ</text>
+<text x="294.0" y="211.4" fill="#a03020" text-anchor="middle" font-size="9" font-weight="bold">OBJ house-3f</text>
+<rect x="371.0" y="222.4" width="22.0" height="17.6" fill="#e6c9a8" stroke="#333" stroke-width="1"/>
+<text x="382.0" y="235.2" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">H3</text>
+<rect x="118.0" y="108.0" width="22.0" height="17.6" fill="#e6c9a8" stroke="#333" stroke-width="1"/>
+<text x="129.0" y="120.8" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">H6</text>
+<rect x="250.0" y="108.0" width="22.0" height="17.6" fill="#e6c9a8" stroke="#333" stroke-width="1"/>
+<text x="261.0" y="120.8" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">H4</text>
+<rect x="536.0" y="108.0" width="22.0" height="17.6" fill="#f6d36b" stroke="#a07a00" stroke-width="2"/>
+<text x="547.0" y="120.8" text-anchor="middle" font-weight="bold" font-size="9" fill="#222">H5</text>
+<text x="547.0" y="101.4" fill="#a07a00" text-anchor="middle" font-size="9" font-weight="bold">H5 ambush (house-2f)</text>
+<rect x="690.0" y="103.6" width="22.0" height="22.0" fill="#e6c9a8" stroke="#333" stroke-width="1"/>
+<text x="701.0" y="118.6" text-anchor="middle" font-weight="bold" font-size="8" fill="#222">SNP</text>
+<text x="701.0" y="94.8" fill="#7a5a3a" text-anchor="middle" font-size="9">sniper hide (house-3f)</text>
+<text x="206.0" y="253.2" fill="#7a5a3a" text-anchor="start" font-size="9">H1, H3: house-2f</text>
+<polyline points="558.0,398.4 558.0,442.4 668.0,442.4 668.0,332.4 558.0,332.4 558.0,380.8" fill="none" stroke="#555" stroke-width="3"/>
+<text x="551.4" y="389.6" fill="#555" text-anchor="end" font-size="9">gate</text>
+<rect x="597.6" y="380.8" width="26.4" height="17.6" fill="#bbbbbb" stroke="#333" stroke-width="1"/>
+<text x="610.8" y="393.6" text-anchor="middle" font-weight="bold" font-size="8" fill="#333">shed</text>
+<polyline points="569.0,431.4 586.6,431.4" fill="none" stroke="#8a7a40" stroke-width="4"/>
+<polyline points="650.4,431.4 663.6,431.4" fill="none" stroke="#8a7a40" stroke-width="4"/>
+<polyline points="569.0,343.4 586.6,343.4" fill="none" stroke="#8a7a40" stroke-width="4"/>
+<polyline points="650.4,343.4 663.6,343.4" fill="none" stroke="#8a7a40" stroke-width="4"/>
+<text x="613.0" y="314.8" fill="#333" text-anchor="middle" font-size="10" font-weight="bold">CMP walled compound</text>
+<text x="613.0" y="325.8" fill="#555" text-anchor="middle" font-size="9">2 m concrete, 4 sandbag posts</text>
+<polyline points="118.0,332.4 228.0,332.4" fill="none" stroke="#8b4513" stroke-width="3"/>
+<text x="232.4" y="336.8" fill="#8b4513" text-anchor="start" font-size="9">low wall 1 m</text>
+<polyline points="118.0,530.4 118.0,244.4" fill="none" stroke="#3a7a3a" stroke-width="5" stroke-dasharray="2,2"/>
+<text x="111.4" y="486.4" fill="#3a7a3a" text-anchor="end" font-size="9">hedge row</text>
+<polyline points="360.0,398.4 437.0,398.4" fill="none" stroke="#9a7a40" stroke-width="4"/>
+<text x="399.6" y="389.6" fill="#9a7a40" text-anchor="middle" font-size="9">berm 1 m</text>
+<rect x="267.6" y="352.2" width="11.0" height="4.4" fill="#666" stroke="#333" stroke-width="1"/>
+<text x="283.0" y="363.2" fill="#444" text-anchor="start" font-size="9">wreck</text>
+<polyline points="228.0,486.4 360.0,486.4" fill="none" stroke="#9a7a40" stroke-width="5"/>
+<text x="294.0" y="504.0" fill="#9a7a40" text-anchor="middle" font-size="9" font-weight="bold">SBF line — berm 1 m, 112 m from OBJ</text>
+<polyline points="294.0,541.4 131.2,512.8 131.2,310.4 188.4,244.4" fill="none" stroke="#1f5fbf" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="140.0" y="292.8" fill="#1f5fbf" text-anchor="start" font-size="10" font-weight="bold">assault axis (west flank)</text>
+<rect x="250.0" y="541.4" width="88.0" height="22.0" fill="none" stroke="#1f5fbf" stroke-width="2"/>
+<text x="344.6" y="556.8" fill="#1f5fbf" text-anchor="start" font-size="9">AA: attacker assembly</text>
+<line x1="602.0" y1="530.4000000000001" x2="712.0" y2="530.4000000000001" stroke="#000" stroke-width="2"/>
+<text x="657.0" y="521.6" fill="#000" text-anchor="middle" font-size="10">50 m</text>
+<rect x="30" y="588.4000000000001" width="14" height="12" fill="#f0a080" stroke="#333"/>
+<text x="50" y="598.4000000000001" fill="#333">the objective (attacked or defended)</text>
+<rect x="30" y="606.4000000000001" width="14" height="12" fill="#f6d36b" stroke="#333"/>
+<text x="50" y="616.4000000000001" fill="#333">the ambush building beside route leg 2</text>
+<rect x="30" y="624.4000000000001" width="14" height="12" fill="#e6c9a8" stroke="#333"/>
+<text x="50" y="634.4000000000001" fill="#333">other enterable buildings</text>
+<rect x="30" y="642.4000000000001" width="14" height="12" fill="#bbbbbb" stroke="#333"/>
+<text x="50" y="652.4000000000001" fill="#333">solid, not enterable</text>
+<text x="330" y="598.4000000000001" fill="#1f5fbf">blue dashed: the attack axis · blue box: assembly area</text>
+<text x="330" y="616.4000000000001" fill="#c03030">red dashed: the defence engagement area (EA)</text>
+<text x="330" y="634.4000000000001" fill="#555">sight lines are not drawn — the demo premises measure them</text>
+</svg>
