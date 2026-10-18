@@ -119,6 +119,17 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (live < 2) return PlayStart.Fail;
             if (bases == 0 || bases == live) SuppressAndManeuverManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+
+            // ⭐ CE-2281 DA-19 — the squad's automatic weapons (AR, MG) go to the base of fire first, whoever saw the enemy — as long as
+            //   someone live is left to assault
+            int assault = 0;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (ctx.Live(i, out _) && partition[i][1] > partition[i][0]
+                    && !Fdp.Toolkit.Squad.SquadRoles.CarriesSupportWeapon(Fdp.Toolkit.Squad.SquadRoles.Of(ctx.World, in ctx.Roster, i))) assault++;
+            if (assault > 0)
+                for (int i = 0; i < ctx.Roster.Count; i++)
+                    if (Fdp.Toolkit.Squad.SquadRoles.CarriesSupportWeapon(Fdp.Toolkit.Squad.SquadRoles.Of(ctx.World, in ctx.Roster, i)))
+                        partition[i] = new MemberPartitionInput(1f, 0.1f);
             return PlayStart.Go;
         }
 

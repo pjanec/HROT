@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Squad.Systems
             for (int i = 0; i < roster.Count; i++)
             {
                 var m = roster.SubordinateEntities[i];
-                var d = repo.HasComponent<UnitSubordinate>(m) ? repo.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+                var d = SquadRoles.Of(repo, in roster, i);   // ⭐ CE-2281 — the one role reader
                 if (d == designation && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, m)) return i;
             }
             return -1;
@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Squad.Systems
             {
                 var m = roster.SubordinateEntities[i];
                 if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, m)) continue;
-                var d = repo.HasComponent<UnitSubordinate>(m) ? repo.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+                var d = SquadRoles.Of(repo, in roster, i);   // ⭐ CE-2281 — the one role reader
                 if (d != TacticalDesignation.Medic) return i;
                 if (medic < 0) medic = i;
             }

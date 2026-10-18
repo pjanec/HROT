@@ -286,7 +286,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static int UncaredCount(EntityRepository world, Entity commander) => SquadCasualties.Count(world, commander);
 
         private static TacticalDesignation Designation(EntityRepository world, in UnitRoster roster, int i, Entity m)
-            => world.HasComponent<UnitSubordinate>(m) ? world.GetComponentRO<UnitSubordinate>(m).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+            => Fdp.Toolkit.Squad.SquadRoles.Of(world, in roster, i);   // ⭐ CE-2281 — the one role reader
     }
 
     /// <summary>

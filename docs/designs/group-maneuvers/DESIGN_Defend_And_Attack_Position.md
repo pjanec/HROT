@@ -438,6 +438,44 @@ the ZU-23; no infantry type carries one; `M249` is only a ballistic reference ro
 | the men | `Infantry_Sniper` **209** (US) · `Infantry_Marksman` **210** (US) · `Infantry_MarksmanSvd` **211** (Russia, faction 2) — the rifleman's body with the scoped rifle; the role is `TacticalDesignation.Marksman` (BR-8) | `TkbEntityTypes`, `NedTkbCatalog.MachineGunner` | the same |
 | ⛔ not here | the sniper team (hide, few shots, relocate, the spotter — behaviors' `CE-2279`) · a spread factor for a better shooter (BR-6, blocked on `CE-2273`) | | |
 
+### 12c. DA-K — what is built, what is blocked *(`CE-2281`, behaviors, 2026-10-19)*
+
+**Measured** (a read-only sweep, 2026-10-19): only `EntityInfo.CommanderId` and `TacticalDesignation` cross the wire
+(`GenericDescriptors.cs:164-185`); every node builds its OWN roster from `CmdAssignSubordinate` (`UnitHierarchySystem.cs:138-150`) or
+on load (`GenesisMaterializationSystem.cs:206-219`); `UnitSubordinateTranslator` is not extraction-safe, so the brain node gets a
+man's `UnitSubordinate` from the WIRE. Every squad play partitions on its first tick only, by roster halves or by who reported
+(`SquadManeuverRunner.cs:346-353`). Succession rewrites the successor's designation locally and never marks it for the wire
+(`SquadSensing.cs:116-118`); and a second `CmdAssignSubordinate` for the same commander appends the man again
+(`UnitHierarchySystem.cs:117-122`, its class comment says so). A man's machine gun is his TKB TYPE's mount 0 (207 / 208), not an item.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadRoles { <<NEW, the ONE role reader>> Of(world, roster, slot) · CarriesSupportWeapon(role) }
+  class SquadSensing { <<EXISTING, routed>> succession }
+  class CasualtyCare { <<EXISTING, routed>> the medic pick }
+  class SuppressAndManeuverPlay { <<EXISTING, + roles>> the AR / MG join the base of fire }
+  class TacticalDesignation { <<EXISTING + BR-8>> AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank }
+  class FireTeam { <<NOT BUILT: no carrier on the wire>> }
+  class RoleTakeover { <<NOT BUILT: needs a weapon to pick up>> }
+  SquadSensing ..> SquadRoles
+  CasualtyCare ..> SquadRoles
+  SuppressAndManeuverPlay ..> SquadRoles
+  SquadRoles ..> TacticalDesignation
+```
+*What the picture shows that prose hid:* two of the three copies of "his role is his component's, else the roster's" already existed
+(succession, the medic pick); the third reader would have been a third copy — `SquadRoles` is the one, and the two blocked boxes are
+blocked for reasons outside this lane.
+
+| piece | state | ⭐ lean for the blocked ones |
+|---|---|---|
+| the role reader | ✅ `SquadRoles.Of` (succession and the medic pick routed through it) | — |
+| the AR / MG first into the base of fire | ✅ `SuppressAndManeuverPlay.Start`: after the split by reporters (or halves), every AR / MG goes to the base of fire, if a live man is left to assault | — |
+| ⛔ the element split BY FIRE TEAM | **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
+| ⛔ role takeover on a casualty | **blocked**: the AR's gun is his TYPE's mount, nothing can pick it up; re-labelling a rifleman would send a man with no MG to the base of fire as one | ⭐ wait for a weapon pick-up design (a held item from a body, `ItemSources`); and make succession's designation change reach the wire first (mark it dirty, and fix the duplicate append) — both backend |
+
+⚠ Neither blocked part is decided by this lane alone: the user rules on the fire-team carrier and on weapon pick-up.
+
 ## 13. Sectors — how they are assigned and how a man keeps to his *(✅ approved R-2036 — DA-20)*
 
 **Measured:** ⛔ **no sector, arc or engagement-area restriction exists anywhere** (only a turret's traverse limit). A target is chosen
