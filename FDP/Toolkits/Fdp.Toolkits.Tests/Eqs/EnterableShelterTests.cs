@@ -69,6 +69,44 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.True(intoA, "a candidate inside House A — through its back door");
         }
 
+        /// <summary>⭐ <c>CE-4028</c> — demo-city (the SUMO demo) offers shelter: a frightened civilian anywhere on its sidewalks finds a
+        /// house he can run into within the query's 80 m. ⛔ Before: its 5 data buildings were solid prisms with no doors, so the query answered
+        /// nothing anywhere and every converted pedestrian cowered and calmed (measured on the cluster, 2026-10-18).</summary>
+        [Fact]
+        public void CE4028_DemoCity_EverySidewalkPoint_HasAnEnterableHouseWithinTheShelterRadius()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city");
+            var w = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "demo-city.world.geojson")), "demo-city",
+                TerrainAssets.ForFolder(folder));
+            var doors = Enumerable.Range(0, w.Doors.Count)
+                .Select(i => EnterableDoorGenerator.TryInside(w, w.Doors[i], 2f, out var inside) ? inside : (Vector2?)null)
+                .Where(p => p != null).Select(p => p!.Value).ToList();
+            Assert.True(w.Buildings.Count(b => !b.Solid) >= 30, $"{w.Buildings.Count(b => !b.Solid)} enterable houses");
+            Assert.True(doors.Count >= 60, $"{doors.Count} ways in (a front and a back door a house)");
+
+            // the sidewalks: the net's pedestrian lanes, in terrain metres (net minus the anchor, terrain.json)
+            var net = System.Xml.Linq.XDocument.Load(System.IO.Path.Combine(folder, "demo-city.net.xml"));
+            var far = new System.Collections.Generic.List<Vector2>();
+            int checkedPoints = 0;
+            foreach (var lane in net.Descendants("lane").Where(l => (string?)l.Attribute("allow") == "pedestrian"))
+                foreach (var xy in ((string)lane.Attribute("shape")!).Split(' '))
+                {
+                    var c = xy.Split(',');
+                    var p = new Vector2(float.Parse(c[0], System.Globalization.CultureInfo.InvariantCulture) - 2200f,
+                                        float.Parse(c[1], System.Globalization.CultureInfo.InvariantCulture) - 2200f);
+                    if (p.X < 4f || p.Y < 4f || p.X > 796f || p.Y > 796f) continue;
+                    checkedPoints++;
+                    if (!doors.Any(d => Vector2.Distance(d, p) <= CivilianShelterRadius)) far.Add(p);
+                }
+            Assert.True(checkedPoints > 100, $"only {checkedPoints} sidewalk points inside the terrain");
+            Assert.True(far.Count == 0, $"{far.Count} of {checkedPoints} sidewalk points have no way in within {CivilianShelterRadius} m: {string.Join(", ", far.Take(5))}");
+        }
+
+        /// <summary>The civilian's shelter search radius (<c>CivilianBehavior.DefaultShelterSearchRadius</c>, Hrot.AI.Behaviors — not referenced here).</summary>
+        private const float CivilianShelterRadius = 80f;
+
         [Fact]
         public void CE2236_TheIndoorTest_KnowsInFromOut_AndTheTemplateIdIsTheCanonicalOne()
         {
