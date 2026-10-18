@@ -354,6 +354,98 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Equal(new Vector3(-1, -1, -1), _repo.GetComponentRO<SimTransform>(remote).Position);
         }
 
+        // ── CE-2262 SL-0 (CB-16): a squad under a platoon — combat effective ──────────────────────────────────────────────
+
+        /// <summary>A platoon commander over the given squads (each a body-less unit with a roster).</summary>
+        private Entity Platoon(params Entity[] squads)
+        {
+            var platoon = _repo.CreateEntity();
+            _repo.AddComponent(platoon, new UnitRoster());
+            _repo.AddComponent(platoon, new UnitEntity());
+            foreach (var sq in squads)
+            {
+                _repo.AddComponent(sq, new UnitSubordinate { Commander = platoon, Designation = TacticalDesignation.Wingman });
+                UnitRoster.Add(ref _repo.GetComponentRW<UnitRoster>(platoon), sq);
+            }
+            return platoon;
+        }
+
+        /// <summary>⭐ <c>CE-2262</c> SL-0 (CB-16) — a squad is in the fight while min(4, half its roster) of its men are; a platoon while
+        /// enough of its SQUADS are; a soldier as before. 🔴 Before: a unit had no Health, so it read "in the fight" with every man dead.
+        /// ✅ Red-proof: <c>Live(i)</c>'s and the centroid's reads back to <c>Injury.IsInTheFight</c> / <c>CombatLife.IsAlive</c> ⇒ the
+        /// runner and centroid rails go red.</summary>
+        [Fact]
+        public void CE2262_ASquadIsInTheFight_WhileEnoughOfItsMenAre_APlatoonWhileEnoughSquads()
+        {
+            var w = TacticalDesignation.Wingman;
+            var (alpha, a) = Designated(w, w, w, w, w, w);           // 6 men ⇒ needs 3
+            var (bravo, b) = Designated(w, w, w, w);                 // 4 men ⇒ needs 2
+            var (charlie, c) = Designated(w, w, w, w);
+            var platoon = Platoon(alpha, bravo, charlie);            // 3 squads ⇒ needs 2
+
+            Assert.Equal(3, CombatEffective.MinEffective(6));
+            Assert.Equal(2, CombatEffective.MinEffective(4));
+            Assert.Equal(4, CombatEffective.MinEffective(10));
+            Assert.True(CombatEffective.IsInTheFight(_repo, alpha));
+            Assert.True(CombatEffective.IsInTheFight(_repo, a[0]));
+
+            Kill(a[0]); Kill(a[1]); Kill(a[2]);                      // 3 of 6 left: still effective
+            Assert.True(CombatEffective.IsInTheFight(_repo, alpha));
+            Kill(a[3]);                                              // 2 of 6: not
+            Assert.False(CombatEffective.IsInTheFight(_repo, alpha));
+            Assert.False(CombatEffective.IsInTheFight(_repo, a[0]));
+            Assert.True(CombatEffective.IsInTheFight(_repo, platoon));   // bravo + charlie
+
+            foreach (var m in b) Kill(m);
+            Assert.False(CombatEffective.IsInTheFight(_repo, bravo));
+            Assert.False(CombatEffective.IsInTheFight(_repo, platoon));  // one squad of three
+            Assert.Equal(1, CombatEffective.FightingMembers(_repo, platoon));
+        }
+
+        /// <summary>⭐ <c>CE-2262</c> — a unit with NO roster is taken as in the fight (nothing to judge by — as before); a roster that
+        /// EMPTIED (its men destroyed) is out of it.</summary>
+        [Fact]
+        public void CE2262_NoRosterIsInTheFight_AnEmptiedRosterIsNot()
+        {
+            var bare = _repo.CreateEntity();
+            _repo.AddComponent(bare, new UnitEntity());
+            Assert.True(CombatEffective.IsInTheFight(_repo, bare));
+            var emptied = _repo.CreateEntity();
+            _repo.AddComponent(emptied, new UnitEntity());
+            _repo.AddComponent(emptied, new UnitRoster());
+            Assert.False(CombatEffective.IsInTheFight(_repo, emptied));
+        }
+
+        /// <summary>⭐ <c>CE-2262</c> SL-0 — a PLATOON stands at its effective SQUADS' centre: a wiped-out squad (its centroid frozen where it
+        /// died) no longer pulls it. 🔴 Before: <c>CombatLife.IsAlive</c> on a body-less squad is always true.</summary>
+        [Fact]
+        public void CE2262_APlatoonStandsAtItsEffectiveSquadsCentre_AWipedOutSquadDoesNotCount()
+        {
+            var w = TacticalDesignation.Wingman;
+            var (alpha, a) = Designated(w, w);
+            var (bravo, b) = Designated(w, w);
+            var platoon = Platoon(alpha, bravo);
+            foreach (var u in new[] { platoon, alpha, bravo })
+            {
+                _repo.AddComponent(u, new SimTransform { Position = new Vector3(-1, -1, -1) });
+                _repo.SetAuthority<SimTransform>(u, true);
+            }
+            _repo.AddComponent(a[0], new SimTransform { Position = new Vector3(0, 0, 0) });
+            _repo.AddComponent(a[1], new SimTransform { Position = new Vector3(10, 0, 0) });
+            _repo.AddComponent(b[0], new SimTransform { Position = new Vector3(200, 0, 0) });
+            _repo.AddComponent(b[1], new SimTransform { Position = new Vector3(210, 0, 0) });
+
+            var centroid = new UnitCentroidSystem();
+            centroid.Execute(_repo, 0.016f);   // squads first update in query order; run twice so the platoon reads fresh squad centres
+            centroid.Execute(_repo, 0.016f);
+            Assert.Equal(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+
+            Kill(b[0]); Kill(b[1]);            // bravo wiped out: its centre stays at (205, 0, 0)
+            centroid.Execute(_repo, 0.016f);
+            Assert.Equal(new Vector3(205, 0, 0), _repo.GetComponentRO<SimTransform>(bravo).Position);
+            Assert.Equal(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3208</c> — the bytes this thread allocates over 1000 frames, the LEAST of three windows. 📐 One window alone failed ~1 run in
         /// 20 with a single ~4 KB allocation (once, not per frame — a runtime event such as a tier-up landing in the window); a hot-path

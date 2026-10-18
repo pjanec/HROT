@@ -619,6 +619,25 @@ namespace Hrot.Map.Common.Tests
                     Assert.All(suite.Mounts, m => Assert.Equal(IndirectArc.Unset, m.Arc));
         }
 
+        /// <summary>⭐ <c>CE-2262</c> SL-0 — the INFANTRY PLATOON: a land unit of the infantry arm at platoon echelon whose roster is three
+        /// squad commanders (a composite of composites), with a brain and no default SOP yet (CC-D brings BasicPlatoonSop).</summary>
+        [Fact]
+        public void CE2262_TheInfantryPlatoon_IsThreeSquads()
+        {
+            var db = BuildDatabase();
+            var platoon = db.GetByType(TkbEntityTypes.Unit_InfantryPlatoon)!;
+            var squad = db.GetByType(TkbEntityTypes.Unit_InfantrySquad)!;
+            var roster = Assert.Single(platoon.GetDescriptor<TkbCompositionDef>()!.Subordinates);
+            Assert.Equal((TkbEntityTypes.Unit_InfantrySquad, 3), (roster.TkbType, roster.Count));
+            Assert.Equal("Platoon", platoon.GetDescriptor<TkbCompositionDef>()!.Echelon);
+            Assert.Equal((squad.DisType.Kind, squad.DisType.Domain, squad.DisType.Country, squad.DisType.Category),
+                         (platoon.DisType.Kind, platoon.DisType.Domain, platoon.DisType.Country, platoon.DisType.Category));   // infantry, one arm
+            Assert.NotEqual(squad.DisType.Subcategory, platoon.DisType.Subcategory);                                            // a different echelon
+            var brain = platoon.GetDescriptor<BehaviorProfileDto>();
+            Assert.NotNull(brain);
+            Assert.Null(brain!.DefaultSop);
+        }
+
         /// <summary>
         /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
         /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.

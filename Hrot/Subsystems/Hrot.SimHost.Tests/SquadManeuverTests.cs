@@ -1282,6 +1282,55 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2f, move.Speed);
         }
 
+        // ── CE-2262 SL-0 — the squad layer one echelon up: a platoon whose members are squads ─────────────────────────────
+
+        /// <summary>Makes the platoon's member <paramref name="i"/> a SQUAD: a body-less unit with <paramref name="men"/> men of its own
+        /// standing around it, each with <paramref name="health"/>.</summary>
+        private static Entity[] MakeSquad(Squad platoon, int i, int men, float health)
+        {
+            var squad = platoon.Members[i];
+            platoon.Repo.AddComponent(squad, new UnitEntity());
+            var roster = new UnitRoster();
+            var them = new Entity[men];
+            var at = platoon.At(squad);
+            for (int k = 0; k < men; k++)
+            {
+                var m = platoon.Repo.CreateEntity();
+                platoon.Repo.AddComponent(m, new SimTransform { Position = at + new Vector3(k, 0f, 0f), Rotation = Quaternion.Identity });
+                platoon.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+                platoon.Repo.AddComponent(m, new UnitSubordinate { Commander = squad });
+                UnitRoster.Add(ref roster, m);
+                them[k] = m;
+            }
+            platoon.Repo.AddComponent(squad, roster);
+            return them;
+        }
+
+        /// <summary>⭐⭐ <c>CE-2262</c> SL-0 (CB-16) — the first NESTED hierarchy run: a platoon commander marching three SQUADS orders each
+        /// effective squad an ORDER (it decides how — <c>Order.Move</c> / <c>Order.Hold</c>, D3) and a wiped-out squad NOTHING. 🔴 Before:
+        /// a squad has no Health, so <c>Live(i)</c> read the dead squad as in the fight and kept ordering it. ✅ Red-proof: <c>Live(i)</c>
+        /// back to <c>Injury.IsInTheFight</c> ⇒ the dead squad gets an order.</summary>
+        [Fact]
+        public void CE2262_APlatoonMarchingItsSquads_OrdersEachEffectiveSquad_AndAWipedOutSquadNothing()
+        {
+            var p = new Squad(members: 3);
+            MakeSquad(p, 0, men: 4, health: 100f);
+            MakeSquad(p, 1, men: 4, health: 100f);
+            MakeSquad(p, 2, men: 4, health: 0f);                    // every man dead
+            Assert.False(CombatEffective.IsInTheFight(p.Repo, p.Members[2]));
+
+            p.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", BehaviorNames.SquadMarch);
+            Ticks(p, 3);
+            Assert.Equal(SquadMarchManeuver.ManeuverKind, p.Kind);
+            for (int i = 0; i < 2; i++)
+            {
+                var toSquad = p.Orders.Where(o => o.Entity.Equals(p.Members[i])).ToList();
+                Assert.NotEmpty(toSquad);
+                Assert.All(toSquad, o => Assert.StartsWith("Order.", o.IntentId));   // an order, never a soldier's behaviour
+            }
+            Assert.DoesNotContain(p.Orders, o => o.Entity.Equals(p.Members[2]));
+        }
+
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────
 
         private static Entity Carrier(Squad s, Vector3 at, params int[] aboard)

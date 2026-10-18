@@ -147,6 +147,9 @@ namespace Hrot.Map.Common
         public const long Unit_TankPlatoon_Auto = 303;
         /// <summary>⭐ IF-1 (I8, FM-1) — an artillery battery (ArtilleryUnit 11.1.*.4): the commander unit of a fire mission.</summary>
         public const long Unit_ArtilleryBattery = 304;
+        /// <summary>⭐ <c>CE-2262</c> SL-0 (CB-16, R-2030) — an INFANTRY PLATOON: a body-less commander whose roster is three
+        /// <see cref="Unit_InfantrySquad"/> commanders — the first composite of composites (the platoon plays, Command Chain CC-D).</summary>
+        public const long Unit_InfantryPlatoon = 305;
 
         // Civilian & Insurgent Types
         public const long CivilianPedestrian = 501;

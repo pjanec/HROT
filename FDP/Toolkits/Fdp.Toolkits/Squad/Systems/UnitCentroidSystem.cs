@@ -30,7 +30,12 @@ namespace Fdp.Toolkit.Squad.Systems
                 for (int i = 0; i < roster.Count; i++)
                 {
                     var m = roster.SubordinateEntities[i];
-                    if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, m) || !repo.HasComponent<SimTransform>(m)) continue;
+                    // ⭐ CE-2262 SL-0 (CB-16): a unit member (a squad under a platoon) counts while it is combat effective — ⛔ before,
+                    //   a wiped-out squad (no Health ⇒ always "alive") kept pulling the platoon's centre to where it died
+                    bool counts = Fdp.Toolkit.Squad.CombatEffective.IsUnit(repo, m)
+                        ? Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(repo, m)
+                        : Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, m);
+                    if (!counts || !repo.HasComponent<SimTransform>(m)) continue;
                     sum += repo.GetComponentRO<SimTransform>(m).Position;
                     live++;
                 }

@@ -60,6 +60,7 @@ public static class BehaviorCatalog
         TkbEntityTypes.Unit_TankPlatoon      => MapFor(registry)[BehaviorCategory.Commander],
         TkbEntityTypes.Unit_TankPlatoon_Auto => MapFor(registry)[BehaviorCategory.Commander],
         TkbEntityTypes.Unit_InfantrySquad    => MapFor(registry)[BehaviorCategory.Commander],
+        TkbEntityTypes.Unit_InfantryPlatoon  => MapFor(registry)[BehaviorCategory.Commander],   // ⭐ CE-2262 SL-0
         _                                 => s_defaultBehaviors,
     };
 }
