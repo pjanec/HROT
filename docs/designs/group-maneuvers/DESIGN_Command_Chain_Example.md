@@ -17,7 +17,7 @@ related-designs:
 
 # A two-level command chain, worked through on the engine's own blocks *(behaviors, `2026-10-18`)*
 
-🔒 User, `2026-10-18`: *"everything the entity brain knows must be stored in its blackboard components as blackboard variables or
+🔒 User, `2026-10-18`: *"Again approved as a concept, but needs detailing. Keep in mind that everything the entity brain knows must be stored in its blackboard components as blackboard variables or
 separate slots … What is the order? Today we support orders as a behavior requests coming with parameters … What do you mean by a gate
 that can admit the order, how that could be implemented in our engine. I think we should develop some very simple example of how that
 could work in the engine. On a very simple use case of multi-level command structure using the building blocks and means our engine
