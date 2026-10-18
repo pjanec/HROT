@@ -39,6 +39,9 @@ namespace Fdp.Toolkit.World
 
         /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown, or it does not leave.</summary>
         public Vector3 ExitNormal { get; init; }
+        /// <summary>⭐ <c>CE-3249</c> (WS-6) — a MEANING, like <see cref="ClosedBarrier"/>: an obscurant that will clear (smoke, gas), not a
+        /// thing that stands. False = unknown or solid. 📄 <c>docs/DESIGN_World_Survey_Sensor.md</c> §5.</summary>
+        public bool Obscurant { get; init; }
     }
 
     /// <summary>

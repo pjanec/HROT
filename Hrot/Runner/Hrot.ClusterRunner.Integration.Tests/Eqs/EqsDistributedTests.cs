@@ -531,6 +531,53 @@ public sealed class EqsDistributedTests
             + DiagnoseRating(cgf, cgfUnit, cgfWatcher, area));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3249</c> S4 (R-2037, docs/DESIGN_World_Survey_Sensor.md §3) — the WorldSurvey sensor ACROSS HOSTS: a Brain-made survey of
+    /// bt-range's House A is solved on the SimHost against ITS world, the answer rides <c>WorldSurveyResult</c> back, and the Brain holds
+    /// the derived rooms and portals — the brain never reads the geometry itself.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void CE3249_AWorldSurvey_AcrossHosts_TheSolverAnswersTheBrain()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+        var cgf = harness.Cgf!.World!;
+
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var range = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+            "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+        foreach (var w in new[] { sim, cgf })
+        {
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
+            w.SetSingletonManaged(range);
+        }
+        int houseA = range.Buildings.ToList().FindIndex(b => b.Label == "House A");
+
+        long unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
+        Assert.True(harness.PumpUntil(() => harness.SimHost.TestHook_EntityMap.TryGetEntity(unitNet, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out _), timeoutFrames: 3000),
+            "The unit must exist on the Muscle and the Brain.");
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out Entity cgfUnit);
+
+        var child = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Ensure(cgf, cgfUnit, siteId: 9,
+            Fdp.Toolkit.Perception.Survey.WorldSurveyRequest.OfBuildings(houseA));
+        Assert.False(child.IsNull);
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child).IsReady,
+                timeoutFrames: 3000),
+            "The SimHost must answer the Brain's survey over WorldSurveyResult.");
+
+        var read = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Read(cgf, child,
+            cgf.GetComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child).LastUpdateTimeSeconds);
+        Assert.Equal(4, read.Payload!.Rooms.Count);   // 2 below, 1 above, the roof
+        Assert.Equal(houseA, Assert.Single(read.Payload.Buildings).Building);
+        Assert.Contains(read.Payload.Portals, p => p.Kind == (byte)Fdp.Toolkit.Terrain.BuildingPortalKind.Stair);
+        var front = Assert.Single(read.Payload.Portals, p => p.IsDoor && p.RoomB == -1 && p.X < 105f);
+        Assert.Equal((byte)Fdp.Toolkit.Terrain.TerrainDoorState.Locked, front.DoorState);
+    }
+
     // CE-3138 — what the Brain's rating read: the watcher's danger on the Brain, and whether the terrain blocks its sight.
     private static string DiagnoseRating(EntityRepository cgf, Entity unit, Entity watcher,
         Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor area)

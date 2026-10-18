@@ -126,7 +126,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ CE-3251 — a directive kind this node does not know (a newer sender) is counted and dropped — ⛔ before BR-13 any
-        /// Kind was cast to an order kind. ⭐ CE-2299 (behaviors): kind 3 (<c>SetReporting</c>) is decoded now, so the rail uses 9.</summary>
+        /// Kind was cast to an order kind.</summary>
         [Fact]
         public void CE3251_AnUnknownDirective_IsCounted_NeverAnOrder()
         {
@@ -135,7 +135,7 @@ namespace Hrot.SimHost.Tests
             _entityMap.Register(42L, entity);
 
             var sample = new TacticalIntentRequest { TargetEntityId = 42L, IntentId = "Idle", JsonParams = "{}",
-                                                     Kind = 9 };
+                                                     Kind = 9 };   // a kind this build does not know
             translator.ProcessSample(in sample, _world);
             _world.Bus.SwapBuffers();
 
@@ -143,10 +143,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, translator.UnhandledDirectiveCount);
         }
 
-        /// <summary>⭐ <c>CE-2299</c> (behaviors, Command Chain CC-2) — forwarded reporting requirements (kind 3) are raised again as the
-        /// local <see cref="Fdp.Toolkit.Squad.Command.SetReportingEvent"/> with their origin, for the owner's gate; never an order.</summary>
+        /// <summary>⭐ CE-3251 (BR-13) — forwarded reporting requirements (CE-2291 CC-2) are raised again as the local
+        /// <see cref="Fdp.Toolkit.Squad.Command.SetReportingEvent"/> with their origin, for the owner's gate; never an order.</summary>
         [Fact]
-        public void CE2299_ForwardedReportingRequirements_AreRaisedAgain_NotAsAnOrder()
+        public void CE3251_ForwardedReportingRequirements_AreRaisedAgain_NotAsAnOrder()
         {
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             _world.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
@@ -155,7 +155,7 @@ namespace Hrot.SimHost.Tests
             var sent = new Fdp.Toolkit.Squad.Command.SetReportingEvent
             {
                 Pir = Fdp.Toolkit.Squad.Command.PirFlags.AnyElement | Fdp.Toolkit.Squad.Command.PirFlags.InArea,
-                Ffir = Fdp.Toolkit.Squad.Command.FfirFlags.EveryPhase, SitrepEverySeconds = 15f, PirArea = 9001L,
+                Ffir = Fdp.Toolkit.Squad.Command.FfirFlags.EveryPhase, SitrepEverySeconds = 30f, PirArea = 4711L,
             };
 
             var sample = new TacticalIntentRequest
@@ -169,7 +169,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
             var got = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Squad.Command.SetReportingEvent>().ToArray());
             Assert.Equal((entity, BehaviorOrigin.Superior), (got.Entity, got.Origin));
-            Assert.Equal((sent.Pir, sent.Ffir, 15f, 9001L), (got.Pir, got.Ffir, got.SitrepEverySeconds, got.PirArea));
+            Assert.Equal((sent.Pir, sent.Ffir, 30f, 4711L), (got.Pir, got.Ffir, got.SitrepEverySeconds, got.PirArea));
             Assert.Equal(0, translator.UnhandledDirectiveCount);
         }
     }

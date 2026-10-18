@@ -176,6 +176,10 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-484 — every node may host an operator window: a behaviour fault raised on any node becomes a row of
             //   the Message Log's "Behaviour faults" tab here. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
             yield return new Hrot.Network.Translators.BehaviorFaultIngressTranslator(participant, localNodeId);
+            // ⭐ CE-3250 (behaviors' BR-3, R-2031) — a report up the chain of command: raised on any node (a staff on a brain node, a
+            //   synthetic one over HTTP), every other node takes it in. 📄 DESIGN_Building_Clearing.md §3, §5b.
+            yield return new Hrot.Network.Translators.SquadReportEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.Translators.SquadReportIngressTranslator(participant, entityMap, localNodeId);
         }
     }
 }

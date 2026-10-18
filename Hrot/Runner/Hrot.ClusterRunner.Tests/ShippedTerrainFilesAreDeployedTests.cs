@@ -50,6 +50,36 @@ public sealed class ShippedTerrainFilesAreDeployedTests
           + "content glob in Hrot.AI.Behaviors.csproj): " + string.Join(", ", missing));
     }
 
+    /// <summary>
+    /// ⭐ UI-1 (HANDOFF_Behaviors_To_Ui_Platoon_Demos) — every shipped terrain's WORLD parses from the build output, so every building
+    /// template it places is deployed: its own <c>buildings/</c> or the shared <c>Recipes/Buildings/</c>
+    /// (<c>TerrainAssets.DefaultSharedBuildingsRoot</c>). ⛔ The source-tree suites find a template the build forgot to copy.
+    /// </summary>
+    [Fact]
+    public void EveryShippedTerrainWorld_LoadsWithItsBuildingTemplates_FromTheBuildOutput()
+    {
+        var shared = Fdp.Toolkit.Terrain.TerrainAssets.DefaultSharedBuildingsRoot;
+        Assert.True(File.Exists(Path.Combine(shared, "house-2f.building.json")), $"the shared house-2f is not deployed to '{shared}'.");
+
+        var failures = new List<string>();
+        int buildings = 0;
+        foreach (var definition in Directory.GetFiles(ShippedRoot, "terrain.json", SearchOption.AllDirectories))
+        {
+            var folder = Path.GetDirectoryName(definition)!;
+            using var doc = JsonDocument.Parse(File.ReadAllText(definition));
+            if (!doc.RootElement.TryGetProperty("world", out var w) || w.GetString() is not string world) continue;
+            try
+            {
+                var parsed = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, world)), Path.GetFileName(folder),
+                    Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder, shared));
+                buildings += parsed.Buildings.Count;
+            }
+            catch (Exception ex) { failures.Add($"{Path.GetFileName(folder)}: {ex.Message}"); }
+        }
+        Assert.True(failures.Count == 0, "shipped terrain worlds that do not load from the build output: " + string.Join(" | ", failures));
+        Assert.True(buildings > 0, "no shipped terrain placed a building — the rail would prove nothing.");
+    }
+
     /// <summary>⭐ The rail can fail: the known SUMO net reference is found by the walk.</summary>
     [Fact]
     public void TheWalk_FindsTheSumoNetReference()

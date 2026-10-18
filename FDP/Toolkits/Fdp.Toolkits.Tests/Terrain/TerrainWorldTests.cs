@@ -722,6 +722,102 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));   // inside House A's west room
         }
     
+        /// <summary>
+        /// ⭐ UI-1 (platoon demos hand-off) — the SHARED templates folder <c>Recipes/Buildings/</c>: <c>bt-range</c> places
+        /// <c>house-2f</c> with no copy of its own (<see cref="TerrainAssets.RecipesSibling"/> finds it from the source tree, the build
+        /// output's <c>Recipes/Buildings</c> from the app), and no template is left in two places.
+        /// 🔴 Red-proof: drop <c>RecipesSibling</c> from the lookup ⇒ "building template 'house-2f' was not found".
+        /// </summary>
+        [Fact]
+        public void UI1_BtRange_FindsHouse2f_InTheSharedFolder_AndNoTemplateIsInTwoPlaces()
+        {
+            var folder = ShippedTerrain("bt-range");
+            var shared = TerrainAssets.RecipesSibling(folder);
+            Assert.True(File.Exists(Path.Combine(shared, "house-2f" + TerrainAssets.TemplateSuffix)), $"house-2f is not in '{shared}'");
+            Assert.False(Directory.Exists(Path.Combine(folder, TerrainAssets.BuildingsFolderName))
+                && Directory.GetFiles(Path.Combine(folder, TerrainAssets.BuildingsFolderName)).Length > 0, "bt-range keeps a template of its own");
+
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+                TerrainAssets.ForFolder(folder, sharedBuildingsRoot: Path.Combine(Path.GetTempPath(), "no-such-shared-root")));
+            Assert.Equal(new[] { "house-2f", "house-2f" }, w.Buildings.Select(b => b.Template));
+
+            var sharedNames = Directory.GetFiles(shared, "*" + TerrainAssets.TemplateSuffix).Select(Path.GetFileName).ToHashSet();
+            var twice = Directory.GetDirectories(Path.GetDirectoryName(folder)!)
+                .SelectMany(t => Directory.Exists(Path.Combine(t, TerrainAssets.BuildingsFolderName))
+                    ? Directory.GetFiles(Path.Combine(t, TerrainAssets.BuildingsFolderName), "*" + TerrainAssets.TemplateSuffix) : Array.Empty<string>())
+                .Where(f => sharedNames.Contains(Path.GetFileName(f))).ToArray();
+            Assert.True(twice.Length == 0, "templates in a terrain's buildings/ AND the shared folder: " + string.Join(", ", twice));
+        }
+
+        /// <summary>
+        /// ⭐ UI-2 (Defend §16 DA-22, <c>CE-2285</c>) — <c>house-3f</c>'s roof is a STOREY: its floor at 6 m, a 1 m parapet round the edge
+        /// (a LOW wall), and a stair house whose lid is the template's <c>roof</c> rings (8.5 m) — no roof slab over the rest.
+        /// The parapet is crouched cover by the stance thresholds; from the street a man on the roof is seen only above it.
+        /// 🔴 Red-proof: ignore a wall's <c>height</c> ⇒ the parapet is 2.5 m and the head is hidden; read <c>roof</c> rings as
+        /// "flat" ⇒ a slab at 8.5 m over the whole roof.
+        /// </summary>
+        [Fact]
+        public void UI2_House3f_TheRoofIsAStorey_WithAStairHouseLid_AndAOneMetreParapet()
+        {
+            var folder = ShippedTerrain("bt-range");
+            var w = TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+                  "features": [ { "type": "Feature", "properties": { "kind": "building", "template": "house-3f", "label": "H3" },
+                                  "geometry": { "type": "Point", "coordinates": [100, 100] } } ] }
+                """, "range", TerrainAssets.ForFolder(folder));
+            var b = Assert.Single(w.Buildings);
+            Assert.Equal(new[] { 0f, 3f, 6f, 8.5f }, b.StoreyZ);
+
+            var parapet = w.Panels.Where(p => p.Storey == 2 && MathF.Abs(p.TopZ - p.BaseZ - 1f) < 1e-3f).ToArray();
+            Assert.Equal(5, parapet.Length);
+            Assert.All(parapet, p => Assert.Equal(6f, p.BaseZ, 3));
+            Assert.Equal(4, w.Panels.Count(p => p.Storey == 2 && MathF.Abs(p.TopZ - 8.5f) < 1e-3f));   // the stair house, full height
+            Assert.Contains(w.Doors, d => d.Key == "range/H3/roof" && MathF.Abs(d.SillZ - 6f) < 1e-3f);
+
+            Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));             // the west room: no lid over the open roof
+            Assert.Equal(new[] { 0f, 3f, 6f, 8.5f }, w.SurfacesAt(109.3f, 103));   // inside the stair house: its lid
+            Assert.Equal(4.5f, w.SurfaceZ(109.3f, 105.5f, zHint: 4.4f), 1);         // on the second flight (y 107 → 104, 3 → 6)
+
+            // a man on the roof behind the south parapet, seen from the street 30 m south
+            var street = new Vector3(105, 70, 1.7f);
+            Assert.True(w.SegmentBlocked(street, new Vector3(105, 101, 6.5f)), "his body below the parapet must be hidden");
+            Assert.False(w.SegmentBlocked(street, new Vector3(105, 101, 7.6f)), "his head above the parapet must be seen");
+
+            // crouched cover on the roof floor along the parapet
+            var cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(w).Points
+                .Where(p => MathF.Abs(p.PositionZ - 6f) < 0.1f && p.PositionY < 101.5f && p.PositionX < 106f).ToArray();
+            Assert.NotEmpty(cover);
+            Assert.All(cover, p => Assert.Equal(1, p.StanceHeight));
+        }
+
+        /// <summary>
+        /// ⭐ UI-11 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city's LANDING SQUARE (565..615 × 295..345, behind the battle
+        /// street's west row) is clear: no building, wall or slab stands in it, and a helicopter coming in from the open south edge at
+        /// 60 m and settling onto it — the rotor disc's centre and both tips (±8 m) — passes nothing. 🔴 Red-proof: a lot moved into
+        /// the square fails the first assertion.
+        /// </summary>
+        [Fact]
+        public void UI11_DemoCity_TheLandingSquareIsClear_AndAHelicopterComesInFromTheSouthWithoutACollision()
+        {
+            var folder = ShippedTerrain("demo-city");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "demo-city.world.geojson")), "demo-city",
+                TerrainAssets.ForFolder(folder));
+            const float X0 = 565, Y0 = 295, X1 = 615, Y1 = 345;
+            bool In(Vector2 p) => p.X > X0 && p.X < X1 && p.Y > Y0 && p.Y < Y1;
+            Assert.DoesNotContain(w.Buildings, b => b.Footprint.Any(In) || In(new Vector2((X0 + X1) / 2, (Y0 + Y1) / 2)) && PolygonMath.Contains(b.Footprint, new Vector2((X0 + X1) / 2, (Y0 + Y1) / 2)));
+            Assert.DoesNotContain(w.Prisms, p => p.Footprint.Any(q => In(new Vector2(q.X, q.Y))));
+            for (float x = X0 + 2; x < X1; x += 4)
+                for (float y = Y0 + 2; y < Y1; y += 4)
+                    Assert.Equal(new[] { 0f }, w.SurfacesAt(x, y));                  // nothing over the ground anywhere in it
+
+            var pad = new Vector2(590, 320);
+            foreach (float dx in new[] { -8f, 0f, 8f })
+            {
+                Assert.False(w.SegmentBlocked(new Vector3(pad.X + dx, 120, 60), new Vector3(pad.X + dx, pad.Y, 12)), $"the approach at {dx:+0;-0;0} m");
+                Assert.False(w.SegmentBlocked(new Vector3(pad.X + dx, pad.Y, 12), new Vector3(pad.X + dx, pad.Y, 0.5f)), $"the descent at {dx:+0;-0;0} m");
+            }
+        }
+
         /// <summary>⭐ CE-3128 (R-231) — a road POLYGON is refused, naming where roads live now: the terrain's road network.</summary>
         [Fact]
         public void CE3128_SurfaceRoad_IsRetired_AndTheErrorNamesTheRoadNetwork()

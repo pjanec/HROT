@@ -76,6 +76,7 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap, clusterCache, localNodeId));
             translators.Add(new EqsResultIngressTranslator(participant, entityMap));
             translators.Add(new DangerAreaResultIngressTranslator(participant, entityMap));   // ⭐ CE-3072 B3
+            translators.Add(new Hrot.Network.NED.CGF.WorldSurveyResultIngressTranslator(participant, entityMap));   // ⭐ CE-3249
         }
 
         // ── Combat egress — Brain / AllInOne emits WeaponFireIntent → DDS ──
@@ -121,6 +122,7 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap, localNodeId));
             translators.Add(new EqsResultEventEgressTranslator(participant, entityMap));
             translators.Add(new DangerAreaResultEgressTranslator(participant, entityMap));    // ⭐ CE-3072 B3
+            translators.Add(new WorldSurveyResultEgressTranslator(participant, entityMap));    // ⭐ CE-3249
             // ⭐ CE-3065 — what a unit HEARD leaves from the node that SOLVED it (the memory stage runs with the solver),
             //   so it is keyed like the EQS result above, not on MuscleGround.
             translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));

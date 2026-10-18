@@ -543,6 +543,23 @@ requirements cross nodes with it.
 ⚠ **BR-3 again:** CB-43 drops the free `Payload`; a report carries `KindId` + `Subtype` + the fixed fields. The amendment note is
 re-stamped.
 
+#### BR-3 as built *(backend, `CE-3250`, `2026-10-18` — cross-lane fold by backend; the report-ageing note's fields all in)*
+
+| piece | as built | where |
+|---|---|---|
+| the local event | ⭐ `SquadReportNotification` (managed; the Command Chain §3 box of that name) — the ENVELOPE `FromUnit`, `ToUnit`, `Subject`, `Building` (−1 none; a room is a point inside it), `SentAt`, `OriginNodeId` (0 = raised on this node) around behaviors' **`CommandReport`** (`CE-2291`: `Kind` `ReportKind` 1–6, `Subtype` `ProgressKind` / `RequestKind`, `At`, `Radius`, `Count`, `Size`, `Activity`, `Equipment`, `Strength`, `Ammo`, `Wia`, `Kia`, `Phase`, `ObservedAt`, `Seq`, `Synthetic`) — ONE report vocabulary for the outbox, the notification and the wire | `FDP/Toolkits/Fdp.Toolkits/Squad/Command/SquadReportNotification.cs` |
+| the wire | event topic `"SquadReport"` (`dtSquadReport` 146): the envelope with units / subject as network ids + `CommandReport`'s fields one for one | `Hrot.Network.NED/SquadReportMessages.cs` |
+| egress | sends the reports raised HERE (`OriginNodeId` 0; an arrived one is never re-sent); a unit or subject with no network id ⇒ refused, `RefusedCount` | `SquadReportEgressTranslator` |
+| ingress | raises `SquadReportNotification` on every other node (own sample skipped), units as that node's entities (null when not known yet); an unknown kind still arrives, `UnknownKindCount` | `SquadReportIngressTranslator` |
+| installed | ⭐ BOTH in `SharedTranslatorPack` (every node — a synthetic report over HTTP may be raised on any node; R-3015) | — |
+| replay | recorded and played back like every managed bus event (no `NoReplay`) | rail `CE3250_ReplayRecordsAReport_AndPlaysItBack` |
+| ⛔ not here | the sender (`ReportOutbox` / staff, `CE-2293`), the log + `GET /squad/reports` (§5a) | behaviors |
+
+⛔ **SUPERSEDED the same day, at backend's merge of behaviors' `CE-2291` CC-A:** the first build carried its own `SquadReportEvent`
+with its own enums (`ReportKindId`, `ProgressSubtype`, `SpotSize`, `ReportColour` …) — a second copy of `CommandReport`'s closed set.
+Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `RequestId` (a REQUEST is named by its sender + `Seq`, as
+`PendingRequest` already does).
+
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
 | id | decision | ✅ ruled | rejected — one line each |

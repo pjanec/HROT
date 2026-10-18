@@ -35,7 +35,7 @@ namespace Hrot.Network.NED.SimHost
         public long   SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE event here).</summary>
+        /// <summary>⭐ <c>CE-3251</c> — directives this node could not raise (an unknown kind, bad JSON, or no ROE / reporting event here).</summary>
         public long UnhandledDirectiveCount { get; private set; }
 
         /// <summary>
@@ -89,7 +89,6 @@ namespace Hrot.Network.NED.SimHost
                     repo.Bus.Publish(roe);
                     return;
                 }
-                // ⭐ CE-2299 (behaviors) — kind 3: a superior's reporting requirements (Command Chain CC-2), the ROE twin.
                 if (request.Kind == TacticalIntentWireKind.SetReporting
                     && repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()
                     && ReportingDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var reporting))

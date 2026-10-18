@@ -10,8 +10,8 @@ namespace Fdp.Toolkit.Squad.Command
     /// ⭐ <c>CE-2291</c> CC-A (CC-2, R-2044) — a superior sets a subordinate commander's EXTRA reporting requirements: the
     /// <c>SetRoeEvent</c> twin. Sent with an order or on its own (<c>SetSubordinateReporting</c>, CC-B); applied by
     /// <see cref="ReportingRequirementsSystem"/>. ⭐ It REPLACES the whole set — all zero withdraws them (a play that set requirements
-    /// withdraws them when it ends). ⭐ Cross-node (<c>CE-2299</c>): for a unit whose brain runs elsewhere the tactical-intent egress forwards it
-    /// on the order's road (wire kind 3, backend's BR-13 road) and the owner raises it again.
+    /// withdraws them when it ends). ⭐ Cross-node (BR-13, CE-3251): raised for a unit whose brain runs elsewhere, the tactical-intent egress forwards it
+    /// (<c>TacticalIntentWireKind.SetReporting</c>) and the owner applies it — the ROE road.
     /// </summary>
     [EventId(BehaviorConstants.EventId_SetReporting)]
     [StructLayout(LayoutKind.Sequential)]
@@ -49,8 +49,8 @@ namespace Fdp.Toolkit.Squad.Command
                          && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             foreach (var evt in repo.Bus.Read<SetReportingEvent>())
             {
-                // ⭐ CE-2299 — the RoeSystem rule (CE-3251): a NETWORKED unit whose brain runs on another node is left to its owner (the
-                //   tactical-intent egress forwards the event there, wire kind 3); applying it here too would make a second writer.
+                // ⭐ CE-3251 (BR-13, backend — the RoeSystem rule) — a NETWORKED unit whose brain runs on another node: the tactical-intent
+                //   egress forwards the event there and its owner applies it; applying it here too would be a second writer.
                 if (replicas && repo.HasComponent<BehaviorState>(evt.Entity) && !repo.HasAuthority<BehaviorState>(evt.Entity)
                     && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Entity))
                 {
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Squad.Command
             }
         }
 
-        /// <summary>⭐ <c>CE-2299</c> — events left to the brain's owner (a replica here) since this system was built.</summary>
+        /// <summary>⭐ <c>CE-3251</c> — events left to the brain's owner (a replica here) since this system was built.</summary>
         public int ForwardedCount { get; private set; }
 
         /// <summary>What a <see cref="SetReportingEvent"/> does, applied NOW. <c>false</c> = refused by the gate, or a dead entity.</summary>

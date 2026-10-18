@@ -235,4 +235,13 @@
     </Content>
   </ItemGroup>
 
+  <!-- ⭐ UI-1 (HANDOFF_Behaviors_To_Ui_Platoon_Demos) — the SHARED building templates any terrain may place
+       (docs/DESIGN_Building_Interiors.md §3a lookup: the terrain's own buildings/ first, then Recipes/Buildings/
+       = TerrainAssets.DefaultSharedBuildingsRoot). -->
+  <ItemGroup>
+    <Content Include="Recipes\Buildings\*.building.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

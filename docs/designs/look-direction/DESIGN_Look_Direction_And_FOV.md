@@ -187,6 +187,78 @@ module that already runs there consumes nothing; registering them is the remaini
 | **LD-C** ✅ *(as amended)* | the head | ✅ the head turns only for a **GLANCE** — ⭐ lean: up to ±70° for **at most 2 s**, then back toward the body's direction for at least 1 s; **a lasting look turns the BODY** (standing: `FacingTurn` toward it, the same lag as a lasting aim); **moving**: the body keeps its travel and an off-axis sector is watched by repeated glances, never a long stare over the shoulder | a fixed head turn while walking: "turning head quickly gets unpleasant and inconvenient" (user) · stopping to look: a march would crawl |
 | **LD-D** ✅ | reading it back | ✅ `GET /entities/{id}/state` gains `look` { bodyYaw, headYaw, source: order / aim / scan / reaction / glance, fovDegrees }; "was he seen" stays `GET /entities/{id}/memory`'s modalities | a new route |
 
+### 3.2a LD-1 / LD-2 — backend detail *(backend, `CE-3252`, `2026-10-18`; step 1 of the frame: §3.2's reuse CONFIRMED, and what it does not yet do)*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` `.*(LookAt|Look|Head|Gaze|Facing).*` Class — 75 hits, agrees with grep; one read-only
+sweep, every answer opened at the file. `check_index_coverage` NOT run — CLI only)*. ⭐ §3.2's reuse holds, but the look-at path is
+**inert end to end**, six gaps, not one:
+
+| # | gap | where |
+|---|---|---|
+| G1 | `LookAtChannel` (221), `LookAtChannelStatus` (227), `LookAtExecutorState` (237) are registered on NO host | `StanceComponentRegistry` registers the stance set only |
+| G2 | `AnimationTkbTranslator` adds them only when the def has an `AimConfig` — the shipped mannequin def has none | `AnimationTkbTranslator.Inject`; `UrbanCombatTkbCatalog.BuildMannequinAnimationDef` |
+| G3 | `LookAtDispatcherSystem` fails every request without `ActorCapabilities.CanAim` — `BehaviorTkbTranslator` never sets it | `LookAtDispatcherSystem.cs:70-73`; `BehaviorTkbTranslator.cs:64-74` |
+| G4 | nothing on the brain writes `LookAtChannel` (the node structs are registered only by tests) | `AnimationNodeRegistrar` |
+| G5 | the look-at translators are on no host (only the stance pair is wired) | `AnimationReplicationModule.BuildTranslators` |
+| G6 | the executors stage a target and produce NO yaw; nothing turns a body or a head | `LookAtExecutors.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class LookRequests { <<NEW static, brain — Hrot.MuscleCharacter.Animation>> AtPoint(unit, point, priority) · AtEntity(unit, target) · Release(unit) }
+  class LookAtChannel { <<EXISTING 221, brain group, replicated>> ActiveAction · ActionInstanceId · Params }
+  class LookAtDispatcherSystem { <<EXISTING, muscle>> CanAim gate · OnEnter / Execute }
+  class LookAtPointExecutor { <<EXISTING, grows>> OnEnter / Execute writes LookState's target }
+  class LookState { <<NEW FDP component 410, muscle group, replicated dtLookState>> Target · HasTarget · Since · Source · HeadYaw · BodyYaw }
+  class LookFollowSystem { <<NEW FDP, muscle, after CarKinematics>> the head: glance ≤ 70° ≤ 2 s moving; standing the head leads, the body follows }
+  class CarKinematicsSystem { <<EXISTING, grows>> a standing person with a look and no aim faces the look (IntegrateFacing, W-14's lag) }
+  class LookOf { <<NEW FDP pure>> EyeYaw(view, e) = body yaw + head yaw }
+  class VisionBroadphase { <<EXISTING, forward changed>> }
+  class VisibilityConeGizmo { <<EXISTING, forward changed>> }
+  LookRequests --> LookAtChannel
+  LookAtChannel ..> LookAtDispatcherSystem : wire (LookAtChannelIntent) or the same world
+  LookAtDispatcherSystem ..> LookAtPointExecutor
+  LookAtPointExecutor --> LookState : the wanted look
+  CarKinematicsSystem ..> LookState : reads the target, writes BodyYaw
+  LookFollowSystem --> LookState : HeadYaw
+  LookOf ..> LookState
+  VisionBroadphase ..> LookOf
+  VisibilityConeGizmo ..> LookOf
+```
+*What the picture shows that prose hid:* the look reaches the FDP layer through ONE new component, `LookState`, written on the muscle by
+the existing executor (its target) and by the two FDP systems (body, head); vision and the map read it through ONE helper. The aim
+(W-14) never touches `LookState` — `CarKinematicsSystem` keeps its aim branch first, so the aim wins by construction.
+
+```mermaid
+sequenceDiagram
+  participant B as brain play (LD-3)
+  participant R as LookRequests
+  participant D as LookAtDispatcherSystem (muscle)
+  participant X as LookAtPointExecutor
+  participant K as CarKinematicsSystem
+  participant F as LookFollowSystem
+  participant V as VisionBroadphase
+  B->>R: AtPoint(unit, the sector's point)
+  R->>R: LookAtChannel {LookAtPoint, new ActionInstanceId, params}
+  D->>X: OnEnter (CanAim granted to persons)
+  X->>X: LookState.Target = point, HasTarget, Since = now, Source = Order
+  K->>K: aimed? the aim (W-14). else standing with a look: IntegrateFacing toward it (95 % in 3 s). else walk where he faces
+  F->>F: head = clamp(look − body, ±70°) · moving: a glance ≤ 2 s then ≥ 1 s back · standing: the head leads while the body turns
+  F-->>V: LookState.HeadYaw, BodyYaw (replicated to every node)
+  V->>V: the cone around body yaw + head yaw
+  B->>R: Release(unit) ⇒ HasTarget false ⇒ the head returns to the body
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **LD-E** | where the look lands in FDP | ⭐ ONE component `LookState` (FDP, Perception), muscle group, replicated (`dtLookState`): the executor writes the TARGET, the gait / follow systems the yaws | the Hrot `LookAtExecutorState` — FDP's kinematics and vision cannot reference Hrot types · two components (target, result) — two descriptors for one fact |
+| **LD-F** | G1–G3, G5 | ⭐ register the look-at trio wherever the stance set is registered (brain AND muscle registries); inject it for every PERSON type (a `VehicleClass.Pedestrian` body) regardless of `AimConfig`; grant `CanAim` to persons in `BehaviorTkbTranslator`; wire the look-at translator pair by role exactly as the stance pair (`RegisterStanceOn`'s twin) | an `AimConfig` on the mannequin def — it would also start the montage aim path nobody plays |
+| **LD-G** | G4 — the brain's write | ⭐ `LookRequests` (`Hrot.MuscleCharacter.Animation`, brain-side static): `AtPoint`, `AtEntity`, `Release` write `LookAtChannel` with a fresh `ActionInstanceId` and the owning behaviour's instance — the one writer behaviors' `LookAt` helper (LD-3) calls | behaviors writing the channel bytes themselves: the 32-byte params layout would leak into every play |
+| **LD-H** | nothing requested | ⭐ v1: the head returns to the body (no scan) — ⛔ LD-B's "slow scan around the last look" is left to behaviors' LD-3 (`Scan` writes points; it is a behaviour, not physiology) | a scan in `LookFollowSystem`: a second producer of "where he looks" |
+| **LD-I** | `look` on HTTP | ⭐ `GET /entities/{id}/state` → `look { bodyYawDeg, headYawDeg, eyeYawDeg, source, hasTarget, targetX/Y/Z, fovDegrees }` from the replicated `LookState` (LD-D) | — |
+
+*(As built: §3.2b when the slices land.)*
+
 ### 3.3 Who points the eyes, in every play of the programme *(LD-3)*
 
 | play / order | the look | source |

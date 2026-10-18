@@ -29,5 +29,12 @@ namespace Fdp.Toolkit.Perception.Components
         /// ranked list (<c>SensorKindRegistry</c>). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.2, §10.6.
         /// </summary>
         DangerArea = 16,
+
+        /// <summary>
+        /// ⭐ <c>CE-3249</c> (R-2037, DA-25) — the WorldSurvey sensor: geometry asked of the muscle (a visibility fan, a building survey with
+        /// its derived rooms, a point survey). A sensor KIND, never a detection modality, like <see cref="DangerArea"/>. Its answer is
+        /// <c>WorldSurveyStatus</c> + <c>WorldSurveyAnswer</c>. 📄 docs/DESIGN_World_Survey_Sensor.md.
+        /// </summary>
+        WorldSurvey = 32,
     }
 }

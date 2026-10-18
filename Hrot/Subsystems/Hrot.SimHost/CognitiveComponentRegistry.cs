@@ -107,6 +107,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();
             world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
+            world.RegisterManagedEvent<Fdp.Toolkit.Squad.Command.SquadReportNotification>();   // CE-3250 — a report up the chain (BR-3), envelope over CommandReport
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterEvent<SetRoeEvent>();        // CE-2074
             world.RegisterEvent<Fdp.Toolkit.Squad.Command.SetReportingEvent>();   // ⭐ CE-2291 CC-A

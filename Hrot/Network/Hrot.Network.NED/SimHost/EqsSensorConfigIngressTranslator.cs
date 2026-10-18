@@ -266,7 +266,18 @@ namespace Hrot.Network.NED.SimHost
             // ⭐ CE-3036 / R-186 M′ — a behaviour-made sensor of ANY kind carries its per-kind config as JSON. ⛔ Bad JSON
             //   or an unknown kind is REFUSED: no carrier is built and nothing half-configured ever solves.
             SensorEntryDto? config = null;
-            if (!string.IsNullOrEmpty(data.ConfigJson) && !TryDecode(key, in data, out config)) return true;
+            // ⭐ CE-3249 (WS-2) — a WorldSurvey sensor's config is its REQUEST, not a sensor entry: the carrier gets it as is.
+            Fdp.Toolkit.Perception.Survey.WorldSurveyRequest? survey = null;
+            if (string.Equals(data.ConfigKind, Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.Kind, StringComparison.Ordinal))
+            {
+                if (!Fdp.Toolkit.Perception.Survey.WorldSurveyRequestJson.TryDecode(data.ConfigJson, out survey))
+                {
+                    RefusedConfigCount++;
+                    return true;
+                }
+                if (view is EntityRepository repoS) Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Register(repoS);
+            }
+            else if (!string.IsNullOrEmpty(data.ConfigJson) && !TryDecode(key, in data, out config)) return true;
 
             if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
             {
@@ -283,6 +294,7 @@ namespace Hrot.Network.NED.SimHost
                 cmd.SetComponent(child, sensor);
                 if (config != null && view is EntityRepository repoC)
                     SensorChildFactory.SetCapability(repoC, child, config, config);
+                if (survey != null) cmd.SetManagedComponent(child, survey);   // CE-3249 — the new request
                 return true;
             }
 
@@ -315,6 +327,7 @@ namespace Hrot.Network.NED.SimHost
                 if (view is EntityRepository repoN) repoN.RegisterManagedComponent<SensorCapability>();
                 cmd.AddManagedComponent(child, new SensorCapability { Default = config, Current = config });
             }
+            if (survey != null) cmd.AddManagedComponent(child, survey);   // CE-3249 — what the solver answers
             Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, child, view);   // CE-3045 — a carrier is never saved
             _awaitingPlayback.Add(key);
             return true;

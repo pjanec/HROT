@@ -6,6 +6,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;
@@ -96,7 +97,7 @@ namespace Hrot.Network.NED.SimHost
             }
 
             ForwardRoe(repo, brainHere);
-            ForwardReporting(repo, brainHere);   // ⭐ CE-2299 (behaviors) — the twin, kind 3
+            ForwardReporting(repo, brainHere);
         }
 
         /// <summary>⭐ <c>CE-3251</c> (BR-13) — a <see cref="SetRoeEvent"/> about a unit whose brain runs on another node goes there on
@@ -127,13 +128,13 @@ namespace Hrot.Network.NED.SimHost
             }
         }
 
-        /// <summary>⭐ <c>CE-2299</c> (behaviors, Command Chain CC-2) — the <see cref="ForwardRoe"/> twin for a superior's reporting
-        /// requirements (<see cref="Fdp.Toolkit.Squad.Command.SetReportingEvent"/>, <see cref="TacticalIntentWireKind.SetReporting"/>): a
-        /// subordinate commander whose brain runs elsewhere gets them on the order's road, after the frame's orders.</summary>
+        /// <summary>⭐ <c>CE-3251</c> (BR-13) — the <see cref="ForwardRoe"/> twin for behaviors' <see cref="SetReportingEvent"/> (CE-2291
+        /// CC-2): a superior's reporting requirements for a subordinate whose brain runs on another node go there
+        /// (<see cref="TacticalIntentWireKind.SetReporting"/>) and its <c>ReportingRequirementsSystem</c> applies them.</summary>
         private void ForwardReporting(EntityRepository repo, bool brainHere)
         {
-            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) return;
-            foreach (var evt in repo.Bus.Read<Fdp.Toolkit.Squad.Command.SetReportingEvent>())
+            if (!repo.Bus.IsRegistered<SetReportingEvent>()) return;
+            foreach (var evt in repo.Bus.Read<SetReportingEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // ReportingRequirementsSystem applies it here
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))

@@ -1,0 +1,35 @@
+{
+  "$comment": "UI-9 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — a TWO-STOREY SHOP: 12 x 10 m, a 3.5 m ground floor with a SHOPFRONT (two wide low-sill windows either side of the door) and a back store behind an inner wall, stairs on the east side to a flat above (3 m, windows on every side), flat roof. Local metres; origin = the south-west corner; the street side is y = 0.",
+  "name": "shop-2f",
+  "material": "brick",
+  "footprint": [[0,0],[12,0],[12,10],[0,10]],
+  "storeys": [
+    { "height": 3.5,
+      "walls": [
+        { "from": [0,0],  "to": [12,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 0.8, "width": 3.6, "sillZ": 0.4, "headZ": 2.6 },
+                        { "kind": "door",   "at": 5.0, "width": 1.2, "doorId": "front", "initial": "closed", "headZ": 2.4 },
+                        { "kind": "window", "at": 6.8, "width": 2.6, "sillZ": 0.4, "headZ": 2.6 } ] },
+        { "from": [12,0], "to": [12,10], "thickness": 0.3 },
+        { "from": [12,10], "to": [0,10], "thickness": 0.3,
+          "openings": [ { "kind": "door", "at": 8.0, "width": 1.0, "doorId": "back", "initial": "closed" },
+                        { "kind": "window", "at": 3.0, "width": 1.2 } ] },
+        { "from": [0,10], "to": [0,0],  "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 4.0, "width": 1.2 } ] },
+        { "from": [0,7],  "to": [9.8,7], "thickness": 0.15, "material": "concrete",
+          "openings": [ { "kind": "door", "at": 4.0, "width": 1.0, "doorId": "store" } ] } ],
+      "stairs": [ { "from": [10.9,1.5], "to": [10.9,7.0], "width": 1.0 } ] },
+    { "height": 3.0,
+      "floor": [ [[0,0],[10.3,0],[10.3,10],[0,10]], [[11.5,0],[12,0],[12,10],[11.5,10]],
+                 [[10.3,0],[11.5,0],[11.5,1.5],[10.3,1.5]], [[10.3,7.0],[11.5,7.0],[11.5,10],[10.3,10]] ],
+      "walls": [
+        { "from": [0,0],  "to": [12,0], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 1.2, "width": 1.4 }, { "kind": "window", "at": 5.2, "width": 1.4 }, { "kind": "window", "at": 9.0, "width": 1.4 } ] },
+        { "from": [12,0], "to": [12,10], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 8.0, "width": 1.2 } ] },
+        { "from": [12,10], "to": [0,10], "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 2.0, "width": 1.2 }, { "kind": "window", "at": 7.0, "width": 1.2 } ] },
+        { "from": [0,10], "to": [0,0],  "thickness": 0.3,
+          "openings": [ { "kind": "window", "at": 4.0, "width": 1.2 } ] } ] } ],
+  "roof": "flat"
+}

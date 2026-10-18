@@ -57,10 +57,11 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             world.Dispose();
         }
 
-        /// <summary>⭐ <c>CE-2299</c> — the <c>RoeSystem</c> rule (CE-3251): on a node holding a REPLICA of the unit's brain the requirements are
-        /// left to the owner (the egress forwards them, wire kind 3); a world with no network identity applies them as before.</summary>
+        /// <summary>⭐ <c>CE-3251</c> (BR-13, backend) — on a node holding a REPLICA of the subordinate's brain the requirements are left
+        /// to the owner (the tactical-intent egress forwards them); a world with no network identity still applies them. ✅ Red-proof: drop
+        /// the replica skip in <c>ReportingRequirementsSystem.Execute</c> ⇒ the replica gets the requirements.</summary>
         [Fact]
-        public void CE2299_AReplicasRequirements_AreLeftToTheBrainsOwner()
+        public void CE3251_AReplicasReportingRequirements_AreLeftToTheBrainsOwner()
         {
             var world = World();
             world.RegisterComponent<BehaviorState>();
@@ -69,19 +70,14 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             var replica = world.CreateEntity();
             world.AddComponent(replica, new BehaviorState());   // no authority: the brain runs on another node
             world.AddComponent(replica, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7 });
-            var owned = world.CreateEntity();
-            world.AddComponent(owned, new BehaviorState());
-            world.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 8 });
-            world.SetAuthority<BehaviorState>(owned, true);
             var offline = world.CreateEntity();
             world.AddComponent(offline, new BehaviorState());
 
-            foreach (var e in new[] { replica, owned, offline })
-                Send(world, sys, new SetReportingEvent { Entity = e, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = 10f });
+            Send(world, sys, new SetReportingEvent { Entity = replica, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = 15f });
+            Send(world, sys, new SetReportingEvent { Entity = offline, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = 15f });
 
             Assert.False(world.HasComponent<ReportingRequirements>(replica));
-            Assert.Equal(10f, world.GetComponentRO<ReportingRequirements>(owned).SitrepEverySeconds);
-            Assert.Equal(10f, world.GetComponentRO<ReportingRequirements>(offline).SitrepEverySeconds);
+            Assert.Equal(15f, world.GetComponentRO<ReportingRequirements>(offline).SitrepEverySeconds);
             Assert.Equal(1, sys.ForwardedCount);
             world.Dispose();
         }

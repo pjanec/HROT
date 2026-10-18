@@ -52,6 +52,10 @@ public static class PerceptionRoleComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
         world.RegisterManagedEvent<Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent>();   // ⭐ CE-3072 B3
+        // ⭐ CE-3249 — the WorldSurvey sensor: its request (the carrier's), its answer family, its answer on the way
+        //   (docs/DESIGN_World_Survey_Sensor.md §4)
+        Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Register(world);
+        world.RegisterManagedEvent<Fdp.Toolkit.Perception.Survey.WorldSurveyResultEvent>();
         // ⭐ CE-3039 — the edges of what a unit senses (design §7.3): published by EqsResultUpdateSystem (every host that runs
         //   it) and by the Brain's track / memory systems.
         world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();

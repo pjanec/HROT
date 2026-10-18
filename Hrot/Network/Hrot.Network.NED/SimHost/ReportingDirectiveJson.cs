@@ -7,10 +7,10 @@ using Fdp.Toolkit.Squad.Command;
 namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// ⭐ <c>CE-2299</c> (CC-2, behaviors; on backend's BR-13 road, <c>CE-3251</c>) — a <see cref="SetReportingEvent"/>'s fields as the JSON
-    /// of a forwarded directive (<c>TacticalIntentWireKind.SetReporting</c>): <c>{"Pir":3,"Ffir":1,"Sitrep":15,"Area":77}</c>. The entity
-    /// and the origin ride the request's own <c>TargetEntityId</c> / <c>Origin</c>. The <see cref="RoeDirectiveJson"/> twin; the event
-    /// REPLACES the set, so an all-zero directive withdraws it on the owner exactly as a local one would.
+    /// ⭐ <c>CE-3251</c> (BR-13, the <see cref="RoeDirectiveJson"/> twin) — a <see cref="SetReportingEvent"/>'s fields as the JSON of a
+    /// forwarded directive (<c>TacticalIntentWireKind.SetReporting</c>): <c>{"Pir":3,"Ffir":1,"Sitrep":30,"Area":4711}</c>. The entity and
+    /// the origin ride the request's own <c>TargetEntityId</c> / <c>Origin</c>; the owner's <c>ReportingRequirementsSystem</c> applies it
+    /// through the same origin gate as a local event (all zero withdraws them).
     /// </summary>
     public static class ReportingDirectiveJson
     {

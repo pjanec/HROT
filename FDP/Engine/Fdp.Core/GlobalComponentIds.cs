@@ -1007,6 +1007,14 @@ namespace Fdp.Core
         public const int ReportingRequirements = 408;
         /// <summary><c>ReportOutbox</c> — ⭐ CE-2291 CC-A: the reports this commander has queued to send up, its sequence and posture.</summary>
         public const int ReportOutbox = 409;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyRequest</c> (managed): what a WorldSurvey sensor asks (the brain's child and the
+        /// solver's carrier). 📄 docs/DESIGN_World_Survey_Sensor.md. ⚠ Moved from 407–409 (taken by
+        /// behaviors' CE-2291 at the merge); 410–413 measured free on backend, ui, coordinator and behaviors 2026-10-18.</summary>
+        public const int WorldSurveyRequest = 410;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyStatus</c>: when a survey was last answered, its content version and hash.</summary>
+        public const int WorldSurveyStatus = 411;
+        /// <summary>⭐ <c>CE-3249</c> (backend) — <c>WorldSurveyAnswer</c> (managed): the survey's latest answer on the brain.</summary>
+        public const int WorldSurveyAnswer = 412;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
