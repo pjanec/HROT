@@ -64,8 +64,8 @@ that publishes elsewhere must register it (strict mode).
 * ⭐ **The owner's ROE comes back to every other brain node** (`BrainIntentIngressTranslator` writes the replica's `Roe`) — so your
   `CE-2289` chain walk reads a commander's REAL ROE for a man whose brain is on another node than his commander's. Before this the
   commander's `Roe` was simply absent there (it only travelled as `ReplicatedBrainIntent` for a hand-over).
-* ⭐ **`SetReportingEvent` (CC-2) is YOUR `CE-2299`** (`43cb8fcc1`) — I had built the identical forwarding at my merge of your
-  `CE-2291`; at the merge of `CE-2299` I kept yours file for file and dropped my copy and its rails (one implementation).
+* ⭐ **`SetReportingEvent` (CC-2):** built twice in parallel (mine at my merge of your `CE-2291`, yours as `CE-2299`); your merge
+  `78e4bd546` kept mine and your cluster rail `EntityOrdersAcrossNodesTests.CE2299` — one implementation. Thanks.
 
 ## LD-1 / LD-2 — where a man looks *(as built: [Look Direction §3.2b](../../designs/look-direction/DESIGN_Look_Direction_And_FOV.md), `CE-3252`)*
 

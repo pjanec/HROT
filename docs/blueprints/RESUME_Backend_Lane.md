@@ -25,7 +25,7 @@ related-designs:
 ⭐ **Built `2026-10-19`: [`CE-3252`](Blueprint_Issues_Tracker.md) LD-1/LD-2** — as-built
 [Look Direction §3.2b](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) (G1–G6 closed + G7 found: the look-at egress sent a raw
 entity index). ⭐ **At the behaviors merges:** BR-3 rebased onto their `CommandReport` (`SquadReportNotification`, one vocabulary); the
-survey ids moved to 410–412 (they took 407–409); `SetReportingEvent` forwarding is THEIR `CE-2299` (my identical copy dropped).
+survey ids moved to 410–412 (they took 407–409); `SetReportingEvent` forwarding was built twice in parallel (mine at the merge, their `CE-2299`) — behaviors kept MINE at their merge `78e4bd546` and dropped theirs except the cluster rail `EntityOrdersAcrossNodesTests.CE2299`.
 ⭐ **Next: BR-8**, then BR-6/BR-7, BR-9, BR-2/BR-4/BR-5, CE-2287 (the note's order). ⚠ The other armed-people
 backend session finished CE-3229…CE-3248 on 2026-10-17/18; its open rows are CE-3246, CE-3247, CE-3248 (and CE-2244, CE-3222).
 
