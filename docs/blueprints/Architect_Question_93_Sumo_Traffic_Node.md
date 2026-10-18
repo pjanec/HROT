@@ -1210,7 +1210,7 @@ Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived 
 | **K3** | ped replicas (§8.7 G2/G3) | the SAME vicinity rule and the SAME `TrafficReplicas`: a ped within 300 m of an HROT body is an entity of civilian type **1101** (Neutral `EntityInfo`, `Health`, collider), owned by the traffic node; `TrafficCar` gains `Kind` (car · pedestrian) | a second replica class: two copies of the vicinity / pose / destroy code |
 | **K4** | panic (P2) | on the SERVING node: a NED `WeaponFireNotification` or `DetonationNotification` is an incident; peds within the radius (shot 50 m, blast 150 m — fields on `TrafficDemand`) are converted; contagion deferred | every node detects: N copies of one decision |
 | **K5** | conversion (P3/P4, §8.2) | `RemovePedestrian` (H14 S1) → one `EntityCreationRequest` addressed to the BRAIN node (CGF), `PreAllocatedNetworkId` = the ped's id, type 1101–1104 by the ped's kind, pose and velocity from S1, its civilian HSM entering **panic** — measured: no entry state is needed, `CivilianBehavior` goes Alarmed ⇒ Panic once `CivilianState.Fear` passes `PanicAt` (0.6), so the request carries `CivilianState { Fear = 1 }` as an initial component; owner `0` = the default processor (CGF in a cluster, the editor alone) (`EntityCreationRouting.DefaultEntityCreationRequestProcessor`) — no addressing logic; the Despawn (S2) drops every mirror, and the id reappears as our entity · ✅ the incidents reach the traffic node: `WeaponFireNotification` / `DetonationNotification` ride the shared pack on EVERY node (CE-1148, `SharedTranslatorPack.cs:120-123`) | the traffic node as creator: it is optional (R-4027), a crash would delete the people (R-4008) |
-| **K6** | cap (P7) | at most `MaxConverted` (default 30) a session; above it a ped stays in SUMO (its SUMO flee is §8 P7's second half — deferred) | no cap: one blast hands hundreds of brains to CGF in a frame |
+| **K6** | cap (P7) | at most `MaxConverted` (default 30) a session; above it a ped stays in SUMO and FLEES there (§8 P7's second half — SumoSharp H16, built `2026-10-18`, CE-4027, §15.7) | no cap: one blast hands hundreds of brains to CGF in a frame |
 | **K7** | hits (§8.7 G1/G4/G5) | the traffic node ingests `EntityHitDamage` for its SUMO ids: a pedestrian converts as K5, born with the damage; a car stops in SUMO-less form (our civilian car, its driver a civilian) — **5c, after 5b** | — |
 
 ### 15.3 Classes
@@ -1292,6 +1292,8 @@ sequenceDiagram
   M->>M: TrafficPanicSystem: one incident per 5 m per frame, radius from TrafficDemand
   M->>S: TrafficRuntime.ReportIncident (queue)
   S->>LC: PedestriansWithin, then RemovePedestrian while under ConversionCap
+  S->>LC: above the cap, FleePedestrian (H16) for each one not already fleeing
+  LC-->>N: the fleeing ped's new running leg on the wire, same id
   LC-->>N: ped Despawn on the wire at once (even paused)
   S->>M: TrafficConversion queue (name, state, fright point)
   M->>M: TrafficReplicas.Release(id), its own replica goes first
@@ -1306,7 +1308,7 @@ brain-local component.*
 ```mermaid
 classDiagram
   direction LR
-  class TrafficSession { <<grown>> peds on from TargetPedestrians, PedIdProvider = allocator, DDS ped tee, +Pedestrians, +Convert(), +Converted }
+  class TrafficSession { <<grown>> peds on from TargetPedestrians, PedIdProvider = allocator, DDS ped tee, +Pedestrians, +Convert(), +Converted, +Fled }
   class TrafficRuntime { <<grown>> +ReportIncident() +TakeConversions() }
   class TrafficPanicSystem { <<NEW>> incidents to requests }
   class TrafficPedMirror { <<NEW>> one sender's peds, yaw from motion }
@@ -1341,7 +1343,6 @@ classDiagram
 |---|---|
 | the 3-D map draws no NON-entity pedestrian (only replicas, as civilians) | `TrafficLayer3D` draws cars; the 2-D map draws a dot per pedestrian |
 | the civilian is born at rest (the removal's velocity is not carried) | no creation attribute for a velocity |
-| above the cap a frightened pedestrian stays in SUMO, calm (§8 P7's second half — its SUMO flee) | deferred |
 
 Rails: `PedestriansPanicIntoCiviliansTests` (5: walkers named by our allocator and civilian replicas near a body; a shot gives them up
 as terrified-civilian requests keeping their ids, and they leave the wire; the cap; a released replica is not remade; the attributes),
@@ -1364,6 +1365,15 @@ on the traffic node.
 speed and TKB type, its despawn on the wire at once). A hit on a SUMO car replica removes the car; OUR car is created where it stood (its
 TKB type, else civilian car 1002), keeping its id and taking the held hit; its driver gets out beside it a civilian in panic (a new id).
 Rail `K7_AHitCar_…`. Traffic 55/55.
+
+**Above the cap, a frightened pedestrian FLEES inside SUMO, as built `2026-10-18` (CE-4027, §8 P7's second half)** — SumoSharp **H16**
+(`7da452b`, `FleePedestrian(name, fromX, fromY, minDistance, speedFactor)`: a new running leg away from the incident to a walkable point at
+least `minDistance` off, at `speedFactor` × his normal speed, same id, the leg on the wire at once; `IsPedestrianFleeing`). `TrafficSession.Convert`
+gives up pedestrians while under the cap and sends every other one in the radius fleeing (`FleeMinDistance` 80 m, `FleeSpeedFactor` 2,
+counted in `Fled`); one already fleeing is left on his way, so a burst does not re-route him every round. Nothing new crosses our wire: he
+stays SUMO's replica, which is §8's *"a new leg and a promotion"*. Rail `K6_AboveTheCap_TheRestFleeInsideSumo_KeepingTheirIds` (same ids
+still on the wire 10 s later; most, and on average all, ran away — ⚠ not every one: when no route leads straight away H16 takes
+any route ENDING ≥ `minDistance` off, and a street can bend back past the blast first, measured one of four). Traffic 56/56.
 
 **Live (cluster, `2026-10-18`): 16/17** — two pedestrians converted, **keeping their ids** (1264 was a replica id), CGF-owned, born in
 Panic; an M67 burst published on SimHost at SUMO car 1518 → the traffic node: *"hit on SUMO car 1518 (863 damage): giving it up"* → CGF
