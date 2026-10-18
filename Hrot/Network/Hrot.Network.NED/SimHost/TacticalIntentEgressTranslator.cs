@@ -94,6 +94,36 @@ namespace Hrot.Network.NED.SimHost
                 });
                 SentSampleCount++;
             }
+
+            ForwardRoe(repo, brainHere);
+        }
+
+        /// <summary>⭐ <c>CE-3251</c> (BR-13) — a <see cref="SetRoeEvent"/> about a unit whose brain runs on another node goes there on
+        /// the order's road (<see cref="TacticalIntentWireKind.SetRoe"/>); the owner raises it again and its <c>RoeSystem</c> applies
+        /// it through the origin gate. Written AFTER this frame's orders, on the same writer, so an order and its ROE arrive in that
+        /// order. ⛔ Before this, the ROE was applied to the local replica only and the owner never heard of it.</summary>
+        private void ForwardRoe(EntityRepository repo, bool brainHere)
+        {
+            if (!repo.Bus.IsRegistered<SetRoeEvent>()) return;
+            foreach (var evt in repo.Bus.Read<SetRoeEvent>())
+            {
+                if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // RoeSystem applies it here
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                {
+                    FdpLog<TacticalIntentEgressTranslator>.Warn(
+                        "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its ROE.", evt.Entity.Index);
+                    continue;
+                }
+                _writer.Write(new TacticalIntentRequest
+                {
+                    TargetEntityId = networkId,
+                    IntentId       = string.Empty,
+                    JsonParams     = RoeDirectiveJson.Encode(in evt),
+                    Origin         = (byte)evt.Origin,
+                    Kind           = TacticalIntentWireKind.SetRoe,
+                });
+                SentSampleCount++;
+            }
         }
 
         /// <inheritdoc/>

@@ -119,6 +119,58 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ CE-3251 (BR-13, docs/DESIGN_Entity_Control.md §2.3a) — an ROE change raised on a node that does NOT own the unit's brain
+    /// travels the order's road (kind SetRoe) to the brain's owner, whose RoeSystem gate applies it: CGF's Roe turns HoldFire; a
+    /// LOWER origin sent the same way is refused there. ⛔ Before BR-13 the event was applied to the local replica only.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3251_AnRoeSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on both nodes");
+        var onBrain = ByName(cgf, "Rifleman");
+        var onMuscle = ByName(sim, "Rifleman");
+        Assert.True(cgf.HasComponent<BehaviorState>(onBrain) && cgf.HasAuthority<BehaviorState>(onBrain), "CGF must own the Rifleman's brain");
+        Assert.False(sim.IsComponentTypeRegistered<BehaviorState>() && sim.HasAuthority<BehaviorState>(onMuscle),
+            "SimHost must NOT own the Rifleman's brain — otherwise this rail proves nothing about the network");
+
+        Roe RoeOnBrain() => cgf.HasComponent<Roe>(onBrain) ? cgf.GetComponentRO<Roe>(onBrain) : default;
+        void RaiseOnSimHost(RoeFire fire, BehaviorOrigin origin)
+        {
+            if (!sim.Bus.IsRegistered<Fdp.Toolkit.Behavior.Events.SetRoeEvent>()) sim.Bus.Register<Fdp.Toolkit.Behavior.Events.SetRoeEvent>();
+            sim.Bus.Publish(new Fdp.Toolkit.Behavior.Events.SetRoeEvent { Entity = onMuscle, Fire = fire, Origin = origin });
+        }
+
+        RaiseOnSimHost(RoeFire.HoldFire, BehaviorOrigin.Operator);
+        bool held = harness.PumpUntil(() => RoeOnBrain().Fire == RoeFire.HoldFire, timeoutFrames: 600);
+        _out.WriteLine($"CGF Roe: {RoeOnBrain().Fire} set by {RoeOnBrain().SetBy}");
+        Assert.True(held, "an ROE raised on SimHost must reach the CGF brain and change its Roe");
+        Assert.Equal(BehaviorOrigin.Operator, RoeOnBrain().SetBy);
+
+        RaiseOnSimHost(RoeFire.FireAtWill, BehaviorOrigin.Superior);   // lower than the operator who set it
+        harness.PumpFrames(120);
+        Assert.Equal(RoeFire.HoldFire, RoeOnBrain().Fire);
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession across the cluster: SimHost is the STATION (it does
     /// not own the brain). Its request, frames and release cross as interaction cases to CGF; CGF runs <c>OperatorControl</c> at origin
     /// Possession; <c>dtPossessedBy</c> tells every node who holds the unit; <c>dtManualDrive</c> + <c>dtNavigationIntent</c> (Manual)

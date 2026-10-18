@@ -61,6 +61,38 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-3251</c> (BR-13) — on a node holding a REPLICA of the unit's brain the ROE is left to the owner (the
+        /// tactical-intent egress forwards it); only the brain's owner writes <see cref="Roe"/>. ✅ Red-proof: drop the replica skip
+        /// in <c>RoeSystem.Execute</c> ⇒ the replica's Fire turns HoldFire.</summary>
+        [Fact]
+        public void CE3251_AReplicasRoe_IsLeftToTheBrainsOwner()
+        {
+            var world = World();
+            if (!world.IsComponentTypeRegistered<BehaviorState>()) world.RegisterComponent<BehaviorState>();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+                world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var sys = new RoeSystem();
+            var replica = world.CreateEntity();
+            world.AddComponent(replica, new BehaviorState());   // no authority: the brain runs on another node
+            world.AddComponent(replica, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7 });
+            var owned = world.CreateEntity();
+            world.AddComponent(owned, new BehaviorState());
+            world.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 8 });
+            world.SetAuthority<BehaviorState>(owned, true);
+            var offline = world.CreateEntity();   // no network identity: a world that sets no authority at all
+            world.AddComponent(offline, new BehaviorState());
+
+            Set(world, sys, replica, RoeFire.HoldFire, RoeReactions.ReactionsUnset, BehaviorOrigin.Operator);
+            Set(world, sys, owned, RoeFire.HoldFire, RoeReactions.ReactionsUnset, BehaviorOrigin.Operator);
+            Set(world, sys, offline, RoeFire.HoldFire, RoeReactions.ReactionsUnset, BehaviorOrigin.Operator);
+
+            Assert.Equal(RoeFire.FireAtWill, RoeOf.Fire(world, replica));
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, owned));
+            Assert.Equal(RoeFire.HoldFire, RoeOf.Fire(world, offline));
+            Assert.Equal(1, sys.ForwardedCount);
+            world.Dispose();
+        }
+
         [Fact]
         public void CE2074_TheTkbDefault_YieldsToAnyOrigin()
         {

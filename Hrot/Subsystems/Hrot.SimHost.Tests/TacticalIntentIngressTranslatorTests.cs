@@ -1,5 +1,7 @@
 using System;
 using Fdp.Core;
+using System.Linq;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Messages;
@@ -91,6 +93,54 @@ namespace Hrot.SimHost.Tests
             var evt = Assert.Single(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
             Assert.Equal(TacticalIntentKind.Clear, evt.Kind);
             Assert.True(evt.ClearsPriorIntent);
+        }
+
+        /// <summary>⭐ CE-3251 (BR-13) — a forwarded ROE is raised again as the local <see cref="SetRoeEvent"/> with its origin, for
+        /// the owner's RoeSystem gate; it is never read as an order.</summary>
+        [Fact]
+        public void CE3251_AForwardedRoe_IsRaisedAgain_NotAsAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            _world.Bus.Register<SetRoeEvent>();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42L, entity);
+            var sent = new SetRoeEvent { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask,
+                                         ReturnFireWindowSeconds = 4f, ForceLevel = RoeForceLevel.Warn };
+
+            var sample = new TacticalIntentRequest
+            {
+                TargetEntityId = 42L, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetRoe,
+                Origin = (byte)BehaviorOrigin.Superior, JsonParams = RoeDirectiveJson.Encode(in sent),
+            };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            var roe = Assert.Single(_world.Bus.Read<SetRoeEvent>().ToArray());
+            Assert.Equal(entity, roe.Entity);
+            Assert.Equal(BehaviorOrigin.Superior, roe.Origin);
+            Assert.Equal(RoeFire.HoldFire, roe.Fire);
+            Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
+            Assert.Equal(4f, roe.ReturnFireWindowSeconds);
+            Assert.Equal(RoeForceLevel.Warn, roe.ForceLevel);
+        }
+
+        /// <summary>⭐ CE-3251 — a directive kind this node does not know (a newer sender: <c>SetReporting</c> before CC-2 lands) is
+        /// counted and dropped — ⛔ before BR-13 any Kind was cast to an order kind.</summary>
+        [Fact]
+        public void CE3251_AnUnknownDirective_IsCounted_NeverAnOrder()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42L, entity);
+
+            var sample = new TacticalIntentRequest { TargetEntityId = 42L, IntentId = "Idle", JsonParams = "{}",
+                                                     Kind = TacticalIntentWireKind.SetReporting };
+            translator.ProcessSample(in sample, _world);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
+            Assert.Equal(1, translator.UnhandledDirectiveCount);
         }
     }
 }
