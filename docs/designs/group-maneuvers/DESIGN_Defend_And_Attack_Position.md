@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+updated: 2026-10-19
+build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
@@ -256,6 +256,82 @@ node inside plays the runner already ticks. ⚠ **Not reached today:** a platoon
 | 1a | **DA-O** `CE-2285` | behaviors (FDP Terrain, cross-lane) | `roof` as rings + `house-3f` with the roof stair house and parapet (DA-22) | — |
 | 0 | **DA-P** (backend BR-12) | backend | the `WorldSurvey` sensor: VisibilityFan · BuildingSurvey · PointSurvey, solved on the muscle (DA-25, R-2037) | — |
 | 0a | **DA-Q** `CE-2286` | behaviors | move behaviors' brain-side geometry reads onto WorldSurvey / EQS answers (§13b table) + the conformance rail | DA-P |
+
+### 8a. DA-A in detail — `CombatProficiency`, its three sources and its one reader *(`CE-2273`, behaviors, 2026-10-19)*
+
+**INVENTORY** (codebase-memory CLI `search_graph`, Class / Struct / Enum / Method, `.*(Proficien|Skill|Training|Veteran|Marksman).*` →
+**0**; `.*Temperament.*` → `CombatTemperament`, `TemperamentOf`, `CombatTemperamentTranslator`; grep for the registration sites:
+`HrotSharedComponentRegistry.cs:194` (every node), `HrotScenarioSerializerFactory.cs:26`; the TKB projection precedent
+`BehaviorTkbTranslator` (ROE defaults). `check_index_coverage` NOT run — CLI only.)
+
+```mermaid
+classDiagram
+  direction LR
+  class CombatProficiency { <<NEW component 415, beside CombatTemperament>> Authored · Unit · TypeDefault · Set bits }
+  class ProficiencyOf { <<NEW reader, the ONLY one>> Value · Tier · SpreadFactor · ExposeFactor · ReactionDelaySeconds · Bursts · KeepsCoverDiscipline }
+  class ProficiencyTier { <<NEW enum>> Untrained · Militia · Regular · Veteran · Elite }
+  class ProficiencyFillSystem { <<NEW, brain node>> a man's Unit = the nearest commander's Authored }
+  class CombatProficiencyTranslator { <<NEW scenario key Proficiency>> a number or a tier name, Authored only }
+  class BehaviorProfileDto { <<EXISTING TKB, + DefaultProficiency>> }
+  class BehaviorTkbTranslator { <<EXISTING, + TypeDefault>> }
+  class CombatTemperament { <<EXISTING, unchanged>> will, not ability }
+  class UnitSubordinate { <<EXISTING>> Commander }
+  class HitModel { <<backend BR-6>> Sigma x SpreadFactor }
+  BehaviorProfileDto ..> BehaviorTkbTranslator
+  BehaviorTkbTranslator --> CombatProficiency : TypeDefault at spawn
+  CombatProficiencyTranslator --> CombatProficiency : Authored, man or unit
+  ProficiencyFillSystem ..> UnitSubordinate : walks up, at most 8
+  ProficiencyFillSystem --> CombatProficiency : Unit on each man
+  ProficiencyOf ..> CombatProficiency : the man's own only
+  ProficiencyOf ..> ProficiencyTier
+  HitModel ..> ProficiencyOf
+```
+*What the picture shows that prose hid:* the reader looks at the man's OWN component only — never up the chain — so the hit model
+(backend BR-6, on whichever node resolves the shot) needs nothing but the man. The unit's setting reaches him by the fill system
+WRITING his `Unit` field, which is why "fill" in DA-1 is a writer and not a chain walk like `RoeOf` (CE-2289).
+
+```mermaid
+sequenceDiagram
+  participant TKB as BehaviorTkbTranslator (spawn)
+  participant SCN as CombatProficiencyTranslator (scenario load)
+  participant FILL as ProficiencyFillSystem (each frame, owned men)
+  participant MAN as the man's CombatProficiency
+  participant RD as ProficiencyOf
+  TKB->>MAN: TypeDefault = the type's DefaultProficiency (insurgent 0.35), if it has one
+  SCN->>MAN: Authored = 0.8 (a per-man override), if authored
+  SCN->>FILL: the squad entity has Authored = 0.1 (the unit setting)
+  FILL->>MAN: Unit = 0.1 (the nearest commander with Authored)
+  RD->>MAN: Authored if set, else Unit, else TypeDefault, else Regular 0.6
+```
+*What the picture shows that prose hid:* the three sources never overwrite each other — each has its own field and bit, and the
+precedence lives in ONE place, the reader. A unit setting changed later (a scenario edit, a future order) reaches the men on the next
+frame; a man moved to another squad takes the new squad's.
+
+| ⭐ decision | lean | rejected — one line each |
+|---|---|---|
+| the component's shape | three values with their own `Set` bits (`Authored`, `Unit`, `TypeDefault`) — 0 is a legitimate proficiency, so "unset" is a bit (the `CombatTemperament` rule) | one value overwritten by each source: a later TKB projection or fill would clobber an authored override |
+| the unit fill | `ProficiencyFillSystem` (CgfLogicPack, gated on authority, after `UnitCentroidSystem`): each owned man with a `UnitSubordinate` gets `Unit` = the nearest commander's `Authored` (≤ 8 levels), cleared when none | a chain read in `ProficiencyOf` (the `RoeOf` shape): the hit model would need the commander entity on the node that resolves the shot |
+| the factors | exactly 1.0 / 0 at Regular (0.6) and with no component; linear between the five presets (DA-2's tables) | — |
+| the scenario key | `"Proficiency"`: a number 0–1 or a tier name (`"Militia"`), on a man or a unit; only `Authored` is saved | a separate `"ProficiencyTier"` key: two spellings for one value |
+| where the TKB default lives | `BehaviorProfileDto.DefaultProficiency` (0 = none ⇒ Regular); insurgent 505 = Militia 0.35 | a new descriptor: one float |
+
+⚠ Not in DA-A: the wire (BR-6 decides whether the component replicates or the hit model runs on the brain node) · the repertoire's
+"commander's tier = his unit's median man" (DA-16, `CE-2280`).
+
+**As built (2026-10-19, `CE-2273`)** — as drawn above: `CombatProficiency` (component 415, registered on every node beside
+`CombatTemperament`), `ProficiencyOf` (`Value`, `Tier`, `SpreadFactor`, `ExposeFactor`, `ReactionDelaySeconds`, `Bursts`,
+`KeepsCoverDiscipline`), `ProficiencyFillSystem` (CgfLogicPack, after the staff), `BehaviorProfileDto.DefaultProficiency` projected by
+`BehaviorTkbTranslator`, `CombatProficiencyTranslator` (scenario key `"Proficiency"`). Deviations:
+
+| what | as built | why |
+|---|---|---|
+| the in-between factors DA-2 left open | exposure × 1.8 · **1.4** · 1.0 · **0.85** · 0.7; reaction delay 1.2 · **0.6** · 0 · 0 · 0 s (Untrained … Elite) | DA-2 named the ends and Regular; the middle values keep each line monotonic and linear between presets |
+| the fill's reach | a man is filled only where his brain is owned (gated on `BehaviorState` authority on a cluster) | the component is written on its owner; a brain-less body keeps its own or its type's value |
+| the insurgent type default | ⚠ **not set anywhere yet**: type 505 (Insurgent) has no TKB catalog entry to carry it | the field and its projection are built and railed; the first insurgent TKB entry sets `DefaultProficiency = 0.35` |
+
+Rails: `CombatProficiencyTests` (neutral at Regular / none / unregistered — bit-exact; the presets and the line; precedence; the unit
+fill, nearest wins, taken back; the TKB projection under an authored value) · `CombatProficiencyTranslatorTests` (number or tier
+name, only the authored value saved) · `CgfLogicPackTests` (+1 system). Red-proof: the fill writing nothing reddens the fill rail.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

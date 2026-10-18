@@ -24,6 +24,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new MissionPlanTranslator(behaviorRegistry))
                 .RegisterTranslator(new TargetMemoryTranslator())
                 .RegisterTranslator(new CombatTemperamentTranslator())   // ⭐ AQ89 B (R-269)
+                .RegisterTranslator(new CombatProficiencyTranslator())   // ⭐ CE-2273 DA-A — a man's or a unit's authored proficiency
                 .RegisterTranslator(new PassengerBufferTranslator())
                 .RegisterTranslator(new VisHierarchyNodeTranslator())
                 .RegisterTranslator(new IsEmbarkedTagTranslator())
