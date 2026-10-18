@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — PC-1…PC-13 leans awaiting the user; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
-current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §12 the demo scenarios (PC-11…PC-13)
+build-state: READY-TO-BUILD — PC-1…PC-13 ✅ APPROVED 2026-10-18 (R-2046); work split per lane in §13; nothing built. Builds inside the existing slices (DA-E CE-2276, DA-F CE-2277, PL-1 CE-2264, CC-A…CC-E) plus CE-2289 (ROE through the chain) and CE-2290 (the demo terrain)
+current-answer: §1 the shape · §2 INVENTORY · §3 classes · §4 the attack (and clear) · §5 the defence · §6 the squad plays and roles · §7 the report contract · §8 acting alone · §9 modules · §10 decisions · §11 slices · §6a sensors, sectors and the roof · §12 the demo scenarios (PC-11…PC-13) · §13 the work, split per lane
 stale-below: nothing.
 known-rot: none.
 known-conflict: none — it makes concrete, and in two places revises, DESIGN_Defend_And_Attack_Position (§3/§4 PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken are now CommandPicture and the closed PROGRESS / SPOT set, PC-2; DA-7's ROE lift needs PC-6)
@@ -166,6 +166,7 @@ shifting fire, relieving the assault and answering a CASEVAC never stop the plan
 | **Relieve** | `SubordinateColour(assault) == BLACK` or `!SubordinateFresh(assault)` | the reserve becomes the clearer: `Order.ClearBuilding` over the rooms `BuildingClearance` still holds Unknown / Suspected; the remnant holds the foothold |
 | **Answer** | `PendingRequest(kind)` | Casevac ⇒ reserve: `Order.SquadCasualtyCare` {the casualty point} · FireSupport ⇒ support: `FireAtPoint` at the request's location · Permission ⇒ §8 · Resupply ⇒ the reserve's ammo to the requester (v2) — each answer cites the request id (`AnswerRequest`) |
 | **CounterSniper** | `ElementsAt(any, equipment = sniper)` | the sniper pair, if any: `SniperTeam` {that building} · else support suppresses it |
+| **LiftRoof** | `ProgressReached(clearer, RoomClear)` for the **stair house** (the room under the roof exit, from the BuildingSurvey) | the support's sector loses the roof + a NoFire area over it, BEFORE the clearer opens the stair-house door — the roof is cleared last, from inside (§6a) |
 | **Abort** | assault and reserve both BLACK | every squad `Order.BreakContact`; the task FAILS (its staff sends SITREP BLACK up) |
 
 **Presets (R-2035)** — one asset, the preset picks the first phase and which phases are skipped:
@@ -287,6 +288,37 @@ irregulars differ (Defend §4.2).
 | **rifleman** | spread between, aimed fire | moves | watches | #3 / #4 | the alternates first |
 | **marksman** (DMR) | windows beyond 200 m | — | — | — | the far edge of the EA |
 | **medic** | stays back in cover | follows | — | with the security team (casualty point) | with the reserve |
+
+## 6a. Sensors, sectors and the roof — where each one is used *(✅ asked by the user, R-2046)*
+
+🔒 User, `2026-10-18`: *"Approved. Does this still inlude the new sensors and sector assigning and roof reachable by stairs so even roof
+can be secured during the house clearing operation?"* — ⭐ **yes**; the table says where each one lands in these plays.
+
+| piece | owning design | used by | for |
+|---|---|---|---|
+| **`WorldSurvey` BuildingSurvey** (faces, windows, storeys, rooms **derived** from the current walls, the roof storey included) | Defend §13b DA-25, R-2038 | `PlatoonAttack` Plan · `PlatoonDefend` DPlan · `ClearBuilding` | the entry face, the window faces the support covers, the rooms to clear, `BuildingClearance`, the NoFire room outlines (PC-5) |
+| **VisibilityFan** | DA-25 | `SetSquadSector`, `SquadDefend` | what each post really sees across its arc (v2 clipping of `MemberArc`) |
+| **PointSurvey** | DA-25 | the squad staff's SPOT | building + storey of an element (the platoon's `ElementsAt` and Counterattack read it) |
+| EQS `FindBuildingPosts` · **`FindRoofPosts`** · `FindDefensivePosts` · `FindOverwatchPosition` | DA-5, DA-13 | `PlanDefence`, the sniper pair | posts per storey and **on the roof** (only when reachable — `house-3f` is), the sniper's hide |
+| **`FiredOnFromStructure`** | DA-21 | squad SOP ⇒ CONTACT up ⇒ platoon SOP | `ReactToFireFromBuilding` (the preset) |
+| **`SniperFire`** | DA-21 | squad SOP | cover + a SPOT with the sniper flag ⇒ the platoon's CounterSniper |
+| **`ContactInEngagementArea`** | DA-21 | `SquadDefend` (alone, it lifts its own hold-fire) · the staff's PIR "element inside the EA" | the trigger |
+| **`ContactOutsideSector`** | DA-21 | `SquadDefend` | a man flanked moves to his alternate; the staff's PIR "outside within 150 m" ⇒ Supplementary |
+| **`PositionUntenable`** | DA-21 | `SquadDefend` | displace to the alternate post ⇒ PROGRESS Displacing |
+| **`SquadSector`** (area entity per squad) | Defend §13a DA-24 | `SetSquadSector` in both platoon plays | the support's window faces · the assault's entry face · each line squad's slice of the EA · **a roof band for the roof posts** |
+| **`MemberArc`** (in each member order) | DA-24 | every squad play's `ForMembers` | each man's part of the squad sector, by role (§6 table) |
+| **NoFire areas** (looked up through the chain) | DA-24 | `MarkNoFire` (entry face, the roof before the exit), the staff (each cleared room) | the gate refuses any round ending in them |
+
+**The roof, in the clearing** (`house-3f`, DA-22: the roof is a storey with a stair house and a 1 m parapet):
+
+| step | what happens | from |
+|---|---|---|
+| the survey | the roof storey is **one room** (open, bounded by the parapet) whose portal is the **stair-house door**; the stair house is a room of its own | BR-12 (the backend note asks for it explicitly) |
+| the order | rooms bottom-up (CB-10), so the roof is LAST; `Entry: Roof` (Elite, fast rope) flips it | Building Clearing CB-10 |
+| before the door | the platoon's control region **LiftRoof**: the support stops firing at the roof, NoFire over it | §4 control table |
+| the exit | the stair-house door is a fatal funnel: **pie it** (`SliceThePie`, CB-22), a stun first under Arrest or Precision with people known (CB-30), then out fast, the AR never first | Building Clearing CB-22, CB-30 |
+| the defenders | prone behind the parapet (low cover, the stance thresholds), from `FindRoofPosts` | Defend DA-5, DA-22 |
+| done | PROGRESS **RoomClear** (roof) ⇒ then BuildingClear | CB-43 |
 
 ## 7. The report contract — what each order asks for, and what each report drives
 
@@ -469,3 +501,61 @@ live check (`scripts/utility-demo-check.py`, one `run_*` each) and an in-process
 |---|---|---|---|
 | **PC-11** | where a check reads the full report log | ⭐ **Building Clearing §5a's `SquadReportLog`**: a ring per node written by the report ingress (the `ShotLog` precedent), `GET /squad/reports` — ⚠ this **revises CC-12's** *"the raw stream is the existing `GET /events?type=`"*: §5a measured that ring at **500 events of every type**, so a firefight evicts a report within seconds, and its payloads carry node-local ids | `GET /events` only (CC-12 as approved): a long demo loses its first reports · `GET /entities/{id}/reports` only: the last 16 per commander, not the log |
 | **PC-13** | the order of the demos | ⭐ **stage A first** — the commander logic proven with faked reports (CC-13) before any fight exists; stage B one squad play each; stage C the whole fights. A red in C is then narrowed by the A and B that still pass | the flagship first: a red there could be any of 20 behaviours |
+
+## 13. The work, split per lane *(R-2046; the user: "split across usual lanes … ui lane could help creating terrains")*
+
+🔒 User, `2026-10-18`: *"Pls prepare tasks and split the acroas usual lanes (ui, backend, behaviors). As ui lane might not have as much
+to do as other lanes it could help creating terrains or something."*
+
+```mermaid
+graph LR
+  subgraph backend
+    B12[BR-12 WorldSurvey: BuildingSurvey with the roof as a room, VisibilityFan, PointSurvey]
+    B3[BR-3 report topic + the report-ageing note fields]
+    B67[BR-6 / BR-7 spread factor, acquisition by exposure]
+    B8[BR-8 roles on the wire + infantry LMGs]
+    B9[BR-9 sniper and DMR rifles, scope]
+    B25[BR-2 stun · BR-4 / BR-5 interactions, Lean]
+    B87[CE-2287 backend's brain-side geometry sites]
+  end
+  subgraph ui
+    U1[UI-1 shared Recipes/Buildings]
+    U2[UI-2 house-3f + roof rings]
+    U3[UI-3 the CQB test house]
+    U4[UI-4 cqb-village + premises]
+    U5[UI-5 map: sectors, NoFire, reported elements]
+    U6[UI-6 the Reports window]
+    U7[UI-7 demo scenario placement]
+  end
+  subgraph behaviors
+    W0[wave 0: proficiency CE-2273 · ROE chain CE-2289 · SL-0 CE-2262 · EngagementArea CE-2282 · roles CE-2281]
+    W1[wave 1: command machinery CC-A..CC-E CE-2291..2295]
+    W2[wave 2: SquadDefend CE-2275 · clearing CE-2257..2259 · sensors CE-2283 · stage A demos]
+    W3[wave 3: PlatoonDefend CE-2276 · PlatoonAttack CE-2277 · PL-1 CE-2264 · smoke CE-2278 · sniper CE-2279 · urban CE-2284]
+    W4[wave 4: repertoire CE-2280 · tier ladder]
+  end
+  U1 --> U2 --> U4
+  U1 --> U3
+  U4 --> U7
+  B8 --> W0
+  W0 --> W1 --> W2 --> W3 --> W4
+  B3 --> W1
+  B12 --> W2
+  U3 --> W2
+  B67 --> W3
+  B9 --> W3
+  U4 --> W3
+  U7 --> W3
+  B3 --> U6
+  W1 --> U6
+  W1 --> U5
+```
+*What the picture shows that prose hid:* the three lanes can all **start today** — backend on the survey and the report topic, ui on
+the buildings and the terrain, behaviors on wave 0 — and the first point where one lane WAITS on another is behaviors' wave 2 (the
+rooms from BR-12, the CQB house from UI-3). The stage C demos need the terrain (UI-4) before any fight can be run.
+
+| lane | items | where they are framed |
+|---|---|---|
+| **backend** | BR-12 (+ the roof room) · BR-3 (+ the note's fields incl. `Synthetic`) · BR-6 / BR-7 · BR-8 · BR-9 · BR-2 · BR-4 / BR-5 · CE-2287; ⚠ **BR-1 is superseded**: its room graph is BR-12's derived rooms, its test house moves to ui (UI-3) | the existing handoffs + [`NOTE_Behaviors_To_Backend_Platoon_Programme.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md) (order, the roof room, BR-1's split) |
+| **ui** | UI-1 … UI-7 (table in the handoff); takes over `CE-2285` (house-3f) and `CE-2290` (cqb-village) | [`HANDOFF_Behaviors_To_Ui_Platoon_Demos.md`](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md) |
+| **behaviors** | waves 0–4 above; the command machinery gets its own rows `CE-2291`…`CE-2295` (CC-A…CC-E); the demo harness `CE-2296`; `CE-2263` (RP-1) is folded into `CE-2291`…`CE-2295` | the tracker rows |
