@@ -1491,6 +1491,8 @@ closed, not locked) and **34 AUTHORED placements** (`demo-city.houses.json`) bes
 every lane and data building, so every sidewalk point is within 70 m of a front door (the query searches 80 m).
 `terrain-from-sumo.py --houses` merges them (default `<name>.houses.json`) — placements are data, not generated at load (R-4052: no
 procedural buildings). Rail `EnterableShelterTests.CE4028_DemoCity_EverySidewalkPoint_HasAnEnterableHouseWithinTheShelterRadius`.
+**Live (cluster, domain 89, `2026-10-18`): slice 5 17/17, and every converted civilian SHELTERS** — the two converted pedestrians born
+in `Shelter`, then `Inside` (at ~(429, 380), a house beside their street); the hit car's driver `Shelter` → `Inside`. ⛔ Before: `Cower` → calm (CE-4028).
 
 ## 7. ⛔ HISTORY
 
