@@ -1430,7 +1430,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_state",
             Group:   "R — Entity state",
             Summary: "The well-known fields parsed out — position, rotation, velocity, speed, current behaviour — so an assertion reads state.position.x instead of digging through component JSON.",
-            Returns: "{ networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier} }",
+            Returns: "{ networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier}, roeEffective:{fire,reactions,forceLevel,returnFireWindowSeconds} }",
             Hint:    "Required: networkId. Example: get_entity_state({networkId:1000})",
             Params: new RouteParam[]
             {
@@ -1440,6 +1440,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "A field whose component the entity does not carry is OMITTED, never defaulted — a zero position would be indistinguishable from the origin.",
                 "A convenience over get_entity, reading the same components: the two cannot disagree.",
+                "roeEffective (CE-2289) is the ROE the unit OBEYS: its own where an order set it, else its nearest commander's, else its type default — a squad's HoldFire shows on every man.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "where is entity 1000, how fast, doing what"),
