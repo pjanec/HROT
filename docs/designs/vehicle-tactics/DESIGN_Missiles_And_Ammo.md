@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §3c's DispenseCountermeasureIntent / DispenseCountermeasure message (dt 134) and its translators are SUPERSEDED (2026-10-15, R-1002) — the release travels as a fire both ways, BS-1-DESIGN §5.4b; §3c's decoy, seduction and counts stand.
 known-conflict: none.
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/brain-split/BS-1-DESIGN.md — OWNS the fire event and its wire message; §5.4b (CE-1111, R-1002): a flare / chaff RELEASE is a fire with an expendable munition, no countermeasure message
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the mortar and howitzer rounds and their charges (IF-A, IF-B)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the launchers as entities (Javelin, NLAW, LAW, Kornet, TOW as weapon systems; 2006 / 2007 as presets, R-2016); the rounds and guidance stay here

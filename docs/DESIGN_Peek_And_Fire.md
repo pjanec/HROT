@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the vehicle sibling (VehicleFightFromCover): reuses FiringPositionMemory, PositionHeat, PostureNodes.Keep / Fire, TopAim
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the VEHICLE sibling of this node (hide behind a building, expose, reverse back) — it reuses FiringPositionMemory and the fire step; G8 keeps vehicles out of here
   - DESIGN_World_Query_Seam.md — OWNS IWorldQuery (R-250/R-252/R-253); §10.8 here records which G-slices touch it (none move onto it; G3's friendly test joins it with WQ-F)

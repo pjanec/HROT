@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-13 (R-2025): a person gets several carry stations (Hands, Back, Hidden — concealment is the station's), beside §7.4's one.
   - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key starts this design's executors from a possessed unit
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the DOOR exit into a descent (Embarkation.ExitIntoDescent, B-4): a rope / jump leaves at the seat's anchor and height, not beside the hull

@@ -10,6 +10,7 @@ known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are
   C# commander — staging reserves nothing, see §2.3. The blueprint twin keeps the old behaviour by user ruling).
 known-conflict: none.
 related-designs:
+  - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the repeatable vehicle exposure — owns the cycle the hill attack's run now IS (lane mode, CE-2230 §0); the reverse is V5's
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — generalises HullDownAttackRun's one exposure into a repeatable urban hide / expose / reverse cycle (V4)
   - ../brain-split/BS-1-DESIGN.md — §5.1a: the generic AimAndFireExecutor's no-fire guards (CE-321), which reuse CombatLife.

@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — BUILD design extending §9's armour model: a Top face from the round's 3-D arrival, a shaped-charge armour column, the penetrator on the round (formula unchanged)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — reads §9's armour model the other way round — his weapon vs MY armour — for danger-to-me (V1)
   - designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad drills; its §7.8 adds three squad demos to this file's checker (ua-casualty-care, ua-bounding-overwatch / ua-fire-and-movement, ua-squad-danger-crossing — the last reuses §10.3's route)
