@@ -400,7 +400,9 @@ sequenceDiagram
   participant CH as LookAtChannel (LookRequest)
   BT->>LN: tick (always Running, beside the play's work)
   LN->>LA: Want(mode)
-  alt a top threat
+  alt shot at (hit or near miss within 2 s) and a fresh heard sound
+    LA->>CH: AtPoint(where the shot was heard)
+  else a top threat
     LA->>CH: AtEntity(threat, this run)
   else a fresh heard sound
     LA->>CH: AtPoint(where it was heard)
@@ -417,7 +419,7 @@ task keeps its run id, so "the task's look returns after the reaction" is just i
 | id | decision | ⭐ lean (built) | rejected — one line each |
 |---|---|---|---|
 | **LD-3a** | where the look is chosen | ⭐ **one stateful node `LookNodes.Look`** each play puts beside its work (CombatPosture: in its decide Parallel) | a default-look SYSTEM over every man: it cannot tell a behaviour's own request from a stale one, and LD-H rules no look when nothing asked · a call inside every fire step: the eyes would move only while firing |
-| **LD-3b** | the order of sources | ⭐ the top threat → a fresh HEARD sound (an anonymous memory slot stamped within `HeardWindowTicks` 300, the `KnownCombatants` clock) → his sector (`WatchBearing`, else the arc's bisector) → the node's own bearing → nothing; mode `SectorOnly` skips the threat and the sound (a security man keeps his sector) | the threat always first: a crossing's security man would turn to the fight behind him and leave his road |
+| **LD-3b** | the order of sources | ⭐ SHOT AT (hit or near-missed within 2 s, `RecentSensesOf`) with a fresh heard sound ⇒ the sound of the shot first · then the top threat → a fresh HEARD sound (an anonymous memory slot stamped within `HeardWindowTicks` 300, the `KnownCombatants` clock) → his sector (`WatchBearing`, else the arc's bisector) → the node's own bearing → nothing; mode `SectorOnly` skips the threat and the sound (a security man keeps his sector) | the threat always first: a crossing's security man would turn to the fight behind him and leave his road |
 | **LD-3c** | the scan | ⭐ STEPPED: five fixation points, `StepSeconds` (2 s) each, ping-pong — one request per step; the width is the node's `HalfWidth` when set, else the sector's own (half the arc, ≤ 60°; ±30° around a bare `WatchBearing`) | a continuous sweep: a new request (and a channel sample on the wire) every tick |
 | **LD-3d** | release | ⭐ only when the channel's last look is this run's (`BehaviorInstanceId`) | releasing always: a task would clear the reaction's look under it |
 | **LD-3e** | the `Watch` order, and where an order's facing comes from | ⭐ the EXISTING `MemberOrderKind.Watch` gets its eyes through `CombatPosture`'s `Look`; ⭐ a facing comes from the man's SECTOR (`EngagementArea.WatchBearing` / arc) — set by a superior's play through `SetEngagementAreaEvent` (`MemberArc`, slice 2) or by the operator over `POST /entities/{id}/sector` — or from `CombatPostureParamsJsonDto.watchTowards` (a behaviour param, scanned ±30°) | a new person behaviour `Watch`: a second implementation of the order that exists (the first draft proposed it; the inventory retired it) · `HoldOrder.Towards`: Hold is one order with three fulfillers (`PersonHold`, `InfantrySquadHold`, `WeaponSystemHold`) and `SopParamsRoundTripTests.CE2079` requires each to read what it is sent — a squad passing a facing to its men is `MemberArc`'s work (slice 2), so the order stays empty |
@@ -428,13 +430,16 @@ Running), `LookParams` {`Mode`, `BearingSet`, `Bearing`, `HalfWidth`, `StepSecon
 decide Parallel carries the `Look` (its blackboard gains `Look` / `LookState`); `CombatPostureParamsJsonDto.watchTowards` (local
 metres) becomes the node's bearing, scanned ±30°; `PersonHold` becomes a one-state HSM with the `Look` activity
 (`ClassHoldOrders.PersonHoldBlackboard`, the order still empty). `POST /entities/{networkId}/sector` (`DebugApiService.Sector.cs`, MCP
-`set_entity_sector`) lets the operator set a sector — the ROE twin, origin Operator, through `EngagementAreaSystem.Apply`; 409 on a
-replica. Deviations from the first draft of this section: no `Watch` behaviour, no `HoldOrder.Towards` (LD-3e); the sector gives its
-own scan width (LD-3c); a heard sound is LD-3b's second source. Rails `TacticsTreesTests.CE2297_*` (7, CombatPosture's suite): the
+`set_entity_sector`) lets the operator set a sector — the ROE twin, origin Operator, through `EngagementAreaSystem.Apply`; on a node
+that does not run his brain it publishes the event and backend's kind 4 (`CE-3261`) carries it there (answer `forwarded`). Deviations from the first draft of this section: no `Watch` behaviour, no `HoldOrder.Towards` (LD-3e); the sector gives its
+own scan width (LD-3c); a heard sound is LD-3b's second source. Rails `TacticsTreesTests.CE2297_*` (8, CombatPosture's suite): the
 compass and the scan · CombatPosture looks at its top threat, stamped with its run · no threat ⇒ the sector, scanning, then released
 when withdrawn · a look another run wrote is not released · `SectorOnly` keeps the sector · a heard shot takes the eyes while fresh ·
 PersonHold looks at its sector. Red-proofs: six mutants, each reddening its rail (the tracker row). ⭐ The heard source was added while
 planning `ld-sentry-surprise` (LD-5 ④): `TopThreat` ranks entities only, so a shot heard from behind never turned the sentry.
+📌 The demo's live runs then found the ORDER wrong for a man shot at: with hostile A in sight in front, B's shots from behind never
+turned the sentry (A, the top threat, kept his eyes) — a hit or near miss within 2 s (`UnderFire`) now puts the sound of the shot
+first (rail `CE2297_ShotAt_*`).
 
 ⚠ **Not in this slice** (LD-3 slice 2, waits on `MemberArc` in the member order — DA-24, and on backend's kind 4 for a sector to cross
 nodes): the march's file-place glances, the crossing's security sides, `ClearBuilding` room sectors, PC-16's last window,
@@ -451,6 +456,18 @@ for 200°) explicitly, so they run **before LD-4** narrows the TKB. Each has an 
 | `ld-crossing-security` | LD-3 for `Watch` | the danger-crossing drill (`ua-squad-danger-crossing`'s cast) with 200° FOV; a hostile far down the road on the left; one behind the squad on the path it came by | ① the two security men face left and right along the road · ② the left hostile seen by the left man first · ③ the one behind seen by nobody until the rear man's file sector (or a shot) · ⭐ the existing `ua-squad-danger-crossing` check unchanged (360° there) |
 | `ld-watch-last-window` | PC-16: switching beats a watcher | `house-2f` (House A), one Regular defender at the windows; two Regular attackers behind the low wall, 60 m; run twice — defender switching (Regular) and not switching (Militia) | ① while the defender is down, the attackers' `look` stays on the window he last showed at · ② the attackers' time from his exposure to their first shot is **≥ 0.5 s longer at a new window** than at the watched one (`/combat/shots` × his exposures) · ③ the switching defender is hit less · ⚠ needs BR-7 (acquisition by exposure) for ② |
 | `ld-room-sectors` | LD-3 for the clearing | `bc-room-clear`'s cast | at each point of domination every man's `look` within 20° of his sector's bisector (CB-4) — ⭐ added to `bc-room-clear`'s check |
+
+**`ld-sentry-surprise` — as built** *(2026-10-19, `CE-2298`; ✅ PASSES LIVE, and its 360° control `ld-sentry-surprise-360` passes)*:
+on bt-range's clear east strip — the sentry (type 2002, Regular, 200°: `PerceptionReceptor.FieldOfViewCos` −0.1736) holds at
+(185, 80) faced north-east; the check gives him his sector over `POST /entities/{id}/sector` (`watch` 0); hostile A crosses at
+y = 150 (**≈ 70 m**, not 150 m); hostile B walks from (185, 5) to 40 m behind him, then is ordered to attack him. End conditions as
+built: ① his BODY within 10° of north within 8 s · ② A seen (visual) · ③ B in his memory NOT AT ALL while it walks · ④ B's shots
+turn his eyes behind him (`look.eyeYawDeg`) and B is seen · ⑤ the control sees B while it walks (and turns to him — so the control
+is not asked ①). Deviations: A's 150 m became ≈ 70 m — 📌 at ≈ 113 m A was never acquired in 20 s, even at 360°, cause not found
+(asked of backend: [the note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Sight_Beyond_100m.md)); bt-range is 200 m across, so
+the spec's 150 m never fitted. The live runs changed the look order twice (§3.3a: the heard source; then a man SHOT AT turns to the
+shot over a threat in sight). ⛔ No in-process twin yet. `ld-crossing-security`, `ld-watch-last-window`, `ld-room-sectors` wait on LD-3
+slice 2 (`MemberArc`, the clearing drill, PC-16).
 
 **Updates to the platoon demos** (DESIGN_Platoon_Attack_Defend_Clear §12): `sq-defend-house` + every defender's `look` inside his arc
 before contact · `sq-support-by-fire` + each man faces his windows · `pc-urban-ambush` + each marcher glances at his file-place sector at least every 5 s and **no glance lasts over 2 s** while he walks

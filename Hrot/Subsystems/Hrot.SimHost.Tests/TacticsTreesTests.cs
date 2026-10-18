@@ -1112,6 +1112,29 @@ namespace Hrot.SimHost.Tests
             Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 0f) < 1f);
         }
 
+        /// <summary>⭐ LD-3b — SHOT AT: with a threat in sight in front of him, a near miss turns his eyes to the sound of the shot behind
+        /// him; without the near miss the seen threat keeps them. 📌 Found live in ld-sentry-surprise. ✅ Red-proof: the under-fire branch
+        /// removed ⇒ he keeps looking at the threat.</summary>
+        [Fact]
+        public unsafe void CE2297_ShotAt_TheSoundOfTheShot_BeatsTheThreatInSight()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            var front = w.Contact(armed: true);                                             // a threat he sees
+            w.Hear(0f, -40f, 5f);                                                           // a shot behind him
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) mem.LastSeenTick[i] = w.Repo.SimulationTick;
+            var p = new LookParams();
+            var ws = new LookNodeState();
+            Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));    // not shot at: the threat in sight
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, w.Repo.GetSingleton<GlobalTime>().TotalTime);
+            w.Repo.AddComponent(w.Unit, senses);
+            Assert.Equal(LookChoice.Heard, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));     // shot at: the sound of the shot
+            Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 180f) < 1f);
+        }
+
         /// <summary>⭐ LD-3 — the operator's HOLD carries his eyes: a sector set on him (the ROE-twin event, as the debug route raises it)
         /// points them, scanned ±30° around its watch bearing. ✅ Red-proof: PersonHold without its Look activity ⇒ the channel stays empty.</summary>
         [Fact]
