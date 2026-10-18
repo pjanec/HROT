@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18 (approved; platoon layer, networked reports)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 first (§7), the room slices wait on backend BR-1 · §5b report life and ageing: leans CB-31…CB-35 awaiting the user (2026-10-18)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none — IsolateAndClear (CB-17/CB-18, PL-1) IS the ClearBuilding preset of AttackPositionPlay (docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §10, R-2035); the clearing stays its own order.
 related-designs:
+  - docs/blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md — the BR-3 amendment §5b needs (ObservedAt, Seq, the Status kind)
+  - docs/DESIGN_Sensors_And_Doctrine.md — G10: the Reported modality §5b's reported contacts use (CB-33); OWNS TargetMemory's decay and forgetting
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner (`SquadManeuverRunner`, `ISquadPlay`) and every built drill; this is one more play on it (kind 5, the existing `StackAndRoomEntryManeuver` stub)
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — §8.6 stack-and-room-entry: the original roles-and-sectors spec this design gives geometry
   - docs/DESIGN_Building_Interiors.md — (backend) OWNS buildings, panels, doors, the navmesh through doorways and the planned room/portal graph; its slice B-8 "room entry" IS this design
@@ -221,6 +223,56 @@ Rejected: **`GET /events?type=SquadReportNotification` alone** — the 500-event
 fight, and its payloads hold local entity ids · **a report component on the commander** — a component holds the last one, not the
 history, and would be the brain-local state R-2031 rules out.
 *(Owner: behaviors, in `CE-2263` — the debug API has taken squad routes from this lane before, `/entities/{id}/squad` O-a.)*
+
+## 5b. A report's life — who makes it, how it travels, how the brain reads it, and how it ages *(⭐ leans CB-31…CB-35, 2026-10-18)*
+
+🔒 User, `2026-10-18`: *"how the reports from subordinates work, who generates them, how they are transported to the brain, how brain
+reads them, if they are buffered somewhere Or can age, so the brain doesn't act on old no longer valid ones"*.
+
+**What §3–§5a already fix (R-2031, CB-15):** a squad's knowledge reaches its platoon ONLY as typed `SquadReport`s, sent by the squad
+leader in the fight after `ReportDelaySeconds` (3 s), as an EVENT topic every node takes in (the `BehaviorFaultReport` precedent), logged
+on every node (`SquadReportLog`, `GET /squad/reports`). ⛔ **What they did NOT fix:** when a report stops being true. Measured
+neighbours: a soldier's own memory already ages — threat scores decay 0.1 / s and an untracked entry is forgotten below 0.5
+(`PerceptionConstants.cs:44, 74`; `ThreatEvaluationSystem.cs:16-26`); the sensors design keeps open a *"Reported"* modality that feeds
+that same memory (Sensors & Doctrine G10).
+
+```mermaid
+sequenceDiagram
+  participant SQ as squad commander (its play, its members' merged memory)
+  participant OB as ReportOutbox (squad, brain)
+  participant W as SquadReport topic (every node)
+  participant IN as ingress + SquadReportLog (every node)
+  participant PP as PlatoonPicture (platoon's brain node)
+  participant PL as platoon play
+  SQ->>OB: Contact / Casualty / RoomClear ... with ObservedAt = when the squad saw it
+  OB->>OB: hold ReportDelaySeconds, the leader must be in the fight
+  OB->>W: publish once, Seq + 1 per sender
+  W->>IN: every node: append to the log (a ring, newest kept)
+  IN->>PP: apply on the platoon's node: newer Seq wins, older dropped
+  PP->>PP: contacts into the platoon's TargetMemory (decay, forget) · status per squad (age) · facts per room
+  PL->>PP: read the picture, never the events
+  Note over OB,PP: while engaged the squad re-sends its STATUS every 15 s, silence ages its status into Stale
+```
+*What the picture shows that prose hid:* the brain never reads a report as an event — events last one frame. It reads the **picture**,
+the buffer the reports are folded into, and the picture is where ageing happens. Three kinds of content age three different ways.
+
+| content | kinds | buffered in | ages how | ⇒ the brain must not act on it when |
+|---|---|---|---|---|
+| **contacts** | `Contact`, `UnderFire` (its source), `SniperContact` | ⭐ a `TargetMemory` on the PLATOON commander, as a *Reported* entry (G10): position + error radius + `ObservedAt` | the **existing** decay and forget (0.1 / s, forgotten below 0.5 unless re-reported); a later report on the same subject refreshes it; `Contact` with `Count = 0` (lost / destroyed) clears it | it was forgotten — and every reader (`TopContact`, the threat ranking, the axis choice) already weighs a faded entry less |
+| **status** | ⭐ a new `Status` kind (men in the fight, combat effective, ammo low, phase) + `CombatIneffective` | `PlatoonPicture`, one row per squad | **age = now − ObservedAt**; `Fresh` < 2 heartbeats (30 s while engaged), then `Stale`, then `Silent` after 60 s — silence is itself information (§6a: *"the platoon sees the silence as the squad's status age"*) | it is `Stale` or `Silent`: the play treats the squad as unknown (no new tasks that rely on it; Regular+ sends the reserve's leader to check) |
+| **facts** | `RoomClear`, `RoomBlocked`, `BuildingClear`, `Detained`, `Foothold` | `BuildingClearance` / the picture | **do not decay** — durable until CONTRADICTED: a later `Contact` or `UnderFire` located in a Cleared room sets it back to `Suspected` | it was contradicted |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **CB-31** | the report's time | every report carries **`ObservedAt`** (when the squad saw it) beside `SentAt`; age is measured from `ObservedAt`, so the 3 s delay and the wire are counted in it | age from `SentAt`: a report held 3 s looks 3 s fresher than it is |
+| **CB-32** | order and duplicates | a **`Seq`** per sender; for contacts and status the picture keeps the newest by `ObservedAt` and drops an older one that arrives late; facts are idempotent (a second `RoomClear` changes nothing) | trusting arrival order: the wire does not promise it across nodes |
+| **CB-33** | reported contacts | they enter a **`TargetMemory` on the platoon commander** as a *Reported* entry (the G10 modality) with the reporter's error radius, and age by the existing decay / forget | a separate contact list in the picture: a second memory with its own forgetting rules, and no existing reader could use it |
+| **CB-34** | status heartbeat | while engaged a squad re-sends **`Status` every 15 s** and at once on a change (a man down, effective lost); `Fresh` / `Stale` / `Silent` by age; not engaged: on change only | status only on change: a squad that went silent (all dead, radio-less) would look fine forever |
+| **CB-35** | where the picture lives and how it survives | on the platoon's brain node, **rebuildable**: on an ownership handover or a late join the new owner replays its own node's `SquadReportLog` (every node holds the same log) and the heartbeat refreshes status within one period | replicate the picture as a component: a second copy of state the reports already carry (R-2031's rule is that the REPORTS are on the wire) |
+
+⚠ **Changes to BR-3** (the `SquadReport` topic, backend, unstarted — `git merge-base` checked): the fields gain `ObservedAt` and `Seq`,
+the kinds gain `Status` (with men in the fight, effective, ammo-low, phase in `Count` and a small flags field). Sent as
+[`NOTE_Behaviors_To_Backend_Report_Ageing.md`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md).
 
 ## 6. Decisions *(✅ APPROVED 2026-10-18 — R-2030 … R-2033)*
 
