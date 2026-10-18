@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) lean awaiting the user; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 (§13a, sector shapes and levels) and DA-25 (§13b, where the planner runs) leans awaiting the user; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: nothing.
 known-rot: none.
@@ -443,6 +443,43 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
+
+### 13b. Where the planner runs, what it reads, how the answer comes back *(⭐ lean DA-25)*
+
+| the planner needs | lives | measured |
+|---|---|---|
+| the plan: the EA, the axis, which squad goes where, the known enemy posts | **brain only** (the commander's play and its `PlatoonPicture`) | §11; Building Clearing RP-1 |
+| each man's post and role | brain (the posts are EQS ANSWERS the commander already holds) | EQS answers return to the owner's node: `EqsSensorConfigEgress/IngressTranslator.cs` (Overview §5a) |
+| building faces, storeys, heights, line of sight | **every node, the brain included**: CGF loads the terrain (universal, R-182) and brain behaviours already read it through the `IWorldQuery` seam (`GroundHeightAt`, `SurfacesAt`, `SightBlocked`, `Trace`) | `CgfSubsystem.cs:1092-1103`; `IWorldQuery.cs:52-73`; `IndirectFireBehaviors.cs:88,143,616` |
+| the navmesh | ⛔ **SimHost only** — the one reason EQS is solved there | Overview §5a; `SimHostNodeBootstrapper.cs:60` |
+| where the sector is USED | the target picks AND the fire gate both run on the **brain**: `AimAndFireExecutor` / `FireAtPointExecutor` are in CGF's Brain executor set | `CgfLogicPack.cs:104, 164-167` |
+
+```mermaid
+sequenceDiagram
+  participant C as commander play (brain)
+  participant E as EQS (solved on SimHost)
+  participant P as SectorPlanner (pure, brain)
+  participant W as IWorldQuery (brain's terrain)
+  participant N as the wire
+  C->>E: child sensors FindDefensivePosts / FindBuildingPosts (needs the navmesh)
+  E-->>C: the posts (an EQS answer, frames later)
+  C->>P: Split(area, posts, roles, tier)
+  P->>W: building faces, SightBlocked fan (v2)
+  P-->>C: squad polygons and member arcs (returned in the same call)
+  C->>N: create the SquadSector area entities, send the orders with the arcs
+  N-->>C: other nodes' brains stamp EngagementArea from their orders
+```
+*What the picture shows that prose hid:* only the POSTS need the muscle, because only they need the navmesh. The sectors are angles and
+areas, so they are computed on the brain in the same call, with no wait. The answer travels on two existing roads: the area entity,
+which replicates like any tactical graphic, and the order.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-25** | where the planner runs | **a pure, synchronous function on the brain** (`SectorPlanner`, Squad toolkit), called by the commander's play when it gives an order or something changes; it reads the play's own data and the terrain only through `IWorldQuery`; it returns its result to the caller. The posts it splits between come from EQS (solved on SimHost, as today). ⚠ If v2's line-of-sight fan proves too heavy for the brain, it becomes an EQS template (a "visible arc" generator) whose answer returns like any EQS answer, with the same call site | a sensor on the muscle: it would have to be sent the plan, the picture and the posts (all brain data) and reply frames later, for a computation that needs no navmesh · a new topic for sector results: the area entity and the order already carry them |
+
+⛔ **Not measured:** whether the brain's terrain has the building INTERIORS (wall panels, storeys) identical to SimHost's. Both come
+from the one universal load factory (`HrotUniversalLoadParts.Build`), so it is likely; a rail on `house-2f` settles it before DA-L
+(`CE-2282`).
 
 ## 14. New sensors and sensor changes *(✅ approved R-2036 — DA-21)*
 
