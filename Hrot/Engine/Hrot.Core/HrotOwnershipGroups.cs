@@ -149,7 +149,11 @@ public static class HrotOwnershipGroups
     }
 
     // G-4 — the same conditions the TKB translators use to provision each group's components.
-    private static bool HasBrain(TkbTemplate t)      => t.GetDescriptor<BehaviorProfileDto>() is { BrainTier: not 0 };
+    // ⭐ CE-4030 / CE-523 (S8) — and a template that provisions HEALTH (CombatPlatformDefDto ⇒ CombatHealth, in this group): G-4 above, the
+    //   group applies where its components are provisioned. Without it a brainless combat platform (the civilian and SUMO cars made hittable
+    //   by CE-4030) kept its Health with its creator, and only the Brain node applies damage (HealthApplicationSystem, CgfLogicPack).
+    private static bool HasBrain(TkbTemplate t)
+        => t.GetDescriptor<BehaviorProfileDto>() is { BrainTier: not 0 } || t.GetDescriptor<CombatPlatformDefDto>() != null;
     // ⭐ CE-3199 / R-3005 — a FLYER (Gen.Flight) is moved by the Muscle too: there is one Muscle role (MuscleGround keeps its name).
     // ⭐⭐ Weapon systems WS-4 (DESIGN_Weapon_Systems §2, §9) — and a WEAPON SYSTEM: it has no locomotion, but the Muscle aims its turret
     //   (TurretPose, WeaponTaskStatus) and carries it in its host's station (SimTransform, like any passenger whose position the Muscle owns).

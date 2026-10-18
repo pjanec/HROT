@@ -30,7 +30,32 @@ namespace Fdp.Toolkit.Traffic
         /// R-4020), so this is a fidelity knob, not a frame rate.</summary>
         public float StepSeconds;
 
-        /// <summary>A starting point: 200 cars, seed 1, half-second steps (the live-city demo's step).</summary>
+        /// <summary>⭐ AQ93 §15 K1 — how many pedestrians SUMO keeps walking; 0 = none (the default: every scenario before slice 5).</summary>
+        public int TargetPedestrians;
+
+        /// <summary>⭐ §15 K4 — a shot panics the pedestrians within this many metres; 0 = <see cref="DefaultShotPanicRadius"/>.</summary>
+        public float ShotPanicRadius;
+
+        /// <summary>⭐ §15 K4 — a blast panics the pedestrians within this many metres; 0 = <see cref="DefaultBlastPanicRadius"/>.</summary>
+        public float BlastPanicRadius;
+
+        /// <summary>⭐ §15 K6 (P7) — at most this many pedestrians become our civilians per session; 0 = <see cref="DefaultMaxConverted"/>.</summary>
+        public int MaxConverted;
+
+        public const float DefaultShotPanicRadius = 50f;
+        public const float DefaultBlastPanicRadius = 150f;
+        public const int DefaultMaxConverted = 30;
+
+        /// <summary>The panic radius of a shot (the authored value, else the default).</summary>
+        public readonly float ShotRadius => ShotPanicRadius > 0f ? ShotPanicRadius : DefaultShotPanicRadius;
+
+        /// <summary>The panic radius of a blast (the authored value, else the default).</summary>
+        public readonly float BlastRadius => BlastPanicRadius > 0f ? BlastPanicRadius : DefaultBlastPanicRadius;
+
+        /// <summary>The conversion cap (the authored value, else the default).</summary>
+        public readonly int ConversionCap => MaxConverted > 0 ? MaxConverted : DefaultMaxConverted;
+
+        /// <summary>A starting point: 200 cars, no pedestrians, seed 1, half-second steps (the live-city demo's step).</summary>
         public static TrafficDemand Default => new() { TargetCars = 200, Seed = 1, StepSeconds = 0.5f };
     }
 }

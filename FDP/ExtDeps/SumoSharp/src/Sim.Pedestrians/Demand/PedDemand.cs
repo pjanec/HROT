@@ -86,6 +86,11 @@ public sealed class PedDemand
     private readonly Dictionary<int, (string AnimTag, Vec2 Pos)> _lastPoseAtNow = new();
     private double _lastPoseAtNowTime = double.NaN;
 
+    // HROT H14 (docs/HROT-INTEGRATION-DESIGN.md): host-given ped names (PedDemandConfig.IdProvider), both ways. Empty
+    // when no provider is configured -- NameOf then falls back to the id's invariant string.
+    private readonly Dictionary<int, string> _nameOf = new();
+    private readonly Dictionary<string, int> _idOfName = new(StringComparer.Ordinal);
+
     private VehicleRng _spawnTimingRng;
     private double _nextSpawnAt;
     private int _nextId = 1;
@@ -203,6 +208,341 @@ public sealed class PedDemand
 
     /// Currently-live ped ids, ascending (SortedSet -- deterministic enumeration order).
     public IReadOnlyCollection<int> LiveIds => _liveIds;
+
+    // H14: spawns skipped because IdProvider returned an empty name or the name of a live ped.
+    public int NameRejectCount { get; private set; }
+
+    // H14: peds a host removed through RemovePed (not counted in ArrivalCount).
+    public int RemovedCount { get; private set; }
+
+    // H14: the ped's name -- its IdProvider name, else the id in invariant digits.
+    public string NameOf(int id) =>
+        _nameOf.TryGetValue(id, out var name) ? name : id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // H14: the live ped called `name` (an IdProvider name, or the id's invariant digits when there is no provider).
+    public bool TryGetIdByName(string name, out int id)
+    {
+        if (_idOfName.TryGetValue(name, out id))
+        {
+            return _liveIds.Contains(id);
+        }
+
+        if (_config.IdProvider is null
+            && int.TryParse(name, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out id)
+            && _liveIds.Contains(id))
+        {
+            return true;
+        }
+
+        id = 0;
+        return false;
+    }
+
+    // H14: remove live ped `id` mid-run (between Step calls), returning its state at `now`: world position, elevation,
+    // velocity and heading (radians, 0 = +x, counter-clockwise -- atan2(vy, vx); the direction of travel over the next
+    // second when it is standing still, 0 when that is undefined too). Safe: the ped leaves the live set, so the next
+    // Step neither queries nor arrives it, and a freed slot is refilled by the ordinary spawn schedule (a pure
+    // function of the call sequence, so a run that removes the same peds at the same steps stays reproducible).
+    // Publishes a despawn when the lifecycle is announced. False -- nothing changes -- for an id that is not live.
+    public bool RemovePed(int id, double now, out PedRemovalState state)
+    {
+        if (!_liveIds.Contains(id) || !_lodManager.Contains(id))
+        {
+            state = default;
+            return false;
+        }
+
+        var pos = _lodManager.PositionOf(id, now);
+        var vel = _lodManager.VelocityOf(id, now);
+        var z = _lodManager.ElevationOf(id, now);
+        double heading;
+        if (vel.Abs > 1e-6)
+        {
+            heading = Math.Atan2(vel.Y, vel.X);
+        }
+        else
+        {
+            var ahead = _lodManager.PositionOf(id, now + 1.0) - pos;
+            heading = ahead.Abs > 1e-6 ? Math.Atan2(ahead.Y, ahead.X) : 0.0;
+        }
+
+        state = new PedRemovalState(pos.X, pos.Y, z, vel.X, vel.Y, heading);
+        Retire(id, now);
+        RemovedCount++;
+        return true;
+    }
+
+    // ---- HROT H16 (docs/HROT-INTEGRATION-DESIGN.md): a frightened ped flees ----
+
+    // Fleeing peds -> their NORMAL walking speed (before any flee factor), so a re-target scales from it again.
+    private readonly Dictionary<int, double> _fleeBaseSpeed = new();
+    private List<Vec2>? _fleeCandidates;
+
+    // H16: how many new routes one flee call may ask the navigation for, per pass (three passes, below).
+    public const int FleeRouteAttemptsPerPass = 8;
+
+    // H16: a preferred flee route may come back toward the incident by at most this much (m) -- it is "away" when its
+    // closest approach to the incident is no closer than the ped already is, minus this slack for corner geometry.
+    public const double FleeApproachToleranceMeters = 2.0;
+
+    // H16: peds currently fleeing (sent away by FleePed, not yet arrived or removed).
+    public int FleeingCount => _fleeBaseSpeed.Count;
+
+    // H16: successful FleePed calls (a re-target counts again).
+    public int FleeCallCount { get; private set; }
+
+    // H16: is live ped `id` fleeing?
+    public bool IsFleeing(int id) => _fleeBaseSpeed.ContainsKey(id);
+
+    // H16: live ped `id` abandons its trip and flees the incident at `from`, between Step calls -- EvacDistrictDirector's
+    // panic (a reroute to a safe place from the frozen position, then `SetForcedHighPower`) inside demand, so the ped
+    // keeps its id, name and lifecycle and still arrives/despawns normally at its new destination:
+    //   1. the destination is the first that qualifies of `candidates` (default: this demand's own O/D endpoints, all
+    //      on the walkable network) -- see FleeRoute for the three passes (away from the incident and at least
+    //      `minDistance` from it; else any route ending that far; else the farthest reachable point);
+    //   2. PedLodManager.Redirect re-adds it as a PathArc walker on that route at `speedFactor` x its NORMAL speed (a
+    //      re-target of an already-fleeing ped scales the normal speed again, never compounds), published as a leg;
+    //   3. `forceHighPower` pins it high-power (the Evac pin): it promotes on the next Step and never demotes while it
+    //      flees, so it is a full ORCA crowd agent -- avoided by and avoiding other peds, and in the high-power
+    //      footprints a car-coupled host (LiveCitySim) gives the cars. False keeps it a low-power PathArc runner.
+    // Draws no RNG: a pure function of the ped's pose, the arguments and the navigation, so two runs that flee the same
+    // ped at the same step stay identical. False -- nothing changes -- for a ped that is not live, a non-finite
+    // incident, a negative/non-finite `minDistance`, a non-positive/non-finite `speedFactor`, or no reachable destination.
+    public bool FleePed(
+        int id, Vec2 from, double minDistance, double speedFactor, double now,
+        IReadOnlyList<Vec2>? candidates = null, bool forceHighPower = true)
+    {
+        if (!_liveIds.Contains(id) || !_lodManager.Contains(id)
+            || !double.IsFinite(from.X) || !double.IsFinite(from.Y)
+            || !(minDistance >= 0.0) || double.IsInfinity(minDistance)
+            || !(speedFactor > 0.0) || double.IsInfinity(speedFactor))
+        {
+            return false;
+        }
+
+        var pos = _lodManager.PositionOf(id, now);
+        var path = FleeRoute(pos, from, minDistance, candidates ?? FleeCandidates, out var surfaces);
+        if (path is null)
+        {
+            return false;
+        }
+
+        var baseSpeed = _fleeBaseSpeed.TryGetValue(id, out var normal) ? normal : _lodManager.MaxSpeedOf(id);
+        if (!_lodManager.Redirect(id, path, baseSpeed * speedFactor, now, surfaces))
+        {
+            return false;
+        }
+
+        if (forceHighPower)
+        {
+            _lodManager.SetForcedHighPower(id, true);
+        }
+
+        _fleeBaseSpeed[id] = baseSpeed;
+        _destinationOf[id] = path[^1]; // arrival = the route's end (the navigation may have snapped the candidate)
+        _lastPoseAtNow.Remove(id);     // same position at `now`, but its anim tag may have changed -- recompute
+        FleeCallCount++;
+        return true;
+    }
+
+    // This demand's own O/D endpoints (weighted or uniform), de-duplicated in first-seen order.
+    private IReadOnlyList<Vec2> FleeCandidates
+    {
+        get
+        {
+            if (_fleeCandidates is not null)
+            {
+                return _fleeCandidates;
+            }
+
+            var seen = new HashSet<(double, double)>();
+            var list = new List<Vec2>();
+            void Add(Vec2 p)
+            {
+                if (seen.Add((p.X, p.Y)))
+                {
+                    list.Add(p);
+                }
+            }
+
+            if (_config.WeightedEndpoints is { } weighted)
+            {
+                for (var i = 0; i < weighted.Count; i++)
+                {
+                    Add(weighted[i].Pos);
+                }
+            }
+            else
+            {
+                foreach (var p in _config.Origins) Add(p);
+                foreach (var p in _config.Destinations) Add(p);
+            }
+
+            return _fleeCandidates = list;
+        }
+    }
+
+    // H16: the flee route from `pos`, three passes over `candidates`, each asking the navigation for at most
+    // FleeRouteAttemptsPerPass NEW routes (a route found in an earlier pass is reused, never re-asked):
+    //   1. AWAY: candidates at least `minDistance` from the incident that do not lie behind the ped as seen from it
+    //      ((c - pos) . (pos - from) >= 0), nearest the ped first (EvacDistrictDirector.NearestSafeZone's rule); the
+    //      route must end at least `minDistance` away and never come closer to the incident than the ped already is
+    //      (FleeApproachToleranceMeters of slack).
+    //   2. FAR ENOUGH: every candidate at least `minDistance` away (away-side first, then nearest), any route that ends
+    //      at least `minDistance` away -- even one that first passes the incident.
+    //   3. FARTHEST: every candidate, farthest from the incident first; the first route that ends farther from the
+    //      incident than the ped is now.
+    // Null when no pass finds one. Ties break on the candidate's index, so the choice is deterministic.
+    private IReadOnlyList<Vec2>? FleeRoute(
+        Vec2 pos, Vec2 from, double minDistance, IReadOnlyList<Vec2> candidates, out IReadOnlyList<int>? surfaces)
+    {
+        surfaces = null;
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var d0 = (pos - from).Abs;
+        var away = d0 > 1e-6 ? (pos - from) * (1.0 / d0) : new Vec2(0.0, 0.0);
+
+        var qualifying = new List<(int Tier, double Dist, int Index)>();
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            var c = candidates[i];
+            if ((c - from).Abs < minDistance)
+            {
+                continue;
+            }
+
+            var behind = d0 > 1e-6 && Vec2.Dot(c - pos, away) < 0.0;
+            qualifying.Add((behind ? 1 : 0, (c - pos).Abs, i));
+        }
+
+        qualifying.Sort((a, b) =>
+            a.Tier != b.Tier ? a.Tier.CompareTo(b.Tier)
+            : a.Dist != b.Dist ? a.Dist.CompareTo(b.Dist)
+            : a.Index.CompareTo(b.Index));
+
+        var routes = new Dictionary<int, (IReadOnlyList<Vec2>? Path, IReadOnlyList<int>? Surfaces)>();
+        var asked = 0;
+        (IReadOnlyList<Vec2>? Path, IReadOnlyList<int>? Surfaces) RouteTo(int index, int budget)
+        {
+            if (routes.TryGetValue(index, out var known))
+            {
+                return known;
+            }
+
+            if (asked >= budget)
+            {
+                return (null, null);
+            }
+
+            asked++;
+            var path = _navigation.FindPath(pos, candidates[index], out var s);
+            var r = (path is { Count: > 0 } ? path : null, s);
+            routes[index] = r;
+            return r;
+        }
+
+        // Pass 1 -- away, far enough, never closing on the incident.
+        asked = 0;
+        foreach (var q in qualifying)
+        {
+            if (q.Tier != 0)
+            {
+                break;
+            }
+
+            var (path, s) = RouteTo(q.Index, FleeRouteAttemptsPerPass);
+            if (path is not null && (path[^1] - from).Abs >= minDistance
+                && ClosestApproach(path, from) >= d0 - FleeApproachToleranceMeters)
+            {
+                surfaces = s;
+                return path;
+            }
+        }
+
+        // Pass 2 -- any qualifying candidate whose route ends far enough.
+        asked = 0;
+        foreach (var q in qualifying)
+        {
+            var (path, s) = RouteTo(q.Index, FleeRouteAttemptsPerPass);
+            if (path is not null && (path[^1] - from).Abs >= minDistance)
+            {
+                surfaces = s;
+                return path;
+            }
+        }
+
+        // Pass 3 -- the farthest reachable point that is at least farther than the ped is now.
+        var byDistance = new List<(double Dist, int Index)>(candidates.Count);
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            byDistance.Add(((candidates[i] - from).Abs, i));
+        }
+
+        byDistance.Sort((a, b) => a.Dist != b.Dist ? b.Dist.CompareTo(a.Dist) : a.Index.CompareTo(b.Index));
+        asked = 0;
+        foreach (var (_, index) in byDistance)
+        {
+            var (path, s) = RouteTo(index, FleeRouteAttemptsPerPass);
+            if (path is not null && (path[^1] - from).Abs > d0)
+            {
+                surfaces = s;
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    // The polyline's closest distance to `p`.
+    private static double ClosestApproach(IReadOnlyList<Vec2> path, Vec2 p)
+    {
+        if (path.Count == 1)
+        {
+            return (path[0] - p).Abs;
+        }
+
+        var best = double.PositiveInfinity;
+        for (var i = 0; i + 1 < path.Count; i++)
+        {
+            var a = path[i];
+            var ab = path[i + 1] - a;
+            var lenSq = ab.AbsSq;
+            var t = lenSq > 1e-18 ? Math.Clamp(Vec2.Dot(p - a, ab) / lenSq, 0.0, 1.0) : 0.0;
+            var d = ((a + (ab * t)) - p).Abs;
+            if (d < best)
+            {
+                best = d;
+            }
+        }
+
+        return best;
+    }
+
+    private bool AnnouncesLifecycle => _config.AnnounceLifecycle || _config.IdProvider is not null;
+
+    // Drop a live ped everywhere (arrival or removal) and, when announced, publish its despawn.
+    private void Retire(int id, double now)
+    {
+        _lodManager.RemovePed(id);
+        _liveIds.Remove(id);
+        _destinationOf.Remove(id);
+        _lastPoseAtNow.Remove(id);
+        if (_nameOf.TryGetValue(id, out var name))
+        {
+            _nameOf.Remove(id);
+            _idOfName.Remove(name);
+        }
+
+        _fleeBaseSpeed.Remove(id); // H16: a fleeing ped that arrives (or is removed) stops counting
+
+        if (AnnouncesLifecycle)
+        {
+            _lodManager.Publisher.PublishDespawned(id, now);
+        }
+    }
 
     /// Every spawn, in spawn order -- for determinism/inspection (docs/PEDESTRIAN-NAVMESH-CONTRACT.md).
     public IReadOnlyList<PedSpawnEvent> SpawnEvents => _spawnEvents;
@@ -400,6 +740,20 @@ public sealed class PedDemand
             return; // id is simply skipped (a sparse id space is harmless) -- no retry, no extra draw
         }
 
+        // H14: the host-given name, drawn only for a ped that WILL spawn (an unreachable pair above consumes none).
+        // An empty name or one a live ped already has skips this spawn (like H5's duplicate vehicle id) -- the id
+        // and every RNG draw above are consumed exactly as for an unreachable pair, so the stream stays fixed.
+        string? name = null;
+        if (_config.IdProvider is { } provider)
+        {
+            name = provider();
+            if (string.IsNullOrEmpty(name) || _idOfName.ContainsKey(name))
+            {
+                NameRejectCount++;
+                return;
+            }
+        }
+
         // ITERON RULE (CLAUDE.md; docs/PEDESTRIAN-TASKS.md LIVE-PROD-1b): with Liveliness omitted
         // (null, the default), this is the EXACT call the pre-liveliness code made -- no new RNG
         // stream is even constructed -- so a plain PedDemandConfig stays bit-identical to today's
@@ -436,6 +790,17 @@ public sealed class PedDemand
 
         _destinationOf[id] = destination;
         _liveIds.Add(id);
+        if (name is not null)
+        {
+            _nameOf[id] = name;
+            _idOfName[name] = id;
+        }
+
+        if (AnnouncesLifecycle)
+        {
+            _lodManager.Publisher.PublishSpawned(id, name ?? NameOf(id), now);
+        }
+
         SpawnCount++;
         _spawnEvents.Add(new PedSpawnEvent(id, now, origin, destination));
     }
@@ -932,9 +1297,9 @@ public sealed class PedDemand
         arrived.Sort();
         foreach (var id in arrived)
         {
-            _lodManager.RemovePed(id);
-            _liveIds.Remove(id);
-            _destinationOf.Remove(id);
+            // H14: Retire = the former three removals + name bookkeeping + the announced despawn. The arrived ped's
+            // pose stays in _lastPoseAtNow only until here (no consumer reads an arrived id, as before).
+            Retire(id, now);
             ArrivalCount++;
             _arrivalEvents.Add(new PedArrivalEvent(id, now));
         }
@@ -1036,6 +1401,15 @@ public sealed class PedDemandConfig
     /// `MaxSpeed * (1 +/- up to this fraction)`, seeded per-ped, so a group that started together
     /// spreads out longitudinally as it walks and staggers its kerb arrivals instead of moving in lockstep.
     public double SpeedVariationFrac { get; init; } = 0.0;
+
+    /// HROT H14 (docs/HROT-INTEGRATION-DESIGN.md): when set, every spawned ped is NAMED by this provider (called once
+    /// per ped that will spawn) and the lifecycle is announced (as AnnounceLifecycle). A provider returning "" or a
+    /// live ped's name skips that spawn. Null (default) = unnamed, nothing extra published.
+    public Func<string>? IdProvider { get; init; }
+
+    /// H14: publish a PedSpawnedRecord (with the ped's name -- its id digits without an IdProvider) when a ped spawns
+    /// and a PedDespawnedRecord when it arrives or is removed. Off (default) = the event stream is unchanged.
+    public bool AnnounceLifecycle { get; init; }
 }
 
 /// LIVE-PROD-1b (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §4): per-trip liveliness knobs. Deliberately
@@ -1070,3 +1444,7 @@ public readonly record struct PedSpawnEvent(int Id, double Time, Vec2 Origin, Ve
 
 /// One arrival: `Id` despawned at `Time` (it reached its destination's ArrivalRadius).
 public readonly record struct PedArrivalEvent(int Id, double Time);
+
+/// HROT H14: a removed ped's state at removal (PedDemand.RemovePed) -- world position (m), elevation (m, the net's
+/// datum, 0 on a 2-D net), velocity (m/s) and heading (radians, 0 = +x, counter-clockwise).
+public readonly record struct PedRemovalState(double X, double Y, double Z, double Vx, double Vy, double Heading);

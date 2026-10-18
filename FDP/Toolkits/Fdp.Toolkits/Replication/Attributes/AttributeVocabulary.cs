@@ -63,6 +63,11 @@ public static class AttributeVocabulary
         // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time, and its display offset.
         new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
         new("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, AttributeValueKind.CsInt32, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
+        // ⭐ CE-4024 (AQ93 §15 K5) — a civilian's fright: a converted SUMO pedestrian is born in panic on the brain node
+        new("Fear",                  AttributeIds.CivilianFear,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
+        new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
+        new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
+        new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
     };
 
     /// <summary>⭐ The definitions active on a host, given whether it has a geographic transform.</summary>
@@ -77,6 +82,10 @@ public static class AttributeVocabulary
     /// and will never be republished — the <c>AX-015</c> failure, generalised.</para>
     /// </summary>
     public static IEnumerable<Type> WrittenComponents => All.Select(d => d.Component).Distinct();
+
+    /// <summary>⭐ CE-4024 — the components the attribute path writes that are REPLICATED, so a translator must cover them: every
+    /// <see cref="WrittenComponents"/> entry but a <see cref="AttributeDefinition.BrainLocal"/> one.</summary>
+    public static IEnumerable<Type> ReplicatedComponents => All.Where(d => !d.BrainLocal).Select(d => d.Component).Distinct();
 }
 
 /// <summary>
@@ -95,9 +104,12 @@ public static class AttributeVocabulary
 /// </param>
 /// <param name="Component">⭐⭐ The ECS component written. This is the JOIN to the descriptor world.</param>
 /// <param name="RequiresGeoTransform">⭐ True when the path is unregisterable without an <c>IGeographicTransform</c>.</param>
+/// <param name="BrainLocal">⭐ CE-4024 — true when <see cref="Component"/> lives only on the node that runs the entity's brain and is never
+/// replicated (<c>CivilianState</c>): the attribute is applied there, and no translator republishes it — by design, not by omission.</param>
 public sealed record AttributeDefinition(
     string JsonPath,
     ushort AttributeId,
     AttributeValueKind Kind,
     Type Component,
-    bool RequiresGeoTransform = false);
+    bool RequiresGeoTransform = false,
+    bool BrainLocal = false);

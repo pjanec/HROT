@@ -1870,7 +1870,7 @@ namespace Hrot.Editor.DebugApi
                 new("y", "number", false, "move: target northing in this node's local metres"),
                 new("speed", "number", false, "move: speed in m/s (default: the unit's)"),
                 new("arrivalRadius", "number", false, "move: arrival radius in metres"),
-                new("roadUse", "string", false, "move: Never · Neutral · Prefer · StronglyPrefer"),
+                new("roadUse", "string", false, "move: Never · Neutral · Prefer · StronglyPrefer · InTraffic (a vehicle handed to SUMO, AQ93 R-4023)"),
                 new("targetId", "integer", false, "attack: the enemy's network id (get_sitrep lists the contacts your side knows)"),
                 new("behavior", "string", false, "behavior: the behaviour name (list_behaviors)"),
                 new("params", "object", false, "behavior: its parameters, matching its paramSchema"),

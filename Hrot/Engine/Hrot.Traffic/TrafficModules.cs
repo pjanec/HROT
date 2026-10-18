@@ -26,7 +26,17 @@ public sealed class TrafficSteppingModule : IEcsModule
     public string Name => "TrafficStepping";
 
     /// <summary>20 Hz: a 0.5 s SUMO step is never more than a tick late; the target, not this rate, paces SUMO.</summary>
-    public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(20);
+    /// <remarks>
+    /// ⭐ CE-4020 — the time budget is the SESSION BUILD, not one step. 📌 Measured 2026-10-17 on the five-process cluster: the default
+    /// <c>SlowBackground</c> budget (100 ms) timed out the tick that builds the session (SUMO parses the net: 2.5 s on demo-city) and
+    /// every 40-step catch-up after it; five timeouts open the circuit for 10 s, the next catch-up is 40 steps again, and SUMO crawled.
+    /// ⛔ An abandoned tick also keeps running while the next one starts, and <see cref="TrafficRuntime.SteppingTick"/> is not
+    /// re-entrant. ⇒ <see cref="MaxTickMs"/> covers a build; a hang is still caught.
+    /// </remarks>
+    public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(20).WithTimeout(MaxTickMs);
+
+    /// <summary>The longest one stepping tick may take before the host calls it hung: a session build plus a full catch-up.</summary>
+    public const int MaxTickMs = 30_000;
 
     public IEnumerable<Type>? GetRequiredComponents() => new[] { typeof(TrafficDemand) };
 
@@ -58,12 +68,32 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     private readonly NetworkEntityMap? _entityMap;
     private readonly int _localNodeId;
     private readonly List<TrafficCarPose> _cars = new();
+    private readonly List<TrafficPedPose> _peds = new();
+    private readonly Dictionary<(int Owner, uint Source), TrafficPedMirror> _pedMirrors = new();
+    private readonly List<(int, uint)> _stalePedMirrors = new();
+    private readonly HashSet<(int, uint)> _livePedMirrors = new();
+    private DdsMultiSourcePedSubscriber? _pedDds;
     private readonly Dictionary<(int Owner, uint Source), TrafficMirror> _mirrors = new();
     private readonly HashSet<(int, uint)> _liveMirrors = new();
     private readonly List<(int, uint)> _staleMirrors = new();
     private TrafficReplicas? _replicas;
     private EntityRepository? _replicaWorld;
     private DdsMultiSourceSubscriber? _dds;
+    private double _wireNow;
+    private SilenceClock _silence;
+    private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
+
+    /// <summary>
+    /// ⭐ CE-4021 (AQ93 E10, R-4027) — a traffic node that falls silent for this long, on the <see cref="SilenceClock"/>, is gone:
+    /// its cars go. 📌 Measured 2026-10-17: the subscriber had no timeout, so after the traffic node was killed every mirror kept its
+    /// cars, frozen, for good. ⭐ Not wall time: a paused cluster steps no SUMO and sends nothing, and must keep its cars.
+    /// </summary>
+    public const double SilentSourceSeconds = 5.0;
+
+    /// <summary>The DDS reader of every traffic node's wire: samples stamped with SUMO sim time (E9), a source silent for
+    /// <see cref="SilentSourceSeconds"/> of <paramref name="clusterSeconds"/> removed (E10).</summary>
+    public static DdsMultiSourceSubscriber NewSubscriber(DdsParticipant participant, Func<double> clusterSeconds)
+        => new(participant, stampWithSimTime: true, sourceTimeoutSeconds: SilentSourceSeconds, clockSeconds: clusterSeconds);
     private TrafficNetCache? _net;
     private NetworkLaneSource? _netLanes;
     private TrafficSession? _adopted;
@@ -86,6 +116,9 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
 
     /// <summary>The cars of the last frame, every sender's, in terrain-local metres (for the car layer and rails).</summary>
     public IReadOnlyList<TrafficCarPose> Cars => _cars;
+
+    /// <summary>⭐ AQ93 §15 K3 — the pedestrians of the last frame, every sender's, terrain-local.</summary>
+    public IReadOnlyList<TrafficPedPose> Pedestrians => _peds;
 
     /// <summary>The replica book (null until the first frame).</summary>
     public TrafficReplicas? Replicas => _replicas;
@@ -119,7 +152,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
                 step = demand.StepSeconds > 0f ? demand.StepSeconds : step;
                 var key = new TrafficSessionKey(net.Path, Path.GetDirectoryName(net.Path) ?? ".", net.NetHash, demand, _generation);
                 if (!Equals(_runtime.Requested, key)) _runtime.Request(key, TrafficVehicleCatalog.From(TkbOf(world)));
-                _runtime.TopUpIds(demand.TargetCars);   // N2 — the allocator is main-thread only
+                _runtime.TopUpIds(demand.TargetCars + Math.Max(0, demand.TargetPedestrians));   // N2/K2 — the allocator is main-thread only
                 _runtime.SetTarget(key, now);
                 own = _runtime.Current;
                 if (own is not null && now < own.Time - 2.0 * own.StepSeconds - 1.0)   // the clock jumped back: restart SUMO
@@ -137,17 +170,21 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         // ── mirror every wire (N5/N6) ─────────────────────────────────────────────────────────────
         double at = now - step;
         bool resolve = at != _lastResolved;   // paused ⇒ the same instant ⇒ the same poses; the reconstructor is never fed a zero step
-        if (resolve) _cars.Clear();
+        if (resolve) { _cars.Clear(); _peds.Clear(); }
         _liveMirrors.Clear();
+        _livePedMirrors.Clear();
         _lights = EmptyLights;
         if (own is not null)
         {
             own.Source.Pump();
             Mirror(_localNodeId, (uint)_localNodeId, own.Source, own.Lanes, at, resolve);
+            own.Pedestrians.Pump(now);
+            MirrorPeds(_localNodeId, (uint)_localNodeId, own.Pedestrians, at, resolve);
         }
         if (_participant is not null)
         {
-            _dds ??= new DdsMultiSourceSubscriber(_participant, stampWithSimTime: true);
+            _wireNow = _silence.Tick(now, _wall.Elapsed.TotalSeconds);
+            _dds ??= NewSubscriber(_participant, () => _wireNow);
             _dds.Pump();
             foreach (var (src, source) in _dds.Sources)
             {
@@ -155,13 +192,24 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
                 int owner = _dds.SenderAppInstanceOf(src) ?? (int)src;
                 Mirror(owner, src, source, _netLanes!, at, resolve);
             }
+            // ⭐ §15 K3 — every traffic node's pedestrians (SumoSharp H14: one reconstructor per sender, sim-time poses)
+            _pedDds ??= new DdsMultiSourcePedSubscriber(_participant, SilentSourceSeconds, () => _wireNow);
+            _pedDds.Pump();
+            foreach (var (src, peds) in _pedDds.Sources)
+            {
+                if (_runtime is not null && src == (uint)_localNodeId) continue;
+                MirrorPeds(_pedDds.SenderAppInstanceOf(src) ?? (int)src, src, peds, at, resolve);
+            }
         }
         _staleMirrors.Clear();
         foreach (var k in _mirrors.Keys) if (!_liveMirrors.Contains(k)) _staleMirrors.Add(k);
         foreach (var k in _staleMirrors) _mirrors.Remove(k);
+        _stalePedMirrors.Clear();
+        foreach (var k in _pedMirrors.Keys) if (!_livePedMirrors.Contains(k)) _stalePedMirrors.Add(k);
+        foreach (var k in _stalePedMirrors) _pedMirrors.Remove(k);
         if (resolve) _lastResolved = at;
 
-        _replicas!.Update(_cars);
+        _replicas!.Update(_cars, _peds);
         Publish(world);
     }
 
@@ -174,12 +222,22 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (_lights.Count == 0) _lights = source.TlStateByLane;
     }
 
+    private void MirrorPeds(int owner, uint src, Sim.Pedestrians.Lod.PedRemoteReconstructor peds, double at, bool resolve)
+    {
+        var k = (owner, src);
+        _livePedMirrors.Add(k);
+        if (!_pedMirrors.TryGetValue(k, out var mirror)) _pedMirrors[k] = mirror = new TrafficPedMirror(_net!.Placement, owner);
+        if (resolve) mirror.Resolve(peds, at, _peds);
+    }
+
     private void Stop(EntityRepository world)
     {
         _runtime?.Request(null);
         _adopted = null;
         _mirrors.Clear();
+        _pedMirrors.Clear();
         _cars.Clear();
+        _peds.Clear();
         _replicas?.Clear();
         _lastResolved = double.NaN;
         _net = null;
@@ -194,7 +252,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (_frame is null || !ReferenceEquals(_frame.Lights, _lights))
         {
             var replicas = _replicas!;
-            _frame = new TrafficFrame(_cars, replicas.IsReplica, _lights);
+            _frame = new TrafficFrame(_cars, replicas.IsEntity, _lights, _peds, replicas.IsPedReplica);
             world.RegisterManagedComponent<TrafficFrame>();
             world.SetSingletonManaged(_frame);
         }
@@ -225,4 +283,30 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
 
     private static ITkbDatabase? TkbOf(EntityRepository world)
         => world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+}
+
+/// <summary>
+/// ⭐ CE-4021 — the clock a silent traffic node is measured on: WALL seconds that pass only while the cluster clock advances.
+/// </summary>
+/// <remarks>
+/// 📌 Measured 2026-10-17: on cluster time itself IG lost every car for over 100 s — IG's slave clock discards sync results whose round
+/// trip exceeds 200 ms (a loaded box) and corrects in JUMPS, and a jump of more than 5 s read as 5 s of silence, every time.
+/// ⭐ So: paused (the cluster clock holds) ⇒ this clock holds; running ⇒ it runs at wall rate, at most one second a frame, whatever
+/// the cluster clock jumps by.
+/// </remarks>
+public struct SilenceClock
+{
+    private double _lastCluster, _lastWall, _seconds;
+    private bool _started;
+
+    /// <summary>The clock after one frame: <paramref name="clusterSeconds"/> is the node's cluster time, <paramref name="wallSeconds"/>
+    /// any monotonic wall clock.</summary>
+    public double Tick(double clusterSeconds, double wallSeconds)
+    {
+        if (_started && clusterSeconds > _lastCluster) _seconds += Math.Clamp(wallSeconds - _lastWall, 0.0, 1.0);
+        _started = true;
+        _lastCluster = clusterSeconds;
+        _lastWall = wallSeconds;
+        return _seconds;
+    }
 }

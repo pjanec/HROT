@@ -1261,6 +1261,10 @@ public sealed partial class Engine : IEngine
 
     public void RemoveObstacle(ObstacleHandle handle) => _obstacles.Remove(handle);
 
+    // HROT H12: the loaded network, so Bridge.ExternalBodyFeed resolves lane handles against the SAME model the
+    // obstacle API indexes (AddCore's `_network.LanesByHandle[laneHandle]`). Null before LoadScenario/LoadNetwork.
+    internal NetworkModel? LoadedNetwork => _network;
+
     // Resolve the lane handle -> LaneId string (which the lane-filtering consumers -- ObstacleConstraint,
     // the reroute/junction/follower scans -- still match on) and store. The obstacle's string Id is empty
     // (it was only ever the string-API key); ComputeLateralEvasion's tie-break among overlapping obstacles
@@ -2886,6 +2890,22 @@ public sealed partial class Engine : IEngine
     // LIVE vehicle's id throws: two vehicles answering to one id would break every id-keyed consumer.
     public VehicleHandle SpawnVehicle(VTypeHandle type, IReadOnlyList<string> routeEdges, string? vehicleId,
         double departPos = 0.0, double departSpeed = 0.0, int departLane = 0, bool departBestLane = false)
+        => SpawnVehicleCore(type, routeEdges, vehicleId, departPos, departSpeed, departLane, departBestLane, arrivalPos: null);
+
+    // docs/HROT-INTEGRATION-DESIGN.md H13: the routed, host-id spawn that also sets SUMO's `arrivalPos` -- the
+    // vehicle leaves the simulation when it reaches `arrivalPos` (m along its final edge) rather than that edge's
+    // end; null = the edge end (identical to the H5 overload). Every argument is required, so no call to the
+    // optional-argument overloads can bind here. Throws as H5 does.
+    public VehicleHandle SpawnVehicle(VTypeHandle type, string fromEdge, string toEdge, string? vehicleId,
+        double departPos, double departSpeed, int departLane, bool departBestLane, double? arrivalPos)
+    {
+        var edges = Router().Route(fromEdge, toEdge)
+            ?? throw new InvalidOperationException($"no route from edge '{fromEdge}' to '{toEdge}'.");
+        return SpawnVehicleCore(type, edges, vehicleId, departPos, departSpeed, departLane, departBestLane, arrivalPos);
+    }
+
+    private VehicleHandle SpawnVehicleCore(VTypeHandle type, IReadOnlyList<string> routeEdges, string? vehicleId,
+        double departPos, double departSpeed, int departLane, bool departBestLane, double? arrivalPos)
     {
         if (_network is null || _config is null)
         {
@@ -2923,7 +2943,8 @@ public sealed partial class Engine : IEngine
             // departBestLane -> SUMO's departLane="best" (ResolveBestDepartLane): the vehicle enters on
             // the lane that best continues its route, so it isn't forced to cross lanes near a junction.
             // Default false keeps the historical Given(departLane) -> byte-identical for every caller.
-            DepartLaneIndex: departBestLane ? DepartLaneValue.Best : DepartLaneValue.Given(departLane));
+            DepartLaneIndex: departBestLane ? DepartLaneValue.Best : DepartLaneValue.Given(departLane),
+            ArrivalPos: arrivalPos);
 
         // §9: reuse a freed slot when available, else append. Capacity for the (possibly new) slot is
         // ensured afterwards; a recycled slot's generation is already the post-Despawn bumped value.
@@ -2972,6 +2993,31 @@ public sealed partial class Engine : IEngine
             }
         }
 
+        return false;
+    }
+
+    // docs/HROT-INTEGRATION-DESIGN.md H15: the handle and RESOLVED vType id (the read surface's VehicleTypes value) of
+    // the live -- Pending or Active, not arrived/despawned -- vehicle whose id is `id`. A linear scan like
+    // IsLiveVehicleId above, for a host's rare remove-by-name path; never called per step and mutates nothing, so it
+    // cannot touch the parity path. False for an unknown id or one whose vehicle has left.
+    public bool TryGetLiveVehicle(string id, out VehicleHandle handle, out string vTypeId)
+    {
+        if (id is not null)
+        {
+            foreach (var v in _vehicles)
+            {
+                if (!v.Arrived && string.Equals(v.Def.Id, id, StringComparison.Ordinal))
+                {
+                    var idx = v.EntityIndex;
+                    handle = new VehicleHandle((uint)idx, idx < _vehicleGeneration.Length ? _vehicleGeneration[idx] : (ushort)0);
+                    vTypeId = v.VType.Id;
+                    return true;
+                }
+            }
+        }
+
+        handle = default;
+        vTypeId = string.Empty;
         return false;
     }
 
@@ -12671,7 +12717,10 @@ public sealed partial class Engine : IEngine
         // FINAL (arrival) lane -- the arrival branch in ExecuteMoveVehicle breaks before advancing
         // past it.
         var arrivalLane = _network!.LanesByHandle[v.LaneHandle];
-        var arrivalPos = arrivalLane.Length;
+        // H13: an explicit arrivalPos reports MIN2(arrivalPos, laneLength), SUMO's own clamp; null = the lane length.
+        var arrivalPos = v.Def.ArrivalPos is { } explicitArrival
+            ? Math.Min(explicitArrival, arrivalLane.Length)
+            : arrivalLane.Length;
 
         // routeLength = (running distance travelled) + arrivalPos, matching SUMO's MSDevice_Tripinfo
         // `myRouteLength + arrivalPos`. RouteDistanceTraveled is the running accumulator seeded at
@@ -12927,8 +12976,12 @@ public sealed partial class Engine : IEngine
                     // final-edge vehicle still short of the end keeps approaching). Measure-zero in
                     // free flow -- vehicles overshoot (pos > length) and arrive via the normal path --
                     // so byte-identical for every committed golden (verified by the full suite).
+                    // H13: a vehicle given an explicit arrivalPos arrives when it reaches THAT offset on its
+                    // final edge (SUMO's `pos >= arrivalPos`). ArrivalPos is null for every parsed vehicle and
+                    // every pre-H13 spawn, so the added term is false and this is byte-identical.
                     var atFinalEdgeEnd = v.LaneSeqIndex + 1 >= v.LaneSeqLen
-                        && v.Kinematics.Pos >= currentLane.Length;
+                        && (v.Kinematics.Pos >= currentLane.Length
+                            || (v.Def.ArrivalPos is { } arrivalAt && v.Kinematics.Pos >= arrivalAt));
                     if (!atFinalEdgeEnd)
                     {
                         break;

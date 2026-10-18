@@ -16,7 +16,7 @@ related-designs:
   - UX/UX_Feature_Map_Parity.md §3.2a — pack constructs, host schedules: the rule §10 builds on.
   - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
   - DESIGN_Terrain_Combat_Tuning.md §5a — the debug-trace gizmos; global where SimHost/Replay Browser draw only the selected entity.
-  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer on the 2-D map (TrafficRoadPlan) and the map buffer's 16384 default; §8.7 here records its publish size
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer on the 2-D map (TrafficRoadPlan — a symbol, never in 3-D, R-4058) and the map buffer's 16384 default; §8.7 here records its publish size
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the Channels family's gizmos (ActionStatusGizmo, PeekAndFireGizmo — built); §9.7 here says where a behaviour's gizmo goes
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
@@ -397,7 +397,7 @@ batch** *(the user ruled the cost acceptable)*; recorded so it is not lost.
 
 📐 **A measured size, `2026-10-17`** *(AQ93 §12.4 — the SUMO slice 1 acceptance)*: a world layer drawn on every host
 (terrain, the SUMO roads) is in the published batch too, at 64 B a primitive. The SUMO road layer alone first drew ~51.8k
-triangles a frame and starved the map buffer; its 2-D plan is **3 731** primitives ≈ 239 KB a frame per publishing node.
+triangles a frame and starved the map buffer; its 2-D symbol (R-4058: lane centrelines + light dots, within a 2048 budget, else edges, else none) is ~1 000 primitives ≈ 64 KB a frame per publishing node.
 ⭐ The map buffer's default is now **16384** (`MapInteractionContext.DefaultBufferCapacity`); the publisher sends what is
 drawn, never the capacity. ⇒ ⭐ if this gate is ever built, a **local-only world layer** (drawn alike on every host from its
 own world data, so a remote copy carries nothing new) is the cheapest primitive to leave out — ⚠ but `DebugPrimitive` has no

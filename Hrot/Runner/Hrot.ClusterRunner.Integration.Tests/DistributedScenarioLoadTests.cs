@@ -132,6 +132,10 @@ public sealed class DistributedScenarioLoadTests : IDisposable
             $"CGF world must contain exactly 2 units after scenario load. Actual: {CountUnits(cgfWorld)} " +
             $"({cgfWorld.EntityCount} entities with their part children): {DescribeUnits(cgfWorld)}.");
 
+        // ⭐ CE-4014 — and exactly ONE World Environment (C-3). 📌 Measured 2026-10-18: the scenario's units now materialise once (the
+        //   double load is gone); this test predated C-3 and counted the environment as a third unit.
+        Assert.Equal(1, CountWorldEnvironments(cgfWorld));
+
         // Find the attacker (has ActiveMissionPlan) and target entities.
         Entity attackerEntity = Entity.Null;
         Entity targetEntity   = Entity.Null;
@@ -139,7 +143,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         for (int i = 0; i <= cgfWorld.MaxEntityIndex; i++)
         {
             var e = cgfWorld.GetEntityByIndex(i);
-            if (e == Entity.Null || !cgfWorld.IsAlive(e) || IsPart(cgfWorld, e)) continue;
+            if (e == Entity.Null || !cgfWorld.IsAlive(e) || IsPart(cgfWorld, e) || IsWorldEnvironment(cgfWorld, e)) continue;
 
             if (cgfWorld.HasManagedComponent<ActiveMissionPlan>(e))
                 attackerEntity = e;
@@ -272,6 +276,23 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
            && w.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e);
 
+    /// <summary>⭐ CE-4014 — the scenario's World Environment (8810): every load has exactly one (docs/designs/weather/DESIGN_Weather_And_Time.md
+    /// C-3 — a scenario with none gets a default at load). It is not a unit.</summary>
+    private static bool IsWorldEnvironment(EntityRepository w, Entity e)
+        => w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e)
+           && w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType == Hrot.Map.Common.TkbEntityTypes.WorldEnvironment;
+
+    private static int CountWorldEnvironments(EntityRepository w)
+    {
+        int n = 0;
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e != Entity.Null && w.IsAlive(e) && IsWorldEnvironment(w, e)) n++;
+        }
+        return n;
+    }
+
     /// <summary>The units found, by TKB type and network id — so a wrong count names the extra one.</summary>
     private static string DescribeUnits(EntityRepository w)
     {
@@ -294,7 +315,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         for (int i = 0; i <= w.MaxEntityIndex; i++)
         {
             var e = w.GetEntityByIndex(i);
-            if (e != Entity.Null && w.IsAlive(e) && !IsPart(w, e)) n++;
+            if (e != Entity.Null && w.IsAlive(e) && !IsPart(w, e) && !IsWorldEnvironment(w, e)) n++;
         }
         return n;
     }

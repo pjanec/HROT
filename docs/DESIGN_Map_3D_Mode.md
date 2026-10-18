@@ -10,10 +10,11 @@ updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + re
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
-known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
+known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: the sun, the sky, fog and cloud layers come from WeatherField
   - designs/audio/DESIGN_FPS_Audio.md — OWNS the AudioLayer the pack attaches beside PossessionStation, and the audio files' CC0 licence table (AU-8)
   - designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the descent (rope, canopy) the map draws (U-1); ⚠ its D-8 keeps §6m C-4 only for a hop ≤ 3 m and SIMULATES rope / parachute descents
@@ -2673,7 +2674,7 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ⚠ door leaves move (open/closed) but the terrain mesh is built once — picking through a door that opened after load | S2: doors as separate dynamic boxes, or accepted |
 | ⚠ hover picking every frame: entity boxes + one mesh ray per frame | S2, measured |
 | ⚠ which CC0 texture pack — ambientCG / Poly Haven are CC0 by their own terms; specific textures and repo size not chosen | S7, with a licence table |
-| ✅ **VERIFIED `2026-10-11`**: the 3-D pass accepts `Map2D \| Viewport3D` (`Map3DGizmoTests`) — every gizmo today targets `Map2D` only | — |
+| ✅ **VERIFIED `2026-10-11`**: the 3-D pass accepts `Map2D \| Viewport3D` (`Map3DGizmoTests`) — every gizmo today targets `Map2D` only · ⭐ `2026-10-17` (R-4058): except a primitive carrying `PipelineTarget.FlatOnly` — a 2-D symbol of something this map draws as its own model (the SUMO road layer); the triage always culls it (`Map3DGizmoTests.FlatOnly_IsCulledBy3D_AndPlainMap2D_IsNot`) | — |
 | ⚠ the overhead perspective camera at matched height looks close enough to the 2-D map at the swap (tall buildings lean slightly at the edges — seen in S1's overhead shot) — ⚠ and north flips at the swap (§6a) | the user, in the editor |
 | ✅ **VERIFIED `2026-10-10`**: every placeable built-in type has a family, and the icon fallback is unchanged for every built-in type (`Map3DTests`) | — |
 | ⚠ DIS air categories for helicopter / fixed wing | when the first air type is added |

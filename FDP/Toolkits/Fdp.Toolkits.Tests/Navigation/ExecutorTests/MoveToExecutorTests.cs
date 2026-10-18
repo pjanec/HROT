@@ -91,6 +91,26 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
         /// intent IDs match, <see cref="MoveToExecutor.Execute"/> must set channel status
         /// to Success.
         /// </summary>
+        /// <summary>⭐ AQ93 R-4023 — a move "in traffic" (<see cref="RoadUse.InTraffic"/> in the flags) hands the vehicle to SUMO:
+        /// the intent asks <see cref="NavigationMode.Traffic"/>, not a path; any other road use still plans one.</summary>
+        [Fact]
+        public void MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan()
+        {
+            foreach (var (use, mode) in new[] { (Fdp.Toolkit.Navigation.RoadUse.InTraffic, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, NavigationMode.PathToPoint) })
+            {
+                var (world, entity, channel) = BuildWorld(new Vector2(300f, 150f), arrivalRadius: 5f, speed: 15f);
+                unsafe
+                {
+                    ref var p = ref Unsafe.AsRef<MoveToParams>(Unsafe.AsPointer(ref channel.Params[0]));
+                    p.Flags = (byte)(((int)use << NavigationConstants.FlagShiftRoadUse) & NavigationConstants.FlagMaskRoadUse);
+                }
+
+                new MoveToExecutor().OnEnter(entity, ref channel, world);
+
+                Assert.Equal(mode, world.GetComponent<NavigationIntent>(entity).Mode);
+            }
+        }
+
         [Fact]
         public void MoveToExecutor_Execute_ReturnsSuccessWhenStatusArrived()
         {

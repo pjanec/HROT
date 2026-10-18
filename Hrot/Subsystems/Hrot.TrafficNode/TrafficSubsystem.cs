@@ -41,16 +41,7 @@ public sealed class TrafficSubsystem : ISubsystem, IProvidesDebugSurface, Hrot.C
         // UNIFY: identical to the HrotNodeConfig of SimHostApp.cs:365-380 and CgfSubsystem.cs:715-727 — the participant comes
         //   from the composition root (the runner made it with sender tracking, which N5 needs: receivers read the car's owner
         //   from the sample's sender), Headless=false because Headless means "no window", not "no network".
-        var hrotConfig = new HrotNodeConfig
-        {
-            DomainId            = config.DomainId,
-            NodeId              = nodeId,
-            Headless            = false,
-            ExternalParticipant = _networkFactory.Participant,
-            LocalTempRoot       = Path.Combine(OrchestrationConstants.ResolveStagingRoot(), "nodes", $"node-{nodeId}"),
-            LogDirectory        = Path.Combine(AppContext.BaseDirectory, "logs"),
-            SubsystemName       = Name,
-        };
+        var hrotConfig = HrotNodeConfig.ForNode(config.DomainId, nodeId, Name, _networkFactory.Participant);   // ⭐ CE-4013 D13
 
         _bootstrapper = new TrafficNodeBootstrapper();
         _bootstrapper.BootstrapNode(hrotConfig, TrafficNodeBootstrapper.Role, _networkFactory);

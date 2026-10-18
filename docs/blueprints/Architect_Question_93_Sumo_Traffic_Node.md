@@ -4,7 +4,7 @@ updated: 2026-10-17
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
   slice 2 (the networked pack + the traffic node, §12) BUILT 2026-10-17: §12.1 is its as-built; the rest of §6 is DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
-current-answer: §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §15.8 (SUMO people and cars drawn as ours, CE-4031) · §15.9 (demo-city houses, CE-4028) · §15.7 (slice 5a/5b AS BUILT — pedestrians, panic, conversion) · §14.6 (slice 4) · §13.7 (slice 3) · §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimHost, CGF and IG compose the mirror since slice 2 (§12.1);
@@ -149,7 +149,7 @@ classDiagram
   class ReplicationRoute { <<NEW component 453, general>> RouteId }
   class TrafficFrame { <<NEW world singleton 454>> Cars IsEntity Lights }
   class TrafficRoadGizmo { <<NEW, 2-D map>> draws the Plan }
-  class TrafficRoadPlan { <<NEW>> lane strips + ground rows, 2-D }
+  class TrafficRoadPlan { <<NEW>> centrelines by budget, 2-D symbol }
   class TrafficLayer3D { <<NEW, 3-D map>> }
   class LiveCitySim { <<SumoSharp>> Engine + car demand + publisher + in-memory wire }
   class DrClock { <<SumoSharp>> ResolveAt }
@@ -424,10 +424,10 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | slice | content | state |
 |---|---|---|
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
-| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT — §12.1/§12.2; five-process run §12.3 (cars flow, one id and owner per car; ⚠ live acceptance only partly run) |
-| 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | |
-| 4 | R-4023 handover (`KinematicsMode.Traffic`) | |
-| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
+| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
+| 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
+| 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT + live — §14.6 (SumoSharp H13) |
+| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ✅ BUILT + live on the cluster §15.7 (SumoSharp H14, H15) |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
 ## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
@@ -701,7 +701,7 @@ on, in the same shape the terrain already uses: *"the map sees triangles and a k
 (`TerrainLayer3D.cs:15`, R-250/R-252). ⇒ a **road layer that is the terrain layer's sibling** — the mesh built once per
 net and rebuilt only when the net changes (`TerrainLayer3D` keys on `ITerrainRenderGeometry.Identity`), coloured by kind;
 ~~the 2-D map draws the same triangles flat~~ *(⛔ SUPERSEDED as built, 2026-10-17 — ~51.8k triangles a frame starved the map's
-gizmo buffer; the 2-D map draws a PLAN of the same roads, §12.4)*; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
+gizmo buffer; R-4058: the 2-D map draws a SYMBOL — lane centrelines and light dots — and never in 3-D, §12.4)*; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
 The Stride host and a future production engine take the same triangles.
 
 | rejected | the one fact |
@@ -938,10 +938,561 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | ⭐ found | fixed | rail |
 |---|---|---|
 | ✅ load · 9 car replicas near our bodies, moving · pause drift 0.0000 m · no replica beyond 350 m of every body · LOS soldier→car resolves the car · deleting the traffic entity leaves zero replicas | — | — |
-| ⛔⛔ **the map drew NOTHING.** 📐 `TrafficRoadGizmo` emitted the 3-D meshes flat — ambient ground 27.5k, asphalt 15.6k, crosswalks 6.7k, junctions 2.0k triangles ≈ **51.8k a frame** — into the map's **4096**-primitive gizmo buffer (`/panels/_gizmo`: 48 512 dropped a frame), ground first ⇒ roads, lights, cars and every entity gizmo after it were dropped | ⭐ `TrafficRoadPlan`, built once with the scene: each normal lane a world-width line per shape segment (1 062), sidewalks lighter, the junction mesh as is, the ground cells merged along their rows; crosswalks and markings stay out of 2-D (paint). ⭐ The map buffer's default rises to **16384** in one place (`MapInteractionContext.DefaultBufferCapacity`; IG's explicit 4096 removed — it equalled the old default). The 3-D layer is unchanged | `TheRoadLayerFitsTheMapBufferTests` — the layer takes ≤ a quarter of the buffer, nothing dropped; the ground rows cover exactly the cells and none crosses our terrain; every normal-lane segment has a strip · `CE-4019` |
+| ⛔⛔ **the map drew NOTHING.** 📐 `TrafficRoadGizmo` emitted the 3-D meshes flat — ambient ground 27.5k, asphalt 15.6k, crosswalks 6.7k, junctions 2.0k triangles ≈ **51.8k a frame** — into the map's **4096**-primitive gizmo buffer (`/panels/_gizmo`: 48 512 dropped a frame), ground first ⇒ roads, lights, cars and every entity gizmo after it were dropped | ⭐ first fix (⛔ SUPERSEDED below by R-4058): a 2-D plan of lane strips at world width, the junction mesh and merged ground rows, 3 731 primitives; the map buffer default raised to **16384** (`MapInteractionContext.DefaultBufferCapacity`; IG's equal 4096 override removed) | `TheRoadLayerFitsTheMapBufferTests` · `CE-4019` |
 | ✅ **live after the fix: 11/11** — the map buffer holds 3 966 primitives with **0 dropped**, the screenshot shows the lanes, sidewalks and junctions around our terrain; after deleting the traffic entity the roads stay and the lights and cars go | — | `accept_slice1.py` check ①b (`/panels/_gizmo` dropped == 0) |
-| ⚠ the map buffer is also PUBLISHED over DDS every frame by CGF, SimHost and IG (`DebugPrimitivesBatchPublisherSystem`, 64 B a primitive). ⭐ The publisher sends the primitives drawn, not the capacity — so the plan CUTS the road share of that traffic (it was capped at 4096 ≈ 256 KB a frame, the 2-D plan is 3 731 ≈ 239 KB — the same order, now carrying the roads instead of dropping them). ⛔ Not gated here: 🔒 the publish capability stays, gating is optional (`DESIGN_Uniform_Gizmo_Membership.md` §8.5b / §8.7) | — | — |
+| ⭐⭐ **R-4058 — the 2-D road net is a SYMBOL, never drawn in 3-D.** 🔒 User, 2026-10-17: *"We do not neef full triangle road net in 2d, symbolic is more than enough (lane centerlines, traffic light as single colored dot)."* · *"Note that 4k buffer is still small for large road net and some simplifacion might be necessary - maybe even like  like not rendering larger road net in 2d map at all."* · *"for sure no 2d road net gizmo should be shown in 3d map where the triangle road net iz expected."* 📐 And it WAS drawn in 3-D: the 3-D pass accepts `Map2D \| Viewport3D` (`DebugGizmoLayer.cs:116`, DESIGN_Map_3D_Mode §7) | ⭐ `TrafficRoadPlan` is now centrelines only: every vehicle-lane segment (demo-city 648) + one screen-pixel dot per light head (372); a net over `Budget` = 2048 falls back to ONE centreline per edge, and over that draws no road net in 2-D at all (lights off too) — no sidewalks, junction fills, crosswalks, markings or ground. ⭐ A new `PipelineTarget.FlatOnly` (= 8, outside `All`): the 3-D triage always culls it; the whole road layer (centrelines, dots, non-entity car boxes) carries it, so the 3-D map shows only its meshes and `TrafficLayer3D`'s cars | `TheRoadLayerFitsTheMapBufferTests` (lanes, budget, edges → none fallback, every primitive `FlatOnly`) · `Map3DGizmoTests.FlatOnly_IsCulledBy3D_AndPlainMap2D_IsNot` · ✅ live: the editor's map shows lane centrelines and red/green light dots, 1 287 primitives, 0 dropped |
+| ⚠ the map buffer is also PUBLISHED over DDS every frame by CGF, SimHost and IG (`DebugPrimitivesBatchPublisherSystem`, 64 B a primitive). ⭐ The publisher sends the primitives drawn, not the capacity — so the plan CUTS the road share of that traffic (it was capped at 4096 ≈ 256 KB a frame, the symbolic layer is ~1 000 ≈ 64 KB). ⛔ Not gated here: 🔒 the publish capability stays, gating is optional (`DESIGN_Uniform_Gizmo_Membership.md` §8.5b / §8.7) | — | — |
 
+
+### 12.5 Found running the slice 2 acceptance *(2026-10-17 — five processes, `accept_slice2.py`, demo-city from the IG port)*
+
+| ⭐ found | fixed | rail |
+|---|---|---|
+| ✅ run 1, 11/13: every node `OperatingLive` · 14 car replicas on CGF, SimHost and IG, the SAME 14, each owned by the traffic node (800) on every node · cars move · pause from IG holds every mirror still (0.0000 m) · no map buffer drops (CGF/SimHost/IG ~4.1k, 0 dropped) · SimHost LOS soldier→car resolves the car · after the traffic node is killed every node stays up and no car moves | — | — |
+| ⛔ `CE-4020` — SUMO CRAWLED: the traffic node's log is one `TrafficStepping timed out after 100ms` / circuit-open-10 s cycle. `SlowBackground(20)` gives 100 ms; the session build parses the net (2.5 s) and a catch-up runs ≤ 40 steps ⇒ every such tick timed out, the circuit opened, the next catch-up was 40 steps again. ⛔ An abandoned tick also overlaps the next (`SteppingTick` is not re-entrant) | the stepping module's budget is `MaxTickMs` = 30 s | `TrafficRuntimeTests.CE4020_…` |
+| ⛔ run 1 ③ pose spread median 2.81 m / p90 4.69 m (CE-4017 measured 0.76–1.8 m) — read with SUMO crawling | ⏳ re-measured after CE-4020 | ③ |
+| ⛔ `CE-4021` — E10 NOT BUILT: after the traffic node died, CGF/SimHost/IG kept 21/20/19 frozen replicas for good — the mirror's subscriber had no source timeout | a source silent for 5 s is removed, on `SilenceClock` (wall time that runs only while the cluster clock advances — a paused cluster keeps its cars) | `ASilentTrafficNodeLosesItsCarsTests` |
+| ✅✅ **run 5: 15/15** (`scripts/sumo-accept-slice2.py`, fresh five-process cluster): every node `OperatingLive` · the same 12–13 replicas on CGF, SimHost and IG within 0 s of the wait, each owned by the traffic node (800) everywhere · cars move · pose spread median **0.98 m** (p90 2.9 m) · pause from **CGF** holds every mirror at 0.0000 m · no map buffer drops (~1 400) · SimHost LOS resolves a car · the traffic node killed ⇒ every node stays up, no car moves, every replica cleared in 12.5 s · 0 stepping timeouts. ⚠ Found on the way, the script's own: ⛔ run 1's "0.0000 m" pause was SUMO crawling (CE-4020), not the pause — IG and the orchestrator REFUSE `/sim/pause` (`NOT_SUPPORTED_HERE: no 'time.drive'`), only the time-driving node (CGF) pauses the cluster, and the script had ignored the refusal; a car leaving the vicinity between two reads read as "no owner" | the script pauses through CGF and asserts the pause was accepted; skips a car that left mid-check | `scripts/sumo-accept-slice2.py` |
+| ⛔ run 2 (the first build of CE-4021): IG showed NO car for 100+ s while CGF had 20. 📐 It measured silence on cluster time, and IG's slave clock corrects in JUMPS on a loaded box (`SlaveSyncController` discards sync results with RTT > 200 ms) — every jump > 5 s read as silence and dropped the source. ⭐ Also: SUMO's first cars reach the mirrors ~32 s after the load (the grant, then the session build) — the acceptance now waits for them | `SilenceClock` | `TheSilenceClock_HoldsWhilePaused_AndIgnoresAClockJump` |
+
+## 13. Slice 3 — our bodies into SUMO (E4, R-4027) *(2026-10-17 — build-state: BUILT, ✅ live; §13.7 is the as-built)*
+
+### 13.1 INVENTORY *(code graph CLI `search_graph` + grep, 2026-10-17)*
+
+| query | total | what it found |
+|---|---|---|
+| HROT `name_pattern=".*Traffic.*"`, Class | 46 | the slice 1–2 types (§3.0, §12.1); ⛔ **nothing feeds our bodies to SUMO** |
+| HROT `".*Footprint.*"`, Class | 6 | ⭐ `EntityFootprint` (FDP.Toolkits — the ONE body size rule: `VehicleParams` Length/Width, else 5 × 2.5 m) · `VehicleFootprint` (EQS) · `ZoneFootprint` |
+| HROT `".*Crowd.*"`, Class | 27 | civilians `CrowdSystem`, DotRecast crowd, SumoSharp's `OrcaCrowd`/`DdsPedCrowdFrame` — ⛔ none is a SUMO footprint source of OUR units |
+| HROT `".*Lane.*(Index\|Grid\|Spatial).*\|.*Nearest.*Lane.*"` | 17 | scenario fields only — ⛔ no lane spatial index on the HROT side |
+| sumosharp `".*(Nearest\|Locate\|Snap).*Lane.*\|.*Lane.*(Index\|Grid\|Spatial).*"` | 40 | ⭐ `SumoRouteGraphNav.NearestLane` (`Sim.Pedestrians`, a uniform grid over PEDESTRIAN lane segments, ONE nearest) — ⛔ not vehicle lanes, not "every lane a footprint overlaps" |
+| SumoSharp obstacle / crowd API *(read)* | — | ⭐ `Engine.AddMovingObstacle(laneHandle, frontPos, length, speed, maxDecel, …, latPos, width)` / `UpdateObstacle` / `RemoveObstacle` (`Engine.cs:1235-1262`, dead-reckoned each step) · ⭐ `Engine.CrowdSource` + `CompositeFootprintSource` + `WorldDiscQuery.InsertNearest` · ⭐ `CrowdLongitudinalConstraint` brakes a car for any disc ahead that overlaps its footprint, gated ONLY on `CrowdSource != null` (`Engine.cs:11549`) · ⛔ `LiveCitySim` keeps `_engine` private and sets `CrowdSource` once (`LiveCitySim.cs:619`, null when peds are off — ours are) |
+| body class | — | ⭐ `Locomotions.Of(view, e)` (FDP.Toolkits `Motion/Locomotion.cs`) — the one classifier: Pedestrian / Wheeled / Tracked / Amphibious / air classes |
+
+### 13.2 Decisions *(E4 is ruled — R-4027; these are the HOW, each with a lean)*
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **F1** | where body → lane projection lives | ⭐ **upstream, in SumoSharp** (SumoSharp **H12**): `LaneSpatialIndex` (Sim.Ingest — a grid over lane segments returning EVERY lane within a radius) + `LiveCitySim.SetExternalBodies(ReadOnlySpan<ExternalBody>)`, which owns the obstacle handles and the disc source. HROT only gathers bodies and converts coordinates | HROT-side projection: duplicates `LaneProjection` + a grid SumoSharp's own ped nav already half-has, and needs `_engine` anyway |
+| **F2** | which bodies | ⭐ every entity with `SimTransform` that is not a SUMO car (`TrafficCar`) and whose `Locomotions.Of` is a GROUND class; air and unknown skipped | every `PhysicsCollider`: buildings and props are terrain, not movers |
+| **F3** | vehicle vs person | ⭐ Wheeled / Tracked / Amphibious ⇒ a **vehicle**: a moving obstacle on **every vehicle lane its footprint overlaps** (`|lat| < lane.Width/2 + body.Width/2`), speed = its velocity along the lane (≥ 0), length/width from `EntityFootprint`; no lane within 3 m ⇒ a disc. Pedestrian ⇒ a **disc** (radius 0.4 m) | nearest lane only: a vehicle across the road blocks one direction only · discs for vehicles: a 6 m truck as one disc (R-4027) |
+| **F4** | threads | ⭐ the main thread snapshots the bodies once a frame into an immutable array → `TrafficRuntime.SetBodies` (one `Volatile.Write`); the stepping thread applies the latest inside `StepTo`'s lock, before stepping | a lock shared with the main thread: the stepping tick can take seconds (CE-4020) |
+| **F5** | coordinates | ⭐ `SumoNetPlacement.ToNet` — the exact inverse of `ToLocal` (anchor, or UTM ↔ WGS84 ↔ local) | — |
+| **F6** | pedestrians reacting to our units | ⏸ slice 5 — SUMO's pedestrians are off until then (`PedPopulationCap = 0`); the same discs feed them when they come | — |
+
+### 13.3 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficBodyFeedSystem { <<NEW, Input phase, serving node only>> gathers bodies each frame }
+  class TrafficBody { <<NEW record struct>> NetworkId Kind X Y Vx Vy Length Width }
+  class TrafficRuntime { <<existing, grows>> +SetBodies(bodies) }
+  class TrafficSession { <<existing, grows>> StepTo applies bodies first }
+  class SumoNetPlacement { <<existing, grows>> +ToNet(x, y) }
+  class EntityFootprint { <<existing FDP.Toolkits>> Dimensions }
+  class Locomotions { <<existing FDP.Toolkits>> Of(view, e) }
+  class LiveCitySim { <<SumoSharp, grows H12>> +SetExternalBodies(span) }
+  class ExternalBody { <<SumoSharp NEW H12>> Id Kind X Y Vx Vy Length Width }
+  class ExternalBodyFeed { <<SumoSharp NEW H12>> obstacle handles + disc source }
+  class LaneSpatialIndex { <<SumoSharp NEW H12, Sim.Ingest>> LanesNear(x, y, r) }
+  class Engine { <<SumoSharp>> AddMovingObstacle UpdateObstacle RemoveObstacle CrowdSource }
+  class CompositeFootprintSource { <<SumoSharp>> }
+  TrafficBodyFeedSystem ..> Locomotions
+  TrafficBodyFeedSystem ..> EntityFootprint
+  TrafficBodyFeedSystem --> TrafficRuntime : SetBodies
+  TrafficBodyFeedSystem ..> TrafficBody
+  TrafficRuntime --> TrafficSession
+  TrafficSession ..> SumoNetPlacement : ToNet
+  TrafficSession --> LiveCitySim : SetExternalBodies
+  LiveCitySim --> ExternalBodyFeed
+  ExternalBodyFeed --> LaneSpatialIndex
+  ExternalBodyFeed --> Engine : obstacles
+  ExternalBodyFeed ..|> ICrowdFootprintSource
+  LiveCitySim --> CompositeFootprintSource : own peds + ExternalBodyFeed
+```
+
+*What the picture shows that prose hid:* HROT gains ONE system and two small methods; every lane decision sits next to the engine
+that consumes it, so the 3 m rule and "every overlapped lane" are tested where SUMO's own car-following is.
+
+### 13.4 Sequence — one frame
+
+```mermaid
+sequenceDiagram
+  participant M as TrafficBodyFeedSystem (main)
+  participant R as TrafficRuntime
+  participant S as TrafficSession (stepping thread)
+  participant L as LiveCitySim
+  participant F as ExternalBodyFeed
+  participant E as Engine
+  M->>M: bodies = SimTransform, not TrafficCar, ground class
+  M->>R: SetBodies(snapshot) one volatile write
+  S->>R: latest bodies
+  S->>S: ToNet per body
+  S->>L: SetExternalBodies(span)
+  L->>F: Apply
+  F->>E: Add, Update, Remove obstacle per vehicle lane
+  F->>F: discs = persons + off-lane vehicles
+  S->>L: Step
+  L->>E: car-following reads obstacles and CrowdSource discs
+```
+
+### 13.5 Modules — who registers it, who calls it each frame
+
+```mermaid
+graph TD
+  subgraph Serving["Serving node: --mode traffic, or the editor (embedded)"]
+    TP[TrafficPack.Serving] -->|input phase| TBF[TrafficBodyFeedSystem]
+    TP -->|input phase| TMS[TrafficMirrorSystem]
+    TP -->|kernel module, 20 Hz async| TSM[TrafficSteppingModule]
+    TBF -->|SetBodies| RT[TrafficRuntime]
+    TSM -->|SteppingTick| RT
+  end
+  subgraph Mirroring["SimHost, CGF, IG: TrafficPack.Mirroring"]
+    TMS2[TrafficMirrorSystem]
+    NOFEED[no body feed: they do not run SUMO]
+  end
+  NED[NED replicas of our units] -.->|SimTransform, Locomotion| TBF
+  style NOFEED fill:#f66,color:#000
+```
+
+*What the picture shows:* on the dedicated traffic node our units are **NED replicas** (R-4057 — replication on every networked
+node), so the feed reads the same `SimTransform` there as the embedded editor reads locally; a mirroring host composes no feed
+(red) because it runs no SUMO.
+
+### 13.7 As built *(SumoSharp H12 = `f91c0f4`, vendored; HROT `TrafficBodyFeedSystem` → `TrafficRuntime.SetBodies` → `TrafficSession.ApplyBodies` → `LiveCitySim.SetExternalBodies`)*
+
+| decision | as built | ⛔ deviation from §13.2, and why |
+|---|---|---|
+| F1 | `Sim.Ingest.LaneSpatialIndex` (`LanesNear(x, y, r, out)`, every lane within r, ascending handle, 10 m min cell) + `Sim.Core.Bridge.ExternalBodyFeed : ICrowdFootprintSource` (owns the obstacle handles and the discs) + `LiveCitySim.SetExternalBodies(span)` / `.ExternalBodies` | the feed sits in `Sim.Core.Bridge`, not `Sim.LiveCity` — it needs only the engine, and takes the engine's own loaded net so lane handles always match · the index is a new class: `SumoRouteGraphNav`'s grid is private, over pedestrian route nodes, and `Sim.Ingest` cannot reference `Sim.Pedestrians` |
+| F3 | a vehicle overlaps a lane when `\|lat\| < lane.Width/2 + W/2` and its overshoot past the lane ends `< L/2`; per overlapped vehicle lane one obstacle: front = `offset + L/2` (clamped), speed = `max(0, v·laneDir)`, `latPos`, **`latSpeed`**, width W, maxDecel 7.5. No overlap ⇒ a CHAIN of radius-W/2 discs along its velocity (or the nearest lane's direction when standing); a person = one disc, max(L,W)/2 | ⛔ **the 3 m rule is dropped**: it changed no outcome — a vehicle overlapping no lane is a disc at 0.5 m or 50 m off the road · `latSpeed` is passed too · the record has no heading, so a footprint is taken as aligned with the lane it is tested against |
+| CrowdSource | `Engine.CrowdSource` = own source + the feed only while the feed holds a disc; otherwise exactly what the constructor set (null on HROT's peds-off sim) | — |
+| F6 | ⭐ pulled forward: `PedLodManager.Step` gets every body as discs (it was handed an empty list) — inert for HROT until pedestrians run (slice 5) | — |
+| F4 | the snapshot is applied at most once per `StepTo`, before its first step, and only when the main thread wrote a new array | — |
+
+⚠ **Limits (upstream's own report):** a car checks obstacles on its CURRENT lane only — a body just past a junction is seen when the car enters that lane (it may brake hard); discs are seen earlier. A body whose kind or size changes is removed and re-added.
+
+✅ **Live 2026-10-17** (editor, demo-city, `accept_slice3.py` 6/6): a `BoxTruck` (1053) spawned 80 m ahead of moving SUMO car 1050, in its lane — the car stopped **8.5 m** behind it and stayed still; the map buffer held 1 287 primitives, 0 dropped.
+
+Rails: upstream `HrotExternalBodyTests` (7, two of them inverse-proven by detaching the feed) · HROT `SumoCarsBrakeForOurBodiesTests` (demo-city: cars stop behind our parked trucks; same seed without them they drive on) · `TrafficBodyFeedTests` · `F5_ToNet_InvertsToLocal_AnchoredAndUtm`.
+
+### 13.6 Acceptance
+
+| | check |
+|---|---|
+| unit (upstream) | a car brakes and queues behind an external vehicle body on its lane, and passes once it is removed; a car stops for an external person disc in its path; a vehicle across two lanes blocks both |
+| unit (HROT) | the feed classifies a rifleman as a person, a truck as a vehicle, an aircraft and a SUMO replica as nothing; `ToNet ∘ ToLocal` is the identity |
+| live | demo-city: a SUMO car brakes behind our vehicle parked on its lane (its speed drops to ~0 behind it) |
+
+⚠ **Correction `2026-10-17` (CE-4024), found by the slice 5 cluster run:** the live check above ran in the EDITOR only. On the five-process
+cluster the dedicated traffic node registered no `PhysicsCollider` type, so the combat translator gave our units' replicas no collider
+there, and `TrafficBodyFeedSystem.Gather` (which queries `SimTransform` + `PhysicsCollider`) handed SUMO **no bodies at all** on the
+node that runs it. ✅ Fixed in `TrafficPack` (it registers the type; rail in `TrafficNodeBootstrapperTests`). Measured after the fix: the
+traffic node holds 20 car replicas anchored on our riflemen (0 before), so its body set is non-empty. ⏳ A cluster run of the
+"car brakes behind our vehicle" check itself is still to do.
+
+
+## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILT, ✅ live; §3.3 is its sequence; §14.6 the as-built)*
+
+### 14.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
+
+| what | measured |
+|---|---|
+| the follow-mode precedent | ⭐ `KinematicsMode.Manual` = 8 (`CarKinem/Core/NavigationEnums.cs:26`) entered from `NavigationMode.Manual` = 6 by `NavigationIntentBridgeSystem` (`:206-211`, applied once per `IntentId`); `CarKinematicsSystem` branches on it (`:170`) — the shape R-4023 copies (D7) |
+| where the intent lives | ⭐ `NavigationIntent` (dtNavigationIntent = 52) is received only through `KinematicTranslatorPack` (SimHost's role pack) — ⛔ the traffic node does not register or receive it today |
+| SUMO spawn | ⭐ `Engine.SpawnVehicle(type, fromEdge, toEdge, vehicleId, departPos, departSpeed, departLane)` routes with SUMO's own router (`Engine.cs:2944`) — ⛔ `LiveCitySim` does not expose it |
+| SUMO's command topic | `sumo/commands` = `DdsViewerCommand` (pause, speed, inject obstacle) — ⛔ a viewer channel, not a vehicle hand-over |
+| the result | `NavigationStatus.Result` — `Arrived` / `FailedBlocked` / `FailedUnreachable` (`Navigation/NavigationComponents.cs:57-80`) |
+
+### 14.2 Decisions *(the shape is ruled — R-4023; these are the HOW, each with a lean)*
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **G1** | the trigger | ⭐ `NavigationMode.Traffic` = 7 with `FinalDestination` (the brain's intent, as for every other move) → the bridge sets `KinematicsMode.Traffic` = 9 | a component the operator toggles: a second command path beside the intent |
+| **G2** | who spawns the shadow car | ⭐ the SERVING node: `TrafficHandoverSystem` reads the body replica's intent — so the traffic node composes `NavigationIntent` INGRESS (registration + the one translator, read-only) | SimHost asks over `sumo/commands`: a second command channel, and SimHost would need to know which traffic node serves |
+| **G3** | the shadow | ⭐ id `hrot:<networkId>`, its type the body's TKB type when the catalogue maps it (T1), departing from the body's nearest vehicle lane (`LaneSpatialIndex`, H12) at the body's speed, routed by SUMO to the vehicle lane nearest `FinalDestination` — upstream **H13**: `LiveCitySim.SpawnExternalVehicle(id, vType, fromEdge, toEdge, departPos, departLane, departSpeed)` + `DespawnExternalVehicle(id)` | our route handed to SUMO: our road graph is separate from SUMO's (R-4026) |
+| **G4** | following | ⭐ `TrafficShadowFollowSystem` (Hrot.Traffic) on the node with the body's KINEMATIC authority: the shadow's pose from `TrafficFrame` (cluster time, every node already resolves it) → `SimTransform` + `SimVelocity`; `CarKinematicsSystem`'s `Traffic` branch holds (it integrates nothing). No shadow yet ⇒ the body holds still | `CarKinematicsSystem` reading the frame: FDP.Toolkits cannot see `Hrot.Traffic` |
+| **G5** | ending it | ⭐ the shadow is gone after it was seen ⇒ `KinematicsMode.None`; `NavigationStatus.Arrived` when within the intent's `ArrivalRadius` of the destination, else `FailedBlocked` (the traffic node died, CE-4021). A new intent leaves the mode; the serving node then despawns the shadow (its body's intent is no longer `Traffic`) | always Arrived: a crash would read as success |
+| **G6** | never twice | ⭐ an `hrot:` car never becomes a replica (`TrafficReplicas`) and is never drawn by the road layer (the body IS the entity); the body feed (§13) skips a body in `Traffic` mode — its shadow would brake behind itself | — |
+
+### 14.3 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class NavigationIntentBridgeSystem { <<existing, grows>> Traffic to KinematicsMode.Traffic }
+  class CarKinematicsSystem { <<existing, grows>> Traffic: hold }
+  class TrafficHandoverSystem { <<NEW, serving node>> spawn or despawn hrot shadow }
+  class TrafficShadowFollowSystem { <<NEW, kinematic owner>> shadow pose to SimTransform }
+  class TrafficFrame { <<existing>> Cars }
+  class TrafficReplicas { <<existing, grows>> skips hrot cars }
+  class TrafficBodyFeedSystem { <<§13, grows>> skips Traffic-mode bodies }
+  class TrafficRuntime { <<existing, grows>> +Handover(requests) }
+  class LiveCitySim { <<SumoSharp, grows H13>> +SpawnExternalVehicle +DespawnExternalVehicle }
+  class NavigationIntentIngressTranslator { <<existing NED>> composed on the traffic node too }
+  NavigationIntentIngressTranslator --> TrafficHandoverSystem : intent on the replica
+  TrafficHandoverSystem --> TrafficRuntime : Handover
+  TrafficRuntime --> LiveCitySim : spawn, despawn
+  TrafficShadowFollowSystem ..> TrafficFrame
+  NavigationIntentBridgeSystem --> CarKinematicsSystem : KinematicsMode.Traffic
+```
+
+*What the picture shows that prose hid:* the only new edge INTO SimHost is the pose it follows, read from the frame every node
+already resolves — no new network path between SimHost and the traffic node.
+
+### 14.4 Modules
+
+```mermaid
+graph TD
+  subgraph Brain["CGF (the brain)"]
+    B[NavigationIntent mode Traffic]
+  end
+  subgraph Sim["SimHost (kinematic owner)"]
+    BR[NavigationIntentBridgeSystem] --> CK[CarKinematicsSystem Traffic: hold]
+    TSF[TrafficShadowFollowSystem] -->|SimTransform| EG[NED egress as usual]
+    TMS[TrafficMirrorSystem] -->|TrafficFrame| TSF
+  end
+  subgraph Traffic["Traffic node (serving)"]
+    NI[NavigationIntent ingress NEW here] --> THS[TrafficHandoverSystem]
+    THS --> RT[TrafficRuntime] --> SUMO[LiveCitySim]
+  end
+  B -.->|dtNavigationIntent| BR
+  B -.->|dtNavigationIntent| NI
+  SUMO -.->|sumo topics, hrot shadow| TMS
+```
+
+*What the picture shows:* two receivers of the SAME intent — the kinematic owner (to hold and follow) and the serving node (to
+spawn); ownership never moves.
+
+### 14.6 As built so far *(2026-10-17)*
+
+| decision | state |
+|---|---|
+| G1 | ✅ `NavigationMode.Traffic` = 7 → the bridge sets `KinematicsMode.Traffic` = 9 with `FinalDestination`, `ArrivalRadius`, `TargetSpeed`; `CarKinematicsSystem` returns early for it |
+| G4 | ✅ `TrafficShadowFollowSystem` (Simulation phase, composed by `TrafficPack` on every node, acting only on bodies whose `SimTransform` it owns — the `CarKinematicsSystem` filter): shadow pose → `SimTransform`, velocity from successive poses → `SimVelocity` + `VehicleState.Speed`. ⭐ **Deviation:** the result is never written here — no shadow yet ⇒ `NavState.IsBlocked` (the executor's deliberate hold, not "stuck"); gone within `max(ArrivalRadius, 15 m)` of the destination ⇒ `HasArrived` ⇒ `NavigationExecutionSystem` writes `Arrived`; gone elsewhere ⇒ mode `None`, the executor's normal blocked / replan path. So §14.2 G5's "`FailedBlocked`" comes from the executor, not from a second writer |
+| G6 | ✅ `TrafficReplicas.IsShadow` — no replica for an `hrot:` car, and `TrafficFrame.IsEntity` covers it so neither map layer draws it; the body feed skips a body whose intent or kinematics are `Traffic` |
+| G2 | ✅ the wire carries it: `ENavigationMode.NAV_TRAFFIC` = 7 both ways (`EveryMode_RoundTripsTheWire` covers it). ✅ A node with role `Traffic` and no Muscle builds ONE read-only translator, `NavigationIntentIngressTranslator` (`NedReplicationModule._trafficTranslators`), and `TrafficPack.Serving` registers `NavigationIntent` — the R-3015 role gate kept everything else out |
+| G3 | ✅ SumoSharp **H13** (`f252ddc`, vendored): `LiveCitySim.SpawnExternalVehicle(id, x, y, heading, speed, destX, destY, vType?)` (x, y = FRONT bumper; heading = atan2, 0 east) — start lane ≤ 10 m within 90° of the heading, route by SUMO's router, arrival at the destination's lane offset (a new `arrivalPos`, ≤ one step short); `DespawnExternalVehicle`; `ExternalVehicleArrived`. HROT: `TrafficHandoverSystem` (serving node, Input phase) → `TrafficRuntime.SetHandovers` → `TrafficSession.ApplyHandovers` (spawn per new intent id; an unmapped TKB type falls back to SUMO's default car; a refusal retried every 2 s SUMO time; a withdrawn intent despawns; an ARRIVED shadow is not respawned while its intent stands) |
+| G1 trigger | ✅ the operator's way in: a MOVE order with `roadUse: "InTraffic"` (`RoadUse.InTraffic` = 5, in the intent's road-use flag bits) — `MoveToExecutor` asks `NavigationMode.Traffic` instead of a path; the order completes on `Arrived` like any move. Rail `MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan` |
+| G5 slack | ⭐ `ArrivalSlackMetres` = 25 m, measured: a shadow that arrived is last seen ~14 m short (H13 ends it ≤ one step before the point, the mirror resolves one step behind the clock) — the first 15 m was too tight |
+
+Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica) · `AVehicleHandedToSumoArrivesTests` (demo-city: the shadow drives a route a SUMO car drove and vanishes at the destination; revoking it takes it back) · upstream `HrotExternalVehicleTests` (4).
+
+✅ **Live 2026-10-17** (editor, demo-city, `scripts/sumo-accept-slice4.py`): a `BoxTruck` spawned on a lane, ordered `move` with `roadUse: InTraffic` 416 m away (straight line) — SUMO drove it on ITS roads (north, a wait at a junction, west, 500 m south, east, ~600 m in 82 s), it stopped **11 m** from the destination, `KinematicsMode` went back to `None`, the order `succeeded`, and its `PrimaryOwnerId` never changed. ⚠ The script's first cut took a 6 s standstill (a red light) for the end — it now waits for the order to finish.
+
+### 14.5 Acceptance
+
+| | check |
+|---|---|
+| unit | the bridge maps `Traffic` → `KinematicsMode.Traffic` and `CarKinematicsSystem` leaves the pose alone; the follow system writes the shadow's pose; a vanished shadow ends the mode with `Arrived` near the goal and `FailedBlocked` away from it; an `hrot:` car makes no replica |
+| live | demo-city: a vehicle handed over arrives at its destination on SUMO roads, is taken back (`KinematicsMode.None`, `Arrived`), and its `PrimaryOwnerId` never changes |
+
+
+## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(2026-10-18 — build-state: BUILT, live on the cluster, §15.7)*
+
+### 15.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
+
+| what | measured |
+|---|---|
+| SumoSharp ped wire | `DdsPedReplicationSource`, `PedRemoteReconstructor` (`TryGetRenderPose`), `DdsPedLifecycle`, `PedLifecycleRecord`, `PedFreeKinematicRecord`, `PedDemand` (sumosharp graph, 14 classes) — ⛔ no multi-source ped subscriber, ⛔ peds are not named by the host, ⛔ no Despawn published, ⛔ no safe single-ped removal (§8.4 S1/S2/S5 — **H14**, dispatched upstream) |
+| HROT session | `TrafficSession` builds `LiveCitySim` with `PedPopulationCap = 0` and calls `SetPedDensity(0, 0)` — ⛔ pedestrians are OFF; `TrafficDemand` carries `TargetCars`, `Seed`, `StepSeconds` only |
+| replicas | `TrafficReplicas` (vicinity 300 m + 50 m, R-4041) makes car replicas only; `TrafficCar` has no kind |
+| civilians | ✅ `CivilianTkbCatalog` 1101–1104 (adult m/f, child, elderly, `DefaultBehaviorHash = CivilianHsm`, backend B-2) · ✅ CIV-1 Routine/Alarmed/Casualty, CIV-2 panic/shelter/cower live (behaviors) · ✅ **P6 met**: CIV-0 the safety gate (ground AI skips a Neutral target, `CE-2233`, `DESIGN_Civilians_And_Crowd_Control.md` §5b) |
+| creation | ✅ `EntityCreationRequest.PreAllocatedNetworkId` + `OwnerAppInstanceId` — a request addressed to CGF can keep the pedestrian's network id (R-4029) |
+| hits | `DamageAssessedEgressTranslator` drops a hit whose entity has no network id (`:67`) — ✅ SUMO replicas DO carry one now (R-4038), so `EntityHitDamage` already leaves the shooter's node for a car replica |
+
+### 15.2 Decisions *(the WHAT is ruled; these are the HOW, each with a lean)*
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **K1** | turning pedestrians on | `TrafficDemand` gains `TargetPedestrians` (default 0 = off, every existing scenario unchanged) and `dtTrafficDemand` carries it; demo-city's recipe asks for some | always on: 20 000 walkers nobody asked for |
+| **K2** | ped ids | the serving node names every ped from the cluster allocator (H14 `PedIdProvider`), as cars (N2) — a ped's name IS its network id | SumoSharp's own ids: a second id space (R-4029) |
+| **K3** | ped replicas (§8.7 G2/G3) | the SAME vicinity rule and the SAME `TrafficReplicas`: a ped within 300 m of an HROT body is an entity of civilian type **1101** (Neutral `EntityInfo`, `Health`, collider), owned by the traffic node; `TrafficCar` gains `Kind` (car · pedestrian) | a second replica class: two copies of the vicinity / pose / destroy code |
+| **K4** | panic (P2) | on the SERVING node: a NED `WeaponFireNotification` or `DetonationNotification` is an incident; peds within the radius (shot 50 m, blast 150 m — fields on `TrafficDemand`) are converted; contagion deferred | every node detects: N copies of one decision |
+| **K5** | conversion (P3/P4, §8.2) | `RemovePedestrian` (H14 S1) → one `EntityCreationRequest` addressed to the BRAIN node (CGF), `PreAllocatedNetworkId` = the ped's id, type 1101–1104 by the ped's kind, pose and velocity from S1, its civilian HSM entering **panic** — measured: no entry state is needed, `CivilianBehavior` goes Alarmed ⇒ Panic once `CivilianState.Fear` passes `PanicAt` (0.6), so the request carries `CivilianState { Fear = 1 }` as an initial component; owner `0` = the default processor (CGF in a cluster, the editor alone) (`EntityCreationRouting.DefaultEntityCreationRequestProcessor`) — no addressing logic; the Despawn (S2) drops every mirror, and the id reappears as our entity · ✅ the incidents reach the traffic node: `WeaponFireNotification` / `DetonationNotification` ride the shared pack on EVERY node (CE-1148, `SharedTranslatorPack.cs:120-123`) | the traffic node as creator: it is optional (R-4027), a crash would delete the people (R-4008) |
+| **K6** | cap (P7) | at most `MaxConverted` (default 30) a session; above it a ped stays in SUMO and FLEES there (§8 P7's second half — SumoSharp H16, built `2026-10-18`, CE-4027, §15.7) | no cap: one blast hands hundreds of brains to CGF in a frame |
+| **K7** | hits (§8.7 G1/G4/G5) | the traffic node ingests `EntityHitDamage` for its SUMO ids: a pedestrian converts as K5, born with the damage; a car stops in SUMO-less form (our civilian car, its driver a civilian) — **5c, after 5b** | — |
+
+### 15.3 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficDemand { <<existing, grows K1>> +TargetPedestrians +ShotPanicRadius +BlastPanicRadius +MaxConverted }
+  class TrafficSession { <<existing, grows>> peds on, PedIdProvider, RemovePedestrian }
+  class TrafficMirrorSystem { <<existing, grows>> pumps the ped wire too }
+  class TrafficReplicas { <<existing, grows K3>> cars and pedestrians }
+  class TrafficCar { <<existing, grows>> +Kind }
+  class TrafficPanicSystem { <<NEW, serving node, K4/K5>> incidents to conversions }
+  class EntityCreationRequest { <<existing>> PreAllocatedNetworkId OwnerAppInstanceId }
+  class CivilianTkbCatalog { <<existing backend>> 1101-1104 }
+  class LiveCitySim { <<SumoSharp, grows H14>> PedIdProvider RemovePedestrian peds near }
+  class DdsMultiSourcePedSubscriber { <<SumoSharp NEW H14>> }
+  TrafficSession --> LiveCitySim
+  TrafficMirrorSystem --> DdsMultiSourcePedSubscriber
+  TrafficMirrorSystem --> TrafficReplicas
+  TrafficReplicas ..> TrafficCar
+  TrafficReplicas ..> CivilianTkbCatalog : type 1101
+  TrafficPanicSystem --> TrafficSession : RemovePedestrian
+  TrafficPanicSystem --> EntityCreationRequest : to CGF
+```
+
+### 15.4 Sequence — a shot converts a pedestrian *(§8.2, as built here)*
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (shooter)
+  participant TN as Traffic node
+  participant LC as LiveCitySim
+  participant CGF as CGF (brain)
+  participant N as every node
+  SH->>TN: WeaponFireNotification (NED)
+  TN->>TN: TrafficPanicSystem: peds within 50 m, under the cap
+  TN->>LC: RemovePedestrian(name) returns pose and velocity
+  LC-->>N: ped Despawn (S2), mirrors drop the replica
+  TN->>CGF: EntityCreationRequest type 1101, PreAllocatedNetworkId = name, panic
+  CGF-->>N: our civilian, the same network id
+```
+
+### 15.5 Modules
+
+```mermaid
+graph TD
+  subgraph Serving["Traffic node or editor"]
+    TP[TrafficPack.Serving] -->|input| TPS[TrafficPanicSystem]
+    TPS -->|RemovePedestrian| RT[TrafficRuntime / TrafficSession]
+    TPS -->|EntityCreationRequest| EC[EntityCreationPack]
+  end
+  subgraph Every["Every map / sim host"]
+    TMS[TrafficMirrorSystem] -->|ped poses| TR[TrafficReplicas]
+  end
+  CGF[CGF creates and keeps the brain]
+  EC -.->|addressed to the Brain node| CGF
+```
+
+### 15.6 Build order
+
+| step | content | waits for |
+|---|---|---|
+| **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | ✅ BUILT (§15.7) on SumoSharp H14 `13f70db` |
+| **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | ✅ BUILT (§15.7) |
+| **5c** | K7: hits on SUMO cars and pedestrians | ✅ BUILT + LIVE on the cluster (§15.7) — cars on SumoSharp H15 `17e3cf1` |
+
+### 15.7 AS BUILT — 5a and 5b *(2026-10-17, CE-4024)*
+
+```mermaid
+sequenceDiagram
+  participant SH as Shooter's node
+  participant M as Traffic node, main thread
+  participant S as Traffic node, stepping thread
+  participant LC as LiveCitySim (H14)
+  participant B as Brain node (CGF, or the editor alone)
+  participant N as Every node's mirror
+  SH->>M: WeaponFireNotification (Origin) or DetonationNotification (Hit), NED
+  M->>M: TrafficPanicSystem: one incident per 5 m per frame, radius from TrafficDemand
+  M->>S: TrafficRuntime.ReportIncident (queue)
+  S->>LC: PedestriansWithin, then RemovePedestrian while under ConversionCap
+  S->>LC: above the cap, FleePedestrian (H16) for each one not already fleeing
+  LC-->>N: the fleeing ped's new running leg on the wire, same id
+  LC-->>N: ped Despawn on the wire at once (even paused)
+  S->>M: TrafficConversion queue (name, state, fright point)
+  M->>M: TrafficReplicas.Release(id), its own replica goes first
+  M->>B: EntityCreationRequest: owner 0, PreAllocatedNetworkId = name, type by id, transient, attributes Heading Fear FrightFrom
+  B->>B: CreateEntityRequestSystem applies the attributes: CivilianState born with Fear 1 and FrightFrom
+  B-->>N: our civilian, the same network id, his CivilianHsm goes Alarmed then Panic
+```
+*What the picture shows that prose hid: the removal is on the STEPPING thread (H14 S1 runs between steps), so the main thread only
+queues incidents and drains conversions; and the fright reaches the brain as ATTRIBUTES, because the request wire has no slot for a
+brain-local component.*
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficSession { <<grown>> peds on from TargetPedestrians, PedIdProvider = allocator, DDS ped tee, +Pedestrians, +Convert(), +Converted, +Fled }
+  class TrafficRuntime { <<grown>> +ReportIncident() +TakeConversions() }
+  class TrafficPanicSystem { <<NEW>> incidents to requests }
+  class TrafficPedMirror { <<NEW>> one sender's peds, yaw from motion }
+  class TrafficPedPose { <<NEW record>> Owner NetworkId Name X Y Z YawRad }
+  class TrafficReplicas { <<grown>> +Pedestrians +IsPedReplica() +Release() }
+  class TrafficFrame { <<grown>> +Pedestrians +IsPedEntity }
+  class TrafficCar { <<grown>> +Kind car or pedestrian }
+  class CivilianFrightAttributeInstaller { <<NEW, FDP>> Fear FrightFrom.X/Y/Z, BrainLocal }
+  class AttributeVocabulary { <<existing, grows 4 rows>> }
+  TrafficPanicSystem --> TrafficRuntime
+  TrafficPanicSystem --> TrafficReplicas : Release
+  TrafficRuntime --> TrafficSession : Convert
+  TrafficMirrorSystem --> TrafficPedMirror
+  TrafficPedMirror ..> TrafficPedPose
+  TrafficReplicas ..> TrafficCar
+  TrafficFrame ..> TrafficPedPose
+  AttributeVocabulary ..> CivilianFrightAttributeInstaller
+```
+
+| deviation from §15.2 | why (measured) |
+|---|---|
+| ⚠ **K5's fear rides as ATTRIBUTES, not an initial `CivilianState`** — `Fear`, `FrightFrom.X/Y/Z` (`AttributeIds` 30–33) in `AttributeVocabulary`, marked `BrainLocal` | the wire request carries only the anchor transform and a few descriptors (`CreateEntityRequestDescriptorBuilder.Build`); `CivilianState` is brain-local, so in a cluster it would have vanished on the way to CGF. `CreateEntityRequestSystem` applies `InitialAttributesJson` and `ListPatchContext` creates the missing component. The coverage rail asks no translator to cover a `BrainLocal` component |
+| ⚠ **K3: pedestrian poses are a SEPARATE list** (`TrafficPedPose`, `TrafficFrame.Pedestrians`); the replica book and the vicinity rule are the same class | the car consumers (`TrafficLayer3D`, the follow system, the 2-D layer) read `Cars` as cars; one list would have handed every one of them pedestrians. `TrafficCar.Kind` marks a pedestrian ENTITY |
+| ⚠ **K5's type is by id** (`TrafficPanicSystem.TypeOf`: 4 men, 4 women, 1 child, 1 elderly in 10); the replica is `1101` | SumoSharp's pedestrians carry no age or sex |
+| ⭐ **the request is transient, `InitType.None`**; the traffic node's own replica goes first (`Release`), the rest on the Despawn | a person SUMO walked is never the scenario's; `NetworkEntityMap.Register` throws on a live id |
+| ⭐ **incidents of one frame closer than 5 m merge** (`MergeMetres`) | a burst of fire is one fright, not one stepping-thread pass per round |
+| ⭐ **demo-city asks for 160 pedestrians** (SumoSharp's own default population) | K1 |
+| ⭐ **K7 for a pedestrian (5c): a `DamageAssessedEvent` on his replica gives him up (never capped), and the hit is HELD (`HoldSeconds` 10) until our civilian exists under his id, then re-published to him as this node's own hit** | the existing damage path then carries it (`DamageAssessedEgressTranslator` → the brain's `HealthApplicationSystem`, authority-gated); no "born damaged" field on the request, and none needed |
+| ⚠ **the editor applied NO request attributes at all** — fixed: `EditorSubsystem` passes `JsonAttributeCompiler` to its creation pack, as every networked host's factory does (rail `TheEditorAppliesRequestAttributesTests`) | 📌 measured live: the first run converted three pedestrians, all calm (`Fear` 0, Gather). The SILENT-DEFAULT shape — a debug-API spawn's `attributesJson` was dropped there too. Folded into [Q59 §15](Architect_Question_59_Attribute_Vocabulary_Single_Source.md) |
+
+| known gap | |
+|---|---|
+| the civilian is born at rest (the removal's velocity is not carried) | no creation attribute for a velocity |
+
+Rails: `PedestriansPanicIntoCiviliansTests` (5: walkers named by our allocator and civilian replicas near a body; a shot gives them up
+as terrified-civilian requests keeping their ids, and they leave the wire; the cap; a released replica is not remade; the attributes),
+`TheFourRoutingTablesAgreeTests` (+4 vocabulary cases, a creation request's fright bears a mind in panic), `TheDescriptorMapIsWiredTests`
+(brain-local components exempt), the hit rail (K7: a hit pedestrian is given up and his hit reaches the civilian he becomes). Traffic 54/54.
+
+**Live (editor, `scripts/sumo-accept-slice5.py`): 11/11** — 15 pedestrian replicas near two riflemen; their shoot-out gave up three
+pedestrians (under the cap of 30), each back as OUR civilian with the same network id, no `TrafficCar`, frightened (`Fear` 0.60 and
+falling from 1, `Mode` Cower, `FrightFrom` = where the round left).
+
+**Live (five-process cluster, `scripts/sumo-accept-slice5-cluster.py`, domain 62): 12/13**, the one red a read-timing threshold, since
+replaced by the exact check. The same 10 pedestrian replicas on CGF, SimHost, IG and the traffic node, each owned by the traffic node
+(800). A shoot-out run by CGF/SimHost reached the traffic node by NED, which gave up 2 pedestrians. **CGF (400) created each as our
+civilian, with the pedestrian's network id.** Each knew the shot's origin with `HeardAt` and `LastFrightAt` at 0, so the fright
+crossed the wire as attributes (`Fear` read 0.39 about 12 s after birth, decaying 0.05/s from 1). Every node saw him as an entity, none as a SUMO replica.
+⚠ Found on the way, fixed: the traffic node had **no `PhysicsCollider` type**, so it had no anchors and no replicas (cars or
+pedestrians), and SUMO saw none of our bodies there (§13.7's correction). After the fix: 20 car replicas and 10 pedestrian replicas
+on the traffic node.
+**K7 (5c) for CARS, as built `2026-10-18`** — SumoSharp **H15** (`17e3cf1`, `RemoveVehicle`: any live car by name, its centre, heading,
+speed and TKB type, its despawn on the wire at once). A hit on a SUMO car replica removes the car; OUR car is created where it stood (its
+TKB type, else civilian car 1002), keeping its id and taking the held hit; its driver gets out beside it a civilian in panic (a new id).
+Rail `K7_AHitCar_…`. Traffic 55/55.
+
+**Above the cap, a frightened pedestrian FLEES inside SUMO, as built `2026-10-18` (CE-4027, §8 P7's second half)** — SumoSharp **H16**
+(`7da452b`, `FleePedestrian(name, fromX, fromY, minDistance, speedFactor)`: a new running leg away from the incident to a walkable point at
+least `minDistance` off, at `speedFactor` × his normal speed, same id, the leg on the wire at once; `IsPedestrianFleeing`). `TrafficSession.Convert`
+gives up pedestrians while under the cap and sends every other one in the radius fleeing (`FleeMinDistance` 80 m, `FleeSpeedFactor` 2,
+counted in `Fled`); one already fleeing is left on his way, so a burst does not re-route him every round. Nothing new crosses our wire: he
+stays SUMO's replica, which is §8's *"a new leg and a promotion"*. Rail `K6_AboveTheCap_TheRestFleeInsideSumo_KeepingTheirIds` (same ids
+still on the wire 10 s later; most, and on average all, ran away — ⚠ not every one: when no route leads straight away H16 takes
+any route ENDING ≥ `minDistance` off, and a street can bend back past the blast first, measured one of four). Traffic 56/56.
+
+**Live (cluster, domain 89, `2026-10-18`, on D7's one node frame + per-node staging, H16 vendored, the three lanes merged): 17/17** —
+two pedestrians given up as CGF civilians keeping their ids, born in Panic from the attributes; the M67 step took two bursts (the first car
+was moving — the check now aims at the slowest car and retries) and car 1282 became OUR car 1002 at 150/300 with its driver out. ⚠ Two
+conversions stay far under the cap of 30, so the H16 flee did not run live — the rail covers it.
+
+**Live (cluster, `2026-10-18`): 16/17** — two pedestrians converted, **keeping their ids** (1264 was a replica id), CGF-owned, born in
+Panic; an M67 burst published on SimHost at SUMO car 1518 → the traffic node: *"hit on SUMO car 1518 (863 damage): giving it up"* → CGF
+holds car 1518 as OUR entity (type 1053, owner 400) and its driver beside it. The one row that could not pass: type 1053 has **no
+`Health` component**, so the held hit has nothing to show on (now a NOTE, not a check).
+
+⚠ **Five defects the cluster found that no rail had, all fixed** — each is the same shape (*a type or a translator a host never
+registered*, or a field the wire never carried):
+
+| found | fix | rail |
+|---|---|---|
+| the traffic node registered no `PhysicsCollider` ⇒ no anchors, no replicas, SUMO saw none of our bodies | `TrafficPack` registers it | `TrafficNodeBootstrapperTests` |
+| …nor `VehicleParams` ⇒ our trucks (no `Locomotion`) resolved Unknown, SUMO never saw a vehicle (slice 3) | `TrafficPack` registers it | same |
+| replicas had no `Health` ⇒ `AreaEffectSystem` (only damages `Health` entities) never hit a SUMO agent | `TrafficReplicas.ReplicaHealth` | `K2K3_…` asserts it |
+| `EntityHitDamageIngressTranslator` was Brain-only ⇒ the traffic node never heard a hit; then, once added, the unregistered `DamageAssessedEvent` **crashed** it | ingress for the Traffic role; `TrafficPack` registers the event | `CE4024_TheTrafficNodeHearsTheHits_…`, `TrafficNodeBootstrapperTests` |
+| `PreAllocatedNetworkId` never crossed the request wire ⇒ a converted pedestrian got a new id on CGF | it rides `EntityMaster.EntityId` | `Send_CarriesThePreAllocatedNetworkIdOntoTheWire` — [Entity Creation §3.9](../DESIGN_Entity_Creation_Unification.md) |
+
+Also: `POST /entities/spawn` on a cluster node created the entity and then answered `NOT_SUPPORTED_HERE(preview.control)` (it read the
+preview controller for a hint) — `DebugApiService.TimeAdvancing()` degrades now.
+
+⚠ Observation for the civilians lane, not changed: a converted pedestrian calms back to Routine about 20 s after birth when nothing new
+frightens him (CE-2235's fade). §8.2 intends panic, then an openable building.
+
+
+### 15.8 SUMO's people and cars are drawn as OURS — the same figures, not boxes *(2026-10-18, CE-4031 — build-state: BUILT, as drawn)*
+
+> 🔒 **User, `2026-10-18`:** *"pedestrians from sumo should be mapped to various character models we are using, definitely not a gray
+> uniform figures please"*
+
+**INVENTORY** *(graph CLI `search_graph` on `Map3D`, grep `new EntityBodyLayer3D` / `TrafficFrame`)*: the 3-D map has ONE person/vehicle
+renderer — `EntityBodyLayer3D` (block-figure kit, `Outfits.For` clothes/hair/face seeded by the network id, `MotionTracker` gait,
+`Outfits.CarColour` paint, `KitFromTkb` car kits) — built at ONE place, `MapInteractionPack.cs:470`. SUMO's far agents bypass it:
+`TrafficLayer3D` draws each non-entity pedestrian as one grey box (`:92`) and each car as one blue box (`:84`). A near pedestrian's
+replica is typed `1101` always (`TrafficReplicas.PedestrianType`), while the civilian he converts into is typed by id
+(`TrafficPanicSystem.TypeOf`) — so he can change sex and age on conversion.
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBodyLayer3D { <<grown>> +ctor(world, tkb, poseOf, ambient) Draw3D() DrawAmbient() DrawParts() }
+  class AmbientBody { <<NEW record>> Key TkbType Position YawRad Colour }
+  class TrafficAmbientBodies { <<NEW static>> +Of(world) non-entity peds and cars from TrafficFrame }
+  class MotionTracker { <<grown>> +Advance(long key, ...) gait for a body with no entity }
+  class TrafficReplicas { <<grown>> +PedestrianTypeOf(id) +CarTypeOf(car) }
+  class TrafficPanicSystem { <<existing>> +TypeOf(id) 4 men 4 women 1 child 1 elderly in 10 }
+  class TrafficLayer3D { <<shrunk>> roads, lights only }
+  class Outfits { <<existing>> For(seed, type, ...) CarColour(seed, type, own) }
+  class MapInteractionPack { <<existing>> AttachMapLayers: the one wiring point }
+  MapInteractionPack --> EntityBodyLayer3D : ambient = TrafficAmbientBodies.Of
+  EntityBodyLayer3D ..> AmbientBody
+  TrafficAmbientBodies ..> AmbientBody
+  TrafficAmbientBodies --> TrafficReplicas : the same type rule
+  TrafficReplicas --> TrafficPanicSystem : TypeOf
+  EntityBodyLayer3D --> Outfits
+  EntityBodyLayer3D --> MotionTracker
+```
+*What the picture shows that prose hid: the far body, the replica and the converted civilian all reach ONE type rule
+(`TrafficPanicSystem.TypeOf`) and ONE seed (the network id), so a pedestrian keeps his face and clothes from the far street to our
+civilian — and there is still one renderer.*
+
+```mermaid
+sequenceDiagram
+  participant M as TrafficMirrorSystem
+  participant F as TrafficFrame
+  participant L as EntityBodyLayer3D
+  participant A as TrafficAmbientBodies
+  M->>F: peds and cars this frame, IsPedEntity / IsEntity
+  L->>L: entity pass: every entity body (replicas and our civilians included)
+  L->>A: Of(world)
+  A->>F: non-entity peds: key = network id, type = PedestrianTypeOf(id)
+  A->>F: non-entity cars: key = network id, type = CarTypeOf(car), colour = car.Color
+  A-->>L: AmbientBody list
+  L->>L: per body: LookOf(type), MotionTracker.Advance(key), a walking figure or the car kit
+  L->>L: DrawParts: outfit or paint from the key, the same part loop as an entity
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers, every map host] -->|registers| BL[EntityBodyLayer3D]
+  MIP -->|registers| TL[TrafficLayer3D: roads, lights]
+  CAN[Map canvas, each 3-D frame] -->|Draw3D| BL
+  CAN -->|Draw3D| TL
+  BL -->|ambient source| TAB[TrafficAmbientBodies.Of]
+  TAB -->|reads| TF[TrafficFrame singleton, written by TrafficMirrorSystem on every node with the mirror]
+```
+*Who calls it each frame: the canvas, on every host that attaches `MapInteractionPack`; a host with no SUMO mirror has no
+`TrafficFrame`, and the source yields nothing.*
+
+Decision: the body layer gets an `ambient` source and draws a non-entity agent through the SAME look, gait and part loop as an entity
+(the loop extracted into `DrawParts`); pedestrians are typed by id everywhere (the far body, the replica, the civilian); `TrafficLayer3D`
+keeps the roads and the lights.
+Rejected: a figure renderer inside `TrafficLayer3D` — a second person renderer, the outfits and gait copied · making every far agent an
+entity — R-4020 keeps far traffic off the ECS, and 160 + cars would cost every system each frame · keeping the replica `1101` — he changes
+sex and age the moment he is converted.
+**As built, matching the diagrams:** `EntityBodyLayer3D.AmbientBody` is a nested record (the layer's own vocabulary); the far car takes
+its type's size (as its replica does — the replica carries no `VehicleParams`), its paint from `car.Color` as the replica's
+`EntityAppearance` would; an agent its sender named without an id keys by an FNV hash of its name, negative so it never meets a real id.
+Frame rail `Map3DFrameRail.CE4031_…`: ten far walkers and four cars, 0 entities, 14 bodies, every walker a different outfit, faces painted,
+walking mid-stride (`map3d-ce4031-sumo-people.png`).
+
+Design docs checked: [DESIGN_Map_3D_Mode.md](../DESIGN_Map_3D_Mode.md) §6q (outfits seeded by the network id, CE-1099/1100) — applies,
+it is the look reused · §3.7 (one colour rule) — applies to the far car's colour (`EntityAppearance` ≡ `car.Color`) · §12 T1/T2 here —
+applies: a car's model is its TKB type, its paint per car from its id.
+
+### 15.9 demo-city offers shelter — enterable houses *(2026-10-18, CE-4028 — BUILT)*
+
+📐 Measured: demo-city's 5 data buildings are polygon prisms (`TerrainWorldParser.cs:137`, the solid case) and it had **0 doors**, so
+`FindEnterableShelter` answered nothing anywhere and every converted pedestrian cowered and calmed (Civilians §5e: none ⇒ Cower).
+Built: two door-bearing templates in `demo-city/buildings/` (`house-1f` brick 9 × 8 m, `shop-1f` concrete 12 × 9 m; front door
+closed, not locked) and **34 AUTHORED placements** (`demo-city.houses.json`) beside the sidewalks, front doors facing them, clear of
+every lane and data building, so every sidewalk point is within 70 m of a front door (the query searches 80 m).
+`terrain-from-sumo.py --houses` merges them (default `<name>.houses.json`) — placements are data, not generated at load (R-4052: no
+procedural buildings). Rail `EnterableShelterTests.CE4028_DemoCity_EverySidewalkPoint_HasAnEnterableHouseWithinTheShelterRadius`.
+**Live (cluster, domain 89, `2026-10-18`): slice 5 17/17, and every converted civilian SHELTERS** — the two converted pedestrians born
+in `Shelter`, then `Inside` (at ~(429, 380), a house beside their street); the hit car's driver `Shelter` → `Inside`. ⛔ Before: `Cower` → calm (CE-4028).
 
 ## 7. ⛔ HISTORY
 

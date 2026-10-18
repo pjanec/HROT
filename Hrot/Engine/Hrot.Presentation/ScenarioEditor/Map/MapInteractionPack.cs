@@ -467,7 +467,8 @@ namespace Hrot.ScenarioEditor.Map
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — articulated kits are posed by their turret part's TurretPose.
             var turretPoses = new Hrot.UI.Common.Map3D.TurretPoseSource();
-            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf);
+            // ⭐ CE-4031 (AQ93 §15.8) — SUMO's far people and cars drawn as ours, through the same figures and kits
+            var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf, Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of);
             // ⭐ CE-1033 S3 — gizmos in 3-D: z = 0 shapes drape on the ground (M18); labels sit on top of the bodies (M13).
             gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;
             gizmoLayer.LabelLift = bodies.TopAbove;
@@ -478,7 +479,8 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
-            // ⭐ AQ93 R-4024 / V7 — the SUMO roads, lights and far cars, TerrainLayer3D's sibling (idle when the terrain has no SUMO net).
+            // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far
+            //   people and cars are bodies (CE-4031).
             canvas.AddLayer(new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider));
             canvas.AddLayer(bodies);
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).

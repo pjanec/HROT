@@ -24,6 +24,9 @@ namespace CarKinem.Core
         /// <summary>⭐ CE-3173 (M-1) — an OPERATOR drives the body: <c>ManualDrive</c>'s axes, not a destination
         /// (<c>ManualMotion</c>). ⛔ Not <see cref="None"/>, which is driven as Direct (CE-3176).</summary>
         Manual = 8,
+        /// <summary>⭐ AQ93 R-4023 (§14 G4) — SUMO drives the body: <c>TrafficShadowFollowSystem</c> writes its pose from the shadow
+        /// car; <c>CarKinematicsSystem</c> integrates nothing.</summary>
+        Traffic = 9,
     }
 
     /// <summary>

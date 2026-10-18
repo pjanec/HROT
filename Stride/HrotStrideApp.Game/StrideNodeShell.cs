@@ -155,10 +155,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //   its assembly; ruling 9 says route, do not duplicate).
         _networkFactory = networkFactory;
 
-        var config = new HrotNodeConfig
-        {
-            DomainId            = domainId,
-            NodeId              = nodeId,
+        // ⭐ CE-4013 D13 — the one node config: the Stride node now stages per node (<staging>/nodes/node-<id>, DESIGN_Stride_Node_Modes §5.8)
             // ⛔⛔ CE-242 — THIS STRING IS A ROLE TOKEN, NOT A PROCESS NAME. It must be "SimHost".
             //
             // 📌 The defect it fixes, measured 2026-09-09 over a 597-second CGF+Stride run of
@@ -198,10 +195,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             //    ownership locally from each node's own NodeRole and retires this grant path entirely.
             //    Diagnostics cost until then: dump filenames and log names say "SimHost" (see
             //    DiagnosticsDumpClusterOpHandler.cs:129). NodeId 700 still distinguishes this node.
-            SubsystemName       = "SimHost",
-            Headless            = false,
-            ExternalParticipant = _participant,
-        };
+        var config = HrotNodeConfig.ForNode(domainId, nodeId, "SimHost", _participant);
 
         Log.Info("[StrideNodeShell] CE-207 mode 2: booting Stride node id={0} on DDS domain {1} with {2} " +
                  "capabilities [{3}].",

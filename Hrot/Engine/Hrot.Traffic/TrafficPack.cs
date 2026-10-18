@@ -59,6 +59,21 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         context.TerrainContent.Add(NetLoaderKey, () => new SumoNetTerrainLoader());
         context.World.RegisterComponent<ReplicationRoute>();
         context.World.RegisterComponent<TrafficCar>();
+        // ⭐ CE-4024 — the vicinity anchors (TrafficReplicas), our bodies for SUMO (TrafficBodyFeedSystem) and every replica key on
+        //   PhysicsCollider. 📌 Measured 2026-10-17 on the five-process cluster: the dedicated traffic node registered no such type, so
+        //   the combat translator gave our units no collider there — no anchor, no replica, and SUMO saw none of our bodies.
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+            context.World.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        // ⭐ CE-4024 — and a VEHICLE is told apart (Locomotions.Of: people carry Locomotion, vehicles only VehicleParams) and sized by
+        //   VehicleParams. 📌 Measured on the cluster: the traffic node registered neither, so our trucks resolved to Unknown and SUMO
+        //   never saw one (the riflemen, carrying Locomotion, it did).
+        if (!context.World.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>())
+            context.World.RegisterComponent<CarKinem.Core.VehicleParams>();
+        // ⭐ CE-4024 (K7) — the hits the panic system reads, which the traffic node's hit ingress publishes. 📌 Measured 2026-10-18: CGF and
+        //   SimHost register it in their combat registries, the traffic node did not, and the first hit CRASHED it ("event type 5006 not
+        //   registered") — taking SUMO, and every car on every node, with it.
+        if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+            context.World.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
         if (_serves)
         {
             long local = 0;
@@ -71,6 +86,17 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         }
         Mirror = new TrafficMirrorSystem(Runtime, context.Participant, context.EntityMap, context.NodeId);
         input.Add(Mirror);
+        if (Runtime is not null)
+        {
+            input.Add(new TrafficBodyFeedSystem(Runtime));   // ⭐ AQ93 §13 — our bodies into SUMO (E4)
+            // ⭐ AQ93 §14 G2 — the intents this node reads (NED ingress on the traffic node, local in the editor)
+            if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>())
+                context.World.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            input.Add(new TrafficHandoverSystem(Runtime));
+            var mirror = Mirror;
+            input.Add(new TrafficPanicSystem(Runtime, () => mirror.Replicas, context.EntityMap));   // ⭐ AQ93 §15 K4/K5 — after the mirror: its replicas are current
+        }
+        simulation.Add(new TrafficShadowFollowSystem());   // ⭐ AQ93 §14 — a handed-over body follows its SUMO shadow where it is moved
     }
 
     public void Dispose() => Runtime?.Dispose();

@@ -213,7 +213,7 @@ namespace Hrot.Editor.DebugApi
         /// editor's Mission/blueprint panels use to choose event vs direct. Frozen Edit state and an
         /// explicit pause both count as NOT advancing, so an authoring edit lands immediately.
         /// </summary>
-        private bool SimIsAdvancing => _preview.IsInPreviewMode && !_time.IsPaused;
+        private bool SimIsAdvancing => TimeAdvancing();   // ⭐ CE-4024 — degrades on a host with no preview controller
 
         /// <summary>
         /// Resolves the entity and the blueprint together — by name, by asset Guid, or by the raw int id.

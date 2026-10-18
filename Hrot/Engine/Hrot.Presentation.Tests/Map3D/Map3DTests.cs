@@ -1481,6 +1481,7 @@ public sealed class Map3DTests
     [InlineData(BlockFigure.ArmGesture.HoldSign)]
     [InlineData(BlockFigure.ArmGesture.Waving)]
     [InlineData(BlockFigure.ArmGesture.Throwing)]
+    [InlineData(BlockFigure.ArmGesture.Warning)]
     public void CE1166_EachGesture_ChangesOnlyTheArms(BlockFigure.ArmGesture gesture)
     {
         var size = ShapeKits.DefaultSize(VisualFamily.Person);
@@ -1530,7 +1531,7 @@ public sealed class Map3DTests
 
             Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HandsUp));
             var shown = EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain);
-            Assert.Equal(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false), shown);
+            Assert.Equal(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false, EntityBodyLayer3D.GestureClock(world, man, 0)), shown);   // ⭐ CE-1175: on his own clock
             Assert.Equal("HANDS UP", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
             Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain));
 
@@ -1538,10 +1539,66 @@ public sealed class Map3DTests
             Assert.Equal(plain.Length + BlockFigure.PlacardParts, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain).Length);
             Assert.Equal("PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
 
+            // ⭐ behaviors' police WARNING (EL-3) is its own pose and word — not the throwing wind-up, not "PROTEST"
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.Warning));
+            Assert.NotEqual(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.Throwing, false, false),
+                            EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Equal("WARNING", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HoldSign));
+
             Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));   // cowering owns the arms
             Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
             Assert.Equal("COWERING · PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
         }
+    }
+
+    /// <summary>⭐ CE-1178 (docs/DESIGN_People_Display.md §5 U17) — the effect / gesture line is a ROW OF HIS CARD, keyed by his network id,
+    /// so it sits above his head in 3-D (the card's anchor is the body top, S5b) and above the symbol in 2-D; ⛔ not loose ground text, which
+    /// 3-D drew at his feet. A man with no network id (no card) keeps the loose line.</summary>
+    [Fact]
+    public void CE1178_TheOverheadLine_IsARowOfHisCard_NotTextAtHisFeet()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HandsUp));
+
+            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[] Emit()
+            {
+                var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+                new Hrot.Common.Diagnostics.Gizmos.GestureGizmo().Draw(world, man, buffer);
+                return buffer.GetFrame().ToArray();
+            }
+
+            Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace.World, Assert.Single(Emit()).Space);   // no network id: no card, the loose line
+
+            world.AddComponent(man, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1043));
+            var prims = Emit();
+            var row = Assert.Single(prims);
+            Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace.EntityCard, row.Space);
+            Assert.Equal(1043, row.AnchorIndex);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Row, row.ZIndex);
+            Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels, row.DebugLayer);
+            Assert.Equal("HANDS UP", row.TextContent.ToString());
+
+            // the card renderer puts it ABOVE the entity's anchor point (in 3-D that point is the top of his body)
+            var at = new Vector2(400f, 300f);
+            var card = Assert.Single(new GizmoMap.Presentation.EntityCardRenderer().Layout(prims, id => id == 1043 ? at : null, (s, px) => 7f * s.Length));
+            Assert.True(card.Rect.Y + card.Rect.Height < at.Y);
+        }
+
+        // and in 3-D the card's point is the top of what is DRAWN: above a protest sign's board, never covering it
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        var sign = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HoldSign, false, false);
+        Assert.Equal(size.Z, EntityBodyLayer3D.LabelTop(plain, size), 3);
+        Assert.True(EntityBodyLayer3D.LabelTop(sign, size) >= Top([sign[^1]], size) - 1e-3f, "the card covers the sign");
+        Assert.True(EntityBodyLayer3D.LabelTop(sign, size) > size.Z + 0.3f);
     }
 
     /// <summary>⭐ CE-1166 (§8.7 U6-c) — the shapes read as what they are: hands up puts BOTH hands above the head, a raised fist ONE, and
@@ -1559,6 +1616,63 @@ public sealed class Map3DTests
         Assert.Equal(1, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.FistRaised, false, false)));
         var windUp = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.Throwing, false, false);
         Assert.True(Vector3.Transform(Vector3.Zero, windUp[BlockFigure.TorsoIndex + 5].BodyTransform(size)).X < -0.1f, "the throwing hand is not back");
+    }
+
+    /// <summary>⭐ CE-1175 (docs/DESIGN_People_Display.md §5 U14) — the gestures MOVE, with no state: at t = 0 the static pose; the fist
+    /// pumps and the wave waves about the elbow (the forearm keeps its length), the sign bobs 6 cm, hands-up sways, and through the whole
+    /// cycle the shape still reads as the gesture (one fist / both hands above the head); the warning and the wind-up hold still. Each man
+    /// runs on his own clock (sim time + his seed's offset — the same on every node, different from his neighbour's) and the drawing
+    /// passes sim time through.</summary>
+    [Fact]
+    public void CE1175_TheGestures_Move_OnEachMansOwnClock_AndStillReadAsTheGesture()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        float headTop = Top([plain[BlockFigure.HeadIndex]], size);
+        Vector3 At(KitPart part) => Vector3.Transform(Vector3.Zero, part.BodyTransform(size));
+        int HandsAboveHead(KitPart[] parts) => new[] { BlockFigure.TorsoIndex + 3, BlockFigure.TorsoIndex + 5 }
+            .Count(i => Top([parts[i]], size) > headTop);
+        const int RightForearm = BlockFigure.TorsoIndex + 5;
+
+        foreach (var g in new[] { BlockFigure.ArmGesture.FistRaised, BlockFigure.ArmGesture.HoldSign, BlockFigure.ArmGesture.HandsUp, BlockFigure.ArmGesture.Waving })
+        {
+            Assert.Equal(BlockFigure.GestureArms(plain, g, false, false), BlockFigure.GestureArms(plain, g, false, false, 0f));
+            float hz = g switch { BlockFigure.ArmGesture.FistRaised => 1.4f, BlockFigure.ArmGesture.HoldSign => 0.8f, BlockFigure.ArmGesture.HandsUp => 0.5f, _ => 1.8f };
+            var still = BlockFigure.GestureArms(plain, g, false, false);
+            var peak = BlockFigure.GestureArms(plain, g, false, false, 1f / (4f * hz));
+            Assert.True(Vector3.Distance(At(still[RightForearm]), At(peak[RightForearm])) > 0.02f, $"{g}: the arm does not move");
+            Assert.Equal(still[RightForearm].Extent.X, peak[RightForearm].Extent.X, 3);   // a rotation: the forearm keeps its length
+        }
+        var bobbed = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HoldSign, false, false, 1f / (4f * 0.8f));
+        var board = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HoldSign, false, false);
+        float rise = At(bobbed[^1]).Z - At(board[^1]).Z;
+        Assert.True(rise > 0.02f, "the sign does not bob");
+        Assert.Equal(At(bobbed[RightForearm]).Z - At(board[RightForearm]).Z, rise, 3);   // the board rides with the hands
+        for (float t = 0f; t < 2f; t += 0.05f)
+        {
+            Assert.Equal(1, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.FistRaised, false, false, t)));
+            Assert.Equal(2, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false, t)));
+        }
+        foreach (var g in new[] { BlockFigure.ArmGesture.Warning, BlockFigure.ArmGesture.Throwing })
+            Assert.Equal(BlockFigure.GestureArms(plain, g, false, false), BlockFigure.GestureArms(plain, g, false, false, 0.37f));
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var a = Man(world, Vector3.Zero);
+            var b = Man(world, new Vector3(1f, 0f, 0f));
+            world.AddComponent(a, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1043));
+            world.AddComponent(b, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1044));
+            Assert.Equal(EntityBodyLayer3D.GestureClock(world, a, 12.0) + 1f, EntityBodyLayer3D.GestureClock(world, a, 13.0), 3);
+            Assert.True(MathF.Abs(EntityBodyLayer3D.GestureClock(world, a, 12.0) - EntityBodyLayer3D.GestureClock(world, b, 12.0)) > 0.05f,
+                        "neighbours pump in step");
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, a, Fdp.Toolkit.Combat.GestureKind.FistRaised));
+            Assert.NotEqual(EntityBodyLayer3D.Gestured(world, a, false, FigureCarriage.Free, plain, 12.0),
+                            EntityBodyLayer3D.Gestured(world, a, false, FigureCarriage.Free, plain, 12.18));
+        }
     }
 
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,

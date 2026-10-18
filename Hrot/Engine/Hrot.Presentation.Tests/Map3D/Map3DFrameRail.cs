@@ -2439,6 +2439,94 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1178 + CE-1175 (docs/DESIGN_People_Display.md §5 U17, U14) — four protesters (hands up, fist raised, a sign, waving) and a
+    /// police officer giving the WARNING, in 3-D, with the production card gizmos (frame, name, and the effect / gesture line as the card's
+    /// row 50): every line sits in a card ABOVE the man's head, none at his feet; the arms are caught mid-motion. Screenshot
+    /// <c>people-1-lines-above.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1178_V_TheLinesSitAboveTheHeads()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.3 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        long net = 7100;
+        var men = new System.Collections.Generic.List<Entity>();
+
+        Entity Man(long type, float dx, Fdp.Toolkit.Combat.GestureKind gesture, string name)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)),
+                                                     Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f) });   // facing the camera
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new NetworkIdentity(++net));
+            world.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = ForceId.Neutral });
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, e, gesture));
+            men.Add(e);
+            return e;
+        }
+        long civ = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
+        Man(civ, -4f, Fdp.Toolkit.Combat.GestureKind.HandsUp, "Civilian");
+        Man(civ, -2f, Fdp.Toolkit.Combat.GestureKind.FistRaised, "Civilian");
+        Man(civ, 0f, Fdp.Toolkit.Combat.GestureKind.HoldSign, "Civilian");
+        Man(civ, 2f, Fdp.Toolkit.Combat.GestureKind.Waving, "Civilian");
+        Man(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, 4.5f, Fdp.Toolkit.Combat.GestureKind.Warning, "Police");
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus()) { CurrentCamera = () => canvas.Camera };
+        gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        gizmos.LabelLift = bodies.TopAbove;   // as MapInteractionPack wires it
+        canvas.AddLayer(gizmos);
+        var frameGizmo = new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo();
+        var nameGizmo = new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo();
+        var lineGizmo = new Hrot.Common.Diagnostics.Gizmos.GestureGizmo();
+        foreach (var e in men)
+        {
+            var at = world.GetComponentRO<SimTransform>(e).Position;
+            buffer.DrawSpatialAnchor(world.GetComponentRO<NetworkIdentity>(e).Value, at.X, at.Y, at.Z, 0f, 0f, 0f);
+            frameGizmo.Draw(world, e, buffer);
+            nameGizmo.Draw(world, e, buffer);
+            lineGizmo.Draw(world, e, buffer);
+        }
+
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.4f), 11f, MathF.PI * 1.5f, -0.12f);   // from the south, eye height
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-1-lines-above.png"));
+        Assert.Equal(men.Count, gizmos.Cards.CardsDrawn);
+        Assert.Equal(0, gizmos.LabelsDrawn3D);   // no loose line left on the ground
+        Assert.All(men, e => Assert.NotNull(bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(e).Value)));
+        float? TopOf(int k) => bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(men[k]).Value);
+        Assert.True(TopOf(2) > TopOf(1) + 0.3f, "the sign carrier's card does not clear his sign");
+    }
+
+    /// <summary>
     /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8) — the (V) acceptance for the clouds: a tear-gas cloud
     /// (6 m, 3 m high) over three civilians and a smoke cloud (8 m, 4 m high) beside them, from backend's replicated
     /// <c>AreaEffectCloud</c>; 3-D from the south, then the 2-D map with the production symbol gizmo (the civilians get symbols, the clouds
@@ -2948,6 +3036,79 @@ public sealed class Map3DFrameRail
             }
         }
         finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's FAR pedestrians and cars (no entities) are drawn as ours: civilians in their own clothes,
+    /// faces and hair (typed and seeded by their network ids), walking; cars as their types' kits in their paint. 🔒 User, 2026-10-18:
+    /// <i>"definitely not a gray uniform figures please"</i>. ⛔ Before: one grey box a person, one blue box a car (TrafficLayer3D).
+    /// Screenshot <c>map3d-ce4031-sumo-people.png</c>.</summary>
+    [SkippableFact]
+    public void CE4031_SumoFarPeopleAndCars_AreDrawnAsOurFiguresAndKits()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float Z(float x, float y) => query.GroundHeightAt(x, y);
+
+        // ten walkers (ids 1001..1010: every civilian type by the id rule) and four cars (the T1 traffic types, two painted)
+        Hrot.Traffic.TrafficFrame FrameAt(float t)
+        {
+            var peds = new List<Hrot.Traffic.TrafficPedPose>();
+            for (int i = 0; i < 10; i++)
+            {
+                float x = spot.X - 6f + 1.4f * i + 1.3f * t, y = spot.Y - 3f + (i % 2) * 1.5f;
+                peds.Add(new Hrot.Traffic.TrafficPedPose(1, 1001 + i, (1001 + i).ToString(), x, y, Z(x, y), 0f));
+            }
+            var cars = new List<Hrot.Traffic.TrafficCarPose>();
+            long[] types = { UrbanCombatTkbCatalog.TkbTrafficHatchback, UrbanCombatTkbCatalog.TkbTrafficVan, UrbanCombatTkbCatalog.TkbTrafficTruck, UrbanCombatTkbCatalog.TkbTrafficHatchback };
+            uint[] paint = { 0, 0xC03028, 0, 0x2A5BA8 };
+            for (int i = 0; i < 4; i++)
+            {
+                float x = spot.X - 10f + 7f * i + 8f * t, y = spot.Y + 5f;
+                cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, "veh" + i, 2001 + i, types[i], paint[i], x, y, Z(x, y), 0f, 4f, 1.8f));
+            }
+            return new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), peds, _ => false);
+        }
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 8f, spot.Y + 800f / 8f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, ambient: Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => Z(x, y);
+        sw.Set(true);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, Z(spot.X, spot.Y)), 22f, MathF.PI * 0.62f, -0.30f);
+        for (int k = 0; k < 12; k++)   // they walk and drive a few frames: the gait is the tracker's, keyed by id
+        {
+            world.SetSingletonManaged(FrameAt(k / 30f));
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "map3d-ce4031-sumo-people.png"));
+
+        Assert.Equal(0, bodies.BodiesDrawn);            // no entity at all
+        Assert.Equal(14, bodies.AmbientDrawn);          // every far walker and car, as a body
+        Assert.True(bodies.PartsDrawn > 10 * 10, $"parts drawn: {bodies.PartsDrawn} — figures and kits, not one box each");
+        Assert.True(bodies.FacesPainted >= 10, $"faces painted: {bodies.FacesPainted}");
+        Assert.True(bodies.DetailsDrawn > 0, "the outfits' details (hair, collars…) are drawn");
+        // the clothes differ walker to walker (seeded by the id), never one uniform colour
+        var tops = Enumerable.Range(0, 10).Select(i => Outfits.For(1001 + i, Hrot.Traffic.TrafficReplicas.PedestrianTypeOf(1001 + i), false, false, null,
+                                                                   Fdp.Core.ForceId.Neutral)).Select(o => o.ToString()).Distinct().Count();
+        Assert.True(tops >= 5, $"only {tops} distinct outfits among ten walkers");
     }
 }
 

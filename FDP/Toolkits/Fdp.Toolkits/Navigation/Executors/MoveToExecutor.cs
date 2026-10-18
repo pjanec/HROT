@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Navigation.Executors
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.IntentId++;
             intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — a MoveTo FINDS A PATH (the vehicle side plans)
+            // ⭐ AQ93 R-4023 — "in traffic": SUMO drives it on its own roads; the result (Arrived) comes back the same way.
+            if (NavigationConstants.RoadUseOf(p.Flags) == RoadUse.InTraffic) intent.Mode = NavigationMode.Traffic;
             intent.FinalDestination = p.Destination;   // raw Cartesian copy — no geo conversion
             intent.TargetSpeed      = p.Speed;
             intent.ArrivalRadius    = p.ArrivalRadius;

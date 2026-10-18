@@ -113,4 +113,20 @@ public static class AttributeIds
 
     /// <summary>⭐ The clock's display offset from UTC in minutes — <c>ScenarioClock.DisplayUtcOffsetMinutes</c>. Value type: <c>Int32</c>.</summary>
     public const ushort ScenarioUtcOffsetMinutes = 21;
+
+    // ── CE-4024 — a civilian's fright (AQ93 §15 K5, CV-12; docs/DESIGN_Civilians_And_Crowd_Control.md) ──────────────────────
+    // ⭐ How a SUMO pedestrian converted on the traffic node reaches the brain node already in panic: CivilianState is brain-local
+    //   and never replicated, so the creation request carries it as attributes. Also an operator's way to frighten a civilian.
+
+    /// <summary>⭐ <c>CivilianState.Fear</c>, 0 (calm) … 1 (terrified). Value type: <c>Float64</c>.</summary>
+    public const ushort CivilianFear = 30;
+
+    /// <summary>⭐ <c>CivilianState.FrightFrom.X</c> — where the fright came from (world metres); sets <c>HasFrightFrom</c>. <c>Float64</c>.</summary>
+    public const ushort CivilianFrightFromX = 31;
+
+    /// <summary>⭐ <c>CivilianState.FrightFrom.Y</c>. See <see cref="CivilianFrightFromX"/>.</summary>
+    public const ushort CivilianFrightFromY = 32;
+
+    /// <summary>⭐ <c>CivilianState.FrightFrom.Z</c>. See <see cref="CivilianFrightFromX"/>.</summary>
+    public const ushort CivilianFrightFromZ = 33;
 }

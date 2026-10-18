@@ -1700,6 +1700,14 @@ carries `[DataPolicy(NoSave)]` AND sits in the exclusion mask (140)** — so the
 two as compatible, not exclusive. ⇒ ⭐⭐⭐ **the CONCLUSION stands on ruling 9 and on the design record, not
 on the checkpoint argument.**
 
+### 3.9 AS-BUILT `2026-10-18` — **what a forwarded request carries, measured on the five-process cluster (`CE-4024`)**
+
+| what | as built | 📌 measured |
+|---|---|---|
+| ⭐ `PreAllocatedNetworkId` across the wire | rides `EntityMaster.EntityId` in `CreateEntityRequestDescriptorBuilder` (0 = the processor allocates; outside int range ⇒ 0); `NedEntityCreationRequestSource` maps it back. Rail `Send_CarriesThePreAllocatedNetworkIdOntoTheWire` | ⛔ it was dropped: a SUMO pedestrian converted on the traffic node came back from CGF under a new id (AQ93 §15 K5 / R-4029 held only in the editor) |
+| ⭐ the editor applies `InitialAttributesJson` | `EditorSubsystem` passes `JsonAttributeCompiler` to its pack, as every networked host's factory does; `CreateEntityRequestSystem.AppliesAttributes` + rail `TheEditorAppliesRequestAttributesTests` | ⛔ the editor passed none: every request's attributes (a debug-API spawn's included) were silently dropped there |
+| ⚠ what still does NOT cross | every `InitialComponents` entry but the anchor `SimTransform` and the overlay / route / cloud descriptors (`CreateEntityRequestDescriptorBuilder.Build`) | a brain-local component travels as attributes instead (`CivilianState` ⇒ `Fear`, `FrightFrom.*`, [Q59 §15](blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md)) |
+
 ## ⛔ HISTORY — the withdrawn proposal *(kept so its reasoning is not re-derived)*
 
 ##### ⛔ SUPERSEDED — THE FIX IS ONE ATTRIBUTE — **and replay is NOT affected**

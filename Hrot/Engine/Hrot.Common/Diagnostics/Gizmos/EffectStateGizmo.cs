@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Replication.Components;
 // Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
 using FixedString32 = Fdp.Core.FixedString32;
 
@@ -9,7 +10,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 {
     /// <summary>
     /// ⭐ <c>CE-1164</c> (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-c) — a person's running non-lethal effects as one
-    /// text line under him: <c>DOWN</c> (knocked down), <c>STUNNED</c>, <c>GASSED</c> (irritated), ⭐ <c>COWERING</c> (CE-1164 — the CivilianHsm's mode, backend F-3), joined by " · "; NOTHING when none runs.
+    /// text line in his card (⭐ CE-1178 — above his head in 3-D): <c>DOWN</c> (knocked down), <c>STUNNED</c>, <c>GASSED</c> (irritated), ⭐ <c>COWERING</c> (CE-1164 — the CivilianHsm's mode, backend F-3), joined by " · "; NOTHING when none runs.
     /// Reads the replicated <see cref="EffectState"/> (CE-3219) against sim time — the 2-D fallback of the 3-D pose, the shape of
     /// <c>StanceGizmo</c>. On the Labels layer (on by default): an effect is rare and short, and it is what the operator must see.
     /// Auto-discovered on every map host (<c>GizmoReflectionRegistrar</c>).
@@ -19,11 +20,21 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         private static readonly Rgba32 Color = new(255, 170, 60, 255);
 
+        /// <summary>⭐ CE-1178 (docs/DESIGN_People_Display.md §5 U17) — the line's row in the entity card, below the name / HP / behaviour
+        /// rows (Map 3-D §3.6: "extra lines — any gizmo, rows 30+").</summary>
+        public const byte Row = 50;
+
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<SimTransform>() || !view.HasComponent<SimTransform>(entity)) return;
             string? text = Text(repo, entity);
             if (text == null) return;
+            // ⭐ CE-1178 (U17) — a row of his CARD: the card sits above the head in 3-D (its renderer lifts it to the body top) and above
+            //   the symbol in 2-D. ⛔ It was loose ground text, which 3-D drew at his FEET. Loose text stays only for a man with no
+            //   network id (a card is keyed by it).
+            long net = repo.IsComponentTypeRegistered<NetworkIdentity>() && view.HasComponent<NetworkIdentity>(entity)
+                ? view.GetComponentRO<NetworkIdentity>(entity).Value : 0;
+            if (net != 0) { draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(text, Color, 12f); return; }
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             draw.DrawText(tf.Position.X, tf.Position.Y, new FixedString32(text), Color, fontSizePx: 12f, lineOffsetPx: 28f,
                           layer: DebugTraceLayers.Labels);
@@ -50,6 +61,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             GestureKind.None => null,
             GestureKind.HandsUp => "HANDS UP",
+            GestureKind.Warning => "WARNING",   // the police warning (behaviors' escalation ladder) — not a protest
             _ => "PROTEST",
         };
     }

@@ -3,82 +3,111 @@ using Sim.Ingest;
 
 namespace Hrot.Traffic;
 
-/// <summary>One straight piece of a lane on the map: its two ends (terrain-local metres) and its width.</summary>
-public readonly record struct TrafficLaneStrip(Vector2 A, Vector2 B, float Width, bool Sidewalk);
+/// <summary>One straight piece of a centreline on the 2-D map (terrain-local metres).</summary>
+public readonly record struct TrafficLine(Vector2 A, Vector2 B);
 
-/// <summary>A quad of the ambient ground on the map, corners counter-clockwise from above (p00, p10, p11, p01).</summary>
-public readonly record struct TrafficGroundQuad(Vector2 P00, Vector2 P10, Vector2 P11, Vector2 P01);
+/// <summary>How much of the road net the 2-D map draws (<see cref="TrafficRoadPlan.Detail"/>).</summary>
+public enum TrafficPlanDetail : byte
+{
+    /// <summary>Every vehicle lane's centreline, and a dot per traffic-light head.</summary>
+    Lanes = 0,
+    /// <summary>One centreline per edge (a large net), and a dot per traffic-light head.</summary>
+    Edges = 1,
+    /// <summary>No road net in 2-D at all (a net too large even by edges) — the 3-D map still draws its meshes.</summary>
+    None = 2,
+}
 
 /// <summary>
-/// ⭐ AQ93 V7 — the road scene as the 2-D MAP draws it: each lane as a world-width line per shape segment, the ambient ground as
-/// row strips. Built once with the scene, so the 2-D layer stays a few thousand primitives.
+/// ⭐ AQ93 §12.4 — the road net as the 2-D MAP draws it: a SYMBOL, not the surface. 🔒 User, 2026-10-17: <i>"We do not need full
+/// triangle road net in 2d, symbolic is more than enough (lane centerlines, traffic light as single colored dot). The triangle one
+/// is for 3d render"</i> · <i>"some simplification might be necessary - maybe even like not rendering larger road net in 2d map at
+/// all"</i>.
 /// </summary>
 /// <remarks>
-/// <para>📌 Measured 2026-10-17 on demo-city: drawing the scene's meshes in 2-D took ~51.8k triangles per frame (asphalt 15.6k,
-/// ambient ground 27.5k, crosswalks 6.7k, junctions 2.0k) against the map's 4096-primitive gizmo buffer. Ground went in first, so
-/// roads, lights, cars and every entity gizmo after them were dropped (48.5k dropped a frame) and the map showed nothing.</para>
-/// <para>⭐ The plan: 1 062 lane strips (one per segment of a normal lane; internal lanes are covered by the junction fill), the
-/// junction mesh as it is, and the ground cells merged along their rows. ⛔ Crosswalks and lane markings are paint and stay out of 2-D.
-/// The 3-D layer keeps drawing the full meshes.</para>
+/// <para>📌 Measured 2026-10-17 on demo-city: the 3-D meshes drawn flat were ~51.8k triangles a frame and starved the map's
+/// gizmo buffer (CE-4019). This plan is built ONCE with the scene and picks its detail against <see cref="Budget"/>: vehicle-lane
+/// centrelines (demo-city: 648 + 372 light heads) → one centreline per edge → nothing.</para>
+/// <para>⭐ Sidewalks, junction interiors, crosswalks, markings and the ambient ground are not drawn in 2-D.</para>
 /// </remarks>
 public sealed class TrafficRoadPlan
 {
-    public static readonly TrafficRoadPlan Empty = new(Array.Empty<TrafficLaneStrip>(), Array.Empty<TrafficGroundQuad>());
+    /// <summary>The most primitives the 2-D road layer may take (lines + light dots): an eighth of the map buffer (16384), so the
+    /// terrain and every entity gizmo always fit beside it.</summary>
+    public const int Budget = 2048;
 
-    public TrafficRoadPlan(IReadOnlyList<TrafficLaneStrip> strips, IReadOnlyList<TrafficGroundQuad> ground)
+    public static readonly TrafficRoadPlan Empty = new(Array.Empty<TrafficLine>(), TrafficPlanDetail.None);
+
+    public TrafficRoadPlan(IReadOnlyList<TrafficLine> lines, TrafficPlanDetail detail)
     {
-        Strips = strips;
-        Ground = ground;
+        Lines = lines;
+        Detail = detail;
     }
 
-    public IReadOnlyList<TrafficLaneStrip> Strips { get; }
+    /// <summary>The centrelines to draw (empty when <see cref="Detail"/> is <see cref="TrafficPlanDetail.None"/>).</summary>
+    public IReadOnlyList<TrafficLine> Lines { get; }
 
-    public IReadOnlyList<TrafficGroundQuad> Ground { get; }
+    public TrafficPlanDetail Detail { get; }
 
-    /// <summary>The lane strips of every normal lane (an edge whose id does not start with <c>:</c>), placed per vertex.</summary>
-    public static IReadOnlyList<TrafficLaneStrip> LaneStrips(NetworkModel net, SumoNetPlacement placement)
+    /// <summary>Draw the traffic-light dots? Not when the road net itself is not drawn.</summary>
+    public bool DrawsLights => Detail != TrafficPlanDetail.None;
+
+    /// <summary>The plan for <paramref name="net"/>: the most detail whose lines plus <paramref name="lightHeads"/> fit
+    /// <paramref name="budget"/>.</summary>
+    public static TrafficRoadPlan For(NetworkModel net, SumoNetPlacement placement, int lightHeads, int budget = Budget)
     {
-        var strips = new List<TrafficLaneStrip>();
+        var lanes = LaneCentrelines(net, placement);
+        if (lanes.Count + lightHeads <= budget) return new TrafficRoadPlan(lanes, TrafficPlanDetail.Lanes);
+        var edges = EdgeCentrelines(net, placement);
+        if (edges.Count + lightHeads <= budget) return new TrafficRoadPlan(edges, TrafficPlanDetail.Edges);
+        return new TrafficRoadPlan(Array.Empty<TrafficLine>(), TrafficPlanDetail.None);
+    }
+
+    /// <summary>One line per shape segment of every normal vehicle lane (not internal, not pedestrian-only).</summary>
+    public static List<TrafficLine> LaneCentrelines(NetworkModel net, SumoNetPlacement placement)
+    {
+        var lines = new List<TrafficLine>();
         foreach (var lane in net.LanesByHandle)
         {
-            if (lane.EdgeId.StartsWith(':') || lane.Shape.Count < 2) continue;
-            var a = Local(placement, lane.Shape[0]);
-            for (int i = 1; i < lane.Shape.Count; i++)
-            {
-                var b = Local(placement, lane.Shape[i]);
-                strips.Add(new TrafficLaneStrip(a, b, (float)lane.Width, !lane.AllowsRoadVehicle));
-                a = b;
-            }
+            if (lane.EdgeId.StartsWith(':') || !lane.AllowsRoadVehicle) continue;
+            AddPolyline(lines, lane.Shape, placement);
         }
-        return strips;
+        return lines;
     }
 
-    /// <summary>
-    /// The ambient ground's cells merged along each row: a cell continues the run when its left edge is the previous cell's right
-    /// edge. <paramref name="ground"/> is <c>AmbientGroundBuilder</c>'s layout — four vertices per cell (p00, p10, p11, p01), unshared.
-    /// </summary>
-    public static IReadOnlyList<TrafficGroundQuad> GroundRows(TrafficRoadMesh? ground)
+    /// <summary>One centreline per normal edge with a vehicle lane: the midline of its outer vehicle lanes when their shapes pair up
+    /// point for point, else its middle vehicle lane.</summary>
+    public static List<TrafficLine> EdgeCentrelines(NetworkModel net, SumoNetPlacement placement)
     {
-        var quads = new List<TrafficGroundQuad>();
-        if (ground is null || ground.Vertices.Length < 4) return quads;
-        var v = ground.Vertices;
-        int cells = v.Length / 4;
-        int start = 0;
-        for (int k = 1; k <= cells; k++)
+        var lines = new List<TrafficLine>();
+        foreach (var edge in net.Edges)
         {
-            bool continues = k < cells
-                && Near(v[4 * k], v[4 * (k - 1) + 1]) && Near(v[4 * k + 3], v[4 * (k - 1) + 2]);
-            if (continues) continue;
-            int last = k - 1;
-            quads.Add(new TrafficGroundQuad(Flat(v[4 * start]), Flat(v[4 * last + 1]), Flat(v[4 * last + 2]), Flat(v[4 * start + 3])));
-            start = k;
+            if (edge.Id.StartsWith(':')) continue;
+            var vehicle = edge.Lanes.Where(l => l.AllowsRoadVehicle && l.Shape.Count >= 2).ToList();
+            if (vehicle.Count == 0) continue;
+            var first = vehicle[0].Shape;
+            var last = vehicle[^1].Shape;
+            if (first.Count == last.Count)
+            {
+                var mid = new (double X, double Y)[first.Count];
+                for (int i = 0; i < mid.Length; i++) mid[i] = ((first[i].X + last[i].X) / 2, (first[i].Y + last[i].Y) / 2);
+                AddPolyline(lines, mid, placement);
+            }
+            else AddPolyline(lines, vehicle[vehicle.Count / 2].Shape, placement);
         }
-        return quads;
+        return lines;
     }
 
-    private static bool Near(Vector3 a, Vector3 b) => MathF.Abs(a.X - b.X) < 1e-2f && MathF.Abs(a.Y - b.Y) < 1e-2f;
-
-    private static Vector2 Flat(Vector3 v) => new(v.X, v.Y);
+    private static void AddPolyline(List<TrafficLine> into, IReadOnlyList<(double X, double Y)> shape, SumoNetPlacement placement)
+    {
+        if (shape.Count < 2) return;
+        var a = Local(placement, shape[0]);
+        for (int i = 1; i < shape.Count; i++)
+        {
+            var b = Local(placement, shape[i]);
+            into.Add(new TrafficLine(a, b));
+            a = b;
+        }
+    }
 
     private static Vector2 Local(SumoNetPlacement placement, (double X, double Y) p)
     {

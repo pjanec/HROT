@@ -66,6 +66,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.TacticalIntentIngressTranslator>(set));
         }
 
+        /// <summary>⭐ CE-4024 (AQ93 §15 K7) — the hits reach the Brain AND the traffic node (a hit on a SUMO agent is addressed to the replica
+        /// it owns), exactly once each; a map or muscle node takes none.</summary>
+        [Theory]
+        [InlineData(NodeRole.Brain, 1)]
+        [InlineData(NodeRole.Traffic, 1)]
+        [InlineData(NodeRole.Brain | NodeRole.Traffic, 1)]
+        [InlineData(NodeRole.MuscleGround, 0)]
+        [InlineData(NodeRole.Map2D, 0)]
+        public void CE4024_TheTrafficNodeHearsTheHits_AsTheBrainDoes(NodeRole role, int ingress)
+        {
+            using var participant = new DdsParticipant(231u);
+            var set = Compose(participant, role);
+            Assert.Equal(ingress, Count<Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator>(set));
+            // … and the traffic node SENDS the hit it re-addresses to a converted agent's new entity (a muscle sends its own)
+            bool sends = role.HasFlag(NodeRole.Traffic) || role.HasFlag(NodeRole.MuscleGround);
+            Assert.Equal(sends ? 1 : 0, Count<Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator>(set));
+        }
+
         /// <summary>⭐ CE-3169 / CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG's own list no longer carries the order
         /// egress: the IG builds the auxiliary pack like every node and takes it from there (CE3167_… with Map2D). A copy here would
         /// send every order twice.</summary>

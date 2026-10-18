@@ -73,6 +73,36 @@ public sealed class TrafficRuntime : IDisposable
     /// <summary>Ids kept beyond the target car count.</summary>
     public const int IdHeadroom = 64;
 
+    /// <summary>⭐ AQ93 §13 F4 — our bodies, as of this frame (net coordinates); the stepping thread tells SUMO before its next step.
+    /// One volatile write of an array nobody mutates afterwards. ⛔ Main thread only.</summary>
+    public void SetBodies(TrafficBody[] bodies) => Volatile.Write(ref _bodies, bodies ?? Array.Empty<TrafficBody>());
+
+    /// <summary>The bodies the stepping thread will hand SUMO next (rails, diagnostics).</summary>
+    public IReadOnlyList<TrafficBody> Bodies => Volatile.Read(ref _bodies);
+    private TrafficBody[] _bodies = Array.Empty<TrafficBody>();
+
+    /// <summary>⭐ AQ93 §14 G3 — our vehicles handed to SUMO, as of this frame; the stepping thread spawns and despawns their shadows.
+    /// ⛔ Main thread only.</summary>
+    public void SetHandovers(TrafficHandover[] handovers) => Volatile.Write(ref _handovers, handovers ?? Array.Empty<TrafficHandover>());
+    private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficIncident> _incidents = new();
+    private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficConversion> _converted = new();
+    private readonly List<TrafficConversion> _convertScratch = new();
+
+    /// <summary>⭐ AQ93 §15 K4 — a shot or blast for the stepping thread, which gives up the pedestrians it frightens. ⛔ Main thread.</summary>
+    public void ReportIncident(in TrafficIncident incident) => _incidents.Enqueue(incident);
+
+    /// <summary>⭐ AQ93 §15 K7 — one of SUMO's agents was hit: the stepping thread gives it up. ⛔ Main thread.</summary>
+    public void ReportHit(in TrafficHit hit) => _hits.Enqueue(hit);
+    private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficHit> _hits = new();
+
+    /// <summary>⭐ AQ93 §15 K5 — the pedestrians SUMO gave up since the last call, APPENDED to <paramref name="into"/>. ⛔ Main thread.</summary>
+    public void TakeConversions(List<TrafficConversion> into)
+    {
+        while (_converted.TryDequeue(out var c)) into.Add(c);
+    }
+
     /// <summary>How far SUMO may run (cluster sim time); also the time a NEW session starts at (N3). ⛔ Main thread only.</summary>
     public void SetTarget(TrafficSessionKey key, double clusterTime)
     {
@@ -114,6 +144,20 @@ public sealed class TrafficRuntime : IDisposable
                 Fdp.Core.Logging.FdpLog<TrafficRuntime>.Warn("[Traffic] SUMO could not start on '{0}': {1}", want.NetFile, ex.Message);
                 return;
             }
+        }
+        have.SetBodies(Volatile.Read(ref _bodies));
+        have.SetHandovers(Volatile.Read(ref _handovers));
+        while (_incidents.TryDequeue(out var incident))   // ⭐ §15 K4/K5 — between steps, so even a paused cluster converts
+        {
+            _convertScratch.Clear();
+            have.Convert(incident, _convertScratch);
+            foreach (var c in _convertScratch) _converted.Enqueue(c);
+        }
+        while (_hits.TryDequeue(out var hit))
+        {
+            _convertScratch.Clear();
+            have.ConvertHit(hit, _convertScratch);
+            foreach (var c in _convertScratch) _converted.Enqueue(c);
         }
         Interlocked.Add(ref _steps, have.StepTo(target));
     }

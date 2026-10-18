@@ -135,6 +135,8 @@ namespace Hrot.Map.Common.Tests
         /// (<see cref="CombatPlatformDefDto"/>) but no brain would keep Health with its creator — a SimHost or IG that
         /// applies no damage — so every production combat template must carry a brain. A new brainless combat template
         /// breaks this, and with it the damage path: run <c>HealthApplicationSystem</c> on every host before adding one.
+        /// ⭐ <c>CE-4030</c> — a brainless combat platform (a civilian or SUMO car, hittable but with no behaviour) is in the group by its
+        /// Health alone (G-4: the group applies where its components are provisioned), so its damage still lands on the Brain node.
         /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.
         /// </summary>
         [Fact]

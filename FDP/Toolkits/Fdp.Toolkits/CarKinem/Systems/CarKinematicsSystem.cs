@@ -165,6 +165,9 @@ namespace CarKinem.Systems
             if (fwd2D.LengthSquared() < 0.0001f) fwd2D = Vector2.UnitX;
             else fwd2D = Vector2.Normalize(fwd2D);
 
+            // ⭐ AQ93 R-4023 — SUMO drives this body: TrafficShadowFollowSystem writes its pose from the shadow car. Nothing to integrate.
+            if (nav.Mode == KinematicsMode.Traffic) return;
+
             // ⭐⭐ CE-3173 (M-1..M-3, docs/DESIGN_Entity_Control.md §8b) — an OPERATOR drives this body: ManualDrive's axes, through
             //   their own integrators (ManualMotion) — the autonomous models below are untouched. No ManualDrive yet ⇒ it holds still.
             if (nav.Mode == KinematicsMode.Manual)

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons DESIGNED, CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -3905,7 +3905,11 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
-### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: DESIGN — backend leans TC-1…TC-7 for approval; TC-7 is behaviors' to rule)*
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule)*
+
+🔒 **Approved, user, `2026-10-18`:** *"Approved. Lethality depends also on what the man is holding in hands i guess.
+Knife is usually not thrown unless by a circus artist."* ⇒ ⭐ TC-2 carries **no throwing knife** (a knife is the MELEE item of AW-19, never thrown by the AI — TC-4); ⭐ TC-7's
+lean is now **per held item**, not one reach for the hand.
 
 ⭐ **The question** *(user, `2026-10-18`)*: *"Thrown knife or axe or spear or shuriken is worth investigating, if this is melee at all or more a
 cold weapon fire."* ⇒ **cold-weapon FIRE.** A blow (`Melee.Strike`, §5i) has no flight; a thrown blade flies, can miss, stops on a wall,
@@ -3928,10 +3932,10 @@ INVENTORY *(grep + reads at `backend@5856585c0`; codebase-memory CLI)*:
 ```mermaid
 classDiagram
   direction LR
-  class MunitionTkbCatalog { <<existing>> + ThrowingKnife · Hatchet · Javelin · ThrowingStar }
+  class MunitionTkbCatalog { <<existing>> + Hatchet · Javelin · ThrowingStar }
   class WarheadDto { <<existing>> Kind = Kinetic · Indirect = true }
   class HandItemDto { <<existing>> LiesSeconds — it lies and can be picked up }
-  class MunitionVisualDto { <<existing, + 4 shapes>> Knife · Axe · Spear · Star }
+  class MunitionVisualDto { <<existing, + 3 shapes>> Axe · Spear · Star }
   class PersonHands { <<existing>> Give(world, man, ammo, n) · the throw's one speed }
   class FireAtPointExecutor { <<existing>> throws the LOADED round from the hands }
   class BallisticsSystem { <<existing>> the flight, the strike on the line, the wall }
@@ -3949,7 +3953,7 @@ classDiagram
   SoundEmissionSystem ..> HandThrow
   Armament ..> PersonHands
 ```
-*What the picture shows that prose hid:* every box but one EXISTS — the four blades are rows of data on the stone's path, and the only new
+*What the picture shows that prose hid:* every box but one EXISTS — the three throwables are rows of data on the stone's path, and the only new
 code is the "a hand throw is no gunshot" test that the stone needed already (`CE-3248`).
 
 ```mermaid
@@ -3958,15 +3962,15 @@ sequenceDiagram
   participant S as SimHost (the round's owner)
   participant O as the victim's Health owner (CGF)
   participant V as every node (IG)
-  B->>B: PersonHands.Give(knife, 3) — a scenario loadout or a pick-up (PU-6)
-  B->>S: FireAtPoint on the hands — WeaponFireIntent(knife, at point)
-  S->>S: FireProcessing: the knife flies the throw arc (Indirect)
-  S->>V: the round replicates (its look: Knife)
+  B->>B: PersonHands.Give(hatchet, 2) — a scenario loadout or a pick-up (PU-6)
+  B->>S: FireAtPoint on the hands — WeaponFireIntent(hatchet, at point)
+  S->>S: FireProcessing: the hatchet flies the throw arc (Indirect)
+  S->>V: the round replicates (its look: Axe)
   S->>S: Ballistics: the first body on its line is struck — direct hit, Kinetic
   S->>O: EntityHitDamage (damage, Source = the thrower)
   O->>O: HealthApplication applies it
   S->>S: no body: it stops on the ground or a wall and LIES (LiesSeconds)
-  B->>S: PickUpRound (kind 9) — the knife can be thrown again
+  B->>S: PickUpRound (kind 9) — it can be thrown again
 ```
 *What the picture shows that prose hid:* the whole life of a thrown blade crosses nodes on paths that are already live for the stone —
 none of it waits for `CE-3246` (that row is the BLOW raised on a brain).
@@ -3985,17 +3989,19 @@ SimHost, and the hit comes back to the `Health` owner; no new module, no new reg
 | id | decision *(backend lean)* | rejected — one line each |
 |---|---|---|
 | **TC-1** | **a thrown blade is a MUNITION (a round), never melee**: it flies, can miss, is stopped by a wall, strikes the first body on its line through the direct-hit chain | `Melee.Strike` at range: no flight, no miss, no cover, no lying · a `StrikeNotification` for a throw: a throw is a round, already on the wire |
-| **TC-2** | **four starter munitions**: throwing knife, hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, knife 25, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
-| **TC-3** | **four appended `MunitionShape` members** — `Knife`, `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
-| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. A FIGHTING knife (AW-19, the melee item of ui's G4) is a different item; throwing your one fighting knife is later — it needs a held weapon to become a round, the canister's shape (§7.15) on a weapon mount | one item that is both: the conversion is not built and no demo needs it yet |
+| **TC-2** | **three starter munitions** *(as approved — ⛔ no throwing knife: "a knife is usually not thrown unless by a circus artist")*: hatchet, javelin (spear), throwing star — `WarheadDto { Kind = Kinetic, Indirect = true }`, a small `penetrationMm` (body armour stops them), damage per type (starter values: star 8, hatchet 35, javelin 45), a `HandItemDto` (they lie and are picked up) | a new `WarheadKind.Edged`: no reader tells it from `Kinetic` today — add it with the first reader (bleeding, `DESIGN_Injury_States`) |
+| **TC-3** | **three appended `MunitionShape` members** — `Axe`, `Spear`, `Star` — so ui draws a blade, not a lump; ⭐ ui is told when they land (a replicated enum ui draws grows) | reuse `Grenade`: a knife drawn as a stone |
+| **TC-4** | **carried in the HANDS** (`PersonHands.Give`, up to 4 kinds) and thrown from them — the stone's path, unchanged. ⭐ A KNIFE is the melee item of AW-19 (ui's G4) and is **never thrown** (approved) | one item that is both melee and thrown: not wanted — a knife is not thrown |
 | **TC-5** | **one throw speed** — the hands' (15 m/s, its `Range`) — for v1 | a speed per munition: a javelin outranges a knife in life; the per-charge machinery exists (`charges`, IF-1) — add it when a demo needs the difference |
 | **TC-6** | **a hand throw is not a gunshot** (`CE-3248`): no shot report, no barrel heat, no muzzle flash, no tracer — one test, *"fired from a hands mount"*, read by each `WeaponFireNotification` consumer; ⭐ it fixes the stone and the hand grenade too | a flag per munition: every throwable would need it, and a hand never makes a report · a separate throw notification: the round, `RecentShots` and replay already ride this one |
-| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). Lean: its lethal reach is the hand's throw `Range` (25 m) — "lethality is an item's reach" | leave it: a man with throwing stars reads armed-lethal at 150 m · a per-munition reach: one hand, one throw |
+| **TC-7** | ⏳ **behaviors' to rule** (AW-19 / AW-15): a held throwable is judged lethal at ANY identified distance today (`OfHands`, `ReachM` 0). ⭐ Lean *(reframed by the user's "lethality depends also on what the man is holding")*: **the lethal reach is the HELD ITEM's** — a hand grenade or a javelin out to the hand's throw `Range` (25 m), a throwing star to its short effective range, a stone never lethal (as today), a knife only within melee reach (AW-19) — data on the item (`ReachM`), read by the existing `OfItem` rule | one reach for the whole hand: a star and a grenade are not the same threat · leave it: a man with throwing stars reads armed-lethal at 150 m |
 
 ⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
 a sound for the throw's whoosh (none is wanted).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
+
+⭐ **`2026-10-18` — the next ui designs (U7…U18: armed people, police look, speech and mood marks) live in [`DESIGN_People_Display.md`](DESIGN_People_Display.md)**, not here — this section stays U-1…U-6 and the cloud.
 
 **INVENTORY** *(2026-10-16; codebase-memory CLI `search_graph` for `.*EntityClassTable.*`, `.*VisualFamil.*`, `.*EffectState.*`,
 `.*AreaEffect.*`, `.*IgSymbolOverride.*`, `.*Affiliation.*` + grep on every call site + the design corpus; `check_index_coverage` NOT run — CLI only)*:
@@ -4229,7 +4235,7 @@ does, `Gestured` sees `None` and the figure is unchanged.
 |---|---|---|---|
 | **U6-a** | where the override applies | `Gestured` right after `Burdened`: standing AND crouched (the shoulders follow `CrouchDrop`); NOT prone, dead, cowering, knocked down or carrying (those already own the arms — the frame's "EffectState wins") | inside `FigurePose`: it returns before carriage, so a carrier would wave · prone too: a prone man's arms are under him |
 | **U6-b** | the vocabulary | ui's `ArmGesture` enum with backend's six names; the wiring is a byte cast and a rail asserts `Enum.GetNames` equal | switch on backend's type directly: blocks the whole build on B-6 · a pose per stance: six × three tables |
-| **U6-c** | the shapes | HandsUp — both arms straight up, open · FistRaised — right arm up, the left hanging · HoldSign — both hands up on a pole in front of the face, a board above the head · Waving — right arm up and out, the forearm tilted · Throwing — the wind-up: right hand back above the shoulder, left arm forward; all static (the brain cycles them, the frame says so) | animated waving: the brain toggles it, and an animation per gesture is a second clock |
+| **U6-c** | the shapes | HandsUp — both arms straight up, open · FistRaised — right arm up, the left hanging · HoldSign — both hands up on a pole in front of the face, a board above the head · Waving — right arm up and out, the forearm tilted · Throwing — the wind-up: right hand back above the shoulder, left arm forward; all static (the brain cycles them, the frame says so) — ⛔ SUPERSEDED `2026-10-18` by the user's *"hand up gesture animated a bit (not stiff)"*: animated statelessly on each man's clock, [People display](DESIGN_People_Display.md) U14 / §7a (`CE-1175`) | animated waving: the brain toggles it, and an animation per gesture is a second clock |
 | **U6-d** | the placard | two appended parts (a `Metal`-role pole and a `Canvas`-role board), appended AFTER every indexed part so no index moves | a prop entity: fenced off by the frame |
 | **U6-e** | 2-D | `EffectStateGizmo` adds `HANDS UP` (HandsUp) and `PROTEST` (FistRaised, HoldSign, Waving, Throwing) to its one line | a second gizmo: two lines under one man |
 | **U6-f** | a soldier | the gesture still draws (a surrendering soldier raises his hands); his rifle is slung like a carrier's | skip soldiers: CV-13a's surrender is about armed men |
@@ -4246,7 +4252,7 @@ does, `Gestured` sees `None` and the figure is unchanged.
 | decision | as built | still to do |
 |---|---|---|
 | U6-b | `BlockFigure.ArmGesture` — the six names of CV-13; ✅ `2026-10-17` the byte cast from backend's `GestureKind` (B-6, `CE-3224`) and the names rail `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` | — |
-| U6-c | `BlockFigure.GestureArms(parts, gesture, crouched, soldier)` — the five shapes as leaned, static; only the four arm parts at `TorsoIndex+2…+5` change; a soldier's rifle slung (the carrier's sling, shifted by the crouch) | — |
+| U6-c | `BlockFigure.GestureArms(parts, gesture, crouched, soldier)` — the five shapes as leaned, static (⭐ animated since `CE-1175`, People display §7a); only the four arm parts at `TorsoIndex+2…+5` change; a soldier's rifle slung (the carrier's sling, shifted by the crouch) | — |
 | U6-d | `BlockFigure.Placard(drop)` — the pole (`Metal`) and the board (`Canvas`), appended after every indexed part (`PlacardParts` = 2) | — |
 | U6-a | ✅ `2026-10-17` — `EntityBodyLayer3D.Gestured(world, e, soldier, carriage, parts)` after `Burdened` and the shouldered launcher: `Gestures.Of` → `GestureArms` for a FREE (carriage `Free`, wounded included), living, not-cowering man, standing or crouched | the `ua-civ-protest` look on a live cluster (behaviors' CE-2240 writes it) |
 | U6-e | ✅ `2026-10-17` — `EffectStateGizmo.Text` adds `HANDS UP` / `PROTEST` (`GestureWord`) after the effects; ⚠ **deviation:** a `[GizmoProjector]` runs only for entities that HAVE its component, so a protester with no `EffectState` never reached the effect gizmo ⇒ a small `GestureGizmo` (`[GizmoProjector(typeof(Gesture))]`) draws the SAME line when there is no `EffectState` (never two lines; one text rule) | — |
@@ -4256,6 +4262,8 @@ head, the soldier's rifle slung) and `CE1166_TheShapes_ReadAsTheGesture` (hands 
 hand behind the shoulder), red-proved with three switches (no override · hands up drawn as a fist · no placard). ⭐ `2026-10-17`, on
 B-6: `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` (red-proved by an extra enum member) and
 `CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine` (red-proved: no `Gestured`, no word).
+⭐ `2026-10-18` (`CE-1180`): behaviors' `GestureKind.Warning` (= 6, the escalation ladder's EL-3) — `ArmGesture.Warning` (the right arm
+straight out, the palm forward) and WARNING in the line; the names rail caught the new member on the merge.
 
 ### 8.8 U4-a — the cloud drawn *(ui, `2026-10-17`; on backend's [NOTE](blueprints/batches/NOTE_Backend_To_Ui_AreaEffectCloud.md), `CE-3219` part 3 as built in §7.3c; item `CE-1165`)*
 
