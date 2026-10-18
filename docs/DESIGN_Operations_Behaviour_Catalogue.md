@@ -32,6 +32,7 @@ related-designs:
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §8: SUMO pedestrians that panic become our civilian entities for good (CGF creates them, P4) and need CIV-2/CIV-7 as a production HSM (P5).
   - docs/DESIGN_Civilians_And_Crowd_Control.md — the BUILD of the civilian rows (CIV-1…7, ASY-5, SQD-13) and of D3/D4/D5: one civilian family + HSM, crowds, riots, non-lethal force (R-4033…R-4036).
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the build of SQD-5 room clearing and SQD-6 house search
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — designs SQD-8 / SQD-11 (defend), the building / roof / overwatch post templates and snipers
 -->
 
 # Operations behaviour catalogue — what a library for modern operations needs
@@ -81,7 +82,7 @@ threats and civilian life — for training simulation.
 | vehicle kinematics · formation / route driving | ✅ built; convoy = name only; embark/eject executors not registered on CGF | `DESIGN_Entity_Interactions.md` §7 |
 | crowd agent (dtCrowd) | ✅ built; civilian behaviours `WanderCivil`/`PanicFlee` = **names only** | Nav design §7.2 |
 | terrain height · prone stance · HoldProne | ✅ built | `DESIGN_Terrain_Height.md` · Decision Layer §3.3f |
-| ⛔ **nothing at all** (searched code + `docs/` + `.dev/`) | medical / casualty care · IED · self-detonation · VBIED · air strike · drones / flight model · motorcycles · ramming · smoke / fire · trenches / ditches · riot / mob / melee · fire missions · ambush as a manoeuvre · infantry formations / march | — |
+| ⛔ **nothing at all** (searched code + `docs/` + `.dev/`) | medical / casualty care · IED · self-detonation · VBIED · air strike · drones / flight model · motorcycles · ramming · fire (⚠ smoke corrected 2026-10-18: a sight-blocking cloud and TKB smoke grenade 6041 exist, `AreaEffectSystem.cs:101-106`, `MunitionTkbCatalog.cs:130`; nothing throws it — Defend_And_Attack DA-12) · trenches / ditches · riot / mob / melee · fire missions · ambush as a manoeuvre · infantry formations / march | — |
 
 ## 2. The requested scenarios, decomposed
 

@@ -26,6 +26,7 @@ related-designs:
   - blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — OWNS T6 (static obstacles: a TkbType, baked; moving ones never in the navmesh) — §9 builds it
   - DESIGN_Entity_Control.md — OWNS the operator's attack order (C-5, CE-3170): its DesignatedTarget answers FIRST in SquadAssignment.TargetOf (G4's one reader), ahead of the squad's assignment
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS making the executors' holds (not seen, aiming x/y s, reloading) and PeekAndFire's phases visible on the map (proposed)
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — sets the expose / relocate timings by proficiency (DA-2, DA-6) and adds set-back window posts for regulars
 -->
 
 # Peek and fire — the window duel *(backend, `2026-10-09`, `CE-3136`; resolves `CE-3135`)*

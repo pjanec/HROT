@@ -19,6 +19,7 @@ related-designs:
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the penetrator kind (kinetic / shaped charge / tandem) read beside R-217's lookup
   - DESIGN_Visual_Effects.md — draws the detonations §3k's warheads make (explosion and decal sized by the ammo's TKB type).
   - DESIGN_World_Query_Seam.md — owns the engine-neutral query (IWorldQuery.Trace with a purpose) that generalises §3a's
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — generates defenders' posts per storey and on the roof from this design's openings and window points (DA-5, DA-6)
     "one query for all, different solver"; sound B-6 is its Trace(Sound) (WQ-E).
   - DESIGN_Map_3D_Mode.md — the map's 3-D mode colours wall panels, slabs and roofs by this file's materials.
   - DESIGN_Peek_And_Fire.md — the window duel: refines §3d P2's aim point (highest SEEN body point) and adds a body-height band to the person hit test; consumes §3l's window positions

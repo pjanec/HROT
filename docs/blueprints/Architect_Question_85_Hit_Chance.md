@@ -10,6 +10,7 @@ related-designs:
   - ../DESIGN_Terrain_Combat_Tuning.md — reference library, premise tests and shot diagnostics for hit chance demos
   - ../DESIGN_Building_Interiors.md — the shared terrain Trace that §D bullets use (B4)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 — OWNS ammunition vs armour (R-212: ArmorModel drives the real damage AND the
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-2 adds one shooter-proficiency factor to the spread (1.0 at Regular)
     AI estimate; no dice). This question adds the term BEFORE it: does the round hit at all.
   - docs/designs/brain-split/BS-1-DESIGN.md §2.1 — OWNS where combat runs: the Brain orders, the Muscle spawns the bullet and
     resolves the hit ("NO bullets, NO damage" on the Brain).

@@ -16,6 +16,7 @@ related-designs:
   - ../brain-split/BS-1-DESIGN.md — §5.1a: the generic AimAndFireExecutor's no-fire guards (CE-321), which reuse CombatLife.
   - ../../blueprints/DESIGN_Entity_Reference.md — §6.1's `TargetAreaNetworkId` is an `EntityRef` (2026-10-03), no longer `long` + attributes.
   - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — the infantry platoon commander (defend / attack a position); reuses this design's intent dispatch and R-2023
     return to baseline must be an explicit step here.
   - docs/blueprints/Architect_Question_8_Wave_Core.md — the wave core rulings this doctrine's blueprint twin follows.
   - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — owns the blueprint rebuild of this

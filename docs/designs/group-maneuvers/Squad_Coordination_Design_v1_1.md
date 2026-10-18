@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — owns the REAL danger-area sensor that feeds §5's buffer (§10.2: solved on the navigation node, rated on the Brain, R-213) and the single-unit crossing demo (§10.4); this document keeps the squad drill (§8.1) and what the handles mean (§5.2)
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — owns the squad-level operations the layer must carry (SQD-1..14: dismount under fire, room/house/trench clearing, defend/attack building, ambush, checkpoint) and the role/claim/shared-memory model they need (§8)
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — gives §8.6 stack-and-room-entry its geometry and its play
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — the platoon defence and attack built on top of the squad (sectors, support by fire, snipers)
 -->
 
 # Squad Coordination — Design v1.1

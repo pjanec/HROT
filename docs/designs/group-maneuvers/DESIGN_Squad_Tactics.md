@@ -30,6 +30,7 @@ related-designs:
   - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-5 keeps crowds out of the squad layer (no UnitRoster); CV-11's police line uses SquadMarch's Line formation.
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — a play on this runner (kind 5, the StackAndRoomEntryManeuver stub)
   - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; the squad leader nearby calms; the break is the one reaction StayOnTask does not refuse (lean TS-6)
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — the platoon defence and attack whose squads run this design's drills
 -->
 
 # Squad tactics — the runner, react to contact, and what embark / formations can carry

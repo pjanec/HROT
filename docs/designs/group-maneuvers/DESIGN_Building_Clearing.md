@@ -5,7 +5,7 @@ build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: none. (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
-known-conflict: none.
+known-conflict: docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md DA-9 PROPOSES that the platoon play IsolateAndClear (CB-17/CB-18, PL-1) become the later phases of one AttackPosition play — awaiting the user; nothing here changed yet.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad runner (`SquadManeuverRunner`, `ISquadPlay`) and every built drill; this is one more play on it (kind 5, the existing `StackAndRoomEntryManeuver` stub)
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — §8.6 stack-and-room-entry: the original roles-and-sectors spec this design gives geometry
@@ -17,6 +17,7 @@ related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — R-2003: a sector is an area entity; the order on the wire is complete
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the machinery map (§9 squads: a new drill is an ISquadPlay, not a new node)
   - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; CB-28's Resolve lives there; the defenders' temperaments drive ts-house-defenders
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — the ATTACK in front of this clearing and the DEFENCE it meets (proficiency tiers, posts, snipers); proposes (DA-9) that IsolateAndClear becomes the later phases of its AttackPosition play
 -->
 
 # Building clearing — a squad clears a house, kills the armed, spares and controls the rest *(behaviors, `2026-10-18`)*
