@@ -667,6 +667,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2281</c> DA-19 — the squad's MACHINE GUNNER goes to the base of fire whoever saw the enemy: members 2 and 3
+        /// report him, member 1 carries the MG ⇒ he holds and fires with them, and only member 0 flanks. ✅ Red-proof: the role pass
+        /// removed ⇒ member 1 flanks.</summary>
+        [Fact]
+        public void CE2281_SuppressAndManeuver_TheMachineGunnerJoinsTheBaseOfFire()
+        {
+            var s = new Squad(members: 4);
+            ref var sub = ref s.Repo.GetComponentRW<UnitSubordinate>(s.Members[1]);
+            sub.Designation = TacticalDesignation.MachineGunner;
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b1100);
+            s.Order("{}", BehaviorNames.SuppressAndManeuver);
+            s.Tick(); s.Tick();
+            s.Orders.Clear();
+            s.Answer(s.FlankQuery(), new Vector3(40f, 60f, 0f));
+            s.Tick(); s.Tick();
+            var flank = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, new Vector3(40f, 60f, 0f)), flank[s.Members[0]]);   // the one rifleman who did not see him
+            Assert.Equal((BehaviorNames.CombatPosture, s.At(s.Members[1])), flank[s.Members[1]]);     // the MG holds with the base
+        }
+
         /// <summary>⭐ <c>CE-2123</c> — no flank to be had (an empty answer): the assault goes straight through.</summary>
         [Fact]
         public void CE2123_SuppressAndManeuver_NoFlankPoint_TheAssaultGoesStraightThrough()

@@ -152,3 +152,9 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 * ⭐ Your peek / window post now matters for being SEEN: a man up for less than his dwell is never acquired, and a hide longer than
   20 ticks starts it over. `SensorChange.Contact` simply arrives later; nothing in your API changes.
 * ⚠ Only sight waits (vision, and thermal, which shares the sight test); radar and other sensors acquire as before.
+
+## ⚠ Component ids — I adopted YOUR resolution
+
+We both moved at once on the 416 clash (my `Lean` → 417, your `EngagementArea` → 417). I took yours: **`Lean` 416, `EngagementArea`
+417**, so your next merge of `backend` finds identical lines. Three clashes in a day — [NOTE](NOTE_Backend_To_All_Lanes_Component_Id_Space.md)
+proposes per-lane component-id blocks for the user to decide.

@@ -453,6 +453,44 @@ from being SEEN, not only from being hit (DA-3's point).
 | the factor | `HitModel.Sigma` × `ProficiencyOf.SpreadFactor(body)` — Untrained 2.5 · Militia 1.6 · Regular 1.0 · Veteran 0.8 · Elite 0.65, linear between; a man with no component and an authored Regular are **bit-identical** to before. `body` is `HitModel.BodyOf`: a man's own, a carried weapon system's carrier, a station weapon's host (a vehicle reads Regular) | `Combat/HitModel.cs` | `HitModelTests.CE3259_*` |
 | ⭐ **who can read it** | ⚠ found while building: `CombatProficiency` was registered on every node but NOT replicated — the muscle, which resolves the shot (`FireProcessingSystem`), held only the TYPE default it projected at spawn; an authored "this squad is elite" never reached the spread. ⇒ **replicated**: Brain group, `dtCombatProficiency` (150), all three sources and the set bits (the precedence stays in `ProficiencyOf`, the one reader). BR-7's acquisition reads it on the muscle too | `EntityCombatProficiencyTranslators.cs`, `HrotOwnershipGroups`, `NedOwnershipGroupBinding` | `BodyPartReplicationTests.CE3259_*`, both descriptor-map rails |
 
+### 12c. DA-K — what is built, what is blocked *(`CE-2281`, behaviors, 2026-10-19)*
+
+**Measured** (a read-only sweep, 2026-10-19): only `EntityInfo.CommanderId` and `TacticalDesignation` cross the wire
+(`GenericDescriptors.cs:164-185`); every node builds its OWN roster from `CmdAssignSubordinate` (`UnitHierarchySystem.cs:138-150`) or
+on load (`GenesisMaterializationSystem.cs:206-219`); `UnitSubordinateTranslator` is not extraction-safe, so the brain node gets a
+man's `UnitSubordinate` from the WIRE. Every squad play partitions on its first tick only, by roster halves or by who reported
+(`SquadManeuverRunner.cs:346-353`). Succession rewrites the successor's designation locally and never marks it for the wire
+(`SquadSensing.cs:116-118`); and a second `CmdAssignSubordinate` for the same commander appends the man again
+(`UnitHierarchySystem.cs:117-122`, its class comment says so). A man's machine gun is his TKB TYPE's mount 0 (207 / 208), not an item.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadRoles { <<NEW, the ONE role reader>> Of(world, roster, slot) · CarriesSupportWeapon(role) }
+  class SquadSensing { <<EXISTING, routed>> succession }
+  class CasualtyCare { <<EXISTING, routed>> the medic pick }
+  class SuppressAndManeuverPlay { <<EXISTING, + roles>> the AR / MG join the base of fire }
+  class TacticalDesignation { <<EXISTING + BR-8>> AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank }
+  class FireTeam { <<NOT BUILT: no carrier on the wire>> }
+  class RoleTakeover { <<NOT BUILT: needs a weapon to pick up>> }
+  SquadSensing ..> SquadRoles
+  CasualtyCare ..> SquadRoles
+  SuppressAndManeuverPlay ..> SquadRoles
+  SquadRoles ..> TacticalDesignation
+```
+*What the picture shows that prose hid:* two of the three copies of "his role is his component's, else the roster's" already existed
+(succession, the medic pick); the third reader would have been a third copy — `SquadRoles` is the one, and the two blocked boxes are
+blocked for reasons outside this lane.
+
+| piece | state | ⭐ lean for the blocked ones |
+|---|---|---|
+| the role reader | ✅ `SquadRoles.Of` (succession and the medic pick routed through it) | — |
+| the AR / MG first into the base of fire | ✅ `SuppressAndManeuverPlay.Start`: after the split by reporters (or halves), every AR / MG goes to the base of fire, if a live man is left to assault | — |
+| ⛔ the element split BY FIRE TEAM | **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
+| ⛔ role takeover on a casualty | **blocked**: the AR's gun is his TYPE's mount, nothing can pick it up; re-labelling a rifleman would send a man with no MG to the base of fire as one | ⭐ wait for a weapon pick-up design (a held item from a body, `ItemSources`); and make succession's designation change reach the wire first (mark it dirty, and fix the duplicate append) — both backend |
+
+⚠ Neither blocked part is decided by this lane alone: the user rules on the fire-team carrier and on weapon pick-up.
+
 ## 13. Sectors — how they are assigned and how a man keeps to his *(✅ approved R-2036 — DA-20)*
 
 **Measured:** ⛔ **no sector, arc or engagement-area restriction exists anywhere** (only a turret's traverse limit). A target is chosen
@@ -579,7 +617,7 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 ```mermaid
 classDiagram
   direction LR
-  class EngagementArea { <<NEW component 416, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
+  class EngagementArea { <<NEW component 417, on a man or a commander>> Arc origin left right range · AllowArea net id · WatchBearing · NoFire x4 net ids · SetBy }
   class SetEngagementAreaEvent { <<NEW event 3107, the SetRoeEvent twin>> replaces the set · all empty withdraws }
   class EngagementAreaSystem { <<NEW, Input, after ReportingRequirementsSystem>> origin-gated · a replica left to its owner }
   class EngagementAreas { <<NEW pure reader, the ONLY one>> Allows(view, man, point) · AllowsUnit(view, commander, point) · IsNoFire(view, shooter, point) · FirstAllowed }
@@ -642,7 +680,7 @@ brain node in another process needs the commander's component there (the CE-2289
 replicate it).
 
 **As built (2026-10-19, `CE-2282`)** — as drawn above, with DA-27 as corrected (the Suppress order and step, not `TopContact`):
-`EngagementArea` (component 416, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
+`EngagementArea` (component 417, `CognitiveComponentRegistry`), `SetEngagementAreaEvent` (event 3107) + `EngagementAreaSystem`
 (`MissionControlModule`, after `ReportingRequirementsSystem`), `EngagementAreas` (`Allows`, `AllowsUnit`, `IsNoFire`, `InArc`),
 `EqsTacticsNodes.FirstAllowedRemembered`; the picks in `PostureNodes.Fire`, `PeekAndFireNodes.LockTarget`,
 `ThreatMatrixAssignmentSystem`, `SquadManeuverRunner.Suppress`, `SuppressNodes.SuppressContact`; the gates in
