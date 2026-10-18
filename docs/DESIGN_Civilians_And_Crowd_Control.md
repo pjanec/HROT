@@ -2334,8 +2334,10 @@ graph TD
 | proof | result |
 |---|---|
 | rails `CrowdSystemTests.CE2241_…` ×3 (presence 0.0075/s at 15 m · facing away / beyond 30 m nothing · the spike 0.24 at 4 m, once per effect, not himself, not beyond 10 m · the threshold literals) | ✅ |
-| rails `CivilianHsmTests.CE2241_HisAttitude_…` · `HoldTheLineBehaviorTests.CE2241_BatonCharge_…` ×2 | ✅ |
-| twin `PostureScenarioTests.CE2241_Provocation_…` | ✅ twice — police within 30 m at 22.6 s, the first blow at 38.6 s, riot from the same frame; rioted {4, 6, 8} of 12, Hostile {4}; no attitude −1 member riots |
+| rails `CivilianHsmTests.CE2241_HisAttitude_…` · `CE2241_ARioter_PanicsOnlyWhenFearBeatsAnger` · `HoldTheLineBehaviorTests.CE2241_BatonCharge_…` ×2 | ✅ (the two classes share one xunit collection: both read the process-wide `Melee.Strikes`) |
+| twin `PostureScenarioTests.CE2241_Provocation_…`, first cut (no presence phase, the old Riot → Panic guard) | ✅ twice — rioted {4, 6, 8} of 12 at the first blow; ⛔ but every rioter PANICKED within a second (trace: the struck man's fear spread to his whole crowd at 0.6) |
+| live, first cut | ⛔ 0 of 12 rioted — the riots were too short to be sampled, nobody struck the police ⇒ PV-6 and the 60 s presence phase |
+| twin, as built (60 s presence, `FearBeatsAnger`) | ✅ police within 30 m at 22.3 s; the first riot at 51.5 s (presence alone, a hostile-at-heart member); the first baton blow at 58.6 s; rioted {1, 4, 6}, all three Hostile (each struck the police); no attitude −1 member riots |
 
 ## 5n. G7 — the civilian brain sets what a man holds *(behaviors, `CE-2248`, ui finding G7, 2026-10-18; build-state: READY-TO-BUILD)*
 
