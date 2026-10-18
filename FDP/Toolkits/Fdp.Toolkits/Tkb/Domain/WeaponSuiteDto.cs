@@ -148,6 +148,15 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-3230</c> (B-8, AW-7; Civilians §7.9) — this mount is a PERSON's HANDS: appended last to every person type by
         /// <c>PersonHands.EnsureOnPersons</c>, empty at start, its loadout what he picked up. Appended.</summary>
         public bool Hands { get; init; }
+
+        /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13; docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §12b) — a SCOPE on this
+        /// mount: while its man AIMS it, his visual sensor reaches this many times further through <see cref="ScopeFovDegrees"/> and he
+        /// identifies this many times further — the binocular rule on a weapon (<c>HeldItems.ScopeUp</c>). 0 or 1 = none. Appended.</summary>
+        public float ScopeMagnification { get; init; }
+
+        /// <summary>⭐ <c>CE-3254</c> — the scope's field of view (degrees); 0 = <c>HeldItems.ScopeFallbackFovDegrees</c>. Appended.</summary>
+        [EditUnit("deg")]
+        public float ScopeFovDegrees { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>

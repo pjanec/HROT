@@ -74,6 +74,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// <c>WeaponMountDto.FixedConeDeg</c>.</summary>
         public float FixedConeDeg { get; set; }
 
+        /// <summary>⭐ <c>CE-3254</c> (BR-9) — a scope on this mount: its magnification (0 = none) and field of view, degrees.
+        /// <c>WeaponMountDto.ScopeMagnification</c> / <c>ScopeFovDegrees</c>.</summary>
+        public float ScopeMagnification { get; set; }
+
+        /// <inheritdoc cref="ScopeMagnification"/>
+        public float ScopeFovDegrees { get; set; }
+
         /// <summary>⭐ Indirect fire IF-1 (I2) — the arcs an indirect round may fly; Default = today's rule. <c>WeaponMountDto.Arc</c>.</summary>
         public Fdp.Toolkit.Tkb.Domain.IndirectArc Arc { get; set; }
 

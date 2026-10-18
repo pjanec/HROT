@@ -41,8 +41,20 @@ namespace Hrot.Map.Definitions.Tkb
             AmmoTkb = ammo, TracerAmmoTkb = tracer, TracerEvery = 5, Category = WeaponCategory.MachineGun,
         };
 
+        /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13) — a SCOPED rifle (mount 0): small arms, a slow precise shot, ×4 through a narrow scope while
+        /// aimed (<c>HeldItems.ScopeUp</c>). <paramref name="dispersionMils"/> is the rifle's spread — the design's ≈ 0.3 mil sniper / ≈ 1 mil DMR.</summary>
+        private static WeaponMount ScopedRifle(string weaponType, int ammunition, int magazine, float range, float rateOfFire, float dispersionMils,
+                                               float scopeFovDegrees) => new()
+        {
+            WeaponType = weaponType, Ammunition = ammunition, Range = range, RateOfFire = rateOfFire, Penetration = 8, DamagePerHit = 35,
+            DispersionMils = dispersionMils, MagazineSize = magazine, ReloadSeconds = 4f, AimSeconds = 1.5f,
+            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, Category = WeaponCategory.SmallArms,
+            ScopeMagnification = 4f, ScopeFovDegrees = scopeFovDegrees,
+        };
+
         /// <summary>⭐ <c>CE-3253</c> (BR-8) — an infantry MACHINE GUNNER: the rifleman's body, sensor, injury, carrier and brain with an LMG
-        /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type.</summary>
+        /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type. ⭐ <c>CE-3254</c>:
+        /// the sniper and the marksmen are the same man with a scoped rifle.</summary>
         private static void MachineGunner(NedTkbBuilder builder, long type, string name, WeaponMount lmg, ushort country, byte faction)
         {
             builder
@@ -750,6 +762,11 @@ namespace Hrot.Map.Definitions.Tkb
             MachineGunner(builder, TkbEntityTypes.Infantry_MachineGunnerPkm, "Machine gunner (PKM)",
                 InfantryLmg("PKM_LMG", 500, 100, 1000, 650, 8, 30, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer),
                 Russia, faction: 2);
+            // ⭐ CE-3254 (BR-9, DA-13) — the scoped rifles: an M24-class sniper (≈ 0.3 mil, 5 rounds, 800 m, 4° scope), an M110-class DMR
+            //   (≈ 1 mil, 20 rounds, 600 m, 6°) and an SVD-class DMR for the other side. Behaviour (the hide, few shots, relocate) is behaviors'.
+            MachineGunner(builder, TkbEntityTypes.Infantry_Sniper, "Sniper (M24)", ScopedRifle("M24_Sniper", 40, 5, 800, 40, 0.3f, 4f), UnitedStates, faction: 1);
+            MachineGunner(builder, TkbEntityTypes.Infantry_Marksman, "Marksman (M110)", ScopedRifle("M110_DMR", 100, 20, 600, 60, 1f, 6f), UnitedStates, faction: 1);
+            MachineGunner(builder, TkbEntityTypes.Infantry_MarksmanSvd, "Marksman (SVD)", ScopedRifle("SVD_DMR", 100, 10, 600, 60, 1f, 6f), Russia, faction: 2);
             
             // Tank Platoon (Composite)
             builder

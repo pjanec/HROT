@@ -74,6 +74,12 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — a MACHINE GUNNER with a PKM-class gun (7.62, 100-round belt), the other side's (faction 2).
         /// ⛔ PERMANENT WIRE VALUE.</summary>
         public const long Infantry_MachineGunnerPkm = 208;
+        /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13) — a SNIPER: an M24-class bolt rifle (7.62, ≈ 0.3 mil) under a ×4 scope. ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_Sniper = 209;
+        /// <summary>⭐ <c>CE-3254</c> (BR-9) — a MARKSMAN: an M110-class designated-marksman rifle (7.62, ≈ 1 mil), ×4. ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_Marksman = 210;
+        /// <summary>⭐ <c>CE-3254</c> (BR-9) — the other side's marksman: an SVD-class DMR (≈ 1 mil), ×4, faction 2. ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_MarksmanSvd = 211;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

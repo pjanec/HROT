@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Tests.Combat
     [Collection(ArmamentCounterCollection.Name)]   // ⭐ Judge moves the process-wide conduct counter
     public sealed class HeldItemsTests : IDisposable
     {
-        private const long PhoneCivType = 9401, SpotterType = 9402, PistolCivType = 9403, BulletAmmo = 9490;
+        private const long PhoneCivType = 9401, SpotterType = 9402, PistolCivType = 9403, SniperType = 9404, BulletAmmo = 9490;
         private static readonly DISEntityType CivilianDis = new() { Kind = 3, Domain = 1, Category = 2 };
 
         private readonly UtilityTestWorld _world = new();
@@ -39,7 +39,11 @@ namespace Fdp.Toolkit.Tests.Combat
             var pistol = new Fdp.Interfaces.TkbTemplate("Civilian with a pistol", PistolCivType);
             pistol.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo,
                                                                                       Appearance = new ItemAppearanceDto { Look = ItemLook.Pistol } } } });
-            _world.UseTkb(phone, spotter, pistol, new Fdp.Interfaces.TkbTemplate("Bullet", BulletAmmo));
+            // ⭐ CE-3254 (BR-9) — a man with a ×4 scope on his rifle (6°)
+            var sniper = new Fdp.Interfaces.TkbTemplate("Sniper", SniperType);
+            sniper.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo,
+                                                                                      ScopeMagnification = 4f, ScopeFovDegrees = 6f } } });
+            _world.UseTkb(phone, spotter, pistol, sniper, new Fdp.Interfaces.TkbTemplate("Bullet", BulletAmmo));
         }
 
         public void Dispose() => _world.Dispose();
@@ -100,6 +104,35 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(MathF.Cos(5f * MathF.PI / 180f), fovCos, precision: 5);
             Assert.Equal(HeldItems.BinocularsOptics, SeeingConditions.Of(_world.Repo, spotter, armed).Optics);
             Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, spotter, armed));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3254</c> (BR-9, DA-13) — a SCOPE: the binocular rule on a weapon. Aimed through a ×4 scope his visual sensor reaches four
+        /// times as far (500 → 2000 m: a man at 600 m he could not see, he now can) through a 6° cone, and he identifies four times further;
+        /// lowered (Ready) he looks with his naked eye. ✅ Red-proof: <c>Optics</c> without the scope branch ⇒ 500 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3254_AScopeAimed_SeesFourTimesFurtherAndNarrower_AndIdentifiesFurther()
+        {
+            var sniper = Man(SniperType, Vector3.Zero, civilian: false);
+            _world.Repo.AddComponent(sniper, new PerceptionReceptor { VisionRange = 500f, FieldOfViewCos = -1f });
+            var sensor = _world.Repo.CreateEntity();
+
+            _world.Repo.GetComponentRW<WeaponPosture>(sniper).Kind = WeaponPostureKind.Ready;
+            Assert.True(VisualPerception.Optics(_world.Repo, sensor, sniper, out float range, out _));
+            Assert.True(range < 600f, "unscoped he cannot reach the man at 600 m");
+            Assert.Equal(1f, HeldItems.IdentificationOptics(_world.Repo, sniper));
+
+            _world.Repo.GetComponentRW<WeaponPosture>(sniper).Kind = WeaponPostureKind.Aimed;
+            Assert.True(VisualPerception.Optics(_world.Repo, sensor, sniper, out range, out float fovCos));
+            Assert.Equal(2000f, range);
+            Assert.True(range > 600f);
+            Assert.Equal(MathF.Cos(3f * MathF.PI / 180f), fovCos, precision: 5);
+            Assert.Equal(4f, HeldItems.IdentificationOptics(_world.Repo, sniper));
+
+            var rifleman = Man(PistolCivType, new Vector3(5f, 0f, 0f), civilian: false);   // a mount with no scope
+            _world.Repo.GetComponentRW<WeaponPosture>(rifleman).Kind = WeaponPostureKind.Aimed;
+            Assert.False(HeldItems.ScopeUp(_world.Repo, rifleman, out _, out _));
         }
 
         /// <summary>

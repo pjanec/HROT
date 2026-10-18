@@ -321,6 +321,8 @@ namespace Hrot.Map.Definitions.Tkb
                         MagazineSize      = wm.MagazineSize,
                         ReloadSeconds     = wm.ReloadSeconds,
                         FixedConeDeg      = wm.FixedConeDeg,   // ⭐ Air Ops 6a (AW-1) — a fixed gun / pod fires inside its nose cone
+                        ScopeMagnification = wm.ScopeMagnification,   // ⭐ CE-3254 (BR-9) — the scope on the mount
+                        ScopeFovDegrees   = wm.ScopeFovDegrees,
                         Arc               = wm.Arc,            // ⭐ IF-1 (I2) — the indirect arcs and the elevation limits
                         MinElevationDeg   = wm.MinElevationDeg,
                         MaxElevationDeg   = wm.MaxElevationDeg,

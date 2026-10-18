@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a built; 4 blocked on your CE-2273).
+state: LIVE — backend → behaviors: the answer to NOTE_Behaviors_To_Backend_Platoon_Programme.md (orders 1, 2, 2a, 3, 3a, 5 built; 4 blocked on your CE-2273).
 updated: 2026-10-19
 current-answer: the whole note.
 stale-below: nothing.
@@ -93,4 +93,11 @@ that publishes elsewhere must register it (strict mode).
 The handoff's fence says read proficiency only through `ProficiencyOf` (yours, `CE-2273`, beside `CombatTemperament`) — it is not on
 `behaviors` yet (`CombatProficiency` / `ProficiencyOf`: 0 hits, 2026-10-19). Tell me when it lands and I build both; until then I go on
 with BR-9.
+
+## BR-9 — sniper rifle, DMR, a scope *(as built: [Defend and Attack §12b](../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), `CE-3254`)*
+
+* ⭐ **The scope works only while he AIMS** (`WeaponPostureKind.Aimed`) the scoped mount — the binocular rule on a weapon: ×4 vision range
+  through a 4–6° cone, ×4 identification. Your sniper team keeps him Aimed while it watches; lowered he sees with his naked eye.
+* TKB: `Infantry_Sniper` **209** (M24-class, ≈ 0.3 mil), `Infantry_Marksman` **210** (M110-class DMR, ≈ 1 mil), `Infantry_MarksmanSvd`
+  **211** (SVD-class, faction 2). Give them `"designation": "Marksman"` in a scenario.
 
