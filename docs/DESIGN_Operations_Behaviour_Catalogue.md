@@ -31,6 +31,7 @@ related-designs:
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the open speed / retreat decisions several behaviours here depend on
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §8: SUMO pedestrians that panic become our civilian entities for good (CGF creates them, P4) and need CIV-2/CIV-7 as a production HSM (P5).
   - docs/DESIGN_Civilians_And_Crowd_Control.md — the BUILD of the civilian rows (CIV-1…7, ASY-5, SQD-13) and of D3/D4/D5: one civilian family + HSM, crowds, riots, non-lethal force (R-4033…R-4036).
+  - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the build of SQD-5 room clearing and SQD-6 house search
 -->
 
 # Operations behaviour catalogue — what a library for modern operations needs

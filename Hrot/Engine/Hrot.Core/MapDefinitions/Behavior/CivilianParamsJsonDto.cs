@@ -72,5 +72,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2238 — the anger (0…1) at which a protester riots; he calms back to the protest below half of it. Default 0.6.</summary>
         [JsonPropertyName("RiotAt")]
         public float RiotAt;
+
+        /// <summary>⭐ CE-2241 ② (§5m PV-3, CV-4) — his hidden attitude, −1 (friendly) … +1 (hostile at heart); it lowers or raises HIS riot
+        /// threshold (<c>RiotAt − 0.5 × Attitude</c>: −1 never riots). Default 0.</summary>
+        [JsonPropertyName("Attitude")]
+        public float Attitude;
     }
 }

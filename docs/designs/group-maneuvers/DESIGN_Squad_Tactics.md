@@ -28,6 +28,7 @@ related-designs:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the cover query and its publish policies; §17.6.1 is what the squad plays' one-shot cover queries measured (§7.6.2)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that gives the Watch / overwatch / march orders a facing (LD-3) — §7.7.6's "no facing control exists"
   - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-5 keeps crowds out of the squad layer (no UnitRoster); CV-11's police line uses SquadMarch's Line formation.
+  - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — a play on this runner (kind 5, the StackAndRoomEntryManeuver stub)
 -->
 
 # Squad tactics — the runner, react to contact, and what embark / formations can carry

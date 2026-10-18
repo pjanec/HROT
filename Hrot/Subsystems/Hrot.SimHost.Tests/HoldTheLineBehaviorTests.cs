@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Fbt;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
@@ -27,6 +28,9 @@ namespace Hrot.SimHost.Tests
     /// reach (never a Neutral, a man already down, or one beyond reach), strikes one in arm's reach with the baton instead, and walks back
     /// to his post when drawn from it.
     /// </summary>
+    // ⭐ CE-2241 ② — one collection with every class that strikes: their rails read the process-wide Melee.Strikes counter, so they
+    //   must not run in parallel (a BatonCharge rail in another class made a CivilianHsm rail count one blow too many)
+    [Collection("MeleeStrikes")]
     public sealed class HoldTheLineBehaviorTests
     {
         private const long PolicemanType = 9701, BatonRound = 9790;
@@ -111,13 +115,27 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var blow in Repo.Bus.Read<DamageAssessedEvent>()) Blows.Add(blow);
+                if (Repo.Bus.IsRegistered<BehaviorFinishedEvent>())
+                    foreach (var f in Repo.Bus.Read<BehaviorFinishedEvent>()) if (f.Entity == Police) Finished = f.Result;
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
             }
 
-            public void Start(string json = "{}")
-                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Police, BehaviorName = BehaviorNames.HoldTheLine, JsonParams = json, Origin = BehaviorOrigin.Superior });
+            public void Start(string json = "{}") => Start(BehaviorNames.HoldTheLine, json);
+
+            public void Start(string behaviorName, string json)
+                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Police, BehaviorName = behaviorName, JsonParams = json, Origin = BehaviorOrigin.Superior });
+
+            /// <summary>⭐ <c>CE-2241</c> ② — a NEUTRAL person of the <c>Civilian</c> class (3.1.*.2) — a protester.</summary>
+            public Entity Protester(Vector3 at)
+            {
+                var e = Person(at, ForceId.Neutral);
+                Repo.SetDisType(e, new DISEntityType { Kind = 3, Domain = 1, Category = Armament.CivilianCategory });
+                return e;
+            }
+
+            public NodeStatus? Finished;
 
             /// <summary>Whom his weapon channel aims at (<see cref="Entity.Null"/> when it is not firing).</summary>
             public unsafe Entity Aiming
@@ -185,6 +203,52 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NavigationConstants.ActionIdMoveTo, loco.ActiveAction);
             fixed (byte* p = loco.Params)
                 Assert.True(Vector3.Distance(Vector3.Zero, ((MoveToParams*)p)->Destination) < 0.01f, "he walks back to his post");
+        }
+    
+        // ── ⭐ CE-2241 ② (CV-14, §5m PV-4) — BatonCharge ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ A baton charge strikes the NEUTRAL protester in reach of the point — not a Neutral who is not of the Civilian class, not a
+        /// protester already down, not one beyond <c>Reach</c> of the point. ✅ Red-proofs: the Civilian-class test removed ⇒ the soldier is
+        /// struck ⇒ red; the knock-down skip removed ⇒ red; the reach bound removed ⇒ the far one is closed on ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE2241_BatonCharge_StrikesTheProtesterInReachOfThePoint_NotAnotherNeutral_NorAManDown_NorOneBeyond()
+        {
+            var w = new World();
+            var soldier = w.Person(new Vector3(0.5f, 0, 0), ForceId.Neutral);     // a Neutral, nearest — not of the Civilian class
+            var down = w.Protester(new Vector3(0.8f, 0, 0));
+            w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = 1e6 });
+            var protester = w.Protester(new Vector3(1.2f, 0, 0));
+            var beyond = w.Protester(new Vector3(-20f, 0, 0));
+            foreach (var e in new[] { soldier, down, protester, beyond }) w.Sees(e);
+            w.Start(BehaviorNames.BatonCharge, "{\"x\":1,\"y\":0,\"z\":0,\"Reach\":8,\"Seconds\":5}");
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Contains(w.Blows, b => b.HitEntity == protester && b.Source == w.Police && b.Effect == HitEffect.Blunt);
+            Assert.DoesNotContain(w.Blows, b => b.HitEntity == soldier || b.HitEntity == down || b.HitEntity == beyond);
+
+            // the protester goes down: nobody standing in reach of the point — he goes to the point, never toward the far one
+            w.Repo.AddComponent(protester, new EffectState { KnockedDownUntil = 1e6 });
+            for (int i = 0; i < 4; i++) w.Tick();
+            ref var loco = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Police);
+            if (loco.ActiveAction == NavigationConstants.ActionIdMoveTo)
+                fixed (byte* p = loco.Params)
+                    Assert.True(((MoveToParams*)p)->Destination.X > 0f, $"not toward the protester beyond reach: {((MoveToParams*)p)->Destination}");
+        }
+
+        /// <summary>⭐ Under a WARN ceiling the charge strikes nobody (EL-7); it ends with Success after <c>Seconds</c>. ✅ Red-proofs: the
+        /// force-level test removed ⇒ a blow ⇒ red; the time limit removed ⇒ no Success ⇒ red.</summary>
+        [Fact]
+        public void CE2241_BatonCharge_UnderAWarnCeiling_StrikesNobody_AndEndsAfterSeconds()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Police, new Roe { ForceLevel = RoeForceLevel.Warn });
+            var protester = w.Protester(new Vector3(1f, 0, 0));
+            w.Sees(protester);
+            w.Start(BehaviorNames.BatonCharge, "{\"x\":1,\"y\":0,\"z\":0,\"Seconds\":0.5}");
+            for (int i = 0; i < 20; i++) w.Tick();                                  // 0.32 s
+            Assert.Null(w.Finished);
+            for (int i = 0; i < 30; i++) w.Tick();                                  // past 0.5 s
+            Assert.DoesNotContain(w.Blows, b => b.HitEntity == protester);
+            Assert.Equal(NodeStatus.Success, w.Finished);
         }
     }
 }
