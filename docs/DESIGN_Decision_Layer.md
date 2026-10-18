@@ -13,6 +13,7 @@ known-rot: (2026-10-13, P7) the class diagram's `[BehaviorContract Infantry]` on
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — PC-6: RoeOf reads the nearest set Roe up the chain so a platoon's HoldFire reaches its men
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — copies §4.4's ROE delivery for report requirements (SetReportingEvent), and uses the task · SOP · reaction gate unchanged
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §8: BasicVehicleSop and the AirThreat sense (a reaction row above Contact)

@@ -6,6 +6,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none — the 2026-10-18 "everything in the blackboard" rule was corrected the same day (R-2042: choose by scope; AQ87 §4 stands)
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the attack / defence / clearing plays built from these blocks
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the MAP of the machinery; this file is the raw measurement under its command-and-control boxes
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the worked multi-level example built only from the blocks measured here
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — §5b–§5d: the report concept these blocks implement
