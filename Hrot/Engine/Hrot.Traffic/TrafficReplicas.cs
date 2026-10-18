@@ -38,6 +38,11 @@ public sealed class TrafficReplicas
     private const float CarHeight = 1.5f;
     private const float PedRadius = 0.3f, PedHeight = 1.75f;
 
+    /// <summary>⭐ AQ93 §15 K3/K7 — a replica's hit points. 📌 Measured 2026-10-17 on the cluster: without <c>Health</c> a burst never hit a
+    /// SUMO agent (<c>AreaEffectSystem</c> damages only entities that have one), so no hit ever reached the traffic node. The value only
+    /// gates "alive": the hit converts the agent, and OUR entity takes it with its own TKB health.</summary>
+    public const float ReplicaHealth = 100f;
+
     /// <summary>⭐ AQ93 §15 K3 — a pedestrian replica's type: the civilian family's adult (the civilian a conversion makes is typed by
     /// its id, <see cref="TrafficPanicSystem.TypeOf"/>; the replica is the same person before he has a brain).</summary>
     public const long PedestrianType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
@@ -175,8 +180,15 @@ public sealed class TrafficReplicas
             CollisionLayer = Fdp.Toolkit.Physics.PhysicsConstants.EntityCollisionLayer,
         });
         _world.AddComponent(e, Transform(ped));
+        AddHealth(e);
         _entityMap?.Register(ped.NetworkId, e);
         return e;
+    }
+
+    private void AddHealth(Entity e)
+    {
+        if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+            _world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = ReplicaHealth, Max = ReplicaHealth });
     }
 
     private static SimTransform Transform(in TrafficPedPose ped)
@@ -245,6 +257,7 @@ public sealed class TrafficReplicas
             CollisionLayer = Fdp.Toolkit.Physics.PhysicsConstants.EntityCollisionLayer,
         });
         _world.AddComponent(e, Transform(car));
+        AddHealth(e);
         _entityMap?.Register(car.NetworkId, e);
         return e;
     }

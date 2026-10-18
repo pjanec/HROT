@@ -26,15 +26,18 @@ def tkb(port, nid): return (comps(port, nid).get("TkbIdentity") or {}).get("TkbT
 CIVILIANS = (1101, 1102, 1103, 1104)
 def sumo(port): return [r["networkId"] for r in rows(port) if "TrafficCar" in r.get("components", [])]
 
-t0 = time.time()
-while time.time() - t0 < 120 and not sumo(IG): time.sleep(2)
-cars = sumo(CGF)
+# A car can leave the vicinity between the listing and the read: retry until one car's pose is read (up to 120 s).
+spot, cars, t0 = None, [], time.time()
+while time.time() - t0 < 120 and spot is None:
+    cars = sumo(CGF)
+    spot = next((p for p in ((comps(CGF, n).get("SimTransform") or {}).get("Position") for n in cars if tkb(CGF, n) not in CIVILIANS) if p), None)
+    if spot is None: time.sleep(2)
 check("SUMO replicas on CGF", cars, len(cars))
 types = data(call(CGF, "GET", "/tkb/types")) or []
 types = types if isinstance(types, list) else types.get("types", [])
 rifle = next(((t.get("tkbType") or t.get("id") or t.get("type")) for t in types if "rifleman" in json.dumps(t).lower()), None)
-spot = next(((comps(CGF, n).get("SimTransform") or {}).get("Position") for n in cars if tkb(CGF, n) not in CIVILIANS), None)
 check("a rifleman type and a spot on SUMO's streets", rifle and spot, {"rifle": rifle, "spot": spot})
+if not (rifle and spot): sys.exit(1)
 time.sleep(30)   # pedestrians spawn over time
 
 before = {r["networkId"] for r in rows(CGF)}
@@ -79,15 +82,28 @@ if converted:
     heard = (mind.get("Fear") or 0) >= 0.6
     check("he was born terrified on CGF — the fright crossed the wire (CE-4024)", attr_born or heard,
           {k: mind.get(k) for k in ("Fear", "Mode", "HasFrightFrom", "FrightFrom", "HeardAt", "LastFrightAt")})
-    time.sleep(3)
-    seen = {NODES[p]: c in {r["networkId"] for r in rows(p)} for p in (SIM, IG, TRAFFIC)}
+    seen, t3 = {}, time.time()
+    while time.time() - t3 < 15:   # replication is not instantaneous: the same answer within 15 s is the claim
+        seen = {NODES[p]: c in {r["networkId"] for r in rows(p)} for p in (SIM, IG, TRAFFIC)}
+        if all(seen.values()): break
+        time.sleep(2)
     check("every node sees him as an entity", all(seen.values()), seen)
     sumo_now = {NODES[p]: c in sumo(p) for p in (CGF, SIM, IG, TRAFFIC)}
     check("no node keeps him as a SUMO replica", not any(sumo_now.values()), sumo_now)
 # ⭐ K7 (5c) — a CAR hit: an M67's burst published on SimHost (where AreaEffectSystem runs) at a SUMO car near our units; its area
 #   damage hits the car's replica, the hit reaches the traffic node by NED, and the car leaves SUMO (H15) as OUR civilian car (CGF).
-sim_cars = [n for n in sumo(SIM) if tkb(SIM, n) not in CIVILIANS]
-target = sim_cars[0] if sim_cars else None
+sim_cars, t4 = [], time.time()
+while time.time() - t4 < 60 and not sim_cars:
+    sim_cars = [n for n in sumo(SIM) if tkb(SIM, n) not in CIVILIANS]
+    if not sim_cars:   # no car near our units now: place a rifleman by one CGF still mirrors, to pull its street in
+        far = [n for n in sumo(CGF) if tkb(CGF, n) not in CIVILIANS]
+        q = (comps(CGF, far[0]).get("SimTransform") or {}).get("Position") if far else None
+        if q: call(CGF, "POST", "/entities/spawn", {"tkbType": rifle, "transform": {"position": {"x": q[0] + 6, "y": q[1] + 6, "z": 0}}})
+        time.sleep(6)
+def dist(n):
+    q = (comps(SIM, n).get("SimTransform") or {}).get("Position")
+    return ((q[0] - spot[0]) ** 2 + (q[1] - spot[1]) ** 2) ** 0.5 if q else 1e9
+target = min(sim_cars, key=dist) if sim_cars else None   # the car nearest our riflemen: every node holds its replica
 if target:
     tp = (comps(SIM, target).get("SimTransform") or {}).get("Position")
     b = call(SIM, "POST", "/entities/command", {"eventType": "DetonationNotification",

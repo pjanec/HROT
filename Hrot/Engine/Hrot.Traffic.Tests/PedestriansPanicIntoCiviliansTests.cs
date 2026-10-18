@@ -42,6 +42,7 @@ public sealed class PedestriansPanicIntoCiviliansTests
         Assert.Equal(ForceId.Neutral, h.World.GetComponentRO<EntityInfo>(e).ForceId);
         Assert.True(h.Map.TryGetEntity(ped.NetworkId, out var mapped) && mapped == e);
         Assert.True(h.Mirror.Replicas.IsPedReplica(ped));
+        Assert.Equal(TrafficReplicas.ReplicaHealth, h.World.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current);   // a burst can hit him (K7)
     }
 
     [Fact]
@@ -198,6 +199,7 @@ public sealed class PedestriansPanicIntoCiviliansTests
             residency.AttachContent(new SumoNetTerrainLoader());
             residency.Commit(h.World, residency.Prepare("demo-city"));
             TrafficRuntimeTests.RegisterReplicaComponents(h.World);
+            h.World.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             h.World.RegisterComponent<TrafficDemand>();
             h.World.Bus.Register<WeaponFireNotification>();
             h.World.Bus.Register<DetonationNotification>();
