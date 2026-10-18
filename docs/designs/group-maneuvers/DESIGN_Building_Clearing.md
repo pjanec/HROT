@@ -359,7 +359,7 @@ classDiagram
   direction LR
   class StaffComposer { <<NEW system, every commander, brain>> CONTACT and SPOT from its memory · SITREP heartbeat · LACE on change · ElementClusterer }
   class ReportOutbox { <<designed RP-1>> delay · leader in the fight }
-  class SquadReportTopic { <<backend BR-3>> header + standard fields + payload }
+  class SquadReportTopic { <<backend BR-3>> header + standard fields: KindId, Subtype, SPOT fields, Building + Position (no payload, CB-43) }
   class StaffInbox { <<NEW system, every commander, brain>> fold standard kinds · keep the last N per kind · raise ReportReceived }
   class ElementMemory { <<the commander's own memory, CB-36>> enemy elements, aged }
   class StatusTable { <<CB-34>> per subordinate: position, phase, colours, age }

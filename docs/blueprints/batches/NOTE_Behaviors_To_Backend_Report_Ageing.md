@@ -12,7 +12,11 @@ related-designs:
 
 # NOTE — behaviors → backend: more fields on `SquadReport` *(BR-3, CB-31…CB-34, CB-37…CB-41)*
 
-**Re-stamped `2026-10-18` again (rule 1a, still not in `origin/backend`):** one more row — a `Synthetic` flag for reports faked over the debug HTTP (Command Chain §7c CC-14; a lean, awaiting the user). **Earlier re-stamp:** the report vocabulary was settled into the doctrinal set (Building Clearing §5c) — the last three rows below are new.
+**Re-stamped `2026-10-18`, third time (rule 1a, still not in `origin/backend`):** after an audit of today's hand-offs —
+`Synthetic` is now APPROVED (CC-14, R-2045); PROGRESS gains `FireLifted` and PhaseLine carries its index in `Count` (Platoon PC-4,
+R-2046); the frame's `Room` int becomes a building id (rooms are derived by the survey, R-2038, and get no stable wire id); the
+receiving item is `CE-2293` (the staff), `CE-2263` having been folded into `CE-2291`…`CE-2295`. **Second re-stamp:** the `Synthetic`
+row. **First re-stamp:** the report vocabulary was settled into the doctrinal set (Building Clearing §5c).
 
 **Why.** The user asked how the brain avoids acting on old reports. The answer ([Building Clearing §5b](../../designs/group-maneuvers/DESIGN_Building_Clearing.md))
 ages a report from when the squad SAW the thing, orders reports per sender, and has squads re-send their status while engaged. ⚠ BR-3
@@ -26,8 +30,9 @@ is unstarted (`git merge-base --is-ancestor` checked: not in `origin/backend`), 
 | **`KindId`** (ushort) replaces the byte `Kind` | the report kind registry: standard 1–99 (CONTACT, SPOT, SITREP, LACE, PROGRESS, REQUEST), a CLOSED set (CB-43) — no behaviour-defined kinds | an unknown kind id still crosses the wire and is logged |
 | **SPOT fields** | size class (individual · team · squad · platoon), activity, equipment flags (MG · sniper · AT · vehicle), radius (CB-37) | a SPOT round-trips every field |
 | **`Subtype`** (byte) + a `RequestId` *(re-stamped: the free payload is DROPPED, CB-43)* | the closed subtype of the kind (PROGRESS: Set · PhaseLine · Foothold · …; REQUEST: Casevac · FireSupport · …); a REQUEST's id that an answering order cites | every kind × subtype round-trips; an unknown subtype still crosses and is logged |
-
-| **`Synthetic`** (bit/byte) *(lean, Command Chain §7c CC-14)* | set on a report injected over the debug HTTP; the receiving inbox lets it past the per-sender `Seq` drop and the sender's next real report of the subject replaces it; replay records it | a synthetic report round-trips the flag and is recorded by replay |
+| **`Synthetic`** (bit/byte) *(✅ approved, Command Chain §7c CC-14, R-2045)* | set on a report injected over the debug HTTP; the receiving inbox lets it past the per-sender `Seq` drop and the sender's next real report of the subject replaces it; replay records it | a synthetic report round-trips the flag and is recorded by replay |
+| 🆕 PROGRESS subtype **`FireLifted`**; **PhaseLine's index in `Count`** *(✅ Platoon PC-4, R-2046)* | the support squad's acknowledgement that it has lifted or shifted its fire (the lift hand-off, PC-7); the phase line number rides in the existing `Count` field | a PROGRESS FireLifted and a PROGRESS PhaseLine with `Count` 2 round-trip |
+| 🆕 **`Room` (int) → `Building`** (the building id) | ⭐ rooms are derived by the survey sensor from the current walls and re-derived when a building is damaged (R-2038), so a room has no id that stays the same on every node. A RoomClear / RoomBlocked report carries the **building** and a **`Position` inside the room** (its floor centre); the receiving staff finds the room in its own BuildingSurvey answer with a PointSurvey of that point | a RoomClear for room B of the CQB house arrives on another node with the house's building id and a point inside B |
 
 Everything else in BR-3 stands (event topic, egress drains the local event, ingress raises it on every node, sender's own sample
-skipped by `OriginNodeId`, replay records it). Please name your tracker row in your report so `CE-2263` (RP-1) can cite it.
+skipped by `OriginNodeId`, replay records it). Please name your tracker row in your report so `CE-2293` (the staff's inbox) can cite it.

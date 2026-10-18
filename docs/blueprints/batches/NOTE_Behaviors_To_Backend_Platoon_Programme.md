@@ -11,19 +11,24 @@ related-designs:
   - docs/blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md — BR-3's fields (ObservedAt, Seq, Sitrep, KindId, SPOT fields, Subtype, RequestId, Synthetic)
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md — UI-3 takes BR-1's test house
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — §3: LD-1 / LD-2 (order 3) and LD-4 (last), R-2048
+  - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — CC-2 / CC-11 (the ROE pattern BR-13 carries across nodes; its known-rot)
 -->
 
 # NOTE — behaviors → backend: the platoon programme — what we need from you, in order *(BR-1 … BR-12, LD-1 / LD-2 / LD-4, CE-2287)*
 
 **Re-stamp (rule 1a):** none of BR-1 … BR-12 is in `origin/backend` (checked 2026-10-18), so this note amends them; the dispatched frames
-are not edited. **Re-stamped `2026-10-18` again:** the look-direction programme joins (LD-1 / LD-2 at order 3, LD-4 last; R-2048), with its executor in the module SimHost already composes and the head limited to glances (R-2049). The user approved the programme on 2026-10-18 (R-2046) and asked for the work to be split across the lanes.
+are not edited. **Re-stamped `2026-10-18` a third time, after an audit of today's hand-offs (still nothing in `origin/backend`):** §4 —
+one new frame item, **BR-13** (ROE and reporting changes must reach the subordinate's brain node, `CE-2299`), and two additions to
+LD-1 / LD-2 (the map's cone, `LookState` on the wire); the [report note](NOTE_Behaviors_To_Backend_Report_Ageing.md) gained
+`FireLifted` and `Room` → `Building`. **Re-stamped `2026-10-18` again:** the look-direction programme joins (LD-1 / LD-2 at order 3, LD-4 last; R-2048), with its executor in the module SimHost already composes and the head limited to glances (R-2049). The user approved the programme on 2026-10-18 (R-2046) and asked for the work to be split across the lanes.
 
 ## 1. The order behaviors waits on them
 
 | order | frame | why first | behaviors item that waits |
 |---|---|---|---|
 | 1 | **BR-12** `WorldSurvey` (BuildingSurvey · VisibilityFan · PointSurvey, solved on the muscle) | the rooms to clear, the window faces, the posts' views, a contact's storey — every play's Plan reads it | the clearing (`CE-2257`…`CE-2259`), the sensors (`CE-2283`), the geometry moves (`CE-2286`) |
-| 2 | **BR-3** the report topic + the [report-ageing note](NOTE_Behaviors_To_Backend_Report_Ageing.md)'s fields (incl. `Synthetic`) | every report up the chain rides it | the staff (`CE-2293`) runs on a local loopback until then, the wire after |
+| 2 | **BR-3** the report topic + the [report-ageing note](NOTE_Behaviors_To_Backend_Report_Ageing.md)'s fields (incl. `Synthetic`, `FireLifted`, `Building`) | every report up the chain rides it | the staff (`CE-2293`) runs on a local loopback until then, the wire after |
+| 2a | 🆕 **BR-13** ROE and reporting changes forwarded to the subordinate's brain node (§4) | reports go UP on BR-3; this is the DOWN half beside the order | `CE-2291` (`SetReportingEvent`), CC-11 `Initiative`, the plays' ROE |
 | 3 | 🆕 **LD-1 / LD-2** look direction ([Look Direction §3.2](../../designs/look-direction/DESIGN_Look_Direction_And_FOV.md), R-2048, R-2049) — the existing **`LookAtChannel`** (`LookAtPointNode` / `LookAtEntityNode` already write it) executed by the existing look-at executor in **`AnimationMuscleModule`, already composed on SimHost over the `FakeAnimationBackend`** (`CE-2121`): **register the look-at components** (unconsumed today); a small `LookFollow` + `LookState` {bodyYaw, headYaw, source}: the head glances up to ±70° for at most 2 s, a lasting look turns the body with W-14's `FacingTurn`, a quick aim twists and a lasting aim turns the body (W-14 unchanged); `VisionBroadphase` points the cone along the head; `look` on `GET /entities/{id}/state` (LD-D) | sectors, the watch on the last window, surprise from behind | `CE-2297` (LD-3), the LD demos `CE-2298` |
 | 3a | **BR-8** infantry LMGs + the new roles on the wire | the roles split every squad play | roles (`CE-2281`) |
 | 4 | **BR-6 / BR-7** the spread factor, acquisition by exposure | proficiency changes the fight | the tier ladder |
@@ -52,4 +57,27 @@ brains call). ⭐ The **test house template** moves to the ui lane (UI-3, [hando
 with the shared `Recipes/Buildings/` folder and `house-3f`. ⇒ **BR-1 needs no backend work**; its rails become BR-12's (the CQB house
 gives its rooms and portals through the survey).
 
-Please name your tracker rows for BR-12 and BR-3 in your report, so `CE-2283` and `CE-2293` can cite them.
+Please name your tracker rows for BR-12, BR-3 and BR-13 in your report, so `CE-2283`, `CE-2293` and `CE-2299` can cite them.
+
+## 4. Found in the hand-off audit (2026-10-18)
+
+### 4.1 🆕 BR-13 — ROE and reporting changes reach the subordinate's brain node
+
+**Measured.** An order crosses nodes: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is
+not owned here as a `TacticalIntentRequest` {target, intent, JSON params, origin, kind, flags}, and the owner's ingress raises it
+again. ⛔ `SetRoeEvent` does not: it is a local bus event, `RoeSystem` applies it on the node that raised it, and the owner's
+`EntityBrainIntent` (owner → everyone) then carries the owner's unchanged ROE back. The design copies that pattern twice (Command
+Chain CC-2 `SetReportingEvent`, CC-11 `Initiative` as a half of `Roe`). ⇒ ⚠ whenever a platoon's brain and a squad's run on
+different nodes, the platoon's ROE, `Initiative` and reporting requirements do nothing, silently. *(I found no rule that keeps a
+hierarchy's brains on one node; if there is one, say so and this item shrinks to a guard rail.)*
+
+| # | item | ⭐ lean | acceptance |
+|---|---|---|---|
+| **BR-13** | forward `SetRoeEvent` and `SetReportingEvent` (behaviors adds the second in `CE-2291`) to the node that owns the target's brain | ⭐ **the order's own road**: two more `Kind` values on `TacticalIntentRequest` (2 = set ROE, 3 = set reporting; the fields as JSON in `JsonParams`, `Origin` as today), drained by the same egress rule (brain not here ⇒ forward), raised again as the local event by the ingress, applied by the owner's origin gate. ⛔ Rejected: a topic per event (two more topics for one "directive to the owner" shape) · writing `Roe` from a non-owner (two writers) | rails: a superior on node A sets HoldFire on a squad whose brain is on node B ⇒ B's `Roe` changes, A's replica follows through `EntityBrainIntent`; a lower-ranked origin is refused on B; a `SetReportingEvent` likewise; an order + ROE sent in one frame arrive in that order |
+
+### 4.2 Two additions to LD-1 / LD-2 (look direction)
+
+| addition | ⭐ lean | why |
+|---|---|---|
+| the map's vision cone follows the head | `VisibilityConeGizmo` (`Hrot.Common`, draws from `SimTransform.Rotation` today) reads the same "where he looks" helper as `VisionBroadphase` | otherwise the cone drawn on the map points one way and the sensor looks another — the LD demos are watched on that cone |
+| `LookState` on the wire | replicated from the node that solves it (the muscle), so `look` on `GET /entities/{id}/state` (LD-D) and the map answer on every node, the editor included | the LD demos' checks read it from the editor's node |
