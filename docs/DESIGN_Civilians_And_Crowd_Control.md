@@ -3906,7 +3906,7 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
-### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule)*
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule; ⭐ TC-6 BUILT `2026-10-19` — §7.17a)*
 
 🔒 **Approved, user, `2026-10-18`:** *"Approved. Lethality depends also on what the man is holding in hands i guess.
 Knife is usually not thrown unless by a circus artist."* ⇒ ⭐ TC-2 carries **no throwing knife** (a knife is the MELEE item of AW-19, never thrown by the AI — TC-4); ⭐ TC-7's
@@ -3942,7 +3942,7 @@ classDiagram
   class BallisticsSystem { <<existing>> the flight, the strike on the line, the wall }
   class DamageAssessedEgressTranslator { <<existing, SimHost>> the hit to the Health owner }
   class Armament { <<existing>> OfHands — TC-7 is behaviors' }
-  class HandThrow { <<NEW static, CE-3248>> IsHandThrow(world, notification) — a hand throw is no gunshot }
+  class HandThrow { <<BUILT as PersonHands.Threw, CE-3248, see 7.17a>> a hand throw is no gunshot }
   class SoundEmissionSystem { <<existing>> skips a hand throw }
   MunitionTkbCatalog ..> WarheadDto
   MunitionTkbCatalog ..> HandItemDto
@@ -3980,7 +3980,7 @@ none of it waits for `CE-3246` (that row is the BLOW raised on a brain).
 graph TD
   CGF[CGF - brain] -->|FireAtPoint, WeaponFireIntent| SH[SimHost - FireProcessing, Ballistics]
   SH -->|the round: EntityMaster + WorldPos + look| IG[IG - draws the blade in flight and lying]
-  SH -->|EntityHitDamage - Muscle egress| CGF
+  SH -->|EntityHitDamage - shared pack, CE-3246| CGF
   CGF -->|PickUpRound kind 9| SH
   SH -->|PickUpGrant kind 10| CGF
 ```
@@ -3999,6 +3999,42 @@ SimHost, and the hit comes back to the `Health` owner; no new module, no new reg
 
 ⚠ **Not here:** the melee half of AW-19 (the fighting knife, baton, machete as items — ui's G4); the blow's own wire (`CE-3246`, `StrikeNotification` G3);
 a sound for the throw's whoosh (none is wanted).
+
+#### 7.17a AS-BUILT — TC-6, a hand throw is not a gunshot *(backend, `CE-3248`, `2026-10-19`; build-state: BUILT)*
+
+**INVENTORY** *(2026-10-19)*: production readers of `WeaponFireNotification` (grep `ReadEvents<WeaponFireNotification>` /
+`Read<WeaponFireNotification>`, cross-checked with codebase-memory `search_graph .*(RecentShots|IsExpendable|WeaponFireNotification).*`):
+`SoundEmissionSystem`, `ThermalHeatSystem`, `EffectSpawnSystem` (3-D: flash, FPS shot sound, backblast, `RecentShots`),
+`EventToEffectSystem` (2-D tracer), `TrafficPanicSystem` (a shot frightens SUMO pedestrians), the egress. 📐 Measured per reader for a
+throw: a report ✔ · barrel heat ✔ · a flash ✔ (a stone has no `MunitionEffectsDto`, so `EffectsFor` gave the default small set) · a
+tracer only when thrown at a man · a traffic panic ✔.
+
+```mermaid
+classDiagram
+  class PersonHands { <<EXISTING, grows>> Threw(view, shot) NEW: IsHands(MountOf(shooter, WeaponIndex)) }
+  class SoundEmissionSystem { <<EXISTING>> no report for a throw }
+  class ThermalHeatSystem { <<EXISTING>> no barrel heat for a throw }
+  class EffectSpawnSystem { <<EXISTING>> records RecentShots, then no flash / sound / blast }
+  class EventToEffectSystem { <<EXISTING>> no tracer }
+  class TrafficPanicSystem { <<EXISTING>> no shot incident }
+  class WeaponFireNotificationEgress { <<EXISTING, unchanged>> still sends it }
+  SoundEmissionSystem ..> PersonHands
+  ThermalHeatSystem ..> PersonHands
+  EffectSpawnSystem ..> PersonHands
+  EventToEffectSystem ..> PersonHands
+  TrafficPanicSystem ..> PersonHands
+```
+*What the picture shows that prose hid:* ONE test beside `Munitions.IsExpendable`, read where each reader already asks "is this a flare?";
+the fire event itself is untouched — the egress still sends it, so `RecentShots` (the throw's pose), the round and replay ride it as before.
+
+| | as built | rejected — one line |
+|---|---|---|
+| the test | `PersonHands.Threw` — the shooter's TYPE + the shot's `WeaponIndex` ⇒ the hands mount; answers on any node (a replica carries both) | a flag on the event (a wire field nobody else needs) · a flag per munition (TC-6's own rejection) |
+| `RecentShots` | still recorded for a throw | skipping it: the 3-D body poses a thrower from it |
+| traffic | a throw raises no shot incident; its burst (a grenade) still does, through `DetonationNotification` | treating a thrown stone as a gunshot heard down the street |
+
+Rails, one per reader, each red with `Threw` dropped from that reader: `PersonHandsTests.CE3248_…` (report + heat),
+`EffectTests.CE3248_…`, `EventToEffectSystemTests.CE3248_…`, `PedestriansPanicIntoCiviliansTests.CE3248_…`.
 
 ### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's [people-display gaps](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md); `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
 

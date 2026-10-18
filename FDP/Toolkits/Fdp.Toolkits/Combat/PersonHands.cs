@@ -53,6 +53,16 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Is <paramref name="mount"/> the hands?</summary>
         public static bool IsHands(WeaponMountDto? mount) => mount is { Hands: true };
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3248</c> (TC-6, R-3016; docs/DESIGN_Civilians_And_Crowd_Control.md §7.17a) — was <paramref name="shot"/> THROWN (fired from
+        /// the shooter's hands mount)? A throw is no gunshot: no report, no barrel heat, no muzzle flash, no tracer — every
+        /// <see cref="Events.WeaponFireNotification"/> reader that draws or hears a GUN asks this, as it asks <c>Munitions.IsExpendable</c>
+        /// for a flare. ⭐ It reads the shooter's TYPE and the mount index the shot carries, so it answers on every node (a replica too).
+        /// </summary>
+        public static bool Threw(ISimulationView view, in Events.WeaponFireNotification shot)
+            => view is EntityRepository world && !shot.Shooter.IsNull && world.IsAlive(shot.Shooter)
+               && IsHands(CombatTkb.MountOf(world, shot.Shooter, shot.WeaponIndex));
+
         /// <summary>The index of <paramref name="owner"/>'s hands mount (his type's last), or −1 when his type has none.</summary>
         public static int MountIndex(EntityRepository world, Entity owner)
         {

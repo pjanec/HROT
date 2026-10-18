@@ -374,4 +374,39 @@ public class EventToEffectSystemTests
 
         Assert.False(((ISimulationView)repo).IsAlive(entity));
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3248 (docs/DESIGN_Civilians_And_Crowd_Control.md §7.17a TC-6) — a stone THROWN from a man's hands at another man draws no
+    /// tracer; the same man firing his rifle at him does. ✅ Red-proof: <c>Threw</c> dropped from <c>EventToEffectSystem</c> ⇒ a tracer ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3248_AThrowAtAMan_DrawsNoTracer_ARifleShotDoes()
+    {
+        var repo = CreateRepo();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var man = new TkbTemplate("Rifleman", 9302);
+        man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+        {
+            new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms },
+            Fdp.Toolkit.Combat.PersonHands.Mount(),
+        } });
+        db.Register(man);
+        repo.SetSingletonManaged<ITkbDatabase>(db);
+        var system = new EventToEffectSystem();
+
+        var shooter = repo.CreateEntity();
+        var target  = repo.CreateEntity();
+        repo.AddComponent(shooter, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
+        repo.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9302 });
+        repo.AddComponent(target,  new SimTransform { Position = new Vector3(TargetX,  TargetY,  0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, WeaponIndex = 1 });   // the hands
+        RunSpawnSystem(repo, system);
+        Assert.Equal(0, CountEffects(repo).Item2);
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, WeaponIndex = 0 });   // the rifle
+        RunSpawnSystem(repo, system);
+        Assert.Equal(1, CountEffects(repo).Item2);
+    }
 }

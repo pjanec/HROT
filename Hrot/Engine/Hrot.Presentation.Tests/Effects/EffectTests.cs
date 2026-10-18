@@ -257,6 +257,29 @@ public sealed class EffectTests
         Assert.NotEmpty(EffectLayer.Puffs(drawn));                                                              // its smoke trail
     }
 
+    /// <summary>⭐⭐ CE-3248 (Civilians §7.17a TC-6) — a stone THROWN from a man's hands draws no muzzle flash (📐 before: a stone has no
+    /// effects of its own, so it drew the default small flash), yet is recorded as his last shot (his pose reads it); a rifle shot still
+    /// flashes. ✅ Red-proof: <c>Threw</c> dropped from <c>EffectSpawnSystem</c> ⇒ a flash at his hand ⇒ red.</summary>
+    [Fact]
+    public void CE3248_AThrow_DrawsNoMuzzleFlash_ButIsRecorded()
+    {
+        var (world, _) = World();
+        At(world, 5.0);
+        var man = Unit(world, CivilianTkbCatalog.TkbCivilianAdultMale, new Vector3(0, 0, 0));
+        int hands = Fdp.Toolkit.Combat.PersonHands.MountIndex(world, man);
+        Assert.True(hands >= 0, "a person type ends with hands");
+        world.Bus.Publish(new WeaponFireNotification { Shooter = man, WeaponIndex = hands, AmmoGuid = MunitionTkbCatalog.TkbStone, Quantity = 1 });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+        Assert.Empty(Effects(world));
+        Assert.True(RecentShots.Of(world)!.FiredWithin(man, 5.0, 1.0, out int mount) && mount == hands);
+
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 3));
+        world.Bus.Publish(new WeaponFireNotification { Shooter = tank, WeaponIndex = 0, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe, Quantity = 1 });
+        Tick(world, spawn, 0.016f);
+        Assert.Contains(Effects(world), f => f.Type == EffectTkbCatalog.MuzzleFlashMedium);
+    }
+
     /// <summary>⭐ CE-1115 (§9 DV-5, BS-1 §5.4b F3) — a shot draws the flash of the round actually FIRED (the fire carries it), not the
     /// mount's default: a T-72 firing an 81 mm mortar bomb (its set: a medium flash) shows a medium flash, not its large 125 mm one.</summary>
     [Fact]

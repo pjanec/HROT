@@ -72,6 +72,21 @@ public sealed class PedestriansPanicIntoCiviliansTests
         Assert.Equal(requests.Count, requests.Select(r => r.PreAllocatedNetworkId).Distinct().Count());
     }
 
+    /// <summary>⭐⭐ <c>CE-3248</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.17a TC-6) — a stone THROWN where the shot above was fired
+    /// frightens nobody off the street: a throw is no gunshot. ✅ Red-proof: <c>Threw</c> dropped from <c>TrafficPanicSystem</c> ⇒ he is
+    /// given up as K4 ⇒ red.</summary>
+    [Fact]
+    public void CE3248_AThrowNearPedestrians_GivesNobodyUp()
+    {
+        using var h = Harness.Start(Walkers);
+        h.Run(60.0);
+        var ped = h.Mirror.Pedestrians[0];
+        var at = new Vector3(ped.X, ped.Y, 0f);
+
+        h.Throw(at);
+        Assert.Empty(h.RunCollecting(2.0));
+    }
+
     [Fact]
     public void K6_NoMoreThanTheCap_AreGivenUp()
     {
@@ -257,6 +272,27 @@ public sealed class PedestriansPanicIntoCiviliansTests
         }
 
         public void Shoot(Vector3 at) => World.Bus.Publish(new WeaponFireNotification { Origin = at, Quantity = 1 });
+
+        // ⭐ CE-3248 — a man throwing from his HANDS mount (his type's last): the one test every fire reader asks is PersonHands.Threw
+        public void Throw(Vector3 at)
+        {
+            const long ThrowerType = 9302;
+            if (!World.IsComponentTypeRegistered<TkbIdentity>()) World.RegisterComponent<TkbIdentity>();
+            var thrower = new Fdp.Interfaces.TkbTemplate("Thrower", ThrowerType);
+            thrower.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { Fdp.Toolkit.Combat.PersonHands.Mount() } });
+            if (World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is Fdp.Toolkit.Tkb.TkbDatabase db)
+                db.Register(thrower);
+            else
+            {
+                var fresh = new Fdp.Toolkit.Tkb.TkbDatabase();
+                fresh.Register(thrower);
+                World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(fresh);
+            }
+            var man = World.CreateEntity();
+            World.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            World.AddComponent(man, new TkbIdentity { TkbType = ThrowerType });
+            World.Bus.Publish(new WeaponFireNotification { Shooter = man, WeaponIndex = 0, Origin = at, Quantity = 1 });
+        }
 
         public void Blast(Vector3 at) => World.Bus.Publish(new DetonationNotification { HitX = at.X, HitY = at.Y, HitZ = at.Z });
 
