@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: READY-TO-BUILD — the lean ✅ APPROVED 2026-10-18 (R-2048) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
+build-state: READY-TO-BUILD — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
 current-answer: §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
 stale-below: nothing.
 known-rot: none.
@@ -95,12 +95,19 @@ the last window" all wait on it).
 
 | found | where | ⇒ |
 |---|---|---|
-| ⭐ an **animation look-at CHANNEL**: `LookAtChannel` (replicated component, the action-channel shape: action id, behaviour instance, action instance, 32-byte params), `LookAtChannelIntent` / `Status` translators on the wire, behaviour nodes **`LookAtPointNode`**, **`LookAtEntityNode`**, **`ReleaseLookNode`**, a muscle `LookAtDispatcherSystem` and `LookAtPointExecutor` | `Hrot.MuscleCharacter.Animation` (components, nodes, registrar, executors) | ⭐ **the look request already exists end to end on the behaviour side and on the wire** — ⛔ but no production host composes the muscle animation pipeline, so it is never played (`CE-3010`) |
+| ⭐ an **animation look-at CHANNEL**: `LookAtChannel` (replicated component, the action-channel shape: action id, behaviour instance, action instance, 32-byte params), `LookAtChannelIntent` / `Status` translators on the wire, behaviour nodes **`LookAtPointNode`**, **`LookAtEntityNode`**, **`ReleaseLookNode`**, a muscle `LookAtDispatcherSystem` and `LookAtPointExecutor` | `Hrot.MuscleCharacter.Animation` (components, nodes, registrar, executors) | ⭐ **the look request already exists end to end on the behaviour side and on the wire** |
+| ⭐ **`AnimationMuscleModule` IS composed on SimHost and the editor** over the **`FakeAnimationBackend`** (`AnimationMuscleCapability`, `CE-2121` — it carries the stance transition); its remark: *"Montage / look-at requests stay unconsumed until their components are registered"* | `Hrot.SimHost/AnimationMuscleCapability.cs`; `Hrot.MuscleCharacter.Animation.Fake` | ⇒ the executor RUNS on the right node already; ⛔ only the look-at components are not registered. ⚠ `CE-3010`'s *"no production host composes the Muscle animation pipeline"* is stale for SimHost (it predates `CE-2121`) |
 | `HumanGait.FacingTurn` · `FacingSpeedFactor` (W-14) | `CarKinem/Controllers/HumanGait.cs` | the body turn LD-1 reuses (§1.3) |
 | `VisionBroadphase` forward = the body rotation | §1.1 | LD-2 changes only this |
 | no `LookDirection` / `LookIntent` anywhere | grep | nothing to merge |
 
-### 3.2 The classes and the flow
+### 3.2 The classes and the flow *(LD-A, LD-D ✅ approved; LD-B, LD-C as amended by the user — R-2049)*
+
+🔒 User, `2026-10-18`: *"Reusing animation channel is ok. There was planned an existing fake animation module on the sim host already. So
+this one could be reused or replaced with something. Actually, turning the body to the aiming direction is probably the most intuitive
+pose, so we should not force the soldier to aim plus minus 70 degrees from his forward direction of the body, because this is
+unrealistic. The watching, yes, but only short time as turning head quickly gets unpleasant and inconvenient. Aiming yes, but again only
+for a short time, quick aim. If it takes longer, the body should turn to the aiming direction as it is now. Checking over HTTP accepted."*
 
 ```mermaid
 classDiagram
@@ -108,71 +115,77 @@ classDiagram
   class LookAtChannel { <<EXISTING replicated channel>> ActiveAction · BehaviorInstanceId · ActionInstanceId · Params }
   class LookNodes { <<EXISTING nodes>> LookAtPointNode · LookAtEntityNode · ReleaseLookNode }
   class LookAt { <<NEW pure helper, behaviors LD-3>> FromOrder · FromSector · LastWindow · Scan }
-  class LookExecutor { <<NEW muscle executor, backend LD-1>> sets LookYaw · turns a standing man with FacingTurn }
-  class LookState { <<NEW component, backend LD-1>> LookYaw · Source }
-  class HumanGait { <<EXISTING W-14>> FacingTurn · MaxAimTwist 75 }
-  class BodyAim { <<EXISTING W-14>> HoldsFire }
+  class AnimationMuscleModule { <<EXISTING, composed on SimHost CE-2121>> LookAtDispatcherSystem · LookAtPointExecutor }
+  class FakeAnimationBackend { <<EXISTING, SimHost default>> the head turn it reports }
+  class LookFollow { <<NEW, backend LD-1>> head glance up to 70 deg for a short time · a lasting look turns the body }
+  class LookState { <<NEW component, backend LD-1>> HeadYaw · Source · GlanceSince }
+  class HumanGait { <<EXISTING W-14>> FacingTurn · MaxAimTwist 75 · AlignGain }
+  class BodyAim { <<EXISTING W-14>> a quick aim twists, a lasting aim turns the body }
   class VisionBroadphase { <<EXISTING, forward changed LD-2>> }
   class EngagementArea { <<Defend DA-20>> Allow · WatchBearing }
-  class MemberOrders { <<squad plays>> MemberArc · Watch }
-  MemberOrders ..> EngagementArea : the member brain stamps it
   LookAt ..> EngagementArea : WatchBearing
   LookAt ..> LookNodes : writes the request
   LookNodes --> LookAtChannel
-  LookAtChannel ..> LookExecutor : muscle, the owner of the body
-  LookExecutor --> LookState
-  LookExecutor ..> HumanGait : turn while standing
-  BodyAim ..> LookExecutor : aim wins while firing
-  VisionBroadphase ..> LookState : the cone's forward
+  LookAtChannel ..> AnimationMuscleModule : register the look-at components, CE-3010's half
+  AnimationMuscleModule ..> FakeAnimationBackend
+  AnimationMuscleModule ..> LookFollow
+  LookFollow --> LookState
+  LookFollow ..> HumanGait : FacingTurn toward a lasting look
+  BodyAim ..> LookFollow : firing, the aim wins
+  VisionBroadphase ..> LookState : body yaw + head yaw
 ```
-*What the picture shows that prose hid:* the only NEW boxes are a muscle executor with the state it writes, and a pure helper on the
-brain; the request path — nodes, channel, wire — **already exists** as the animation look-at channel, which today nobody executes
-(`CE-3010`). ⭐ So "where he looks" gets ONE producer, the same one the animation will play later.
+*What the picture shows that prose hid:* the request path AND the executor already exist and the executor's module already runs on
+SimHost over the fake backend; what is missing is registering the look-at components, the small `LookFollow` step (how long the head may
+stay turned, when the body follows) and the cone reading the result. ⭐ The fake backend can later be replaced by a real 3D backend
+playing the same request — the look never depends on which one draws it.
 
 ```mermaid
 sequenceDiagram
   participant SQ as squad play (brain)
   participant M as member brain
   participant CH as LookAtChannel (wire)
-  participant EX as LookExecutor (muscle)
+  participant EX as AnimationMuscleModule look-at executor (SimHost)
+  participant LF as LookFollow (SimHost)
   participant V as VisionBroadphase (perception)
   SQ->>M: member order + MemberArc (Watch / post / file place)
   M->>M: EngagementArea.WatchBearing = the arc's bisector
-  M->>CH: LookAt.FromSector -> LookAtPointNode (a point along the bearing)
-  CH->>EX: the request, on the muscle node
-  EX->>EX: standing: FacingTurn to it · moving: travel keeps the body, the look waits
-  EX->>EX: firing: the aim wins (W-14), LookYaw follows the aim
-  EX-->>V: LookState.LookYaw
-  V->>V: the cone (fovCos) around LookYaw instead of the body rotation
+  M->>CH: LookAt.FromSector -> LookAtPointNode
+  CH->>EX: the request, on the node that owns the body
+  EX->>LF: the wanted look
+  LF->>LF: standing, the look lasts: the head turns first, the BODY follows (FacingTurn, the W-14 lag)
+  LF->>LF: moving: a GLANCE, the head up to 70 deg for at most 2 s, then back to the travel direction
+  LF->>LF: firing: the aim wins, a quick aim twists, a lasting one turns the body (W-14 unchanged)
+  LF-->>V: LookState: body yaw + head yaw
+  V->>V: the cone (fovCos) around the head direction
 ```
-*What the picture shows that prose hid:* the eyes follow the ORDER, not a per-frame decision — a look is written when a member order or a
-contact changes it, and the muscle holds it; the brain never reads geometry to aim the eyes (R-2037).
+*What the picture shows that prose hid:* the head never stays turned for long — a lasting look ends with the BODY facing it, exactly as
+a lasting aim already does (W-14); only a glance while walking keeps the body on its travel direction.
 
 ```mermaid
 graph TD
   BT[BrainTickSystem, brain node] --> PLAYS[squad plays + member behaviours: LookAt helper]
   PLAYS -->|LookAtPointNode / LookAtEntityNode| CH[LookAtChannel, replicated]
-  CH --> EXE[LookExecutor, the muscle node that owns the body]
-  EXE --> GAIT[HumanGait.FacingTurn]
-  EXE --> LS[(LookState)]
+  CH --> MOD[AnimationMuscleModule on SimHost, CE-2121: look-at dispatcher + executor]
+  MOD --> FAKE[FakeAnimationBackend: the head turn]
+  MOD --> LF[LookFollow: glance limit, body follow]
+  LF --> GAIT[HumanGait.FacingTurn]
+  LF --> LS[(LookState)]
   LS --> VB[VisionBroadphase, the perception node]
-  ANIM[AnimationMuscleModule: head turn drawing, CE-3010] -.->|not composed today| CH
   classDef new fill:#ffd,stroke:#aa0
-  classDef dead fill:#eee,stroke:#999,stroke-dasharray: 4 3
-  EXE:::new
+  classDef gap fill:#fdd,stroke:#c33
+  LF:::new
   LS:::new
-  ANIM:::dead
+  CH:::gap
 ```
-*Caption:* who runs it each frame. ⚠ **The grey box is never reached today**: the animation module that would draw the head turn is
-composed by no host (`CE-3010`); LD-1 does not need it — the executor is a small system on the muscle node next to locomotion. Drawing
-the head comes later with `CE-3010`.
+*Caption:* who runs it each frame. ⚠ **The red box is the gap today:** the look-at components are not registered on SimHost, so the
+module that already runs there consumes nothing; registering them is the remaining half of `CE-3010` for this use.
 
-| id | decision | ⭐ lean | rejected — one line each |
+| id | decision | ✅ ruled / ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **LD-A** | what carries the look | ⭐ **the existing `LookAtChannel`** (its nodes, intent and wire) — LD-1 adds the executor and `LookState`; ⚠ backend's step 1 confirms the channel can be executed outside the animation module | a new `LookIntent` component: a second producer for "where he looks" beside the animation's |
-| **LD-B** | who wins | firing ⇒ the **aim** (W-14) · otherwise the **active behaviour's last request** (a reaction's look replaces the task's while it runs and the task's comes back with it) · nothing requested ⇒ a slow **scan ±60°** around the last look (Sentry, idle) | the last writer of any behaviour: a paused task would keep pointing the eyes |
-| **LD-C** | moving | while moving the body keeps travel, the eyes keep the look **within ±70°** of it (the head range) — the march's flank men look at the building faces without walking sideways | stop to look: a march would crawl |
-| **LD-D** | reading it back | `GET /entities/{id}/state` gains `look` { yaw, source: order / aim / scan / reaction, fovDegrees }; "was he seen" stays `GET /entities/{id}/memory`'s modalities (visual vs heard) | a new route: the state route already parses the well-known fields |
+| **LD-A** ✅ | what carries the look | ✅ **the existing `LookAtChannel`**, executed by the existing look-at executor inside `AnimationMuscleModule`, **already composed on SimHost over the `FakeAnimationBackend`** (`CE-2121`); register the look-at components; the fake backend may be reused or replaced by a real one later (user) | a new `LookIntent` component: a second producer for "where he looks" |
+| **LD-B** ✅ *(as amended)* | the aim and the body | ✅ **W-14 unchanged**: a **quick aim** may twist the upper body (up to 75°) for a short time; **a lasting aim turns the body** to it (the existing lag, 95 % in 3 s). ⛔ No soldier is kept aiming ±70° off his body. Who owns the look otherwise: the running behaviour's last request (a reaction's replaces the task's while it runs, the task's returns after); nothing requested ⇒ a slow scan around the last look | aiming far off the body for long: unrealistic (user) |
+| **LD-C** ✅ *(as amended)* | the head | ✅ the head turns only for a **GLANCE** — ⭐ lean: up to ±70° for **at most 2 s**, then back toward the body's direction for at least 1 s; **a lasting look turns the BODY** (standing: `FacingTurn` toward it, the same lag as a lasting aim); **moving**: the body keeps its travel and an off-axis sector is watched by repeated glances, never a long stare over the shoulder | a fixed head turn while walking: "turning head quickly gets unpleasant and inconvenient" (user) · stopping to look: a march would crawl |
+| **LD-D** ✅ | reading it back | ✅ `GET /entities/{id}/state` gains `look` { bodyYaw, headYaw, source: order / aim / scan / reaction / glance, fovDegrees }; "was he seen" stays `GET /entities/{id}/memory`'s modalities | a new route |
 
 ### 3.3 Who points the eyes, in every play of the programme *(LD-3)*
 
@@ -182,7 +195,7 @@ the head comes later with `CE-3010`.
 | `SquadDefend` post | his arc (`MemberArc` → `WatchBearing`); after a contact: the threat | DA-20 / DA-24 |
 | `SupportByFire` | his window faces; on a lift / shift: the new sector | the order |
 | ⭐ **watch the last window** (PC-16, Regular+) | the window an element last showed at (the squad's SPOT storey + the member's own last sighting) while hidden | `PeekAndFire`'s remembered spot |
-| `SquadMarch` / `UrbanMovement` | by file place: point man ahead, then alternating left / right building faces, every second man the upper storeys, the last man the rear | DA-17 |
+| `SquadMarch` / `UrbanMovement` | by file place: point man ahead, then alternating left / right building faces, every second man the upper storeys, the last man the rear — ⭐ as **repeated glances** (≤ 2 s each, LD-C) while walking; at a halt the body turns to the sector | DA-17, LD-C |
 | `ClearBuilding` | at his point of domination: his room sector (CB-4); in the stack: the danger area his number covers | Building Clearing |
 | `CombatPosture` hold | the threat, else his sector | today's posture |
 | Sentry / idle | scan ±60° | LD-B |
@@ -194,13 +207,13 @@ for 200°) explicitly, so they run **before LD-4** narrows the TKB. Each has an 
 
 | demo | proves | cast | must end with *(read over HTTP)* |
 |---|---|---|---|
-| ⭐ `ld-sentry-surprise` | LD-1 + LD-2: an order points the eyes, the cone follows them | a sentry at the low wall, `Watch` facing north (200° FOV); hostile **A** walks across his sector 150 m out; hostile **B** walks up behind him (south) to 40 m, then fires | ① `look.yaw` within 10° of north while A crosses (`/entities/{id}/state`) · ② A in his memory, **visual**, within 2 s of entering the cone (`/memory`) · ③ B **absent** from his memory while it walks · ④ B's shot ⇒ a **heard** contact, then he turns (`look.source` = reaction) and B becomes **visual** within 1.5 s · ⑤ the control run with 360° sees B at once (the demo's own proof that the cone mattered) |
+| ⭐ `ld-sentry-surprise` | LD-1 + LD-2: an order points the eyes, the cone follows them | a sentry at the low wall, `Watch` facing north (200° FOV); hostile **A** walks across his sector 150 m out; hostile **B** walks up behind him (south) to 40 m, then fires | ① standing, a lasting look: `look.bodyYaw` within 10° of north within 4 s (the body turned, not just the head; `/entities/{id}/state`) · ② A in his memory, **visual**, within 2 s of entering the cone (`/memory`) · ③ B **absent** from his memory while it walks · ④ B's shot ⇒ a **heard** contact, a head glance first (`look.source` = glance), B **visual** within 1.5 s, and the body faces B within 4 s if he keeps it as his threat · ⑤ the control run with 360° sees B at once (the demo's own proof that the cone mattered) |
 | `ld-crossing-security` | LD-3 for `Watch` | the danger-crossing drill (`ua-squad-danger-crossing`'s cast) with 200° FOV; a hostile far down the road on the left; one behind the squad on the path it came by | ① the two security men face left and right along the road · ② the left hostile seen by the left man first · ③ the one behind seen by nobody until the rear man's file sector (or a shot) · ⭐ the existing `ua-squad-danger-crossing` check unchanged (360° there) |
 | `ld-watch-last-window` | PC-16: switching beats a watcher | `house-2f` (House A), one Regular defender at the windows; two Regular attackers behind the low wall, 60 m; run twice — defender switching (Regular) and not switching (Militia) | ① while the defender is down, the attackers' `look` stays on the window he last showed at · ② the attackers' time from his exposure to their first shot is **≥ 0.5 s longer at a new window** than at the watched one (`/combat/shots` × his exposures) · ③ the switching defender is hit less · ⚠ needs BR-7 (acquisition by exposure) for ② |
 | `ld-room-sectors` | LD-3 for the clearing | `bc-room-clear`'s cast | at each point of domination every man's `look` within 20° of his sector's bisector (CB-4) — ⭐ added to `bc-room-clear`'s check |
 
 **Updates to the platoon demos** (DESIGN_Platoon_Attack_Defend_Clear §12): `sq-defend-house` + every defender's `look` inside his arc
-before contact · `sq-support-by-fire` + each man faces his windows · `pc-urban-ambush` + each marcher's `look` matches his file place
-(DA-17), and the ambush is SEEN first by the man whose sector it is in · `pc-defend-house` + the Red squad facing the EA does not see
+before contact · `sq-support-by-fire` + each man faces his windows · `pc-urban-ambush` + each marcher glances at his file-place sector at least every 5 s and **no glance lasts over 2 s** while he walks
+(DA-17, LD-C), and the ambush is SEEN first by the man whose sector it is in · `pc-defend-house` + the Red squad facing the EA does not see
 Blue's west-flank bound until it fires or comes into an arc.
 

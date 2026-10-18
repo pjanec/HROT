@@ -16,7 +16,7 @@ related-designs:
 # NOTE — behaviors → backend: the platoon programme — what we need from you, in order *(BR-1 … BR-12, LD-1 / LD-2 / LD-4, CE-2287)*
 
 **Re-stamp (rule 1a):** none of BR-1 … BR-12 is in `origin/backend` (checked 2026-10-18), so this note amends them; the dispatched frames
-are not edited. **Re-stamped `2026-10-18` again:** the look-direction programme joins (LD-1 / LD-2 at order 3, LD-4 last; R-2048). The user approved the programme on 2026-10-18 (R-2046) and asked for the work to be split across the lanes.
+are not edited. **Re-stamped `2026-10-18` again:** the look-direction programme joins (LD-1 / LD-2 at order 3, LD-4 last; R-2048), with its executor in the module SimHost already composes and the head limited to glances (R-2049). The user approved the programme on 2026-10-18 (R-2046) and asked for the work to be split across the lanes.
 
 ## 1. The order behaviors waits on them
 
@@ -24,7 +24,7 @@ are not edited. **Re-stamped `2026-10-18` again:** the look-direction programme 
 |---|---|---|---|
 | 1 | **BR-12** `WorldSurvey` (BuildingSurvey · VisibilityFan · PointSurvey, solved on the muscle) | the rooms to clear, the window faces, the posts' views, a contact's storey — every play's Plan reads it | the clearing (`CE-2257`…`CE-2259`), the sensors (`CE-2283`), the geometry moves (`CE-2286`) |
 | 2 | **BR-3** the report topic + the [report-ageing note](NOTE_Behaviors_To_Backend_Report_Ageing.md)'s fields (incl. `Synthetic`) | every report up the chain rides it | the staff (`CE-2293`) runs on a local loopback until then, the wire after |
-| 3 | 🆕 **LD-1 / LD-2** look direction ([Look Direction §3](../../designs/look-direction/DESIGN_Look_Direction_And_FOV.md), R-2048) — a muscle **executor for the existing `LookAtChannel`** (`LookAtPointNode` / `LookAtEntityNode` already write it; nothing executes it, `CE-3010`): `LookState` {yaw, source}, a standing man turned by W-14's `FacingTurn`, the aim wins while firing, ±70° head range while moving; `VisionBroadphase` points the cone along `LookState`; `look` on `GET /entities/{id}/state` (LD-D). ⭐ Step 1: your INVENTORY confirms the channel can run without the animation module (LD-A) — STOP and report if not | sectors, the watch on the last window, surprise from behind | `CE-2297` (LD-3), the LD demos `CE-2298` |
+| 3 | 🆕 **LD-1 / LD-2** look direction ([Look Direction §3.2](../../designs/look-direction/DESIGN_Look_Direction_And_FOV.md), R-2048, R-2049) — the existing **`LookAtChannel`** (`LookAtPointNode` / `LookAtEntityNode` already write it) executed by the existing look-at executor in **`AnimationMuscleModule`, already composed on SimHost over the `FakeAnimationBackend`** (`CE-2121`): **register the look-at components** (unconsumed today); a small `LookFollow` + `LookState` {bodyYaw, headYaw, source}: the head glances up to ±70° for at most 2 s, a lasting look turns the body with W-14's `FacingTurn`, a quick aim twists and a lasting aim turns the body (W-14 unchanged); `VisionBroadphase` points the cone along the head; `look` on `GET /entities/{id}/state` (LD-D) | sectors, the watch on the last window, surprise from behind | `CE-2297` (LD-3), the LD demos `CE-2298` |
 | 3a | **BR-8** infantry LMGs + the new roles on the wire | the roles split every squad play | roles (`CE-2281`) |
 | 4 | **BR-6 / BR-7** the spread factor, acquisition by exposure | proficiency changes the fight | the tier ladder |
 | 5 | **BR-9** sniper rifle, DMR, scope | the counter-sniper demo | `CE-2279` |
