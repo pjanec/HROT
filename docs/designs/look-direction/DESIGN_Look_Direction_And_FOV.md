@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
-current-answer: §3.2b (LD-1 / LD-2 AS BUILT — the classes, the wire, the rails) · §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
+updated: 2026-10-19
+build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 slice 1 BUILT (behaviors CE-2297, 2026-10-19 — §3.3a: the Look node in CombatPosture and PersonHold; slice 2 waits on MemberArc) · LD-3 rest / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
+current-answer: §3.2b (LD-1 / LD-2 AS BUILT — the classes, the wire, the rails) · §3.3a (LD-3 slice 1 — who points the eyes, as built) · §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
 stale-below: §3.2a's class names `LookRequests`, `LookOf.EyeYaw`, `LookState.Since` / `BodyYaw` — the plan; §3.2b names what was built.
 known-rot: none.
 known-conflict: none.
@@ -343,6 +343,102 @@ gait's module, `LookState` rides the shared pack — so every host that moves a 
 | `ClearBuilding` | at his point of domination: his room sector (CB-4); in the stack: the danger area his number covers | Building Clearing |
 | `CombatPosture` hold | the threat, else his sector | today's posture |
 | Sentry / idle | scan ±60° | LD-B |
+
+### 3.3a LD-3 slice 1 — the one look node, in the posture every holding man runs *(behaviors, `CE-2297`, 2026-10-19)*
+
+**INVENTORY** *(2026-10-19 — codebase-memory CLI `search_graph` `.*(Look|Watch|Scan|Glance).*` Class: 97, Method: 708 (paged; the
+look rows below are all of them outside tests); grep `LookAt\b|LookWant|class Watch` over `Hrot/` `FDP/`: 0; `check_index_coverage` NOT
+run — CLI only)*
+
+| found | ⇒ |
+|---|---|
+| `LookRequest` `AtPoint` / `AtEntity` / `Release` / `CanCarry` (backend, `CE-3252`) — the one write, stamps `BehaviorInstanceId`, a repeat within 5 cm is a no-op | ⭐ the only call LD-3 makes |
+| `LookAtPointNode` / `LookAtEntityNode` / `ReleaseLookNode` (blueprint action structs, `Hrot.MuscleCharacter.Animation/Nodes`) | the blueprint author's road; ⛔ a C# tree does not go through them |
+| `EngagementArea.WatchBearing` / `WatchSet` and the arc (`CE-2282`) | the member's sector — the look's second source |
+| `EqsTacticsNodes.TopThreat` (the threat every fire step and hide uses) | the look's first source |
+| `BehaviorState.InstanceId` — a paused task keeps its id (`BehaviorIngressSystem.cs:468`) | the arbitration key |
+| plays that exist today: `CombatPosture` (and `PersonAttack`, the same tree), `SquadMarch`, `SquadDangerCrossing`, `DefendArea`, `BoundingOverwatch` | ⛔ `Sentry`, `SquadDefend`, `SupportByFire`, `ClearBuilding` are not built |
+| `Sentry` (a JSON tree, `Assets/BTrees/Library/Tactics/Sentry.btree.json`, CE-3079 H2: watch until a dangerous contact is within 90 m, then wait 15 s and end) and `PersonHold` (`ClassHoldOrders`: one Idle state) — 📌 the first `search_graph` pattern (`Look|Watch|Scan|Glance`) did NOT name the Sentry; grep of the suite did | ⭐ `PersonHold` gets the look (the operator's Hold); ⚠ the Sentry is a JSON tree — a stateful node with its own params needs the asset's slot binding, so it is slice 2 |
+| ⭐ **`MemberOrderKind.Watch`** (Squad Tactics §7.7.6 D5, `CE-2159`) — the runner's `Hold` path: the member runs `CombatPosture` holding at the point; used by the danger crossing and the three airborne drills; its own row says *"⛔ facing a sector: no facing control exists"* | ⭐ **the Watch order already exists** — LD-3 gives it eyes through `CombatPosture`; ⛔ no second `Watch` behaviour |
+
+```mermaid
+classDiagram
+  direction LR
+  class LookAt { <<NEW static, Hrot.AI.Behaviors>> Want(world, self, params, ref state, now) LookChoice · SectorBearing(world, self, out bearing, out halfWidth) · ScanBearing · PointAt · BearingTo · FacingBearing }
+  class LookNodes { <<NEW>> Look [SharedAiAction, stateful] }
+  class LookParams { <<NEW>> Mode · Bearing · HalfWidth · StepSeconds · Metres }
+  class LookState { <<NEW working>> Source · Since }
+  class CombatPostureBehavior { <<EXISTING, + Look in its decide Parallel>> }
+  class MemberOrderKind { <<EXISTING CE-2159>> Hold · Watch run CombatPosture at the point }
+  class ClassHoldOrders { <<EXISTING CE-2143, + Look activity>> PersonHold }
+  class DebugApiService { <<EXISTING, + route>> POST entities id sector }
+  class EngagementAreaSystem { <<EXISTING CE-2282>> Apply, the one writer }
+  class LookRequest { <<EXISTING backend CE-3252>> AtPoint · AtEntity · Release }
+  class EngagementArea { <<EXISTING CE-2282>> WatchBearing · arc }
+  class EqsTacticsNodes { <<EXISTING>> TopThreat }
+  LookNodes --> LookParams
+  LookNodes --> LookState
+  LookNodes ..> LookAt
+  CombatPostureBehavior ..> LookNodes
+  MemberOrderKind ..> CombatPostureBehavior : Hold / Watch
+  ClassHoldOrders ..> LookNodes
+  DebugApiService ..> EngagementAreaSystem : origin Operator
+  EngagementAreaSystem --> EngagementArea
+  LookAt ..> EqsTacticsNodes : the threat
+  LookAt ..> EngagementArea : the sector
+  LookAt ..> LookRequest : the only write
+```
+*What the picture shows that the prose hid:* the brain side adds ONE node and one helper, and putting it in `CombatPosture` reaches
+every holding man at once — an operator's Hold, a squad's Hold and Watch members — because they all run that one tree. Nothing below
+the node is new: the threat, the sector and the channel all exist.
+
+```mermaid
+sequenceDiagram
+  participant BT as the play's tree (brain)
+  participant LN as LookNodes.Look
+  participant LA as LookAt
+  participant CH as LookAtChannel (LookRequest)
+  BT->>LN: tick (always Running, beside the play's work)
+  LN->>LA: Want(mode)
+  alt a top threat
+    LA->>CH: AtEntity(threat, this run)
+  else a fresh heard sound
+    LA->>CH: AtPoint(where it was heard)
+  else his sector (WatchBearing, else the arc's bisector), or the node's bearing
+    LA->>CH: AtPoint(the bearing point, stepped across the sector's width)
+  else nothing
+    LA->>CH: Release, only when this run wrote the last look
+  end
+  Note over CH: a reaction's own Look writes over it while it runs, the paused task's Look re-asserts on its first tick back
+```
+*What the picture shows that the prose hid:* the arbitration is the channel's own `BehaviorInstanceId` — no new owner field. The paused
+task keeps its run id, so "the task's look returns after the reaction" is just its node ticking again.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **LD-3a** | where the look is chosen | ⭐ **one stateful node `LookNodes.Look`** each play puts beside its work (CombatPosture: in its decide Parallel) | a default-look SYSTEM over every man: it cannot tell a behaviour's own request from a stale one, and LD-H rules no look when nothing asked · a call inside every fire step: the eyes would move only while firing |
+| **LD-3b** | the order of sources | ⭐ the top threat → a fresh HEARD sound (an anonymous memory slot stamped within `HeardWindowTicks` 300, the `KnownCombatants` clock) → his sector (`WatchBearing`, else the arc's bisector) → the node's own bearing → nothing; mode `SectorOnly` skips the threat and the sound (a security man keeps his sector) | the threat always first: a crossing's security man would turn to the fight behind him and leave his road |
+| **LD-3c** | the scan | ⭐ STEPPED: five fixation points, `StepSeconds` (2 s) each, ping-pong — one request per step; the width is the node's `HalfWidth` when set, else the sector's own (half the arc, ≤ 60°; ±30° around a bare `WatchBearing`) | a continuous sweep: a new request (and a channel sample on the wire) every tick |
+| **LD-3d** | release | ⭐ only when the channel's last look is this run's (`BehaviorInstanceId`) | releasing always: a task would clear the reaction's look under it |
+| **LD-3e** | the `Watch` order, and where an order's facing comes from | ⭐ the EXISTING `MemberOrderKind.Watch` gets its eyes through `CombatPosture`'s `Look`; ⭐ a facing comes from the man's SECTOR (`EngagementArea.WatchBearing` / arc) — set by a superior's play through `SetEngagementAreaEvent` (`MemberArc`, slice 2) or by the operator over `POST /entities/{id}/sector` — or from `CombatPostureParamsJsonDto.watchTowards` (a behaviour param, scanned ±30°) | a new person behaviour `Watch`: a second implementation of the order that exists (the first draft proposed it; the inventory retired it) · `HoldOrder.Towards`: Hold is one order with three fulfillers (`PersonHold`, `InfantrySquadHold`, `WeaponSystemHold`) and `SopParamsRoundTripTests.CE2079` requires each to read what it is sent — a squad passing a facing to its men is `MemberArc`'s work (slice 2), so the order stays empty |
+
+**As built** *(2026-10-19, `CE-2297`)*: `Hrot.AI.Behaviors/Brains/LookNodes.cs` — `LookAt`, `LookNodes.Look` (`[SharedAiAction]`, always
+Running), `LookParams` {`Mode`, `BearingSet`, `Bearing`, `HalfWidth`, `StepSeconds`, `Metres` (0 = 100)}, `LookNodeState` {`Source`,
+`Threat`, `Bearing`}, the enum `LookChoice` (named apart from backend's `Fdp.Toolkit.Perception.Look.LookSource`). `CombatPosture`'s
+decide Parallel carries the `Look` (its blackboard gains `Look` / `LookState`); `CombatPostureParamsJsonDto.watchTowards` (local
+metres) becomes the node's bearing, scanned ±30°; `PersonHold` becomes a one-state HSM with the `Look` activity
+(`ClassHoldOrders.PersonHoldBlackboard`, the order still empty). `POST /entities/{networkId}/sector` (`DebugApiService.Sector.cs`, MCP
+`set_entity_sector`) lets the operator set a sector — the ROE twin, origin Operator, through `EngagementAreaSystem.Apply`; 409 on a
+replica. Deviations from the first draft of this section: no `Watch` behaviour, no `HoldOrder.Towards` (LD-3e); the sector gives its
+own scan width (LD-3c); a heard sound is LD-3b's second source. Rails `TacticsTreesTests.CE2297_*` (7, CombatPosture's suite): the
+compass and the scan · CombatPosture looks at its top threat, stamped with its run · no threat ⇒ the sector, scanning, then released
+when withdrawn · a look another run wrote is not released · `SectorOnly` keeps the sector · a heard shot takes the eyes while fresh ·
+PersonHold looks at its sector. Red-proofs: six mutants, each reddening its rail (the tracker row). ⭐ The heard source was added while
+planning `ld-sentry-surprise` (LD-5 ④): `TopThreat` ranks entities only, so a shot heard from behind never turned the sentry.
+
+⚠ **Not in this slice** (LD-3 slice 2, waits on `MemberArc` in the member order — DA-24, and on backend's kind 4 for a sector to cross
+nodes): the march's file-place glances, the crossing's security sides, `ClearBuilding` room sectors, PC-16's last window,
+`SquadDefend` / `SupportByFire` (not built).
 
 ### 3.4 The demos — make sure it works live *(LD-5, `CE-2298`)*
 

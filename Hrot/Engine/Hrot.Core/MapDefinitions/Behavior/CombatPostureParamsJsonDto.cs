@@ -31,6 +31,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// it. An <see cref="EntityRef"/>: picked on the map, remapped at scenario load; JSON is the bare network id. Default none.</summary>
         [JsonPropertyName("target")]
         public EntityRef Target;
+
+        /// <summary>⭐ <c>CE-2297</c> LD-3e — a point he WATCHES toward (sim metres, Z up) while no threat and no sector of his own point his
+        /// eyes; scanned ±30°. Zero = none. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
+        [JsonPropertyName("watchTowards")]
+        public Vector3 WatchTowards;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>
