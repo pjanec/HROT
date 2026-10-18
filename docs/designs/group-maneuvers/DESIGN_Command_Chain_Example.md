@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 leans awaiting; nothing built
+build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 lean awaiting; nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: none.
@@ -316,7 +316,7 @@ plan slot with two authors (the operator and an AI commander) would overwrite ea
 
 A hosted child's storage is nested under its host's occurrence (S5b), so it already follows R-2042 (knowledge lives at its scope).
 
-## 7c. Reports on the debug HTTP — watch them, and fake them *(⭐ leans CC-12…CC-15, 2026-10-18)*
+## 7c. Reports on the debug HTTP — watch them, and fake them *(✅ CC-12…CC-15 approved, R-2045)*
 
 🔒 User, `2026-10-18`: *"We will need the AI debug HTTP to be able to monitor the reports for diagnostics, if not even faking the reports
 for exercising the superior decision making."*
@@ -345,16 +345,32 @@ superior's whole decision path run exactly as for a real report — and it works
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **CC-12** | watching | ⭐ **`GET /entities/{networkId}/reports`** (beside `/entities/{id}/squad`), read on the brain node: on a commander its `CommandPicture` (elements with kind, sender, age from `ObservedAt`, seq, synthetic), each subordinate's last colour / phase / report age and *overdue*, open requests, its `ReportingRequirements`; on any unit its `ReportOutbox` (queued, posture, the last 16 sent) and the requirements it reports under. ⭐ The report event is also kept in the existing event history (`GET /events?type=`) for the raw stream | ⛔ a new stream route: the event history already is one · ⛔ extending `GET /sitrep`: that route is a whole SIDE's picture for an external decision-maker (Entity Control), not a commander's reports — ⚠ same word, different thing |
-| **CC-13** | faking | ⭐ **`POST /entities/{networkId}/reports`** — a report AS IF that unit's staff sent it (kind, subtype, the kind's fields, `observedAgoSeconds`); one service, `ReportInjection.Inject`, used by the HTTP AND by test rails (one implementation) | ⛔ writing `CommandPicture` directly: skips ageing, ordering and the wire — tests the decision only, on one node · ⛔ a sender outside the chain: the inbox counts only its subordinates, so it would test nothing |
-| **CC-14** | the fake vs the real sender's ordering | ⭐ a **`Synthetic` flag** on the report: it bypasses the newest-per-sender drop (CB-32) and the sender's next REAL report of the same subject replaces it — as a later report corrects an earlier one; replay records the flag | ⛔ HTTP guessing the sender's next `Seq`: the counter lives on the sender's brain node · ⛔ a fake that is never superseded: the picture would lie forever |
-| **CC-15** | lost comms | ⭐ **`POST /entities/{networkId}/reports/mute {seconds}`** — the unit's staff sends nothing, CONTACT included (radio failure); exercises the superior's *overdue* handling and the subordinate's initiative rise (CC-11) | ⛔ muting by killing the radio entity: no such entity; ⛔ only the behaviour's Silent posture: it keeps CONTACT under fire |
+| **CC-12** ✅ | watching | ⭐ **`GET /entities/{networkId}/reports`** (beside `/entities/{id}/squad`), read on the brain node: on a commander its `CommandPicture` (elements with kind, sender, age from `ObservedAt`, seq, synthetic), each subordinate's last colour / phase / report age and *overdue*, open requests, its `ReportingRequirements`; on any unit its `ReportOutbox` (queued, posture, the last 16 sent) and the requirements it reports under. ⭐ The report event is also kept in the existing event history (`GET /events?type=`) for the raw stream | ⛔ a new stream route: the event history already is one · ⛔ extending `GET /sitrep`: that route is a whole SIDE's picture for an external decision-maker (Entity Control), not a commander's reports — ⚠ same word, different thing |
+| **CC-13** ✅ | faking | ⭐ **`POST /entities/{networkId}/reports`** — a report AS IF that unit's staff sent it (kind, subtype, the kind's fields, `observedAgoSeconds`); one service, `ReportInjection.Inject`, used by the HTTP AND by test rails (one implementation) | ⛔ writing `CommandPicture` directly: skips ageing, ordering and the wire — tests the decision only, on one node · ⛔ a sender outside the chain: the inbox counts only its subordinates, so it would test nothing |
+| **CC-14** ✅ | the fake vs the real sender's ordering | ⭐ a **`Synthetic` flag** on the report: it bypasses the newest-per-sender drop (CB-32) and the sender's next REAL report of the same subject replaces it — as a later report corrects an earlier one; replay records the flag | ⛔ HTTP guessing the sender's next `Seq`: the counter lives on the sender's brain node · ⛔ a fake that is never superseded: the picture would lie forever |
+| **CC-15** ✅ | lost comms | ⭐ **`POST /entities/{networkId}/reports/mute {seconds}`** — the unit's staff sends nothing, CONTACT included (radio failure); exercises the superior's *overdue* handling and the subordinate's initiative rise (CC-11) | ⛔ muting by killing the radio entity: no such entity; ⛔ only the behaviour's Silent posture: it keeps CONTACT under fire |
+
+✅ CC-12…CC-15 approved — 🔒 User, `2026-10-18`: *"Accepted. What about reading the commander's memory? Is that sufficient to read just
+the ecs components in the usual way, as is supported now, or do we need anything special?"*
+
+**Reading the commander's memory (CC-16)** — measured:
+
+| the memory | how it reads today | enough? |
+|---|---|---|
+| the staff's components — `CommandPicture`, `ReportingRequirements`, `ReportOutbox` | ✅ `GET /entities/{id}` dumps EVERY registered component, NoScenario ones too (`EntityStateExtractionService.ExtractEntities` — translator output, then reflection for the rest); a buffer written as the fixed-list wrapper (`int Count` + one `[InlineArray]` field, `FixedListShape`) prints as a plain array of the used elements (`FixedListJsonConverter`) | ⭐ **yes — if CC-A writes each buffer as that wrapper** (and enums as enums, times as sim seconds). Read it on the brain node, like `/memory` |
+| the root play's own block | ✅ `BrainDiagnosticsTranslator` projects the ROOT occurrence slot into the behaviour's layout DTO, inside the same dump | yes |
+| a blueprint play's variables | ✅ `GET /entities/{id}/variables?asset=` | yes |
+| a HOSTED child's slots and the SOP slot | ⛔ no route: the dump reads the root slot only, `/variables` reads blueprint blocks only | ⛔ a gap — not report-specific |
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **CC-16** | reading a commander's memory | ⭐ **no special reader for the components** — they read like any other, on the brain node; ⭐ a constraint on CC-A: every buffer is a fixed-list wrapper so the dump shows it; ⭐ `GET …/reports` (CC-12) stays the INTERPRETED view (ages, names, overdue), built from the same components; ⭐ the hosted-child / SOP slot gap is a general route, filed as `CE-2288` | ⛔ a raw-bytes route per component like `/memory`: needed only for the old `fixed` buffers, which the wrapper replaces · ⛔ waiting with the slot gap until a commander needs it: every hosted drill (`BoundingControl`, `Consolidate`) is blind over HTTP today |
 
 ## 8. Slices and the check
 
 | order | slice | what | needs |
 |---|---|---|---|
-| 1 | **CC-A** | the three components (+ ids); `SetReportingEvent` + `ReportingRequirementsSystem`; rails: the picture survives a behaviour switch and a reaction; the play's own slots do not leak into the reaction; an origin below the setter's is refused | — |
+| 1 | **CC-A** | the three components (+ ids) — every buffer a fixed-list wrapper (`Count` + `[InlineArray]`) so `GET /entities/{id}` shows it (CC-16); `SetReportingEvent` + `ReportingRequirementsSystem`; rails: the picture survives a behaviour switch and a reaction; the play's own slots do not leak into the reaction; an origin below the setter's is refused | — |
 | 2 | **CC-B** | `OrderSubordinate` (sharing `SquadManeuverRunner.Order`'s helper), `SetSubordinateReporting`, `SendReport`, `ProgressReached`, `ElementReported` | CC-A |
 | 3 | **CC-C** | `StaffComposerSystem` (PROGRESS on task end, SPOT from the pool, SITREP) + `StaffInboxSystem` (fold, `ReportReceived`) — first on ONE node with a local loopback of the notification, so it is provable before BR-3 | CC-A, SL-0 |
 | 5 | **CC-E** | the debug HTTP: `GET` / `POST /entities/{id}/reports`, `…/reports/mute`, `ReportInjection` (CC-12…CC-15) + the route docs (they feed the ai-debug MCP catalogue); rails: a fake SPOT reaches the platoon's picture with `Synthetic` set and is replaced by Alpha's next real one; a muted squad goes *overdue* | CC-C (the `Synthetic` wire flag: BR-3) |
