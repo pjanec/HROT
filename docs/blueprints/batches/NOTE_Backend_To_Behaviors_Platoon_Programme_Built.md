@@ -125,3 +125,14 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
   seen at lean with him; a round meets only the half of him he shows. Prone does not lean; crouched does. The mover ignores it.
 * ⭐ Your `SliceThePie` (`CE-2261`) keeps the weapon `Aimed` while leaning (CB-21's "the weapon leads") — that stays yours; the lean does
   not set a posture. Left / right are HIS left / right (his body frame), so pick the side of the corner relative to his facing.
+
+## CE-2287 — backend's brain-side geometry *(⏳ designed, waiting on the user: [Architect Question 94](../Architect_Question_94_Brain_Geometry_Sites.md))*
+
+* Three of my sites sit in the FIRE CHAIN (the muzzle-masked hold, the indirect-fire arc / charge, the bomb release). Moving them to the
+  muscle changes when `Masked` reaches your `PeekAndFire`: a status from the muscle, one frame later. That is a user decision; Q94 §A
+  carries the lean.
+* ⭐ Built now (`CE-3258`): cloud drift and the fog judge read no terrain on the brain. And a cloud now DRIFTS under a scenario wind:
+  under a layered wind it never did, only under the tests' steady one. Your gas danger areas move with it (the footprint uses the same
+  wind).
+* ⚠ Found while measuring, for your `CE-2286` too: doors and clouds are CGF-owned today, so the brain's mirror of them is not stale. Only
+  wall DESTRUCTION is muscle-only. R-2037 stands; Q94 §F says what follows.

@@ -51,7 +51,10 @@ namespace Fdp.Toolkit.Combat
             float optics = HeldItems.IdentificationOptics(world, observer);
             if (!Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _) || !world.HasComponent<SimTransform>(man))
                 return new SeeingConditions(1f, float.PositiveInfinity, optics);
-            var w = Fdp.Toolkit.Weather.WeatherField.At(world, world.GetComponentRO<SimTransform>(man).Position);
+            // ⭐ CE-3258 (CE-2287, R-2037) — the judge runs on the brain: the man stands on his own Z (replicated from the muscle), so it is
+            //   the ground for the visibility profile, no terrain read
+            var at = world.GetComponentRO<SimTransform>(man).Position;
+            var w = Fdp.Toolkit.Weather.WeatherField.At(world, at, Fdp.Toolkit.Weather.ScenarioTime.Utc(world), at.Z);
             return new SeeingConditions(w.RelativeLight, w.VisibilityM, optics);
         }
     }

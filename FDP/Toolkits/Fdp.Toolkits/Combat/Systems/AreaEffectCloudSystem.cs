@@ -62,7 +62,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var tf = ref repo.GetComponentRW<SimTransform>(e);
                 if (!SitsOnItsSource(repo, e))
                 {
-                    var wind = WeatherField.WindAt(repo, tf.Position);
+                    // ⭐ CE-3258 (CE-2287, R-2037) — the wind at the cloud's middle over the ground it lies on (its own Z — no terrain read; its
+                    //   owner is CGF, a brain node)
+                    var wind = AreaEffectClouds.DriftWind(repo, tf.Position, cloud.Height);
                     float elapsed = (float)(now - last);
                     if (elapsed > 0f && wind != Vector2.Zero) tf.Position += new Vector3(wind * elapsed, 0f);
                 }

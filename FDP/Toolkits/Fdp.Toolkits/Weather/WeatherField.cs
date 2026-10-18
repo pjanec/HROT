@@ -246,11 +246,15 @@ namespace Fdp.Toolkit.Weather
 
         /// <summary>The wind at <paramref name="point"/> (m/s, toward; the height is the point's Z above sea level) — the light-weight
         /// read the parachute and the release point make (W-5).</summary>
-        public static Vector2 WindAt(EntityRepository world, Vector3 point)
+        public static Vector2 WindAt(EntityRepository world, Vector3 point) => WindAt(world, point, GroundZ(world, point));
+
+        /// <summary>⭐ <c>CE-3258</c> (CE-2287, R-2037) — the wind at <paramref name="point"/> with the ground under it GIVEN
+        /// (<paramref name="ground"/>, m above sea level): a caller on the brain passes a replicated height (the entity's own Z) instead of
+        /// reading the terrain.</summary>
+        public static Vector2 WindAt(EntityRepository world, Vector3 point, float ground)
         {
             Span<Contribution> c = stackalloc Contribution[MaxContributors];
             int n = Contributors(world, new Vector2(point.X, point.Y), c);
-            float ground = GroundZ(world, point);
             var wind = Vector2.Zero;
             for (int i = 0; i < n; i++)
                 if (c[i].Weight > 0f) wind += c[i].Weight * WindOf(c[i].Weather, point.Z, ground, out _);
@@ -261,11 +265,14 @@ namespace Fdp.Toolkit.Weather
         public static WeatherSample At(EntityRepository world, Vector3 point) => At(world, point, ScenarioTime.Utc(world));
 
         /// <summary>The weather at <paramref name="point"/> at <paramref name="utc"/>.</summary>
-        public static WeatherSample At(EntityRepository world, Vector3 point, DateTime utc)
+        public static WeatherSample At(EntityRepository world, Vector3 point, DateTime utc) => At(world, point, utc, GroundZ(world, point));
+
+        /// <summary>⭐ <c>CE-3258</c> (CE-2287, R-2037) — the weather at <paramref name="point"/> with the ground under it GIVEN
+        /// (<paramref name="ground"/>): a caller on the brain passes a replicated height instead of reading the terrain.</summary>
+        public static WeatherSample At(EntityRepository world, Vector3 point, DateTime utc, float ground)
         {
             Span<Contribution> c = stackalloc Contribution[MaxContributors];
             int n = Contributors(world, new Vector2(point.X, point.Y), c);
-            float ground = GroundZ(world, point);
 
             // the sun, from the point's latitude / longitude
             double lat = 0, lon = 0;
