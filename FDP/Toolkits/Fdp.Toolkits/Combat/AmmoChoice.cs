@@ -27,8 +27,7 @@ namespace Fdp.Toolkit.Combat
         private static float ArmourFacing(EntityRepository world, Entity shooter, Entity target, Penetrator penetrator)
         {
             if (!world.HasComponent<SimTransform>(target) || !world.HasComponent<SimTransform>(shooter)) return 0f;
-            var eye = world.GetComponent<SimTransform>(shooter).Position;
-            eye.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, shooter, HitModel.LogicalStance(world, shooter));
+            var eye = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeOf(world, shooter, HitModel.LogicalStance(world, shooter));   // ⭐ CE-3257
             var middle = AimPoint.Middle(world, target, out _, out _);
             var facing = ArmorModel.FacingOfArrival(world.GetComponent<SimTransform>(target), middle - eye);
             return ArmorModel.ArmourFor(CombatTkb.PlatformOf(world, target), facing, penetrator);

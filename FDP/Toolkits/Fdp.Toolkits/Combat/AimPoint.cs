@@ -41,7 +41,10 @@ namespace Fdp.Toolkit.Combat
             var at = repo.GetComponent<SimTransform>(target).Position;
             stance = HitModel.LogicalStance(repo, target);
             hullHeight = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target);
-            at.Z += TerrainWorldLosStrategy.AimHeightFor(repo, target, stance, hullHeight);
+            float aim = TerrainWorldLosStrategy.AimHeightFor(repo, target, stance, hullHeight);
+            at.Z += aim;
+            // ⭐ CE-3257 (BR-5, LN-6) — a LEANING man: the middle of the half he shows
+            if (hullHeight <= 0f) at += Leans.AimOffset(repo, target, stance, aim, TerrainWorldLosStrategy.EyeHeightFor(repo, target, stance));
             return at;
         }
 

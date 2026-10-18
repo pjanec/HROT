@@ -80,6 +80,7 @@ public static class HrotOwnershipGroups
         // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, committed by his behaviour (dtHostileAct).
         brain.SetBit(GlobalComponentIds.HostileAct);
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)
+        brain.SetBit(GlobalComponentIds.Lean);      // ⭐ CE-3257 (BR-5) — a man leaning round a corner (dtLean)
         // ⭐ CE-3210 (hit location HL-6) — the damage per body part, written beside Health by its owner (dtPartDamage).
         brain.SetBit(GlobalComponentIds.PartDamage);
         // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).

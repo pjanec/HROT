@@ -89,6 +89,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
+        world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)

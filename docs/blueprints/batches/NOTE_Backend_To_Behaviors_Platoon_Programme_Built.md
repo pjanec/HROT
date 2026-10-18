@@ -116,3 +116,12 @@ until `EffectState.StunnedUntil` passes; then he fires and walks on. Your `CE-22
 * **Detain** needs the same reach + compliance; **Restrain** also works on a detained man. `CustodyRules.InCustody` ⇒ he is out of the fight
   everywhere (`IsOutOfTheFight`); `IsRestrained` ⇒ he fires nothing (`hold: restrained`). **ReleaseCustody** clears both.
 * An ask refused (out of reach, not complying) leaves no trace on the man — `CustodySystem.Refused` counts it; re-ask when in position.
+
+## BR-5 — the lean *(as built: [Body Parts and Hit Location §13](../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md), `CE-3257`)*
+
+* `Fdp.Toolkit.Combat.Leans.Set(world, man, LeanSide.LeanLeft | LeanRight | LeanNone)` from his brain node — replicated (`dtLean`), so
+  every node's sight and fire see it. Straighten him up with `LeanNone`; nothing clears it for you.
+* Leaning, his EYE is 0.4 m to that side at his stance's eye height — he sees AND shoots from there (one eye function); the points he is
+  seen at lean with him; a round meets only the half of him he shows. Prone does not lean; crouched does. The mover ignores it.
+* ⭐ Your `SliceThePie` (`CE-2261`) keeps the weapon `Aimed` while leaning (CB-21's "the weapon leads") — that stays yours; the lean does
+  not set a posture. Left / right are HIS left / right (his body frame), so pick the side of the corner relative to his facing.

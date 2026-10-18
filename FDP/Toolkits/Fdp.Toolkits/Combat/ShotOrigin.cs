@@ -16,9 +16,8 @@ namespace Fdp.Toolkit.Combat
         public static Vector3 Eye(EntityRepository world, Entity shooter, out Entity sightBody)
         {
             sightBody = HitModel.BodyOf(world, shooter);
-            var eye = world.GetComponentRO<SimTransform>(sightBody).Position;
-            eye.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, sightBody, HitModel.LogicalStance(world, sightBody));
-            return eye;
+            // ⭐ CE-3257 (BR-5, LN-3) — the ONE eye: a man leaning round a corner shoots from where he sees
+            return Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeOf(world, sightBody, HitModel.LogicalStance(world, sightBody));
         }
 
         /// <summary>Where the round leaves for <paramref name="aim"/>: the barrel (<paramref name="fromBarrel"/>) when the type places one no

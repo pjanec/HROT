@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict: none.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the programme LD now belongs to (§6b PC-16 watch the last window, §12 demos, §13 the lane split)
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — §13 OWNS the LEAN (CE-3257, BR-5): it moves where the eyes SIT (TerrainWorldLosStrategy.EyeOf, 0.4 m sideways); this file owns where they POINT
   - docs/DESIGN_Peek_And_Fire.md — OWNS the expose / hide / relocate cycle; LD-3 makes the watcher keep his eyes on the last window (PC-16)
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-20 / DA-24: EngagementArea.WatchBearing and MemberArc are what LD-3 points the eyes at
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — urban tank tactics; tanks keep 360° there
