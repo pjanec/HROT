@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-18
-build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 lean awaiting; nothing built
+build-state: DESIGN — CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050); nothing built
 current-answer: §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
@@ -354,7 +354,7 @@ superior's whole decision path run exactly as for a real report — and it works
 ✅ CC-12…CC-15 approved — 🔒 User, `2026-10-18`: *"Accepted. What about reading the commander's memory? Is that sufficient to read just
 the ecs components in the usual way, as is supported now, or do we need anything special?"*
 
-**Reading the commander's memory (CC-16)** — measured:
+**Reading the commander's memory (CC-16)** — measured. ✅ 🔒 User, `2026-10-18`, on CC-16 and `CE-2288`: *"Approved"* (R-2050).
 
 | the memory | how it reads today | enough? |
 |---|---|---|
@@ -365,7 +365,7 @@ the ecs components in the usual way, as is supported now, or do we need anything
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **CC-16** | reading a commander's memory | ⭐ **no special reader for the components** — they read like any other, on the brain node; ⭐ a constraint on CC-A: every buffer is a fixed-list wrapper so the dump shows it; ⭐ `GET …/reports` (CC-12) stays the INTERPRETED view (ages, names, overdue), built from the same components; ⭐ the hosted-child / SOP slot gap is a general route, filed as `CE-2288` | ⛔ a raw-bytes route per component like `/memory`: needed only for the old `fixed` buffers, which the wrapper replaces · ⛔ waiting with the slot gap until a commander needs it: every hosted drill (`BoundingControl`, `Consolidate`) is blind over HTTP today |
+| **CC-16** ✅ *(R-2050)* | reading a commander's memory | ⭐ **no special reader for the components** — they read like any other, on the brain node; ⭐ a constraint on CC-A: every buffer is a fixed-list wrapper so the dump shows it; ⭐ `GET …/reports` (CC-12) stays the INTERPRETED view (ages, names, overdue), built from the same components; ⭐ the hosted-child / SOP slot gap is a general route, filed as `CE-2288` | ⛔ a raw-bytes route per component like `/memory`: needed only for the old `fixed` buffers, which the wrapper replaces · ⛔ waiting with the slot gap until a commander needs it: every hosted drill (`BoundingControl`, `Consolidate`) is blind over HTTP today |
 
 ## 8. Slices and the check
 
