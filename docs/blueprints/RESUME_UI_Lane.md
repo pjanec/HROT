@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17
-current-answer: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" (its 2026-10-17 overnight table is the latest) directly below this STATUS block (what is
+updated: 2026-10-19
+current-answer: ⭐⭐⭐ 2026-10-19 — THE ui LANE'S WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md (§1 the user's order, §4 the progress log); start there.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" (its 2026-10-17 overnight table is the latest) directly below this STATUS block (what is
   built, what is waiting on other lanes, what to do next). The programme is still the 3-D world and combat realism
   (../PLAN_3D_World_And_Realism.md); the live design is ../DESIGN_Map_3D_Mode.md §6n–§6u.
   ⛔ OLDER: 2026-10-10 — THE ui LANE'S CURRENT PROGRAMME IS THE 3-D WORLD AND COMBAT REALISM ⇒ read
