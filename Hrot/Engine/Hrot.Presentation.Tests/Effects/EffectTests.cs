@@ -32,6 +32,7 @@ public sealed class EffectTests
         PresentationComponentRegistry.RegisterEffects(world);
         world.RegisterEvent<DetonationNotification>();
         world.RegisterEvent<WeaponFireNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-1171
         return (world, tkb);
     }
 
@@ -134,6 +135,20 @@ public sealed class EffectTests
         Assert.Equal(0, EffectTkbCatalog.EffectsFor(null, 0, 25f).Tracer);   // rifles: no tracer by default
         // a host without a TKB (the replay browser) still knows how every built-in effect looks
         Assert.Equal(EffectKind.Decal, EffectTkbCatalog.VisualOf(null, EffectTkbCatalog.DecalLarge)!.Kind);
+    }
+
+    [Fact]
+    public void CE1171_ABlowStruck_IsKeptForTheBodies_WithWhatItWasStruck_AndMakesNoEffect()
+    {
+        var (world, _) = World();
+        At(world, 10.0);
+        var man = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(0, 0, 0));
+        world.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = man, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife, IsRemote = true });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        Assert.True(StrikeTracker.Of(world)!.StruckWithin(man, 10.0, 0.1, out var with, out double at), "the spawner keeps the blow (a remote one too)");
+        Assert.Equal(Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife, with);
+        Assert.Equal(10.0, at);
+        Assert.Empty(Effects(world));   // a blow is no shot: no flash, no blast
     }
 
     [Fact]

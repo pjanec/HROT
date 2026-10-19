@@ -192,6 +192,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
                 parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
+                parts = Struck(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1171 — the arm of a blow just struck
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -525,6 +526,22 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var stance = LogicalStance.Of(world, e);
         if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
         return BlockFigure.ThrowArms(parts, stance == StanceId.Crouched, soldier, (float)((simTime - at) / BlockFigure.ThrowSeconds));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1171</c> (docs/DESIGN_People_Display.md §5 U10) — a man who has just STRUCK a blow (a <c>StrikeNotification</c> within
+    /// <see cref="BlockFigure.StrikeSeconds"/>, kept in <c>StrikeTracker</c>) is drawn mid-swing with what he struck with
+    /// (<see cref="BlockFigure.StrikeArms"/>). Standing or crouched, free, alive and not cowering; otherwise the parts as they are.
+    /// 🔒 User, live, 2026-10-19: <i>"a person hit by melee simply goes down but there is no sign of why (weird)"</i>.
+    /// </summary>
+    public static KitPart[] Struck(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime)
+    {
+        if (carriage.Kind != CarriageKind.Free || Hrot.UI.Common.Effects.StrikeTracker.Of(world) is not { } strikes) return parts;
+        if (!strikes.StruckWithin(e, simTime, BlockFigure.StrikeSeconds, out var weapon, out double at)) return parts;
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return BlockFigure.StrikeArms(parts, stance == StanceId.Crouched, soldier, weapon, (float)((simTime - at) / BlockFigure.StrikeSeconds));
     }
 
     /// <summary>

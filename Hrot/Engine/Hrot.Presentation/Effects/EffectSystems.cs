@@ -114,6 +114,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             }
         }
 
+        // ⭐ CE-1171 (People Display §5 U10) — a blow struck (backend CE-3266, G3): the striker's swing is drawn by the 3-D bodies
+        if (world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>())
+            foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
+                if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
+
         ImpactsDrawn = 0;
         InertLandings = 0;
         if (world.Bus.IsRegistered<RoundImpactNotification>())   // ⭐ CE-1129 (VE §10) — every surface a round marked

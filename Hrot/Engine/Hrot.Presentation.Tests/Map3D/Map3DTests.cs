@@ -1593,6 +1593,40 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
+    /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
+    [Fact]
+    public void CE1171_ABlowStruck_SwingsTheArm_AFistOutAndBack_AKnifeLow_ABatonOverhead()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 Hand(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre;   // the right forearm
+        var fist = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist;
+        var knife = Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife;
+        var baton = Fdp.Toolkit.Combat.MeleeWeapon.MeleeBaton;
+        var guard = Hand(BlockFigure.StrikeArms(plain, false, false, fist, 0f));
+        var punch = Hand(BlockFigure.StrikeArms(plain, false, false, fist, 0.5f));
+        Assert.True(punch.X > guard.X + 0.15f, $"the punch reaches out ({guard} → {punch})");
+        Assert.True(Vector3.Distance(guard, Hand(BlockFigure.StrikeArms(plain, false, false, fist, 1f))) < 1e-3f, "and comes back");
+        var stab = BlockFigure.StrikeArms(plain, false, false, knife, 0.5f);
+        Assert.True(Hand(stab).Z < punch.Z - 0.1f, $"the stab is lower than the punch ({Hand(stab)} vs {punch})");
+        Assert.Equal(plain.Length + 1, stab.Length);                                                      // the blade
+        var raised = Hand(BlockFigure.StrikeArms(plain, false, false, baton, 0f));
+        var down = BlockFigure.StrikeArms(plain, false, false, baton, 1f);
+        Assert.True(raised.Z > guard.Z + 0.2f && raised.X < 0f && Hand(down).X > 0.1f && Hand(down).Z < raised.Z, $"the baton: raised high behind, over and down in front ({raised} → {Hand(down)})");   // kit units
+        Assert.Equal(plain.Length + 1, down.Length);                                                      // the stick
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            var man = Man(world, Vector3.Zero);
+            Hrot.UI.Common.Effects.StrikeTracker.In(world).Record(man, baton, 10.0);
+            var mid = EntityBodyLayer3D.Struck(world, man, false, FigureCarriage.Free, plain, 10.2);
+            Assert.NotEqual(plain, mid);
+            Assert.Same(plain, EntityBodyLayer3D.Struck(world, man, false, FigureCarriage.Free, plain, 10.0 + BlockFigure.StrikeSeconds + 0.1));   // over
+            Assert.Same(plain, EntityBodyLayer3D.Struck(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, 10.2));            // busy
+        }
+    }
+
     /// <summary>⭐ CE-1166 (§8.7 U6-a, U6-e) — the replicated gesture reaches the figure: a free man's arms show it; cowering, carrying or
     /// None leave the arms to their owner; the 2-D line says HANDS UP or PROTEST, after any effect.</summary>
     [Fact]

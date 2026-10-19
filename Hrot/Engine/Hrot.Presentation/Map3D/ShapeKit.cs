@@ -1184,6 +1184,48 @@ public static partial class BlockFigure
         return shaped;
     }
 
+    /// <summary>⭐ <c>CE-1171</c> — how long a blow is drawn after its strike, s (People Display §5 U10).</summary>
+    public const float StrikeSeconds = 0.45f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1171</c> (docs/DESIGN_People_Display.md §5 U10) — a BLOW at <paramref name="phase"/> 0 … 1, the right arm striking, the left
+    /// up as a guard, a soldier's rifle slung: a FIST punches straight out at the chin's height and back; a KNIFE stabs out and back at the
+    /// belly's (a short blade in the hand); a BATON swings from raised above and behind the head, over and down in front (the stick in the
+    /// hand). No state: the phase is the time since the strike / <see cref="StrikeSeconds"/>.
+    /// </summary>
+    public static KitPart[] StrikeArms(KitPart[] parts, bool crouched, bool soldier, Fdp.Toolkit.Combat.MeleeWeapon weapon, float phase)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var shaped = GestureArms(parts, ArmGesture.Throwing, crouched, soldier);   // a slung rifle
+        float p = Math.Clamp(phase, 0f, 1f);
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        Vector3 elbow, hand, item;
+        float itemLength;
+        if (weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeBaton)
+        {
+            float swing = (1f - (1f - p) * (1f - p)) * 150f * MathF.PI / 180f;   // fast, then easing out
+            elbow = r + Forward(new Vector3(-0.08f, 0.02f, 0.26f), swing);
+            hand = r + Forward(new Vector3(-0.14f, 0.04f, 0.52f), swing);
+            item = Vector3.Normalize(hand - elbow); itemLength = 0.60f;
+        }
+        else
+        {
+            float reach = MathF.Sin(MathF.PI * p);                                // out, then back
+            float low = weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife ? -0.30f : 0f;
+            elbow = r + Vector3.Lerp(new Vector3(0.10f, 0.04f, -0.22f), new Vector3(0.28f, 0.05f, -0.02f + low * 0.5f), reach);
+            hand = r + Vector3.Lerp(new Vector3(0.26f, 0.08f, -0.06f), new Vector3(0.60f, 0.10f, low), reach);
+            item = Vector3.Normalize(hand - elbow); itemLength = weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife ? 0.20f : 0f;
+        }
+        KitPart[] arms =
+        [
+            .. Arm(l, l + new Vector3(0.10f, -0.04f, -0.22f), l + new Vector3(0.24f, -0.08f, -0.04f), PartRole.Hull),   // the guard
+            .. Arm(r, elbow, hand, PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
+        return itemLength > 0f ? [.. shaped, Limb(hand, hand + item * itemLength, 0.035f, 0.035f, ColourRole.Metal)] : shaped;
+    }
+
     /// <summary>⭐ CE-1175 — <paramref name="v"/> turned by <paramref name="radians"/> in the figure's side plane (about its forward axis X).</summary>
     private static Vector3 Sideways(Vector3 v, float radians)
     {
