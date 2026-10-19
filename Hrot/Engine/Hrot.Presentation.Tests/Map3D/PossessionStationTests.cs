@@ -33,9 +33,10 @@ public sealed partial class PossessionStationTests
         public bool LeftDown { get; set; }
         public bool LeftPressed { get; set; }    // ⭐ CE-1078
         public bool RightPressed { get; set; }
+        public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
         public bool? Locked { get; private set; }
         public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
-        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left && LeftDown;
+        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right && RightDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
         public bool IsKeyDown(MapKeyboardKey k) => Keys.Contains((int)k);
@@ -322,13 +323,77 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1211 (docs/DESIGN_Entity_Control.md §8j Z-1) — holding RMB zooms: a scoped weapon to its scope's field of view, an unscoped one
+    /// to the iron sights' 30°; the mouse turns the view slower by the same ratio; letting go, and leaving the unit, give the map its 45° back.
+    /// </summary>
+    [Fact]
+    public void CE1211_HoldingRmb_ZoomsToTheScopeOrTheIronSights_AndSlowsTheLook()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var ammo = new WeaponAmmo { Count = 2 };
+            ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
+            ammo.Set(1, new WeaponState { Ammo = 10, MaxAmmo = 10 });
+            w.AddComponent(unit, ammo);
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Marksman", 4712);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1,
+                                                            ScopeMagnification = 4f, ScopeFovDegrees = 8f },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4712 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            var camera = sw.Camera3D;
+
+            float Turn(Input input)
+            {
+                float before = camera.Yaw;
+                input.MouseDelta = new Vector2(100f, 0f);
+                sw.Camera3D.HandleInput(input);
+                return MathF.Abs(camera.Yaw - before);
+            }
+
+            float normal = Turn(new Input());
+            Assert.Equal(45f, camera.FovyDegrees);
+            float iron = Turn(new Input { RightDown = true });                          // the rifle: no scope
+            Assert.True(driver.Zooming);
+            Assert.Equal(FpsZoom.IronSightsFovDegrees, camera.FovyDegrees);
+            Assert.InRange(iron / normal, 30f / 45f - 0.01f, 30f / 45f + 0.01f);
+
+            var two = new Input { RightDown = true };
+            two.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);                            // the scoped rifle
+            sw.Camera3D.HandleInput(two);
+            float scoped = Turn(new Input { RightDown = true });
+            Assert.Equal(8f, camera.FovyDegrees);
+            Assert.InRange(scoped / normal, 8f / 45f - 0.01f, 8f / 45f + 0.01f);
+
+            Turn(new Input());                                                          // let go
+            Assert.Equal(45f, camera.FovyDegrees);
+            Turn(new Input { RightDown = true });
+            sw.Camera3D.Driver = null;                                                  // left the unit while zoomed
+            Assert.Equal(45f, camera.FovyDegrees);
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1078 / CE-1079 / CE-1080 (docs/DESIGN_Entity_Control.md §8e) — the station's side: a LMB PRESS counts a shot and locks the
-    /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); RMB counts a cancel and drops
-    /// the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,
+    /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); X (RMB before CE-1211) counts a
+    /// cancel and drops the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,
     /// not levels: every frame carries them, so a coalesced or lost frame never loses a press.
     /// </summary>
     [Fact]
-    public void CE1078_APress_CountsAShot_LocksTheUnderCrosshairUnit_RmbCancels_FCountsAmmo_NumbersPickAWeapon()
+    public void CE1078_APress_CountsAShot_LocksTheUnderCrosshairUnit_XCancels_FCountsAmmo_NumbersPickAWeapon()
     {
         var (w, unit, _) = World();
         using (w)
@@ -379,7 +444,12 @@ public sealed partial class PossessionStationTests
             Assert.False(driver.ShotPending);
 
             Frame(new Input { LeftPressed = true });
-            f = Frame(new Input { RightPressed = true });
+            f = Frame(new Input { RightPressed = true, RightDown = true });   // ⭐ CE-1211 — RMB zooms now; it cancels nothing
+            Assert.Equal((2, 0), (f.ShotSeq, f.CancelSeq));
+            Assert.True(driver.ShotPending);
+            var x = new Input();
+            x.Pressed.Add((int)Raylib_cs.KeyboardKey.X);           // ⭐ CE-1211 (§8j Z-2) — X is the cancel
+            f = Frame(x);
             Assert.Equal((2, 1), (f.ShotSeq, f.CancelSeq));
             Assert.False(driver.ShotPending);
 

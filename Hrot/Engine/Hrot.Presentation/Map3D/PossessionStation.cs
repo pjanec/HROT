@@ -441,7 +441,7 @@ namespace Hrot.UI.Common.Map3D
                         lines.Add(WeaponLine(w, weapon, w.GetComponentRO<WeaponAmmo>(weapon), 0, slots[i] == mount, key: i + 1));
                     else lines.Add($"{(slots[i] == mount ? "> " : "  ")}{i + 1} {TypeName(w, weapon)?.ToUpperInvariant() ?? "WEAPON"}");
                 }
-                if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
+                if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
                 lines.Add(scheme switch
@@ -452,7 +452,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo  E use (hold E: more)");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  F ammo  E use (hold E: more)");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -679,7 +679,7 @@ namespace Hrot.UI.Common.Map3D
         public int Mount { get; private set; }
 
         /// <summary>⭐ CE-1078 — a shot locked by the last press has not left yet, as this station sees it (the mount's count has not
-        /// dropped since the press; RMB clears it). The HUD's LOCKED.</summary>
+        /// dropped since the press; X clears it — ⭐ CE-1211, RMB before). The HUD's LOCKED.</summary>
         public bool ShotPending { get; private set; }
 
         /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
@@ -771,7 +771,15 @@ namespace Hrot.UI.Common.Map3D
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
             camera.LookAt = _eye + camera.Forward * camera.Distance;
+            camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
         }
+
+        /// <summary>⭐ <c>CE-1211</c> (§8j Z-1) — is the right button held (looking down the sights or through the scope)?</summary>
+        public bool Zooming { get; private set; }
+
+        /// <summary>⭐ <c>CE-1211</c> — the field of view this frame: <see cref="FpsZoom.FovFor"/> the selected weapon while
+        /// <see cref="Zooming"/>, else the map's own.</summary>
+        public float ZoomFovDegrees => Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
 
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
         {
@@ -785,10 +793,13 @@ namespace Hrot.UI.Common.Map3D
 
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
+            // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
+            Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
+            float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (vehicle && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) HullLocked = !HullLocked;
             if (vehicle && HullLocked) _mouseSteer = Math.Clamp(_mouseSteer - delta.X * MouseSteerPerPixel, -1f, 1f);
-            else _yaw -= delta.X * LookSensitivity;
-            _pitch = Math.Clamp(_pitch - delta.Y * LookSensitivity, -1.4f, 1.4f);
+            else _yaw -= delta.X * look;
+            _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
@@ -842,7 +853,7 @@ namespace Hrot.UI.Common.Map3D
             }
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
-            // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, RMB drops it
+            // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, X drops it (CE-1211)
             (var aimAt, long aimTarget) = Aim(camera);
             AimAt = aimAt;
             AimTarget = aimTarget;
@@ -857,7 +868,8 @@ namespace Hrot.UI.Common.Map3D
                 _ammoAtPress = AmmoOf(Mount);
                 ShotPending = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock;   // ⭐ CE-1127 — a SIGHT shot holds nothing to show
             }
-            if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
+            // ⭐ CE-1211 (§8j Z-2) — the locked shot's cancel is X now (RMB zooms, as in every shooter)
+            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.X)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
             UseKey(input, aimTarget);
 
@@ -884,6 +896,7 @@ namespace Hrot.UI.Common.Map3D
         public void Detached(MapCamera3D camera)
         {
             camera.Roll = 0f;   // ⭐ CE-1095 — the operator's own view is never banked
+            camera.FovyDegrees = FpsZoom.NormalFovDegrees;   // ⭐ CE-1211 — never left zoomed
             _locked?.SetCursorLocked(false);
             _locked = null;
         }

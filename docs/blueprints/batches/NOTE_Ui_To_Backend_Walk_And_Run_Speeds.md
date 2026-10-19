@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ui → backend: first-person walk and run are too close; the speeds belong in the TKB (CE-1208).
+state: LIVE — ui → backend: (1) first-person walk and run are too close, the speeds belong in the TKB (CE-1208); (2) the operator's weapon choice never reaches ActiveMount (CE-1222).
 updated: 2026-10-19
 current-answer: the whole file.
 stale-below: nothing.
@@ -10,7 +10,9 @@ related-designs:
   - docs/blueprints/PLAN_Ui_FPS_And_Quick_Wins.md — #9: this note is that step
 -->
 
-# NOTE — ui → backend: walk and run speeds per person type (`CE-1208`)
+# NOTE — ui → backend: walk and run speeds per person type (`CE-1208`); the operator's active mount (`CE-1222`)
+
+## 1. Walk and run
 
 🔒 User, live, `2026-10-19`: *"I think the speed difference between running and walking in FPS mode is quite small."*
 Tracker row: [`CE-1208`](../Blueprint_Issues_Tracker.md) (backend — the TKB speeds and the walker).
@@ -27,6 +29,20 @@ Tracker row: [`CE-1208`](../Blueprint_Issues_Tracker.md) (backend — the TKB sp
 walking at the walk speed and only the run uses the new top.
 
 Nothing in ui depends on the shape: the possessed walker already sends `Gait` (0 run, 1 walk) through `drive`, so ui needs no change.
+
+## 2. The operator's weapon choice never reaches `ActiveMount` (`CE-1222`)
+
+Found building the first-person zoom ([`CE-1211`](../Blueprint_Issues_Tracker.md), [Entity Control §8j.5](../../DESIGN_Entity_Control.md)):
+
+| measured | where |
+|---|---|
+| `Execute` hands an operator action to `OperatorFire` and returns | `FDP/Toolkits/Fdp.Toolkits/Combat/Executors/AimAndFireExecutor.cs:73` |
+| the only `WeaponPostureOf.SetActiveMount` is on the AI path, below that return | same file, `:102` |
+| `OperatorFire` reports the posture (`SayAt` ⇒ `WeaponPostureOf.Report`) but never the mount | `:343-400` |
+
+⇒ while possessed, `WeaponPosture.ActiveMount` keeps the AI's last choice, not the weapon the operator picked with 1–4. It is read by the
+sim's scope rule (`HeldItems.ScopeUp`) and by every map's drawn weapon (P4, W-13e). **Lean:** `OperatorFire` calls
+`WeaponPostureOf.SetActiveMount(world, entity, mountIndex)` once it has resolved the mount (it already writes only on a change).
 
 ---
 _ui lane, 2026-10-19_

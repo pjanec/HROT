@@ -87,3 +87,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 8 | ✅ the roads stop flickering from afar: the 3-D camera's near clip 0.1 % → 0.5 % of its distance (the depth step from 2 km under the road's lift); Presentation 779 / 0, Fdp.Presentation 581 / 0 |
 | `2026-10-19` | 9 | 📨 `CE-1208` sent to backend as a [NOTE](batches/NOTE_Ui_To_Backend_Walk_And_Run_Speeds.md) — the walk / run speeds belong in the TKB |
 | `2026-10-19` | 10 | ✅ a blow struck is drawn: the striker's 0.45 s fist punch / knife stab / baton swing, from `StrikeNotification`; Presentation 781 / 0 |
+| `2026-10-19` | 11 | ✅ hold RMB to zoom (the scope's field of view, else the iron sights' 30°; the mouse slowed alike); the lock cancel is X. No wire change: a possessed man is already Aimed. Found and filed `CE-1222` (backend — the operator's weapon choice never reaches `ActiveMount`); Presentation 782 / 0 |
