@@ -65,6 +65,11 @@ namespace Hrot.AI.Behaviors.Brains
         public byte ReportedSet;
         /// <summary>1 = this play lifted its squad's own hold-fire (DA-35) — once.</summary>
         public byte HoldLifted;
+        /// <summary>⭐ D-2c (DA-43) — per roster slot: 1 = his arc faces <see cref="FaceBearing"/> (a flanker), not the engagement area.</summary>
+        public fixed byte Faces[Capacity];
+        public fixed float FaceBearing[Capacity];
+        /// <summary>⭐ D-2c — per roster slot: the contact he last turned to (its id) — once per contact.</summary>
+        public fixed long Flanker[Capacity];
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
@@ -205,6 +210,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float AllRoundHalfWidth = 60f;
         /// <summary>⭐ D-2a (PC-14, DA-40) — a hide point this close to his post is one of his post's points (m): the windows of his room.</summary>
         public const float PostRadius = 4f;
+        /// <summary>⭐ D-2c (DA-21, DA-43) — a seen contact this close to a posted man, outside his arc, flanks him (m).</summary>
+        public const float FlankedMetres = 50f;
 
         private static readonly SquadHsmShell s_shell = new(SquadDefendManeuver.BuildTransitionTable(), SquadDefendManeuver.PhaseAborted);
 
@@ -228,6 +235,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }
             Manned(ref p, in ctx);
             Displace(ref p, ref ws, in ctx);
+            Flanked(ref p, ref ws, in ctx);
         }
 
         public NodeStatus Outcome(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
@@ -266,8 +274,7 @@ namespace Hrot.AI.Behaviors.Brains
             return new MemberOrder
             {
                 Kind = MemberOrderKind.Watch, Point = spot, Speed = p.Speed, RoleId = SquadDefendManeuver.RolePosted, Cover = 1,
-                Sector = hasEa ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
-                               : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth),
+                Sector = ArcOf(ref p, in ctx, member, spot),
                 Post = new MemberPost   // ⭐ D-2a (PC-14, DA-40) — he fights from his post: its windows or his alternate, never elsewhere
                 {
                     Set = 1, Window = post < p.Posts.WindowCount ? (byte)1 : (byte)0, Radius = PostRadius,
@@ -278,6 +285,16 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
+
+        /// <summary>A posted man's arc from <paramref name="spot"/> (DA-37): toward the engagement area ±45°, else outward ±60° — or, once a
+        /// flanker turned him (D-2c, DA-43), toward that flanker ±45°.</summary>
+        private static unsafe MemberArc ArcOf(ref SquadDefendParams p, in SquadPlayContext ctx, int member, Vector3 spot)
+        {
+            if (member < DefencePosts.Capacity && p.Posts.Faces[member] != 0) return MemberArc.Around(p.Posts.FaceBearing[member], ArcHalfWidth);
+            return EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)
+                ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
+                : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
+        }
 
         // ── Posting: plan, manned, displace ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -404,6 +421,41 @@ namespace Hrot.AI.Behaviors.Brains
                 p.Posts.PostOf[i] = (byte)alternate;
                 ws.Reissue = 1;
                 Report(in ctx, p.Posts.Point(alternate), ProgressKind.Displacing);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ D-2c (DA-21 <c>ContactOutsideSector</c>, DA-4, DA-43) — a SEEN hostile pooled contact within <see cref="FlankedMetres"/> of a posted
+        /// man's post and outside his arc flanks him: he takes his alternate post (none ⇒ he stays) with his arc facing the contact, PROGRESS
+        /// Displacing; once per contact. Counted here until the member sensor lands (<c>CE-2283</c>), as DA-38 counts rounds.
+        /// </summary>
+        private static unsafe void Flanked(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+            {
+                if (!ctx.Live(i, out _) || p.Posts.PostOf[i] == DefencePosts.None) continue;
+                var post = p.Posts.Point(p.Posts.PostOf[i]);
+                var arc = ArcOf(ref p, in ctx, i, post);
+                for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+                {
+                    if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0 || pool[c].EntityId == p.Posts.Flanker[i]) continue;
+                    var at = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                    if (Vector3.Distance(at, post) > FlankedMetres
+                        || EngagementAreas.InArc(post, arc.LeftBearing, arc.RightBearing, arc.MinRange, arc.MaxRange, at)) continue;
+                    int alternate = AlternateOf(ref p, in ctx, i);
+                    if (alternate >= 0) p.Posts.PostOf[i] = (byte)alternate;
+                    var from = p.Posts.Point(p.Posts.PostOf[i]);
+                    p.Posts.Faces[i] = 1;
+                    p.Posts.FaceBearing[i] = LookAt.BearingTo(from, at);
+                    p.Posts.Flanker[i] = pool[c].EntityId;
+                    ws.Reissue = 1;
+                    Report(in ctx, from, ProgressKind.Displacing);
+                    break;
+                }
             }
         }
 

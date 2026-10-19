@@ -624,6 +624,34 @@ down to him crosses the sill — so the post ask answers the ground-floor window
 only difference that exists today) · DA-6's observation by a lean at the frame (BR-5) · the narrower view's effect on being SEEN needs
 DA-3 (backend `CE-3260`, built) — not measured live yet.
 
+#### D-2c — flanked: a contact close beside or behind a posted man *(DA-21 `ContactOutsideSector`, DA-4; behaviors, 2026-10-19)*
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay (each tick, Posting)
+  participant Pool as the squad's contact pool
+  participant R as SquadManeuverRunner
+  participant M as the flanked man
+  P->>Pool: a SEEN hostile contact within 50 m of a posted man, outside his arc, not already answered by him
+  alt he has an alternate
+    P->>P: post = the alternate · his arc now faces the contact (±45°) · remember the contact
+  else none free
+    P->>P: same post · his arc faces the contact
+  end
+  P->>R: re-issue (Watch + MemberPost + the new MemberArc)
+  R->>M: CombatPosture at the post, the new sector
+  P->>P: PROGRESS Displacing (at his post)
+```
+*What the picture shows that prose hid:* nothing new is sensed — the pool and the arcs the play already holds answer it, and the answer
+rides the same re-issue the near-miss displace (DA-38) uses; the turn is per man and once per contact, so two flankers turn him twice,
+one flanker never makes him dither.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-43** | what a flanked defender does | DA-21's `ContactOutsideSector` **counted in the play** (DA-38's precedent, replaced by the sensor when `CE-2283` lands): a **seen** hostile pooled contact within **50 m** of his post, outside his arc ⇒ he displaces to **his alternate** (DA-21's reader) and **his arc faces the contact** there (DA-4: "supplementary posts face" a new axis) — no alternate ⇒ he turns where he is; once per contact (its id); PROGRESS `Displacing` | only the alternate (DA-21's words alone): the alternate faces the EA too, so he would move and still may not shoot the man beside him · only the arc turn: a man flanked at his post stays in the flanker's sights · a HEARD contact: anonymous, its id unstable — a turn per sound would dither (it waits for the sensor) |
+
+*As built (2026-10-19):* `SquadDefendPlay.Flanked` beside `Displace`, `DefencePosts.Faces` / `FaceBearing` / `Flanker`, the arc read through one `ArcOf` (so the order and the check agree). Rail `CE2275_SquadDefend_AFlankedManTakesHisAlternate_FacingTheFlanker_OncePerContact`: too far (85 m) and in front (25 m) turn nobody; the same flanker working round behind again turns nobody twice.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

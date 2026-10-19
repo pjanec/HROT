@@ -1927,6 +1927,49 @@ namespace Hrot.SimHost.Tests
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Displacing));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2c (DA-21, DA-43) — a seen enemy 25 m behind the posts, outside every man's arc, FLANKS them: the man with the
+        /// free point takes it as his alternate and his arc now faces the enemy; PROGRESS Displacing; the same enemy never turns him twice;
+        /// an enemy out beyond 50 m flanks nobody. ✅ Red-proofs: the arc test dropped ⇒ a man turns at a contact in front; the once-per-
+        /// contact guard dropped ⇒ a second order; the arc not turned ⇒ he still cannot shoot the flanker.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_AFlankedManTakesHisAlternate_FacingTheFlanker_OncePerContact()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+            foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
+            s.Tick();
+
+            s.Orders.Clear();
+            s.Pool(s.Repo.CreateEntity(), new Vector3(4, -80, 0), reporters: 1);   // 85 m behind: too far to flank
+            s.Tick(); s.Tick();
+            s.Pool(s.Repo.CreateEntity(), new Vector3(4, 30, 0), reporters: 1);    // 25 m in front: inside every arc
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);
+
+            var flanker = new Vector3(20, -10, 0);   // 25 m behind and beside the posts, outside every arc
+            var enemy = s.Repo.CreateEntity();
+            s.Pool(enemy, flanker, reporters: 1);
+            s.Tick(); s.Tick();
+            Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(first);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(new Vector3(0, 9, 0), arc.LeftBearing, arc.RightBearing, 0f, 0f, flanker),
+                "his arc faces the flanker");
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Displacing));
+
+            s.Orders.Clear();
+            s.Pool(enemy, new Vector3(-20, -5, 0), reporters: 1);   // the same man works round behind him again
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);   // the same flanker turns nobody twice (no dithering)
+        }
+
         /// <summary>A squad of three at (4, 0) whose own sector looks north (arc from (4, 0), 330°–30°, to 200 m), HOLDING FIRE by an order
         /// of <paramref name="holdBy"/>, ordered to defend where it stands.</summary>
         private static Squad HoldingFire(BehaviorOrigin holdBy)
