@@ -58,8 +58,8 @@ namespace Hrot.Editor.DebugApi
                         ["orderedAt"] = r.OrderedAt > 0f ? r.OrderedAt : null,
                         ["ageSeconds"] = float.IsInfinity(age) ? null : age, ["overdue"] = age > ReportOverdueSeconds,
                     };
-                    if (_entityMap.TryGetEntity(r.UnitNetId, out var sub) && _world.HasComponent<EntityInfo>(sub))
-                        row["name"] = _world.GetComponentRO<EntityInfo>(sub).Name.ToString();
+                    if (_entityMap.TryGetEntity(r.UnitNetId, out var sub) && CommandReportText.UnitName(_world, sub) is { } subName)
+                        row["name"] = subName;   // ⭐ CE-1191 — the shared name lookup (also the Reports window's)
                     subs.Add(row);
                 }
                 var reqs = new JsonArray();
@@ -174,12 +174,11 @@ namespace Hrot.Editor.DebugApi
             var n = new JsonObject
             {
                 ["kind"] = r.Kind.ToString(),
-                ["subtype"] = r.Kind == ReportKind.Progress ? ((ProgressKind)r.Subtype).ToString()
-                            : r.Kind == ReportKind.Request ? ((RequestKind)r.Subtype).ToString() : null,
+                ["subtype"] = CommandReportText.SubtypeName(r),   // ⭐ CE-1191 — shared with the Reports window
                 ["at"] = V3(r.At), ["observedAt"] = r.ObservedAt, ["ageSeconds"] = now - r.ObservedAt, ["seq"] = r.Seq,
                 ["synthetic"] = r.Synthetic != 0,
             };
-            if (r.Kind is ReportKind.Spot or ReportKind.Contact)
+            if (CommandReportText.CarriesElementFields(r))
             {
                 n["count"] = r.Count; n["size"] = r.Size.ToString(); n["radius"] = r.Radius;
                 n["activity"] = r.Activity.ToString(); n["equipment"] = r.Equipment.ToString();

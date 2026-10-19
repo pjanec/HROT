@@ -166,6 +166,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             bool canopy = false;
+            bool leans = false;   // ⭐ CE-1193 — only a man in his own pose (not held, not on a rope, not jumping) is drawn leaning
             if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
             {
                 parts = descending;                 // ⭐ CE-1119 (§6w) — on a rope or under a canopy: the phase's figure, no gait
@@ -190,6 +191,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 }
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
+                leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
                 if (jumping)
@@ -198,6 +200,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     motion = MotionPose.Still with { HipZ = BlockFigure.HipFraction(StanceId.Crouched) };
                     body *= Matrix4x4.CreateTranslation(0f, 0f, lift);
                     JumpsDrawn++;
+                    leans = false;
                 }
             }
             else if (look.Family == VisualFamily.WeaponSystem)
@@ -232,6 +235,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var kitToBody = geometry == null
                 ? Matrix4x4.Identity
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
+            // ⭐ CE-1193 — a man leaning round a corner, sheared as the sim shears him; his eyes and muzzle tip go with it (they read kitToBody)
+            if (leans) kitToBody *= LeanShear(world, e);
             int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet, parts, size) : 0;   // ⭐ CE-1098 (§6p)
             // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
             Outfit? outfit = null;
@@ -483,6 +488,25 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
         pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
         return true;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1193</c> (backend's <c>Lean</c>, <c>CE-3257</c> §13 LN-2; behaviors' poses note CB-21) — a man LEANING round a corner is drawn
+    /// exactly as the sim leans him: a SHEAR about his feet across his own left axis (body frame +Y), a point <c>h</c> above his feet moving
+    /// <see cref="Fdp.Toolkit.Combat.Leans.Shift"/>·h / eye sideways, eye = the sim's eye height for his stance — so the head is drawn where
+    /// he sees round the corner, is seen and is hit. Identity when he does not lean or lies prone (the sim ignores it then).
+    /// ⛔ <c>MotionPose.Lean</c> is a FORWARD pitch; a sideways lean is this shear, applied after the pose (in body space).
+    /// </summary>
+    public static Matrix4x4 LeanShear(EntityRepository world, Entity e)
+    {
+        var stance = LogicalStance.Of(world, e);
+        int sign = Fdp.Toolkit.Combat.Leans.SignOf(world, e, stance);
+        if (sign == 0) return Matrix4x4.Identity;
+        float eye = stance == StanceId.Crouched ? Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched
+                                                : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+        var m = Matrix4x4.Identity;
+        m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
+        return m;
     }
 
     /// <summary>
