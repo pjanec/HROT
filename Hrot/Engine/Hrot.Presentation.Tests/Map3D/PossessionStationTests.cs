@@ -323,6 +323,65 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1214 (docs/DESIGN_Entity_Control.md §8j T-1) — Tab jumps to the next man of his squad (his leader, the men naming that leader,
+    /// his own men — in network-id order, wrapping), Shift+Tab to the previous; another leader's man, a dead man and a man another
+    /// station holds are not in it; the jump is ONE possession, which also lets the man he leaves go back to his brain.
+    /// </summary>
+    [Fact]
+    public void CE1214_Tab_JumpsToTheNextManOfHisSquad_ShiftTabBack_AndTheManHeLeavesIsReleased()
+    {
+        var (w, me, map) = World();                                                    // network id 4242
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            Entity Man(long id, Entity commander, float health = 100f)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                w.AddComponent(m, new Health { Current = health, Max = 100f });
+                map.Register(id, m);
+                return m;
+            }
+            var leader = Man(100, Entity.Null);
+            w.AddComponent(me, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+            var buddy = Man(5000, leader);
+            var mine = Man(9000, me);
+            Man(6000, Man(7000, Entity.Null));                                         // another squad
+            Man(5500, leader, health: 0f);                                             // dead
+            var held = Man(5600, leader);
+            w.AddComponent(held, new PossessedBy { StationNodeId = 99, Mode = PossessionMode.Fps, Epoch = 1 });   // another station's
+
+            Assert.Equal(new[] { 100L, 4242L, 5000L, 9000L }, SquadRoster.Of(w, me).Select(r => r.Id));
+            Assert.Equal(buddy, SquadRoster.Next(w, me, 1));
+            Assert.Equal(leader, SquadRoster.Next(w, me, -1));
+            Assert.Equal(me, SquadRoster.Next(w, mine, 1));                            // my man's squad is his leader (me) and him: it wraps
+            Assert.Equal(Entity.Null, SquadRoster.Next(w, Man(8000, Entity.Null), 1)); // alone
+
+            w.RegisterEvent<PossessRequestEvent>();
+            w.RegisterEvent<ReleasePossessionEvent>();
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var tab = new Input();
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            sw.Camera3D.HandleInput(tab);
+            w.Bus.SwapBuffers();
+            Assert.Equal(buddy, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);
+            Assert.Equal(me, Assert.Single(w.Bus.Read<ReleasePossessionEvent>().ToArray()).Unit);   // the one he leaves goes back to his brain
+
+            var back = new Input();
+            back.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            back.Keys.Add((int)Raylib_cs.KeyboardKey.LeftShift);
+            sw.Camera3D.HandleInput(back);
+            w.Bus.SwapBuffers();
+            Assert.Equal(leader, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1213 (docs/DESIGN_Entity_Control.md §8j W-1) — hold T: the wheel shows the orders his MEN fulfil (Hold and Move first, none
     /// needing the form); the mouse moves its cursor, not the look; letting go sends the sector under the cursor to every man naming him as
     /// commander — never to himself, never to another leader's man — completed from the crosshair; letting go in the middle sends nothing.

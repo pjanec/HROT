@@ -289,6 +289,15 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The operator lets the unit go (Esc); the view leaves FPS when <see cref="PossessedBy"/> says so.</summary>
         internal void Release(long netId) => Orders()?.Unpossess(netId);
 
+        /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the operator jumps to <paramref name="next"/>: one possession, which also lets the unit he
+        /// leaves go back to his brain (<see cref="EntityOrders.Possess(long, PossessionMode)"/> releases the station's other Fps unit —
+        /// C-8); the view follows <see cref="PossessedBy"/>.</summary>
+        internal void SwitchTo(Entity next)
+        {
+            if (Orders() is { } orders && _world() is { } w && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(next, out long id))
+                orders.Possess(id, PossessionMode.Fps);
+        }
+
         private EntityOrders? Orders()
             => _world() is { } w && w.HasSingletonManaged<NetworkEntityMap>()
                 ? new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null) : null;
@@ -487,7 +496,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  R ammo  F use (hold F: more)  Q/E lean  T orders");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -814,6 +823,8 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
         public const KeyboardKey CommandWheelKey = KeyboardKey.T;
+        /// <summary>⭐ <c>CE-1214</c> (§8j T-1; key approved, R-1009) — the next man of his squad (Shift: the previous).</summary>
+        public const KeyboardKey TeamSwitchKey = KeyboardKey.Tab;
         /// <summary>⭐ <c>CE-1213</c> — how long the wheel's verdict stays under the crosshair (s).</summary>
         public const float WheelVerdictSeconds = 2.5f;
 
@@ -879,6 +890,14 @@ namespace Hrot.UI.Common.Map3D
                 return true;
             }
 
+            // ⭐ CE-1214 (§8j T-1) — Tab / Shift+Tab: the next / previous man of his squad (SquadRoster); the one he leaves goes back
+            //   to his brain (the possess releases him)
+            if (input.IsKeyPressed((MapKeyboardKey)TeamSwitchKey) && _world() is { } tw
+                && SquadRoster.Next(tw, Unit, input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift) ? -1 : 1) is { IsNull: false } next)
+            {
+                _station.SwitchTo(next);
+                return true;
+            }
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
             // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
