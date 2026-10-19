@@ -70,6 +70,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// fresh in the platoon's picture (then the paused task resumes where it was).</summary>
         public const string PlatoonHold = "PlatoonHold";
 
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-E) — a platoon's task: each squad defends its point, the line squads each watch a slice of
+        /// the engagement area and hold fire until an enemy is reported inside it. An HSM.</summary>
+        public const string PlatoonDefend = "PlatoonDefend";
+
         /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the MOVE order: it marches there (Wedge, or File on a road).</summary>
         public const string InfantrySquadMove = "InfantrySquadMove";
 

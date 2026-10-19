@@ -2254,10 +2254,13 @@ namespace Hrot.SimHost.Tests
         /// squads are stand-ins whose reports the test publishes, folded by the platoon's inbox each frame.</summary>
         private sealed class Platoon
         {
-            public readonly Squad S = new(members: 2);
+            public readonly Squad S;
             public readonly Fdp.Toolkit.Squad.Command.StaffInboxSystem Inbox = new();
             public Entity Alpha => S.Members[0];
             public Entity Bravo => S.Members[1];
+            public Entity Charlie => S.Members[2];
+
+            public Platoon(int squads = 2) => S = new Squad(members: squads);
 
             public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); }
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
@@ -2428,6 +2431,124 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(sent + 1, c.Composer.SentCount);
             Assert.Equal(1, c.Picture.Elements.Count);
             Assert.True(c.Picture.Elements.Items[0].ObservedAt > first + 14f);
+        }
+
+        // ── CE-2276 E-1 — PlatoonDefend: the platoon holds a position over its squads (Defend & Attack §8d) ─────────────────────
+
+        /// <summary>The order: defend the origin, the engagement area north (330°…30°, out to 150 m), no squads named (DA-51 defaults).</summary>
+        private static void Defend(Platoon p)
+            => p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150}", BehaviorNames.PlatoonDefend);
+
+        private static Fdp.Toolkit.Behavior.Components.RoeFire FireOf(Platoon p, Entity squad)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.Roe>(squad)
+                ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(squad).Fire : Fdp.Toolkit.Behavior.Components.RoeFire.FireUnset;
+
+        private static Fdp.Toolkit.Behavior.Components.EngagementArea SectorOf(Platoon p, Entity squad)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>(squad)
+                ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(squad) : default;
+
+        private static SquadDefendParamsJsonDto DefendOrderTo(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.SquadDefend).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-51, DA-52, DA-54) — three squads, none named: the first two hold the line at the position and
+        /// each gets one half of the area (30° each, 10 % wider: 328.5°…1.5° and 358.5°…31.5°), the third is the reserve 40 m behind with no
+        /// sector; the line holds fire, the reserve returns fire; each order is given once and kept. ✅ Red-proofs: no overlap ⇒ the slices
+        /// meet edge to edge · every squad on the line ⇒ the reserve gets a sector · the order re-sent every tick ⇒ more than one order.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_OrdersEverySquad_SplitsTheAreaAmongTheLine_AndHoldsItsFire()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend), p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend),
+                                     p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend)));
+            var a = SectorOf(p, p.Alpha);
+            var b = SectorOf(p, p.Bravo);
+            Assert.Equal((1, 328.5f, 1.5f, 150f), (a.ArcSet, MathF.Round(a.LeftBearing, 2), MathF.Round(a.RightBearing, 2), a.MaxRange));
+            Assert.Equal((1, 358.5f, 31.5f), (b.ArcSet, MathF.Round(b.LeftBearing, 2), MathF.Round(b.RightBearing, 2)));
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
+            var reserve = DefendOrderTo(p, p.Charlie).Position;
+            Assert.True(Vector3.Distance(reserve, new Vector3(0f, -40f, 0f)) < 0.01f, $"the reserve's point {reserve}");
+            Assert.Equal(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire,
+                          Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-53) — once the line is set, a SPOT OUTSIDE the area changes nothing; one INSIDE opens the line's
+        /// fire (the reserve keeps returning fire only); 120 s with nothing inside and the line holds again. ✅ Red-proofs: the area ignored
+        /// ⇒ the outside SPOT opens fire · the quiet guard never true ⇒ the line keeps firing at will.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_AnEnemyInsideTheArea_OpensTheLinesFire_OutsideItDoesNot_AndQuietClosesItAgain()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            p.ReportSpot(p.Alpha, new Vector3(0f, -100f, 0f), 2);   // south: behind the position
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+            p.ReportSpot(p.Bravo, new Vector3(20f, 100f, 0f), 2);   // ~11°, 102 m: inside
+            p.Ticks(3);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill,
+                          Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
+            p.S.Pause(PlatoonDefendBehavior.QuietSeconds + 1f);
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-53, Platoon §5 Occupy) — the line opens fire only once EVERY line squad is set: an enemy inside
+        /// while one is still moving changes nothing; that squad's Set then opens it at once (the SPOT is still fresh). ✅ Red-proof: the
+        /// Set guard always true ⇒ fire opens while Bravo is still moving.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_TheLineOpensFireOnlyOnceEveryLineSquadIsSet()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha);
+            p.ReportSpot(p.Charlie, new Vector3(0f, 120f, 0f), 3);
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+            p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-54, Platoon §5 "below Regular") — a Militia platoon never holds its fire: every squad fires at
+        /// will from the start, the reserve too. ✅ Red-proof: the tier ignored ⇒ the militia line holds fire.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_AMilitiaPlatoon_FiresAtWillFromTheStart()
+        {
+            var p = new Platoon(squads: 3);
+            if (!p.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) p.S.Repo.RegisterComponent<CombatProficiency>();
+            p.S.Repo.AddComponent(p.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill),
+                         (FireOf(p, p.Alpha), FireOf(p, p.Charlie)));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie
+        /// the reserve; the slices follow the squads' bearings from the position, not their roster order (Bravo, further left, gets the
+        /// left half). ✅ Red-proof: slices in roster order ⇒ Alpha gets the left half.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_NamedSquads_TakeTheirPoints_AndTheSlicesFollowTheirBearings()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"Squads\":["
+                    + "{\"Squad\":1,\"Point\":[30,10,0]},{\"Squad\":2,\"Point\":[-30,10,0]},{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]}]}",
+                      BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            Assert.Equal(new Vector3(30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal(new Vector3(0f, -50f, 0f), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal(328.5f, MathF.Round(SectorOf(p, p.Bravo).LeftBearing, 2));
+            Assert.Equal(358.5f, MathF.Round(SectorOf(p, p.Alpha).LeftBearing, 2));
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
         }
 
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────

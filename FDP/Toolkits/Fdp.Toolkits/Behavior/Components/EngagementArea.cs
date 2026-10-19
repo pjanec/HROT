@@ -198,6 +198,10 @@ namespace Fdp.Toolkit.Behavior.Components
             return Norm(bearing - left) <= span;
         }
 
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-53) — is <paramref name="point"/> inside the Allow of a sector VALUE (its arc and / or its area):
+        /// the platoon's defence plan holds its engagement area as one. No Allow = false. No tier, no self-defence — geometry only.</summary>
+        public static bool Contains(ISimulationView view, in EngagementArea a, Vector3 point) => HasAllow(in a) && InAllow(view, in a, point);
+
         private static bool SelfDefence(ISimulationView view, Entity man, Vector3 point)
         {
             if (!RecentSensesOf.Within(view, man, SensorChange.Hit, SelfDefenceSeconds)

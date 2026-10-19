@@ -245,6 +245,10 @@ stateDiagram-v2
     }
   }
 ```
+⭐ **As built — E-1 (`CE-2276`, 2026-10-19):** the phase region DPlan → Occupy → Ready ⇄ Engage, its plan and fire control, are in
+[Defend & Attack §8d](DESIGN_Defend_And_Attack_Position.md) (DA-51…DA-55): `ElementsAt(EA)` is `PlatoonDefendBehavior.EnemyInArea` over
+the plan's EA, and the squad sector is an arc slice on the squad's `EngagementArea` (DA-52). The control region is E-2.
+
 *What the picture shows that prose hid:* the trigger line is not a timer or a sensor of its own — it is `ElementsAt(EA)` over the SPOTs
 the line squads and the OP send because the EA is their PIR. The same report that starts the fire also feeds the control region's
 flank and reinforcement checks.

@@ -906,6 +906,114 @@ One bit carries it, and the tier rule stays on the brain where every other tier 
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
 scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-house` live + its twin (needs D-2's roof check).
 
+### 8d. DA-E in detail — `PlatoonDefend`, the platoon holds a position over its squads *(`CE-2276`, behaviors, 2026-10-19 — slice E-1 designed and built here; E-2, E-3 below)*
+
+**INVENTORY** *(2026-10-19 — codebase-memory MCP `search_graph` `.*Platoon.*` (Class): 13 — `PlatoonBound`, `PlatoonHold`, `PlatoonHillAttack` + their DTOs and tests; `^(ElementsAt|PirMet|TimeInState|SetSquadRoe|SetSquadSector|SplitArea|PlanDefence|TaskOrganize|MarkNoFire|AnswerRequest|…)$`: 16 hits, ⛔ none of the platoon-play actions Platoon §3 names exists; `.*(EngagementArea|SquadSector|SectorPlanner|DefendArea|SquadDefend|NoFire).*` (Class): 22; grep `PirFlags`/`PirArea` readers; `check_index_coverage` run on the five files read — no recorded issue, best effort)*
+
+| need | exists | where | ⇒ |
+|---|---|---|---|
+| a platoon task as an HSM over picture guards | ✅ `PlatoonBound` (flat states, `MoveLeg` activity re-orders when the order does not `Stand`) | `Brains/PlatoonBehaviors.cs` | the pattern to copy |
+| picture guards | ✅ `ProgressReached` · `SubordinateColour` · `SubordinateFresh` · `ElementReported` (distance from the commander, not an area) · `PendingRequest` | `Squad/Command/PictureConditions.cs` | ⛔ no "element inside an area", no "every squad Set" ⇒ two guards on the play |
+| a squad's sector | ✅ the squad commander's `EngagementArea` (arc **or** `AllowArea`), read by `SquadDefend` (`TryAllowPoint`), `AllowsUnit`, `MemberArc`; set by `SetEngagementAreaEvent`, origin-gated (an Operator's wins) | `Behavior/Components/EngagementArea.cs` | the platoon writes each line squad's slice as a Superior arc |
+| PIR "inside the area" | ⚠ `PirFlags.InArea` + `PirArea` carried to the squad (`ReportingRequirementsSystem`) — ⛔ **no composer reads any PIR flag** (`StaffSystems.cs`: zero reads); every squad already SPOTs its whole pool (one element, CC-7) | `Squad/Command/StaffSystems.cs` | the platoon tests its picture's elements against its own EA — no PIR needed |
+| ROE down the chain | ✅ `RoeOf` (PC-6, `CE-2289`); `SquadDefend` lifts its own HoldFire **only when not Superior-set** (`LiftOwnHold`) | `SquadDefendBehavior.cs:645` | a platoon-set HoldFire is the platoon's to lift — exactly DA-7 |
+| the squad play | ✅ `SquadDefend` (D-1…D-2j) | §8c | reused unchanged |
+| the defend order | ⚠ `DefendArea` → any unit with a roster runs **`SquadDefend`** (D-1) — a platoon too | `Mappers/DefendAreaMapper.cs:48` | E-1 orders `PlatoonDefend` by name; the mapper's platoon arm is E-2 |
+| the platoon SOP | ⚠ `BasicPlatoonSop` reacts to any reported element with `PlatoonHold` — a defending platoon would pull its line off the posts | `Library/Sop/BasicPlatoonSop.btree.json` | DA-55 |
+| faking reports | ✅ `POST /entities/{id}/reports` (`ReportInjection.Inject`, CC-13) | `DebugApiService.Reports.cs:99` | `pc-defend-dry` |
+
+```mermaid
+classDiagram
+  direction LR
+  class PlatoonDefendBehavior { <<NEW HSM asset, E-1>> DPlan · Occupy · Ready · Engage }
+  class PlatoonDefencePlan { <<NEW block>> Position · Area : EngagementArea · per slot Role, Point, Left, Right · HoldsFire · Made }
+  class PlatoonDefendNodes { <<NEW SharedAi>> PlanDefence · KeepDefence · HoldTheLine · OpenFire · Planned · LineSet · EnemyInArea · AreaQuiet }
+  class SectorSplit { <<NEW pure>> Split(left, right, n, overlap) }
+  class CommandOrders { <<existing CC-9>> Assign · Stands }
+  class CommandPicture { <<existing CC-1>> Elements · Subordinates }
+  class EngagementAreas { <<existing DA-L>> InArc · + Contains(area, point) }
+  class SquadDefendPlay { <<existing D-1…D-2j>> }
+  class RoeOf { <<existing PC-6>> }
+  PlatoonDefendBehavior --> PlatoonDefencePlan
+  PlatoonDefendBehavior ..> PlatoonDefendNodes
+  PlatoonDefendNodes ..> SectorSplit : at plan time
+  PlatoonDefendNodes ..> CommandOrders : SquadDefend per squad
+  PlatoonDefendNodes ..> CommandPicture : guards
+  PlatoonDefendNodes ..> EngagementAreas : SetEngagementAreaEvent, Contains
+  PlatoonDefendNodes ..> RoeOf : SetRoeEvent per squad
+  CommandOrders ..> SquadDefendPlay : the squad runs it
+```
+*What the picture shows that prose hid:* only three boxes are new and none of them parses a report or reads geometry: the plan is
+authored or computed once, every guard reads the picture the staff already folds, and the squad play below is the one D-1 built.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> DPlan
+  DPlan --> Occupy : Planned
+  Occupy --> Ready : LineSet (every line squad PROGRESS Set)
+  Ready --> Engage : EnemyInArea (an element inside the EA, fresh 30 s)
+  Engage --> Ready : AreaQuiet (none inside for 120 s)
+  note right of Occupy
+    activity KeepDefence in Occupy, Ready, Engage:
+    a squad whose order does not Stand is ordered again
+  end note
+```
+*What the picture shows that prose hid:* the orders are kept by the SAME activity in all three states, so a squad whose order was
+replaced is re-ordered wherever the plan stands, and the fire control is two entry actions — the only thing the states change.
+
+```mermaid
+sequenceDiagram
+  participant P as platoon PlatoonDefend
+  participant L as line squads (SquadDefend)
+  participant R as reserve squad
+  participant ST as platoon staff (inbox)
+  P->>P: DPlan: roles, points, the EA split by bearing (10 % overlap)
+  P->>L: Assign SquadDefend {point} + SetEngagementArea {slice} + SetRoe HoldFire
+  P->>R: Assign SquadDefend {point behind} + no sector + SetRoe ReturnFire
+  L-->>ST: PROGRESS Set (each)
+  ST-->>P: LineSet ⇒ Ready
+  L-->>ST: SPOT (the pool's element)
+  ST-->>P: EnemyInArea ⇒ Engage
+  P->>L: SetRoe FireAtWill (reaches every man, PC-6)
+  Note over P: no element inside for 120 s ⇒ Ready, HoldFire again
+```
+*What the picture shows that prose hid:* the trigger is a SPOT the squads send anyway; the 3 s report delay is the only latency between
+the first enemy entering the EA and the whole line opening fire — the leader's decision, not each man's.
+
+```mermaid
+graph TD
+  CGF[CGF brain node] --> BT[BrainTickSystem]
+  BT --> PT[platoon task slot: PlatoonDefend HSM]
+  BT --> SQ[squad task slots: SquadDefend]
+  CGF --> IN[StaffInboxSystem, before BrainTickSystem]
+  PT -->|AssignTacticalIntentEvent Superior| SQ
+  PT -->|SetEngagementAreaEvent Superior| EAS[EngagementAreaSystem]
+  PT -->|SetRoeEvent Superior| ROE[RoeSystem]
+  SQ -->|SendReport PROGRESS Set| OUT[ReportOutbox]
+  OUT --> IN
+  IN --> PIC[(CommandPicture)]
+  PIC --> PT
+  classDef new fill:#ffd,stroke:#aa0
+  PT:::new
+```
+*Caption:* everything runs where the first chain (`cc-platoon-bound`) already runs; the new box is the task. ⚠ **Not reached:** a platoon
+given **`DefendArea`** still runs `SquadDefend` (the mapper's roster arm) — E-1 is ordered by name; and a platoon carrying
+`BasicPlatoonSop` would be paused by its hold row (DA-55).
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-51** | where each squad goes | **authored in the order** (`Squads[]`: roster place, line or reserve, point, search radius — the D-2f precedent, DA-46); none authored ⇒ every squad on the line at the order's position, and with three or more the **last is the reserve, 40 m behind** (opposite the EA's middle bearing) | derive the battle positions from a `BuildingSurvey` now: a second planner (which building per squad), deferred to E-3 — the answer exists, the choosing does not · always one point: two squads in one house crowd each other's posts |
+| **DA-52** | the squad's sector | **an ARC slice of the platoon's EA on each line squad's `EngagementArea`** (Superior; origin the platoon's position; the EA split by bearing into equal shares, each 10 % wider; squads matched left to right by their bearing), the reserve none; a polygon EA is given whole to each line squad (`AllowArea`). ⚠ **Deviates from DA-24's "squad level = a polygon area entity"** — the arc is what every squad-level reader already reads, it is one event with no entity to create, replicate and destroy per plan, and an operator's polygon still wins by the origin gate | polygon `SquadSector` entities now: entity lifecycle for nothing a reader uses (none reads a polygon the arc cannot say) · no sectors: two squads fire at the same man and the flank goes unwatched |
+| **DA-53** | the trigger and its end | **`EnemyInArea`: a picture element inside the plan's EA observed within 30 s** (the SPOT refresh is 15 s); **`AreaQuiet`: none inside observed within 120 s** ⇒ back to Ready. No EA at all ⇒ any element within 300 m of the position | the PIR `InArea` path: no composer reads PIR flags, and the pool's SPOT is sent regardless · each squad lifting its own hold (D-1's `LiftOwnHold`): the line opens fire piecemeal and the first squad gives every post away |
+| **DA-54** | fire control | Regular+: the line squads **`HoldFire`** (Superior) in Occupy and Ready, **`FireAtWill`** in Engage; the reserve **`ReturnFire`** throughout (it must not show itself, and may defend itself). Below Regular (the platoon's own tier): **`FireAtWill` from the start**, no hold (§5's repertoire) | one write on the platoon (PC-6 reaches all): the reserve could not differ · `ReturnFire` for the line: the first enemy in the EA walks through unengaged until he shoots |
+| **DA-55** | the platoon SOP during a defence | ⚠ `BasicPlatoonSop`'s hold row would order every squad `Hold` (off its posts) and pause the trigger. **E-1: the defend scenarios carry no platoon SOP**; E-2 gives the row a guard "the task is not a defence" (a new SOP condition, the row's only change) | `Reactions = StayOnTask` on the platoon: the chain (PC-6) would carry it to every man and kill their own contact drills · let `PlatoonHold` skip squads already defending: the task is still paused, so the trigger never fires |
+
+**Slices.** **E-1** (this build): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
+①② (Platoon §12.2). **E-2**: the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
+Reinforce (needs the line's SITREP extras) — and DA-55's SOP guard, the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
+(Veteran) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey` (DA-51's deferred half); `pc-defend-house`.
+
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
 | demo | cast | must end with |
