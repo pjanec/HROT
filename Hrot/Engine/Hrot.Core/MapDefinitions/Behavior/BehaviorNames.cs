@@ -225,5 +225,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DetonateCharge = "DetonateCharge";
         /// <summary>⭐ <c>CE-2241</c> ② (CV-14, §5m PV-4) — a police order: go at the point and strike the protesters within reach of it.</summary>
         public const string BatonCharge = "BatonCharge";
+        /// <summary>⭐ <c>CE-2306</c> (DA-93, Defend &amp; Attack §8e) — the trigger man sets off a placed charge by phone when a hostile vehicle he
+        /// sees is in its kill zone.</summary>
+        public const string TriggerIed = "TriggerIed";
     }
 }

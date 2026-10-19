@@ -32,6 +32,8 @@ namespace Hrot.AI.Behaviors.Brains
         public AuthoredPosts Authored;
         /// <summary>Runtime: the posts and each man's count of rounds at him (the play's own memory).</summary>
         public DefencePosts Posts;
+        /// <summary>⭐ <c>CE-2306</c> (DA-96) — an ambush's initiating charge (its network id; 0 = not an ambush).</summary>
+        public long InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -252,6 +254,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
+            block.Order.InitiatedBy = authored.InitiatedBy.NetworkId;      // ⭐ CE-2306 (DA-96)
             block.State = default;
         }
 
@@ -748,10 +751,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Posts.HoldLifted != 0 || !world.IsComponentTypeRegistered<Roe>() || !world.HasComponent<Roe>(ctx.Commander)) return;
             ref readonly var roe = ref world.GetComponentRO<Roe>(ctx.Commander);
             if (roe.Fire != RoeFire.HoldFire || roe.SetBy == BehaviorOrigin.Superior || roe.SetBy == BehaviorOrigin.Unmarked) return;
-            if (!ContactInSector(in ctx) && !RoundAtAMan(in ctx, ws.StartedAt)) return;
+            // ⭐ CE-2306 (DA-96) — an ambush waits for its initiation (the charge gone), not for the first enemy in the kill zone
+            bool trigger = p.InitiatedBy != 0 ? Initiated(world, p.InitiatedBy) : ContactInSector(in ctx);
+            if (!trigger && !RoundAtAMan(in ctx, ws.StartedAt)) return;
             if (!world.Bus.IsRegistered<SetRoeEvent>()) return;
             world.Bus.Publish(new SetRoeEvent { Entity = ctx.Commander, Fire = RoeFire.FireAtWill, Origin = BehaviorOrigin.Self });
             p.Posts.HoldLifted = 1;
+        }
+
+        /// <summary>⭐ <c>CE-2306</c> (DA-96) — the ambush's charge is gone: set off (spent, then torn down on every node) or destroyed.</summary>
+        private static bool Initiated(EntityRepository world, long charge)
+        {
+            var e = new Fdp.Toolkit.Replication.EntityRef(charge).Resolve(world);
+            return e.IsNull || !Fdp.Toolkit.Combat.Charges.IsCharge(world, e);
         }
 
         /// <summary>Any pooled contact (seen or heard) inside the squad's sector — with no sector, any contact.</summary>

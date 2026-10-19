@@ -1456,7 +1456,7 @@ Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's pla
 `ClearBuilding` exists, Veteran). **E-3** (rest): the Veteran counterattack (⛔ waits for `ClearBuilding`, `CE-2259`), DAnswer, battle positions from a `BuildingSurvey`
 (DA-51's deferred half; the survey is built, `CE-3249`); `pc-defend-house`.
 
-### 8e. The ambush — the trigger man and the initiation *(`CE-2306`, behaviors, 2026-10-19 — Urban Battle §4 ④, §5 step 5; build-state: BUILDING — leans DA-93…DA-97, built under the user's "go ahead autonomously")*
+### 8e. The ambush — the trigger man and the initiation *(`CE-2306`, behaviors, 2026-10-19 — Urban Battle §4 ④, §5 step 5; build-state: BUILT — §8e.1; leans DA-93…DA-97, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — grep `Charges\.Ask|InitiatedBy|TriggerIed|KillZone` over `Hrot/` and `FDP/` outside tests ⇒
 ONE caller, `DetonateChargeBehavior.Set` (his own worn charge); reads of `Charges.cs`, `HeldItems.cs`, `DetonateChargeBehavior.cs`,
@@ -1531,6 +1531,21 @@ graph TD
 outside the zone do not), with the phone in hand; no phone / no charge ⇒ Failure; the cell with `InitiatedBy` holds through a contact in
 its sector and lifts when the charge is gone. ⛔ Not in it: the convoy's reaction (⑤), placing the IED (an author's charge on the ground),
 a live demo (the ladder's "convoy hit and dismount" rung).
+
+#### 8e.1 As built *(2026-10-19 — the diagrams above hold)*
+
+| piece | where | as built |
+|---|---|---|
+| the trigger man | `Brains/TriggerIedBehavior.cs` · `TriggerIedParamsJsonDto` · `BehaviorNames.TriggerIed` | a StatefulAction: the charge resolved each tick from its network id (a load re-allocates handles); the phone taken in hand (`HeldItems.Set`), still (`LocomotionMoveTo.Stop`); `KillZone.Entered` ⇒ `Charges.Ask(charge, him)` ⇒ Success |
+| the kill zone | `KillZone.Entered(world, watcher, at, metres, vehiclesOnly)` (same file) | his `TargetMemory`: identified (not anonymous), alive, another force and not Neutral, within `metres` flat; `vehiclesOnly` ⇒ `VehicleCover.IsVehicle` |
+| the initiation | `SquadDefendParams.InitiatedBy` (network id) · `SquadDefendParamsJsonDto.InitiatedBy` (EntityRef) · `SquadDefendBehavior.Initiated` | in `LiftOwnHold`: with it, the trigger is "the charge no longer resolves to a charge", in place of `ContactInSector`; a round at a man still lifts |
+
+⚠ **Choices the leans did not settle:** a charge id that never resolved (a typo) reads as INITIATED, so an ambush with a bad id fires at
+the first contact as before — the safe side (it does not hold for ever); the trigger man needs his phone even for a charge he carries
+(`DetonateCharge` is the wearer's own behaviour); `TimeoutSeconds` is read but has no rail.
+
+Rails `TriggerIedBehaviorTests` ×3 (in `StationWeaponBehaviorTests.cs`, its `World`) · `SquadManeuverTests.CE2306_AnAmbush_*` — mutants: see
+the tracker row (7/7 killed). ⛔ Not live yet.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

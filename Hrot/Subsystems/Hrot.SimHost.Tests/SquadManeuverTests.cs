@@ -2522,6 +2522,38 @@ namespace Hrot.SimHost.Tests
         private static Fdp.Toolkit.Behavior.Components.RoeFire SquadFire(Squad s) => s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(s.Commander).Fire;
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2306</c> (DA-96, Defend &amp; Attack §8e) — an AMBUSH: the same squad under an operator's hold, its order naming the
+        /// charge that initiates it, keeps holding while the enemy is INSIDE its sector (the convoy driving into the kill zone) and lifts to
+        /// FireAtWill only once the charge is gone (set off). ✅ Red-proofs: <c>InitiatedBy</c> not read ⇒ the contact in the sector lifts it ·
+        /// the charge's life not read ⇒ it never lifts.
+        /// </summary>
+        [Fact]
+        public void CE2306_AnAmbush_HoldsThroughTheEnemyInItsSector_AndOpensFireWhenTheChargeGoesOff()
+        {
+            var s = new Squad(members: 3);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+                s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>())
+                s.Repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            var ied = s.Repo.CreateEntity();
+            s.Repo.AddComponent(ied, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7701 });
+            s.Repo.AddComponent(ied, new Fdp.Toolkit.Combat.WeaponSystemParams { Charge = 1 });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(4, 0, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.Roe { Fire = Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SetBy = BehaviorOrigin.Operator });
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25,\"InitiatedBy\":7701}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            s.Pool(s.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);   // the convoy, in the kill zone
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(s));
+            s.Repo.DestroyEntity(ied);                                               // set off: the charge is torn down
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, SquadFire(s));
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2275</c> DA-35 (corrected; Platoon §6a "alone, it lifts its own hold-fire", DA-7) — a squad defending ALONE under an
         /// operator's hold keeps holding while the only contact is outside its sector, and lifts to FireAtWill the moment one is inside it;
         /// the lift keeps the operator's rank. ✅ Red-proof: the sector test dropped (any contact lifts) ⇒ the outside contact lifts it.

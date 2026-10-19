@@ -143,6 +143,8 @@ related-designs:
 | — | a weapon a person carries is never the target — its carrier is | `HoldTheLineBehavior.Nearest` | §5k.1 |
 | — | `FireAtPoint` with empty hands fires the weapon he carries | `FireAtPointExecutor` | §5k.1 |
 | BM-1 / BM-2 | the bomber stands still `Seconds`, then sets off his worn charge; it stays hidden till then | `DetonateChargeBehavior` → `Charges.Ask` | §5l |
+| DA-93…DA-95 | the trigger man sets off a PLACED charge by phone when a hostile vehicle HE sees is in its kill zone (`AnyTarget`: people too) | `TriggerIedBehavior`, `KillZone.Entered` → `Charges.Ask` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
+| DA-96 | an ambush (`SquadDefend.InitiatedBy`) holds through the enemy in its sector and opens fire once its charge is gone | `SquadDefendBehavior.LiftOwnHold` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 
 **Demos**
 
