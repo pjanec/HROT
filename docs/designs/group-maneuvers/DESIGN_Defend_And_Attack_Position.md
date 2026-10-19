@@ -971,6 +971,76 @@ eyes, not the body, and `LeanLeft` is HIS left (`Lean.cs:13`) · `Leans.Set` is 
 | **DA-80** | **what he does there** — ONE mechanism for watching and fighting: stands beside the frame upright (hidden), leans out to watch, leans out to fire (a new PeekAndFire window shape — the stance peek's "come up" becomes "lean out"); heavy fire still sends him prone; a short brain delay before the first shot so the instant lean is not faster than coming up was | separate watch and fire mechanisms: two ways of standing at one window |
 | **DA-81** | **blast radius** — the new shape is chosen only for those posts; `WindowDuel`'s two shapes, `ua-rpg-window` and default `CombatPosture` keep the pop-up unless authored | changing the shared window shape: three demos move with it |
 
+📐 **Measured for the UML (2026-10-19):** a STANDING person with a look turns his body to it (`CarKinematicsSystem.cs:346-360`, CE-3252)
+— the `Look` node points him at the threat or his sector, out through the window ⇒ ⭐ **DA-79 refined:** the lean side is computed when he
+leans, from his ACTUAL facing and the opening's bearing (opening to his left ⇒ `LeanLeft`), and kept until he straightens; no body-turn
+work is needed · under `HoldFire` PeekAndFire stays hidden (`PeekAndFireNodes.cs:499`) — at a frame he leans out to WATCH without firing
+(DA-6's observation) · the window's frame comes from a `BuildingSurvey` portal of `Kind` 1 (Window) nearest the post (`SurveyPortal`
+centre + `Width`, its `SurveyFace` gives the wall's direction and outward normal).
+
+```mermaid
+classDiagram
+  class SquadDefendPlay { <<EXTENDED>> Plan: FrameSite survey asked with the window ask (Regular+) · Settle turns a window point into a frame post }
+  class DefencePosts { <<EXTENDED>> per candidate Frame · FrameA/B · Opening }
+  class WindowFrame { <<NEW, pure>> FromSurvey(answer, post) ⇒ FrameA, FrameB, Opening · Facing(A,B,Opening,target) ⇒ the frame point away from the target }
+  class MemberPost { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
+  class CombatPosturePostJsonDto { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
+  class PeekAndFireParams { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
+  class PeekAndFireNodes { <<EXTENDED>> frame mode: hide standing at a frame point · expose = lean out · HoldFire = lean out to watch · suppressed = prone }
+  class PostureNodes { <<EXTENDED>> HoldWatch: holding at a frame post he leans out to watch; its deactivator straightens him }
+  class Leans { <<existing CE-3257>> Set · Of }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure · Read }
+  SquadDefendPlay --> WorldSurveyChildSensor
+  SquadDefendPlay --> WindowFrame
+  SquadDefendPlay --> DefencePosts
+  SquadDefendPlay --> MemberPost
+  MemberPost --> CombatPosturePostJsonDto : SquadManeuverRunner.Hold
+  CombatPosturePostJsonDto --> PeekAndFireParams : CombatPostureBehavior.Post
+  PeekAndFireNodes --> WindowFrame
+  PeekAndFireNodes --> Leans
+  PostureNodes --> Leans
+```
+*What the picture shows that prose hid:* the frame geometry is worked out ONCE, by the squad, from one survey — the man only ever receives
+two points and an opening. The lean itself is the existing `Leans` writer; nothing new crosses the wire but the post's fields.
+
+```mermaid
+sequenceDiagram
+  participant SQ as SquadDefend (commander)
+  participant WS as BuildingSurvey (FrameSite)
+  participant M as CombatPosture (the man)
+  participant PF as PeekAndFire (frame mode)
+  participant L as Leans
+  SQ->>WS: Ensure OfArea(position, search radius) — with the window ask
+  WS-->>SQ: portals (Window) + faces
+  SQ->>SQ: window point ⇒ FrameA/B, Opening; the post = the frame point away from the EA
+  SQ->>M: Hold {post: Frame, FrameA, FrameB, Opening}
+  M->>M: no threat ⇒ HoldWatch: at the frame point, lean toward the opening
+  M->>L: Set(side from his facing)
+  M->>PF: a threat ⇒ PeekAndFire
+  PF->>PF: Choose the frame point away from the target · hide standing (prone if suppressed)
+  PF->>L: expose = lean out · aim after the lean time · fire
+  PF->>L: recover = LeanNone · masked ⇒ burn this side, cross to the other
+```
+*What the picture shows that prose hid:* watching and fighting are the same lean from the same point — the fight only adds choosing the
+side by the target and the fire.
+
+```mermaid
+graph TD
+  CGF[CGF node: the brains] --> SQB[SquadDefend on the commander]
+  CGF --> MB[CombatPosture on each man]
+  SQB -->|EQS child sensor, solved on SimHost| SH[SimHost: WorldSurvey solve]
+  MB -->|Leans.Set, replicated dtLean| SHE[SimHost: the eye and the hit boxes lean]
+  SQB -->|member order JSON| MB
+```
+*What the picture shows that prose hid:* both writes happen on the brain's node and reach SimHost through existing roads (the sensor
+transport, `dtLean`) — no new system is registered anywhere.
+
+| id | decision (refined by the UML) | rejected — one line each |
+|---|---|---|
+| **DA-82** | the frame point: **the frame edge + 0.25 m along the wall, 0.5 m inside it** — his shoulder at the edge, so the 0.4 m lean puts his eye ~0.15 m into the opening | 0.35 m: the eye stays behind the wall · deeper than 0.5 m: he sees through a narrower cone |
+| **DA-83** | the lean takes **0.4 s** before the first round (the exposure starts after it) | instant: faster than the 0.6 s stance blend it replaces |
+| **DA-84** | **no frame for a post** (no survey answer in 5 s, no window portal within 2.5 m, or his move there fails) ⇒ that post fights as before: the sill pop-up (Regular) or dropped (a Veteran's shallow window, D-2j) | waiting for the survey forever: a squad that never posts |
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
