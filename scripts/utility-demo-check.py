@@ -3956,6 +3956,55 @@ def run_sq_defend_house(c, timeout):
     c.ok(any("Set" in r for r in seen_reports), "PROGRESS Set (every man at his post)")
     c.ok(any("Displacing" in r for r in seen_reports), "④ a man under fire moves to his alternate (PROGRESS Displacing)")
 
+# ── CE-2276 E-1 — pc-defend-dry (Platoon §12.2 stage A; Defend & Attack §8d): PlatoonDefend's decisions on FAKED reports ─────────
+#   A Red platoon (305, its TKB default SOP BasicPlatoonSop) over two line squads (OBJ, H1) and a reserve (H4) on cqb-village, the EA
+#   south of OBJ; no enemy. The squads' PROGRESS Set and the SPOTs are faked over POST /entities/{squad}/reports (CC-13) — a real Set is
+#   held by CE-2304 (the interior move stall). ① every squad SquadDefends its point; the line holds fire, the reserve returns it ·
+#   ② a SPOT outside the EA changes nothing · ③ one inside opens every line man's fire within ~1 s (the chain, PC-6); the reserve
+#   keeps ReturnFire · ④ the SOP's hold row never pauses the defence (DA-55).
+
+def _roe(nid):
+    return ((data(call("GET", f"/entities/{nid}/state")) or {}).get("roeEffective") or {}).get("fire")
+
+
+def run_pc_defend_dry(c, timeout):
+    """⭐ CE-2276 E-1 — pc-defend-dry (DESIGN_Platoon_Attack_Defend_Clear §12.2 A; DESIGN_Defend_And_Attack_Position §8d)."""
+    ids = ids_by_name()
+    pl = ids.get("Red Platoon")
+    names = {9310: "Red Squad 1", 9320: "Red Squad 2", 9330: "Red Reserve"}
+    sq = {k: ids.get(n) for k, n in names.items()}
+    men = {k: [ids.get(f"{n} Leader")] + [ids.get(f"{n} Rifleman {i}") for i in (1, 2, 3)] for k, n in names.items()}
+    line = men[9310] + men[9320]
+    if not c.ok(pl and None not in sq.values() and None not in line + men[9330],
+                f"the platoon, its three squads and their twelve men are loaded (platoon {pl}, squads {sq})"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(pl) == "PlatoonDefend", 15), f"the platoon runs PlatoonDefend (task: {task_name(pl)})")
+    ordered = wait_for(lambda: all(task_name(s) == "SquadDefend" for s in sq.values()), 20)
+    c.ok(ordered, f"① every squad is ordered to SquadDefend its point ({ {k: task_name(s) for k, s in sq.items()} })")
+    held = wait_for(lambda: all(_roe(m) == "HoldFire" for m in line) and all(_roe(m) == "ReturnFire" for m in men[9330]), 10)
+    c.ok(held, f"① the line holds fire, the reserve returns it (line {[_roe(m) for m in line]}, reserve {[_roe(m) for m in men[9330]]})")
+
+    for k in (9310, 9320):
+        r = call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
+        c.ok(isinstance(r, dict) and (data(r) or {}).get("sent"), f"a faked PROGRESS Set from {names[k]} ({json.dumps(data(r) or r)[:160]})")
+    wait_for(lambda: False, 3, every=1.0)
+    call("POST", f"/entities/{sq[9310]}/reports", {"kind": "Spot", "at": [120, 260, 0], "count": 3, "size": "Team"})
+    wait_for(lambda: False, 5, every=1.0)
+    c.ok(all(_roe(m) == "HoldFire" for m in line), f"② a SPOT north of OBJ — outside the EA — changes nothing (line {[_roe(m) for m in line]})")
+
+    t0 = sim_time() or 0.0
+    call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})
+    opened = wait_for(lambda: all(_roe(m) == "FireAtWill" for m in line), 10, every=0.2)
+    dt = (sim_time() or 0.0) - t0
+    c.ok(opened and dt <= 1.5, f"③ a SPOT inside the EA opens every line man's fire in {dt:.2f} s sim (line {[_roe(m) for m in line]})")
+    c.ok(all(_roe(m) == "ReturnFire" for m in men[9330]), f"③ …the reserve still only returns fire ({[_roe(m) for m in men[9330]]})")
+    st = data(call("GET", f"/entities/{pl}/state")) or {}
+    c.ok(task_name(pl) == "PlatoonDefend" and not st.get("pausedTask"),
+         f"④ the platoon's SOP did not pause the defence (task {task_name(pl)}, paused {st.get('pausedTask')})")
+    c.ok(all(task_name(s) == "SquadDefend" for s in sq.values()), f"④ …no squad was pulled off to hold ({ {k: task_name(s) for k, s in sq.items()} })")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4040,7 +4089,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
