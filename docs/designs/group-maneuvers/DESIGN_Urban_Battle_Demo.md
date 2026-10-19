@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (§4b the quarter plan — ui, UI-8…UI-12)
-build-state: IDEA — recorded, not scheduled (R-2051); the infrastructure in §4 comes first, the demos after it
+updated: 2026-10-19 (§5 the approved plan, R-2060; §4 statuses re-measured)
+build-state: PLANNED — §5 is the approved order (R-2060, 2026-10-19); still the infrastructure first (R-2051), the demos after it
 current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order
 stale-below: nothing.
-known-rot: none.
+known-rot: §2/§4 ② said a mortar launch has no sound — half true: the crewed tubes and guns have none, the MortarTeam person type has (500 m, since 97b751b3a); re-measured 2026-10-19, BR-14 filed.
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Building_Interiors.md — OWNS the building templates the quarters place (§3g.1: the shared Recipes/Buildings folder, the roof storey)
@@ -94,13 +94,13 @@ only because a report arrived. The insurgents' side is the only scripted part, a
 | # | item | lane | home |
 |---|---|---|---|
 | ① | **REQUEST reports + a headquarters play**: a body-less company HQ that owns support assets and answers FireSupport / Reinforce / Casevac by what fits, what is free and what threatens it | behaviors | the Command Chain programme (`CE-2291`…`CE-2295`) + a new play (not filed) |
-| ② | **finding a mortar**: a firing sound on mortar tubes and guns (today they have none, so a launch is never heard) → a heard launch becomes a SPOT; counter-battery later | backend (data) · behaviors | Indirect Fire IF-6 (designed) |
+| ② | **finding a mortar**: a firing sound on mortar tubes and guns (📐 2026-10-19: the crewed tubes and guns have none; the `MortarTeam` person type has, 500 m) → a heard launch becomes a SPOT; counter-battery later | backend (data — **BR-14 filed**, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md)) · behaviors | Indirect Fire IF-6 (designed) |
 | ③ | **armed search for aircraft**: attack an AREA — search it and pick targets, as the FPV drone already does (`DroneTargets.Pick`) | behaviors | Air Operations (new) |
-| ④ | **an IED trigger man and an ambush**: a behaviour that sets off another entity's charge when a vehicle enters a kill zone; insurgents that hold an ambush position and fire (an un-ordered insurgent only hides today) | behaviors | Civilians AW-12 (remote trigger, designed) · Defend positions |
+| ④ | **an IED trigger man and an ambush**: a behaviour that sets off another entity's charge when a vehicle enters a kill zone; insurgents that hold an ambush position and fire (an un-ordered insurgent only hides today) — 📐 2026-10-19: the engine half is built (a placed charge set off by its trigger holder, by phone: `Charges.Ask`, `CE-3233`/`CE-3234`) | behaviors | Civilians AW-12 · Defend positions |
 | ⑤ | **a convoy halt drill**: vehicles stop or push through on contact; dismount at a halt | behaviors | Squad Tactics (new) |
 | ⑥ | **an insurgent mortar cell**: a spotter calls his mortar on enemies he sees (the observer adjust loop, started by the spotter himself) | behaviors | Indirect Fire (new) |
-| ⑦ | ⭐ **demo-city gets QUARTERS** (§4a): residential, business and commercial, plus one battle street — multi-storey buildings with upper windows and reachable roofs, a walled compound, a landing square | ui | [hand-off UI-8…UI-12](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md), after UI-1 / UI-2 |
-| ⑧ | data fixes: the Humvee type has no health block; our generic APC is unarmed (the Bradley is fine) | backend | not filed |
+| ⑦ | ⭐ **demo-city gets QUARTERS** (§4a): residential, business and commercial, plus one battle street — multi-storey buildings with upper windows and reachable roofs, a walled compound, a landing square — ✅ **BUILT** (`CE-1183`…`CE-1187`, §4b) | ui | [hand-off UI-8…UI-12](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md) |
+| ⑧ | data fixes: the Humvee type has no health block; our generic APC is unarmed (the Bradley is fine) — both re-measured 2026-10-19 | backend | **BR-15, BR-16 filed** ([handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md)) |
 | ⑨ | *(later)* FPV launch by an operator; aircraft evading outside an attack | behaviors | FPV R-263 · Air Operations |
 
 ## 4a. The stage — demo-city with quarters *(user, 2026-10-18)*
@@ -161,10 +161,26 @@ templates in [Building Interiors §3g.1](../../DESIGN_Building_Interiors.md) · 
 `DemoPremisesTests.UI12_ADemoCityPremise_Holds_…` (6 rows) · `ShippedTerrainFilesAreDeployedTests` (the world loads from the build
 output). ⚠ Not measured: a live cluster load of demo-city with the quarters (the vehicle layer's bake and the tile cache on a node).
 
-## 5. The order
+## 5. The order *(✅ approved 2026-10-19 — R-2060)*
 
-1. ⭐ **Infrastructure first** (R-2051): the Command Chain programme and the platoon programme as already planned, then §4 ①–⑥.
-2. **The demo ladder** on demo-city, each rung its own live demo: street panic · convoy hit and dismount · tank against AT teams in
-   the streets · A-10 against the ZU-23 · FPV attack on the convoy · UH-60 reinforcement · the request chain (route B) on one rung.
-3. **The flagship** — §1 beat by beat, route B, judged by what must hold whatever happens (no civilian targeted, nothing sent without
-   a report, every arrival explained by one), never by a fixed outcome.
+🔒 User, `2026-10-19`: *"Make the suggested order the plan (starting with the window lean and the stuff agreed before). The goal is to have the attack+defend and the urban battle at the end."*
+
+| # | step | what it brings | home |
+|---|---|---|---|
+| 1 | the frame lean (D-2l) | a trained man watches and fires from beside the window frame | Defend & Attack §8c D-2l |
+| 2 | battle positions from the survey | a platoon defends an AREA — buildings and open ground, one position per squad (R-2060's area rule) | Defend & Attack §8d, Platoon §5a |
+| 3 | `ClearBuilding` (`CE-2259`) | the room-by-room drill; then the Veteran counterattack (DA-75) is one switch | Building Clearing §7 |
+| 4 | the request round trip, Casevac first | a squad asks, the platoon answers, the request closes — the seed of ① | Platoon §4 Answer, §5 DAnswer |
+| 5 | the scene's reactions: ④ trigger man + ambush · ⑤ convoy halt · ⑥ insurgent spotter | the ladder's convoy rungs | §4 |
+| 6 | ① the headquarters play · ③ armed search · ② (on BR-14) | route B: assets sent only because a report arrived | §3, §4 |
+| 7 | `AttackPosition` (`CE-2277`) over an AREA, then `pc-attack-dry` and `pc-defend-house` | attack + defend, platoon against platoon | Platoon §4, §5a, §12 |
+| 8 | the demo ladder on demo-city, then the flagship | the urban battle | below |
+
+Backend's BR-14 (a launch heard), BR-15 (the HMMWV killable), BR-16 (the APC armed) run in parallel, filed 2026-10-19.
+
+**Then, on demo-city** — the ladder, each rung its own live demo: street panic · convoy hit and dismount · tank against AT teams in
+the streets · A-10 against the ZU-23 · FPV attack on the convoy · UH-60 reinforcement · the request chain (route B) on one rung —
+and **the flagship**: §1 beat by beat, route B, judged by what must hold whatever happens (no civilian targeted, nothing sent without
+a report, every arrival explained by one), never by a fixed outcome.
+
+⛔ HISTORY — before 2026-10-19 the order was three lines (infrastructure first · the ladder · the flagship), not scheduled (R-2051).

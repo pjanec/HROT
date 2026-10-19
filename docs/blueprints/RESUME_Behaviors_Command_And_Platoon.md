@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (after the night run — written at fc2107aaa for the next session)
-current-answer: §0 start here · §1 where it stands · §2 the next steps, in order · §5 measured traps · §6 the user's rulings on the leans (2026-10-19) and the merge to redo
-stale-below: §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
+updated: 2026-10-19 (§2 replaced by the approved plan, R-2060)
+current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
+stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
 related-designs:
@@ -38,7 +38,20 @@ related-designs:
 | ✅ **the known-rot of 2026-10-19 is fixed** | a squad's Hold / Watch member no longer ends his `CombatPosture` on arrival — `stay` (`CE-2297` slice 2a, 2026-10-19, merged backend at `f2b249e27` first) |
 | civilians (`CE-2235`…`CE-2240`, `CE-2256`, `CE-2249`…`CE-2251`) | a different programme on this lane, still open. ⭐ backend unblocked `CE-2249` / `CE-2250` / `CE-2251` (speech, mood, the baton blow — `CE-3264`…`CE-3266`, Civilians §7.18). Not part of this resume |
 
-## 2. The next steps, in order
+## 2. The plan *(✅ approved 2026-10-19 — R-2060; ONE copy of it: [Urban Battle §5](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md))*
+
+⭐ The goal: attack + defend (platoon against platoon, over an AREA — Platoon §5a) and the urban battle at the end. The plan's eight
+steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
+
+| | |
+|---|---|
+| ✅ done before the plan | `CE-2276` E-1, E-2, E-3a (FallBack), E-3b (block the stair) — §8d, rails red-proved; `pc-defend-dry` live (region 0) |
+| ▶ **step 1 — NOW** | the frame lean, [Defend & Attack §8c D-2l](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-77…DA-81, R-2059): design the UML, build, rails, mutants, fold |
+| next | step 2 battle positions over an area (Platoon §5a) · step 3 `ClearBuilding` `CE-2259` · step 4 the request round trip |
+| backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
+| still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
+
+## 2b. ⛔ HISTORY — the next steps as of the night run *(superseded by §2)*
 
 ⭐ **Read each slice's design section end to end before building it** (R-129); fold every deviation back (as-built rule); the
 feature's own rails first, then new rails in the feature's suite; builds and tests in the background; red-proof each rail with a mutant.

@@ -949,6 +949,28 @@ came again. ⇒ ⭐ a full outbox drops its oldest report instead (`ReportQueue.
 After it Set came in 2 runs of 3; in the third, one man (Rifleman 6) stood **4.2 m** from his post — fighting from a hide point of
 it — for 4½ minutes, and no frame had all seven within 4 m ⇒ **DA-58**: Set counts a man who has *reached* his post.
 
+#### D-2l — the frame lean: a trained man watches AND fires from beside the window frame *(`CE-2275`; behaviors — ✅ approved 2026-10-19, R-2059; build-state: DESIGN — the UML lands with the build)*
+
+🔒 User, `2026-10-19`, asking: *"isn't the peak and fire better implemented using leaning from the side of the frame towards the window
+center than by lying under the window and then crouching, looking out, firing, and go back to lying?"* — then *"Approved, keep the
+Veteran set-back."*
+
+📐 **Measured before the lean:** a leaning man is seen and hit only on his leaning half and SHOOTS from the leaned eye
+(`Lean.cs`, `ShotOrigin.cs:19-20`); a shot the frame would stop is refused (`LineOfFire.MuzzleMasked`, the first 2 m) — so the lean's
+arc limit is enforced by the model, not by the behaviour · the window peek today hides and peeks on ONE point (`PeekAndFireNodes.cs:392-393`),
+the only defence against being predictable is the relocate after 3 exposures · a posted man with no threat just stops
+(`PostureNodes.Hold`), standing in the opening · the cover answer drops the window's facing (`CoverPointsGenerator.Generate`), so the
+frame's edges and the wall's direction come only from a `BuildingSurvey` (`SurveyPortal.Width`, `SurveyFace.Out`) · the look turns the
+eyes, not the body, and `LeanLeft` is HIS left (`Lean.cs:13`) · `Leans.Set` is instant · nothing in the brain calls it yet.
+
+| id | decision (✅ approved) | rejected — one line each |
+|---|---|---|
+| **DA-77** | **who** — a Regular+ man at a window post; below Regular stays at the sill and pops up (DA-6's irregular error); a **Veteran keeps the set-back post** where the room is deep enough (D-2b/D-2j) and leans at the frame elsewhere | the frame lean for everyone: the irregulars' difference is the point · replacing the set-back: a Veteran loses the room's shadow |
+| **DA-78** | **where** — beside the frame, behind the wall: the squad's ONE `BuildingSurvey` of its posts gives each window post its window (centre, width, wall direction); the post carries a "watch from here" point (frame edge + ~0.3 m behind the wall) and a lean side | a fixed 0.6 m beside the centre line: on a wide window he still stands in the opening |
+| **DA-79** | **which side** — the frame side AWAY from the target's bearing (from the left of the frame he sees ahead and to the right); a target on the other side ⇒ he crosses to the other frame side (a relocate, ~1 m); his body is turned to face out on arrival so his left / right mean something | the side from whatever way he faces: correct only by luck |
+| **DA-80** | **what he does there** — ONE mechanism for watching and fighting: stands beside the frame upright (hidden), leans out to watch, leans out to fire (a new PeekAndFire window shape — the stance peek's "come up" becomes "lean out"); heavy fire still sends him prone; a short brain delay before the first shot so the instant lean is not faster than coming up was | separate watch and fire mechanisms: two ways of standing at one window |
+| **DA-81** | **blast radius** — the new shape is chosen only for those posts; `WindowDuel`'s two shapes, `ua-rpg-window` and default `CombatPosture` keep the pop-up unless authored | changing the shared window shape: three demos move with it |
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

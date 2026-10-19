@@ -278,6 +278,16 @@ flank and reinforcement checks.
 Reinforce and Counterattack disabled by the tier, no OP, no `HoldFire` — so they fire at first sight and never re-plan, which is how
 irregulars differ (Defend §4.2).
 
+## 5a. Attack and defend an AREA, not one building *(✅ user, 2026-10-19 — R-2060; a requirement on §4 and §5, design per slice)*
+
+🔒 User, `2026-10-19`: *"Btw the  attack/defend  should work also for given area not just single building."*
+
+| | what it binds | where it lands |
+|---|---|---|
+| defend | `PlatoonDefend` given an AREA (a centre and a radius — the `DefendArea` intent, DA-64) places its squads across the area's buildings AND its open ground (walls, berms, hedges), not all in one house | ⭐ the **battle-positions planner** (DA-51's deferred half — the next platoon slice after D-2l): a `BuildingSurvey` of the area (≤ 4 buildings per ask) + the cover answers for open ground; one line squad per position, mutual support, the reserve behind, today's single point when the area has nothing |
+| attack | `PlatoonAttack` / `AttackPosition` (`CE-2277`) takes an objective AREA: several buildings and open positions held by the enemy, cleared one after another (the support moving between them), not only `ObjectiveBuilding` | `CE-2277`'s design: the objective is a list of positions in the area, each attacked by §4's phases; the clearing of a building is `ClearBuilding` (`CE-2259`) |
+| both | a single building stays the one-position case of the area | — |
+
 ## 6. The squad plays that serve them, and what each role does
 
 | squad play | 🆕 / ✅ | phases | reports it sends itself (`SendReport`) | its staff adds by the platoon's requirements |
