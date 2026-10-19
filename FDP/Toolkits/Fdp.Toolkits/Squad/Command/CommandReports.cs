@@ -91,6 +91,10 @@ namespace Fdp.Toolkit.Squad.Command
         Sniper = 2,
         AntiTank = 4,
         Vehicle = 8,
+        /// <summary>⭐ <c>CE-2309</c> (HQ-1) — a mortar or a gun: a heavy weapon's launch heard far off.</summary>
+        IndirectFire = 16,
+        /// <summary>⭐ <c>CE-2309</c> (HQ-2) — it can fire at aircraft (a ZU-23, a MANPADS team).</summary>
+        AirDefence = 32,
     }
 
     /// <summary>⭐ <c>CE-2291</c> — a status colour (SITREP strength / ammo, CB-37): GREEN full … BLACK combat ineffective.</summary>

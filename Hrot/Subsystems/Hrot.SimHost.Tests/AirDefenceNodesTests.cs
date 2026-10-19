@@ -95,6 +95,21 @@ namespace Hrot.SimHost.Tests
             Assert.True(AirDefenceNodes.CanEngageAir(_w, m2, 70f), "a 70° gun counts once the threshold allows it");
         }
 
+        /// <summary>⭐ <c>CE-2309</c> (HQ-2, Command Chain §8d) — the staff's SPOT reads the SAME rule (moved to the toolkit,
+        /// <c>AirDefenceWeapons</c>): the ZU-23 technical and an Igla team flag AirDefence; the DShK technical and a rifleman do not. (The
+        /// Vehicle flag is the staff suite's rail: this world gives its types no kinematics.) ✅ Red-proof: the SPOT's air-defence flag not
+        /// read ⇒ the ZU-23 has none.</summary>
+        [Fact]
+        public void CE2309_ASpotSaysWhatItSaw_TheZu23AndTheIglaAreAirDefence()
+        {
+            var A = Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence;
+            bool Air(long type, float x) => (Fdp.Toolkit.Squad.Command.StaffComposerSystem.EquipmentOf(_w, Place(type, new Vector3(x, 0, 0))) & A) != 0;
+            Assert.True(Air(TkbEntityTypes.Technical_Zu23, 0));
+            Assert.True(Air(TkbEntityTypes.Infantry_IglaGunner, 10));
+            Assert.False(Air(TkbEntityTypes.Technical_Dshk, 20));
+            Assert.False(Air(TkbEntityTypes.Infantry_Rifleman, 30));
+        }
+
         /// <summary>An aircraft in the unit's memory, seen at this tick.</summary>
         private unsafe void Remember(Entity unit, Entity aircraft, Vector3 at, uint tick)
         {

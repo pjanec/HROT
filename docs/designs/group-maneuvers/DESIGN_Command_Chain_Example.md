@@ -693,3 +693,106 @@ it: a live demo (folds into `pc-defend-house`, step 7), the attack's Answer.
 | ⚠ two requests back to back: the reserve is re-ordered to its post, then at once to the second casevac | the return and the answer are separate states; the churn is one extra order per request, accepted |
 
 Rails `SquadManeuverTests.CE2305_RQ1_*`, `CE2305_RQ3_*` ×2 — mutants: see the tracker row. ⛔ Not live yet (`pc-defend-house`, step 7).
+
+## 8d. The headquarters — FireSupport and Reinforce answered with support assets *(`CE-2309`…`CE-2312`, behaviors, 2026-10-19 — Urban Battle §4 ①②③, §5 step 6; build-state: DESIGN — leans HQ-1…HQ-9, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `RequestKind\.(FireSupport|Reinforce)` / `Headquarters` / `ArmedSearch` over
+`FDP/Toolkits` and `Hrot.AI.Behaviors` ⇒ only the enum values; reads of `StaffSystems.cs`, `CommandComponents.cs`, `CommandReports.cs`
+(`ElementEquipment` = MG · Sniper · AT · Vehicle, **never set by the composer**), `SoundContactEvent` (it reaches the brain node with its
+`SourceClass`, `AudioTargetDetectedIngressTranslator`), `AirDefenceNodes.CanEngageAir`, `AirOrderNodes.FlyTo`, `AirAttackNodes.Run`
+(an entity attack succeeds when the entity is destroyed), `DroneTargets.Pick`, `CommandOrders.StillRunning`, `Locomotions.Of`; the corpus:
+Urban Battle §1 beats 4–8, §3 route B, §4; backend's `NOTE_Backend_To_Behaviors_Urban_Battle_Data` (BR-14: a mortar's launch carries 1.5–2.5
+km, R-3023: a soldier hears it past his ear range)):** a soldier now HEARS a mortar's launch far off, ⛔ but nothing turns it into a report;
+an element's equipment is never filled in; ⛔ nothing sends FireSupport or Reinforce, and ⛔ nothing answers them; an aircraft strikes a
+named POINT or ENTITY, ⛔ it cannot search an area for targets.
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposerSystem { <<EXTENDED>> ComposeSpot: + Equipment (Vehicle, AirDefence) · ComposeLaunch: a heard heavy launch ⇒ SPOT IndirectFire · ComposeSupport: REQUEST FireSupport / Reinforce · relay up }
+  class ElementEquipment { <<EXTENDED>> + IndirectFire = 16 · AirDefence = 32 }
+  class AirDefenceWeapons { <<MOVED to Fdp.Toolkits/Combat>> CanEngageAir(world, unit, minElevation) — AirDefenceNodes forwards }
+  class ReportOutbox { <<EXTENDED>> + the support asks' memory }
+  class SupportCommand { <<NEW library HSM-free BTree, Hrot.AI.Behaviors>> the HQ's task: answer FireSupport, Reinforce }
+  class AssetKinds { <<NEW static>> attack helicopter · strike plane · battery · ground unit, free or busy }
+  class AirArmedSearch { <<NEW library, aircraft>> fly there, pick from its memory, attack, repeat; quiet ⇒ Success }
+  class AirAttackNodes { <<existing>> Run on an ENTITY }
+  class DroneTargets { <<existing>> Pick(centre, radius) }
+  class CommandOrders { <<existing>> Assign · StillRunning }
+  StaffComposerSystem ..> ElementEquipment
+  StaffComposerSystem ..> AirDefenceWeapons
+  StaffComposerSystem --> ReportOutbox
+  SupportCommand ..> AssetKinds
+  SupportCommand ..> CommandOrders : orders · busy
+  SupportCommand ..> AirArmedSearch : the helicopter
+  AirArmedSearch ..> DroneTargets
+  AirArmedSearch ..> AirAttackNodes
+```
+*What the picture shows that prose hid:* route B is three report rules in the SENDER's staff (hear → SPOT, see the flags, ask) and one
+new commander play; the assets run behaviours that exist (strike, battery fire mission) plus one (armed search) built on the aircraft
+attack that exists.
+
+```mermaid
+sequenceDiagram
+  participant M as a soldier
+  participant SQ as his squad's staff
+  participant PL as the platoon (staff + picture)
+  participant HQ as the headquarters (SupportCommand)
+  participant A10 as strike plane
+  participant AH as attack helicopter
+  M->>M: hears a heavy launch 1.2 km off (SoundContactEvent, HeavyWeapon)
+  SQ->>PL: SPOT IndirectFire at the estimate
+  PL->>HQ: SPOT relayed (IndirectFire) · REQUEST FireSupport at it
+  PL->>HQ: (earlier) SPOT relayed: a ZU-23 (AirDefence) near it
+  HQ->>A10: AirPlatformStrike the AirDefence element
+  HQ->>HQ: the request waits while that element is fresh
+  HQ->>AH: AirArmedSearch the request point
+  HQ->>PL: answered (the request leaves the picture)
+  AH->>AH: picks the mortar team it sees, attacks, picks again, quiet ⇒ done
+```
+*What the picture shows that prose hid:* the headquarters never sees the mortar — only a reported point and a flag — and nothing goes to
+it on a clock: every arrow into an asset follows a report.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HQT[HQ task: SupportCommand]
+  STAFF[StaffComposerSystem — before the brain tick] -->|SoundContactEvent, picture| OUT[ReportOutbox → SquadReportNotification]
+  OUT --> IN[StaffInboxSystem] --> PIC[(CommandPicture — platoon, HQ)]
+  PIC --> HQT
+  HQT -->|AssignTacticalIntentEvent| ASSETS[asset brains: AirArmedSearch · AirPlatformStrike · ArtilleryUnitStrike · SquadDefend / PlatoonDefend]
+```
+*Caption:* nothing new is scheduled — one more composer rule set before the brain tick, one more task on the HQ's brain.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **HQ-1** | **a heard launch is a SPOT** (② `CE-2309`): the composer reads this frame's `SoundContactEvent`s; a SHOT of class `HeavyWeapon` heard by one of its members from **≥ 1000 m** ⇒ SPOT {the estimate, its radius, Count 1, Equipment `IndirectFire`}, once per 30 s within 150 m of the last one. 📐 Why 1000 m: BR-14 gives the HMG (1 km), the ZU-23 (1.5 km), the launchers and the tubes ONE class, `HeavyWeapon` — beyond 1 km only the ZU-23's cannon and the tubes are heard ⇒ ⚠ a ZU-23 firing 1–1.5 km off reads as a mortar (a distinct `Artillery` class would end it — a backend data question, noted) | the battery's ground truth: the point is that it is HEARD · ≥ 300 m: every HMG in the fight would be a mortar · counter-battery radar (IF-6): later |
+| **HQ-2** | **a SPOT says what it saw** (② `CE-2309`): the element's Equipment ORs, over its IDENTIFIED contacts, `Vehicle` (`VehicleCover.IsVehicle`) and `AirDefence` (`AirDefenceWeapons.CanEngageAir` at 80°, moved to the toolkit from `AirDefenceNodes`, which forwards) | flags read off unidentified sounds: a heard engine is not a ZU-23 |
+| **HQ-3** | **the platoon relays what support needs** (① `CE-2310`): a commander with a superior relays every picture element flagged `IndirectFire` or `AirDefence` as its own SPOT (once per element place, 150 m) — not every element: the HQ needs only these | relay the whole picture: the HQ's eight element slots fill with infantry it does nothing about |
+| **HQ-4** | **FireSupport is asked** (① `CE-2310`): a commander with a superior whose picture holds a fresh (60 s) `IndirectFire` element ⇒ REQUEST FireSupport at it, once per 120 s within 300 m | every element: the HQ would fire on every rifleman |
+| **HQ-5** | **Reinforce is asked** (① `CE-2310`): its strength (`StrengthOf`) Red or worse while its picture holds a fresh element within 300 m ⇒ REQUEST Reinforce at its own position, once per 180 s | on Black only: too late to help |
+| **HQ-6** | **the headquarters** (① `CE-2312`): a library task `SupportCommand` on a body-less HQ unit whose roster holds the platoons and the ASSETS; an asset is BUSY while it still runs the order the HQ gave it (`CommandOrders.StillRunning`) | a new unit type: any commander may run it · a "busy" bit set and cleared by reports: an aircraft has no staff and sends none |
+| **HQ-7** | **FireSupport's answer**: an `AirDefence` element fresh within 2 km of the point and a free strike PLANE ⇒ the plane `AirPlatformStrike`s that element first, the request waits while it stays fresh; then a free attack HELICOPTER ⇒ `AirArmedSearch` the point; else a free BATTERY ⇒ `ArtilleryUnitStrike` fire for effect on it; else it waits | the battery first: a mortar team moves after its first rounds; the helicopter searches · ignore the air defence: Urban Battle beat 6 |
+| **HQ-8** | **Reinforce's answer**: a free ground unit (not the requester) ⇒ `PlatoonDefend` / `SquadDefend` {the request's point, 60 / 40 m} — it joins the defence there | an air assault: the landing is a mission of its own (built, `ua-air-assault`), for a later rung |
+| **HQ-9** | **armed search** (③ `CE-2311`): library `AirArmedSearch {Location, RadiusM 400, QuietSeconds 60, HeightAgl 150}` — `FlyTo` the point; on the way and over it, `DroneTargets.Pick` its own memory within the radius; a pick ⇒ `AirAttackNodes.Run` on it until destroyed, then pick again; nothing for `QuietSeconds` over the point ⇒ Success; no weapon left ⇒ Failure | a point strike: a reported mortar point is wrong by 100 m and the team moves |
+
+### 8d-a. As built *(2026-10-19 — the diagrams above hold; `CE-2309`, `CE-2310`)*
+
+| piece | where | as built |
+|---|---|---|
+| the launch SPOT (HQ-1) | `StaffComposerSystem.ComposeLaunch` + `IsLaunch` | this frame's `SoundContactEvent`s, grouped by the listener's commander; Shot · `HeavyWeapon` · ≥ `LaunchHeardMetres` (1000) ⇒ SPOT {estimate, radius, Count 1, Individual, `IndirectFire`}; once per 30 s within 150 m (`ReportOutbox.LaunchAt`) |
+| the SPOT's flags (HQ-2) | `StaffComposerSystem.EquipmentOf` · `AirDefenceWeapons` (MOVED to `Fdp.Toolkits/Combat`; `AirDefenceNodes.CanEngageAir` forwards) | ORed over IDENTIFIED pool contacts: `Vehicle`, `AirDefence` (80°); a change of flags is news (`ReportOutbox.SpotEquipment`) |
+| the relay (HQ-3) | `StaffComposerSystem.ComposeSupport` → `Relay` | picture elements flagged `IndirectFire` / `AirDefence`, fresh 60 s, SPOTted up with their OWN `ObservedAt`, once per flag within 150 m (`ReportOutbox.Relayed`, a fixed list of 4) |
+| FireSupport (HQ-4) | same | the first fresh `IndirectFire` element ⇒ REQUEST FireSupport at it; again only after 120 s or 300 m off (`SupportAskedAt`/`Time`) |
+| Reinforce (HQ-5) | same | `StrengthOf` Red / Black AND a fresh (30 s) element within 300 m of `CentreOf` (its position, else its members' middle) ⇒ REQUEST Reinforce at `CentreOf`; once per 180 s |
+
+⚠ **Choices the leans did not settle:** the launch distance is 1000 m (the HQ-1 row, measured on BR-14's figures); the relay keeps the
+element's observation time, so a superior ages it as its sender does; the composer runs ComposeSupport for every commander that HAS a picture,
+so a squad (no picture) never asks.
+
+Rails (the staff suite, `SquadManeuverTests`): `CE2309_AHeavyLaunchHeardFarOff_*`, `CE2309_ASpotOfAVehicle_*`,
+`AirDefenceNodesTests.CE2309_ASpotSaysWhatItSaw_*`, `CE2310_APlatoonRelays*`, `CE2310_APlatoonDownToOneSquad_*` — mutants: see the tracker rows.
+
+**Slices.** `CE-2309` (HQ-1, HQ-2) → `CE-2310` (HQ-3…HQ-5) → `CE-2311` (HQ-9) → `CE-2312` (HQ-6…HQ-8). Rails in the staff suite (the
+composer's SPOT and REQUESTs), the air suite (the armed search), the platoon suite (the HQ). ⛔ Not in them: an air-assault answer, Casevac by
+air, the live rung (the demo ladder, step 8).
+

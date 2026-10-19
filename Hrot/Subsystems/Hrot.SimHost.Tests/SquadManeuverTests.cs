@@ -1600,6 +1600,64 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, c.Picture.Elements.Count);                                   // lost
         }
 
+        /// <summary>A sound one of <paramref name="c"/>'s men hears, as the acoustic sensor's answer reaches the brain.</summary>
+        private static void Hear(Chain c, Vector3 at, Fdp.Toolkit.Tkb.Domain.SoundSourceClass what,
+                                 Fdp.Toolkit.Perception.Signatures.SoundKind kind = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot)
+        {
+            if (!c.S.Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
+                c.S.Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
+            c.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SoundContactEvent
+            {
+                Observer = c.S.Members[0], X = at.X, Y = at.Y, Z = at.Z, Radius = 80f, Kind = (byte)kind, SourceClass = (byte)what,
+            });
+        }
+
+        /// <summary>⭐⭐ <c>CE-2309</c> (HQ-1, Command Chain §8d) — a heavy weapon's shot heard 1.2 km off is a LAUNCH: after the report delay
+        /// the platoon's picture holds one element there, Count 1, flagged IndirectFire, the estimate's radius; the same launch again (60 m off,
+        /// 5 s later) adds nothing; a heavy weapon heard 600 m off (an HMG), small arms 1.2 km off and a heavy DETONATION are no launch.
+        /// ✅ Red-proofs: the distance test dropped ⇒ the 600 m HMG is a launch · the class test dropped ⇒ the rifles · the kind test dropped ⇒
+        /// the blast · the same-launch memory dropped ⇒ two elements.</summary>
+        [Fact]
+        public void CE2309_AHeavyLaunchHeardFarOff_IsSpottedAsIndirectFire_OnceNotNearOrSmall()
+        {
+            var c = new Chain(members: 3);
+            var near = c.S.Repo.GetComponentRO<SimTransform>(c.S.Members[0]).Position;
+            Hear(c, near + new Vector3(0f, 600f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);                  // an HMG
+            Hear(c, near + new Vector3(0f, -1200f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms);                  // rifles
+            Hear(c, near + new Vector3(1200f, 0f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon,
+                 Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation);                                                    // a burst
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Picture.Elements.Count);
+
+            var launch = near + new Vector3(-900f, 800f, 0f);
+            Hear(c, launch, Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            var pic = c.Picture;
+            Assert.Equal(1, pic.Elements.Count);
+            var e = pic.Elements.Items[0];
+            Assert.Equal((Fdp.Toolkit.Squad.Command.ElementEquipment.IndirectFire, (byte)1, 80f), (e.Equipment, e.Count, e.Radius));
+            Assert.True(Vector3.Distance(e.At, launch) < 0.01f);
+            c.S.Pause(5.0);
+            Hear(c, launch + new Vector3(60f, 0f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Picture.Elements.Count);
+        }
+
+        /// <summary>⭐ <c>CE-2309</c> (HQ-2) — a SPOT says what it saw: an identified vehicle in the pool flags the element Vehicle; a man
+        /// does not. ✅ Red-proof: the identified contacts' equipment not read ⇒ no flag.</summary>
+        [Fact]
+        public void CE2309_ASpotOfAVehicle_IsFlaggedVehicle()
+        {
+            var c = new Chain(members: 3);
+            if (!c.S.Repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) c.S.Repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            var truck = c.S.Repo.CreateEntity();
+            c.S.Repo.AddComponent(truck, new SimTransform { Position = new Vector3(0f, 200f, 0f), Rotation = Quaternion.Identity });
+            c.S.Repo.AddComponent(truck, new global::CarKinem.Core.VehicleState());
+            c.S.Pool(truck, new Vector3(0f, 200f, 0f), reporters: 1);
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle, c.Picture.Elements.Items[0].Equipment);
+        }
+
         private static void MoveAll(Squad s, Vector3 at)
         {
             ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
@@ -2917,6 +2975,95 @@ namespace Hrot.SimHost.Tests
             => p.Report(from, new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Sitrep, Strength = strength });
 
         private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
+
+        // ── CE-2310 — what a platoon sends up for SUPPORT (Command Chain §8d HQ-3…HQ-5) ──────────────────────────────────────
+
+        /// <summary>The platoon under a body-less HQ; its staff's composer runs each frame with the harness.</summary>
+        private static (Platoon P, Entity Hq, Fdp.Toolkit.Squad.Command.StaffComposerSystem Composer) UnderHq(int squads = 2)
+        {
+            var p = new Platoon(squads);
+            var hq = p.S.Repo.CreateEntity();
+            p.S.Repo.AddComponent(hq, new UnitEntity());
+            var roster = new UnitRoster();
+            UnitRoster.Add(ref roster, p.S.Commander);
+            p.S.Repo.AddComponent(hq, roster);
+            if (p.S.Repo.HasComponent<UnitSubordinate>(p.S.Commander)) p.S.Repo.GetComponentRW<UnitSubordinate>(p.S.Commander).Commander = hq;
+            else p.S.Repo.AddComponent(p.S.Commander, new UnitSubordinate { Commander = hq });
+            return (p, hq, new Fdp.Toolkit.Squad.Command.StaffComposerSystem());
+        }
+
+        private static void Run(Platoon p, Fdp.Toolkit.Squad.Command.StaffComposerSystem composer, int ticks)
+        {
+            for (int i = 0; i < ticks; i++) { p.Tick(); composer.Execute(p.S.Repo, 0.016f); }
+        }
+
+        private static Fdp.Toolkit.Squad.Command.CommandPicture PictureOf(Platoon p, Entity unit)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(unit) ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(unit) : default;
+
+        private static void ReportFlagged(Platoon p, Entity from, Vector3 at, Fdp.Toolkit.Squad.Command.ElementEquipment flags)
+            => p.Report(from, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = at, Count = 1, Size = Fdp.Toolkit.Squad.Command.ElementSize.Individual, Equipment = flags,
+            });
+
+        /// <summary>⭐⭐ <c>CE-2310</c> (HQ-3, HQ-4) — a squad reports a mortar (IndirectFire) 1.2 km off: the platoon relays it up and asks its
+        /// HQ for FIRE SUPPORT on it — once, however often the squad re-reports it; an AirDefence element is relayed too; a plain rifle team is
+        /// not. ✅ Red-proofs: the relay's flag test dropped ⇒ the rifle team is relayed · the ask's memory dropped ⇒ a second request · the
+        /// IndirectFire test dropped from the ask ⇒ the ZU-23 is asked fire on too.</summary>
+        [Fact]
+        public void CE2310_APlatoonRelaysTheMortarAndTheAirDefence_AndAsksFireSupportOnTheMortar_Once()
+        {
+            var (p, hq, composer) = UnderHq();
+            var mortar = new Vector3(0f, 1200f, 0f);
+            ReportFlagged(p, p.Bravo, new Vector3(-300f, 200f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.NoEquipment);   // first in the picture
+            ReportFlagged(p, p.Bravo, new Vector3(400f, 1300f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence | Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle);
+            ReportFlagged(p, p.Alpha, mortar, Fdp.Toolkit.Squad.Command.ElementEquipment.IndirectFire);
+            Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            var pic = PictureOf(p, hq);
+            Assert.Equal(2, pic.Elements.Count);                                       // the mortar and the ZU-23, not the rifles
+            var request = Assert.Single(Requests(pic));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, request.Kind);
+            Assert.True(Vector3.Distance(request.At, mortar) < 0.01f);
+            for (int i = 0; i < 3; i++)
+            {
+                p.S.Pause(10.0);
+                ReportFlagged(p, p.Alpha, mortar + new Vector3(20f, 0f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.IndirectFire);
+                Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            }
+            Assert.Single(Requests(PictureOf(p, hq)));                                 // once
+            Assert.Equal(2, PictureOf(p, hq).Elements.Count);
+        }
+
+        private static Fdp.Toolkit.Squad.Command.PendingRequest[] Requests(in Fdp.Toolkit.Squad.Command.CommandPicture pic)
+        {
+            var list = new Fdp.Toolkit.Squad.Command.PendingRequest[pic.Requests.Count];
+            for (int i = 0; i < list.Length; i++) list[i] = pic.Requests.Items[i];
+            return list;
+        }
+
+        /// <summary>⭐ <c>CE-2310</c> (HQ-5) — a platoon down to one squad of three asks its HQ to be REINFORCED — only with an enemy element
+        /// near, and once. ✅ Red-proofs: the strength test dropped ⇒ a full platoon asks · the contact test dropped ⇒ it asks with nothing near
+        /// · the memory dropped ⇒ two requests.</summary>
+        [Fact]
+        public void CE2310_APlatoonDownToOneSquad_WithTheEnemyNear_AsksToBeReinforced_Once()
+        {
+            var (p, hq, composer) = UnderHq(squads: 3);
+            ReportFlagged(p, p.Alpha, p.S.Repo.GetComponentRO<SimTransform>(p.Alpha).Position + new Vector3(0f, 150f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.NoEquipment);
+            Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            Assert.Empty(Requests(PictureOf(p, hq)));                                  // at full strength: no ask
+            p.S.Repo.DestroyEntity(p.Bravo);
+            p.S.Repo.DestroyEntity(p.Charlie);
+            p.S.Pause(40.0);                                                          // that element is old now: nothing near
+            ReportFlagged(p, p.Alpha, p.S.Repo.GetComponentRO<SimTransform>(p.Alpha).Position + new Vector3(0f, 900f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.NoEquipment);
+            Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            Assert.Empty(Requests(PictureOf(p, hq)));                                  // down, but the enemy 900 m off: no ask
+            ReportFlagged(p, p.Alpha, p.S.Repo.GetComponentRO<SimTransform>(p.Alpha).Position + new Vector3(0f, 150f, 0f), Fdp.Toolkit.Squad.Command.ElementEquipment.NoEquipment);
+            Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            var request = Assert.Single(Requests(PictureOf(p, hq)));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, request.Kind);
+            p.S.Pause(20.0); Run(p, composer, 3); p.S.Pause(3.1); Run(p, composer, 3);
+            Assert.Single(Requests(PictureOf(p, hq)));                                 // once
+        }
 
         // ── CE-2305 — the request round trip, Casevac first (Command Chain §8c) ──────────────────────────────────────────────
 

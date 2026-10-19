@@ -1547,6 +1547,101 @@ the first contact as before — the safe side (it does not hold for ever); the t
 Rails `TriggerIedBehaviorTests` ×3 (in `StationWeaponBehaviorTests.cs`, its `World`) · `SquadManeuverTests.CE2306_AnAmbush_*` — mutants: see
 the tracker row (7/7 killed). ⛔ Not live yet.
 
+### 8f. DA-F in detail — `PlatoonAttack`, the platoon attacks an AREA *(`CE-2277`, behaviors, 2026-10-19 — Urban Battle §5 step 7, R-2060's area rule; build-state: DESIGN — leans AT-1…AT-12, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `PlatoonAttack|AttackPosition|AttackBuilding` over `Hrot/` ⇒ none; reads of
+`PlatoonDefendBehavior.cs` (the two-region HSM, `KeepDefence` the one order writer, the area survey of E-4), `ClearBuildingBehavior.cs`
+(Foothold · RoomClear · BuildingClear, CE-2259), `SquadDefendBehavior.cs` (posts, sector, PROGRESS Set), `BoundingOverwatchBehavior.cs`,
+`FireAndMovement`, `SuppressAndManeuver`, `BreakContact {To}`, `BattlePositions`, `CommandOrders`, the picture guards; the corpus: Platoon §4
+(the phases and the control region, approved PC-1…PC-13), DA-9…DA-11, §10 presets (R-2035), Platoon §5a (the area, R-2060)):** every
+squad play the attack's phases name EXISTS except `SupportByFire`, `Approach` and `FollowAndSupport` — and each of those three is an existing
+play given the right order: a squad holding posts that face the objective IS a base of fire (`SquadDefend` + its sector + FireAtWill), a
+bounding approach IS `BoundingOverwatch` to the assault position, a follow IS a bound one position behind. ⇒ the attack is ONE platoon
+HSM over plays that exist, in the shape `PlatoonDefend` already proved.
+
+```mermaid
+classDiagram
+  direction LR
+  class PlatoonAttack { <<NEW HSM, Brains/PlatoonAttackBehavior.cs>> region 0 the phases · region 1 the control }
+  class PlatoonAttackPlan { <<NEW>> objectives (≤ 6) · roles per slot · the current objective · its support / assault points }
+  class AttackObjectives { <<NEW static, pure>> Plan(answer, picture, area): enemy elements in the area grouped by building, then the area's buildings }
+  class KeepAttack { <<NEW, the one order writer>> each slot's order for the phase }
+  class SquadDefend { <<existing>> the base of fire (sector on the objective, FireAtWill) · the consolidation }
+  class BoundingOverwatch { <<existing>> the approach · the follow }
+  class ClearBuilding { <<existing CE-2259>> Foothold · RoomClear · BuildingClear }
+  class FireAndMovement { <<existing>> the assault through an open position }
+  class BreakContact { <<existing>> the abort }
+  class CommandPicture { <<existing>> PROGRESS · SITREP · elements · requests }
+  PlatoonAttack --> PlatoonAttackPlan
+  PlatoonAttack ..> AttackObjectives : Plan
+  PlatoonAttack ..> KeepAttack
+  KeepAttack ..> SquadDefend
+  KeepAttack ..> BoundingOverwatch
+  KeepAttack ..> ClearBuilding
+  KeepAttack ..> FireAndMovement
+  KeepAttack ..> BreakContact
+  PlatoonAttack ..> CommandPicture : guards
+```
+*What the picture shows that prose hid:* nothing new below the platoon — the three "new" squad plays of Platoon §6 are orders to plays that
+exist; the new code is the plan, the objective list and one order writer, as in `PlatoonDefend`.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "PlatoonAttack" as PA {
+    state "phases" as PH {
+      [*] --> APlan
+      APlan --> ASupport : objectives listed
+      ASupport --> AApproach : support Set (base of fire up)
+      AApproach --> AAssault : assault Set (at the assault position)
+      AAssault --> ANext : BuildingClear, or Set (assault through)
+      ANext --> ASupport : another objective
+      ANext --> AConsolidate : the last one
+      AConsolidate --> AWon : every squad Set
+    }
+    --
+    state "control" as CT {
+      [*] --> AWatch
+      AWatch --> ARelieve : the assault Black, a reserve free
+      ARelieve --> AWatch
+      AWatch --> AAnswer : a Casevac, a reserve free
+      AAnswer --> AWatch
+      AWatch --> AAbort : the assault Black, no reserve
+    }
+  }
+```
+*What the picture shows that prose hid:* the area is a LOOP over objectives — support, approach, assault, next — so one building and a
+whole quarter are the same machine; the lift of fire is the support's order changing at AAssault's entry, not a state of its own (v1).
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> PT[platoon task: PlatoonAttack, two regions]
+  PT -->|AssignTacticalIntentEvent + SetEngagementAreaEvent + SetRoeEvent| SQ[squad tasks: SquadDefend · BoundingOverwatch · ClearBuilding · FireAndMovement · BreakContact]
+  SQ -->|PROGRESS · SITREP · SPOT| STAFF[staff → CommandPicture]
+  STAFF --> PT
+  SH[SimHost perception] -->|BuildingSurvey of the area| PT
+```
+*Caption:* the same modules as `PlatoonDefend`: one more task on the platoon's brain, its squads' plays unchanged.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **AT-1** | ⭐ **one HSM `PlatoonAttack {Position, SearchRadius, Preset, Speed}`** — two regions (PC-1); presets (R-2035): `AttackPosition` (default: open positions assaulted through, buildings cleared), `ClearBuilding` (no support phase — PL-1) | four assets: Platoon PC-2 · an `ISquadPlay`: Platoon PC-1 |
+| **AT-2** | ⭐ **the objectives of an AREA** (R-2060): one `BuildingSurvey` of the area (E-4's ask); every fresh enemy element of the picture inside the area is an objective — inside a surveyed building ⇒ that building (cleared), else its own point (assaulted through); several in one building are one objective; ordered nearest the platoon first; ≤ 6. No element known ⇒ the area's enterable buildings, nearest first (a sweep) | the order names the buildings: an area order would need a list the author cannot know · one objective: R-2060 |
+| **AT-3** | ⭐ **roles at the plan** (PC-9, v1): 1 squad ⇒ assault only · 2 ⇒ assault + support · 3+ ⇒ assault (slot 0), support (slot 1), reserve (the rest); a relief swaps the assault and a reserve | by SITREP strength at the plan: the first SITREP comes 15 s in |
+| **AT-4** | ⭐ **the base of fire**: the support `SquadDefend`s a point 120 m from the objective toward the platoon, its sector the objective ± 25°, FireAtWill; its Set opens the approach | a new `SupportByFire` play: `SquadDefend` already mans posts that face a sector and fires in it |
+| **AT-5** | ⭐ **the approach** (DA-10 v1): the assault `BoundingOverwatch`es to a point 40 m from the objective, 70° round from the support's line toward the side with FEWER reported elements (left when even); the reserve bounds to 60 m behind it; the assault's Set opens the assault | the frontal line: the support would fire across the assault · a path-exposure planner: DA-10's v2 |
+| **AT-6** | ⭐ **the lift** (DA-11 v1): at the assault's start the support's ROE becomes `ReturnFire` — it stops suppressing the objective it is about to enter, still answers fire at itself; at the next objective it is FireAtWill again | a NoFire area over the entry face: Platoon PC-7 — the NoFire writer is DA-L's next step; ReturnFire is the safe half now |
+| **AT-7** | ⭐ **the assault**: a building ⇒ `ClearBuilding {the building's point}` (its BuildingClear ends it); an open position ⇒ `FireAndMovement {to the point}` (its Set ends it); a building the clearing reports Blocked ⇒ the next objective | `SuppressAndManeuver` for the open point: it re-finds its target from contacts; the point is known |
+| **AT-8** | ⭐ **consolidation**: every squad `SquadDefend`s round the last objective (60 m, the platoon's own sector), each line's Set ⇒ the run succeeds | the task ends at the last BuildingClear: nobody holds what was taken |
+| **AT-9** | ⭐ **relief** (Platoon §4 Relieve): the assault reports SITREP Black and a reserve is free ⇒ they swap roles; the new assault gets the current phase's order | re-plan: the objective list is still right |
+| **AT-10** | ⭐ **abort**: the assault Black and no reserve left ⇒ every squad `BreakContact {To: the platoon's start}`; the run fails | fight on to the last man: no commander does |
+| **AT-11** | ⭐ **the Casevac answer** (RQ-6): the same as `PlatoonDefend`'s DAnswer — a free reserve `SquadRecover`s to its own point; back on its Set | a second answer path: one rule, two plays — the shared part moves to one helper |
+| **AT-12** | ⭐ **one order writer** (`KeepAttack`, as `KeepDefence`): a slot whose order of THIS phase does not stand, or that is marked dirty, is ordered again — so a squad a reaction took is re-ordered wherever the plan stands | orders in each state's entry: a squad whose order a reaction replaced would never get it back |
+
+**Slice.** AT-1…AT-12 in one build, rails in the platoon suite (the Platoon harness, faked reports — Platoon §12.2 stage A); then the
+live `pc-attack-dry` and `pc-defend-house` (step 7's demos). ⛔ Not in it: smoke (DA-G), the counter-sniper (DA-H), the NoFire lift
+(PC-7's full form), `ReactToFireFromBuilding` (DA-N), a Veteran's second axis.
+
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
 | demo | cast | must end with |
