@@ -45,6 +45,7 @@ namespace Hrot.SimHost.Tests
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
             private readonly RecentSensesSystem _senses = new();   // ⭐ CE-2123 S2 — the squad edges reach the leader's SOP
+            private readonly Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem _sectors = new();   // ⭐ CE-2302 — the runner's arcs land
             private double _time;
             private long _frame;
             public readonly List<AssignTacticalIntentEvent> Orders = new();
@@ -95,6 +96,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
+                _sectors.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
@@ -2726,6 +2728,46 @@ namespace Hrot.SimHost.Tests
                 Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, Fdp.Toolkit.Squad.Primitives.PhaseEventKind.FarSideReached,
             }, events.Take(4).ToArray());
         }
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-33) — each near-side security man gets HIS side of the road as his sector (an arc of
+        /// ±45° from his spot, origin Superior — `DangerCrossingPlay`); the queue gets none; a security man ordered across loses his; leaving the play (the
+        /// task cleared — the deactivator's <c>Leave</c>) withdraws every one the play gave. 📄 Defend &amp; Attack §13a-1.</summary>
+        [Fact]
+        public void CE2302_DangerCrossing_EachSecurityManCoversHisSideOfTheRoad_UntilHeCrosses()
+        {
+            var s = Crossing();
+            s.Tick();                                                                   // the issue's sector events land
+            var orders = s.LastOrders();
+            var security = s.Members.Skip(3).ToArray();
+            for (int r = 0; r < security.Length; r++)
+            {
+                var a = Sector(s, security[r]);
+                Assert.Equal(1, a.ArcSet);
+                Assert.Equal(BehaviorOrigin.Superior, a.SetBy);
+                Assert.Equal(orders[security[r]].Objective, a.ArcOrigin);              // from his spot
+                // the crossing runs north (+Y): rank 0 stands west of it and covers the west, rank 1 the east
+                float centre = r % 2 == 0 ? 270f : 90f;
+                Assert.Equal(centre - DangerCrossingPlay.SecurityArcHalfWidth, a.LeftBearing, 0.01f);
+                Assert.Equal(centre + DangerCrossingPlay.SecurityArcHalfWidth, a.RightBearing, 0.01f);
+            }
+            foreach (var m in s.Members.Take(3)) Assert.Equal(0, Sector(s, m).ArcSet);   // the queue waits with no sector
+
+            Arrive(s, 3, 4, 5); Arrive(s, 0, 1); Arrive(s, 2); Arrive(s, 0, 1, 2);     // across; security collapses by pairs
+            Assert.Equal(DangerAreaCrossingManeuver.PhaseCollapseSecurity, s.Phase);
+            s.Tick();
+            Assert.Equal(0, Sector(s, s.Members[3]).ArcSet);                           // ordered across: his sector is withdrawn
+            Assert.Equal(1, Sector(s, s.Members[5]).ArcSet);                           // the last one still watches
+
+            // the task CLEARED (no squad play follows to re-issue): only the deactivator's Leave can withdraw the last man's sector
+            s.Repo.Bus.Publish(new ClearBehaviorEvent { Entity = s.Commander, Origin = BehaviorOrigin.Superior });
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.NotEqual(BehaviorNames.SquadDangerCrossing, s.TaskName);
+            foreach (var m in s.Members) Assert.Equal(0, Sector(s, m).ArcSet);
+        }
+
+        private static Fdp.Toolkit.Behavior.Components.EngagementArea Sector(Squad s, Entity m)
+            => s.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>(m)
+                ? s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(m) : default;
 
         /// <summary>⭐ X-b — no area on the commander's sensor ⇒ nothing to cross: the drill fails at once (the SOP row never asks then).</summary>
         [Fact]

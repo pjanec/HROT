@@ -72,6 +72,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 {
                     Entity = e.Member, Kind = TacticalIntentKind.Clear, IntentId = e.Behavior, Origin = e.Origin,
                 });
+                EngagementAreas.WithdrawSuperior(repo, e.Member);   // ⭐ CE-2302 (DA-32) — the sector the run gave him ends with it
                 released++;
             }
             if (released == 0 && n == held.Orders.Length) return 0;

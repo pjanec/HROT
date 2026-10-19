@@ -177,10 +177,12 @@ namespace Hrot.AI.Behaviors.Brains
                     ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = role,
                 };
             int rank = Rank(in ctx, member, element);
+            // ⭐ CE-2302 (DA-33) — a man on a spot beside the crossing line covers HIS side of the road (±45°); the queue waiting
+            //   behind the near side gets none
             if ((p.Across & bit) != 0 || (element == DangerAreaCrossingManeuver.ElementCrossing && phase >= DangerAreaCrossingManeuver.PhaseFarSideCover))
-                return Watch(FarSpot(in p, rank), p.Speed, role);
+                return WithSector(Watch(FarSpot(in p, rank), p.Speed, role), in p, rank);
             return element == DangerAreaCrossingManeuver.ElementSecurity
-                ? Watch(NearSpot(in p, rank), p.Speed, role)
+                ? WithSector(Watch(NearSpot(in p, rank), p.Speed, role), in p, rank)
                 : Watch(WaitSpot(in p, rank), p.Speed, role);
         }
 
@@ -223,6 +225,23 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static Vector3 Reform(in SquadDangerCrossingParams p, in SquadPlayContext ctx, int member)
             => p.Far + Dir(in p) * (p.BeyondMetres + ReformMetres) + Side(in p) * ((member - (ctx.Roster.Count - 1) * 0.5f) * ReformSpacing);
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-33) — the half-width of a security man's arc along his side of the road (degrees).</summary>
+        public const float SecurityArcHalfWidth = 45f;
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-33) — the compass bearing a man on spot <paramref name="rank"/> covers: along the crossing line,
+        /// on the side his spot is (<see cref="Beside"/>'s sign).</summary>
+        public static float SecurityBearing(in SquadDangerCrossingParams p, int rank)
+        {
+            var side = Side(in p) * (rank % 2 == 0 ? 1f : -1f);
+            return LookAt.BearingTo(Vector3.Zero, side);
+        }
+
+        private static MemberOrder WithSector(MemberOrder order, in SquadDangerCrossingParams p, int rank)
+        {
+            order.Sector = MemberArc.Around(SecurityBearing(in p, rank), SecurityArcHalfWidth);
+            return order;
+        }
 
         private static MemberOrder Watch(Vector3 point, float speed, byte role)
             => new() { Kind = MemberOrderKind.Watch, Point = point, Speed = speed, RoleId = role };

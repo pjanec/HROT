@@ -93,6 +93,28 @@ namespace Hrot.AI.Behaviors.Brains
         public byte AnchorIndex;
         /// <summary>⭐ <c>CE-2173</c> slice 3c — <see cref="MemberOrderKind.CarryCasualty"/>: 1 ⇒ keep carrying him at the point.</summary>
         public byte Keep;
+        /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the man's arc of fire from the order's point; the runner sends it as his sector.
+        /// Unset ⇒ a sector a Superior gave him is withdrawn. ⚠ Not <see cref="Arc"/> (FireAtPoint's low / high preference).</summary>
+        public MemberArc Sector;
+    }
+
+    /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
+    /// and a range band (0 = no limit). 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13a-1.</summary>
+    public struct MemberArc
+    {
+        public byte Set;
+        public float LeftBearing;
+        public float RightBearing;
+        public float MinRange;
+        public float MaxRange;
+
+        /// <summary>An arc of ±<paramref name="halfWidth"/> degrees around <paramref name="bearing"/>.</summary>
+        public static MemberArc Around(float bearing, float halfWidth, float maxRange = 0f) => new()
+        {
+            Set = 1, LeftBearing = Norm(bearing - halfWidth), RightBearing = Norm(bearing + halfWidth), MaxRange = maxRange,
+        };
+
+        private static float Norm(float degrees) { degrees %= 360f; return degrees < 0f ? degrees + 360f : degrees; }
     }
 
     /// <summary>
@@ -407,6 +429,21 @@ namespace Hrot.AI.Behaviors.Brains
             return status;
         }
 
+        /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the member's sector from his order: the arc from <paramref name="at"/> (origin
+        /// Superior — the gate keeps an Operator's), or, with none, the withdraw of one a Superior set (DA-32: a man's Superior-set
+        /// sector is his current play's; the commander's run ending withdraws it with his order — <c>SubordinateOrders.Release</c>).</summary>
+        internal static void Sector(EntityRepository world, Entity member, in MemberArc arc, Vector3 at)
+        {
+            if (!world.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
+            if (arc.Set == 0) { EngagementAreas.WithdrawSuperior(world, member); return; }
+            world.Bus.Publish(new SetEngagementAreaEvent
+            {
+                Entity = member, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = at,
+                LeftBearing = arc.LeftBearing, RightBearing = arc.RightBearing, MinRange = arc.MinRange, MaxRange = arc.MaxRange,
+            });
+        }
+
+
         /// <summary>⭐ S2-G — does the squad still hold what this play left there?</summary>
         private static unsafe bool StillOurs(in SquadPlayState ws, in SquadCognitiveState squad)
         {
@@ -451,6 +488,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
                 if (order.Kind == MemberOrderKind.Stay) continue;   // ⭐ CE-1118 H-1 (D-19) — he keeps what he is doing
+                Sector(ctx.World, m, in order.Sector, point);         // ⭐ CE-2302 — his arc, or withdraw a Superior's
                 if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m, in order);
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);

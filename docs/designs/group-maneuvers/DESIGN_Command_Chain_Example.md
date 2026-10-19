@@ -550,5 +550,27 @@ graph TD
 ```
 *What the picture shows that prose hid:* ONE writer of each — the log is filled by the same inbox on every node (a node that owns no
 commander logs the report with verdict `not-owned-here`); the picture is folded only on the owner and every other node gets a copy, so
-no node folds its own (the brain-only `OrderGiven` reset would make copies disagree — ui's rejected ⓑ). The design detail (the
-picture's descriptor and translator, which node registers the inbox) is written when the slice starts.
+no node folds its own (the brain-only `OrderGiven` reset would make copies disagree — ui's rejected ⓑ).
+
+**Detail (2026-10-19, `CE-2301`).** 🔒 User, `2026-10-19`, on whether the commander crosses nodes at all: *"Keep replication, replicate
+the commander picture as well."* (measured: it does — `EntityInfo.CommanderId` resolves the commander through each node's entity map,
+`EntityInfoIngressTranslator.cs:216-249`).
+
+| part | who | how |
+|---|---|---|
+| ① the log on every node | behaviors | measured: the inbox is built only by `CgfLogicPack` (`:247`), so it runs on the plans with a Brain capability (editor ×2, CGF) and NOWHERE on SimHost or IG. ⇒ a cross-role capability `CoreInfrastructureCapabilities.ReportInbox` declared in the plans WITHOUT a brain (SimHost, IG — ExCon keeps no world): one inbox per node, never two. ⛔ Not the `CE-221` move (the pack's inbox out to the tail of every plan): the pack places it BEFORE the brain tick on purpose (*"this frame's guards see it"*, `CgfLogicPack.cs:244`) — at the tail the brain would read every report a frame late. The inbox LOGS every `SquadReportNotification` before its `CommandPicture` guard, and FOLDS only where `CommandPicture` is registered and the commander's `BehaviorState` is owned here (the capability always gates on authority — a replica never folds) |
+| ② the picture replicated | ⭐ **backend** ([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_CommandPicture_Replication.md)) | the Brain-group road `EngagementArea` took (`CE-3261`): descriptor, translator, ownership binding |
+| the gizmo with no copy | ui | "not on this node yet" while the node has no `CommandPicture` for the selected commander |
+
+```mermaid
+graph TD
+  PLAN["the plans with no brain (SimHost · IG)"] -->|declares| RI["CoreInfrastructureCapabilities.ReportInbox"]
+  RI -->|Simulation| SIS["StaffInboxSystem (gate on authority)"]
+  CGF["CgfLogicPack (editor ×2 · CGF — the brain plans)"] -->|keeps its own| SIS
+  ING["SquadReportIngressTranslator (SharedTranslatorPack — every node)"] -->|SquadReportNotification| SIS
+  SIS --> LOG["SquadReportLog (every node)"]
+  SIS -->|owner only| CP["CommandPicture (fold)"]
+```
+*What the picture shows that prose hid:* the notification already reaches every node (the ingress lives in the shared translator pack), but its only
+reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
+part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.

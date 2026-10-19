@@ -123,6 +123,22 @@ namespace Fdp.Toolkit.Behavior.Components
             return InAllow(view, in a, point);
         }
 
+        /// <summary>⭐ <c>CE-2302</c> (DA-32) — does <paramref name="man"/> hold a sector a SUPERIOR set (his current play's)?</summary>
+        public static bool HasSuperiorSet(ISimulationView view, Entity man)
+        {
+            if (!Registered(view) || !TryGet(view, man, out var a)) return false;
+            return a.SetBy == BehaviorOrigin.Superior && (a.ArcSet != 0 || a.AllowArea != 0 || a.WatchSet != 0 || a.NoFire.Count > 0);
+        }
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-32) — withdraw <paramref name="man"/>'s sector if a Superior set it: an all-empty
+        /// <see cref="SetEngagementAreaEvent"/> at origin Superior (the gate keeps an Operator's). Called when the play gives him an
+        /// order without an arc and when the commander's run that gave it ends (<see cref="SubordinateOrders.Release"/>).</summary>
+        public static void WithdrawSuperior(EntityRepository repo, Entity man)
+        {
+            if (!repo.Bus.IsRegistered<SetEngagementAreaEvent>() || !repo.IsAlive(man) || !HasSuperiorSet(repo, man)) return;
+            repo.Bus.Publish(new SetEngagementAreaEvent { Entity = man, Origin = BehaviorOrigin.Superior });
+        }
+
         /// <summary>Does a shot from <paramref name="shooter"/> ending at <paramref name="point"/> end inside a NoFire area of his own or
         /// of any commander up his chain (≤ 8 levels)? Always honoured — self-defence never lifts it.</summary>
         public static bool IsNoFire(ISimulationView view, Entity shooter, Vector3 point)

@@ -467,9 +467,10 @@ mismatched active behaviour as a VETO, which a holder whose posture ended used t
 ⛔ SUPERSEDED (known-rot, measured 2026-10-19, `PostureNodes.cs:269`): with nothing to hunt the advance returned Success on arrival —
 the posture ENDED and the holder idled with no eyes.
 
-⚠ **Not in this slice** (LD-3 slice 2, waits on `MemberArc` in the member order — DA-24, and on backend's kind 4 for a sector to cross
-nodes): the march's file-place glances, the crossing's security sides, `ClearBuilding` room sectors, PC-16's last window,
-`SquadDefend` / `SupportByFire` (not built).
+⚠ **Not in this slice** (LD-3 slice 2): the march's file-place glances, `ClearBuilding` room sectors, PC-16's last window,
+`SquadDefend` / `SupportByFire` (not built). ✅ *(2026-10-19)* `MemberArc` (`CE-2302`, [Defend & Attack §13a-1](../group-maneuvers/DESIGN_Defend_And_Attack_Position.md))
+and backend's kind 4 are BUILT — any play can now give a man an arc, and the `Look` node already scans its middle; ✅ the crossing's
+security sides came with it (each man his side of the road). ⛔ SUPERSEDED: *"waits on `MemberArc` … and on backend's kind 4"*.
 
 ### 3.4 The demos — make sure it works live *(LD-5, `CE-2298`)*
 

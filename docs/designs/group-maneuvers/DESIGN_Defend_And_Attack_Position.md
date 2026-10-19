@@ -654,6 +654,66 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
 
+#### 13a-1. `MemberArc` — the squad play's arc for one man *(`CE-2302`, behaviors, 2026-10-19 — the member level of DA-24 over DA-26's road)*
+
+**INVENTORY** (grep + read, 2026-10-19; the codebase-memory MCP was down, its CLI was not used for this slice — `check_index_coverage`
+not run): the member order is `MemberOrder` (`SquadManeuverRunner.cs:69`, a plain struct the play returns from `OrderFor`; ⚠ its
+`Arc` byte is FireAtPoint's LOW / HIGH preference, not a sector); the runner publishes each member's behaviour in `Issue`
+(`:436-466`) and records each one against the commander's RUN (`CommandOrders.Assign` → `SubordinateOrders.Record`,
+`CommandNodes.cs:54`); when that run ends — finished, cleared, replaced — `SubordinateOrders.Release` clears every order it gave
+(CE-2141, `BehaviorOwnedPart.cs:52`) ⭐ the release a sector must follow; the sector road is `SetEngagementAreaEvent` (event 3107,
+origin-gated, replace, all-empty withdraws — `EngagementArea.cs:63`, `EngagementAreaSystem.cs:46-61`); the eyes already follow an
+arc's middle (`LookNodes.cs:115-130`). ⛔ No `SectorPlanner` exists — this slice needs none (one play, geometry it already has).
+
+```mermaid
+classDiagram
+  direction LR
+  class MemberOrder { <<EXISTING, + Sector>> Kind · Point · … }
+  class MemberArc { <<NEW value>> Set · LeftBearing · RightBearing · MinRange · MaxRange — origin = the order's point }
+  class ISquadPlay { <<EXISTING>> OrderFor returns the arc with the order }
+  class DangerCrossingPlay { <<EXISTING, first user>> near / far security: their side of the road }
+  class SquadManeuverRunner { <<EXISTING, + Sector>> Issue publishes the arc, or withdraws }
+  class SubordinateOrders { <<EXISTING CE-2141>> Release — the run ended: clear his order, withdraw his Superior sector }
+  class EngagementAreas { <<EXISTING reader, + WithdrawSuperior>> }
+  class SetEngagementAreaEvent { <<EXISTING 3107>> origin Superior }
+  class EngagementAreaSystem { <<EXISTING>> the origin gate — an operator's sector is never replaced }
+  class EngagementArea { <<EXISTING 417, replicated>> }
+  MemberOrder *-- MemberArc
+  ISquadPlay ..> MemberOrder
+  DangerCrossingPlay ..|> ISquadPlay
+  SquadManeuverRunner ..> SetEngagementAreaEvent : per member — the arc
+  SquadManeuverRunner ..> EngagementAreas : WithdrawSuperior when his order has no arc
+  SubordinateOrders ..> EngagementAreas : WithdrawSuperior with each released order
+  SetEngagementAreaEvent ..> EngagementAreaSystem
+  EngagementAreaSystem --> EngagementArea
+```
+*What the picture shows that prose hid:* the play only RETURNS an arc; the runner is the one place that turns it into the event, so no
+play publishes anything and every play gets the same withdraw rule for free. The rule needs no memory in the play's state: **a man's
+sector set by a Superior is his current play's** — an order without an arc withdraws it, and the end of the commander's run withdraws it
+together with his order (the release that already exists, CE-2141). A mid-play reset (the crossing switching to a bound) is covered by
+the next issue. The operator's sector outranks it at the origin gate,
+so neither the arc nor the withdraw ever touches it.
+
+```mermaid
+sequenceDiagram
+  participant PLAY as DangerCrossingPlay.OrderFor
+  participant RUN as SquadManeuverRunner.Issue
+  participant BUS as the bus (kind 4 when his brain is elsewhere)
+  participant SYS as EngagementAreaSystem (his brain node)
+  PLAY-->>RUN: Watch(near spot) + Sector(his side of the road, ±45°)
+  RUN->>RUN: the Watch order (CombatPosture, stay)
+  RUN->>BUS: SetEngagementAreaEvent(man, arc from his spot, Superior)
+  BUS->>SYS: replaces his set (an Operator's stays)
+  Note over RUN: next issue gives him no arc (he crosses) ⇒ withdraw if a Superior set it
+  Note over RUN,SYS: the commander's run ends (finished, cleared, replaced) ⇒ SubordinateOrders.Release clears his order AND withdraws his Superior sector
+```
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **DA-31** | where the arc comes from | the play returns it with the member order (`MemberOrder.Sector`); the runner publishes it | each play publishing its own events: six copies of the withdraw rule |
+| **DA-32** | who withdraws | by rule (a Superior-set sector is the current play's): the runner on each issue without an arc, and `SubordinateOrders.Release` when the run that gave it ends — the ONE release a member's order already has | a mask in `SquadPlayState`: lost when a play's state is reset mid-run · a withdraw in every squad deactivator (built first, then retired the same day): a CLEAR of the task runs no deactivator here, so the rail stayed red — and it would have been a second release beside CE-2141's |
+| **DA-33** | the crossing's arcs | near- and far-side security: the man's own side of the crossing line, ±45° around it, no range limit; the crossing element and the reform: none | the whole road (180°) per man: the two security men would overlap completely, and doctrine gives each his flank |
+
 ### 13c. DA-L in detail — the mechanism *(`CE-2282`, behaviors, 2026-10-19 — leans refining the approved DA-20 / DA-24)*
 
 ✅ **DA-26…DA-30 APPROVED as leaned and as built (R-2054).** 🔒 User, `2026-10-19`: *"Pls also record there i am approving your leans. Backend might have already actend on those."*
