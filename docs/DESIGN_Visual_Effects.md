@@ -637,6 +637,8 @@ sequenceDiagram
 
 | ⭐ **P2 (PR-F)** — `Munition.Visual.Tracer` / `TracerColorHex`, `MunitionShape.Bullet`; `ProjectileLayer.TracerOf` (additive streak, ≥ 2.5 px wide); the 2-D projector draws a tracer bullet's streak wider in its glow, no marker; an ordinary bullet still draws only the 1-frame streak (2-D) and nothing in 3-D | `MunitionVisualDto.cs`, `ProjectileLayer.cs`, `ProjectilePresentationGizmo.cs`; rails `EffectTests.P2_*`, the frame rail's tracer burst |
 
+| ⭐ **`CE-1190` (thrown blades, [NOTE](blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md))** — the appended `MunitionShape.Axe` / `Spear` / `Star` (TKB 6044–6046) are drawn: **Axe** = a thin haft, a head block and a cross blade at the nose end, TUMBLING end over end in flight (`TumbleTurnsPerSecond`, as a grenade); **Spear** = a long shaft with a metal point leading along the velocity, no tumble; **Star** = two crossed thin arms and a hub, SPINNING flat about the vertical in flight (`SpinTurnsPerSecond`). A lying blade rests flat on the ground (nose horizontal, no turning). `SolidsOf` has a `default:` that draws the grenade lump, so a shape appended later is never invisible. Rails: `EffectTests.CE1190_EveryMunitionShapeDrawsSomething_NoneInvisible`, `EffectTests.CE1190_ThrownBlades_AxeTumbles_SpearPointsAlongFlight_StarSpins_LyingOnesAreFlat` |
+
 ⚠ **Tuned from the Xvfb shots (`rounds-1…3`):** at 7 px the bodies read as specks ⇒ `MinPixels` 10; the 2-D marker first took the
 munition's PAINT (olive) and vanished on the grey/green map ⇒ it shows STATE — bright yellow flying, red-orange armed (lying, fuze
 burning); the fuze text "2.7 s" rendered as "27 s" (the map's default font drops the decimal point at that size) ⇒ whole seconds

@@ -655,6 +655,74 @@ public sealed class EffectTests
         Assert.Equal(a, layer.Resolve().Single(r => r.Look.Shape == MunitionShape.Grenade && !r.Lying).Nose);   // same time, same pose
     }
 
+    /// <summary>⭐ CE-1190 (docs/blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md) — NO <see cref="MunitionShape"/> is
+    /// invisible: every value draws at least one solid (a bullet's body is by design its tracer streak, so it is railed through that),
+    /// and a shape appended later that has no case of its own still draws the default lump.</summary>
+    [Fact]
+    public void CE1190_EveryMunitionShapeDrawsSomething_NoneInvisible()
+    {
+        foreach (var shape in Enum.GetValues<MunitionShape>())
+        {
+            var look = new MunitionVisualDto { Shape = shape, Length = 0.4f, Diameter = 0.1f, Tracer = shape == MunitionShape.Bullet };
+            var r = new ProjectileLayer.Round(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
+            if (shape == MunitionShape.Bullet) Assert.True(ProjectileLayer.TracerOf(r, out _, out _), "a tracer bullet draws its streak");
+            else Assert.NotEmpty(ProjectileLayer.SolidsOf(r));
+        }
+        var future = new ProjectileLayer.Round(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
+                                               new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, Vector3.Zero, 1);
+        Assert.NotEmpty(ProjectileLayer.SolidsOf(future));                        // an unknown, future shape: a lump, not nothing
+    }
+
+    /// <summary>⭐ CE-1190 — the thrown blades (the built-in TKB 6044 / 6045 / 6046): the hatchet TUMBLES end over end, the spear points
+    /// along its velocity (no tumble), the star SPINS flat; and a blade lying on the ground is flat on it (its top within 0.15 m).</summary>
+    [Fact]
+    public void CE1190_ThrownBlades_AxeTumbles_SpearPointsAlongFlight_StarSpins_LyingOnesAreFlat()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        var v = new Vector3(12, 4, 1);
+        Round(world, MunitionTkbCatalog.TkbThrowingHatchet, new Vector3(0, 0, 3), v);
+        Round(world, MunitionTkbCatalog.TkbThrowingSpear, new Vector3(0, 5, 3), v);
+        Round(world, MunitionTkbCatalog.TkbThrowingStar, new Vector3(0, 10, 3), v);
+        const byte Landed = (byte)Fdp.Toolkit.Combat.Components.WarheadRound.Landed;
+        Round(world, MunitionTkbCatalog.TkbThrowingHatchet, new Vector3(20, 0, 0.1f), Vector3.Zero, Landed);
+        Round(world, MunitionTkbCatalog.TkbThrowingSpear, new Vector3(20, 5, 0.1f), Vector3.Zero, Landed);
+        Round(world, MunitionTkbCatalog.TkbThrowingStar, new Vector3(20, 10, 0.1f), Vector3.Zero, Landed);
+        var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
+
+        List<ProjectileLayer.Round> At(double t)
+        {
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
+            return layer.Resolve();
+        }
+        ProjectileLayer.Round Of(List<ProjectileLayer.Round> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
+
+        var t1 = At(0.1);
+        var t2 = At(0.2);
+        Assert.Equal(6, t1.Count);                                                // every blade is drawn: none invisible
+        Assert.True(Vector3.Dot(Of(t1, MunitionShape.Axe, false).Nose, Of(t2, MunitionShape.Axe, false).Nose) < 0.99f, "the axe tumbles");
+        Assert.True(Vector3.Dot(Of(t1, MunitionShape.Star, false).Nose, Of(t2, MunitionShape.Star, false).Nose) < 0.99f, "the star spins");
+        Assert.Equal(0f, Of(t1, MunitionShape.Star, false).Nose.Z, 3);            // ... flat, about the vertical
+        var vn = Vector3.Normalize(v);
+        Assert.Equal(1f, Vector3.Dot(Of(t1, MunitionShape.Spear, false).Nose, vn), 3);   // the spear points along its velocity
+        Assert.Equal(1f, Vector3.Dot(Of(t2, MunitionShape.Spear, false).Nose, vn), 3);   // ... at every time: no tumble
+        var spear = Of(t1, MunitionShape.Spear, false);
+        var point = ProjectileLayer.SolidsOf(spear).Last();
+        Assert.True(Vector3.Dot(point.To - spear.Centre, vn) > 0f, "the point leads");
+
+        foreach (var shape in new[] { MunitionShape.Axe, MunitionShape.Spear, MunitionShape.Star })
+        {
+            var lying = Of(t1, shape, true);
+            Assert.Equal(0f, lying.Nose.Z, 3);                                    // flat, not tumbling
+            Assert.Equal(lying.Nose, Of(t2, shape, true).Nose);                   // ... and not turning
+            var solids = ProjectileLayer.SolidsOf(lying);
+            float top = solids.Max(s => MathF.Max(s.From.Z, s.IsSphere ? s.From.Z : s.To.Z) + MathF.Max(s.RadiusFrom, s.RadiusTo));
+            float bottom = solids.Min(s => MathF.Min(s.From.Z, s.IsSphere ? s.From.Z : s.To.Z) - MathF.Max(s.RadiusFrom, s.RadiusTo));
+            Assert.InRange(top, 0.5f, 0.5f + 0.15f);                              // its top within 0.15 m of the ground
+            Assert.True(bottom >= 0.5f - 1e-3f, $"{shape} rests ON the ground");
+        }
+    }
+
     /// <summary>⭐ P1 (§8 PR-B) — a munition with a smoke trail (a rocket, a missile) trails puffs back toward its muzzle, thinning;
     /// a grenade does not.</summary>
     [Fact]
