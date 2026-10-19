@@ -106,7 +106,7 @@ public sealed class PlatoonScenarioTests : IDisposable
     /// <summary>⭐ <c>CE-2275</c> — the same run, and every man reaches his post: PROGRESS Set (D-2d, D-2e built). ⛔ Skipped on
     /// <c>CE-2304</c>: measured live, four of seven men stall 4–6 m from their posts inside OBJ with their moves <c>InProgress</c> for
     /// good (backend, docs/blueprints/batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md). Unskip when it lands.</summary>
-    [Fact(Timeout = 420_000, Skip = "CE-2304: Set not reached live yet — the failure names the farthest man from his post")]
+    [Fact(Timeout = 420_000, Skip = "CE-2304: Set in 4 of 5 live runs; in the 5th three men stop ~6 m from their posts — the failure names them")]
     public Task CE2275_SqDefendHouse_EveryManReachesHisPost_ProgressSet() => RunSqDefendHouse(requireSet: true);
 
     private async Task RunSqDefendHouse(bool requireSet)
