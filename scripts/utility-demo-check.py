@@ -3920,8 +3920,13 @@ def run_sq_defend_house(c, timeout):
             windows.append((nid, post.get("point"), post.get("setBack")))
     print(f"    posts {posts}; window posts {windows}")
     c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys})")
-    print(f"    ⚠ ① the roof: {'manned' if any(z >= 2 for z in storeys) else 'NOT manned'} — roof posts (DA-5 FindRoofPosts) are not built; "
-          f"a roof post comes only when the cover ask happens to answer one")
+    roof = []
+    for nid in reds:
+        post = ((((data(call("GET", f"/entities/{nid}/order")) or {}).get("task") or {}).get("params") or {}).get("post") or {})
+        if post.get("roof"):
+            roof.append((nid, post.get("point")))
+    # ⭐ CE-2275 D-2g (DA-5, DA-22, DA-47) — the roof is the ask after the windows; a roof man hides prone behind the parapet
+    c.ok(len(roof) >= 1 and all(pt and pt[2] >= 5.0 for _, pt in roof), f"① the roof is manned, by roof posts (D-2g): {roof}")
     c.ok(len(windows) >= 1 and all(sb for _, _, sb in windows), f"① window posts, set back (a Regular squad, DA-6): {windows}")
 
     first_in, red_shots, blue_shots, seen, queued = [None], {}, {}, set(), set()

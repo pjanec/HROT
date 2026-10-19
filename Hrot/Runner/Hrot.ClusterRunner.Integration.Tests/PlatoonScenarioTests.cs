@@ -97,7 +97,8 @@ public sealed class PlatoonScenarioTests : IDisposable
     /// <summary>
     /// ⭐⭐ <c>CE-2275</c> — the twin of <c>run_sq_defend_house</c>: a Red squad holding fire (operator) defends OBJ on
     /// <c>cqb-village</c> with its sector south; a Blue fire team walks up from the south. The squad posts · ③ no Red round before the
-    /// first Blue is inside the sector (DA-35), then Red fires. ⚠ PROGRESS Set is its own test below (blocked by <c>CE-2304</c>).
+    /// first Blue is inside the sector (DA-35), then Red fires · D-2h: the machine gunner's visibility fan is answered by the real solver.
+    /// ⚠ PROGRESS Set is its own test below (blocked by <c>CE-2304</c>).
     /// </summary>
     [Fact(Timeout = 420_000)]
     public Task CE2275_SqDefendHouse_TheSquadMansOBJ_HoldsFireUntilBlueIsInItsSector_ThenFights() => RunSqDefendHouse(requireSet: false);
@@ -165,10 +166,16 @@ public sealed class PlatoonScenarioTests : IDisposable
             blueIn |= inNow;
         }
         _out.WriteLine($"set={set} blueIn={blueIn} early={earlyRound} shooters={string.Join(",", shooters)}");
+        // ⭐ D-2h (DA-48) — the squad has a machine gunner (Red Rifleman 1), so the post plan asked ONE visibility fan; the real
+        //   solver's answer must reach the brain (WorldSurveyApplySystem announces it as SurveyReady on the commander)
+        double surveyAt = cgf.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad)
+            ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad).SurveyReady : 0;
+        _out.WriteLine($"fan answered at {surveyAt:F2} s");
 
         if (requireSet) Assert.True(set, "PROGRESS Set — every man on his post (D-2d, D-2e)");
         Assert.True(blueIn, "the Blue fire team walks into the sector");
         Assert.False(earlyRound, "③ no Red round before the first Blue enters the sector (DA-35)");
         Assert.True(shooters.Count >= 2, $"③ …then Red fires: {shooters.Count} shooters");
+        Assert.True(surveyAt > 0, "D-2h — the machine gunner's visibility fan was answered by the real solver (SurveyReady on the commander)");
     }
 }
