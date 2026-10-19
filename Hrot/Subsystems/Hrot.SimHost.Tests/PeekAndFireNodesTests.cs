@@ -1101,5 +1101,88 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
             Assert.InRange(d.Time - up, 1.5, 1.9);
         }
+        // ── ⭐ CE-2274 DA-C — proficiency in the cycle (docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8b) ──────────
+
+        private static void Skill(Duel d, float value)
+        {
+            var c = d.Repo.HasComponent<CombatProficiency>(d.Self) ? d.Repo.GetComponentRO<CombatProficiency>(d.Self) : new CombatProficiency();
+            c.Authored = value;
+            c.Set |= CombatProficiency.AuthoredSet;
+            if (d.Repo.HasComponent<CombatProficiency>(d.Self)) d.Repo.SetComponent(d.Self, c);
+            else d.Repo.AddComponent(d.Self, c);
+        }
+
+        /// <summary>⭐ DA-2's promise: with no proficiency, or a Regular one, the cycle runs on EXACTLY the given values — every existing
+        /// rail and demo is unchanged.</summary>
+        [Fact]
+        public void CE2274_Skilled_NoneOrRegular_IsExactlyTheGivenValues()
+        {
+            var d = new Duel(Window());
+            var p = PeekAndFireNodes.Effective(Window());
+            Assert.Equal(p, PeekAndFireNodes.Skilled(in p, d.Repo, d.Self));
+            Skill(d, ProficiencyOf.Regular);
+            Assert.Equal(p, PeekAndFireNodes.Skilled(in p, d.Repo, d.Self));
+        }
+
+        /// <summary>⭐ DA-2 / PC-15 by tier — exposure × (1.8 · 1.4 · 1 · 0.85 · 0.7); bursts: Militia doubles them, Untrained empties his
+        /// magazine (30); who switches: Untrained / Militia never by count, Veteran one sooner, Elite after one.
+        /// ✅ Red-proof: the tier switch removed ⇒ the militiaman leaves after three.</summary>
+        [Fact]
+        public void CE2274_Skilled_ByTier_Exposure_Bursts_AndWhoSwitches()
+        {
+            var d = new Duel(Window());
+            var p = PeekAndFireNodes.Effective(Window());
+            PeekAndFireParams At(float value) { Skill(d, value); return PeekAndFireNodes.Skilled(in p, d.Repo, d.Self); }
+
+            var untrained = At(ProficiencyOf.Untrained);
+            Assert.Equal(p.ExposeSeconds * 1.8f, untrained.ExposeSeconds, 3);
+            Assert.Equal(30, untrained.RoundsPerExposure);
+            Assert.Equal(30, untrained.BlindRounds);
+            Assert.Equal(int.MaxValue, untrained.ExposuresPerPosition);
+
+            var militia = At(ProficiencyOf.Militia);
+            Assert.Equal(p.ExposeSeconds * 1.4f, militia.ExposeSeconds, 3);
+            Assert.Equal(p.RoundsPerExposure * 2, militia.RoundsPerExposure);
+            Assert.Equal(int.MaxValue, militia.ExposuresPerPosition);
+
+            var veteran = At(ProficiencyOf.Veteran);
+            Assert.Equal(p.ExposeSeconds * 0.85f, veteran.ExposeSeconds, 3);
+            Assert.Equal(p.RoundsPerExposure, veteran.RoundsPerExposure);
+            Assert.Equal(p.ExposuresPerPosition - 1, veteran.ExposuresPerPosition);
+
+            var elite = At(ProficiencyOf.Elite);
+            Assert.Equal(p.ExposeSeconds * 0.7f, elite.ExposeSeconds, 3);
+            Assert.Equal(1, elite.ExposuresPerPosition);
+        }
+
+        /// <summary>⭐ DA-2 — the reaction delay: up at the window, an UNTRAINED man fires his first shot at a new target ≥ 1.2 s after he
+        /// sees it; at the same target next time he fires at once; a Regular fires at once the first time.
+        /// ✅ Red-proof: the delay gate removed ⇒ the untrained man fires at once.</summary>
+        [Fact]
+        public void CE2274_ReactionDelay_BeforeTheFirstShotAtANewTarget_Only()
+        {
+            double FirstShotAfterExposing(Duel d)
+            {
+                int before = d.Fires.Count;
+                Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose));
+                double up = d.Time;
+                for (int i = 0; i < 100 && d.Fires.Count == before; i++) d.Step();
+                Assert.True(d.Fires.Count > before, "he fires during the exposure");
+                return d.Time - up;
+            }
+
+            var regular = new Duel(Window());
+            regular.Step();
+            regular.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched));
+            Assert.InRange(FirstShotAfterExposing(regular), 0.0, 0.31);
+
+            var untrained = new Duel(Window());
+            Skill(untrained, ProficiencyOf.Untrained);
+            untrained.Step();
+            untrained.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched));
+            Assert.InRange(FirstShotAfterExposing(untrained), 1.2, 1.6);                  // the first look at him
+            Assert.Equal(PeekPhase.Hidden, untrained.RunUntil(PeekPhase.Hidden));
+            Assert.InRange(FirstShotAfterExposing(untrained), 0.0, 0.31);                 // the same man again: no delay
+        }
     }
 }
