@@ -1175,6 +1175,93 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        // ── ⭐ CE-2304 (Navigation v2 §3.4a) — seven men inside one house: avoidance across storeys, and through walls ──
+
+        /// <summary>A man standing still at <paramref name="at"/>, in the collider hash (as every person is).</summary>
+        private static Entity Stander(EntityRepository repo, Vector3 at)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var n = repo.CreateEntity();
+            repo.AddComponent(n, new VehicleState());
+            repo.AddComponent(n, new SimTransform { Position = at, Rotation = SimMath.FacingEast });
+            repo.AddComponent(n, new SimVelocity());
+            repo.AddComponent(n, new NavState { Mode = KinematicsMode.None });
+            repo.AddComponent(n, VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.AddComponent(n, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — a man on ANOTHER STOREY is not avoided: the walker passes over the man standing in the room below without
+        /// a swerve; the same man on his own floor makes him give way (which proves the encounter is close enough to matter).
+        /// ✅ Red-proof: drop the storey test in <c>ApplyCollisionAvoidance</c> ⇒ the walker swerves for the man below.
+        /// </summary>
+        [Theory]
+        [InlineData(-3f, false)]
+        [InlineData(0f, true)]
+        public void CE2304_AWalker_GivesWayToAManOnHisFloor_NeverToOneOnTheFloorBelow(float dz, bool givesWay)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            Stander(repo, new Vector3(4f, 0.3f, dz));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float worst = 0f;
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                worst = MathF.Max(worst, MathF.Abs(repo.GetComponent<SimTransform>(e).Position.Y));
+            }
+            float x = repo.GetComponent<SimTransform>(e).Position.X;
+            if (givesWay) Assert.True(worst > 0.2f || x < 6f, $"a man on his own floor in his way changed nothing: swerve {worst:F2} m, at x {x:F2}");
+            else Assert.True(x > 6f && worst < 0.05f, $"the man on the floor below held him up: swerve {worst:F2} m, at x {x:F2}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>The walkable mesh is y ≤ 0.5 (a wall along the path's north side); off it projects onto the wall, as Recast's nearest-poly does.</summary>
+        private sealed class WallNorthOfThePath : Fdp.Toolkit.Navigation.INavmeshProvider
+        {
+            public bool IsWalkable(Vector3 p, uint layerMask = 0xFFFFFFFF) => p.Y <= 0.5f;
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 snapped, uint layerMask = 0xFFFFFFFF)
+            {
+                snapped = p.Y <= 0.5f ? p : new Vector3(p.X, 0.5f, p.Z);
+                return true;
+            }
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => false;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.PositiveInfinity;
+            public uint QueryVersion() => 0;
+            public int PlanPath(Vector3 from, Vector3 to, Span<Fdp.Toolkit.Navigation.NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — a walker the men beside him push off his path is never pushed THROUGH A WALL: his step stays on the walkable
+        /// mesh (CE-3181's rule, now for an AI walker too). 📌 Live: a rifleman ended 1 m outside the house he was posted in.
+        /// ✅ Red-proof: drop the <c>KeepOnNavmesh</c> call on the autonomous step ⇒ he ends north of the wall.
+        /// </summary>
+        [Fact]
+        public void CE2304_AWalkerPushedByTheMenBesideHim_StaysInsideTheWall()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new WallNorthOfThePath());
+            for (float x = 2f; x <= 9f; x += 0.7f) Stander(repo, new Vector3(x, -0.6f, 0f));   // a file of men along his south side
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.True(north > 0.3f, $"the men beside him pushed him north ({north:F2} m) — else this proves nothing");
+            Assert.True(north <= 0.5f + CarKinem.Controllers.ManualMotion.OnMeshTolerance, $"pushed {north:F2} m north, through the wall at 0.5 m");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — kinematics does not drive an EMBARKED entity (the carry owns its transform): the same
         /// moving body that advances when free stays exactly where the carry left it once it carries <c>IsEmbarkedTag</c>.</summary>
         [Fact]

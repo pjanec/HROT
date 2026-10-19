@@ -181,6 +181,16 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.HasArrived       = 0;
                         break;
 
+                    case NavigationMode.PathToPoint when hasNav && global::CarKinem.Systems.NavigationExecutionSystem.IsResentMove(in intent, in nav):
+                        // ⭐ CE-2304 — a RE-SENT move to the point the path already leads to keeps that path (and the man walking it):
+                        //   no stop, no new request. Only its speed and arrival radius follow the new intent. 📌 Live the brain re-sent
+                        //   each post move ~2×/s, and every re-send stopped the man to wait for a fresh path — he walked at ~0.4 m/s.
+                        nav.TargetSpeed   = intent.TargetSpeed > 0f ? intent.TargetSpeed : nav.TargetSpeed;
+                        nav.ArrivalRadius = intent.ArrivalRadius;
+                        repo.SetComponent(entity, nav);
+                        _lastAppliedIntentId[entity] = intent.IntentId;
+                        continue;
+
                     case NavigationMode.PathToPoint:
                         // ⭐ CE-3026 — wait (no straight-line start) until the path arrives; the request is published
                         //   below once the NavState is stored.
