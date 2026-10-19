@@ -81,3 +81,5 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 4 | ✅ the weather in the free 3-D camera (at the look-at, the fog from there); Presentation 776 / 0, Fdp.Presentation 581 / 0 |
 | `2026-10-19` | 5 | ⏸ parked — the doors-off UH-60 shares the closed one's DIS type, so its open cabin needs its own class (and sim boxes) first; the lean is with the user (`CE-1209`) |
 | `2026-10-19` | 6 | ✅ a thrown stone lands as dust (a grenade still bursts); the throw's arm swing; Presentation 778 / 0 |
+| `2026-10-19` | 5 | ▶ un-parked by the user — every UH-60 drawn doors-off (the one `Helicopter` kit), done after #7 |
+| `2026-10-19` | 7 | ✅ a destroyed weapon system goes dark, it does not burn; Presentation 778 / 0 |

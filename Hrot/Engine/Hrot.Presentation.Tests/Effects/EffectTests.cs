@@ -561,7 +561,8 @@ public sealed class EffectTests
     }
 
     /// <summary>⭐ W3 (VE-P) — only a CROSSING to zero burns: a vehicle killed now gets flames (60 s) and smoke (180 s) attached to its
-    /// body; a soldier does not burn; a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
+    /// body; a soldier does not burn; ⭐ CE-1198 nor does a weapon system (it only goes dark, 🔒 user 2026-10-19: "weapons are usually
+    /// non-flammable"); a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
     [Fact]
     public void W3_AVehicleKilledNowBurnsAndSmokes_ASoldierOrAWreckLoadedDeadDoesNot_AndAReplayMakesNothing()
     {
@@ -577,12 +578,14 @@ public sealed class EffectTests
         var tank = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);
         var soldier = Living(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, 100f);
         var loadedWreck = Living(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 0f);
+        var hmg = Living(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 100f);   // ⭐ CE-1198 — a weapon does not burn
         var wrecks = new WreckSpawnSystem();
         Tick(world, wrecks, 0.016f);
         Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing
 
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        world.SetComponent(hmg, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0.016f);
         var fx = Effects(world);
         Assert.Equal(new[] { EffectTkbCatalog.Fire, EffectTkbCatalog.Smoke }, fx.Select(f => f.Type).OrderBy(t => t).ToArray());

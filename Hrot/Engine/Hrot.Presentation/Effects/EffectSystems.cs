@@ -379,13 +379,14 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         }
     }
 
-    /// <summary>A vehicle burns; a person, a unit with no body, or a type the TKB does not know does not.</summary>
+    /// <summary>A vehicle burns; a person, a unit with no body, a type the TKB does not know — ⭐ CE-1198 or a WEAPON SYSTEM (it goes dark,
+    /// it does not burn; 🔒 user, 2026-10-19: "weapons are usually non-flammable") — does not.</summary>
     private bool Burns(ITkbDatabase? tkb, long type)
     {
         if (_burns.TryGetValue(type, out bool burns)) return burns;
         var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
         return _burns[type] = family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
-                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown);
+                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown or Hrot.UI.Common.Map3D.VisualFamily.WeaponSystem);
     }
 
     private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)
