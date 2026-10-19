@@ -234,5 +234,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2308</c> (SP-1, Indirect Fire §3.11) — an observer who picks his own target and calls fire on it, mission after
         /// mission.</summary>
         public const string SpotForFire = "SpotForFire";
+        /// <summary>⭐ <c>CE-2311</c> (HQ-9, Command Chain §8d) — an aircraft searches an area for targets and attacks what it finds.</summary>
+        public const string AirArmedSearch = "AirArmedSearch";
+        /// <summary>⭐ <c>CE-2312</c> (HQ-6, Command Chain §8d) — the headquarters answers FireSupport and Reinforce with its assets.</summary>
+        public const string SupportCommand = "SupportCommand";
     }
 }

@@ -2976,6 +2976,151 @@ namespace Hrot.SimHost.Tests
 
         private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
 
+        // ── CE-2312 — the headquarters: FireSupport and Reinforce answered with support assets (Command Chain §8d HQ-6…HQ-8) ──
+
+        private const long HqHeliType = 9781, HqPlaneType = 9782;
+
+        /// <summary>An HQ (the fixture's commander) over: slot 0 a platoon that asks (a unit), 1 an attack helicopter, 2 an artillery battery
+        /// (a unit), 3 a squad held back (a unit), 4 a strike plane; the HQ runs <c>SupportCommand</c>.</summary>
+        private static Platoon Headquarters()
+        {
+            var p = new Platoon(squads: 5);
+            var repo = p.S.Repo;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var (type, name) in new[] { (HqHeliType, "test attack helicopter"), (HqPlaneType, "test strike plane") })
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, type);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket, Range = 4000f, InitialAmmunition = 19, DamagePerHit = 400 } } });
+                db.Register(t);
+            }
+            repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            void Unit(Entity e, long type = 0)
+            {
+                repo.AddComponent(e, new UnitEntity());
+                var roster = new UnitRoster();
+                UnitRoster.Add(ref roster, repo.CreateEntity());
+                repo.AddComponent(e, roster);
+                if (type != 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            }
+            void Aircraft(Entity e, long type, Fdp.Toolkit.Tkb.Domain.LocomotionClass loco)
+            {
+                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                repo.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = loco });
+            }
+            Unit(p.S.Members[0]);
+            Aircraft(p.S.Members[1], HqHeliType, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            Unit(p.S.Members[2], Hrot.Map.Common.TkbEntityTypes.Unit_ArtilleryBattery);
+            Unit(p.S.Members[3]);
+            Aircraft(p.S.Members[4], HqPlaneType, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing);
+            p.S.Order("{}", BehaviorNames.SupportCommand);
+            p.Ticks(3);
+            return p;
+        }
+
+        private static void Ask(Platoon p, Fdp.Toolkit.Squad.Command.RequestKind kind, Vector3 at)
+            => p.Report(p.S.Members[0], new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Request, Subtype = (byte)kind, At = at, Count = 1,
+            });
+
+        /// <summary>The asset runs the HQ's order now (its brain took it): busy.</summary>
+        private static void Running(Platoon p, Entity asset, string behaviour)
+        {
+            var bs = new BehaviorState { Origin = BehaviorOrigin.Superior, ActiveBehaviorHash = BehaviorHash.FromName(behaviour) };
+            if (p.S.Repo.HasComponent<BehaviorState>(asset)) p.S.Repo.SetComponent(asset, bs);
+            else p.S.Repo.AddComponent(asset, bs);
+        }
+
+        private static string StrikeIntent => Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor("Strike");
+
+        private static Vector3 StrikePointOf(Platoon p, Entity asset)
+        {
+            var order = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(
+                p.S.Orders.Last(o => o.Entity.Equals(asset) && o.IntentId == StrikeIntent).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(p.S.Repo, order.Location, 0f);
+            return new Vector3(at.X, at.Y, 0f);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2312</c> (HQ-6, HQ-7) — a FireSupport request at a mortar: the free attack helicopter is sent to SEARCH the point
+        /// and the request is answered; a second one while the helicopter is busy goes to the BATTERY (fire for effect on the point); a third
+        /// with both busy waits in the picture. ✅ Red-proofs: the busy test dropped ⇒ the helicopter twice · the battery fall-back dropped ⇒
+        /// the second waits · the answer dropped ⇒ the request stays.</summary>
+        [Fact]
+        public void CE2312_FireSupport_GoesToTheFreeHelicopter_ThenTheBattery_ThenWaits()
+        {
+            var p = Headquarters();
+            Entity heli = p.S.Members[1], battery = p.S.Members[2];
+            var mortar = new Vector3(0f, 1200f, 0f);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, mortar);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));
+            var search = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.AirArmedSearchOrder>(
+                p.S.Orders.Last(o => o.Entity.Equals(heli)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(p.S.Repo, search.Location, 0f);
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(mortar.X, mortar.Y)) < 1f, $"searches {at}");
+            Assert.Equal(0, Requests(PictureOf(p, p.S.Commander)).Length);
+            Running(p, heli, BehaviorNames.AirArmedSearch);
+
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, mortar + new Vector3(300f, 0f, 0f));
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));            // busy: not twice
+            Assert.Equal(1, p.OrdersTo(battery, StrikeIntent));
+            Assert.True(Vector3.Distance(StrikePointOf(p, battery), mortar + new Vector3(300f, 0f, 0f)) < 1f);
+            Running(p, battery, BehaviorNames.ArtilleryUnitStrike);
+
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, mortar);
+            p.Ticks(4);
+            Assert.Single(Requests(PictureOf(p, p.S.Commander)));                       // nothing free: it waits
+        }
+
+        /// <summary>⭐⭐ <c>CE-2312</c> (HQ-7) — Urban Battle beat 6: a ZU-23 reported 600 m from the mortar ⇒ the strike PLANE strikes the ZU-23
+        /// first and the request WAITS (no helicopter into the air defence); once the ZU-23's report is old, the helicopter goes. ✅ Red-proofs:
+        /// the air-defence test dropped ⇒ the helicopter at once · the wait dropped ⇒ the helicopter with the plane.</summary>
+        [Fact]
+        public void CE2312_AnAirDefenceNearThePoint_TheStrikePlaneHitsItFirst_AndTheHelicopterWaits()
+        {
+            var p = Headquarters();
+            Entity heli = p.S.Members[1], plane = p.S.Members[4];
+            var mortar = new Vector3(0f, 1200f, 0f);
+            var zu = new Vector3(600f, 1200f, 0f);
+            p.Report(p.S.Members[0], new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = zu, Count = 1, Size = Fdp.Toolkit.Squad.Command.ElementSize.Individual,
+                Equipment = Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence | Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle,
+            });
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, mortar);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(plane, StrikeIntent));
+            Assert.True(Vector3.Distance(StrikePointOf(p, plane), zu) < 1f);
+            Assert.Equal(0, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));
+            Assert.Single(Requests(PictureOf(p, p.S.Commander)));                       // waits
+            Running(p, plane, BehaviorNames.AirPlatformStrike);
+            p.S.Pause(Hrot.AI.Behaviors.Brains.SupportCommandBehavior.DefaultAirDefenceFreshSeconds + 1.0);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));
+            Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
+        }
+
+        /// <summary>⭐ <c>CE-2312</c> (HQ-8) — a Reinforce request from the platoon: the squad held back is ordered to <c>SquadDefend</c> at the
+        /// requester's point; never the requester itself. ✅ Red-proof: the requester not excluded ⇒ it is ordered to reinforce itself.</summary>
+        [Fact]
+        public void CE2312_Reinforce_SendsTheFreeGroundUnit_NotTheRequester_ToDefendThere()
+        {
+            var p = Headquarters();
+            var at = new Vector3(50f, 400f, 0f);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, at);
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(p.S.Members[0], BehaviorNames.SquadDefend));
+            Assert.Equal(1, p.OrdersTo(p.S.Members[3], BehaviorNames.SquadDefend));
+            Assert.Equal(at, DefendOrderTo(p, p.S.Members[3]).Position);
+            Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
+        }
+
         // ── CE-2310 — what a platoon sends up for SUPPORT (Command Chain §8d HQ-3…HQ-5) ──────────────────────────────────────
 
         /// <summary>The platoon under a body-less HQ; its staff's composer runs each frame with the harness.</summary>

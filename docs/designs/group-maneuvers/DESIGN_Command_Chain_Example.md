@@ -8,6 +8,8 @@ known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea that needs REQUEST answered by a headquarters owning support assets (§4 ①)
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attack (`AirAttackNodes.Run`, `FlyTo`) §8d's armed search is built on
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the battery's fire mission §8d's HQ sends, and IF-6 (counter-battery), the later answer to §8d's heard launch
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the full-size plays on this machinery; asks CommandPicture Subordinates x6, PirArea, PROGRESS FireLifted, TimeInState (PC-3, PC-4, PC-7, PC-8)
   - docs/REFERENCE_Command_Building_Blocks_Measured.md — the measured blocks this example is built from, symbol by symbol
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — §5b–§5d OWN the report concept (kinds, ageing, staff, routes to a decision); this is its first concrete form
@@ -694,7 +696,7 @@ it: a live demo (folds into `pc-defend-house`, step 7), the attack's Answer.
 
 Rails `SquadManeuverTests.CE2305_RQ1_*`, `CE2305_RQ3_*` ×2 — mutants: see the tracker row. ⛔ Not live yet (`pc-defend-house`, step 7).
 
-## 8d. The headquarters — FireSupport and Reinforce answered with support assets *(`CE-2309`…`CE-2312`, behaviors, 2026-10-19 — Urban Battle §4 ①②③, §5 step 6; build-state: DESIGN — leans HQ-1…HQ-9, built under the user's "go ahead autonomously")*
+## 8d. The headquarters — FireSupport and Reinforce answered with support assets *(`CE-2309`…`CE-2312`, behaviors, 2026-10-19 — Urban Battle §4 ①②③, §5 step 6; build-state: BUILT — §8d-a; leans HQ-1…HQ-9, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — grep `RequestKind\.(FireSupport|Reinforce)` / `Headquarters` / `ArmedSearch` over
 `FDP/Toolkits` and `Hrot.AI.Behaviors` ⇒ only the enum values; reads of `StaffSystems.cs`, `CommandComponents.cs`, `CommandReports.cs`
@@ -775,7 +777,7 @@ graph TD
 | **HQ-8** | **Reinforce's answer**: a free ground unit (not the requester) ⇒ `PlatoonDefend` / `SquadDefend` {the request's point, 60 / 40 m} — it joins the defence there | an air assault: the landing is a mission of its own (built, `ua-air-assault`), for a later rung |
 | **HQ-9** | **armed search** (③ `CE-2311`): library `AirArmedSearch {Location, RadiusM 400, QuietSeconds 60, HeightAgl 150}` — `FlyTo` the point; on the way and over it, `DroneTargets.Pick` its own memory within the radius; a pick ⇒ `AirAttackNodes.Run` on it until destroyed, then pick again; nothing for `QuietSeconds` over the point ⇒ Success; no weapon left ⇒ Failure | a point strike: a reported mortar point is wrong by 100 m and the team moves |
 
-### 8d-a. As built *(2026-10-19 — the diagrams above hold; `CE-2309`, `CE-2310`)*
+### 8d-a. As built *(2026-10-19 — the diagrams above hold; `CE-2309`…`CE-2312`)*
 
 | piece | where | as built |
 |---|---|---|
@@ -791,6 +793,22 @@ so a squad (no picture) never asks.
 
 Rails (the staff suite, `SquadManeuverTests`): `CE2309_AHeavyLaunchHeardFarOff_*`, `CE2309_ASpotOfAVehicle_*`,
 `AirDefenceNodesTests.CE2309_ASpotSaysWhatItSaw_*`, `CE2310_APlatoonRelays*`, `CE2310_APlatoonDownToOneSquad_*` — mutants: see the tracker rows.
+
+**`CE-2311`, `CE-2312` as built:**
+
+| piece | where | as built |
+|---|---|---|
+| the armed search (HQ-9) | `Brains/AirArmedSearchBehavior.cs` · `Orders.AirArmedSearchOrder` · `BehaviorNames.AirArmedSearch` | a StatefulAction: attacking (`AirAttackNodes.Run` on the pick; Success = destroyed ⇒ back over the area, the quiet restarts; Failure ⇒ Failure) · else `DroneTargets.Pick(centre, radius)` ⇒ attack · else `AirOrderNodes.FlyTo` the centre at `HeightAgl`; arrived ⇒ the quiet starts; `QuietSeconds` of it ⇒ Success |
+| busy | `CommandOrders.Busy` (`CommandNodes.cs`) | the commander's ticking run gave the member an order and the member still runs a task from its superior — and, in `SupportCommand`, an order given in the last 2 s (`OrderGraceSeconds`: the brain takes it next frame) |
+| the HQ (HQ-6…HQ-8) | `Brains/SupportCommandBehavior.cs` · `Orders.SupportCommandParamsJsonDto` · `BehaviorNames.SupportCommand` | a StatefulAction each tick: the oldest FireSupport — an AirDefence element fresh (120 s) within 2 km ⇒ a free strike PLANE gets `Order.Strike` on it and the request waits; else a free attack HELICOPTER `AirArmedSearch`es the point, else a free BATTERY gets `Order.Strike` FFE on it; answered when sent. The oldest Reinforce — a free ground unit (not the requester: its `FromNetId`) gets `PlatoonDefend` (a unit of units, 60 m) / `SquadDefend` (40 m) at the request's point |
+| what an asset is | `SupportCommandBehavior.KindOf` | a unit: `Unit_ArtilleryBattery` ⇒ Battery, else GroundUnit; else a mount-0 weapon AND `Locomotions.Of` Rotorcraft ⇒ AttackHelicopter, FixedWing ⇒ StrikePlane |
+
+⚠ **Choices the leans did not settle:** the battery and the plane are given the ORDER `Strike` (their class picks `ArtilleryUnitStrike` /
+`AirPlatformStrike`), the helicopter the behaviour by name (there is no armed-search order kind); an asset a REACTION took (an evading
+helicopter's SOP row) reads free — accepted for v1; the HQ is any commander running the task (no new unit type).
+
+Rails `AirAttackNodesTests.CE2311_*` (the air suite) · `SquadManeuverTests.CE2312_*` ×3 (the platoon harness as the HQ) — mutants: see the
+tracker rows. ⛔ Not live yet (the urban demo ladder, step 8).
 
 **Slices.** `CE-2309` (HQ-1, HQ-2) → `CE-2310` (HQ-3…HQ-5) → `CE-2311` (HQ-9) → `CE-2312` (HQ-6…HQ-8). Rails in the staff suite (the
 composer's SPOT and REQUESTs), the air suite (the armed search), the platoon suite (the HQ). ⛔ Not in them: an air-assault answer, Casevac by

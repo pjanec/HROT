@@ -147,6 +147,9 @@ related-designs:
 | DA-96 | an ambush (`SquadDefend.InitiatedBy`) holds through the enemy in its sector and opens fire once its charge is gone | `SquadDefendBehavior.LiftOwnHold` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 | CH-1…CH-4 | a carrier hit while it drives with troops aboard pushes through (150 m on, then its route); the squad gets out only of a STANDING carrier | `PushThroughBehavior`, `ConvoyConditions.CanPushThrough`, `BasicVehicleSop` row, `SquadSopConditions` | [Squad Tactics §5b](designs/group-maneuvers/DESIGN_Squad_Tactics.md) |
 | SP-1…SP-4 | the spotter picks his own target (the biggest hostile group he SEES, a vehicle double, within 1500 m), runs the IF-3 adjust mission on it, rests 30 s, repeats | `SpotForFireBehavior`, `FireTargets.Pick` | [Indirect Fire §3.11](designs/indirect-fire/DESIGN_Indirect_Fire.md) |
+| HQ-1, HQ-2 | a heavy launch heard ≥ 1 km off is SPOTted as IndirectFire; a SPOT carries Vehicle / AirDefence for what was identified | `StaffComposerSystem.ComposeLaunch`, `EquipmentOf`, `AirDefenceWeapons` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| HQ-3…HQ-5 | a platoon relays the mortar and the air defence up, asks FireSupport on the mortar, asks Reinforce when Red with the enemy near | `StaffComposerSystem.ComposeSupport` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| HQ-6…HQ-9 | the HQ answers: air defence near ⇒ the strike plane on it first; else the attack helicopter searches the point (attacks what it finds, ends when quiet), else the battery fires; Reinforce ⇒ a free unit defends at the requester | `SupportCommandBehavior`, `AirArmedSearchBehavior`, `CommandOrders.Busy` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
 
 **Demos**
 

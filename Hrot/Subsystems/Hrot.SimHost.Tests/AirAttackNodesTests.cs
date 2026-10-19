@@ -1283,5 +1283,40 @@ namespace Hrot.SimHost.Tests
             Assert.True(new Vector2(dest.X - here.X, dest.Y - here.Y).Length() < 30f * 0.25f && dest.Z <= 0.01f,
                 $"straight down: dest {dest}, at {here}");
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2311</c> (HQ-9, Command Chain §8d) — the ARMED SEARCH: an attack helicopter told to search (0, 0), 400 m, flies there at
+        /// 150 m; once its memory holds a hostile tank inside the area (and a rifleman 1 km off, outside it) it attacks the TANK; the tank
+        /// destroyed, it is back over the area; nothing there for 60 s ⇒ Success. ✅ Red-proofs: the radius ignored ⇒ the far rifleman ·
+        /// the re-pick dropped (Success passed up) ⇒ it ends at the first kill · the quiet ignored ⇒ it never ends.
+        /// </summary>
+        [Fact]
+        public void CE2311_AnArmedSearch_FliesThere_AttacksWhatItFindsInTheArea_ThenEndsWhenTheAreaIsQuiet()
+        {
+            var heli = SpawnHeli(new Vector3(0f, -2000f, 150f), out _);
+            var tank = SpawnGround(new Vector3(30f, 20f, 0f), 900f, vehicle: true, ForceId.Hostile);
+            var rifleman = SpawnGround(new Vector3(0f, 1000f, 0f), 100f, vehicle: false, ForceId.Hostile);
+            var p = new AirArmedSearchParams { Centre = Vector3.Zero, RadiusM = 400f, QuietSeconds = 60f, HeightAgl = 150f };
+            var ws = default(AirArmedSearchState);
+            _w.SetSingleton(new GlobalTime { TotalTime = 1.0 });
+            Assert.Equal(NodeStatus.Running, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));
+            Assert.Equal((byte)0, ws.Stage);
+            Assert.True(Vector3.Distance(MoveOf(heli).Destination, new Vector3(0f, 0f, 150f)) < 0.01f, $"flies to {MoveOf(heli).Destination}");
+
+            Remember(heli, rifleman, tank);
+            Assert.Equal(NodeStatus.Running, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));
+            Assert.Equal((byte)1, ws.Stage);
+            Assert.Equal(tank, ws.Attack.Target);
+
+            _w.GetComponentRW<Health>(tank).Current = 0f;                         // destroyed
+            _w.SetSingleton(new GlobalTime { TotalTime = 20.0 });
+            Assert.Equal(NodeStatus.Running, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));
+            Assert.Equal((0, 1), (ws.Stage, ws.Kills));
+
+            _w.SetSingleton(new GlobalTime { TotalTime = 40.0 });
+            Assert.Equal(NodeStatus.Running, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));   // over the area: quiet so far 20 s
+            _w.SetSingleton(new GlobalTime { TotalTime = 81.0 });
+            Assert.Equal(NodeStatus.Success, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));
+        }
     }
 }
