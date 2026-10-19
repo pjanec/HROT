@@ -4,7 +4,7 @@ updated: 2026-10-19
 build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 slice 1 BUILT (behaviors CE-2297, 2026-10-19 — §3.3a: the Look node in CombatPosture and PersonHold; slice 2 waits on MemberArc) · LD-3 rest / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
 current-answer: §3.2b (LD-1 / LD-2 AS BUILT — the classes, the wire, the rails) · §3.3a (LD-3 slice 1 — who points the eyes, as built) · §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
 stale-below: §3.2a's class names `LookRequests`, `LookOf.EyeYaw`, `LookState.Since` / `BodyYaw` — the plan; §3.2b names what was built.
-known-rot: none.
+known-rot: §3.3a's "every holding man has eyes" — a squad's Hold / Watch member's CombatPosture ends on arrival (measured 2026-10-19; lean for slice 2 in §3.3a).
 known-conflict: none.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the programme LD now belongs to (§6b PC-16 watch the last window, §12 demos, §13 the lane split)
@@ -440,6 +440,13 @@ planning `ld-sentry-surprise` (LD-5 ④): `TopThreat` ranks entities only, so a 
 📌 The demo's live runs then found the ORDER wrong for a man shot at: with hostile A in sight in front, B's shots from behind never
 turned the sentry (A, the top threat, kept his eyes) — a hit or near miss within 2 s (`UnderFire`) now puts the sound of the shot
 first (rail `CE2297_ShotAt_*`).
+
+⛔ **KNOWN-ROT in the claim above, measured 2026-10-19** (`PostureNodes.cs:269`): a squad's Hold / Watch member runs `CombatPosture`
+toward his point (`SquadManeuverRunner.Hold`), and with nothing to hunt the advance returns **Success on arrival** — the posture ENDS
+and he idles with no eyes. So "every holding man has eyes" holds for an operator's `PersonHold` and for a man FIGHTING, not for a
+squad's watcher once he has arrived. ⭐ **Lean for slice 2 (not built):** the runner's Hold / Watch asks `CombatPosture` with
+`hold: true` — arriving does not end it, his eyes and his fight stay until the squad's next order (Squad Tactics' own words for Hold:
+"stays"). ⚠ Measure first: which drills advance a phase on a member's task ENDING rather than on his position — those would stall.
 
 ⚠ **Not in this slice** (LD-3 slice 2, waits on `MemberArc` in the member order — DA-24, and on backend's kind 4 for a sector to cross
 nodes): the march's file-place glances, the crossing's security sides, `ClearBuilding` room sectors, PC-16's last window,
