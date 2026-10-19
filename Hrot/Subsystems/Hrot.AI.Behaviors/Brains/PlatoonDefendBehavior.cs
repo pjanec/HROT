@@ -378,8 +378,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (squad.IsNull || !world.IsAlive(squad)) continue;
                 if (p.Casevac[slot] != 0)   // ⭐ CE-2305 RQ-4 — out on a casevac: back to its post once that task ended (Stands is only "recorded")
                 {
-                    var progress = CommandPictureOps.ProgressOf(world, self, slot);
-                    if (progress != ProgressKind.Set && progress != ProgressKind.TaskFailed) continue;
+                    if (!CasevacAnswers.Returned(world, self, slot)) continue;
                     p.Casevac[slot] = 0;
                     p.Dirty[slot] = 1;
                 }
@@ -608,17 +607,9 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static unsafe NodeStatus AnswerCasevac(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
-            int index = CommandPictureOps.FirstRequest(world, self, RequestKind.Casevac);
             int reserve = FreeReserve(ref p, self, world);
-            if (index < 0 || reserve < 0) return NodeStatus.Success;
-            long casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
-            CommandPictureOps.Answered(world, self, index);
-            if (casualty == 0) return NodeStatus.Success;
-            var unit = CommandPictureOps.Subordinate(world, self, reserve);
-            var order = new SquadRecoverParamsJsonDto { Casualty = new Fdp.Toolkit.Replication.EntityRef(casualty), To = p.Point(reserve), PutDown = true, Speed = p.Speed };
-            CommandOrders.Assign(world, self, unit, BehaviorNames.SquadRecover,
-                                 JsonSerializer.Serialize(order, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
-            p.Casevac[reserve] = 1;
+            if (reserve < 0) return NodeStatus.Success;
+            if (CasevacAnswers.Answer(world, self, reserve, p.Point(reserve), p.Speed)) p.Casevac[reserve] = 1;   // ⭐ CE-2277 AT-11 — one helper
             return NodeStatus.Success;
         }
 

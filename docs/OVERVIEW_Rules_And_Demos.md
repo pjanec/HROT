@@ -150,6 +150,7 @@ related-designs:
 | HQ-1, HQ-2 | a heavy launch heard ≥ 1 km off is SPOTted as IndirectFire; a SPOT carries Vehicle / AirDefence for what was identified | `StaffComposerSystem.ComposeLaunch`, `EquipmentOf`, `AirDefenceWeapons` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
 | HQ-3…HQ-5 | a platoon relays the mortar and the air defence up, asks FireSupport on the mortar, asks Reinforce when Red with the enemy near | `StaffComposerSystem.ComposeSupport` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
 | HQ-6…HQ-9 | the HQ answers: air defence near ⇒ the strike plane on it first; else the attack helicopter searches the point (attacks what it finds, ends when quiet), else the battery fires; Reinforce ⇒ a free unit defends at the requester | `SupportCommandBehavior`, `AirArmedSearchBehavior`, `CommandOrders.Busy` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| AT-1…AT-12 | a platoon attacks an AREA, objective by objective (enemy elements by building, nearest first, else the area's buildings): base of fire 120 m off · bound to a flank point 40 m off · lift (support ReturnFire) · clear the building or assault through · consolidate; a Black assault ⇒ the reserve takes over, none left ⇒ break off (the run fails); a Casevac ⇒ the free reserve | `PlatoonAttackBehavior`, `AttackObjectives.Plan`, `CasevacAnswers` | [Defend & Attack §8f](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 
 **Demos**
 

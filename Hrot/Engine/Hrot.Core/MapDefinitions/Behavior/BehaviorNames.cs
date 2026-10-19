@@ -238,5 +238,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string AirArmedSearch = "AirArmedSearch";
         /// <summary>⭐ <c>CE-2312</c> (HQ-6, Command Chain §8d) — the headquarters answers FireSupport and Reinforce with its assets.</summary>
         public const string SupportCommand = "SupportCommand";
+        /// <summary>⭐ <c>CE-2277</c> DA-F (Defend &amp; Attack §8f) — the platoon attacks an AREA: base of fire, approach, assault, objective by
+        /// objective, then consolidates.</summary>
+        public const string PlatoonAttack = "PlatoonAttack";
     }
 }

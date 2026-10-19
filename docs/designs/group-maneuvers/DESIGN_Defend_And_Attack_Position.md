@@ -1547,7 +1547,7 @@ the first contact as before — the safe side (it does not hold for ever); the t
 Rails `TriggerIedBehaviorTests` ×3 (in `StationWeaponBehaviorTests.cs`, its `World`) · `SquadManeuverTests.CE2306_AnAmbush_*` — mutants: see
 the tracker row (7/7 killed). ⛔ Not live yet.
 
-### 8f. DA-F in detail — `PlatoonAttack`, the platoon attacks an AREA *(`CE-2277`, behaviors, 2026-10-19 — Urban Battle §5 step 7, R-2060's area rule; build-state: DESIGN — leans AT-1…AT-12, built under the user's "go ahead autonomously")*
+### 8f. DA-F in detail — `PlatoonAttack`, the platoon attacks an AREA *(`CE-2277`, behaviors, 2026-10-19 — Urban Battle §5 step 7, R-2060's area rule; build-state: BUILT — §8f.1; leans AT-1…AT-12, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — grep `PlatoonAttack|AttackPosition|AttackBuilding` over `Hrot/` ⇒ none; reads of
 `PlatoonDefendBehavior.cs` (the two-region HSM, `KeepDefence` the one order writer, the area survey of E-4), `ClearBuildingBehavior.cs`
@@ -1641,6 +1641,23 @@ graph TD
 **Slice.** AT-1…AT-12 in one build, rails in the platoon suite (the Platoon harness, faked reports — Platoon §12.2 stage A); then the
 live `pc-attack-dry` and `pc-defend-house` (step 7's demos). ⛔ Not in it: smoke (DA-G), the counter-sniper (DA-H), the NoFire lift
 (PC-7's full form), `ReactToFireFromBuilding` (DA-N), a Veteran's second axis.
+
+#### 8f.1 As built *(2026-10-19 — the three diagrams above hold)*
+
+`Brains/PlatoonAttackBehavior.cs` (`PlatoonAttackPlan`, `AttackObjectives.Plan`, the HSM, `KeepAttack`, `CasevacAnswers`);
+`PlatoonAttackParamsJsonDto` `{Position, SearchRadius (0 = 60), Preset, Speed}`.
+
+| AT | as built — only where the lean left a choice |
+|---|---|
+| AT-1 | ⚠ `Preset` parses **by name** (`"AttackPosition"` · `"ClearBuilding"`); a number fails the parse and ingress DROPS the order (measured: the rails' first cut sent `0`) |
+| AT-2 | the survey waits ≤ 5 s, then plans from the elements alone; no element and no building ⇒ the area's middle as one open objective (so `NothingToAttack` does not fire today) |
+| AT-5 | the reserve's point is 100 m from the objective on the assault's flank (60 m behind the assault point) |
+| AT-7 | the assault's `TaskFailed` (a blocked building) also takes the next objective |
+| AT-10 | ABreaking orders `BreakContact {To: the start}`; every squad's Set or TaskFailed ⇒ ABroke raises fault `Custom + 277` — the run FAILS |
+| AT-11 | ⭐ ONE helper for both plays: `CasevacAnswers.Answer` / `.Returned` (`PlatoonDefend`'s `AnswerCasevac` and `KeepDefence` now call it); the attack's reserve carries the casualty to where it stands |
+| AT-12 | a phase change marks every role slot dirty, so `KeepAttack` re-orders with `newOrder` — the picture forgets the last leg's Set (`OrderGiven`) and a stale Set cannot open the next phase (rail: the second objective's approach waits for the support's NEW Set) |
+
+Rails `SquadManeuverTests.CE2277_*` ×5 — mutants: see the tracker row. ⛔ Not live yet (`pc-attack-dry`, step 7).
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

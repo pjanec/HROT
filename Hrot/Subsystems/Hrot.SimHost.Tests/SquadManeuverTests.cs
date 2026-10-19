@@ -2976,6 +2976,192 @@ namespace Hrot.SimHost.Tests
 
         private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
 
+        // ── CE-2277 DA-F — PlatoonAttack: the platoon attacks an AREA (Defend & Attack §8f, AT-1…AT-12) ───────────────────────
+
+        private static void Attack(Platoon p, Vector3 at, float radius = 60f, PlatoonAttackPreset preset = PlatoonAttackPreset.AttackPosition)
+            => p.S.Order("{\"Position\":[" + at.X.ToString(System.Globalization.CultureInfo.InvariantCulture) + "," + at.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                         + ",0],\"SearchRadius\":" + radius.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"Preset\":\"" + preset + "\"}", BehaviorNames.PlatoonAttack);
+
+        /// <summary>The attack's area survey, answered: <paramref name="buildings"/> (id, centre) each one 10 m square room at floor 0.</summary>
+        private static void AnswerArea(Platoon p, params (int Id, Vector2 At)[] buildings)
+        {
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonAttackBehavior.AreaSite);
+            Assert.False(survey.IsNull, "the platoon surveys the area");
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            foreach (var (id, at) in buildings)
+            {
+                answer.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = id, CentreX = at.X, CentreY = at.Y });
+                answer.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                {
+                    Building = id, FloorZ = 0f, Indoors = true,
+                    Corners = new[] { at.X - 5f, at.Y - 5f, at.X + 5f, at.Y - 5f, at.X + 5f, at.Y + 5f, at.X - 5f, at.Y + 5f },
+                });
+            }
+            var now = p.S.Repo.GetSingleton<GlobalTime>().TotalTime;
+            p.S.Repo.SetComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            p.S.Repo.SetManagedComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = answer });
+        }
+
+        private static T OrderTo<T>(Platoon p, Entity squad, string behaviour)
+            => System.Text.Json.JsonSerializer.Deserialize<T>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == behaviour).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static Vector3 Start(Platoon p) => Fdp.Toolkit.Squad.Command.StaffComposerSystem.CentreOf(p.S.Repo, p.S.Commander);
+
+        /// <summary>The support / assault / reserve points AT-4/AT-5 give for objective <paramref name="o"/> (ties to the left).</summary>
+        private static (Vector3 Support, Vector3 Assault, Vector3 Reserve) PointsFor(Platoon p, Vector3 o, float side = 1f)
+        {
+            var start = Start(p);
+            var dir = Vector2.Normalize(new Vector2(start.X - o.X, start.Y - o.Y));
+            float a = side * PlatoonAttackBehavior.FlankDegrees * MathF.PI / 180f;
+            var flank = new Vector2(dir.X * MathF.Cos(a) - dir.Y * MathF.Sin(a), dir.X * MathF.Sin(a) + dir.Y * MathF.Cos(a));
+            return (o + new Vector3(dir * PlatoonAttackBehavior.SupportStandOffMetres, 0f), o + new Vector3(flank * PlatoonAttackBehavior.AssaultStandOffMetres, 0f),
+                    o + new Vector3(flank * PlatoonAttackBehavior.ReserveStandOffMetres, 0f));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2277</c> (AT-2…AT-8) — one enemy in the open at the area's middle: the SUPPORT (Bravo) puts the base of fire up 120 m off
+        /// (its sector on the objective, FireAtWill) while the assault waits; its Set ⇒ the ASSAULT (Alpha) bounds to the flank point 40 m off
+        /// and the reserve (Charlie) behind it; Alpha's Set ⇒ the support only returns fire and Alpha assaults THROUGH (fire and movement);
+        /// its Set ⇒ every squad consolidates round the objective; all Set ⇒ the run succeeds. ✅ Red-proofs: the assault ordered in the
+        /// support phase ⇒ Alpha moves before the base of fire · the lift dropped ⇒ the support keeps FireAtWill · the support's Set
+        /// guard dropped ⇒ the approach at once · the consolidation dropped ⇒ the run ends at the last assault.
+        /// </summary>
+        [Fact]
+        public void CE2277_AnOpenObjective_BaseOfFire_ThenApproach_ThenAssaultThrough_ThenConsolidate()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);   // no survey answer: the elements alone
+            p.Ticks(4);
+            var (support, assault, reserve) = PointsFor(p, o);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
+            Assert.True(Vector3.Distance(DefendOrderTo(p, p.Bravo).Position, support) < 0.5f, $"support at {DefendOrderTo(p, p.Bravo).Position}");
+            Assert.Equal(1, SectorOf(p, p.Bravo).ArcSet);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Bravo));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));        // waits for the base of fire
+
+            p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Alpha, BehaviorNames.BoundingOverwatch).Objective, assault) < 0.5f);
+            Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Charlie, BehaviorNames.BoundingOverwatch).Objective, reserve) < 0.5f);
+
+            p.ReportSet(p.Alpha);
+            p.Ticks(4);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire, FireOf(p, p.Bravo));   // the lift
+            Assert.True(Vector3.Distance(OrderTo<FireAndMovementParamsJsonDto>(p, p.Alpha, BehaviorNames.FireAndMovement).Objective, o) < 0.5f);
+
+            p.ReportSet(p.Alpha);
+            p.Ticks(4);
+            foreach (var squad in new[] { p.Alpha, p.Bravo, p.Charlie })
+                Assert.True(Vector3.Distance(DefendOrderTo(p, squad).Position, o) < 0.5f, "consolidates on the objective");
+            Assert.False(p.S.Finished(out _));
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo); p.ReportSet(p.Charlie);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 8 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2277</c> (AT-2, AT-7, R-2060's area rule) — the AREA holds an enemy inside building 7 and another in the open 50 m
+        /// beyond it: two objectives, nearest first — building 7 is CLEARED (`ClearBuilding` on its centre), its BuildingClear takes the
+        /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
+        /// through · the nearest-first sort dropped ⇒ the open one first · the next-objective loop dropped ⇒ it consolidates after one.
+        /// </summary>
+        [Fact]
+        public void CE2277_AnAreaWithABuildingAndAnOpenPost_ClearsTheBuildingFirst_ThenAttacksTheOpenPost()
+        {
+            var p = new Platoon(squads: 3);
+            var house = new Vector3(0f, 150f, 0f);
+            var post = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, post, 2);
+            p.ReportSpot(p.Alpha, house + new Vector3(2f, 1f, 0f), 2);
+            p.Ticks(2);
+            Attack(p, new Vector3(0f, 175f, 0f), radius: 80f);
+            p.Ticks(3);
+            AnswerArea(p, (7, new Vector2(house.X, house.Y)));
+            p.Ticks(4);
+            var first = PointsFor(p, house);
+            Assert.True(Vector3.Distance(DefendOrderTo(p, p.Bravo).Position, first.Support) < 0.5f, "the base of fire on the house first");
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            p.ReportSet(p.Alpha); p.Ticks(4);
+            Assert.Equal(new Vector3(house.X, house.Y, 0f), OrderTo<ClearBuildingParamsJsonDto>(p, p.Alpha, BehaviorNames.ClearBuilding).Building);
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear,
+            });
+            p.Ticks(4);
+            var second = PointsFor(p, post);
+            Assert.True(Vector3.Distance(DefendOrderTo(p, p.Bravo).Position, second.Support) < 0.5f, "then the base of fire on the open post");
+            int bounds = p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
+            p.Ticks(4);
+            Assert.Equal(bounds, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));   // the house's Set is not this base of fire's
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            Assert.Equal(bounds + 1, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));
+        }
+
+        /// <summary>⭐ <c>CE-2277</c> (AT-9) — the assault reports BLACK during the approach: the reserve (Charlie) takes over as the assault
+        /// and bounds to the assault point; the spent squad gets no assault order. ✅ Red-proof: the relief dropped ⇒ nobody new bounds.</summary>
+        [Fact]
+        public void CE2277_ABlackAssault_IsRelievedByTheReserve()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            int charlie = p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch);
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(6);
+            Assert.Equal(charlie + 1, p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch));
+            Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Charlie, BehaviorNames.BoundingOverwatch).Objective, PointsFor(p, o).Assault) < 0.5f);
+        }
+
+        /// <summary>⭐ <c>CE-2277</c> (AT-10) — two squads and the assault BLACK: no reserve to relieve it, so the platoon BREAKS OFF — both squads
+        /// `BreakContact` back to the start, and once both are back the run FAILS. ✅ Red-proof: the abort dropped ⇒ no break contact.</summary>
+        [Fact]
+        public void CE2277_ABlackAssaultWithNoReserve_BreaksTheAttackOff_AndTheRunFails()
+        {
+            var p = new Platoon(squads: 2);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(6);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
+            Assert.True(Vector3.Distance(OrderTo<BreakContactParamsJsonDto>(p, p.Alpha, BehaviorNames.BreakContact).To, Start(p)) < 0.5f);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 8 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
+        }
+
+        /// <summary>⭐ <c>CE-2277</c> (AT-11, RQ-6) — a Casevac during the attack is answered by the free reserve (`SquadRecover`), as in the
+        /// defence (one helper, `CasevacAnswers`). ✅ Red-proof: the answer state dropped ⇒ nobody fetches him.</summary>
+        [Fact]
+        public void CE2277_ACasevacDuringTheAttack_IsAnsweredByTheReserve()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            AskCasevac(p, p.Alpha, p.S.Repo.CreateEntity());
+            p.Ticks(6);
+            Assert.Equal(1, RecoverOrders(p, p.Charlie));
+            Assert.Equal(0, Requests(p));
+        }
+
         // ── CE-2312 — the headquarters: FireSupport and Reinforce answered with support assets (Command Chain §8d HQ-6…HQ-8) ──
 
         private const long HqHeliType = 9781, HqPlaneType = 9782;
