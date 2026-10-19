@@ -1262,6 +1262,38 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> (N3) — a walker shoved by the men beside him is never pushed THROUGH A BUILDING'S WALL, even with no navmesh to
+        /// hold him: his bent step is traced against closed barriers like a vehicle's (CE-2198). 📌 Live a rifleman with no move at all
+        /// was shoved 1.3 m out through a house's wall — the navmesh stops a body radius short of the wall, so in that margin he was free.
+        /// ✅ Red-proof: drop the <c>bentWalker</c> trace ⇒ he ends inside the wall line.
+        /// </summary>
+        [Fact]
+        public void CE2304_AWalkerShovedAtABuildingsWall_NeverGoesThroughIt()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            const string walls = "\"walls\":[{\"from\":[0,0],\"to\":[30,0]},{\"from\":[30,0],\"to\":[30,10]},{\"from\":[30,10],\"to\":[0,10]},{\"from\":[0,10],\"to\":[0,0]}]";
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(   // a house whose south wall runs 0.5 m north of his path
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[30,0],[30,10],[0,10]]," +
+                "\"storeys\":[{\"height\":3," + walls + "}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-5,0.5]}}]}"));
+            for (float x = 2f; x <= 9f; x += 0.6f) Stander(repo, new Vector3(x, -0.45f, 0f));   // a file of men pressing him north
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.True(north > 0.2f, $"the men beside him pushed him north ({north:F2} m) — else this proves nothing");
+            Assert.True(north < 0.5f, $"pushed {north:F2} m north, through the wall at 0.5 m");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — kinematics does not drive an EMBARKED entity (the carry owns its transform): the same
         /// moving body that advances when free stays exactly where the carry left it once it carries <c>IsEmbarkedTag</c>.</summary>
         [Fact]

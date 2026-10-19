@@ -492,7 +492,8 @@ namespace CarKinem.Systems
             }
             
             FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
-                keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt);
+                keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt,
+                bentWalker: person && avoidanceVelocity != desiredVelocity);
         }
 
         /// <summary>
@@ -500,7 +501,7 @@ namespace CarKinem.Systems
         /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe).
         /// </summary>
         private void FinishMove(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav,
-            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt)
+            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt, bool bentWalker = false)
         {
             // Output conversion
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
@@ -526,11 +527,15 @@ namespace CarKinem.Systems
             // ⭐ CE-2198 — A VEHICLE NEVER ENTERS A BUILDING: a step whose hull-height line crosses a CLOSED BARRIER (a building's wall, a
             //   closed door — R-252's meaning, never a geometry type), or that rises like a wall (steeper than VehicleMaxClimbSlope and
             //   taller than VehicleMaxStepM — inside a solid footprint the sampler offers only the roof), is not taken: it stops there.
-            if (!person && _terrain != null)
+            // ⭐ CE-2304 (N3) — and A PERSON IS NEVER PUSHED THROUGH ONE: a walker's step that avoidance bent is traced against closed
+            //   barriers the same way (only the barrier test — a stair rises like a wall). The navmesh rule above it cannot hold him
+            //   alone: the mesh stops a body radius short of every wall, and a man pushed into that margin is "off the mesh" and free.
+            //   📌 Live in sq-defend-house a rifleman with no move at all was shoved 1.3 m out through the south wall at 3 m/s.
+            if ((!person || bentWalker) && _terrain != null)
             {
                 var here = new Vector2(tf.Position.X, tf.Position.Y);
                 float rise = z - tf.Position.Z;
-                bool wall = rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
+                bool wall = !person && rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
                 if (!wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
                 {
                     _crossings.Clear();

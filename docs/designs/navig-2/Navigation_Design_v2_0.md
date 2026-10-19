@@ -488,7 +488,7 @@ no `NavState` path, so it keeps the speed watchdog only.
 |---|---|---|---|
 | **N1** | the brain re-sent each post move ~2×/s to the same point (`IntentId` 5 → 55 in 40 s); each re-send stopped the man and reset every count | a **re-sent move** — `PathToPoint`, ≤ `ResentMoveToleranceM` 0.25 m across and ≤ 1 m in height from the path's end, still walking — keeps its path and its counts; only speed and arrival radius follow | `NavigationExecutionSystem.IsResentMove`, used by the bridge and the watchdog |
 | **N2** | moving but getting nowhere (progress 0.004 m, speed flickering past 0.2 m/s) | on a path, < `NoProgressMinGainM` 0.25 m in `NoProgressLimitSeconds` 4 s is a frustration episode (replan, else `FailedBlocked`) — beside the 0.2 m/s / 2 s speed rule | `NavigationExecutionSystem.Stalled` |
-| **N3** | a man pushed 1.3 m outside the wall | a walker's step that avoidance bent goes through `ManualMotion.KeepOnNavmesh` (slide along the edge, or stop) — only a bent step, so open-ground walkers pay no navmesh query | `CarKinematicsSystem` |
+| **N3** | a man pushed 1.3 m outside the wall — ⭐ re-measured after the first fix: shoved at 3 m/s with NO move at all, still outside | a walker's step that avoidance bent goes through `ManualMotion.KeepOnNavmesh` (slide along the edge, or stop) **and** is traced against closed barriers like a vehicle's (CE-2198; the barrier test only — a stair rises like a wall). The mesh alone cannot hold him: it stops a body radius short of every wall, and in that margin a body is "off the mesh" and free. Only a bent step pays either query | `CarKinematicsSystem` (`FinishMove`'s barrier block, `bentWalker`) |
 | **N4** | a man upstairs gave way to the room below (the collider grid is 2-D) | a neighbour more than `AvoidanceStoreyGapM` 1.5 m above or below is not avoided | `CarKinematicsSystem.ApplyCollisionAvoidance` |
 
 **Rejected:** *a 3-D collider grid* — every reader of the grid (bullets, near misses, radius search) is 2-D and the Z test costs one read
@@ -498,7 +498,7 @@ for any chatty brain.
 
 **Rails** (in the features' own suites): `S8_FrustrationWatchdogTests.CE2304_AWalkerWhoMovesButMakesNoProgress_EndsHisMove_FailedBlocked` ·
 `CE2304_AMoveReSentToTheSamePoint_KeepsItsStuckCount` · `CarKinematicsSystemTests.CE2304_AWalker_GivesWayToAManOnHisFloor_NeverToOneOnTheFloorBelow`
-· `CE2304_AWalkerPushedByTheMenBesideHim_StaysInsideTheWall`.
+· `CE2304_AWalkerPushedByTheMenBesideHim_StaysInsideTheWall` · `CE2304_AWalkerShovedAtABuildingsWall_NeverGoesThroughIt`.
 
 ## 4. CQRS contract — components
 
