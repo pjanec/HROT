@@ -2000,6 +2000,18 @@ public sealed class Map3DFrameRail
         float sunset = Shot("weather-sunset.png", S(2, 200, 0.32f));
         float night = Shot("weather-night.png", S(-35, 0, 0.001f));
         float fog = Shot("weather-fog.png", S(40, 180, 0.8f, vis: 150f));
+
+        // ⭐ CE-1146 (2026-10-19) — the FREE camera in the same 150 m fog, 120 m from what it looks at: the fog starts there, so the ground
+        //   it looks at is seen (with the fog from the eye it would be ~85 % fog colour), and the far town fades
+        var mist = WeatherSky.Of(S(40, 180, 0.8f, vis: 150f));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 5f, spot.Y - 6f, ground), 120f, MathF.PI * 1.5f, -0.55f);
+        Shot("weather-free-camera-fog.png", S(40, 180, 0.8f, vis: 150f));
+        var centreShot = Raylib.LoadImage(Path.Combine(shots, "weather-free-camera-fog.png"));
+        Color centre;
+        try { centre = Raylib.GetImageColor(centreShot, centreShot.Width / 2, centreShot.Height / 2); }
+        finally { Raylib.UnloadImage(centreShot); }
+        int fogDistance = Math.Abs(centre.R - mist.SkyHorizon.R) + Math.Abs(centre.G - mist.SkyHorizon.G) + Math.Abs(centre.B - mist.SkyHorizon.B);
+        Assert.True(fogDistance > 40, $"what the free camera looks at is fogged out: centre {centre.R},{centre.G},{centre.B} vs fog {mist.SkyHorizon.R},{mist.SkyHorizon.G},{mist.SkyHorizon.B}");
         sw.Camera3D.Atmosphere = null;
 
         Assert.True(night < noon * 0.75f, $"night {night:F0} darker than noon {noon:F0}");

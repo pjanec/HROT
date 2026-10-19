@@ -516,10 +516,17 @@ namespace Fdp.Toolkit.Vis3D
 
         /// <summary>
         /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the sky, sun and air to draw with; null = <see cref="SceneAtmosphere.Default"/>
-        /// (the free camera's clear day). A host that knows the weather sets it — only in first person (🔒 user, 2026-10-16: <i>"not in the
-        /// usual free camera 3d map mode where it would be obstructing the view"</i>).
+        /// (a clear day). A host that knows the weather sets it — ⭐ in first person AND, since 2026-10-19, in the free camera (🔒 user:
+        /// <i>"just showing the same weather as in FPS as the first slice"</i>; the 2026-10-16 "first person only" is superseded).
         /// </summary>
         public SceneAtmosphere? Atmosphere { get; set; }
+
+        /// <summary>⭐ CE-1146 — the share of the look-at distance the free camera's fog does not touch: what it looks at stays clear, the world
+        /// beyond fades by the visibility. First person (a driver) starts the fog at the eye.</summary>
+        public const float FreeFogStartShare = 0.9f;
+
+        /// <summary>⭐ CE-1146 — how far from the eye the fog starts (m): 0 while a driver looks out of a unit, else most of the look-at distance.</summary>
+        public float FogStart => Driver != null ? 0f : Distance * FreeFogStartShare;
 
         /// <summary>The far clip distance, m.</summary>
         public float FarClip => MathF.Max(2000f, Distance * 60f);
@@ -540,7 +547,7 @@ namespace Fdp.Toolkit.Vis3D
             var cam = ToRaylib();
             if (LitShader.IsCreated)
             {
-                LitShader.Shared.ApplyFrame(cam.Position, FogDensityFor(a));
+                LitShader.Shared.ApplyFrame(cam.Position, FogDensityFor(a), Atmosphere is { VisibilityM: > 0f } ? FogStart : 0f);
                 LitShader.Shared.ApplyAtmosphere(a);
             }
             Rlgl.SetClipPlanes(MathF.Max(0.05f, Distance * 0.001f), FarClip);

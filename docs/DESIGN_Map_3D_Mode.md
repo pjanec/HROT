@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -2637,7 +2637,7 @@ the draw path — they never touch the shader.*
 
 | decision | rule |
 |---|---|
-| **WS-1 only in first person** | the layer sets `Atmosphere` while `FpsCameraDriver` drives the 3-D camera, else null; null is `SceneAtmosphere.Default`, the look the map always had |
+| **WS-1 where** ⭐ *(superseded `2026-10-19`)* | ~~only in first person~~ ⇒ 🔒 user, `2026-10-19`: *"I'm not asking for much more than just showing the same weather as in FPS as the first slice"* — first person reads the weather at the EYE (fog from the eye); the FREE camera reads it at the point it LOOKS AT and starts the fog there (`MapCamera3D.FogStart` = 0.9 × the look-at distance, the shader's `fogStart`), so what is looked at stays clear and the world beyond fades by the visibility; the 2-D map and any other driver get none |
 | **WS-2 the light** | shown light = 0.35 + 0.65 × `RelativeLight` (the field's, cloud-dimmed) ⇒ ambient 0.30 at the darkest night … 0.42 at day; the sun's share 0.58 × sin(el)/0.25 (capped) × the field's own cloud cut `1 − 0.75·(octas/8)^3.4`, 0 below the horizon — the darkest night is a dusk, never black |
 | **WS-3 the sky** | day blue → dusk blue with the light; greyed toward overcast with the cloud cover above; a warm glow on the horizon with the sun within ±8° of it (thinned by cloud); the sun disc and its glow where the field puts the sun (azimuth clockwise from north), hidden under ≥ 7 octas; in fog or mist (visibility under 2 km) the sky takes the fog's grey, fully by ~200 m, and the disc goes |
 | **WS-4 the fog** | `exp(−(d·k)²)` with `k = 1.73 / V` — 5 % contrast at the visibility (Koschmieder, the field's own σ = 3.912 / V); never thinner than a fog that has faded fully by 90 % of the far clip, so the world never ends at an edge |
@@ -2648,8 +2648,8 @@ noise texture per layer: the cost question), the MOON (the field has no lunar po
 light their surroundings at night (a flare lighting the ground).
 
 **Rejected — one line each:** *a skybox / dome mesh* — a screen gradient plus a disc costs nothing and shows the same at FPS scale; *darkening the
-effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; *weather in the free
-camera* — the user ruled it out (it would obstruct the view).
+effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; ~~*weather in the free
+camera* — the user ruled it out (it would obstruct the view)~~ — superseded `2026-10-19` (WS-1): the fog starting at the look-at is what keeps it from obstructing; *the fog from the eye in the free camera* — from hundreds of metres up a 500 m mist would grey out the whole map.
 
 **As-built `2026-10-16`** — matches the diagrams. Rails `WeatherSkyTests.CE1146_*` ×5 (noon, night floor, overcast, sunrise glow, fog) and
 `PossessionStationTests.CE1146_TheWeathersSky_OnlyInFirstPerson`; frame rail `Map3DFrameRail.CE1146_V` (Mesa under Xvfb: the shader
@@ -2660,6 +2660,12 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ![](assets/map-3d/weather-noon.png) | ![](assets/map-3d/weather-sunset.png) |
 | **the darkest night — still a dusk** | **fog, 150 m visibility** |
 | ![](assets/map-3d/weather-night.png) | ![](assets/map-3d/weather-fog.png) |
+
+**As-built `2026-10-19` — the free camera (WS-1):** `WeatherSkyLayer` samples at the look-at with no driver; `LitShader` gained `fogStart` (`ApplyFrame`'s third argument), set from `MapCamera3D.FogStart` only when the weather states a visibility. Rails `PossessionStationTests.CE1146_TheWeathersSky_InTheFreeCameraAtWhatItLooksAt_AndInFirstPersonAtTheEye` and the frame rail's free-camera fog shot (the centre of a 150 m fog seen from 120 m is the ground, not the fog colour — red-proved with the fog from the eye).
+
+| the free camera in a 150 m fog, 120 m from what it looks at |
+|---|
+| ![](assets/map-3d/weather-free-camera-fog.png) |
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
 

@@ -78,3 +78,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 2 | `CE-1221` added (frame the entities after a load with no camera) |
 | `2026-10-19` | 1, 2 | ✅ `CE-1199` and `CE-1221` built, red-proved; Presentation 773 / 0 (2 skipped, the audio pair) |
 | `2026-10-19` | 3 | ✅ the pick-up rifle / pistol / charge drawn as themselves (and hit as themselves); behaviors' D4 ask — a commander's absent picture says so — built with it; Presentation 776 / 0 |
+| `2026-10-19` | 4 | ✅ the weather in the free 3-D camera (at the look-at, the fog from there); Presentation 776 / 0, Fdp.Presentation 581 / 0 |

@@ -132,12 +132,13 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky is drawn ONLY in first person: the free 3-D camera keeps the clear
-    /// day it always had (no atmosphere); in a unit the camera gets the weather's at the eye; released, it is taken away again.
-    /// 🔒 User, 2026-10-16: "especially for the FPS mode; but not in the usual free camera 3d map mode where it would be obstructing the view".
+    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky in the 3-D map: ⭐ since 2026-10-19 in the FREE camera too, read at
+    /// what it looks at, its fog starting there (what is looked at stays clear); in a unit read at the eye with the fog from the eye; the 2-D
+    /// map gets none. 🔒 User, 2026-10-19: "I'm not asking for much more than just showing the same weather as in FPS as the first slice"
+    /// (supersedes 2026-10-16's "not in the usual free camera").
     /// </summary>
     [Fact]
-    public void CE1146_TheWeathersSky_OnlyInFirstPerson()
+    public void CE1146_TheWeathersSky_InTheFreeCameraAtWhatItLooksAt_AndInFirstPersonAtTheEye()
     {
         var (w, unit, _) = World();
         using (w)
@@ -145,20 +146,25 @@ public sealed partial class PossessionStationTests
             var (_, sw, _) = Map();
             var sky = new WeatherSkyLayer(sw, () => w);
             var station = new PossessionStation(sw, () => w);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);                              // the 2-D map: none
             sw.Set(true, animate: false);
             sky.Update(0.016f);
-            Assert.Null(sw.Camera3D.Atmosphere);                              // the free camera: the clear day
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // the free camera: the weather where it looks
+            Assert.Equal(sw.Camera3D.Distance * MapCamera3D.FreeFogStartShare, sw.Camera3D.FogStart, 3);   // the fog starts there
 
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
             sky.Update(0.016f);
             Assert.NotNull(sw.Camera3D.Atmosphere);                           // in the unit: the weather's
+            Assert.Equal(0f, sw.Camera3D.FogStart);                           // first person: the fog from the eye
 
             w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
             station.Update(0.016f);
             sky.Update(0.016f);
-            Assert.Null(sw.Camera3D.Atmosphere);
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // released: back to the free camera's weather
+            Assert.True(sw.Camera3D.FogStart > 0f);
         }
     }
 
