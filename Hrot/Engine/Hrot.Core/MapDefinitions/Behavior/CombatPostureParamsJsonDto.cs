@@ -36,6 +36,46 @@ namespace Hrot.Map.Definitions.Behavior
         /// eyes; scanned ±30°. Zero = none. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
         [JsonPropertyName("watchTowards")]
         public Vector3 WatchTowards;
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — he STAYS: nothing ends the posture by finishing (arriving, his target or his
+        /// threat going down) — his eyes and his fight go on until a new order replaces it. A squad's Hold / Watch man is sent it.
+        /// Default false: the posture ends when its winner does. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
+        [JsonPropertyName("stay")]
+        public bool Stay;
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — his POST: he takes cover only on it or his alternate. A squad defence sends it; none
+        /// (radius 0) = anywhere. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2a.</summary>
+        [JsonPropertyName("post")]
+        public CombatPosturePostJsonDto Post;
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2a — the post of <see cref="CombatPostureParamsJsonDto"/>.</summary>
+    public struct CombatPosturePostJsonDto
+    {
+        /// <summary>The post (sim metres, Z up).</summary>
+        [JsonPropertyName("point")]
+        public Vector3 Point;
+
+        /// <summary>His alternate post, when <see cref="HasAlternate"/>.</summary>
+        [JsonPropertyName("alternate")]
+        public Vector3 Alternate;
+
+        [JsonPropertyName("hasAlternate")]
+        public bool HasAlternate;
+
+        /// <summary>A hide point this close to <see cref="Point"/> is on his post (m); 0 = no post.</summary>
+        [JsonPropertyName("radius")]
+        public float Radius;
+
+        /// <summary>A WINDOW post: he fights it the window way (prone under the sill, up at it); else a cover post.</summary>
+        [JsonPropertyName("window")]
+        public bool Window;
+
+        /// <summary>⭐ D-2b (DA-6) — a SET-BACK window post: he hides among set-back points (1.5–2.5 m inside), never at the sill.</summary>
+        [JsonPropertyName("setBack")]
+        public bool SetBack;
+
+        /// <summary>⭐ D-2g (DA-5, DA-22) — a ROOF post: prone behind the parapet, up to the point's stance (crouched) to fire over it.</summary>
+        [JsonPropertyName("roof")]
+        public bool Roof;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

@@ -308,6 +308,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: this node logs every report it sees.
+            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.ReportInbox())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
             .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability())
             // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored, so rounds, sensors and avoidance see them; idle without a net.

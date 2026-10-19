@@ -123,6 +123,49 @@ namespace Fdp.Toolkit.Behavior.Components
             return InAllow(view, in a, point);
         }
 
+        /// <summary>⭐ <c>CE-2275</c> D-1 (DA-36) — the one point a unit's Allow is ABOUT: an area's centre (its outline's mean), else the arc's
+        /// middle bearing at the middle of its range band (100 m when it has no limit). <c>false</c> = the unit has no Allow. What the squad
+        /// defence aims its post queries and its men's arcs at. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c.</summary>
+        public static bool TryAllowPoint(ISimulationView view, Entity unit, out Vector3 point)
+        {
+            point = default;
+            if (!Registered(view) || !TryGet(view, unit, out var a)) return false;
+            if (a.AllowArea != 0 && view is EntityRepository repo)
+            {
+                var area = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, a.AllowArea);
+                if (!area.IsNull && repo.IsAlive(area) && Fdp.Toolkit.Weather.WeatherField.TryOutline(repo, area, out var outline)
+                    && TryPosition(repo, area, out var origin) && outline.Points.Count > 0)
+                {
+                    var sum = Vector2.Zero;
+                    foreach (var p in outline.Points) sum += p;
+                    sum /= outline.Points.Count;
+                    point = new Vector3(origin.X + sum.X, origin.Y + sum.Y, origin.Z);
+                    return true;
+                }
+            }
+            if (a.ArcSet == 0) return false;
+            float middle = (a.LeftBearing + Norm(a.RightBearing - a.LeftBearing) * 0.5f) * (MathF.PI / 180f);
+            float range = a.MaxRange > 0f ? (a.MinRange + a.MaxRange) * 0.5f : 100f;
+            point = a.ArcOrigin + new Vector3(MathF.Sin(middle) * range, MathF.Cos(middle) * range, 0f);
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-32) — does <paramref name="man"/> hold a sector a SUPERIOR set (his current play's)?</summary>
+        public static bool HasSuperiorSet(ISimulationView view, Entity man)
+        {
+            if (!Registered(view) || !TryGet(view, man, out var a)) return false;
+            return a.SetBy == BehaviorOrigin.Superior && (a.ArcSet != 0 || a.AllowArea != 0 || a.WatchSet != 0 || a.NoFire.Count > 0);
+        }
+
+        /// <summary>⭐ <c>CE-2302</c> (DA-32) — withdraw <paramref name="man"/>'s sector if a Superior set it: an all-empty
+        /// <see cref="SetEngagementAreaEvent"/> at origin Superior (the gate keeps an Operator's). Called when the play gives him an
+        /// order without an arc and when the commander's run that gave it ends (<see cref="SubordinateOrders.Release"/>).</summary>
+        public static void WithdrawSuperior(EntityRepository repo, Entity man)
+        {
+            if (!repo.Bus.IsRegistered<SetEngagementAreaEvent>() || !repo.IsAlive(man) || !HasSuperiorSet(repo, man)) return;
+            repo.Bus.Publish(new SetEngagementAreaEvent { Entity = man, Origin = BehaviorOrigin.Superior });
+        }
+
         /// <summary>Does a shot from <paramref name="shooter"/> ending at <paramref name="point"/> end inside a NoFire area of his own or
         /// of any commander up his chain (≤ 8 levels)? Always honoured — self-defence never lifts it.</summary>
         public static bool IsNoFire(ISimulationView view, Entity shooter, Vector3 point)
@@ -154,6 +197,10 @@ namespace Fdp.Toolkit.Behavior.Components
             float span = Norm(right - left);
             return Norm(bearing - left) <= span;
         }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-53) — is <paramref name="point"/> inside the Allow of a sector VALUE (its arc and / or its area):
+        /// the platoon's defence plan holds its engagement area as one. No Allow = false. No tier, no self-defence — geometry only.</summary>
+        public static bool Contains(ISimulationView view, in EngagementArea a, Vector3 point) => HasAllow(in a) && InAllow(view, in a, point);
 
         private static bool SelfDefence(ISimulationView view, Entity man, Vector3 point)
         {

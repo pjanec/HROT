@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 for the user) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 ✅ APPROVED 2026-10-19, R-2054) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
@@ -387,6 +387,681 @@ fires at once, which is what "reaction to a new contact" means.
 ⭐ Neutral at Regular and with no component, exactly (rail). Rails `PeekAndFireNodesTests.CE2274_*` (3, the node's suite).
 ⚠ Not here: DA-6's set-back window post for Regular+ (`CE-2275`, the squad defence picks the post).
 
+### 8c. DA-D in detail — `SquadDefend`, the squad holds a position *(`CE-2275`, behaviors, 2026-10-19 — slice D-1 designed here; D-2 below)*
+
+**INVENTORY** *(2026-10-19 — one read-only sweep agent, grep + every hit opened; the codebase-memory CLI was reachable (`home-user-HROT`) but
+not used for this sweep, `check_index_coverage` not run — so "does not exist" below means "not found by text search")*:
+
+| need | exists | where | ⇒ |
+|---|---|---|---|
+| a squad play | ✅ 14 `ISquadPlay`s on one runner; the closest is `SquadHoldPlay` (one element, every man `Hold`, ends on time or all-clear) | `SquadManeuverRunner.cs:320-341`; `SquadContactBehaviors.cs:34-104` | ⭐ a 15th play, the hold's shape |
+| the terrain from a play | ✅ `AskTerrainAll` — one-shot child EQS sensor on the commander, solved on SimHost, **≤ 16 ranked points**, not the same frame, dropped after its answer; a point in slot 1 (`ContextPoint1`) | `SquadManeuverRunner.cs:686-731`; `EqsComponents.cs:89` | ⭐ the posts' road; the answer carries position, score, stance, kind, **no facing** |
+| window posts | ✅ `CoverPointsGenerator { Kind = WindowFiring }` — one point per window on **every storey**, 0.75 m in from the inside face, at the lowest stance that clears the sill; `FindWindowFiringPosition` keeps those that see a target | `CoverPointsGenerator.cs:12-80`; `StarterTemplates.cs:32`; `TerrainCoverProvider.cs:122-182` | ⭐ reuse the generator; ⛔ no set-back variant (DA-6 ⇒ D-2) |
+| outside posts | ✅ `FindCoverFromTarget` (cover points hidden from a target or a point) | `Spatial/Eqs/FindCoverFromTarget.cs:13` | ⭐ the second ask |
+| picking one point per man | ✅ `SquadCover.Pick` — spacing **2-D** (`PickSpacingMetres` 2 m) | `SquadCover.cs:96-120` | ⚠ two storeys of one window column share XY ⇒ the defence picks in **3-D** |
+| the engagement area | ✅ the squad commander's own `EngagementArea` Allow (an arc or an area entity) — set by the operator's *Set sector* (`CE-2149`) or a platoon; `EngagementAreas.AllowsUnit(view, commander, point)`; a man may CHOOSE a target inside his commander's Allow (Militia+), self-defence excepted | `EngagementArea.cs:36-200` | ⭐ the EA is read, never stamped by the play |
+| fire control | ✅ `SetRoeEvent` (3104, origin-gated) through the chain (`RoeOf`, `CE-2289`); ⛔ **no withdraw**: a field once set stays set; ⛔ **no play sets ROE** today | `SetRoeEvent.cs:13`; `RoeSystem.cs:49-66`; `Roe.cs:104-130` | ⇒ DA-35 |
+| the trigger / displace sensors | ⛔ `ContactInEngagementArea`, `ContactOutsideSector`, `PositionUntenable` do not exist (the enum ends at `ReportReceived` 19); `RecentSenses` keeps the LAST time per kind, no count | `SensorChangedEvent.cs:12-73`; `RecentSenses.cs:78-140` | ⇒ the play counts near misses itself (DA-38) |
+| reports | ✅ `ReportQueue.Enqueue` (the play's own PROGRESS: `Set`, `Displacing`, `FallingBack` exist) | `ReportQueue.cs:14`; `CommandReports.cs:32-51` | ⭐ reuse |
+| the defend order | ⚠ `DefendArea` {centre lat/lon, radius} ⇒ `CombatPosture` for a soldier (by TKB type); nothing for a squad | `DefendAreaMapper.cs:45-87`; `DefendAreaIntentDto.cs:16-28` | ⭐ a unit with a roster ⇒ `SquadDefend` |
+| authored fighting positions | ⛔ none in the scenario format | — | DA-5's authored post stays open (D-2) |
+| `house-3f` (roof storey, stair house, parapet) | ✅ built by ui | `CE-1182`; `Recipes/Buildings/house-3f.building.json` | the demo's house |
+
+**Design docs checked:** [Platoon §5–§6a, §12.2](DESIGN_Platoon_Attack_Defend_Clear.md) — ✅ applies: the play's phases, its PROGRESS, `sq-defend-house` · §4.2 / DA-4…DA-7 above — ✅ applies, D-1 builds the squad half · §13a (DA-24) — ✅ the squad sector is the EA, `MemberArc` per man · `DESIGN_Operations_Behaviour_Catalogue.md` §4 `OccupyPost` — a catalogue row, no mechanism · `.dev/` — searched, no record.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendBehavior { <<NEW library behaviour, Commander>> Resolve · BuildTree · Run }
+  class SquadDefendParams { <<NEW>> Position · SearchRadius · Speed · DefencePosts Posts }
+  class DefencePosts { <<NEW memory in the params>> 16 points · post per man · alternate per man · near-miss count and last time per man · Manned reported }
+  class SquadDefendPlay { <<NEW ISquadPlay>> Move · Post · Hold }
+  class DefencePostPicker { <<NEW pure>> Pick(answers, men) 3-D spacing · Alternate(man) }
+  class FindDefensiveWindowPosts { <<NEW EQS template>> WindowFiring points that see the EA point }
+  class FindCoverFromTarget { <<EXISTING EQS>> }
+  class CoverPointsGenerator { <<EXISTING>> }
+  class SquadManeuverRunner { <<EXISTING>> AskTerrainAll · Issue · Sector }
+  class MemberArc { <<EXISTING CE-2302>> }
+  class EngagementAreas { <<EXISTING>> AllowsUnit · the commander's Allow }
+  class ReportQueue { <<EXISTING>> PROGRESS Set · Displacing }
+  class DefendAreaMapper { <<EXISTING, + 1 arm>> a unit with a roster ⇒ SquadDefend }
+  SquadDefendBehavior ..> SquadDefendPlay : SquadManeuverRunner.Tick
+  class ISquadPlay { <<EXISTING>> }
+  SquadDefendPlay ..|> ISquadPlay
+  SquadDefendParams *-- DefencePosts
+  SquadDefendPlay ..> SquadManeuverRunner : AskTerrainAll, twice
+  SquadManeuverRunner ..> FindDefensiveWindowPosts
+  SquadManeuverRunner ..> FindCoverFromTarget
+  FindDefensiveWindowPosts ..> CoverPointsGenerator : Kind WindowFiring
+  SquadDefendPlay ..> DefencePostPicker
+  SquadDefendPlay ..> EngagementAreas : the EA point and the arcs
+  SquadDefendPlay ..> MemberArc : one per member order
+  SquadDefendPlay ..> ReportQueue
+  DefendAreaMapper ..> SquadDefendBehavior
+```
+*What the picture shows that prose hid:* the play owns **no new mechanism** — posts come from the EQS road plays already use, the men's
+sectors from `MemberArc`, hold fire from the squad's own sector, reports from the queue. The new parts are a template, a pure picker and the
+play's memory; the picker is pure so the 3-D spacing and the alternate rule are railed without a world.
+
+```mermaid
+sequenceDiagram
+  participant OP as operator or platoon
+  participant P as SquadDefendPlay (squad commander's brain)
+  participant EQS as EQS on SimHost
+  participant R as SquadManeuverRunner
+  participant M as members (CombatPosture, stay)
+  OP->>P: SquadDefend {position, radius} (the squad's sector set before, or none)
+  P->>R: Move: AdvanceTo the position (skipped when the squad is already there)
+  P->>EQS: AskTerrainAll(FindDefensiveWindowPosts, from a man at the position, at the EA point)
+  EQS-->>P: ≤ 16 window points (every storey)
+  P->>EQS: only if men are left without a post: AskTerrainAll(FindCoverFromTarget, at the EA point)
+  EQS-->>P: cover points
+  P->>P: DefencePostPicker: a post per man (3-D spacing, best score), the rest = alternates
+  P->>R: Post: each man Watch at his post + MemberArc toward the EA
+  R->>M: CombatPosture(stay) + SetEngagementAreaEvent (Superior)
+  M-->>P: all within 1.5 m of their posts
+  P->>P: PROGRESS Set, once
+  loop Hold (until the next order)
+    M-->>P: his RecentSenses NearMiss / Hit time moved (the play counts it)
+    P->>R: 3 within 10 s: his alternate post, PROGRESS Displacing
+  end
+  Note over M: fire: each man chooses only inside the squad's sector (Militia+, self-defence excepted) — the hold-fire, DA-35
+```
+
+```mermaid
+graph TD
+  BT[BrainTickSystem, the squad commander's brain node] -->|ticks| SDB[SquadDefend BTree: one stateful action]
+  SDB --> RUN[SquadManeuverRunner.Tick]
+  RUN --> PLAY[SquadDefendPlay]
+  PLAY -->|child sensor| EQSS[EqsSolverSystem on the Perception node]
+  RUN -->|AssignTacticalIntentEvent Superior| MEN[members' brains: CombatPosture]
+  RUN -->|SetEngagementAreaEvent| EAS[EngagementAreaSystem on each man's brain node]
+  MAP[DefendAreaMapper, the ingress] -->|DefendArea on a squad| SDB
+  classDef new fill:#ffd,stroke:#aa0
+  SDB:::new
+  PLAY:::new
+```
+*Caption:* nothing new runs per frame outside the commander's own tick — the play is reached only through the runner, and the posts are
+solved where every EQS query is. ⚠ The near-miss count reads each man's `RecentSenses` on the COMMANDER's node: true where the squad's
+brains share a node (the CGF norm); ⛔ not measured for a squad split across nodes.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-34** | where D-1's posts come from | **two asks in turn**: `FindDefensiveWindowPosts` (window points within `SearchRadius` of the position that see the EA point) — then, only for men still without a post, `FindCoverFromTarget` at the EA point (walls, sandbags, berms, and the roof parapet if it yields cover points — ⛔ measure in the build). One post per man by score with **3-D** spacing ≥ 2.5 m; the unused points are the alternates | three templates (`FindBuildingPosts` / `FindRoofPosts` / `FindDefensivePosts`, DA-5's names) at once: the same generator twice under three names before any user needs the difference · the BuildingSurvey's windows: a standing sensor for what one EQS ask already answers; it returns with the set-back (D-2) |
+| **DA-35** | hold fire | ⭐ *(corrected 2026-10-19 — the first lean claimed to revise Platoon §6a; it did not: §6a's "alone" is the squad with no platoon play above it, and under a platoon the PLATOON holds and lifts, §5 Occupy / Engage)* **The hold is an ROE the order-giver sets** (the operator in `sq-defend-house`, the platoon in `PlatoonDefend`) — ROE persists across tasks by design (`Roe.cs`), so it is never the play's to withdraw. **Under a platoon** the play never touches ROE. **Alone** — a `HoldFire` set on the squad commander itself by a non-Superior origin — the play LIFTS it to `FireAtWill` (origin Self, the order-giver's rank) on the first pooled contact inside the squad's sector, or the first round at one of its men (DA-7's "a post is fired upon"). Its sector keeps every man choosing inside it before and after. ✅ **BUILT 2026-10-19**: `SquadDefendPlay.LiftOwnHold` (every tick, either phase; once) | the play SETTING `HoldFire` itself: `SetRoeEvent` has no withdraw and a task clear runs no play `Release` (DA-32) ⇒ the hold would outlive a cleared defence · the sector alone (the first lean): a `HoldFire` order then has no lift at all, and an alone squad shot at from outside its sector could never answer |
+| **DA-36** | the EA | the squad commander's own Allow (an operator's *Set sector*, a platoon's `SquadSector`); its point for the asks = the area's position, or the arc's middle at half its range. **None ⇒ all-round**: the window ask without a target (every window within the radius), arcs outward, no hold | an EA in the order: a second place a sector lives, and a squad sector is an area entity by DA-24 |
+| **DA-37** | each man's arc | `MemberArc` from his post: centred on the bearing to the EA point, ±45°; all-round ⇒ centred on the bearing position → post, ±60° | splitting the EA between men by bearing (DA-24's `ForMembers`): needs `SectorPlanner`, which D-1 does not — it returns with roles (DA-K) |
+| **DA-38** | displace | the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
+| **DA-39** | the order | a new library behaviour **`SquadDefend`** {Position, SearchRadius 30 m, Speed}; `DefendArea` on a unit with a roster ⇒ `SquadDefend` at the area's centre (radius ⇒ `SearchRadius`); runs until the next order; Failure when no man is alive | a `Defend` preset of `SquadHold`: the hold has no posts and no memory |
+
+**As built (D-1, 2026-10-19)** — as drawn, with these names: `SquadDefendBehavior` / `SquadDefendPlay` / `DefencePosts` / `DefencePostPicker`
+(`Hrot.AI.Behaviors/Brains/SquadDefendBehavior.cs`) · `SquadDefendManeuver` kind 18, phases Moving → Posting
+(`Fdp.Toolkits/Squad/Maneuvers/SquadDefendManeuver.cs`, named in `SquadDrillNames`) · `FindDefensiveWindowPosts` and its no-EA twin
+`FindWindowPostsAllRound` (`StarterTemplates.cs`) · `EngagementAreas.TryAllowPoint` (the EA's point: an area's outline mean, else the arc's
+middle at the middle of its range, 100 m with none) · `DefendAreaMapper`'s roster arm. Details the diagrams leave open: the move ends when every
+live man is within 6 m of the position (or after 90 s); a post ask unanswered for 5 s is given up and the men left over hold where they are; a
+man with no post holds with an arc toward the EA; only rounds after the posts are given count. ⚠ The window answer's STANCE is not passed to
+the man — ⭐ since D-2a his take-cover branch reads it from the window point itself (the window column); the set-back stays D-2. Rails (the play's suite, `SquadManeuverTests`):
+`CE2275_DefencePostPicker_SpacesPostsIn3D_AndGivesTheNearestFreeAlternate` · `CE2275_SquadDefend_MovesThenMansWindowAndCoverPosts_WithArcsTowardItsSector_AndReportsSet`
+· `CE2275_SquadDefend_AManUnderFire_MovesToHisAlternatePost_AndReportsDisplacing`; the mapper's suite: `TryMap_AUnitWithMen_DefendsWithSquadDefend_AtTheAreaCentre`. ⭐ The alone lift (DA-35): `CE2275_SquadDefendAlone_LiftsAnOperatorsHoldFire_OnAContactInsideItsSector_NotOutside` · `CE2275_SquadDefend_ARoundAtAManLiftsItsOwnHold_ButNeverAPlatoonsHold` (the harness now runs `RoeSystem` beside `EngagementAreaSystem`); a TKB-default hold (`Unmarked`) is not an order and is never lifted.
+
+#### D-2a — a man fights FROM his post *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a posted man runs `CombatPosture` (stay) and its take-cover branch runs `PeekAndFire` with the **defaults** —
+`FindCoverFromTarget`, 15 m round **wherever he stands** (`CombatPostureBehavior.cs:156`; `Resolve` never sets `Peek`). ⇒ under fire
+D-1's window man could hide anywhere within 15 m: the drift PC-14 forbids.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendPlay { <<EXISTING, + post on the order>> OrderFor: post · alternate · window or cover }
+  class MemberOrder { <<EXISTING, + Post>> }
+  class MemberPost { <<NEW>> Set · Window · Alternate · HasAlternate · Radius }
+  class SquadManeuverRunner { <<EXISTING>> Hold(…, post) }
+  class CombatPostureParamsJsonDto { <<EXISTING, + post>> }
+  class CombatPosturePostJsonDto { <<NEW>> point · alternate · radius · window }
+  class CombatPostureBehavior { <<EXISTING>> Resolve: Peek = the window column or the defaults, anchored }
+  class WindowDuelBehavior { <<EXISTING>> Shape(0) — the window column, reused }
+  class PeekAndFireParams { <<EXISTING, + Anchor · AnchorAlternate · AnchorRadius · AnchorHasAlternate>> }
+  class PeekAndFireNodes { <<EXISTING>> PickHide skips a point off the post · WithinPost }
+  MemberOrder *-- MemberPost
+  SquadDefendPlay ..> MemberOrder
+  SquadManeuverRunner ..> CombatPostureParamsJsonDto : Watch with a post
+  CombatPostureParamsJsonDto *-- CombatPosturePostJsonDto
+  CombatPostureBehavior ..> WindowDuelBehavior : a window post
+  CombatPostureBehavior ..> PeekAndFireParams : anchored
+  PeekAndFireNodes ..> PeekAndFireParams
+```
+*What the picture shows that prose hid:* the post rides the order the man **already** gets — no new member order, no new behaviour; the one
+new rule sits in the ONE place a hide point is chosen (`PickHide`), so every peek path (first pick, rotation, suppress-and-bound) obeys it.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay
+  participant R as SquadManeuverRunner
+  participant M as the man (CombatPosture, stay)
+  participant PF as PeekAndFire (his take-cover branch)
+  P->>R: Watch at his post · Post {window, alternate, 4 m}
+  R->>M: CombatPosture {advance to the post, stay, post}
+  M->>PF: contact: the decision takes cover
+  PF->>PF: the cover sensor answers (windows ≤ 12 m round him)
+  PF->>PF: PickHide: only a point ≤ 4 m from his post, or his alternate
+  alt one is free
+    PF->>M: hide there prone, up at the window, switch after his exposures (PC-15)
+  else none (all off the post, burned or claimed)
+    PF->>M: aimed fire from where he stands (the G2 path)
+  end
+  P->>R: 3 rounds in 10 s: Watch at the alternate (its own alternate next)
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-40** | how a posted man fights from his post | the order carries his **post set** (PC-14's "SquadDefend hands the post set into the order"): the post, his alternate, a 4 m radius, window or cover. `CombatPosture` anchors its own `PeekAndFire`: a window post flies **the window column** (`WindowDuelBehavior.Shape(0)` — prone under the sill, a stance peek, `FindWindowFiringPosition`), a cover post the defaults; `PickHide` skips a point farther than 4 m from the post and not on his alternate (`MatchRadius`). None left ⇒ he fires from where he stands | a new `FightFromPost` member order publishing `WindowDuel`: the man loses his posture's decision (suppress, hold prone, the throw) and `PeekAndFire` answers Success when nothing is in view, so he stops watching · the filter in the EQS template: the sensor is shared and centres on Self; the post is per man |
+
+⚠ **Not built here:** PC-14's other half — the hide point inside his `EngagementArea.Allow` (an `Allow` tests TARGETS; a shooter's point
+inside it is a new reader) — the anchor keeps him at his arc's origin meanwhile. ⚠ The posture's **advance** branch (flank, firing position)
+could still take a posted man off his post — ✅ measured live and closed by **D-2d** below.
+
+#### D-2b — the set-back post, by the squad's tier *(DA-6, DA-16; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a window point is built by `TerrainCoverProvider.AddPanelFaces` 0.75 m inside the face, facing OUT
+(`Direction` = toward the window), at the lowest stance that clears the sill; nothing deeper in the room is generated. The floor and
+"something stands here" rules (`HasFloor`, `Occupied`) live there, and `TerrainWorld.SegmentBlocked` answers "is a wall in between".
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainCoverProvider { <<EXISTING, + SetBack>> SetBack(world, window point, metres, min) → a point on the line through the window }
+  class CoverPointsGenerator { <<EXISTING, + SetBackMetres>> WindowFiring points pushed back, else the sill point }
+  class FindDefensiveWindowSetBackPosts { <<NEW template>> the set-back twin of FindDefensiveWindowPosts }
+  class FindWindowSetBackPostsAllRound { <<NEW template>> twin of FindWindowPostsAllRound }
+  class FindWindowSetBackPosition { <<NEW template>> twin of FindWindowFiringPosition (the man's own hide ask) }
+  class ProficiencyOf { <<EXISTING, + MedianTier>> }
+  class SquadDefendPlay { <<EXISTING>> the window ask by the squad's median tier · MemberPost.SetBack }
+  class CombatPostureBehavior { <<EXISTING>> Post: a set-back window post hides with FindWindowSetBackPosition }
+  CoverPointsGenerator ..> TerrainCoverProvider : SetBack
+  FindDefensiveWindowSetBackPosts ..> CoverPointsGenerator : SetBackMetres 2
+  FindWindowSetBackPostsAllRound ..> CoverPointsGenerator
+  FindWindowSetBackPosition ..> CoverPointsGenerator
+  SquadDefendPlay ..> ProficiencyOf : MedianTier of its live men
+  SquadDefendPlay ..> FindDefensiveWindowSetBackPosts : Regular and above
+  CombatPostureBehavior ..> FindWindowSetBackPosition
+```
+*What the picture shows that prose hid:* the set-back is ONE geometry rule in the provider that already owns the window points, reached
+through one generator option — three templates are the existing three with the option set, so the post ask, the all-round ask and the
+man's own hide ask all agree on where a set-back post is.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay
+  participant EQS as EQS (muscle)
+  participant G as CoverPointsGenerator (SetBackMetres 2)
+  participant T as TerrainCoverProvider
+  P->>P: the median tier of its live men
+  alt Regular, Veteran, Elite
+    P->>EQS: FindDefensiveWindowSetBackPosts
+    EQS->>G: generate
+    G->>T: each window point: SetBack(2 m, else 1.5 m)
+    T-->>G: floor there, nothing standing, no wall between, else the sill point
+    G-->>EQS: the points (still WindowFiring, the window's stance)
+    EQS-->>P: those that see the EA point (the LOS filter judges the narrower view)
+  else Untrained, Militia
+    P->>EQS: FindDefensiveWindowPosts (at the sill)
+  end
+  P->>P: each window man's post set carries SetBack
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-41** | where a set-back post is | the window point pushed back along its own facing **2 m** (DA-6's 1.5–2.5 m, its middle), else **1.5 m**, kept only where the floor continues, nothing stands and no wall lies between it and the window (`SegmentBlocked` at 1 m); neither fits ⇒ **the sill point** (a shallow room still gets a post). Kind stays `WindowFiring` and keeps the window's stance, so `PeekAndFire` still comes up at it; the LOS filter decides whether the narrower view still sees the EA | a new `CoverKind.WindowSetBack` baked into the provider's database: every cover reader, the gizmo and the kind encoding learn a value for what is one push · the set-back computed in the play: the man's own hide ask (his PeekAndFire) would still answer sill points |
+| **DA-42** | who sets back | the **squad's median tier** (DA-16: "the commander's tier is his unit's median man") over its live men: **Regular and above** set back (DA-6), Untrained / Militia at the sill. One ask, so one tier for the squad; each window man's post set carries it into his own hide ask | per man: the posts come from one ask for the whole squad · the commander's own tier: a skilled leader with untrained men cannot run a regular's plan (DA-16's rejection) |
+
+📐 **Measured in the build (House A, `bt-range`):** an UPSTAIRS set-back post does not see a man 24 m from the house — 2 m back, the line
+down to him crosses the sill — so the post ask answers the ground-floor windows for a close EA; at 84 m the upstairs set-back posts see.
+⇒ a set-back defence gives up the near ground below its upper windows, as DA-6's narrower arc says; the LOS filter already makes that choice.
+
+⚠ **Not built here:** DA-16's "Veteran: set-back posts everywhere" vs Regular — ✅ built in **D-2j** below (DA-50) · ⛔ SUPERSEDED: "both set
+back where the room allows (the sill fallback is the only difference that exists today)" · DA-6's observation by a lean at the frame (BR-5) · the narrower view's effect on being SEEN needs
+DA-3 (backend `CE-3260`, built) — not measured live yet.
+
+#### D-2c — flanked: a contact close beside or behind a posted man *(DA-21 `ContactOutsideSector`, DA-4; behaviors, 2026-10-19)*
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay (each tick, Posting)
+  participant Pool as the squad's contact pool
+  participant R as SquadManeuverRunner
+  participant M as the flanked man
+  P->>Pool: a SEEN hostile contact within 50 m of a posted man, outside his arc, not already answered by him
+  alt he has an alternate
+    P->>P: post = the alternate · his arc now faces the contact (±45°) · remember the contact
+  else none free
+    P->>P: same post · his arc faces the contact
+  end
+  P->>R: re-issue (Watch + MemberPost + the new MemberArc)
+  R->>M: CombatPosture at the post, the new sector
+  P->>P: PROGRESS Displacing (at his post)
+```
+*What the picture shows that prose hid:* nothing new is sensed — the pool and the arcs the play already holds answer it, and the answer
+rides the same re-issue the near-miss displace (DA-38) uses; the turn is per man and once per contact, so two flankers turn him twice,
+one flanker never makes him dither.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-43** | what a flanked defender does | DA-21's `ContactOutsideSector` **counted in the play** (DA-38's precedent, replaced by the sensor when `CE-2283` lands): a **seen** hostile pooled contact within **50 m** of his post, outside his arc ⇒ he displaces to **his alternate** (DA-21's reader) and **his arc faces the contact** there (DA-4: "supplementary posts face" a new axis) — no alternate ⇒ he turns where he is; once per contact (its id); PROGRESS `Displacing` | only the alternate (DA-21's words alone): the alternate faces the EA too, so he would move and still may not shoot the man beside him · only the arc turn: a man flanked at his post stays in the flanker's sights · a HEARD contact: anonymous, its id unstable — a turn per sound would dither (it waits for the sensor) |
+
+*As built (2026-10-19):* `SquadDefendPlay.Flanked` beside `Displace`, `DefencePosts.Faces` / `FaceBearing` / `Flanker`, the arc read through one `ArcOf` (so the order and the check agree). Rail `CE2275_SquadDefend_AFlankedManTakesHisAlternate_FacingTheFlanker_OncePerContact`: too far (85 m) and in front (25 m) turn nobody; the same flanker working round behind again turns nobody twice.
+
+#### D-2d — his approach moves stay on his post too *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first, live** (`sq-defend-house`): every man reached his post (0–0.4 m at 2.5 s), and by 5 s — no Blue in the sector yet — they
+stood **3–7 m off it**, later up to 9 m. The utility trace of a drifted man: his posture's winner was **AdvanceAndAttack (1.08)** against Hold
+(0.38), TakeCover 0 — the posted man was not hiding, he was **approaching**: the approach decision's firing-position / flank move
+(`EqsTacticsNodes.Run`, `FindOpenFiringPosition` 40 m round him) walked him away. D-2a anchored only the take-cover branch. Because the men
+never stood within 1.5 m of their posts together, PROGRESS `Set` never fired either.
+
+```mermaid
+sequenceDiagram
+  participant M as the man (CombatPosture, stay, a post)
+  participant A as his approach move (Flank · FiringPosition · CloseToThrow)
+  participant S as its EQS sensor (centred on him)
+  M->>A: the decision advances, the approach picks a move
+  A->>S: ask (unchanged — the sensor is shared and centres on Self)
+  S-->>A: the ranked answer
+  A->>A: TryNewAnswer: the best-ranked point within 4 m of his post
+  alt one is on his post
+    A->>M: MoveTo there, firing on the move
+  else none
+    A->>M: no move — aimed fire from where he stands
+  end
+```
+*What the picture shows that prose hid:* the anchor is the SAME one D-2a put on the hide (`PickHide`), applied at the one place each approach
+move takes its point (`TryNewAnswer`) — the sensor, the decision and the branch are untouched, so a posted man still flanks or finds a better
+firing spot, inside his room; and with nothing there he still fights (before, a move with no answer stood silent).
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-44** | how a posted man's approach moves stay on his post | `EqsTacticsParams` gets `Anchor` + `AnchorRadius` (D-2a's shape on `PeekAndFireParams`); `CombatPostureBehavior.Post` sets them on **Flank, Firing and Throw** from the order's post (4 m); `TryNewAnswer` takes the best-ranked point inside it, none ⇒ no move and **he fires from where he stands**. **Flee is free** (breaking is morale, not repositioning). PROGRESS `Set` counts a man within **the post radius** (his room), not 1.5 m of its point — his fight moves him between its points | remove the advance branch for a posted man: he loses the throw and the flank inside his own building, and the decision layer has no "posted" input · lower the advance score when posted: a utility tweak every posture user would feel, and a high enough threat still wins it · move him back to the point after each fight move: a dither between two points |
+
+*As built (2026-10-19):* `EqsTacticsParams.Anchor/AnchorRadius` · `EqsTacticsNodes.TryNewAnswer(…, in p, …)` · `FireOnTheMove` fires for a
+posted man with no move · `CombatPostureBehavior.Post(…, ref CombatPostureBlackboard)` · `SquadDefendPlay.Manned` reads `PostRadius`
+(`MannedMetres` retired). Rail `TacticsTreesTests.CE2275_APostedMansFlank_StaysOnHisPost_AndNothingOnItMeansHeFightsWhereHeStands`.
+
+#### D-2e — he occupies his post first *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first, live** (`sq-defend-house`, after D-2d), on the brain (CGF) and the muscle (SimHost) side by side:
+① the move to an upstairs post is pathed (14.75 m, via the stair) and **Following** — ② at the first contact (a Blue seen at ~117 m,
+outside the sector) the posture's winner flipped from the advance to **Suppress**, whose step stops the move (`act=0`) — ③ he then stood
+**5 m off his post on the stairs for 10 s**, until the squad's next re-issue. Every man still off his post at the first contact did the
+same, so PROGRESS `Set` never fired. ⚠ Also measured: the walk itself is slow in the crowded ground floor (≈ 0.4 m/s on a 2 m/s
+order, seven men in one room) — a muscle-side question, not answered here.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Going : posted, not on his post
+  Going --> Occupied : within 1.5 m of it, or on his alternate
+  Occupied --> Occupied : moved inside his room (≤ 4 m) by the fight
+  Occupied --> Going : carried out of his room (> 4 m)
+  note right of Going : the posture's first branch after Flee, the advance to the post, firing as the ROE allows
+  note right of Occupied : the decision fights (D-2a hide, D-2d moves)
+```
+*What the picture shows that prose hid:* the gate is a **latch**, not a distance test — a plain "farther than 1.5 m" would yank him back
+from every D-2d move inside his room, and a plain "farther than 4 m" would let the first contact strand him 3 m short on the stairs.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-45** | when a posted man fights from where he stands | not before he has **stood on his post once**: `CombatPosture` (with a post) runs `PostureNodes.OffPost` first after Flee — true until he is within **1.5 m** of the post (or on his alternate), then only when something carries him beyond the post's **4 m** (his room); while true he runs the advance to the post (firing, ROE-gated). Flee stays free. PROGRESS `Set` (D-2d: within 4 m) follows | anchor Suppress / Hold to the post too: they stand still by design, so the man would still stop wherever the contact found him · a squad-side "Occupy" phase that withholds the fight until Set: a man under fire on the stairs could not return it · lower the posture decision's other options while posted: the decision layer has no "posted" input and a strong enough threat still wins |
+
+*As built (2026-10-19):* `PostureNodes.OffPost` + `OccupyState` (the latch, `OccupiedMetres = 1.5`) · `CombatPosture`'s winner selector: Flee,
+then the occupy branch (shares the advance's state), then the options as before (they are exclusive, so the reorder is neutral). Rails
+`TacticsTreesTests.CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision` · `CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt`.
+
+#### D-2f — an authored fighting position *(DA-5's second half; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the order (`SquadDefendParamsJsonDto`) carries a point, a radius and a speed — no post. No params DTO carries a
+list yet; ⭐ the schema the order forms read (`DtoJsonSchemaExtractor.cs:261`) **describes an array field as `type: array`**, while a
+fixed-list wrapper (`FixedListShape`) would fall to its struct branch and show as an object of `Count` / `Items` — ⇒ a plain DTO
+**array** it is (the resolver copies it into the blittable order). The facing follows the posture order's own convention,
+`watchTowards` (a point he faces; zero = none). The posts' memory (`DefencePosts`) knows a window post only by its index (`< WindowCount`).
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendParamsJsonDto { <<EXISTING, + Posts>> Position · SearchRadius · Speed · Posts }
+  class AuthoredPostJsonDto { <<NEW>> point · watchTowards · window }
+  class AuthoredPosts { <<NEW, in the order, 8>> X Y Z · watch · window · Count }
+  class SquadDefendParams { <<EXISTING, + Authored>> }
+  class DefencePosts { <<EXISTING, WindowCount → per-candidate Window · Facing>> }
+  class SquadDefendPlay { <<EXISTING>> Plan: authored first, then the asks for the men left · ArcOf: an authored facing }
+  class DefencePostPicker { <<EXISTING, unchanged>> candidates in rank order to the nearest man }
+  SquadDefendParamsJsonDto *-- AuthoredPostJsonDto : Posts[]
+  SquadDefendParams *-- AuthoredPosts
+  SquadDefendPlay ..> SquadDefendParams
+  SquadDefendParams *-- DefencePosts
+  SquadDefendPlay ..> DefencePostPicker
+```
+*What the picture shows that prose hid:* nothing new picks a post — an authored post is a **candidate ranked first**, so the one
+picker gives it to the nearest man exactly as it gives a window; what changes is only that "window" and "facing" become properties of
+a candidate instead of a position in the list.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** array (≤ 8 used; each a `point`, an optional `watchTowards`, and whether it is a `window`) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. An authored `watchTowards` points that man's arc (±45°) instead of the EA; a window post fights the window way (D-2a, at the authored point — no set-back). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Watch`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a fixed-list wrapper in the DTO: the order-form schema would show it as an object of `Count`/`Items` (`DtoJsonSchemaExtractor`'s struct branch) · a facing bearing: needs a "none" the zero bearing cannot be — the posture order already faces by a point |
+
+*As built (2026-10-19):* `SquadDefendParamsJsonDto.Posts` (`SquadDefendPostJsonDto[]`: `point`, `watchTowards`, `window`; the first 8)
+→ the resolver copies them into `SquadDefendParams.Authored` (`AuthoredPosts`) · `Plan` places them once (`DefencePosts.AddAuthored`), runs
+the one picker, and skips both asks when no live man is left without a post · `DefencePosts.Window` / `Authored` / `Watch` per candidate
+replace `WindowCount` · an authored window post is not set back · `ArcOf` turns a man's arc to his post's `watchTowards`. Rail
+`SquadManeuverTests.CE2275_SquadDefend_AuthoredPostsComeFirst_TheTerrainIsAskedOnlyForTheMenLeft_AndAWatchPointTurnsTheArc`.
+
+#### D-2g — the roof, behind its parapet *(DA-5 `FindRoofPosts`, DA-22; behaviors, 2026-10-19)*
+
+📐 **Measured first** *(`cqb-village`, OBJ = `house-3f`, a sector point 45 m south)*: the roof storey (floor 6 m, 1 m parapet) carries
+**22 cover points, all crouched**; `FindCoverFromTarget` keeps **none** of them (it wants a point HIDDEN from the target, and a crouched
+head clears the parapet), and the window asks only read window points ⇒ a roof was never a post. The cover generator has no notion of
+"on a roof"; the terrain does (`TerrainWorld.SurfacesAt` lists the surfaces at a spot, the ground's index among them).
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay.Plan
+  participant E as EQS (commander's child sensors)
+  participant K as DefencePostPicker
+  P->>K: authored posts first (D-2f)
+  P->>E: windows (WindowSite) → the EA point
+  E-->>P: window points (Window = 1)
+  P->>K: PickAll
+  alt a live man still without a post, and an EA
+    P->>E: FindRoofPosts (RoofSite) → the EA point
+    E-->>P: roof points that see it (Roof = 1)
+    P->>K: PickAll
+  end
+  alt still a man without a post
+    P->>E: FindCoverFromTarget (CoverSite)
+    P->>K: PickAll
+  end
+  P->>P: Ready · re-issue — a roof man's MemberPost.Roof = 1
+  Note over P: CombatPosture.Post — Roof ⇒ the window's stance peek, its hide ask FindRoofPosts within 4 m of the post
+```
+*What the picture shows that prose hid:* the roof is **one more ask in the same chain**, ranked after the windows and before plain
+cover, gated like the others on "a man still without a post" — no new picker, no new phase; and the man's fight on the roof is the
+window's fight (prone, up at the point's stance) with a different hide ask, so nothing new runs in the posture either.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-47** | how a roof becomes a post, and how it is fought | **`FindRoofPosts`**: the cover generator with `RoofOnly` (the point's own surface is the TOP one at its spot, above the ground's, within 0.5 m; it reads 256 raw points so the ground round the self cannot crowd the roof out of the cap) · the eye sees the EA point · nearer scores more · no path ⇒ dropped (DA-5's *"only if reachable"*, `PathCostScoreTest`). The squad asks it **second**, only with an EA, for the men the windows left; a roof post's man hides **prone** behind the parapet and comes up to the point's stance (crouched) to fire — `MemberPost.Roof` → `CombatPosturePostJsonDto.roof` → the window's stance peek with `FindRoofPosts` as its hide ask | a `CoverKind.Roof` in the cover database: re-pins every terrain's database checksum for what one generator flag answers at query time · roof points through `FindCoverFromTarget`: measured — it keeps none (the head is seen) · the roof before the windows: a roof is the more exposed post (DA-5 ranks the upper storey's windows first) |
+
+*As built (2026-10-19):* `CoverPointsGenerator.RoofOnly` + `OnRoof` · `StarterTemplates.FindRoofPosts` (asset `2b048d56-…`) ·
+`SquadDefendPlay.RoofSite` / `DefencePosts.Roof` / `RoofStage` · `MemberPost.Roof` → `CombatPosturePostJsonDto.roof` →
+`CombatPostureBehavior.Post` (the window shape with `FindRoofPosts`). ⚠ An **authored** post on a roof is not flagged a roof post — it
+is fought as cover; mark it when a scenario needs one. Rails `TerrainEqsTests.CE2275_D2g_FindRoofPosts_OnOBJ_AnswersRoofPointsOnly_ThatSeeTheSector`
+(cqb-village: every answer at 6 m, on the roof, seeing the sector) · `SquadManeuverTests.CE2275_SquadDefend_TheRoofIsAskedAfterTheWindows_ForTheMenLeft_AndARoofManHidesBehindTheParapet`.
+
+#### D-2h — the automatic weapon on the longest view *(DA-19, DA-25 VisibilityFan; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the `WorldSurvey` sensor (`CE-3249`, backend — [World Survey](../../DESIGN_World_Survey_Sensor.md)) is built and
+has **no production reader yet**; its `VisibilityFan` casts ≤ 24 **horizontal** rays from ≤ 12 origins at `EyeHeight` above each and
+answers each ray's free distance (`WorldSurveySolve.Fan`). ⚠ Horizontal ⇒ from a roof (eye 7.6 m over a 7 m parapet top) every ray runs
+to the range: the fan cannot tell a roof's long view from plunging fire into the sky. The squad's roles are read in one place,
+`SquadRoles` (`CarriesSupportWeapon` = AR or MG, `CE-2281`). The picker hands posts out by distance only.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay.Plan
+  participant W as WorldSurvey (FanSite, standing child)
+  participant S as SimHost solver
+  P->>P: posts picked (authored · windows · roof · cover)
+  alt the squad has an AR / MG holding a post, an EA, and ≥ 2 non-roof posts held
+    P->>W: Ensure(Fan: one origin per held non-roof post, bearing → the EA point, ±45°, 9 rays, range to the EA's far edge)
+    W->>S: SensorConfigPayload (WorldSurvey)
+    S-->>W: rays · Free per ray
+    P->>P: view(post) = mean Free of its rays
+    P->>P: the AR / MG not on the longest view (by > 5 m) ⇒ swap posts with its holder (not another AR / MG)
+    P->>W: Release
+  end
+  P->>P: Ready · re-issue
+```
+*What the picture shows that prose hid:* the fan is asked **once, before the posts are given** — the swap changes who stands where,
+never what the posts are, so no man is sent twice; and the roof posts are never origins at all.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-48** | how the AR / MG gets the post with the longest view down the EA | a **last stage of `Plan`**: one `VisibilityFan` survey (origins = the held non-roof posts, ≤ 12, each looking at the EA point ± 45°, 9 rays, eye 1.6 m, range = distance to the EA point + its depth, capped 300 m); a post's view = the mean free distance of its rays; the automatic weapon whose post's view is beaten by more than 5 m **swaps posts** with that post's holder (never with another automatic weapon); no answer within the ask timeout ⇒ posts as picked. Roof posts are never origins (a horizontal ray over a parapet measures the sky, not grazing fire) | after the posts are given: every swap sends two men twice · an EQS score instead (`FindLongestView`): an EQS answer ranks points, it does not compare the ones already chosen, and DA-25 put this question on the survey · the max ray instead of the mean: one gap between houses would win over a post that covers the whole sector |
+
+*As built (2026-10-19):* `SquadDefendPlay.GunOnTheLongestView` — the last stage of `Plan` (`FanSite`, `DefencePosts.FanStage`,
+`FanRays` 9, `LongerViewMetres` 5), the survey through `WorldSurveyChildSensor.Ensure` / `Read` / `Release` (the sensor's first
+production reader); a stale or missing answer after the 5 s ask timeout leaves the posts as picked. ⚠ Live, `sq-defend-house` has no
+automatic weapon in its cast — the in-process rail answers the survey by hand; the real solver's fan on OBJ is not yet measured. Rail
+`SquadManeuverTests.CE2275_SquadDefend_TheMachineGunnerTakesThePostWithTheLongestView`.
+
+
+#### D-2i — his hide search looks at his sector *(PC-14's `Allow` half; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a posted man's hide and peek sensors are aimed at his **top threat** (`PeekAndFireNodes.KeepSensors` →
+`SensorAim` → `EqsTacticsNodes.Point`), and the top threat is deliberately **not** filtered by his sector (DA-27, `CE-2282`: *"the
+threat he hides from may lie outside his sector"*; only the shot is, `LockTarget`). A window hide ask keeps points that **see** its
+slot-1 target ⇒ with the threat outside his arc he takes the window that faces the threat, i.e. away from his sector — the drift PC-14
+forbids. D-2a's anchor keeps him in his room; it does not keep him looking the right way.
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (posted man)
+  participant E as EngagementAreas
+  participant S as his hide / peek sensors
+  N->>N: SensorAim(top threat) — the freshest evidence (D13)
+  N->>E: Allows(him, the threat's spot)? (own arc · his squad's · self-defence 50 m / 5 s)
+  alt allowed, or no post
+    N->>S: aim at the threat (as before)
+  else outside his sector
+    N->>E: TryAllowPoint(him) — his arc's middle at mid-range
+    N->>S: aim at that point (heard id SectorAimId)
+  end
+```
+*What the picture shows that prose hid:* the shot and the search were already split — the shot asks `Allows` (`LockTarget`), the
+search did not; D-2i puts the same question in front of the search, and only for a posted man, so an unposted rifleman still hides
+from whatever threatens him most.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-49** | how a posted man's next hide point stays inside his sector | `PeekAndFireNodes.PostedAim`: a posted man (`AnchorRadius` > 0) whose threat his sector does not allow (`EngagementAreas.Allows` — his arc, his squad's, self-defence) aims his hide and peek sensors at his sector's point (`TryAllowPoint`) instead; allowed, unposted or no sector ⇒ the threat as before | a hide point "inside the Allow" taken literally: his arc's origin IS his post, so every point within 4 m is "inside" in some direction — the test says nothing · a new EQS test on the muscle (the point's facing in his arc): a new template variant per hide template for what one aim choice already answers · filtering the threat itself by sector: DA-27 keeps him hiding from the real danger when not posted |
+
+*As built (2026-10-19):* `PeekAndFireNodes.PostedAim` + `SectorAimId`, called from `KeepSensors` (both the cover and the step-peek sensor).
+Rail `PeekAndFireNodesTests.CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt` (outside ⇒ the sector point, and
+the node's own cover sensor is aimed there; inside, unposted, or self-defence ⇒ the threat).
+
+
+#### D-2j — a Veteran squad takes only real set-back windows *(DA-16 "Veteran: set-back posts everywhere"; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the set-back pass (`TerrainCoverProvider.SetBack`, D-2b) tries 2 m, then 1.5 m, then **leaves the point at the
+sill** — and nothing in the answer says which happened, so a Regular and a Veteran squad got the same posts. `EqsResult.Flags` crosses
+the wire unchanged (SimHost egress `Flags`/`FlagsMeaningful` → `EqsResultUpdateSystem` on the brain), and EQS §4.2 reserves bits 8–15.
+
+```mermaid
+sequenceDiagram
+  participant G as CoverPointsGenerator (set-back pass, SimHost)
+  participant W as the wire (EqsResult Flags)
+  participant P as SquadDefendPlay.Settle (brain)
+  G->>G: SetBack(window) — moved ≥ 0.1 m from the sill?
+  G->>W: FlagsMeaningful bit 8 on every point · Flags bit 8 only when it moved
+  W->>P: the window answer, flags intact
+  alt the squad's median man is Veteran or better (SetBackOnly)
+    P->>P: drop a window point whose bit 8 is meaningful and unset
+  else Regular
+    P->>P: keep it (set back where the room allows, else the sill)
+  end
+```
+*What the picture shows that prose hid:* the muscle already knew whether each window fit a set-back; the answer simply had no field for it.
+One bit carries it, and the tier rule stays on the brain where every other tier rule is.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-50** | what "Veteran: set-back posts everywhere" changes | §4.2 bit 8 **`IsSetBack`** (`CoverPointsGenerator.FlagSetBack`), written by every set-back pass (meaningful on each point; set when the point really moved back); a squad whose median live man is **Veteran or better** (`DefencePosts.SetBackOnly`) drops the window points left at the sill — a too-shallow room is no post, and the man goes to the roof or cover asks instead. Regular keeps the sill fallback | a strict template per variant (`…SetBackStrict`): three more templates for one bit of the same pass · re-deriving "did it move" on the brain from the sill points: the brain never reads geometry (R-2037) · Veteran's own hide ask filtered too: deferred — his post is already a real set-back point, and his hide ask is anchored to it |
+
+*As built (2026-10-19):* `CoverPointsGenerator.FlagSetBack` (bit 8, recorded in EQS §4.2) · `DefencePosts.SetBackOnly` · `SquadDefendPlay.MedianTier`
+(was `SetsBack`) · `Settle` drops unmarked window points for `SetBackOnly`. Rails `TerrainEqsTests.CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_*`,
+`SquadManeuverTests.CE2275_D2j_AVeteranSquad_TakesOnlyRealSetBackWindows` (Veteran 2 window posts, Regular 4).
+
+#### D-2k — one move per post: a re-issue sends only what changed *(`CE-2304`'s behaviour half; behaviors, 2026-10-19)*
+
+📐 **Measured first** (`sq-defend-house` in process, the squad's drill trace and every man's `BehaviorState` / `NavigationIntent`
+per frame): the squad's run never restarted (one instance, phase Posting throughout) and its roster never reordered, yet from 10 s every
+man got a fresh order **26 times in 14 s, all in the same frames**. Each was `SquadDefendPlay.Displace` (DA-38): **43 displacements in
+14 s**, each man ping-ponging between two posts (slot 1: posts 10 ↔ 12, slot 2: 5 ↔ 6, slot 5: 2 ↔ 3). Two defects compounded:
+the rounds of the fire a man moved through counted at once at his new post, so he was sent straight back; and every displacement
+re-sent **every** man's order, each re-send a new behaviour instance (stop, then start) for six men who had not moved.
+
+```mermaid
+sequenceDiagram
+  participant D as SquadDefendPlay.Displace
+  participant R as SquadManeuverRunner.Issue
+  participant K as Keep (Hold / Move)
+  participant C as CommandOrders
+  participant M as each member
+  D->>D: rounds at man i since MovedAt[i] + DisplacedGraceSeconds? (DA-56)
+  D->>D: 3 within 10 s ⇒ PostOf[i] = alternate · MovedAt[i] = now · Reissue
+  R->>K: every live member's order for the phase
+  K->>C: StillRunning(member, behaviour, json)? (DA-57)
+  alt same run, same behaviour, same params, he still runs it from his superior
+    C-->>K: true ⇒ nothing sent
+  else anything differs (his new post, a reaction took him, it finished)
+    K->>C: Assign ⇒ SubordinateOrders.Record(json) + publish
+    C->>M: the order (a new instance)
+  end
+```
+*What the picture shows that prose hid:* the play decides **which** man moves; the runner used to tell **all** of them. The skip sits at
+the one order helper (`CommandOrders`), keyed on what the record already holds plus the params, so every play that re-issues gets it.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-56** | when a displaced man's rounds count again | for **`DisplacedGraceSeconds` = 10 s** (DA-38's own window) after he is sent to a new post — by DA-38 or a flank (DA-43) — his rounds are read and dropped: he is moving there, not holding it; after it, three more move him again | counting only within `PostRadius` of the new post: two posts of one room (2.5 m apart, a storey up) are both "within 4 m", so he would count from the moment he left · a cap of N displacements per man: hides a post that is really untenable |
+| **DA-58** | when PROGRESS Set fires | once every live posted man has **reached** his post — stood within `PostRadius` of it since he was last sent to one (`DefencePosts.Reached`, cleared by DA-38 / DA-43's moves) — not "all within `PostRadius` in one frame" | a wider radius for Set: any figure is arbitrary against a peek step-out (`PeekSearchRadius` from a hide point up to 4 m out) · testing his hide point instead of him: he stands where the peek put him, not at the point |
+| **DA-57** | what a re-issue re-sends | the runner's **Hold / Watch and Move** orders (`Keep`) are skipped when `CommandOrders.StillRunning`: the ticking run's record for him names the same behaviour **and the same params** (`SubordinateOrders.Entry.Json`), and his `BehaviorState` runs that behaviour from `Superior`. A pause, a retake or a silent leader still re-sends whatever a reaction replaced | dedup in every `Assign`: the airborne exit re-sends ON PURPOSE to a man still aboard (`AirborneDrill.ReorderSeconds`) and a battery's next salvo is the same params · dedup on the receiving side (the intent ingress): a re-send from an operator or a new run is a real new order there · dropping the alternate from the Watch params so they change less: the man's hide search reads it (D-2a) |
+
+*As built (2026-10-19):* `SubordinateOrders.Entry.Json` (and `Record`'s `json`) · `CommandOrders.StillRunning` · `SquadManeuverRunner.Keep`
+(Hold, Move) · `DefencePosts.MovedAt` · `SquadDefendPlay.DisplacedGraceSeconds` · `DefencePosts.Reached` (DA-58). Rails `SquadManeuverTests.CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_*`,
+`…CE2304_ADisplacedMan_IsNotSentStraightBack_*`, `…CE2304_Set_CountsAManWhoReachedHisPost_*`.
+
+*Live after it (`sq-defend-house`, 4 runs):* 6 squad issues in 18 s instead of 26, every man keeping one order instance through the
+others' moves; every live man reaches his post (closest frame: all within 0.2 m) — yet `Set` came in 1 run of 4. 📐 **Cause, measured:**
+the squad has no superior, so the staff never empties its outbox (`StaffComposerSystem` sends only for a unit with a live superior);
+the 8-slot outbox filled with `Displacing` reports and **refused the ninth** — `Set` — while `ReportedSet` was already 1, so it never
+came again. ⇒ ⭐ a full outbox drops its oldest report instead (`ReportQueue.Enqueue`; [Command Chain §8a `ReportOutbox`](DESIGN_Command_Chain_Example.md)).
+After it Set came in 2 runs of 3; in the third, one man (Rifleman 6) stood **4.2 m** from his post — fighting from a hide point of
+it — for 4½ minutes, and no frame had all seven within 4 m ⇒ **DA-58**: Set counts a man who has *reached* his post.
+
+**Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
+**D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
+the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
+scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-house` live + its twin (needs D-2's roof check).
+
+### 8d. DA-E in detail — `PlatoonDefend`, the platoon holds a position over its squads *(`CE-2276`, behaviors, 2026-10-19 — slice E-1 designed and built here; E-2, E-3 below)*
+
+**INVENTORY** *(2026-10-19 — codebase-memory MCP `search_graph` `.*Platoon.*` (Class): 13 — `PlatoonBound`, `PlatoonHold`, `PlatoonHillAttack` + their DTOs and tests; `^(ElementsAt|PirMet|TimeInState|SetSquadRoe|SetSquadSector|SplitArea|PlanDefence|TaskOrganize|MarkNoFire|AnswerRequest|…)$`: 16 hits, ⛔ none of the platoon-play actions Platoon §3 names exists; `.*(EngagementArea|SquadSector|SectorPlanner|DefendArea|SquadDefend|NoFire).*` (Class): 22; grep `PirFlags`/`PirArea` readers; `check_index_coverage` run on the five files read — no recorded issue, best effort)*
+
+| need | exists | where | ⇒ |
+|---|---|---|---|
+| a platoon task as an HSM over picture guards | ✅ `PlatoonBound` (flat states, `MoveLeg` activity re-orders when the order does not `Stand`) | `Brains/PlatoonBehaviors.cs` | the pattern to copy |
+| picture guards | ✅ `ProgressReached` · `SubordinateColour` · `SubordinateFresh` · `ElementReported` (distance from the commander, not an area) · `PendingRequest` | `Squad/Command/PictureConditions.cs` | ⛔ no "element inside an area", no "every squad Set" ⇒ two guards on the play |
+| a squad's sector | ✅ the squad commander's `EngagementArea` (arc **or** `AllowArea`), read by `SquadDefend` (`TryAllowPoint`), `AllowsUnit`, `MemberArc`; set by `SetEngagementAreaEvent`, origin-gated (an Operator's wins) | `Behavior/Components/EngagementArea.cs` | the platoon writes each line squad's slice as a Superior arc |
+| PIR "inside the area" | ⚠ `PirFlags.InArea` + `PirArea` carried to the squad (`ReportingRequirementsSystem`) — ⛔ **no composer reads any PIR flag** (`StaffSystems.cs`: zero reads); every squad already SPOTs its whole pool (one element, CC-7) | `Squad/Command/StaffSystems.cs` | the platoon tests its picture's elements against its own EA — no PIR needed |
+| ROE down the chain | ✅ `RoeOf` (PC-6, `CE-2289`); `SquadDefend` lifts its own HoldFire **only when not Superior-set** (`LiftOwnHold`) | `SquadDefendBehavior.cs:645` | a platoon-set HoldFire is the platoon's to lift — exactly DA-7 |
+| the squad play | ✅ `SquadDefend` (D-1…D-2j) | §8c | reused unchanged |
+| the defend order | ⚠ `DefendArea` → any unit with a roster runs **`SquadDefend`** (D-1) — a platoon too | `Mappers/DefendAreaMapper.cs:48` | E-1 orders `PlatoonDefend` by name; the mapper's platoon arm is E-2 |
+| the platoon SOP | ⚠ `BasicPlatoonSop` reacts to any reported element with `PlatoonHold` — a defending platoon would pull its line off the posts | `Library/Sop/BasicPlatoonSop.btree.json` | DA-55 |
+| faking reports | ✅ `POST /entities/{id}/reports` (`ReportInjection.Inject`, CC-13) | `DebugApiService.Reports.cs:99` | `pc-defend-dry` |
+
+```mermaid
+classDiagram
+  direction LR
+  class PlatoonDefendBehavior { <<NEW HSM asset, E-1>> DPlan · Occupy · Ready · Engage }
+  class PlatoonDefencePlan { <<NEW block>> Position · Area : EngagementArea · per slot Role, Point, Left, Right · HoldsFire · Made }
+  class PlatoonDefendNodes { <<NEW SharedAi>> PlanDefence · KeepDefence · HoldTheLine · OpenFire · Planned · LineSet · EnemyInArea · AreaQuiet }
+  class SectorSplit { <<NEW pure>> Split(left, right, n, overlap) }
+  class CommandOrders { <<existing CC-9>> Assign · Stands }
+  class CommandPicture { <<existing CC-1>> Elements · Subordinates }
+  class EngagementAreas { <<existing DA-L>> InArc · + Contains(area, point) }
+  class SquadDefendPlay { <<existing D-1…D-2j>> }
+  class RoeOf { <<existing PC-6>> }
+  PlatoonDefendBehavior --> PlatoonDefencePlan
+  PlatoonDefendBehavior ..> PlatoonDefendNodes
+  PlatoonDefendNodes ..> SectorSplit : at plan time
+  PlatoonDefendNodes ..> CommandOrders : SquadDefend per squad
+  PlatoonDefendNodes ..> CommandPicture : guards
+  PlatoonDefendNodes ..> EngagementAreas : SetEngagementAreaEvent, Contains
+  PlatoonDefendNodes ..> RoeOf : SetRoeEvent per squad
+  CommandOrders ..> SquadDefendPlay : the squad runs it
+```
+*What the picture shows that prose hid:* only three boxes are new and none of them parses a report or reads geometry: the plan is
+authored or computed once, every guard reads the picture the staff already folds, and the squad play below is the one D-1 built.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> DPlan
+  DPlan --> Occupy : Planned
+  Occupy --> Ready : LineSet (every line squad PROGRESS Set)
+  Ready --> Engage : EnemyInArea (an element inside the EA, fresh 30 s)
+  Engage --> Ready : AreaQuiet (none inside for 120 s)
+  note right of Occupy
+    activity KeepDefence in Occupy, Ready, Engage:
+    a squad whose order does not Stand is ordered again
+  end note
+```
+*What the picture shows that prose hid:* the orders are kept by the SAME activity in all three states, so a squad whose order was
+replaced is re-ordered wherever the plan stands, and the fire control is two entry actions — the only thing the states change.
+
+```mermaid
+sequenceDiagram
+  participant P as platoon PlatoonDefend
+  participant L as line squads (SquadDefend)
+  participant R as reserve squad
+  participant ST as platoon staff (inbox)
+  P->>P: DPlan: roles, points, the EA split by bearing (10 % overlap)
+  P->>L: Assign SquadDefend {point} + SetEngagementArea {slice} + SetRoe HoldFire
+  P->>R: Assign SquadDefend {point behind} + no sector + SetRoe ReturnFire
+  L-->>ST: PROGRESS Set (each)
+  ST-->>P: LineSet ⇒ Ready
+  L-->>ST: SPOT (the pool's element)
+  ST-->>P: EnemyInArea ⇒ Engage
+  P->>L: SetRoe FireAtWill (reaches every man, PC-6)
+  Note over P: no element inside for 120 s ⇒ Ready, HoldFire again
+```
+*What the picture shows that prose hid:* the trigger is a SPOT the squads send anyway; the 3 s report delay is the only latency between
+the first enemy entering the EA and the whole line opening fire — the leader's decision, not each man's.
+
+```mermaid
+graph TD
+  CGF[CGF brain node] --> BT[BrainTickSystem]
+  BT --> PT[platoon task slot: PlatoonDefend HSM]
+  BT --> SQ[squad task slots: SquadDefend]
+  CGF --> IN[StaffInboxSystem, before BrainTickSystem]
+  PT -->|AssignTacticalIntentEvent Superior| SQ
+  PT -->|SetEngagementAreaEvent Superior| EAS[EngagementAreaSystem]
+  PT -->|SetRoeEvent Superior| ROE[RoeSystem]
+  SQ -->|SendReport PROGRESS Set| OUT[ReportOutbox]
+  OUT --> IN
+  IN --> PIC[(CommandPicture)]
+  PIC --> PT
+  classDef new fill:#ffd,stroke:#aa0
+  PT:::new
+```
+*Caption:* everything runs where the first chain (`cc-platoon-bound`) already runs; the new box is the task. ⚠ **Not reached:** a platoon
+given **`DefendArea`** still runs `SquadDefend` (the mapper's roster arm) — E-1 is ordered by name; and a platoon carrying
+`BasicPlatoonSop` was paused by its hold row — closed by DA-55's guard.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-51** | where each squad goes | **authored in the order** (`Squads[]`: roster place, line or reserve, point, search radius — the D-2f precedent, DA-46); none authored ⇒ every squad on the line at the order's position, and with three or more the **last is the reserve, 40 m behind** (opposite the EA's middle bearing) | derive the battle positions from a `BuildingSurvey` now: a second planner (which building per squad), deferred to E-3 — the answer exists, the choosing does not · always one point: two squads in one house crowd each other's posts |
+| **DA-52** | the squad's sector | **an ARC slice of the platoon's EA on each line squad's `EngagementArea`** (Superior; origin the platoon's position; the EA split by bearing into equal shares, each 10 % wider; squads matched left to right by their bearing), the reserve none; a polygon EA is given whole to each line squad (`AllowArea`). ⚠ **Deviates from DA-24's "squad level = a polygon area entity"** — the arc is what every squad-level reader already reads, it is one event with no entity to create, replicate and destroy per plan, and an operator's polygon still wins by the origin gate | polygon `SquadSector` entities now: entity lifecycle for nothing a reader uses (none reads a polygon the arc cannot say) · no sectors: two squads fire at the same man and the flank goes unwatched |
+| **DA-53** | the trigger and its end | **`EnemyInArea`: a picture element inside the plan's EA observed within 30 s** (the SPOT refresh is 15 s); **`AreaQuiet`: none inside observed within 120 s** ⇒ back to Ready. No EA at all ⇒ any element within 300 m of the position | the PIR `InArea` path: no composer reads PIR flags, and the pool's SPOT is sent regardless · each squad lifting its own hold (D-1's `LiftOwnHold`): the line opens fire piecemeal and the first squad gives every post away |
+| **DA-54** | fire control | Regular+: the line squads **`HoldFire`** (Superior) in Occupy and Ready, **`FireAtWill`** in Engage; the reserve **`ReturnFire`** throughout (it must not show itself, and may defend itself). Below Regular (the platoon's own tier): **`FireAtWill` from the start**, no hold (§5's repertoire) | one write on the platoon (PC-6 reaches all): the reserve could not differ · `ReturnFire` for the line: the first enemy in the EA walks through unengaged until he shoots |
+| **DA-55** | the platoon SOP during a defence | ⚠ `BasicPlatoonSop`'s hold row would order every squad `Hold` (off its posts) and pause the trigger. the row gets a first guard **`PlatoonDefendBehavior.NotDefending`** (no params: the running task is not `PlatoonDefend`) — *as built in E-1, 2026-10-19: `pc-defend-dry` needed it, the platoon type's TKB default SOP is `BasicPlatoonSop`* | `Reactions = StayOnTask` on the platoon: the chain (PC-6) would carry it to every man and kill their own contact drills · let `PlatoonHold` skip squads already defending: the task is still paused, so the trigger never fires |
+
+**Slices.** **E-1** (this build): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
+①② (Platoon §12.2). **E-2**: the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
+Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
+(Veteran) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey` (DA-51's deferred half); `pc-defend-house`.
+
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
 | demo | cast | must end with |
@@ -525,7 +1200,7 @@ classDiagram
   class CasualtyCare { <<EXISTING, routed>> the medic pick }
   class SuppressAndManeuverPlay { <<EXISTING, + roles>> the AR / MG join the base of fire }
   class TacticalDesignation { <<EXISTING + BR-8>> AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank }
-  class FireTeam { <<NOT BUILT: no carrier on the wire>> }
+  class FireTeam { <<BUILT, backend R-3019: on UnitSubordinate, CmdAssignSubordinate, the scenario and the wire>> None A B C D }
   class RoleTakeover { <<NOT BUILT: needs a weapon to pick up>> }
   SquadSensing ..> SquadRoles
   CasualtyCare ..> SquadRoles
@@ -540,7 +1215,7 @@ blocked for reasons outside this lane.
 |---|---|---|
 | the role reader | ✅ `SquadRoles.Of` (succession and the medic pick routed through it) | — |
 | the AR / MG first into the base of fire | ✅ `SuppressAndManeuverPlay.Start`: after the split by reporters (or halves), every AR / MG goes to the base of fire, if a live man is left to assault | — |
-| ⛔ the element split BY FIRE TEAM | **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
+| ⛔ the element split BY FIRE TEAM | ✅ **carrier BUILT `2026-10-19` (backend, R-3019)**: `Fdp.Core.CommandHierarchy.FireTeam` (byte: None, A…D) on `UnitSubordinate` (in its trailing pad, still 12 B), on `CmdAssignSubordinate` (so an in-place reassignment carries it, CE-3263), `InitialUnitSubordinateIntent`, the scenario key `UnitSubordinate.FireTeam` ("A"…"D", absent = none) and appended to the wire `EntityInfo` (`FireTeam` byte) — ⏳ the plays' split is behaviors'. ⛔ WAS **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
 | ⛔ role takeover on a casualty | **blocked**: the AR's gun is his TYPE's mount, nothing can pick it up; re-labelling a rifleman would send a man with no MG to the base of fire as one | ⭐ wait for a weapon pick-up design (a held item from a body, `ItemSources`); and make succession's designation change reach the wire first (mark it dirty, and fix the duplicate append) — both backend |
 
 ⚠ Neither blocked part is decided by this lane alone: the user rules on the fire-team carrier and on weapon pick-up.
@@ -654,7 +1329,69 @@ displacement, a shift of fire) — never per frame. A sector change is one order
 |---|---|---|---|
 | **DA-24** | the two levels and their shapes | **squad level = an AREA ENTITY polygon** (R-2003), created by the platoon play (or drawn by the operator), owned by the platoon, read by the squad commander's `EngagementArea`, `TopContact` and `ThreatMatrixAssignment` · **member level = an ARC in the member order** (origin, left and right bearing, range band, storey band; fixed, or relative to the route while moving), computed by the squad play with `SectorPlanner`, stamped by the member's brain · **NoFire = area entities owned by a unit**, honoured by every man whose chain of command includes that unit (looked up, never copied) · by tier: Untrained none · Militia squad level only · Regular+ both levels. v1 arcs come from geometry only; v2 clips each arc to what the man can actually see from his post (EQS line-of-sight samples) | member sectors as area entities: ten map objects per squad, recreated at every casualty · squad sectors as arcs: an operator could not draw one, and it would not be on the map · NoFire copied into every order: one missed copy is a friendly-fire bug |
 
-### 13c. DA-L in detail — the mechanism *(`CE-2282`, behaviors, 2026-10-19 — leans refining the approved DA-20 / DA-24, for the user)*
+#### 13a-1. `MemberArc` — the squad play's arc for one man *(`CE-2302`, behaviors, 2026-10-19 — the member level of DA-24 over DA-26's road)*
+
+**INVENTORY** (grep + read, 2026-10-19; the codebase-memory MCP was down, its CLI was not used for this slice — `check_index_coverage`
+not run): the member order is `MemberOrder` (`SquadManeuverRunner.cs:69`, a plain struct the play returns from `OrderFor`; ⚠ its
+`Arc` byte is FireAtPoint's LOW / HIGH preference, not a sector); the runner publishes each member's behaviour in `Issue`
+(`:436-466`) and records each one against the commander's RUN (`CommandOrders.Assign` → `SubordinateOrders.Record`,
+`CommandNodes.cs:54`); when that run ends — finished, cleared, replaced — `SubordinateOrders.Release` clears every order it gave
+(CE-2141, `BehaviorOwnedPart.cs:52`) ⭐ the release a sector must follow; the sector road is `SetEngagementAreaEvent` (event 3107,
+origin-gated, replace, all-empty withdraws — `EngagementArea.cs:63`, `EngagementAreaSystem.cs:46-61`); the eyes already follow an
+arc's middle (`LookNodes.cs:115-130`). ⛔ No `SectorPlanner` exists — this slice needs none (one play, geometry it already has).
+
+```mermaid
+classDiagram
+  direction LR
+  class MemberOrder { <<EXISTING, + Sector>> Kind · Point · … }
+  class MemberArc { <<NEW value>> Set · LeftBearing · RightBearing · MinRange · MaxRange — origin = the order's point }
+  class ISquadPlay { <<EXISTING>> OrderFor returns the arc with the order }
+  class DangerCrossingPlay { <<EXISTING, first user>> near / far security: their side of the road }
+  class SquadManeuverRunner { <<EXISTING, + Sector>> Issue publishes the arc, or withdraws }
+  class SubordinateOrders { <<EXISTING CE-2141>> Release — the run ended: clear his order, withdraw his Superior sector }
+  class EngagementAreas { <<EXISTING reader, + WithdrawSuperior>> }
+  class SetEngagementAreaEvent { <<EXISTING 3107>> origin Superior }
+  class EngagementAreaSystem { <<EXISTING>> the origin gate — an operator's sector is never replaced }
+  class EngagementArea { <<EXISTING 417, replicated>> }
+  MemberOrder *-- MemberArc
+  ISquadPlay ..> MemberOrder
+  DangerCrossingPlay ..|> ISquadPlay
+  SquadManeuverRunner ..> SetEngagementAreaEvent : per member — the arc
+  SquadManeuverRunner ..> EngagementAreas : WithdrawSuperior when his order has no arc
+  SubordinateOrders ..> EngagementAreas : WithdrawSuperior with each released order
+  SetEngagementAreaEvent ..> EngagementAreaSystem
+  EngagementAreaSystem --> EngagementArea
+```
+*What the picture shows that prose hid:* the play only RETURNS an arc; the runner is the one place that turns it into the event, so no
+play publishes anything and every play gets the same withdraw rule for free. The rule needs no memory in the play's state: **a man's
+sector set by a Superior is his current play's** — an order without an arc withdraws it, and the end of the commander's run withdraws it
+together with his order (the release that already exists, CE-2141). A mid-play reset (the crossing switching to a bound) is covered by
+the next issue. The operator's sector outranks it at the origin gate,
+so neither the arc nor the withdraw ever touches it.
+
+```mermaid
+sequenceDiagram
+  participant PLAY as DangerCrossingPlay.OrderFor
+  participant RUN as SquadManeuverRunner.Issue
+  participant BUS as the bus (kind 4 when his brain is elsewhere)
+  participant SYS as EngagementAreaSystem (his brain node)
+  PLAY-->>RUN: Watch(near spot) + Sector(his side of the road, ±45°)
+  RUN->>RUN: the Watch order (CombatPosture, stay)
+  RUN->>BUS: SetEngagementAreaEvent(man, arc from his spot, Superior)
+  BUS->>SYS: replaces his set (an Operator's stays)
+  Note over RUN: next issue gives him no arc (he crosses) ⇒ withdraw if a Superior set it
+  Note over RUN,SYS: the commander's run ends (finished, cleared, replaced) ⇒ SubordinateOrders.Release clears his order AND withdraws his Superior sector
+```
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **DA-31** | where the arc comes from | the play returns it with the member order (`MemberOrder.Sector`); the runner publishes it | each play publishing its own events: six copies of the withdraw rule |
+| **DA-32** | who withdraws | by rule (a Superior-set sector is the current play's): the runner on each issue without an arc, and `SubordinateOrders.Release` when the run that gave it ends — the ONE release a member's order already has | a mask in `SquadPlayState`: lost when a play's state is reset mid-run · a withdraw in every squad deactivator (built first, then retired the same day): a CLEAR of the task runs no deactivator here, so the rail stayed red — and it would have been a second release beside CE-2141's |
+| **DA-33** | the crossing's arcs | near- and far-side security: the man's own side of the crossing line, ±45° around it, no range limit; the crossing element and the reform: none | the whole road (180°) per man: the two security men would overlap completely, and doctrine gives each his flank |
+
+### 13c. DA-L in detail — the mechanism *(`CE-2282`, behaviors, 2026-10-19 — leans refining the approved DA-20 / DA-24)*
+
+✅ **DA-26…DA-30 APPROVED as leaned and as built (R-2054).** 🔒 User, `2026-10-19`: *"Pls also record there i am approving your leans. Backend might have already actend on those."*
 
 **INVENTORY** (a read-only sweep of every site, 2026-10-19; codebase-memory CLI earlier found no `Sector` / `EngagementArea` /
 `WatchBearing` / `FireArc` type — grep agrees; `check_index_coverage` NOT run, CLI only):
@@ -719,6 +1456,8 @@ sequenceDiagram
 *What the picture shows that prose hid:* the sector travels the way ROE and reporting do (CC-2's shape, R-2044), not inside every
 order's params — so no play's params change and a shift of fire is one event.
 
+✅ **RULED `2026-10-19` (R-3020 — a duplicate of R-2054 above, recorded in the backend lane)** — DA-26…DA-30 as leaned. 🔒 User: *"Sector leans accepted."*
+
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-26** | how a sector reaches the man | ⭐ **the ROE twin** `SetEngagementAreaEvent` beside the order (origin-gated, replace, all-empty withdraws), the shape CC-2 (R-2044) chose for reporting; across nodes on the tactical-intent road like kinds 2 and 3 (a kind 4 — asked of backend) | inside every order's params (DA-20's first wording): each play's DTO grows a sector, and CB-42 lost to CC-2 for the same reason |
@@ -753,7 +1492,7 @@ slices (`CE-2275` SquadDefend, `CE-2257` the clearing, the march), so no demo sh
 | ② a commander's sector on his men's brain nodes | ⭐ **replicated**, not copied into each man: `EngagementArea` is Brain group, `dtEngagementArea` (151), field for field (the four NoFire ids flattened). `EngagementAreas` already walks the man's chain, so a commander's NoFire reaches every man's node with no reader change | `BodyPartReplicationTests.CE3261_*`, both descriptor-map rails |
 | ③ the round's origin (DA-14) | `NearMissEvent.Origin{X,Y,Z}` + `HasOrigin` — the round's MUZZLE (R-217 keeps it on the round); on the wire (`NearMiss`, appended). ⛔ still no shooter identity: a man under fire knows where it came from, not who. DA-28's self-defence can now ask "a contact near the origin" | `BallisticsSystemTests…CE3064` (extended), `NearMissTranslatorTests.CE3262_*` |
 | ⑤ succession on the wire | `SquadSensing.Succession` marks the successor's `EntityInfo` dirty; ⭐ `UnitHierarchySystem` updates a re-assign to the SAME commander IN PLACE (the roster entry + the man's designation) — ⛔ it used to append him a second time | `SquadCoordinationSystemTests.CE2125_*` (extended), `UnitHierarchySystemTests.CE3263_*` |
-| ④ a fire-team index on the wire | ⏳ not built — your lean awaits the user. ⭐ Backend's view: the wire can take it — one byte appended to `EntityInfo`'s descriptor, the `TacticalDesignation` road | — |
+| ④ a fire-team index on the wire | ✅ APPROVED `2026-10-19` (R-3019; 🔒 user, on the Q94 + fire-team summary: *"Approved. Move fire check to muscle. Anyway brain should be sending just fire requeat and can update ammo based on fire notification (and we would need to add  refused flag to the notification)."*) — a `FireTeam` byte appended to `EntityInfo`'s descriptor + the scenario key; backend builds it. ⛔ WAS: not built — your lean awaits the user. ⭐ Backend's view: the wire can take it — one byte appended to `EntityInfo`'s descriptor, the `TacticalDesignation` road | — |
 
 ### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; DA-25 the survey sensor, amended by the user 2026-10-18 — R-2038)*
 

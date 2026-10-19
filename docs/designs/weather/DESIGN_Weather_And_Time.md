@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED 2026-10-19 (§8: inventory, UML, leans S2-0…S2-5; the night/fog/wind NUMBERS await the user). S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED and APPROVED 2026-10-19 (§8, R-3017) — READY-TO-BUILD. S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
 current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice) · §8 S2 perception design (leans, awaiting the user). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
@@ -380,7 +380,9 @@ both regions outlined, dusk, clear / fog / blended). Each red-proved.
 is ready for them; left for the user's live look).
 
 
-## 8. S2 — weather and night in PERCEPTION *(backend, `CE-3216`; designed `2026-10-19`; ⏳ build-state: DESIGN — S2-0 and the shape are measured, the NUMBERS in §8.3 await the user)*
+## 8. S2 — weather and night in PERCEPTION *(backend, `CE-3216`; designed `2026-10-19`; ✅ APPROVED `2026-10-19` (R-3017) — build-state: READY-TO-BUILD)*
+
+✅ **RULED `2026-10-19` (R-3017)** — every lean in §8.3 as written. 🔒 User: *"The visual and hearing ranges accepted."* · *"Thermal and nihht vision leans accepted."*
 
 ### 8.1 INVENTORY *(codebase-memory CLI `search_graph` + grep, one corpus sweep over `docs/` and `.dev/`; ⚠ `check_index_coverage` is not available through the CLI)*
 
@@ -476,7 +478,7 @@ graph TD
 *What the picture shows that prose hid:* the perception sensors run on the muscle hosts' background snapshot, while the CE-3229 judge
 runs on the brain's live world — two readers of one curve on two kinds of world; the red box is what a snapshot gives today.
 
-### 8.3 Decisions — leans *(⏳ the user rules; S2-0 is a measured defect-in-waiting, the rest are leans)*
+### 8.3 Decisions — ✅ approved as leaned (R-3017)
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -498,3 +500,17 @@ runs on the brain's live world — two readers of one curve on two kinds of worl
 | S2-3: a cold vehicle's base signature passes at noon and fails at crossover; a hot engine passes both; fog caps thermal at 2 × visibility | thermal perception |
 | S2-4: a shot heard at 380 m in calm is not heard in 10 m/s wind | acoustic perception |
 | S2-5: no World Environment ⇒ every range as today | each of the above |
+
+### 8.5 AS BUILT `2026-10-19` (`CE-3216` S2, R-3017)
+
+| as built | deviation, and why |
+|---|---|
+| `PerceptionWeather` (`Perception/Sensors/PerceptionWeather.cs`): `TrySample(view, unit)` → `WeatherField.At` once per sensor; `VisionRange`, `ThermalRange`, `BaseContrast`, `HearingFactor`; the constants of §8.3 | ⚠ **sampled at EYE/EAR height** (`SenseHeightM` = 1.7 m above the man's own Z, still his own Z as the ground) — 📐 the wind's log profile is ZERO at the ground (W-3), so a sample at his feet never masked his hearing (the trap `CE-3258` met for a cloud lying on the ground). ⇒ S2-4's "wind" is the wind at his ears: a 10 m/s wind at the 10 m level is ~7 m/s there (× 0.53) |
+| `Identification.LightFactor(relativeLight, nightFactor)` — the one curve, two floors (A-4's 0.1, detection's 0.25) | — |
+| `WeatherSample.DiurnalPhase` (−1…1, appended): the diurnal swing's phase; `BaseContrast = clamp(|phase|, 0.2, 1)` | the sample carried no mean or swing — the phase IS the crossover signal, so no second field |
+| S2-0: `EntityRepository.SyncFrom` borrows `IGeographicTransform` (75) with the other singletons | — |
+| seams: `VisualPerception.Optics` (after binoculars / scope), `ThermalPerception.Optics`, `SignatureFilterTest.ExecuteBatch` (`Base × contrast + Heat × (1 − Base)`), `AcousticSensorGenerator.Generate` (the listener's range × the factor) | ⚠ hearing's factor sits in the GENERATOR, not `AcousticPerception.Ears`: `Ears` takes no unit, and the generator is its one production caller |
+
+Rails (`Fdp.Toolkits.Tests` `PerceptionWeatherTests`): sight at noon / night / in fog / with no clock · thermal ignores the night,
+fog caps it at 2×, the crossover filters a cold hull and passes a running engine · a shot heard in calm, lost in a strong wind and in
+heavy rain · the approved numbers. `Fdp.ModuleHost.Tests` `SnapshotClockTests.CE3216_ASnapshot_BorrowsTheGeoTransform` (S2-0).

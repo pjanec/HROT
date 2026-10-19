@@ -152,6 +152,9 @@ namespace Hrot.Common.Serializers
 
         /// <summary>Tactical role of this entity within the commander's unit.</summary>
         public TacticalDesignation Designation { get; set; }
+
+        /// <summary>⭐ <c>CE-2281</c> / R-3019 — his fire team within the unit.</summary>
+        public FireTeam FireTeam { get; set; }
     }
 
     /// <summary>

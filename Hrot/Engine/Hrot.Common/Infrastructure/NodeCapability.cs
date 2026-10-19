@@ -91,6 +91,13 @@ public static class CapabilityKeys
     /// 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
     /// </summary>
     public const string HealthApplication = "cap:infra:health-application";
+
+    /// <summary>
+    /// ⭐ <c>CE-2301</c> ① (R-2058) — the squad report inbox on a node with NO brain (SimHost, IG): every report this node sees goes
+    /// into its <c>SquadReportLog</c>. ⛔ Never declared by a brain plan — those keep <c>CgfLogicPack</c>'s inbox, placed before the
+    /// brain tick (one inbox per node). 📄 DESIGN_Command_Chain_Example.md §8b.
+    /// </summary>
+    public const string ReportInbox = "cap:infra:report-inbox";
 }
 
 /// <summary>Keys for the one-per-world resources capabilities share.</summary>

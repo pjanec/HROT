@@ -114,6 +114,15 @@ namespace Hrot.SimHost.Tests
                 Repo.SetComponent(sensor, buf);
             }
 
+            /// <summary>⭐ CE-2275 D-2d — an answer of several points, best first.</summary>
+            public void AnswerPoints(Entity sensor, uint tick, params (float X, float Y)[] points)
+            {
+                var buf = new EqsCognitiveBuffer { Count = points.Length, LastUpdateTick = tick };
+                for (int i = 0; i < points.Length; i++)
+                    buf.GetSpanRW()[i] = new EqsResult { PositionX = points[i].X, PositionY = points[i].Y, Score = 1f - 0.1f * i };
+                Repo.SetComponent(sensor, buf);
+            }
+
             /// <summary>⭐ CE-2073 — a contact remembered FRESH (tracked to saturation), armed or not.</summary>
             public unsafe Entity Contact(bool armed)
             {
@@ -240,6 +249,44 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             Assert.NotEqual("CombatPosture", w.TaskName);              // the mission task is done
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
+        }
+
+        private const string StayObjective = "{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1},\"stay\":true}";
+
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — a STAYING posture: the same advance against a weak enemy does not end on
+        /// arrival — he is still on the task and still firing (the twin of the rail above, which ends there).</summary>
+        [Fact]
+        public void CE2297_Staying_ArrivalDoesNotEndThePosture_AndHeKeepsFiring()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);                                   // a weak enemy ⇒ AdvanceAndAttack
+            w.Order("CombatPosture", StayObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            uint move = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);                 // he stays
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            // … THERE: the arrived advance holds (AdvanceParams.Stay) — without it the branch succeeds, restarts and re-issues the move
+            Assert.Equal(move, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run and its sensors go on");
+        }
+
+        /// <summary>⭐ <c>CE-2297</c> slice 2a — with nothing to fight a staying posture arrives and holds there (the squad's Hold /
+        /// Watch man: before, the posture ended on arrival and he idled with no eyes — Look Direction §3.3a known-rot).</summary>
+        [Fact]
+        public void CE2297_Staying_WithNothingToFight_HeHoldsAtThePoint()
+        {
+            var w = new World();
+            w.Arm();
+            w.Order("CombatPosture", StayObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
         }
 
         [Fact]
@@ -373,6 +420,96 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());
             Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());  // straight on to the objective
             Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        private const string PostedObjective = "{\"advance\":{\"Objective\":[0,0,0],\"Speed\":3,\"ArrivalRadius\":1,\"CooldownSeconds\":1},\"stay\":true,"
+                                             + "\"post\":{\"point\":[0,0,0],\"radius\":4,\"window\":false}}";
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2d (PC-14, DA-44) — a POSTED man's flank stays on his post: of a flank answer whose best point is 50 m off
+        /// it and whose second is inside it, he takes the second; an answer with nothing on his post moves him nowhere and he fights
+        /// from where he stands. 🔴 Red before: measured live (<c>sq-defend-house</c>) the approach moves took posted men 5–7 m off.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedMansFlank_StaysOnHisPost_AndNothingOnItMeansHeFightsWhereHeStands()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: false);                       // a weak enemy ⇒ AdvanceAndAttack; NOT in sight
+            w.Order("CombatPosture", PostedObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);   // a good flank exists
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
+            var flank = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite);
+            Assert.False(flank.IsNull, "the Flank manoeuvre runs");
+
+            w.AnswerPoints(flank, 6, (30f, 40f), (3f, 1f));            // best 50 m off his post, second inside it
+            w.Tick();
+            Assert.Equal(new Vector3(3f, 1f, 0f), w.Destination());     // ⭐ the best point ON his post
+
+            var w2 = new World();
+            w2.Arm();
+            w2.Contact(armed: false);
+            w2.Order("CombatPosture", PostedObjective);
+            for (int i = 0; i < 4; i++) w2.Tick();
+            w2.Answer(EqsChildSensor.Find(w2.Repo, w2.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
+            for (int i = 0; i < 3; i++) w2.Tick();
+            var flank2 = EqsChildSensor.Find(w2.Repo, w2.Unit, EqsTacticsNodes.FlankSite);
+            Assert.False(flank2.IsNull, "the Flank manoeuvre runs");
+            w2.AnswerPoints(flank2, 6, (30f, 40f), (12f, 9f));         // nothing on his post
+            for (int i = 0; i < 3; i++) w2.Tick();
+            Assert.NotEqual(new Vector3(30f, 40f, 0f), w2.Destination());
+            Assert.NotEqual(new Vector3(12f, 9f, 0f), w2.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w2.Repo.GetComponentRO<WeaponChannel>(w2.Unit).ActiveAction);   // … he fights
+        }
+
+        private const string PostedAway = "{\"advance\":{\"Objective\":[10,0,0],\"Speed\":3,\"ArrivalRadius\":1,\"CooldownSeconds\":1},\"stay\":true,"
+                                        + "\"post\":{\"point\":[10,0,0],\"radius\":4,\"window\":false}}";
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2e (PC-14, DA-45) — a POSTED man not yet on his post goes there whatever the fight's decision: here an armed
+        /// enemy he remembers but cannot see makes the decision something other than the advance, and he still walks to his post. 🔴 Red
+        /// before: measured live (<c>sq-defend-house</c>) the first contact flipped the posture to Suppress on the stairs and he stood there.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero });
+            w.Contact(armed: true);
+            w.Order("CombatPosture", PostedAway);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.NotEqual((byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack, w.Winner("CombatPosture"));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(10f, 0f, 0f), w.Destination());   // ⭐ to his post
+        }
+
+        /// <summary>⭐ D-2e — <see cref="PostureNodes.OffPost"/>'s latch: off ⇒ go; within 1.5 m ⇒ occupied, and inside his room (4 m) the fight
+        /// may move him without being pulled back (D-2d's moves); carried out of the room ⇒ back; his alternate counts as on his post; no post
+        /// ⇒ never.</summary>
+        [Fact]
+        public void CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero });
+            var p = new PeekAndFireParams { Anchor = new Vector3(10f, 0f, 0f), AnchorRadius = 4f, MatchRadius = 1f,
+                                            AnchorAlternate = new Vector3(0f, 10f, 0f), AnchorHasAlternate = 1 };
+            var ws = default(OccupyState);
+            void At(float x, float y) => w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(x, y, 0f);
+            bool Off() => PostureNodes.OffPost(ref p, ref ws, w.Unit, w.Repo);
+
+            Assert.True(Off(), "not yet on his post");
+            At(7f, 0f);   Assert.True(Off(), "3 m off and never there yet: still going");
+            At(9f, 0f);   Assert.False(Off());
+            At(7f, 0f);   Assert.False(Off(), "inside his room after occupying: the fight may move him");
+            At(4f, 0f);   Assert.True(Off(), "carried out of his room: back");
+            At(9.2f, 0f); Assert.False(Off());
+            var ws2 = default(OccupyState);
+            At(0f, 10.5f); Assert.False(PostureNodes.OffPost(ref p, ref ws2, w.Unit, w.Repo), "his alternate is his post too");
+            var none = new PeekAndFireParams();
+            Assert.False(PostureNodes.OffPost(ref none, ref ws2, w.Unit, w.Repo), "no post: never");
         }
 
         /// <summary>

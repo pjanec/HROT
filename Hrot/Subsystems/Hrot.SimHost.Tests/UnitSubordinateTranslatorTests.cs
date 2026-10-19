@@ -170,5 +170,35 @@ namespace Hrot.SimHost.Tests
 
             Assert.False(new UnitSubordinateTranslator().CanTranslate(_repo, entity));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2281</c> / R-3019 — the scenario carries a man's FIRE TEAM: saved as a letter beside the designation, loaded into the
+        /// genesis intent; a man with no team saves no key. ✅ Red-proof: the Extract line removed ⇒ no "fireTeam" ⇒ red; the Inject parse
+        /// removed ⇒ the intent's team stays None ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2281_TheFireTeam_RoundTripsThroughTheScenario()
+        {
+            var commander = _repo.CreateEntity();
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 77L });
+            var subordinate = _repo.CreateEntity();
+            _repo.SetComponent(subordinate, new UnitSubordinate { Commander = commander, Designation = TacticalDesignation.Wingman, FireTeam = FireTeam.B });
+            var loner = _repo.CreateEntity();
+            _repo.SetComponent(loner, new UnitSubordinate { Commander = commander, Designation = TacticalDesignation.Wingman });
+
+            var resolver = new StubResolver();
+            resolver.Register(commander, "guid-cmdr");
+            var obj = (JsonObject)new UnitSubordinateTranslator().Extract(_repo, subordinate, resolver)["UnitSubordinate"];
+            Assert.Equal("B", obj["fireTeam"]!.GetValue<string>());
+            var none = (JsonObject)new UnitSubordinateTranslator().Extract(_repo, loner, resolver)["UnitSubordinate"];
+            Assert.True(none["fireTeam"] is null, "a man with no team saves no team");
+
+            var reloaded = _repo.CreateEntity();
+            new UnitSubordinateTranslator().Inject(_repo, reloaded,
+                new Dictionary<string, object> { ["UnitSubordinate"] = JsonNode.Parse(obj.ToJsonString())!.AsObject() }, resolver);
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(reloaded)!;
+            Assert.Equal(FireTeam.B, intent.FireTeam);
+            Assert.Equal(TacticalDesignation.Wingman, intent.Designation);
+        }
     }
 }

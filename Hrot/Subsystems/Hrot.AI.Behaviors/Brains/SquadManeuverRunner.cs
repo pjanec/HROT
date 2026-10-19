@@ -93,6 +93,46 @@ namespace Hrot.AI.Behaviors.Brains
         public byte AnchorIndex;
         /// <summary>⭐ <c>CE-2173</c> slice 3c — <see cref="MemberOrderKind.CarryCasualty"/>: 1 ⇒ keep carrying him at the point.</summary>
         public byte Keep;
+        /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the man's arc of fire from the order's point; the runner sends it as his sector.
+        /// Unset ⇒ a sector a Superior gave him is withdrawn. ⚠ Not <see cref="Arc"/> (FireAtPoint's low / high preference).</summary>
+        public MemberArc Sector;
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — <see cref="MemberOrderKind.Watch"/>: his post set (the post is <see cref="Point"/>); he takes
+        /// cover only on it. Unset ⇒ anywhere.</summary>
+        public MemberPost Post;
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a man's post set beyond the post itself: his alternate, how far round the post counts
+    /// as on it, and whether it is a window. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2a.</summary>
+    public struct MemberPost
+    {
+        public byte Set;
+        public byte Window;
+        public byte HasAlternate;
+        public Vector3 Alternate;
+        public float Radius;
+        /// <summary>⭐ D-2b (DA-6) — 1 = a SET-BACK window post: he hides and rotates among set-back points, never at the sill.</summary>
+        public byte SetBack;
+        /// <summary>⭐ D-2g (DA-5, DA-22) — 1 = a ROOF post: he hides prone behind the parapet and comes up crouched to fire over it.</summary>
+        public byte Roof;
+    }
+
+    /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
+    /// and a range band (0 = no limit). 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §13a-1.</summary>
+    public struct MemberArc
+    {
+        public byte Set;
+        public float LeftBearing;
+        public float RightBearing;
+        public float MinRange;
+        public float MaxRange;
+
+        /// <summary>An arc of ±<paramref name="halfWidth"/> degrees around <paramref name="bearing"/>.</summary>
+        public static MemberArc Around(float bearing, float halfWidth, float maxRange = 0f) => new()
+        {
+            Set = 1, LeftBearing = Norm(bearing - halfWidth), RightBearing = Norm(bearing + halfWidth), MaxRange = maxRange,
+        };
+
+        private static float Norm(float degrees) { degrees %= 360f; return degrees < 0f ? degrees + 360f : degrees; }
     }
 
     /// <summary>
@@ -407,6 +447,21 @@ namespace Hrot.AI.Behaviors.Brains
             return status;
         }
 
+        /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the member's sector from his order: the arc from <paramref name="at"/> (origin
+        /// Superior — the gate keeps an Operator's), or, with none, the withdraw of one a Superior set (DA-32: a man's Superior-set
+        /// sector is his current play's; the commander's run ending withdraws it with his order — <c>SubordinateOrders.Release</c>).</summary>
+        internal static void Sector(EntityRepository world, Entity member, in MemberArc arc, Vector3 at)
+        {
+            if (!world.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
+            if (arc.Set == 0) { EngagementAreas.WithdrawSuperior(world, member); return; }
+            world.Bus.Publish(new SetEngagementAreaEvent
+            {
+                Entity = member, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = at,
+                LeftBearing = arc.LeftBearing, RightBearing = arc.RightBearing, MinRange = arc.MinRange, MaxRange = arc.MaxRange,
+            });
+        }
+
+
         /// <summary>⭐ S2-G — does the squad still hold what this play left there?</summary>
         private static unsafe bool StillOurs(in SquadPlayState ws, in SquadCognitiveState squad)
         {
@@ -451,7 +506,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
                 if (order.Kind == MemberOrderKind.Stay) continue;   // ⭐ CE-1118 H-1 (D-19) — he keeps what he is doing
-                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                Sector(ctx.World, m, in order.Sector, point);         // ⭐ CE-2302 — his arc, or withdraw a Superior's
+                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed, in order.Post);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m, in order);
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
@@ -469,12 +525,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)
         /// and stays (measured, §2). From the commander; the intent id IS the behaviour (no mapper). ⭐ <c>CE-2141</c> (A4): a member
         /// that is itself a UNIT gets the order <c>Order.Hold</c> and decides for itself how to hold.</summary>
-        public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed)
+        public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed, in MemberPost post = default)
         {
             if (IsUnit(world, member)) { Order(world, commander, member, nameof(OrderKind.Hold), "{}"); return; }
-            Publish(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
+            Keep(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
+                Stay = true,   // ⭐ CE-2297 slice 2a (R-2055) — he holds there until the squad's next order, eyes and fight with him
+                Post = post.Set == 0 ? default : new CombatPosturePostJsonDto   // ⭐ CE-2275 D-2a (PC-14) — he fights from his post
+                {
+                    Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
+                    SetBack = post.SetBack != 0, Roof = post.Roof != 0,
+                },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 
@@ -490,10 +552,19 @@ namespace Hrot.AI.Behaviors.Brains
                 }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
                 return;
             }
-            Publish(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
+            Keep(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
             {
                 Objective = point, Speed = speed, ArrivalRadius = arrival,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2304</c> — a HOLD or a MOVE: sent unless the member already runs exactly this order from this run (a re-issue
+        /// re-sends every member's order, and an unchanged one would only stop him and start him again). ⛔ Not for the orders a play
+        /// re-sends ON PURPOSE to nudge a man still running one (the airborne exit, a battery's next salvo) — those keep <see cref="Publish"/>.</summary>
+        private static void Keep(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            if (CommandOrders.StillRunning(world, commander, member, behaviour, json)) return;
+            Publish(world, commander, member, behaviour, json);
         }
 
         /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — SUPPRESS: the library <c>Suppress</c> on <paramref name="target"/>, last reported at

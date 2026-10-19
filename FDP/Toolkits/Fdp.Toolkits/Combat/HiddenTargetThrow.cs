@@ -28,13 +28,14 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>
         /// Throws at <paramref name="target"/>'s last-known position when every condition holds; true when a grenade left this
-        /// frame (its mount's ammunition spent and its cooldown set).
+        /// frame (its round ASKED — spent when the muscle answers, Q94 A-3 — and its cooldown set).
         /// </summary>
         public static bool TryThrow(EntityRepository world, Entity unit, Entity target)
         {
             if (!ThrowableMount(world, unit, out var mountEntity, out int mountIndex, out var mount, out var warhead)) return false;
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
-            if (weapon.Ammo == 0 || weapon.CooldownSecondsRemaining > 0f) return false;
+            if (!Magazine.Ready(in weapon) || weapon.CooldownSecondsRemaining > 0f) return false;   // ⭐ Q94 A-3 — net of the rounds asked
+            if (ShotLedger.Held(in weapon, out _)) return false;   // ⭐ Q94 A — the muscle refused the last one: not again at once
             if (!LastKnown(world, unit, target, out var point)) return false;
             if (!world.HasComponent<SimTransform>(unit)) return false;
             var from = world.GetComponentRO<SimTransform>(unit).Position;
@@ -54,8 +55,8 @@ namespace Fdp.Toolkit.Combat
                 AtPoint     = true,
                 TargetPoint = point,
                 RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
+                RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — asked; the muscle's answer spends it
             });
-            Magazine.Spend(ref weapon);
             weapon.CooldownSecondsRemaining = CooldownSeconds;
             return true;
         }

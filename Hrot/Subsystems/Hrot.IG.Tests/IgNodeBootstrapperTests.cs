@@ -169,5 +169,7 @@ public class IgNodeBootstrapperTests
         Assert.Contains(sim, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
         Assert.Contains(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
         Assert.Contains(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
+        // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: exactly one, logging every report IG sees.
+        Assert.Single(sim, s => s is Fdp.Toolkit.Squad.Command.StaffInboxSystem);
     }
 }

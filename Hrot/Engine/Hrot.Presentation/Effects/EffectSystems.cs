@@ -70,6 +70,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         {
             foreach (ref readonly var fire in view.ReadEvents<WeaponFireNotification>())
             {
+                if (!fire.Fired) continue;   // ⭐ Q94 A-2 (R-3018) — a REFUSED shot never flew: nothing to hear, see or fear
                 // ⭐ CE-1115 (§9 DV-1) — a flare / chaff release: the decoy, moving along its path; no flash, no blast, no shot
                 if (Munitions.IsExpendable(tkb, fire.AmmoGuid)) { SpawnRelease(cmd, tkb, fire, now); continue; }
                 if (fire.Shooter == Entity.Null || !view.IsAlive(fire.Shooter) || !view.HasComponent<SimTransform>(fire.Shooter)) continue;

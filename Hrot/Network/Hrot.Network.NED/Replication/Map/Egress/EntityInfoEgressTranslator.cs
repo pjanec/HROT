@@ -126,6 +126,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 long commanderNetId = 0;
                 var designation = eTacticalDesignation.Undefined;
+                byte team = 0;   // ⭐ CE-2281 / R-3019
                 if (view.HasComponent<UnitSubordinate>(entity))
                 {
                     ref readonly var sub = ref view.GetComponentRO<UnitSubordinate>(entity);
@@ -137,6 +138,7 @@ namespace Hrot.Map.Common.Replication.Egress
                         commanderNetId = 0;
                     }
                     designation = TacticalDesignationMapper.ToDds(sub.Designation);
+                    team        = (byte)sub.FireTeam;
                 }
 
 				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
@@ -146,6 +148,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     ForceIdentifier     = Utils.ForceIdMapping.ToWire(data.ForceId),
                     CommanderId         = (int)commanderNetId,
                     TacticalDesignation = designation,
+                    FireTeam            = team,
                 });
 
                 SentSampleCount++;

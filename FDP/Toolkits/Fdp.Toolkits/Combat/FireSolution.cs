@@ -23,8 +23,13 @@ namespace Fdp.Toolkit.Combat
         TooFar = 1,
         /// <summary>Every charge that reaches needs an elevation outside the mount's limits (the point is inside the minimum range).</summary>
         TooClose = 2,
-        /// <summary>A charge reaches, but the terrain or a building stops every allowed arc on the way.</summary>
+        /// <summary>A charge reaches, but the terrain or a building stops every allowed arc on the way. ⭐ Q94 A-4 — and a DIRECT shot
+        /// whose muzzle line is blocked (<c>LineOfFire.MuzzleMasked</c>), judged by the muscle.</summary>
         Masked = 3,
+        /// <summary>⭐ Q94 A-6 (R-3018) — a release request the muscle could not honour in time (the bomb's cue passed or never came).</summary>
+        Expired = 4,
+        /// <summary>⭐ Q94 A — the muscle cannot fire it at all (no weapon state, laid down, a dead shooter).</summary>
+        CannotFire = 5,
     }
 
     /// <summary>⭐ IF-1 — a fire solution: the charge and arc to fire at, the launch velocity and how long the round flies.</summary>

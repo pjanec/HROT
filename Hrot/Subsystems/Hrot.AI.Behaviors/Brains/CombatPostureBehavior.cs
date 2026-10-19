@@ -36,6 +36,7 @@ namespace Hrot.AI.Behaviors.Brains
             public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
             public DesignateParams Designate;      // ⭐ CE-3170 — an attack order's target (C-5)
             public LookParams Look;                // ⭐ CE-2297 LD-3 — where his eyes go (threat → sector → the order's bearing)
+            public StayParams Stay;                // ⭐ CE-2297 slice 2a (R-2055) — a finished branch does not end a staying posture
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
@@ -47,6 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
             public DesignateState DesignateState;        // ⭐ CE-3170
             public LookNodeState LookState;              // ⭐ CE-2297
+            public OccupyState OccupyState;              // ⭐ CE-2275 D-2e — a posted man occupies his post first
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -90,6 +92,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.ArrivalRadius > 0f) block.Advance.ArrivalRadius = a.ArrivalRadius;
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
+            block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
+            Post(in authored.Post, ref block);   // ⭐ CE-2275 D-2a / D-2d (PC-14) — his hide points and his approach moves stay on his post
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -114,21 +118,65 @@ namespace Hrot.AI.Behaviors.Brains
                 block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
         }
 
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a posted man's take-cover branch is anchored to his post: a window post flies the
+        /// window column (<see cref="WindowDuelBehavior.Shape"/> A — prone under the sill, up at it), a cover post the defaults; either way a
+        /// hide point off the post is never taken (<see cref="PeekAndFireNodes.OnPost"/>). No post ⇒ the defaults, unanchored.</summary>
+        internal static void Post(in CombatPosturePostJsonDto post, ref PeekAndFireParams peek)
+        {
+            if (post.Radius <= 0f) return;
+            peek = post.Window ? WindowDuelBehavior.Shape(0) : default;
+            if (post.Window && post.SetBack) peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId;   // ⭐ D-2b (DA-6)
+            if (!post.Window && post.Roof)   // ⭐ D-2g (DA-22) — the window's stance peek over the parapet: prone behind it, up at the point's stance
+            {
+                peek = WindowDuelBehavior.Shape(0);
+                peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId;
+            }
+            peek.Anchor = post.Point;
+            peek.AnchorRadius = post.Radius;
+            peek.AnchorAlternate = post.Alternate;
+            peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
+        }
+
+        /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a posted man's approach moves (flank, firing position, close to throw) stay on his post
+        /// too: measured live (<c>sq-defend-house</c>), his posture chose AdvanceAndAttack and its firing-position move took him 5–7 m off it.
+        /// ⛔ Not the retreat (Flee): breaking is morale, not repositioning.</summary>
+        internal static void Post(in CombatPosturePostJsonDto post, ref CombatPostureBlackboard block)
+        {
+            Post(in post, ref block.Peek);
+            if (post.Radius <= 0f) return;
+            block.Flank.Anchor = block.Firing.Anchor = block.Throw.Anchor = post.Point;
+            block.Flank.AnchorRadius = block.Firing.AnchorRadius = block.Throw.AnchorRadius = post.Radius;
+        }
+
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
-        /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run).</summary>
+        /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run). ⭐ CE-2297 slice
+        /// 2a (R-2055): the winner and the attack's target each sit in a Sequence with <see cref="PostureNodes.Stay"/> after them — a
+        /// staying posture's finished branch reads Running there, and under the Parallel the Sequence starts again from the branch
+        /// every tick, so the decision still switches; a failed branch ends the posture as before.</summary>
         [Behavior(BehaviorNames.CombatPosture, Params = typeof(global::Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
         [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBlackboard, BTreeContext> BuildCombatPostureTree()
         {
             return new BTreeBuilder<CombatPostureBlackboard, BTreeContext>()
                 .Parallel(1, decide => decide
-                    .StatefulAction(bb => bb.Designate, bb => bb.DesignateState, PostureNodes.UntilTargetDown)   // ⭐ CE-3170
+                    .Sequence(attack => attack
+                        .StatefulAction(bb => bb.Designate, bb => bb.DesignateState, PostureNodes.UntilTargetDown)   // ⭐ CE-3170
+                        .Action(bb => bb.Stay, PostureNodes.Stay))
                     .StatefulAction(bb => bb.Choose, bb => bb.Choice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.Sensors, bb => bb.SensorsState, PostureNodes.PostureSensors)
                     .StatefulAction(bb => bb.Approach, bb => bb.ApproachChoice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.ApproachSensors, bb => bb.ApproachSensorsState, PostureNodes.ApproachSensors)
                     .StatefulAction(bb => bb.Look, bb => bb.LookState, LookNodes.Look)   // ⭐ CE-2297 LD-3 — the eyes, beside the work
+                    .Sequence(work => work
                     .ObserverSelector(winner => winner
+                        // ⭐ CE-2275 D-2e (PC-14, DA-45) — the retreat first (options are exclusive, so the order is neutral), then a POSTED
+                        //   man not yet on his post goes there, firing on the way, whatever else the decision chose
+                        .Sequence(fallBack => fallBack
+                            .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
+                            .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))
+                        .Sequence(occupy => occupy
+                            .StatefulCondition(bb => bb.Peek, bb => bb.OccupyState, PostureNodes.OffPost)
+                            .StatefulAction(bb => bb.Advance, bb => bb.AdvanceState, PostureNodes.AdvanceAndAttack))
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(approach => approach
@@ -155,13 +203,11 @@ namespace Hrot.AI.Behaviors.Brains
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
                                 .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
-                        .Sequence(fallBack => fallBack
-                            .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
-                            .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))
-                        .Action(PostureNodes.Hold)));   // Hold (option 5) and anything unscored
+                        .Action(PostureNodes.Hold))   // Hold (option 5) and anything unscored
+                    .Action(bb => bb.Stay, PostureNodes.Stay)));   // ⭐ CE-2297 slice 2a
         }
     }
 }

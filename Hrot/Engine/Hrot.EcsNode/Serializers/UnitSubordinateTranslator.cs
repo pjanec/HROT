@@ -30,6 +30,8 @@ namespace Hrot.SimHost.Serializers
         {
             public string? CommanderGuid { get; set; }
             public string? Designation { get; set; }
+            /// <summary>⭐ <c>CE-2281</c> / R-3019 — "A" … "D"; absent = no team.</summary>
+            public string? FireTeam { get; set; }
         }
 
         private static readonly JsonSerializerOptions s_jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
@@ -58,7 +60,8 @@ namespace Hrot.SimHost.Serializers
             var dto = new UnitSubordinateDto
             {
                 CommanderGuid = resolver.Resolve(sub.Commander),
-                Designation   = sub.Designation.ToString()
+                Designation   = sub.Designation.ToString(),
+                FireTeam      = sub.FireTeam == FireTeam.None ? null : sub.FireTeam.ToString(),
             };
 
             return new Dictionary<string, object>
@@ -76,6 +79,7 @@ namespace Hrot.SimHost.Serializers
             var dto = obj.Deserialize<UnitSubordinateDto>(s_jsonOptions);
             if (dto == null || string.IsNullOrEmpty(dto.CommanderGuid)) return;
             Enum.TryParse<TacticalDesignation>(dto.Designation, out var designation);
+            Enum.TryParse<FireTeam>(dto.FireTeam, ignoreCase: true, out var team);
 
             Entity resolved = resolver.Resolve(dto.CommanderGuid);
             long networkId;
@@ -102,6 +106,7 @@ namespace Hrot.SimHost.Serializers
             {
                 CommanderNetworkId = new EntityRef(networkId),
                 Designation        = designation,
+                FireTeam           = team,
             });
         }
 

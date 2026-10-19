@@ -56,6 +56,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2123</c> S2 — the squad holds where it stands and fights.</summary>
         public const string SquadHold = "SquadHold";
 
+        /// <summary>⭐ <c>CE-2275</c> D-1 — the squad defends a position: posts per man, his arc toward the squad's sector, displacing under fire.</summary>
+        public const string SquadDefend = "SquadDefend";
+
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";
 
@@ -66,6 +69,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2294</c> CC-D — a platoon's reaction to a reported enemy element: every squad holds, until no such element is
         /// fresh in the platoon's picture (then the paused task resumes where it was).</summary>
         public const string PlatoonHold = "PlatoonHold";
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-E) — a platoon's task: each squad defends its point, the line squads each watch a slice of
+        /// the engagement area and hold fire until an enemy is reported inside it. An HSM.</summary>
+        public const string PlatoonDefend = "PlatoonDefend";
 
         /// <summary>⭐ <c>CE-2141</c> (D2) — an infantry squad fulfils the MOVE order: it marches there (Wedge, or File on a road).</summary>
         public const string InfantrySquadMove = "InfantrySquadMove";

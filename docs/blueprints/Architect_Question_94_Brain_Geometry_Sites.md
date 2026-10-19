@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — OPEN: sub-questions A–F carry a recommended answer each; the USER approves or changes them (no build of A–D before that).
+state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: DESIGN — §2 E (the cloud drift and the fog judge take a replicated height, `CE-3258`) BUILT 2026-10-19 as the one zero-blast-radius site; A–D, F wait for the user.
-current-answer: §0 the one-page decision · §2 the sub-questions with leans · §1 the claim table.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); A-5 indirect, A-6 bomb, A-7 battery plan, B, C, D not yet.
+current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers · §2 the sub-questions with leans.
 stale-below: nothing.
 known-rot: none.
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
@@ -20,6 +20,12 @@ related-designs:
 (🔒 *"the line of sight must always be a sensor or raycast query which goes to the muscle and returns back as a result … the final
 decisions, of course, can stay on brain"*) is ruled. The question is the HOME of each site — and three of them sit in the FIRE CHAIN,
 which is why this is an architect question and not a batch.
+
+## 0a. ✅ ANSWERED `2026-10-19` (R-3018)
+
+🔒 User: *"Approved. Move fire check to muscle. Anyway brain should be sending just fire requeat and can update ammo based on fire notification (and we would need to add  refused flag to the notification)."*
+
+⇒ A–F approved as leaned, with A REFINED: the brain sends only the fire REQUEST; the muscle runs every check and either fires or REFUSES; the fire notification gains a REFUSED flag (with the reason — masked, too close, out of range); the brain's ammo count follows the notifications (a fired round spends, a refused one does not) — so §2 A's "a refused shot must give the round back" falls away: the brain never spends before the muscle has fired.
 
 ## 0. The decision, in under a page
 
@@ -164,3 +170,207 @@ classDiagram
 ```
 *What the pictures show that prose hid:* every geometry call (`LineOfFire`, `FireSolution`, the contact sight) gets exactly one caller,
 on the muscle. The brain's side shrinks to reading statuses and answers, which is R-2037's shape.
+
+## 4. A — the detailed design as RULED (R-3018) *(backend, `2026-10-19`; build-state: READY-TO-BUILD)*
+
+INVENTORY *(codebase-memory CLI `search_graph .*Fire(Notification|Intent|Request|Refus).*` + grep, one sweep; ⚠ `check_index_coverage`
+is not available through the CLI)*:
+
+| what | where | ⭐ |
+|---|---|---|
+| the gates on the brain | muzzle masked `LineOfFire.MuzzleMasked` (`Combat/LineOfFire.cs:65-84`) called at `AimAndFireExecutor.cs:270-276` (aimed) and `:441` (blind); min range `HoldOf` `:616-619` (a distance, NO geometry — stays); indirect `FireSolution.For(WorldQuery…)` at `FireAtPointExecutor.cs:121`; bomb `ReleaseCue` (`AimAndFireExecutor.cs:632-665`, `GroundHeightAt`) and `FireAtPointExecutor.cs:162-170` | the three geometry gates move; min range stays (it reads no world) |
+| the request | `WeaponFireIntent` (`Combat/Events/WeaponFireEvents.cs:25-69`) → egress `WeaponFireIntentEgressTranslator` → DDS `WeaponFireRequest` (`FireInteractionMessages.cs:30-67`) → `WeaponFireRequestIngressTranslator` ⇒ `FireProcessingSystem` (`Combat/Systems/FireProcessingSystem.cs:54-400`) | the muscle checks NO ammo and NO geometry today; a failed check is a silent `continue` |
+| the notification | `WeaponFireNotification` (`WeaponFireEvents.cs:85-120`, 76 B pinned by `CombatComponentTests.cs:117`), one per round, DDS `WeaponFire`, crosses to every node | no field can say "refused" (`Quantity` 0 would still be drawn and heard; `Round` = Null means a decoy) ⇒ APPEND |
+| ammo | spent on the brain at request time (`AimAndFireExecutor.cs:299-300, 455-456, 381`, `FireAtPointExecutor.cs:179, 286`, `HiddenTargetThrow.cs:58`, `Countermeasures.cs:117-118`); ⭐ the TURRET path already spends from the muscle's `RoundsFired` (`:501-510`, W-4 `DESIGN_Weapon_Layers.md:184`) | ⭐ R-3018 makes the turret's rule THE rule |
+| a brain plan reading geometry Q94 did not name | `IndirectFireBehaviors.SolutionFor` (`Brains/IndirectFireBehaviors.cs:82-90`; plan `:261`, sheaf `:307-309`) | ⇒ A-7 |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponFireIntent { <<EXISTING, + RequestId appended>> Shooter Target WeaponIndex AimPoint Charge RaisedAt }
+  class WeaponFireRequest { <<EXISTING DDS, + RequestId appended>> }
+  class WeaponFireNotification { <<EXISTING, + RequestId + Refusal appended>> Quantity FiredAt Round }
+  class FireRefusal { <<EXISTING enum, grows>> None Masked TooClose OutOfRange Expired }
+  class FireProcessingSystem { <<EXISTING muscle, GROWS>> the gates: MuzzleMasked, FireSolution, the bomb cue · fires or REFUSES }
+  class LineOfFire { <<EXISTING>> MuzzleMasked }
+  class FireSolution { <<EXISTING>> For(IWorldQuery) }
+  class BombBallistics { <<EXISTING>> ReleaseNow }
+  class ShotLedger { <<NEW, brain, per mount>> Pending(RequestId, rounds, sentAt) · Spend on fired · Clear on refused or timeout }
+  class AimAndFireExecutor { <<EXISTING brain, SHRINKS>> sends the request, reads the refusal as its hold reason }
+  class FireAtPointExecutor { <<EXISTING brain, SHRINKS>> sends point + "solve there" }
+  class WeaponState { <<EXISTING brain>> Ammunition (the one counter) }
+  AimAndFireExecutor --> WeaponFireIntent
+  FireAtPointExecutor --> WeaponFireIntent
+  WeaponFireIntent ..> WeaponFireRequest : egress across nodes
+  WeaponFireRequest ..> FireProcessingSystem
+  FireProcessingSystem ..> LineOfFire
+  FireProcessingSystem ..> FireSolution
+  FireProcessingSystem ..> BombBallistics
+  FireProcessingSystem --> WeaponFireNotification : fired, or refused with a FireRefusal
+  WeaponFireNotification ..> ShotLedger : matched by RequestId
+  ShotLedger --> WeaponState : spends only what flew
+  ShotLedger ..> AimAndFireExecutor : the refusal is the hold reason
+```
+*What the picture shows that prose hid:* the brain's ammo counter gets ONE writer for rounds, the ledger, fed only by notifications;
+and every refusal reaches the executor through the same notification the round would have — no second status channel.
+
+```mermaid
+sequenceDiagram
+  participant X as AimAndFireExecutor (brain)
+  participant L as ShotLedger (brain)
+  participant F as FireProcessingSystem (muscle)
+  X->>L: Reserve(mount, rounds) — refused if ammo minus pending is 0
+  X->>F: WeaponFireIntent { RequestId }
+  F->>F: MuzzleMasked / FireSolution / bomb cue (live terrain)
+  alt refused
+    F-->>L: WeaponFireNotification { RequestId, Refusal = Masked, Quantity 0 }
+    L->>L: clear the pending reservation, spend nothing
+    L-->>X: hold reason Masked (MaskedSince) ⇒ PeekAndFire relocates
+  else fired
+    F-->>L: WeaponFireNotification { RequestId, Quantity n }
+    L->>L: spend n from WeaponState, clear the reservation
+  end
+  L->>L: a reservation older than the timeout clears (a lost request)
+```
+*What the picture shows that prose hid:* ammo is reserved at the request (so a burst cannot over-ask between request and report) and
+SPENT only at the report — the brain still never asks for more than it has.
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **A-1** | the carrier | APPEND `RequestId` (uint, per shooter, wraps) to `WeaponFireIntent` / `WeaponFireRequest`, and `RequestId` + `Refusal` (`FireRefusal`, byte) to `WeaponFireNotification` / DDS `WeaponFire` (F2: appended, an old sample reads `None`); the size rail moves 76 → 81 B | `Quantity` 0 as "refused" — every reader would draw and hear it · a separate refusal topic — a second channel for one answer |
+| **A-2** | readers of a refused notification | every current reader (sound, heat, effects, traffic panic) SKIPS `Refusal != None` — one predicate `WeaponFireNotification.Fired` | leaving them — a refused shot would be heard |
+| **A-3** | ammo | the brain RESERVES at request (ammo − pending > 0 to ask) and SPENDS on the fired notification; a refusal or a timeout (2 s) clears the reservation | spend at request and refund on refusal — a lost notification leaks rounds forever · moving `WeaponState` to the muscle — rejected by W-4 |
+| **A-4** | masked | `FireProcessingSystem` runs `LineOfFire.MuzzleMasked` on the live terrain before the round; refused ⇒ `Masked`; the executor's hold reason comes from the refusal (`MaskedSince` as today) | keep the brain check "advisory" — R-2037 |
+| **A-5** | indirect | the brain sends the point and asks the muscle to SOLVE (`Charge` = auto); `FireSolution.For` runs on the muscle; refused ⇒ `TooClose` / `Masked` / `OutOfRange` and the action fails with that reason one frame later | the brain solving with the terrain — R-2037 |
+| **A-6** | the bomb | the brain sends the release REQUEST when its own ballistic cue (no terrain: the replicated height) says "about now"; the muscle releases at its true cue (`BombBallistics.ReleaseNow` with the live ground) or refuses `Expired` after 3 s | the brain timing with `GroundHeightAt` — R-2037 |
+| **A-7** | the battery plan (`IndirectFireBehaviors.SolutionFor`) | plans with the terrain-free reach (`FireSolution.For(null…)`: range and arc only); a masked gun is learned from its refusal per shot | the plan reading the terrain — R-2037; it was not named in Q94 but is the same site kind |
+
+**Blast radius (measured):** the request/notification structs and two DDS topics (appended) · `FireProcessingSystem` · the two executors,
+`HiddenTargetThrow`, `Countermeasures` (spend sites) · `IndirectFireBehaviors` · tests that move: `AimAndFireExecutorTests` CE2218 ×2,
+M4, A6, CE2173 ×2, CE2180, IF1 ×2; `ActionStatusTests.Masked_IsAHold`; spend-at-fire tests `WeaponStateTests:39`,
+`CountermeasureSystemTests:135`, `StarterPackIntegrationTests:694`, `AimAndFireExecutorTests:855`. ⚠ `BS-1-DESIGN.md` §5.4c ("one
+counter, the brain's, as for every round") stays true — the counter is the brain's — but its spend MOMENT changes; fold on build.
+
+### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED — R-3022)*
+
+⏸ **A-5…A-7 DEFERRED (R-3022).** 🔒 User, `2026-10-19`: *"yes, postpone them and start CE-2304 and the points C,B,D, leaving A-5…A-7 deferred until destruction is designed or until suitable opportunity comes"*. Why it is safe: the brain's terrain is the muscle's today — every host runs the same load steps (`HrotUniversalLoadParts.cs:27`), static obstacles bake on every node (`EntityCreationPack.cs:111-116`), breached doors replicate, and no wall or building destruction exists (only the hook `BuildingLayout.Invalidate`, `BuildingLayout.cs:388`). The muscle flies an arc round and a bomb exactly as the brain decided (`FireProcessingSystem.cs:202-213, 241-257`) and answers every request, so the ledger holds for them. Residual windows: a shot while this node's terrain still loads (the brain solves terrain-free) and the obstacle-bake debounce. ⭐ **Trigger to resume:** destruction designed, or a Stride / production muscle owning world state the brain does not mirror — or a suitable opportunity (work in `FireAtPointExecutor` / `IndirectFireBehaviors` anyway).
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponState { <<EXISTING brain, + 5 ledger fields>> Ammo MagazineRounds CooldownSecondsRemaining LastRequestId LastAnsweredId PendingSeconds RefusalHoldSeconds Refusal }
+  class ShotLedger { <<NEW static>> Ask() Pending() Held() Tick() Answer() Settle() MountOf() }
+  class Magazine { <<EXISTING>> Ready counts the pending asks · Spend }
+  class WeaponDispatcherSystem { <<EXISTING brain>> Settle once a frame · Tick beside the cooldown drain }
+  class AimAndFireExecutor { <<EXISTING brain>> asks · holds on Held · HoldReasonOf }
+  class FireAtPointExecutor { <<EXISTING brain>> ShootAtPoint asks · holds on Held }
+  class HiddenTargetThrow { <<EXISTING brain>> asks }
+  class FireProcessingSystem { <<EXISTING muscle>> MuzzleMasked for entity and point · Refuse }
+  class WeaponFireNotification { <<EXISTING>> RequestId Refusal Fired }
+  AimAndFireExecutor ..> ShotLedger : Ask, Held
+  FireAtPointExecutor ..> ShotLedger : Ask, Held
+  HiddenTargetThrow ..> ShotLedger : Ask
+  ShotLedger --> WeaponState : the ledger lives here
+  Magazine ..> ShotLedger : Pending
+  WeaponDispatcherSystem ..> ShotLedger : Settle, Tick
+  FireProcessingSystem --> WeaponFireNotification : fired or refused
+  WeaponFireNotification ..> ShotLedger : Settle matches RequestId
+  ShotLedger ..> Magazine : Answer fired spends
+```
+*What the picture shows that prose hid:* there is no new component and no new system — the ledger is a rule over fields of the counter it
+guards, driven by the dispatcher that already drains that counter's cooldown and reload; and the three brain paths that make a per-shot
+round all go through the same two calls (`Ask`, `Held`).
+
+
+| step | what landed | rails *(all red-proofed by mutants)* |
+|---|---|---|
+| **A-1** carrier | `WeaponFireIntent.RequestId` (uint, 70 B) · `WeaponFireNotification.RequestId` + `Refusal` (81 B) + `Fired` · DDS `WeaponFireRequest.RequestId`, `WeaponFire.RequestId` + `Refusal` (appended) · `FireRefusal` grows `Expired = 4`, `CannotFire = 5` | size rails · `M8_TheLoadedRound_RoundTripsTheWire` · `Q94_TheAnswer_CarriesTheRequestIdAndTheRefusal` · the IG ingress rail |
+| **A-2** readers | sound, heat, effects, event-to-effect, traffic panic skip `!Fired` | `Q94_ARefusedShot_IsNotHeard` |
+| **A-2** muscle answers every request | `FireProcessingSystem`: no `WeaponState` / a laid-down mount ⇒ `CannotFire`; the fired notification echoes `RequestId`; one `Refuse` helper | `FireProcessingSystemTests.Q94_AShotTheMuscleCannotMake_IsAnsweredCannotFire` |
+| **A-4** masked | `FireProcessingSystem` runs `LineOfFire.MuzzleMasked` on the live terrain for an entity target AND a direct round at a point ⇒ `Masked`; ⛔ the brain's two `MuzzleMasked` calls (aimed, blind) are GONE | `Q94_AMaskedShot_IsRefusedByTheMuscle_AnOpenOne_IsFired_EachAnswerNamesItsRequest` (bt-range, the live `ua-rpg-window` geometry) · `Q94_AMaskedRoundAtAPoint_IsRefusedByTheMuscle_AnOpenOne_Flies` |
+| **A-3** ledger | `ShotLedger` (static, `Combat/ShotLedger.cs`) over five APPENDED `WeaponState` fields (`LastRequestId`, `LastAnsweredId`, `PendingSeconds`, `RefusalHoldSeconds`, `Refusal`; 32 → 52 B). `Ask` at the request; `Magazine.Ready` reserves the pending rounds; `WeaponDispatcherSystem` calls `ShotLedger.Settle` (answers ⇒ `Magazine.Spend` + `AmmoChoice.SpendLoaded`) and `ShotLedger.Tick` (2 s timeout, 1 s refusal hold) | `Q94_TheAsk_ReservesTheRound_TheFiredAnswerSpendsIt_Once` · `Q94_AMaskedRefusal_SpendsNothing_HoldsMasked_ThenAsksAgain` · `Q94_AnUnansweredAsk_TimesOut_NothingSpent_ALateAnswerIgnored` |
+
+⭐ **Tests that moved (the spend moment changed, not what they assert):** a brain-only test world has no muscle, so `Fdp.Toolkits.Tests`
+gained `TestMuscle.FireAll` (every ask answered "fired") — called from `AimAndFireExecutorTests.Tick` and before the ammo asserts of
+`G3_R1`, `P2_ASelfPropelledGun`, `IF1_AGunnerFiresTheMortar`, `CE2173_ABombAtAPoint`, `PersonHandsTests.CE3230`, `StarterPack CE3089`;
+`AirAttackNodesTests` (SimHost) answers the same way after each executor frame — without it the ledger's reservation cap stopped the
+rocket ripples and door-gun bursts (7 reds, all of that one harness). `WeaponStateTests` size rail 32 → 52.
+
+**Deviations from §4, each argued:**
+
+| §4 said | built | why |
+|---|---|---|
+| `ShotLedger` a NEW class, per mount, `Pending(RequestId, rounds, sentAt)` | a static helper over five fields APPENDED to `WeaponState` (the ids are per mount and rise by one, so pending = `LastRequestId − LastAnsweredId`; one age, not one per ask) | the counter it guards already lives there (W-4: the brain's one counter) — no new component to register on every brain world, and no second entity lookup per shot. ⚠ An answer that skips ids drops the skipped asks unspent (the DDS writer is ordered, so it is only a lost sample) |
+| a refusal clears the reservation | it also CANCELS the cooldown the ask set and holds the weapon `RefusalHoldSeconds` (1 s) with the reason | without it a long-cooldown weapon (an RPG) reported `Cooldown` for its whole interval before `Masked` reached the behaviour — `PeekAndFire` would burn the window late. The hold is the "re-check hold" §4 left implicit: the brain does not re-ask every frame for a shot the muscle just refused |
+| (silent) | the muscle judges a DIRECT round at a POINT too, not only one at an entity | the blind path's brain check is gone, so the muscle must own it; an operator's direct round into the wall at his muzzle is now refused as well (it would have stopped there anyway) |
+| (silent) | the action's round count still counts ASKS; a refused round is not given back to the burst | a refusal holds the weapon and the behaviour moves (the `Masked` contract); refunding into a running action's slot would need the executor to read the ledger per frame for a case the behaviour already leaves |
+| — | ⛔ **not on the ledger:** the turret path (spent from the muscle's `RoundsFired`, W-4 — unchanged) and a DISPENSER release (`Countermeasures.Release`: the muscle never answers a dispenser, `FireProcessingSystem` skips it) | both already have their own honest counter |
+
+⚠ `FireRefusal` has no `OutOfRange` (§4's class box says so): the indirect "out of reach" is the existing `TooFar`, read as the hold
+`OutOfRange` (`AimAndFireExecutor.HoldReasonOf`). §4's table and diagrams above stay as the RULED design; this subsection is the as-built.
+
+## 5. C and D — the carriers, measured *(backend, `2026-10-19`; build-state: READY-TO-BUILD as leaned below)*
+
+📐 Measured with the codebase-memory CLI + grep (one sweep; ⚠ `check_index_coverage` is not available through the CLI).
+
+### 5.1 C — the door approach
+
+| fact | where |
+|---|---|
+| ⛔ no free carrier in the request path: `MoveToParams` is at its 32-byte limit (`NavigationActions.cs`), `NavigationIntent.Flags` bits 0–7 are all taken, `RoadUse` needs 3 bits (6 values, `NavigationComponents.cs:176-192`); a door key (`TerrainObjectRef`, a 64-byte `FixedString64`) cannot ride | `BehaviorConstants.cs:10`, `NavigationConstants.cs:86-125` |
+| ⭐ `NavigationIntent.RouteEntityId` (long) is ON THE WIRE (`SimDescriptors.cs:745`) and read only under FollowRoute (`NavigationIntentBridgeSystem.cs:103`, `AirMotionSystem.cs:48/61`) | — |
+| door entities replicate (SimTransform on `dtWorldPos`, the key on the door-state descriptor) ⇒ the muscle can find a door by network id; its `TerrainWorld` has `Doors`, `Panels`, `DoorIndexOf` | `TerrainObjectRequests.cs:49-62`, `EntityDoorStateIngressTranslator.cs:79`, `TerrainWorld.cs:111-145` |
+| one production caller: `DoorLocksmithBehavior` via `MoveToDoor` | `DoorLocksmithBehavior.cs:32/48`, `DoorNodes.cs:100` |
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **C-1** | a new `NavigationMode.ApproachDoor` (enum, appended) with the door's NETWORK id in `RouteEntityId` and the door's centre as `FinalDestination`; `MoveToDoor` raises it through its own small executor (a new action id, its params: door entity, speed, arrival) | a flag bit — none free · reusing `TargetNodeId` / `TrajectoryId` — not on the wire |
+| **C-2** | the muscle resolves it in `NavigationDestination.Of` — the ONE place a destination becomes a point — with `DoorNodes.ApproachPoint` moved there (from = the mover's own position); a door it cannot find ⇒ the centre, as today's fallback | a second resolver beside `NavigationDestination.Of` |
+
+### 5.2 D — the spawn's ground level
+
+| fact | where |
+|---|---|
+| ⛔ **the lean's premise does not hold for a person**: an owner-0 spawn is serviced by the broadcast arbiter — CGF (or the editor) — and step 8b runs ONLY there; the muscle never runs it on its replica, and no system there reads `SpawnHeight` (it is on no replicated descriptor) | `EntityCreationRouting.cs:55-67`, `CreateEntityRequestSystem.cs:187, 334-338`, `CgfSubsystem.cs:892` |
+| vehicles differ: `VehicleCommandSystem` resolves on the muscle because the vehicle command RUNS there | `VehicleCommandSystem.cs:61` |
+| CGF has terrain resident (R-182, terrain universal) — `WorldQuery.Of` is non-null on every ECS host | `WorldQuery.cs:17-21`, `CgfSubsystem.cs:1088` |
+| the creator's first `dtWorldPos` carries its 8b Z; the yield of the Muscle group happens the same tick, after 8b; the muscle's ghost takes the creator's value | `NedReplicationModule.cs:702-750`, `GeoSpatialEgressTranslator.cs:136` |
+| publisher: Add Entity's placement gizmo (`EntityPlacementGizmo.cs:271`); ⚠ IG's remote placement DROPS the height (`IgEntityCreationRequests.cs:62-73`) | — |
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **D-1** | a one-shot `SpawnLevelRequest { Mode, Level }` component written by 8b instead of resolving on a node that will GRANT the position away, in the Muscle ownership group (so it travels with the position grant, one small descriptor); the muscle's `SpawnLevelSystem` resolves it once with its live terrain when it owns the position, writes `SimTransform.Z`, removes it. A node that keeps the position (the editor, a muscle-creator) resolves at 8b as today | append the level to `dtWorldPos` — the hottest descriptor pays 3 bytes forever for a one-time fact · keep CGF resolving — R-2037 by principle, and a floor destroyed before the spawn is unseen there |
+| **D-2** | the IG's remote placement carries the height (`IgEntityCreationRequests`) — a found defect, fixed with D-1 | — |
+| ⚠ consequence | the person is at the SENT height on the brain's replica until the muscle's first position sample (Q94 §2 D foresaw "one frame") | — |
+
+```mermaid
+classDiagram
+  direction LR
+  class MoveToDoor { <<EXISTING brain node>> raises ApproachDoor instead of computing the side }
+  class ApproachDoorExecutor { <<NEW brain>> writes NavigationIntent Mode ApproachDoor, RouteEntityId = door net id }
+  class NavigationIntent { <<EXISTING wire>> Mode + ApproachDoor value appended · RouteEntityId · FinalDestination }
+  class NavigationDestination { <<EXISTING muscle>> Of(view, mover, intent) · + ApproachDoor }
+  class DoorApproach { <<MOVED from DoorNodes>> ApproachPoint(world, door, from) }
+  class SpawnLevelRequest { <<NEW component, Muscle group>> Mode Level }
+  class NetworkSpawningSystem { <<EXISTING>> 8b: resolve if the position stays here, else write SpawnLevelRequest }
+  class SpawnLevelSystem { <<NEW muscle>> resolves once when it owns the position }
+  MoveToDoor --> ApproachDoorExecutor
+  ApproachDoorExecutor --> NavigationIntent
+  NavigationIntent ..> NavigationDestination : on the muscle
+  NavigationDestination ..> DoorApproach
+  NetworkSpawningSystem --> SpawnLevelRequest
+  SpawnLevelRequest ..> SpawnLevelSystem : travels with the position grant
+```
+*What the picture shows that prose hid:* both sites become a REQUEST the brain writes and the muscle resolves where the geometry
+lives — C through the one destination resolver, D through the position's own ownership group, so neither adds a second channel.
+
+```mermaid
+sequenceDiagram
+  participant C as CGF (creator)
+  participant M as SimHost (muscle)
+  C->>C: 8b — the position is granted away: SpawnLevelRequest, no terrain read
+  C->>M: dtWorldPos (sent Z) + SpawnLevelRequest, then the Muscle group grant
+  M->>M: SpawnLevelSystem — owns the position: ResolveLevel with the live terrain, set Z, remove the request
+  M->>C: dtWorldPos (resolved Z)
+```
+*What the picture shows that prose hid:* the brain's replica holds the sent height for exactly the trip to the muscle and back.

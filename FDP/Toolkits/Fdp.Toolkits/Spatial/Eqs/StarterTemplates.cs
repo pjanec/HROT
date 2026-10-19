@@ -45,6 +45,123 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>⭐ <c>CE-2275</c> D-1 (DA-34) — a squad's defensive window POSTS: the window firing positions of every storey near the self
+    /// (the man standing at the defended position) whose eye at the point's stance sees the engagement area's point (slot 1, a point),
+    /// nearer scoring more. The squad play picks one per man from the answer (3-D spacing) and keeps the rest as alternates.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindDefensiveWindowPosts
+    {
+        public const string AssetId = "3b7e2d61-9c4a-4f0e-b8d2-5a1c6e9f7d03";
+        public const uint BlueprintId = 0xB0DC4C8Au;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-1 (DA-36) — the all-round defence (no engagement area): every window firing position of every storey near
+    /// the self, nearer scoring more — the squad play spreads its men over them.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowPostsAllRound
+    {
+        public const string AssetId = "7d4c1a92-2e6b-4b3f-9a85-c0f1d2e3b4a6";
+        public const uint BlueprintId = 0xF87B5982u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — the SET-BACK twin of <see cref="FindDefensiveWindowPosts"/>: each window point set back
+    /// 2 m (else 1.5 m, else at the sill) along the line through the window, kept when its eye still sees the engagement area's point. A
+    /// Regular-or-better squad's window posts. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindDefensiveWindowSetBackPosts
+    {
+        public const string AssetId = "3669bcc9-aad4-455f-bb9b-ad90354f7e12";
+        public const uint BlueprintId = 0xE4B1BBB2u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+        public const float SetBackMetres = 2f;
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = SetBackMetres },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2b — the set-back twin of <see cref="FindWindowPostsAllRound"/> (no engagement area).</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowSetBackPostsAllRound
+    {
+        public const string AssetId = "8d5cdcea-345e-4266-92d1-b7424f818c6a";
+        public const uint BlueprintId = 0x108713F8u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = FindDefensiveWindowSetBackPosts.SetBackMetres },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2b — the set-back twin of <see cref="FindWindowFiringPosition"/>: a set-back window man's own hide ask (his
+    /// <c>PeekAndFire</c>), so he rotates between set-back posts, never to the sill.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowSetBackPosition
+    {
+        public const string AssetId = "c1c6d31a-cd0b-4a4b-8450-881418add1eb";
+        public const uint BlueprintId = 0xD3FE6EADu;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = FindDefensiveWindowSetBackPosts.SetBackMetres },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
+            MaxCandidates  = 32,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2g (DA-5, DA-22, DA-47) — ROOF posts: cover points on a roof (behind its parapet, beside its stair house,
+    /// <see cref="CoverPointsGenerator.RoofOnly"/>) whose eye sees the engagement area's point (context slot 1); nearer scores more, an
+    /// unreachable roof drops out on its path cost (DA-5: "only if the roof is reachable"). The squad's second post ask, after the windows.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2g.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindRoofPosts
+    {
+        public const string AssetId = "2b048d56-9b77-4b09-9fc3-18efebd5e034";
+        public const uint BlueprintId = 0xF7D70244u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { RoofOnly = true },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
     /// <summary>⭐ A flank on the target: ring points around the TARGET that see it, scored by bearing — side-on to the
     /// target→self line scores most — then exposure and path cost.</summary>
     [EqsTemplate(AssetId)]

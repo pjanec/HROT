@@ -109,9 +109,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (Countermeasures.IsDispenser(repo, shooter, evt.WeaponIndex)) continue;
 
                 // Skip if the shooter does not yet have a WeaponState (e.g. incomplete spawn).
-                if (!repo.HasComponent<WeaponState>(shooter)) continue;
+                // ⭐ Q94 A (R-3018) — a request the muscle cannot honour is ANSWERED, never silently dropped: the brain's ledger
+                //   (A-3) clears its reservation on the refusal instead of waiting for its timeout.
+                if (!repo.HasComponent<WeaponState>(shooter)) { Refuse(repo, in evt, FireRefusal.CannotFire, now); continue; }
                 // ⭐ CE-3232 (B-10, §7.11 LD-3) — a LAID-DOWN mount makes no round, whoever asked (the AI, an operator, any path)
-                if (WeaponLaying.IsLaidDown(repo, shooter, evt.WeaponIndex)) continue;
+                if (WeaponLaying.IsLaidDown(repo, shooter, evt.WeaponIndex)) { Refuse(repo, in evt, FireRefusal.CannotFire, now); continue; }
 
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
@@ -123,10 +125,24 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
                 // ⭐ WS-3 — a carried / station weapon system aims from its carrier's eye (HitModel.BodyOf; itself otherwise)
                 shooterPos = ShotOrigin.Eye(repo, shooter, out var sightBody);   // ⭐ CE-2218 — the one origin rule (the brain's hold reads it too)
+                // ⭐⭐ Q94 A-4 (R-3018) — a DIRECT round at a POINT (blind fire at where he was last seen, a burst at a spot) is judged the
+                //   same way: the muzzle line on the live terrain. An arcing or dropped round is exempt (MuzzleMasked's own rule).
+                if (evt.AtPoint && LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
+                {
+                    Refuse(repo, in evt, FireRefusal.Masked, now);
+                    continue;
+                }
                 if (!evt.AtPoint)
                 {
                     // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)
                     targetPos = AimPoint.Middle(repo, target, out var targetStance, out float hull);
+                    // ⭐⭐ Q94 A-4 (R-3018, R-2037) — the MUSCLE judges the muzzle line with the live terrain: a round that would stop in
+                    //   the wall in front of the barrel (CE-2218) is REFUSED, not flown. The same aim point the brain's hold used.
+                    if (LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
+                    {
+                        Refuse(repo, in evt, FireRefusal.Masked, now);
+                        continue;
+                    }
                     // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
                     //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
                     var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
@@ -396,9 +412,28 @@ namespace Fdp.Toolkit.Combat.Systems
                     Velocity    = velocity,
                     Quantity    = 1,
                     FiredAt     = now,
+                    RequestId   = evt.RequestId,   // ⭐ Q94 A-1 (R-3018) — the answer names its request
                 });
             }
         }
+
+        /// <summary>
+        /// ⭐ Q94 A (R-3018; Architect Question 94 §4) — the muscle's NO: a notification with no round (<see cref="WeaponFireNotification.Quantity"/>
+        /// 0) and the reason, echoing the request's id. Every reader that draws, hears or fears a shot skips it
+        /// (<see cref="WeaponFireNotification.Fired"/>); the brain's ledger clears the reservation and takes the reason as its hold.
+        /// </summary>
+        private static void Refuse(EntityRepository repo, in WeaponFireIntent evt, FireRefusal why, double now)
+            => repo.Bus.Publish(new WeaponFireNotification
+            {
+                Shooter     = evt.Shooter,
+                Target      = evt.Target,
+                WeaponIndex = evt.WeaponIndex,
+                AmmoGuid    = evt.AmmoGuid,
+                Quantity    = 0,
+                FiredAt     = now,
+                RequestId   = evt.RequestId,
+                Refusal     = why,
+            });
 
         /// <summary>⭐ LR-2 (§8.5, R-271) — tags a round whose munition type has a <c>Munition.Visual</c>: <see cref="TkbIdentity"/>
         /// (the munition), <see cref="Fdp.Toolkit.Replication.Components.LightweightRound"/>, its DIS type, and never-saved.</summary>

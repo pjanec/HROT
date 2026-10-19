@@ -392,7 +392,7 @@ paused, and it resumes in `WaitAlpha` when the element goes stale · ⑤ every r
 |---|---|---|
 | `CommandPicture` (407) | `Elements` (×8 `ReportedElement`: at, radius, count, size, activity, equipment, `FromNetId`, `ObservedAt`, `ReceivedAt`, `Seq`, `Synthetic`) · `Subordinates` (×6 `SubordinateRow`: `UnitNetId`, `Progress`, strength / ammo colours, phase, `LastReportAt`, `LastSitrepAt`, `LastSeq`) · `Requests` (×4 `PendingRequest`) — each a fixed-list wrapper (CC-16) | `ReceivedAt` and `LastReportAt` added for CC-12's age / overdue; net ids are `long` (`NetworkIdentity.Value`), not `uint` |
 | `ReportingRequirements` (408) | `Pir` (`PirFlags`) · `Ffir` (`FfirFlags`) · `SitrepEverySeconds` · `PirArea` (PC-3) · `SetBy` | ⛔ no `SuperiorNetId`: the addressee is always the direct superior, `UnitSubordinate.Commander` (R-2040) — one source, not two |
-| `ReportOutbox` (409) | `Queued` (×8 `QueuedReport` = a `CommandReport` + `DueAt`) · `NextSeq` · `Posture` (Normal / Silent, CC-8) · `MutedUntil` (CC-15) | the posture and mute live here (one place the composer reads) |
+| `ReportOutbox` (409) | `Queued` (×8 `QueuedReport` = a `CommandReport` + `DueAt`) · `NextSeq` · `Posture` (Normal / Silent, CC-8) · `MutedUntil` (CC-15) | the posture and mute live here (one place the composer reads) · ⭐ *as built `2026-10-19` (`CE-2304`, [Defend §8c D-2k](DESIGN_Defend_And_Attack_Position.md)):* **full, `ReportQueue.Enqueue` drops the OLDEST for the new one** (newest wins, CB-32) — it refused the ninth before, so an outbox nothing empties (no superior, Silent, muted) kept its first eight for ever and swallowed every later report, PROGRESS `Set` included |
 | `CommandReport` | the closed set's one struct (CB-43): `Kind` (`ReportKind`), `Subtype`, the SALUTE / SITREP / LACE fields, `ObservedAt`, `Seq`, `Synthetic` — the outbox entry, the local notification and (BR-3) the wire payload | enum members are unique across the enums (`NoReport`, `SizeUnknown`, `SquadSize` …) for BR-3's IDL (the `Roe` precedent) |
 | `SetReportingEvent` (event 3106) + `ReportingRequirementsSystem` | Input phase, in `MissionControlModule` right after `RoeSystem`; origin-gated exactly as ROE; ⭐ the event REPLACES the set, and an all-zero event WITHDRAWS it (then `SetBy` is cleared so anyone may set them again) — how a play takes its requirements back when it ends | ROE keeps an unset field; requirements are one set, so replace-and-withdraw is the simpler contract |
 | registration | the three components and the event in `CognitiveComponentRegistry` (every brain host); `CgfLogicPackTests` 5 → 6 input systems, 28 → 29 total | — |
@@ -533,3 +533,55 @@ a reaction pauses the task, the paused task's slots under their own owner) · `B
 hosted `MoveToLocation` named by the child and decoded at its block offset, destination x = 100) · route doc in
 `DebugApiRouteDocs` (rail `EveryRouteIsDocumentedTests`). Red-proofs: the catalog naming no candidates · the hosted arm decoding at
 offset 0 — each reddens its rail.
+
+## 8b. The picture and the log on every node *(✅ approved 2026-10-19, `CE-2301` — ① BUILT 2026-10-19, ② backend's; ui's D4)*
+
+🔒 User, `2026-10-19`: *"Have the report inbox fill the log on every node. Accepted."* · *"Replicate the commander's picture read-only. Accepted."* — ui's two leans
+([DESIGN_Command_Display §6 D4](../../DESIGN_Command_Display.md), [the ui note](../../blueprints/batches/NOTE_Ui_To_Behaviors_Command_Display_Data.md)).
+
+```mermaid
+graph TD
+  W["SquadReportNotification (every node's bus — BR-3)"] --> IN["StaffInboxSystem — registered wherever the notification is"]
+  IN --> LOG["SquadReportLog — appended BEFORE the CommandPicture guard (every node)"]
+  IN -->|"only where the commander's brain is"| CP["CommandPicture — folded (owner)"]
+  CP -->|"replicated read-only, Brain group"| CPR["CommandPicture replica (editor · CGF · ExCon)"]
+  LOG --> RW["Reports window (UI-6)"]
+  CPR --> GZ["CommandPictureGizmo (UI-5)"]
+```
+*What the picture shows that prose hid:* ONE writer of each — the log is filled by the same inbox on every node (a node that owns no
+commander logs the report with verdict `not-owned-here`); the picture is folded only on the owner and every other node gets a copy, so
+no node folds its own (the brain-only `OrderGiven` reset would make copies disagree — ui's rejected ⓑ).
+
+**Detail (2026-10-19, `CE-2301`).** 🔒 User, `2026-10-19`, on whether the commander crosses nodes at all: *"Keep replication, replicate
+the commander picture as well."* (measured: it does — `EntityInfo.CommanderId` resolves the commander through each node's entity map,
+`EntityInfoIngressTranslator.cs:216-249`).
+
+| part | who | how |
+|---|---|---|
+| ① the log on every node | behaviors | measured: the inbox is built only by `CgfLogicPack` (`:247`), so it runs on the plans with a Brain capability (editor ×2, CGF) and NOWHERE on SimHost or IG. ⇒ a cross-role capability `CoreInfrastructureCapabilities.ReportInbox` declared in the plans WITHOUT a brain (SimHost, IG — ExCon keeps no world): one inbox per node, never two. ⛔ Not the `CE-221` move (the pack's inbox out to the tail of every plan): the pack places it BEFORE the brain tick on purpose (*"this frame's guards see it"*, `CgfLogicPack.cs:244`) — at the tail the brain would read every report a frame late. The inbox LOGS every `SquadReportNotification` before its `CommandPicture` guard, and FOLDS only where `CommandPicture` is registered and the commander's `BehaviorState` is owned here (the capability always gates on authority — a replica never folds) |
+| ② the picture replicated | ⭐ **backend** ([note](../../blueprints/batches/NOTE_Behaviors_To_Backend_CommandPicture_Replication.md)) | the Brain-group road `EngagementArea` took (`CE-3261`): descriptor, translator, ownership binding |
+| the gizmo with no copy | ui | "not on this node yet" while the node has no `CommandPicture` for the selected commander |
+
+```mermaid
+graph TD
+  PLAN["the plans with no brain (SimHost · IG)"] -->|declares| RI["CoreInfrastructureCapabilities.ReportInbox"]
+  RI -->|Simulation| SIS["StaffInboxSystem (gate on authority)"]
+  CGF["CgfLogicPack (editor ×2 · CGF — the brain plans)"] -->|keeps its own| SIS
+  ING["SquadReportIngressTranslator (SharedTranslatorPack — every node)"] -->|SquadReportNotification| SIS
+  SIS --> LOG["SquadReportLog (every node)"]
+  SIS -->|owner only| CP["CommandPicture (fold)"]
+```
+*What the picture shows that prose hid:* the notification already reaches every node (the ingress lives in the shared translator pack), but its only
+
+**As built (2026-10-19, `CE-2301` ①).** Three things differ from the detail above; the table stands otherwise.
+
+| | as built | why |
+|---|---|---|
+| the gate | `StaffInboxSystem.ForNodeWithoutBrain()` — log always; fold only for a commander whose `BehaviorState` is here AND owned here (so on a brainless node: never). The brain pack's `StaffInboxSystem(gateOnAuthority)` is unchanged | ⚠ the brain pack's gate skips only an UNOWNED `BehaviorState`; a commander replica with no `BehaviorState` would pass it, and `CommandPictureOps.EnsureRow` (`PictureConditions.cs:48`) then ADDS a local picture — a second writer the day part ② replicates the picture there |
+| the guard | the inbox returns early only when the report event is unregistered; the fold alone needs `CommandPicture` registered | the old first-line guard on `CommandPicture` was what kept SimHost / IG logless |
+| the plans | `CoreInfrastructureCapabilities.ReportInbox` (key `cap:infra:report-inbox`) in SimHost and IG only | ⛔ **Stride**: its plan is fused into the editor's brain plan in mode 1 (`EditorCapabilities.BuildWithInjectedMuscle`), and the pack's inbox is not keyed, so declaring it there would give the editor two — ⇒ a standalone Stride (mode 2) has no log yet. ⛔ **Traffic node**: a headless SUMO server; nothing reads a log there |
+
+Rails (the feature's suite): `SquadManeuverTests.CE2301_ANodeWithNoBrain_LogsEveryReport_AndNeverFoldsAPicture`,
+`CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain`; IG's walk rail asserts one inbox (`IgNodeBootstrapperTests` CE2150).
+reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
+part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.

@@ -37,6 +37,15 @@ namespace Hrot.AI.Behaviors.Mappers
         {
             assignment = null!;
 
+            // ⭐ CE-2275 D-1 (DA-39) — a unit with men under it defends with its squad: SquadDefend at the area's centre, its radius the
+            //   posts' search radius. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c.
+            if (repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>() && repo.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)
+                && repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self).Count > 0)
+            {
+                assignment = new AssignBehaviorEvent { Entity = self, BehaviorName = BehaviorNames.SquadDefend, JsonParams = SquadDefendAt(repo, jsonParams) };
+                return true;
+            }
+
             if (!repo.HasComponent<TkbIdentity>(self))
                 return false;
 
@@ -65,6 +74,27 @@ namespace Hrot.AI.Behaviors.Mappers
             return true;
         }
     
+        /// <summary>⭐ CE-2275 — the area as SquadDefend's contract: the centre (this node's sim frame) and the radius.</summary>
+        private static string SquadDefendAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            return System.Text.Json.JsonSerializer.Serialize(new SquadDefendParamsJsonDto
+            {
+                Position = CentreOf(repo, area), SearchRadius = (float)(area?.RadiusMeters ?? 0f),
+            }, options);
+        }
+
+        private static System.Numerics.Vector3 CentreOf(EntityRepository repo, DefendAreaIntentDto? area)
+        {
+            var geo = repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                ? repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() : null;
+            if (area == null || (area.CenterLat == 0 && area.CenterLon == 0) || geo == null) return System.Numerics.Vector3.Zero;
+            var c = geo.ToCartesian(area.CenterLat, area.CenterLon, 0.0);
+            return new System.Numerics.Vector3(c.X, c.Y, 0f);
+        }
+
         /// <summary>The area as CombatPosture's contract: advance to the centre (lat/lon → this node's sim frame), arrive within the
         /// radius. Without a geographic transform the centre stays at the origin — the posture then holds where it is.</summary>
         private static string PostureAt(EntityRepository repo, string jsonParams)

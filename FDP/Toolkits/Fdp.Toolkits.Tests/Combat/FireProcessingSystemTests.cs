@@ -1237,5 +1237,128 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var e in _world.Query().With<BallisticProjectile>().Build())
                 Assert.True(Vector3.Distance(_world.GetComponent<SimTransform>(e).Position, barrel) > 1f, "a close target: today's start, not the barrel");
         }
+        // ── Q94 A (R-3018) — the muscle answers every request: fired with its id, or refused with the reason ─────────────────
+
+        /// <summary><c>bt-range</c> and the RPG man's type (launcher at (−0.64, −0.73, +0.86)) — the live <c>ua-rpg-window</c> case,
+        /// as <c>AimAndFireExecutorTests.RpgManOnBtRange</c> builds it.</summary>
+        private Entity RpgManOnBtRange(Vector3 at)
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            Assert.NotNull(dir);
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            _world.SetSingletonManaged(terrain);
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("RPG man", 9218);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { TurretIndex = -1, MuzzleOffsetX = -0.64f, MuzzleOffsetY = -0.73f, MuzzleOffsetZ = 0.86f, MuzzleVelocity = 115f } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = SpawnShooter(at, 115f);
+            _world.AddComponent(man, new TkbIdentity { TkbType = 9218 });
+            return man;
+        }
+
+                private int RoundsFlown() { int n = 0; foreach (var _ in _world.Query().With<BallisticProjectile>().Build()) n++; return n; }
+
+        private WeaponFireNotification TheAnswer()
+        {
+            _world.Bus.SwapBuffers();
+            var answers = _world.Bus.Read<WeaponFireNotification>().ToArray();
+            Assert.Single(answers);
+            return answers[0];
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>Q94 A-4</c> (R-3018) — the RPG man at House A's window asks to fire down into his own frame (<c>CE-2218</c>): the MUSCLE,
+        /// with the live terrain, refuses — no round, one answer naming request 9 and <see cref="FireRefusal.Masked"/>. The same weapon in
+        /// the open fires, and its answer names its request too. 🔴 Red-proof: drop the muscle's <c>MuzzleMasked</c> refusal ⇒ a round flies.
+        /// </summary>
+        [Fact]
+        public void Q94_AMaskedShot_IsRefusedByTheMuscle_AnOpenOne_IsFired_EachAnswerNamesItsRequest()
+        {
+            var man = RpgManOnBtRange(new Vector3(107.1f, 100.9f, 3f));
+            var ifv = SpawnTarget(new Vector3(100.03f, 92.85f, 0.5f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, Target = ifv, RequestId = 9 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(0, RoundsFlown());
+            var no = TheAnswer();
+            Assert.Equal(FireRefusal.Masked, no.Refusal);
+            Assert.False(no.Fired);
+            Assert.Equal(9u, no.RequestId);
+            Assert.Equal(0, no.Quantity);
+            Assert.Equal(man, no.Shooter);
+
+            _world.SetComponent(man, new SimTransform { Position = new Vector3(149f, 10f, 0f), Rotation = Quaternion.Identity });
+            var open = SpawnTarget(new Vector3(149f, 27f, 0f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, Target = open, RequestId = 10 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(1, RoundsFlown());
+            var yes = TheAnswer();
+            Assert.True(yes.Fired);
+            Assert.Equal(10u, yes.RequestId);
+            Assert.Equal(1, yes.Quantity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>Q94 A-4</c> (R-3018) — a DIRECT round at a POINT is judged the same way: the RPG man's blind round down into his own
+        /// window frame is refused <see cref="FireRefusal.Masked"/> (the brain no longer checks it); the same round at a point across open
+        /// ground flies. 🔴 Red-proof: drop the at-point <c>MuzzleMasked</c> refusal ⇒ a round flies from the window.
+        /// </summary>
+        [Fact]
+        public void Q94_AMaskedRoundAtAPoint_IsRefusedByTheMuscle_AnOpenOne_Flies()
+        {
+            var man = RpgManOnBtRange(new Vector3(107.1f, 100.9f, 3f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, AtPoint = true, TargetPoint = new Vector3(100.03f, 92.85f, 1.49f), RequestId = 11 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0, RoundsFlown());
+            var no = TheAnswer();
+            Assert.Equal(FireRefusal.Masked, no.Refusal);
+            Assert.Equal(11u, no.RequestId);
+
+            _world.SetComponent(man, new SimTransform { Position = new Vector3(149f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, AtPoint = true, TargetPoint = new Vector3(149f, 27f, 1f), RequestId = 12 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(1, RoundsFlown());
+            Assert.True(TheAnswer().Fired);
+        }
+
+        /// <summary>
+        /// ⭐ <c>Q94 A</c> (R-3018) — a request the muscle cannot honour (no weapon yet, a laid-down mount) is ANSWERED with
+        /// <see cref="FireRefusal.CannotFire"/>, so the brain's ledger clears its reservation instead of waiting out the timeout.
+        /// 🔴 Red-proof: drop the <c>Refuse</c> on either guard ⇒ no answer.
+        /// </summary>
+        [Fact]
+        public void Q94_AShotTheMuscleCannotMake_IsAnsweredCannotFire()
+        {
+            var unarmed = _world.CreateEntity();
+            _world.AddComponent(unarmed, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = unarmed, Target = target, RequestId = 3 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            var a = TheAnswer();
+            Assert.Equal(FireRefusal.CannotFire, a.Refusal);
+            Assert.Equal(3u, a.RequestId);
+
+            var laid = SpawnShooter(new Vector3(0f, 5f, 0f));
+            Assert.True(Fdp.Toolkit.Combat.WeaponLaying.LayDown(_world, laid, 0));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = laid, Target = target, RequestId = 4 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            var b = TheAnswer();
+            Assert.Equal(FireRefusal.CannotFire, b.Refusal);
+            Assert.Equal(4u, b.RequestId);
+            Assert.Equal(0, RoundsFlown());
+        }
     }
 }

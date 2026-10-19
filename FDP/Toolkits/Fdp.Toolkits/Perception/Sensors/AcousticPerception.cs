@@ -99,6 +99,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             var unit = EqsContext.Self(view, observer, sensor);
             if (unit.IsNull || !view.IsAlive(unit) || !view.HasComponent<SimTransform>(unit)) return 0;
             if (!AcousticPerception.Ears(view, observer, out float range, out float perMeter)) return 0;
+            // ⭐ CE-3216 S2-4 (R-3017) — wind and rain mask the listener (none without a clock)
+            if (PerceptionWeather.TrySample(view, unit, out var weather)) range *= PerceptionWeather.HearingFactor(in weather);
             var broadphase = _broadphase.For(view, _grid);
 
             var ear = view.GetComponentRO<SimTransform>(unit).Position;

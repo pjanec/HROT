@@ -85,6 +85,17 @@ namespace Fdp.Toolkit.Behavior.Components
 
         public static ProficiencyTier Tier(ISimulationView view, Entity unit) => TierOf(Value(view, unit));
 
+        /// <summary>⭐ <c>CE-2275</c> D-2b (DA-16: "the commander's tier is his unit's median man") — the tier of the median value over
+        /// <paramref name="men"/> (the upper middle of an even count); Regular with none.</summary>
+        public static ProficiencyTier MedianTier(ISimulationView view, System.ReadOnlySpan<Entity> men)
+        {
+            if (men.Length == 0) return ProficiencyTier.Regular;
+            System.Span<float> values = men.Length <= 32 ? stackalloc float[men.Length] : new float[men.Length];
+            for (int i = 0; i < men.Length; i++) values[i] = Value(view, men[i]);
+            values.Sort();
+            return TierOf(values[men.Length / 2]);
+        }
+
         /// <summary>The preset value of <paramref name="tier"/>.</summary>
         public static float ValueOf(ProficiencyTier tier) => s_presets[(int)tier];
 

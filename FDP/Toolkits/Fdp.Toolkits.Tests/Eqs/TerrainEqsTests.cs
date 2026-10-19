@@ -431,6 +431,166 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(2f, c[0].PositionX);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — the SET-BACK post of House A's east window lies 2 m back into the room on the line through
+        /// the window (same storey, same facing); a depth that would cross the far wall at both tries falls back to the window point itself.
+        /// ✅ Red-proofs: pushed the wrong way ⇒ outside the house; the wall check dropped ⇒ the 40 m depth lands outside.
+        /// </summary>
+        [Fact]
+        public void CE2275_SetBack_TheEastWindowsPost_IsTwoMetresBackOnItsLine_AndAnImpossibleDepthStaysAtTheSill()
+        {
+            var (w, pts) = HouseA();
+            var fire = Assert.Single(pts, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f);
+
+            var back = TerrainCoverProvider.SetBack(w, in fire, 2f, 1.5f);
+            Assert.Equal(fire.PositionX - 2f, back.X, 2);   // the window faces +X: back is −X, deeper in the room
+            Assert.Equal(fire.PositionY, back.Y, 2);
+            Assert.Equal(fire.PositionZ, back.Z, 2);
+            Assert.True(InHouseA(new CoverPoint { PositionX = back.X, PositionY = back.Y }));
+
+            var none = TerrainCoverProvider.SetBack(w, in fire, 40f, 30f);   // through the west wall, both tries
+            Assert.Equal(new Vector3(fire.PositionX, fire.PositionY, fire.PositionZ), none);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2j (DA-16, DA-50) — a set-back pass MARKS what it did: House A's east window, moved 2 m back, carries §4.2 bit 8
+        /// <c>IsSetBack</c>; a window 1 m in front of the west wall (no room behind it at either depth) stays at the sill with the bit
+        /// meaningful and UNSET; a plain window pass marks nothing. What lets a Veteran squad keep only real set-back posts.
+        /// ✅ Red-proof: the flag written for every point ⇒ the shallow window reads as set back.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_AndLeavesTheShallowOneUnmarked()
+        {
+            var (w, pts) = HouseA();
+            var east = Assert.Single(pts, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f);
+            var shallow = east with { PositionX = 101f, DirectionX = 1f, DirectionY = 0f };   // backs onto the west wall at x 100
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[] { east, shallow }));
+            var sensor = new EqsSensor { SearchRadius = 20f, ContextSlot0 = At(105f, 104f) };
+            var c = new EqsResult[8];
+
+            int n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = 2f }.Generate(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(2, n);
+            var moved = c[..n].Single(r => MathF.Abs(r.PositionX - (east.PositionX - 2f)) < 0.05f);   // 📐 109.1 → 107.1, 2 m back
+            var stayed = c[..n].Single(r => MathF.Abs(r.PositionX - 101f) < 0.05f);
+            Assert.NotEqual(0, moved.Flags & CoverPointsGenerator.FlagSetBack);
+            Assert.NotEqual(0, stayed.FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+            Assert.Equal(0, stayed.Flags & CoverPointsGenerator.FlagSetBack);
+
+            n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c);
+            for (int i = 0; i < n; i++) Assert.Equal(0, c[i].FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2b — <c>FindWindowSetBackPosition</c> upstairs in House A (the acceptance of
+        /// <see cref="CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey"/>, set back): every answer is a
+        /// window position ≥ 1.5 m back from every sill point, on his storey, and still sees the target from its stance's eye.
+        /// ✅ Red-proof: the generator option ignored ⇒ the answers are the sill points.
+        /// </summary>
+        [Fact]
+        public void CE2275_FindWindowSetBackPosition_UpstairsInHouseA_AnswersSetBackPointsThatStillSeeTheTarget()
+        {
+            var w = Recipe("bt-range");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            // ⚠ measured: at the sill rail's 24 m target the upstairs set-back posts do NOT see it — 2 m back, the line down to a man that
+            //   close crosses the sill (DA-6's "narrower arc") and the ground floor answers instead. A far target is what a defence watches.
+            var target = new Vector3(104, 20, 0);
+            var sensor = new EqsSensor { SearchRadius = 15f, ContextSlot0 = At(104, 104, 3), ContextSlot1 = At(target.X, target.Y) };
+
+            var top = Run(FindWindowSetBackPosition.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(top);
+            Assert.Equal(3f, top[0].PositionZ, 2);
+            Assert.True(top[0].PositionY > 100.9f + 1.4f, $"set back from the south wall's inside face: {top[0].PositionY:F2}");
+            var sills = cover.Points.Where(p => p.Kind == CoverKind.WindowFiring).ToList();
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            Assert.All(top, r =>
+            {
+                Assert.True(r.TryGetKind(out var k) && k == CoverKind.WindowFiring);
+                Assert.All(sills, s => Assert.True(Vector3.Distance(new Vector3(s.PositionX, s.PositionY, s.PositionZ),
+                    new Vector3(r.PositionX, r.PositionY, r.PositionZ)) >= 1.45f));
+                Assert.False(w.SegmentBlocked(
+                    new Vector3(r.PositionX, r.PositionY, r.PositionZ + (r.TryGetStance(out var s) ? mount.For(s) : mount.Standing)),
+                    target + new Vector3(0, 0, 0.85f)), $"({r.PositionX:F2},{r.PositionY:F2},{r.PositionZ:F2}) does not see the target");
+            });
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> sq-defend-house (Platoon §12.2 B) — on <c>cqb-village</c>, a squad in OBJ (house-3f, front north) whose sector
+        /// looks south (its point 45 m out) gets WINDOW posts from both window asks: the sill one and the set-back one each answer OBJ's
+        /// south windows. 📌 Measured live first: the post ask gave no window posts and the squad fell back to cover points.
+        /// </summary>
+        [Fact]
+        public void CE2275_CqbVillage_OBJsSouthWindows_AnswerBothWindowAsks_TowardASouthSector()
+        {
+            var w = Recipe("cqb-village");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var ea = new Vector3(120.9f, 112.2f, 0f);
+            var self = At(120.9f, 157f, 0f);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            var windows = cover.Points.Where(p => p.Kind == CoverKind.WindowFiring
+                && Vector2.Distance(new Vector2(p.PositionX, p.PositionY), new Vector2(120.9f, 157f)) <= 14f).ToList();
+            string Seen(Vector3 at, byte stance) => w.SegmentBlocked(at + new Vector3(0, 0, mount.For(CoverPointsGenerator.StanceOf(stance))),
+                ea + new Vector3(0, 0, 0.85f)) ? "blocked" : "SEES";
+            var report = string.Join("; ", windows.Select(p =>
+            {
+                var sill = new Vector3(p.PositionX, p.PositionY, p.PositionZ);
+                var back = TerrainCoverProvider.SetBack(w, in p, 2f, 1.5f);
+                return $"({p.PositionX:F1},{p.PositionY:F1},{p.PositionZ:F0}) faces ({p.DirectionX:F1},{p.DirectionY:F1}) st {p.StanceHeight}: sill {Seen(sill, p.StanceHeight)}, back ({back.X:F1},{back.Y:F1}) {Seen(back, p.StanceHeight)}";
+            }));
+            Assert.True(windows.Count > 0, "OBJ has window points");
+
+            var sensor = new EqsSensor { SearchRadius = 14f, ContextSlot0 = self, ContextSlot1 = At(ea.X, ea.Y) };
+            var atSill = Run(FindDefensiveWindowPosts.Build(new EqsTemplateBuilder()), sensor);
+            var setBack = Run(FindDefensiveWindowSetBackPosts.Build(new EqsTemplateBuilder()), sensor);
+            Assert.True(atSill.Length > 0, $"the sill ask answers ({windows.Count} window points: {report})");
+            Assert.True(setBack.Length > 0, $"the set-back ask answers ({windows.Count} window points: {report})");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2g (Defend DA-5 / DA-22 / DA-47) — <c>FindRoofPosts</c> on <c>cqb-village</c>: OBJ (house-3f) has a roof
+        /// storey at 6 m with a 1 m parapet, so it carries crouched cover points; toward a south sector the roof ask answers ONLY roof
+        /// points (the top surface under them, within half a metre) and every one SEES the sector point. 📌 Measured first: OBJ's roof has
+        /// 22 cover points and <c>FindCoverFromTarget</c> keeps none of them (it wants points HIDDEN from the target) — hence its own ask.
+        /// The generator alone, asked about the same house, yields no ground or upper-floor point.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2g_FindRoofPosts_OnOBJ_AnswersRoofPointsOnly_ThatSeeTheSector()
+        {
+            var w = Recipe("cqb-village");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var ea = new Vector3(120.9f, 112.2f, 0f);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            Assert.True(cover.Points.Count(p => p.PositionZ > 5f
+                && Vector2.Distance(new Vector2(p.PositionX, p.PositionY), new Vector2(120.9f, 157f)) <= 14f) > 0, "OBJ's roof has cover points");
+            var sensor = new EqsSensor { SearchRadius = 14f, ContextSlot0 = At(120.9f, 157f, 0f), ContextSlot1 = At(ea.X, ea.Y) };
+
+            var answer = Run(FindRoofPosts.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(answer);
+            Assert.All(answer, r =>
+            {
+                var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
+                Assert.Equal(6f, r.PositionZ, 1);
+                Assert.True(CoverPointsGenerator.OnRoof(w, at), $"({at.X:F1},{at.Y:F1},{at.Z:F1}) is on the roof");
+                Assert.False(w.SegmentBlocked(at + new Vector3(0, 0, r.TryGetStance(out var s) ? mount.For(s) : mount.Standing),
+                    ea + new Vector3(0, 0, 0.85f)), $"({at.X:F1},{at.Y:F1}) sees the sector");
+            });
+
+            var generated = new EqsResult[64];
+            int n = new CoverPointsGenerator { RoofOnly = true }.Generate(Entity.Null, ref sensor, _repo, generated);
+            Assert.True(n > 0);
+            for (int i = 0; i < n; i++) Assert.Equal(6f, generated[i].PositionZ, 1);
+        }
+
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
         /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
         /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert
@@ -1022,6 +1182,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [InlineData(typeof(FindSafeRetreatPoint))]
         [InlineData(typeof(FindThreatsInView))]
         [InlineData(typeof(FindWindowFiringPosition))]
+        [InlineData(typeof(FindRoofPosts))]
         public void StarterTemplate_BlueprintIdIsTheHashOfItsAssetId(Type template)
         {
             string assetId = (string)template.GetField("AssetId")!.GetValue(null)!;

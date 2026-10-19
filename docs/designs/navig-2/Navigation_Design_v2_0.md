@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§14: a partial path ends at the goal's height — completeness is PathExists', ui CE-1189) · 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-19 (§3.4a CE-2304: a walker in a crowded house — a re-sent move continues, the no-progress watchdog, kept on the mesh, the storey gap) · 2026-10-19 (§14: a partial path ends at the goal's height — completeness is PathExists', ui CE-1189) · 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §5.2b (CE-3029 — a vehicle's corners rounded for its turn radius, R-3006); §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -425,6 +425,80 @@ Brain BTree (only at hard failure):
 ```
 
 Critically: Brain **never publishes a path request**. It writes `NavigationIntent` and observes `NavigationStatus`. The Solver is Muscle's tool.
+
+### 3.4a A walker in a crowded house — `CE-2304` *(backend, `2026-10-19`; `build-state: BUILT`; behaviors' [note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md), answer [here](../../blueprints/batches/NOTE_Backend_To_Behaviors_Interior_Move_Stall_Answer.md))*
+
+📐 **Measured live** (`sq-defend-house`, seven men posted on two storeys of one house, a two-node probe): four of seven never reached
+their posts and their moves stayed `InProgress` for good. Four backend causes, each fixed where it lives:
+
+```mermaid
+classDiagram
+  direction LR
+  class NavigationIntentBridgeSystem { <<EXISTING, SimHost core pack>> PathToPoint: a RE-SENT move keeps its path }
+  class NavigationExecutionSystem { <<EXISTING, GroundKinematicsModule>> speed watchdog · NEW no-progress watchdog · IsResentMove() }
+  class FrustrationTicks { <<EXISTING, never sent, + 2 fields>> Ticks · ElapsedSinceFirstReplan · BestProgressS · NoProgressSeconds }
+  class CarKinematicsSystem { <<EXISTING, GroundKinematicsModule>> avoidance skips another storey · a bent step stays on the mesh }
+  class ManualMotion { <<EXISTING, CE-3181>> KeepOnNavmesh() }
+  class INavmeshProvider { <<EXISTING world singleton>> ProjectToNavmesh }
+  NavigationIntentBridgeSystem ..> NavigationExecutionSystem : IsResentMove (one test)
+  NavigationExecutionSystem --> FrustrationTicks
+  CarKinematicsSystem ..> ManualMotion : the operator's rule, reused
+  ManualMotion ..> INavmeshProvider
+```
+*What the picture shows that prose hid:* nothing new is a class — the four fixes are rules inside the three systems that already move a
+walker, and the one shared predicate (`IsResentMove`) is what keeps the bridge and the watchdog agreeing on "the same move".
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF)
+  participant BR as IntentBridge (SimHost)
+  participant K as CarKinematics
+  participant W as ExecutionSystem (watchdog)
+  B->>BR: PathToPoint P, IntentId 5
+  BR->>K: path to P (CustomTrajectory)
+  B->>BR: PathToPoint P again, IntentId 23 (re-sent)
+  BR->>BR: IsResentMove ⇒ keep the path, no request, no stop
+  W->>W: IsResentMove ⇒ take id 23, KEEP the stuck counts
+  K->>K: jostled: moving, progress flat
+  W->>W: < 0.25 m gained in 4 s ⇒ an episode
+  alt the move allows replans and budget left
+    W->>BR: replan from here (same request, §3.4)
+  else
+    W-->>B: FailedBlocked ⇒ MoveTo Failure ⇒ the brain re-plans
+  end
+```
+*What the picture shows that prose hid:* before, the re-send at step 3 reset everything, so the watchdog never reached its limit — the
+no-progress rule alone could not have fixed it.
+
+```mermaid
+graph TD
+  SH[SimHost node] --> CP[SimHostCoreLogicPack]
+  CP --> BR[NavigationIntentBridgeSystem]
+  SH --> GK[GroundKinematicsModule]
+  GK --> W[NavigationExecutionSystem]
+  GK --> K[CarKinematicsSystem]
+  CGF[CGF brain node] -. intents over DDS .-> BR
+  ED[Editor = brain + muscle in one world] --> GK
+  ST[Stride node: crowd agents] -. NOT this path: CrowdAgentUpdateSystem .-> X[speed watchdog only]
+```
+*What the picture shows that prose hid:* every rule runs where the body is moved (SimHost, or the fused editor); a Stride crowd agent has
+no `NavState` path, so it keeps the speed watchdog only.
+
+| # | cause, measured | rule as built | where |
+|---|---|---|---|
+| **N1** | the brain re-sent each post move ~2×/s to the same point (`IntentId` 5 → 55 in 40 s); each re-send stopped the man and reset every count | a **re-sent move** — `PathToPoint`, ≤ `ResentMoveToleranceM` 0.25 m across and ≤ 1 m in height from the path's end, still walking — keeps its path and its counts; only speed and arrival radius follow | `NavigationExecutionSystem.IsResentMove`, used by the bridge and the watchdog |
+| **N2** | moving but getting nowhere (progress 0.004 m, speed flickering past 0.2 m/s) | on a path, < `NoProgressMinGainM` 0.25 m in `NoProgressLimitSeconds` 4 s is a frustration episode (replan, else `FailedBlocked`) — beside the 0.2 m/s / 2 s speed rule | `NavigationExecutionSystem.Stalled` |
+| **N3** | a man pushed 1.3 m outside the wall — ⭐ re-measured after the first fix: shoved at 3 m/s with NO move at all, still outside | a walker's step that avoidance bent goes through `ManualMotion.KeepOnNavmesh` (slide along the edge, or stop) **and** is traced against closed barriers like a vehicle's (CE-2198; the barrier test only — a stair rises like a wall). The mesh alone cannot hold him: it stops a body radius short of every wall, and in that margin a body is "off the mesh" and free. Only a bent step pays either query | `CarKinematicsSystem` (`FinishMove`'s barrier block, `bentWalker`) |
+| **N4** | a man upstairs gave way to the room below (the collider grid is 2-D) | a neighbour more than `AvoidanceStoreyGapM` 1.5 m above or below is not avoided | `CarKinematicsSystem.ApplyCollisionAvoidance` |
+
+**Rejected:** *a 3-D collider grid* — every reader of the grid (bullets, near misses, radius search) is 2-D and the Z test costs one read
+per neighbour · *checking every walker step against the mesh* — two navmesh queries per walker per frame for 500 civilians, for a defect
+only avoidance causes · *the brain stops re-sending* — right, and asked of behaviors, but a muscle that restarts on every re-send is fragile
+for any chatty brain.
+
+**Rails** (in the features' own suites): `S8_FrustrationWatchdogTests.CE2304_AWalkerWhoMovesButMakesNoProgress_EndsHisMove_FailedBlocked` ·
+`CE2304_AMoveReSentToTheSamePoint_KeepsItsStuckCount` · `CarKinematicsSystemTests.CE2304_AWalker_GivesWayToAManOnHisFloor_NeverToOneOnTheFloorBelow`
+· `CE2304_AWalkerPushedByTheMenBesideHim_StaysInsideTheWall` · `CE2304_AWalkerShovedAtABuildingsWall_NeverGoesThroughIt`.
 
 ## 4. CQRS contract — components
 

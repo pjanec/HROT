@@ -212,8 +212,23 @@ namespace Fdp.Toolkit.Squad.Command
         public const float SameElementMetres = 50f;
 
         private readonly bool _gateOnAuthority;
+        private readonly bool _requireOwnedBrain;
 
         public StaffInboxSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
+        private StaffInboxSystem(bool gateOnAuthority, bool requireOwnedBrain)
+        {
+            _gateOnAuthority = gateOnAuthority;
+            _requireOwnedBrain = requireOwnedBrain;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2301</c> ① (R-2058) — the inbox of a node with no brain (SimHost, IG): it LOGS every report and folds only for a
+        /// commander whose <see cref="BehaviorState"/> is here AND owned here — so on such a node it never folds, and a replicated
+        /// <see cref="CommandPicture"/> keeps its one writer (the fold would otherwise add a local picture, <c>EnsureRow</c>).
+        /// 📄 DESIGN_Command_Chain_Example.md §8b.
+        /// </summary>
+        public static StaffInboxSystem ForNodeWithoutBrain() => new(gateOnAuthority: true, requireOwnedBrain: true);
 
         /// <summary>Reports folded / dropped as stale since this system was built (a test / diagnostics probe).</summary>
         public int FoldedCount { get; private set; }
@@ -223,7 +238,10 @@ namespace Fdp.Toolkit.Squad.Command
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            if (!repo.IsComponentTypeRegistered<CommandPicture>() || !repo.Bus.IsRegisteredManaged<SquadReportNotification>()) return;
+            if (!repo.Bus.IsRegisteredManaged<SquadReportNotification>()) return;
+            // ⭐ CE-2301 ① (R-2058) — the log is every node's; only the fold needs the picture (§8b)
+            bool canFold = repo.IsComponentTypeRegistered<CommandPicture>();
+            bool brainHere = repo.IsComponentTypeRegistered<BehaviorState>();
             float now = CommandPictureOps.Now(repo);
             SquadReportLog? log = null;
             foreach (var n in repo.Bus.ReadManaged<SquadReportNotification>())
@@ -236,8 +254,9 @@ namespace Fdp.Toolkit.Squad.Command
                     Verdict = "not-owned-here",
                 };
                 log.Add(entry);
-                if (n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
-                if (_gateOnAuthority && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
+                if (!canFold || n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
+                if (_requireOwnedBrain && !(brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && repo.HasAuthority<BehaviorState>(n.ToUnit))) continue;
+                if (_gateOnAuthority && brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
                 if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now)) { FoldedCount++; entry.Verdict = "folded"; }
                 else { DroppedCount++; entry.Verdict = "stale"; }
             }

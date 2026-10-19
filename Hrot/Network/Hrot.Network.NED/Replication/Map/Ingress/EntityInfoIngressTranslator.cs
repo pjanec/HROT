@@ -43,10 +43,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly long _localNodeId;
 
         // Keyed by commander net ID. Value = list of subordinate entities waiting for that commander.
-        private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation)>> _pendingSubordinates = new();
+        private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation, FireTeam Team)>> _pendingSubordinates = new();
 
         // Keyed by subordinate net ID. Used when the subordinate itself has not yet spawned.
-        private readonly Dictionary<long, (long CommanderNetId, TacticalDesignation Designation)> _pendingUnspawnedSubordinates = new();
+        private readonly Dictionary<long, (long CommanderNetId, TacticalDesignation Designation, FireTeam Team)> _pendingUnspawnedSubordinates = new();
 
         // Fired by NetworkEntityMap when a new entity is registered. Used to drain both pending queues.
         private readonly List<long> _recentlyRegistered = new();
@@ -216,6 +216,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Commander assignment / removal.
             long commanderNetId = info.CommanderId;
             var designation     = TacticalDesignationMapper.ToEcs(info.TacticalDesignation);
+            var team            = info.FireTeam <= (byte)FireTeam.D ? (FireTeam)info.FireTeam : FireTeam.None;   // ⭐ CE-2281 / R-3019
 
             if (commanderNetId == 0)
             {
@@ -234,7 +235,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Case 1: subordinate entity is not yet spawned.
             if (!_entityMap.TryGetEntity(netId, out _))
             {
-                _pendingUnspawnedSubordinates[netId] = (commanderNetId, designation);
+                _pendingUnspawnedSubordinates[netId] = (commanderNetId, designation, team);
                 return;
             }
 
@@ -247,6 +248,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     Subordinate = subEntity2,
                     Commander   = cmdEntity,
                     Designation = designation,
+                    FireTeam    = team,
                 });
                 return;
             }
@@ -254,11 +256,11 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Case 3: subordinate is alive, commander is not yet spawned — defer by commander.
             if (!_pendingSubordinates.TryGetValue(commanderNetId, out var list))
             {
-                list = new List<(Entity, TacticalDesignation)>();
+                list = new List<(Entity, TacticalDesignation, FireTeam)>();
                 _pendingSubordinates[commanderNetId] = list;
             }
             if (_entityMap.TryGetEntity(netId, out var subEntity3))
-                list.Add((subEntity3, designation));
+                list.Add((subEntity3, designation, team));
         }
 
         private void DrainPendingForRegistered(long registeredNetId, EntityRepository? repo)
@@ -277,6 +279,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                         Subordinate = subEntity,
                         Commander   = cmdEntity,
                         Designation = pending.Designation,
+                        FireTeam    = pending.Team,
                     });
                 }
                 else
@@ -284,10 +287,10 @@ namespace Hrot.Map.Common.Replication.Ingress
                     // Commander not yet alive — move to deferred-by-commander queue.
                     if (!_pendingSubordinates.TryGetValue(pending.CommanderNetId, out var list))
                     {
-                        list = new List<(Entity, TacticalDesignation)>();
+                        list = new List<(Entity, TacticalDesignation, FireTeam)>();
                         _pendingSubordinates[pending.CommanderNetId] = list;
                     }
-                    list.Add((subEntity, pending.Designation));
+                    list.Add((subEntity, pending.Designation, pending.Team));
                 }
                 return;
             }
@@ -296,13 +299,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_pendingSubordinates.TryGetValue(registeredNetId, out var subs)) return;
             if (!_entityMap.TryGetEntity(registeredNetId, out var cmdEnt)) return;
 
-            foreach (var (sub, desig) in subs)
+            foreach (var (sub, desig, team) in subs)
             {
                 _eventBus.Publish(new CmdAssignSubordinate
                 {
                     Subordinate = sub,
                     Commander   = cmdEnt,
                     Designation = desig,
+                    FireTeam    = team,
                 });
             }
             _pendingSubordinates.Remove(registeredNetId);

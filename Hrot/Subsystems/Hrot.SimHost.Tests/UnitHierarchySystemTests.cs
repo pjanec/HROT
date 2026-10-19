@@ -442,15 +442,17 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateRepo();
             var cmd = repo.CreateEntity();
             var sub = repo.CreateEntity();
-            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.TeamLeader });
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.TeamLeader, FireTeam = FireTeam.A });
             Tick(repo);
-            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.SquadLeader });
+            Assert.Equal(FireTeam.A, repo.GetComponent<UnitSubordinate>(sub).FireTeam);   // ⭐ CE-2281 / R-3019 — a new assignment
+            repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = sub, Commander = cmd, Designation = TacticalDesignation.SquadLeader, FireTeam = FireTeam.B });
             Tick(repo);
 
             var roster = repo.GetComponent<UnitRoster>(cmd);
             Assert.Equal(1, roster.Count);
             unsafe { Assert.Equal((ushort)TacticalDesignation.SquadLeader, roster.TacticalDesignations[0]); }
             Assert.Equal(TacticalDesignation.SquadLeader, repo.GetComponent<UnitSubordinate>(sub).Designation);
+            Assert.Equal(FireTeam.B, repo.GetComponent<UnitSubordinate>(sub).FireTeam);   // ⭐ and the in-place change
         }
     }
 }

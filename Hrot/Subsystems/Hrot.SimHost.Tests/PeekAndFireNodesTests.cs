@@ -988,6 +988,88 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self).Until - d.Time, 1.5, 2.1);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2a (PC-14, R-2047) — A POSTED MAN HIDES ONLY ON HIS POST: the better point 5 m off his post is passed over for
+        /// the one on it; with his post elsewhere, his ALTERNATE is taken. ✅ Red-proof: the post filter removed ⇒ he takes the best point.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedMan_HidesOnlyOnHisPost_OrOnHisAlternate()
+        {
+            var d = new Duel(Rifleman() with { Anchor = new Vector3(9f, 1f, 0f), AnchorRadius = 4f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(9f, 1f, 0f), d.Moves[^1]);
+
+            var a = new Duel(Rifleman() with
+            {
+                Anchor = new Vector3(30f, 0f, 0f), AnchorRadius = 4f, AnchorAlternate = new Vector3(9f, 1f, 0f), AnchorHasAlternate = 1,
+            });
+            a.Step();
+            a.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, a.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(9f, 1f, 0f), a.Moves[^1]);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2a (PC-14: "a man who finds none fights from where he is") — every answered point is off his post: he does not
+        /// leave it, and fires AIMED from where he stands (G2's every-point-burned path). ✅ Red-proof: the post filter removed ⇒ he moves.
+        /// </summary>
+        [Fact]
+        public void CE2275_NoPointOnHisPost_HeStaysAndFightsFromWhereHeStands()
+        {
+            var d = new Duel(Rifleman() with { Anchor = new Vector3(30f, 0f, 0f), AnchorRadius = 4f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            d.Run(6);
+            Assert.Empty(d.Moves);
+            Assert.Equal(2, d.Ws.Waiting);
+            Assert.True(d.AimedRounds > 0, "fights from where he stands, never silent");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2i (PC-14's <c>Allow</c> half, DA-49) — a POSTED man whose threat lies outside his sector looks for his
+        /// hide points toward his SECTOR: his cover sensor is aimed at his sector's point, not at the threat (a window that sees the threat
+        /// would face away from his arc). A threat inside his arc, a man with no post, or a close threat that just fired at him (self-defence)
+        /// keep the aim on the threat. ✅ Red-proofs: the re-aim removed ⇒ the sensor looks east at the threat; the Allow test skipped ⇒
+        /// the sector even for a threat inside it.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt()
+        {
+            var d = new Duel(Rifleman() with { Anchor = Vector3.Zero, AnchorRadius = 4f });
+            if (!d.Repo.IsComponentTypeRegistered<EngagementArea>()) d.Repo.RegisterComponent<EngagementArea>();
+            d.Repo.AddComponent(d.Self, new EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = Vector3.Zero, LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            d.Repo.AddComponent(d.Enemy, new SimTransform { Position = new Vector3(80f, 0f, 0f), Rotation = Quaternion.Identity });   // east, beyond 50 m
+            var threat = new ThreatAim(d.Enemy, 0, default);
+
+            var aim = PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat);
+            Assert.Equal(PeekAndFireNodes.SectorAimId, aim.HeardId);
+            Assert.True(aim.IsPoint);
+            Assert.Equal(0f, aim.Point.X, 1);
+            Assert.Equal(100f, aim.Point.Y, 1);   // the arc's middle bearing (north) at 100 m (no range band)
+
+            d.Step();   // the node itself: its cover sensor looks at the sector
+            ref readonly var cover = ref d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite));
+            Assert.True(cover.ContextSlot1.IsNull);
+            Assert.NotEqual(0, cover.ContextPointMask & EqsSensor.Point1Bit);
+            Assert.Equal(100f, cover.ContextPoint1.Y, 1);
+
+            var unposted = d.P with { AnchorRadius = 0f };
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in unposted, in threat));   // no post: as before
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(0f, 80f, 0f);           // north, inside his arc
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(20f, 0f, 0f);           // close, east, and firing at him
+            if (!d.Repo.HasComponent<SimTransform>(d.Self)) d.Repo.AddComponent(d.Self, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            d.Repo.GetComponentRW<RecentSenses>(d.Self).Record(SensorChange.NearMiss, d.Time);
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
+        }
+
         /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>
         [Fact]
         public void G5_R2_AnExpiredClaim_FreesThePoint()

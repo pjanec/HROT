@@ -35,6 +35,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2108</c> (§9.6a) — 1 = fire at the top threat while moving there (the ROE still gates every shot).
         /// A manoeuvre setting, not an ROE one: it does not outlive the run.</summary>
         public byte FireWhileMoving;
+        /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a POSTED man's move: with <see cref="AnchorRadius"/> &gt; 0 only a point within it of
+        /// <see cref="Anchor"/> is taken (the best-ranked such point); none ⇒ no move, he fights from where he is. 0 = anywhere.
+        /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2d.</summary>
+        public Vector3 Anchor;
+        public float AnchorRadius;
     }
 
     /// <summary>⭐ <c>CE-2092</c> — the node's own memory between ticks (a node-scoped working state).</summary>
@@ -242,7 +247,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (child.IsNull) return NodeStatus.Running;
 
             bool hasThreatPos = ThreatPosition(world, self, threat, out var threatPos);
-            if (TryNewAnswer(world, child, ref ws, out var best)
+            if (TryNewAnswer(world, child, ref ws, in p, out var best)
                 && (ws.Moving == 0
                     || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
@@ -279,8 +284,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// posture's ONE fire step (the ROE gates every shot in the executor); otherwise the weapon this node aimed stops.</summary>
         private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world, bool always = false)
         {
-            if (p.FireWhileMoving == 0) return;
-            if (always || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
+            // ⭐ CE-2275 D-2d (PC-14) — a posted man with no move to make (none asked yet, or no answer on his post) fights from where he stands
+            bool posted = p.AnchorRadius > 0f && ws.Moving == 0;
+            if (p.FireWhileMoving == 0 && !posted) return;
+            if (always || posted || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
                 // ⭐ AQ89 C — FireAlways (CloseToThrow) suppresses BLIND at the hidden target while it closes (R-269)
                 PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f, blind: always);
             else
@@ -482,7 +489,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>True once per published answer that has a best point (the buffer's per-answer stamp, as CE-2089).</summary>
-        private static bool TryNewAnswer(EntityRepository world, Entity child, ref EqsTacticsState ws, out Vector3 best)
+        private static bool TryNewAnswer(EntityRepository world, Entity child, ref EqsTacticsState ws, in EqsTacticsParams p, out Vector3 best)
         {
             best = default;
             if (!world.HasComponent<EqsCognitiveBuffer>(child)) return false;
@@ -490,9 +497,22 @@ namespace Hrot.AI.Behaviors.Brains
             if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return false;
             ws.LastAnswerTick = buffer.LastUpdateTick;
             if (buffer.Count == 0) return false;
-            var top = buffer.GetTop();
-            best = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
-            return true;
+            if (p.AnchorRadius <= 0f)
+            {
+                var top = buffer.GetTop();
+                best = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+                return true;
+            }
+            // ⭐ CE-2275 D-2d (PC-14) — a posted man takes the best-ranked point ON his post, never one off it
+            var span = buffer.GetSpanRO()[..buffer.Count];
+            for (int i = 0; i < span.Length; i++)
+            {
+                var at = new Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ);
+                if (Vector3.Distance(at, p.Anchor) > p.AnchorRadius) continue;
+                best = at;
+                return true;
+            }
+            return false;
         }
 
         private static void Release(ref EqsTacticsState ws, Entity self, EntityRepository world, bool stopMoving = true)
