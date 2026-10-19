@@ -717,6 +717,37 @@ from every D-2d move inside his room, and a plain "farther than 4 m" would let t
 then the occupy branch (shares the advance's state), then the options as before (they are exclusive, so the reorder is neutral). Rails
 `TacticsTreesTests.CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision` · `CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt`.
 
+#### D-2f — an authored fighting position *(DA-5's second half; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the order (`SquadDefendParamsJsonDto`) carries a point, a radius and a speed — no post; no params DTO carries a
+list yet, but the behaviour decoder's options (`FdpJsonOptionsRegistry.DefaultRelaxed`, `BehaviorParams.cs:122`) already hold the
+`FixedListJsonConverterFactory`, so the canonical fixed-list wrapper (`int Count` + an `[InlineArray(N)]` buffer, `FixedListShape`)
+reads and writes as a plain JSON array. The posts' memory (`DefencePosts`) knows a window post only by its index (`< WindowCount`).
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendParamsJsonDto { <<EXISTING, + Posts>> Position · SearchRadius · Speed · Posts }
+  class AuthoredPostList { <<NEW fixed list, 8>> Count · Items }
+  class AuthoredPostJsonDto { <<NEW>> point · facing · hasFacing · window }
+  class SquadDefendParams { <<EXISTING, + Authored>> }
+  class DefencePosts { <<EXISTING, WindowCount → per-candidate Window · Facing>> }
+  class SquadDefendPlay { <<EXISTING>> Plan: authored first, then the asks for the men left · ArcOf: an authored facing }
+  class DefencePostPicker { <<EXISTING, unchanged>> candidates in rank order to the nearest man }
+  SquadDefendParamsJsonDto *-- AuthoredPostList
+  AuthoredPostList *-- AuthoredPostJsonDto
+  SquadDefendPlay ..> SquadDefendParams
+  SquadDefendParams *-- DefencePosts
+  SquadDefendPlay ..> DefencePostPicker
+```
+*What the picture shows that prose hid:* nothing new picks a post — an authored post is a **candidate ranked first**, so the one
+picker gives it to the nearest man exactly as it gives a window; what changes is only that "window" and "facing" become properties of
+a candidate instead of a position in the list.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** (≤ 8; each a point, an optional facing, and whether it is a window) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. A post's facing, when authored, is that man's arc (±45°) instead of the EA's; a window post fights the window way (D-2a). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Facing`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a DTO array: no params DTO carries one, and the order forms read fixed shapes |
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
