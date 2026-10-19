@@ -346,6 +346,7 @@ namespace Fdp.Toolkit.Combat.Executors
             Entity mountEntity = entity;
             int mountIndex = p.Mount == 0 || p.Mount == AimAndFireParams.MountAuto ? WeaponSystems.PrimaryMount(world, entity, out mountEntity)
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
+            WeaponPostureOf.SetActiveMount(world, entity, mountIndex);   // ⭐ CE-1222 — the weapon the OPERATOR picked, on the wire (as the AI path, :102)
             if (!world.HasComponent<WeaponState>(mountEntity)) return;
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             // ⭐ WS-3 — an operator firing a controlled weapon system fires it as itself (its mount 0, turret, muzzle), when it may fire

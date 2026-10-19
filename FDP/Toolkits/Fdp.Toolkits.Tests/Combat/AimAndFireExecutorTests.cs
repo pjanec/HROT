@@ -2857,6 +2857,25 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1206</c> (Entity Control §8h U-5) — a POSSESSED vehicle fires its station gun with nobody in the gunner seat (one human
+        /// drives and shoots, the crew abstract); unpossessed, the empty seat still silences it. ✅ Red-proof: drop the possession test in
+        /// <c>WeaponSystems.CanFire</c> ⇒ NoGunner ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1206_APossessedVehicle_FiresItsStationGun_WithNoGunner()
+        {
+            var (pickup, m2, gunner, _, _) = Technical(rounds: 0);
+            _world.GetComponentRW<Health>(gunner).Current = 0f;
+            Assert.False(WeaponSystems.CanFire(_world, m2, out var why));
+            Assert.Equal(WeaponHold.NoGunner, why);
+
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });
+            Assert.True(WeaponSystems.CanFire(_world, m2, out why), $"held by {why}");
+        }
+
+        /// <summary>
         /// ⭐⭐ WS-3 (W-E; §4c) — an AUTOMATIC weapon system nobody operates is its own controller: its own brain fires its mount 0. A
         /// MANUAL one nobody mans has no controller: its brain holds (W-D — a brain on the weapon never fights its operator's).
         /// ✅ Red-proof: ControllerOf returning the weapon for a manual one too ⇒ the manual sentry fires ⇒ red.
@@ -3157,6 +3176,22 @@ namespace Fdp.Toolkit.Combat.Tests
             new FireAtPointExecutor().OnEnter(man, ref channel, _world);
             FireAtPointStep(man, ref channel, now: 1d);
             Assert.Equal((byte)WeaponSystems.ControlledMountBase, _world.GetComponent<WeaponPosture>(man).ActiveMount);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1222</c> (ui note §2) — an OPERATOR's fire names the mount he fires on the posture too: the pickup's station M2 (32)
+        /// while possessed, not the AI's last choice. ✅ Red-proof: drop the <c>SetActiveMount</c> in <c>OperatorFire</c> ⇒ 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1222_AnOperatorsFire_NamesTheMountHePicked_OnThePosture()
+        {
+            var (pickup, _, _, channel, _) = Technical(rounds: 1);
+            _world.RegisterComponent<WeaponPosture>();
+            _world.AddComponent(pickup, new WeaponPosture());
+            AskOperator(ref channel, new Vector3(40f, 0f, 1f), trigger: 1);
+            _executor.OnEnter(pickup, ref channel, _world);
+            _executor.Execute(pickup, ref channel, _world, 1f / 60f);
+            Assert.Equal((byte)WeaponSystems.ControlledMountBase, _world.GetComponent<WeaponPosture>(pickup).ActiveMount);
         }
 
         private Fdp.Toolkit.Behavior.Diagnostics.ActionReason LastWeaponReason(Entity unit)
