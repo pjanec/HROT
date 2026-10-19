@@ -2193,6 +2193,33 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> (DA-58) — PROGRESS Set once every man has REACHED his post, not once all stand on them in one frame: the
+        /// first man gets there and then fights 6 m out (a hide point, a peek); the others arrive later ⇒ Set. Not before the last arrives.
+        /// 📌 Live, without it: every man at his post, and no frame in 4½ minutes with all seven within 4 m. ✅ Red-proof: "within
+        /// <see cref="SquadDefendPlay.PostRadius"/> now" instead of the latch ⇒ no Set.
+        /// </summary>
+        [Fact]
+        public void CE2304_Set_CountsAManWhoReachedHisPost_EvenWhenHeFightsFromBesideIt()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+            s.Teleport(first, given[first].Objective);
+            s.Tick();
+            s.Teleport(first, given[first].Objective + new Vector3(-6, 0, 0));   // he fights from beside his post
+            s.Tick(); s.Tick();
+            Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "the others are not there yet");
+            foreach (var m in s.Members.Where(m => !m.Equals(first))) s.Teleport(m, given[m].Objective);
+            s.Tick(); s.Tick();
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2304</c> (DA-56) — a displaced man is not sent straight back by the rounds of the fire he moves through: for
         /// <see cref="SquadDefendPlay.DisplacedGraceSeconds"/> after the move his rounds do not count; after it, three more move him again.
         /// 📌 Live, without it: 43 displacements in 14 s, every man ping-ponging between two posts. ✅ Red-proof: the grace check dropped ⇒

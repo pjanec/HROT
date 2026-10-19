@@ -108,6 +108,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed double LastSense[Capacity];
         /// <summary>⭐ <c>CE-2304</c> — when each man was last sent to a new post (DA-38's count waits <see cref="SquadDefendPlay.DisplacedGraceSeconds"/>).</summary>
         public fixed double MovedAt[Capacity];
+        /// <summary>⭐ <c>CE-2304</c> (DA-58) — 1 once each man has stood within <see cref="SquadDefendPlay.PostRadius"/> of his post since he was
+        /// last sent to one (Set counts it).</summary>
+        public fixed byte Reached[Capacity];
         /// <summary>0 = not asked · 1 = asked · 2 = done (answered, empty, or timed out).</summary>
         public byte WindowStage, RoofStage, CoverStage;
         /// <summary>⭐ D-2h (DA-48) — the visibility fan that puts the automatic weapon on the longest view: 0 · 1 asked · 2 done.</summary>
@@ -560,16 +563,21 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        /// <summary>Every live man with a post is at it ⇒ PROGRESS Set, once. ⭐ D-2d — "at it" is within <see cref="PostRadius"/>: the post is
-        /// the man's room (D-2a), and his fight moves him between its points.</summary>
+        /// <summary>Every live man with a post has reached it ⇒ PROGRESS Set, once. ⭐ D-2d — "reached" is within <see cref="PostRadius"/>: the post
+        /// is the man's room (D-2a), and his fight moves him between its points. ⭐ <c>CE-2304</c> (DA-58) — once reached it STAYS reached until
+        /// he is sent to another post: measured live, a man fighting from his post stood at a hide point up to 4 m out and peeked further,
+        /// so "all within 4 m in the same frame" held for no frame in 4½ minutes while every man was at his post.</summary>
         private static unsafe void Manned(ref SquadDefendParams p, in SquadPlayContext ctx)
         {
             if (p.Posts.ReportedSet != 0) return;
+            bool all = true;
             for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
             {
                 if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
-                if (Vector3.Distance(ctx.At(m), p.Posts.Point(p.Posts.PostOf[i])) > PostRadius) return;
+                if (Vector3.Distance(ctx.At(m), p.Posts.Point(p.Posts.PostOf[i])) <= PostRadius) p.Posts.Reached[i] = 1;
+                all &= p.Posts.Reached[i] != 0;
             }
+            if (!all) return;
             p.Posts.ReportedSet = 1;
             Report(in ctx, p.Position, ProgressKind.Set);
         }
@@ -592,6 +600,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (alternate < 0) continue;
                 p.Posts.PostOf[i] = (byte)alternate;
                 p.Posts.MovedAt[i] = ctx.Now;
+                p.Posts.Reached[i] = 0;
                 ws.Reissue = 1;
                 Report(in ctx, p.Posts.Point(alternate), ProgressKind.Displacing);
             }
@@ -620,7 +629,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (Vector3.Distance(at, post) > FlankedMetres
                         || EngagementAreas.InArc(post, arc.LeftBearing, arc.RightBearing, arc.MinRange, arc.MaxRange, at)) continue;
                     int alternate = AlternateOf(ref p, in ctx, i);
-                    if (alternate >= 0) { p.Posts.PostOf[i] = (byte)alternate; p.Posts.MovedAt[i] = ctx.Now; }
+                    if (alternate >= 0) { p.Posts.PostOf[i] = (byte)alternate; p.Posts.MovedAt[i] = ctx.Now; p.Posts.Reached[i] = 0; }
                     var from = p.Posts.Point(p.Posts.PostOf[i]);
                     p.Posts.Faces[i] = 1;
                     p.Posts.FaceBearing[i] = LookAt.BearingTo(from, at);

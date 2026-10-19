@@ -934,17 +934,20 @@ the one order helper (`CommandOrders`), keyed on what the record already holds p
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-56** | when a displaced man's rounds count again | for **`DisplacedGraceSeconds` = 10 s** (DA-38's own window) after he is sent to a new post — by DA-38 or a flank (DA-43) — his rounds are read and dropped: he is moving there, not holding it; after it, three more move him again | counting only within `PostRadius` of the new post: two posts of one room (2.5 m apart, a storey up) are both "within 4 m", so he would count from the moment he left · a cap of N displacements per man: hides a post that is really untenable |
+| **DA-58** | when PROGRESS Set fires | once every live posted man has **reached** his post — stood within `PostRadius` of it since he was last sent to one (`DefencePosts.Reached`, cleared by DA-38 / DA-43's moves) — not "all within `PostRadius` in one frame" | a wider radius for Set: any figure is arbitrary against a peek step-out (`PeekSearchRadius` from a hide point up to 4 m out) · testing his hide point instead of him: he stands where the peek put him, not at the point |
 | **DA-57** | what a re-issue re-sends | the runner's **Hold / Watch and Move** orders (`Keep`) are skipped when `CommandOrders.StillRunning`: the ticking run's record for him names the same behaviour **and the same params** (`SubordinateOrders.Entry.Json`), and his `BehaviorState` runs that behaviour from `Superior`. A pause, a retake or a silent leader still re-sends whatever a reaction replaced | dedup in every `Assign`: the airborne exit re-sends ON PURPOSE to a man still aboard (`AirborneDrill.ReorderSeconds`) and a battery's next salvo is the same params · dedup on the receiving side (the intent ingress): a re-send from an operator or a new run is a real new order there · dropping the alternate from the Watch params so they change less: the man's hide search reads it (D-2a) |
 
 *As built (2026-10-19):* `SubordinateOrders.Entry.Json` (and `Record`'s `json`) · `CommandOrders.StillRunning` · `SquadManeuverRunner.Keep`
-(Hold, Move) · `DefencePosts.MovedAt` · `SquadDefendPlay.DisplacedGraceSeconds`. Rails `SquadManeuverTests.CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_*`,
-`…CE2304_ADisplacedMan_IsNotSentStraightBack_*`.
+(Hold, Move) · `DefencePosts.MovedAt` · `SquadDefendPlay.DisplacedGraceSeconds` · `DefencePosts.Reached` (DA-58). Rails `SquadManeuverTests.CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_*`,
+`…CE2304_ADisplacedMan_IsNotSentStraightBack_*`, `…CE2304_Set_CountsAManWhoReachedHisPost_*`.
 
 *Live after it (`sq-defend-house`, 4 runs):* 6 squad issues in 18 s instead of 26, every man keeping one order instance through the
 others' moves; every live man reaches his post (closest frame: all within 0.2 m) — yet `Set` came in 1 run of 4. 📐 **Cause, measured:**
 the squad has no superior, so the staff never empties its outbox (`StaffComposerSystem` sends only for a unit with a live superior);
 the 8-slot outbox filled with `Displacing` reports and **refused the ninth** — `Set` — while `ReportedSet` was already 1, so it never
 came again. ⇒ ⭐ a full outbox drops its oldest report instead (`ReportQueue.Enqueue`; [Command Chain §8a `ReportOutbox`](DESIGN_Command_Chain_Example.md)).
+After it Set came in 2 runs of 3; in the third, one man (Rifleman 6) stood **4.2 m** from his post — fighting from a hide point of
+it — for 4½ minutes, and no frame had all seven within 4 m ⇒ **DA-58**: Set counts a man who has *reached* his post.
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
