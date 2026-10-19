@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19 (after the night run — written at fc2107aaa for the next session)
-current-answer: §0 start here · §1 where it stands · §2 the next steps, in order · §5 measured traps · §6 open with the user
+current-answer: §0 start here · §1 where it stands · §2 the next steps, in order · §5 measured traps · §6 the user's rulings on the leans (2026-10-19) and the merge to redo
 stale-below: §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
@@ -24,8 +24,8 @@ related-designs:
 |---|---|
 | ⭐ lane | `behaviors` (stable branch `behaviors`). Push with `git push -q origin behaviors`. No PRs |
 | ⭐ written at | `fc2107aaa` (behaviors) — after merging `backend` at `6b7e1ed81`; `ui` and `coordinator` had nothing new |
-| ⭐ ids | tracker next free **`CE-2301`**, rulings next free **`R-2054`** (block tables: `Blueprint_Issues_Tracker.md` "ID blocks", `RULINGS.md` §0a). ⚠ Component ids: backend proposed per-lane blocks (behaviors **418–433**) and already uses its own (434, 435) — take a new component id from 418 up until the user rules |
-| ⭐ first moves | `git fetch origin backend ui coordinator` and merge what moved · read §1 · then §2 step 1 |
+| ⭐ ids | tracker next free **`CE-2301`**, rulings next free **`R-2058`** (block tables: `Blueprint_Issues_Tracker.md` "ID blocks", `RULINGS.md` §0a). ⭐ Component ids: per-lane blocks ✅ approved (R-2056) — behaviors takes **418–433** |
+| ⭐ first moves | `git fetch origin backend ui coordinator` and merge what moved (⭐ §6: an ungated merge was aborted — redo it and gate it) · read §1 · then §2 step 1 |
 | ⚠ environment | a fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; the codebase-memory MCP may be down — use `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there: say so in any exhaustive claim) |
 
 ## 1. Where it stands *(2026-10-19)*
@@ -45,7 +45,7 @@ feature's own rails first, then new rails in the feature's suite; builds and tes
 
 | step | id | what | design | notes |
 |---|---|---|---|---|
-| **1** | `CE-2297` (slice 2a) | ⭐ **a Hold / Watch member stays**: the runner's `SquadManeuverRunner.Hold` asks `CombatPosture` with a `hold` flag so arriving does not end it — his eyes and his fight stay until the squad's next order | [Look Direction §3.3a](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) known-rot + lean | ⚠ **measure first**: which drills advance a phase on a member's task ENDING (a `BehaviorFinished` / `ProgressKind.Set` from the staff — CC-C sends PROGRESS on task end!) rather than on his position. ⛔ CC-C's staff composes PROGRESS when a member's task ends — a member that no longer ends may stop the squad's SET report. Grep `SquadSensing`, `StaffComposerSystem`, the plays' `PhaseFor`. This is a lean, not a ruling: if it reaches the staff, ask the user |
+| **1** | `CE-2297` (slice 2a) | ⭐ **a Hold / Watch member stays** (✅ approved, R-2055): the runner's `SquadManeuverRunner.Hold` asks `CombatPosture` with a `hold` flag so arriving does not end it — his eyes and his fight stay until the squad's next order | [Look Direction §3.3a](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) known-rot + lean | ⚠ **measure first**: which drills advance a phase on a member's task ENDING (a `BehaviorFinished` / `ProgressKind.Set` from the staff — CC-C sends PROGRESS on task end!) rather than on his position. ⛔ CC-C's staff composes PROGRESS when a member's task ends — a member that no longer ends may stop the squad's SET report. Grep `SquadSensing`, `StaffComposerSystem`, the plays' `PhaseFor`. Approved (R-2055); if it reaches the staff's reports, say so in the report |
 | **2** | (new row) | ⭐ **`MemberArc`** — an arc in the member order (`MemberOrder` in `SquadManeuverRunner.cs:69`); the runner publishes `SetEngagementAreaEvent` (origin Superior) for each man with an arc; withdraw what the play set when it ends (`ISquadPlay.Release`). First user: the danger crossing's security men (left / right along the road — `SquadDangerCrossingBehavior.cs:169-228`, `MemberOrderKind.Watch`) | [Defend & Attack §13a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-24, R-2038 — approved) | ⭐ allocate a CE row (`CE-2301`). Design detail with UML before code (it is new ground: `SectorPlanner.ForMembers` / `Moving`) |
 | **3** | `CE-2297` slice 2 + `CE-2298` | the march's file-place glances, the crossing security sides, the `Sentry` JSON tree's eyes, `ld-crossing-security`; an in-process twin for `ld-sentry-surprise` (`SquadTacticsScenarioTests` is the twin precedent) | [Look Direction §3.3, §3.4](../designs/look-direction/DESIGN_Look_Direction_And_FOV.md) | `ld-watch-last-window` (PC-16) and `ld-room-sectors` wait on the clearing |
 | **4** | `CE-2275` | **SquadDefend** (DA-D): `DefencePlan`, `FindDefensivePosts` / `FindBuildingPosts` / `FindRoofPosts`, set-back window posts (DA-6), `OccupyPost` / `Displace`, HoldFire and its lift (DA-7); `DefendArea` maps to it | [Defend & Attack §3, §4.2, DA-4…DA-7](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) | big: write §8c (INVENTORY + UML) first. Needs steps 1–2. WorldSurvey (BR-12) is built for the building posts |
@@ -70,8 +70,8 @@ feature's own rails first, then new rails in the feature's suite; builds and tes
 | lane | state | where |
 |---|---|---|
 | backend — **delivered** | BR-3 reports on the wire · BR-12 WorldSurvey · BR-13 ROE / reporting across nodes · LD-1 / LD-2 look · BR-6 spread + proficiency on the wire · BR-7 acquisition by exposure · BR-8 MG roles · BR-9 sniper / DMR / scope · BR-2 stun · BR-4 custody · BR-5 lean · ⭐ the sectors note ① ② ③ ⑤ (`CE-3261`…`CE-3263`: sector across nodes — tactical-intent kind 4; `EngagementArea` replicated; near-miss origin; succession on the wire) · `CE-3246` damage across nodes · `CE-3248` a throw is not a gunshot | [their note to behaviors](batches/NOTE_Backend_To_Behaviors_Platoon_Programme_Built.md) |
-| backend — **asked, open** | ⭐ [sight beyond 100 m](batches/NOTE_Behaviors_To_Backend_Sight_Beyond_100m.md) (an exposed walker at ~113 m never acquired) · the sectors note ④ the fire-team byte (waits on the user) · `CE-2287` brain-side geometry (Q94, waits on the user) | — |
-| ui | **UI-1…UI-7** buildings, `house-3f`, the CQB house, `cqb-village`, the command-picture map, the Reports window · **UI-8…UI-12** demo-city quarters | [platoon demos](batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md) · [quarters](batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md) |
+| backend — **asked, open** | ⭐ [sight beyond 100 m](batches/NOTE_Behaviors_To_Backend_Sight_Beyond_100m.md) (an exposed walker at ~113 m never acquired) · (the sectors note ④ the fire-team byte: ✅ built since, R-3019) · `CE-2287` brain-side geometry (Q94, waits on the user) | — |
+| ui | ✅ UI-4…UI-6 built on `ui` (`cqb-village`, the command picture on the map, the Reports window — not yet merged here; UI-7 offer open) · **UI-1…UI-7** buildings, `house-3f`, the CQB house, `cqb-village`, the command-picture map, the Reports window · **UI-8…UI-12** demo-city quarters | [platoon demos](batches/HANDOFF_Behaviors_To_Ui_Platoon_Demos.md) · [quarters](batches/HANDOFF_Behaviors_To_Ui_Demo_City_Quarters.md) |
 | coordinator | ⚠ an editor rail red since CE-4031 (`ThereIsOneNetworkIdResolverTests` → `TrafficReplicas.cs`) — reported, not ours | [note](batches/NOTE_Behaviors_To_Coordinator_NetworkId_Rail_Red.md) |
 
 ## 5. Measured traps *(2026-10-18 / 19 — re-measure before relying on one)*
@@ -90,13 +90,23 @@ feature's own rails first, then new rails in the feature's suite; builds and tes
 | ⚠ flaky: ST-030 `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` (green alone) | every SimHost run |
 | ⛔ (2026-10-18) mission plans: ≤ 8 phases, one unit, operator only · an insurgent with no order only hides · mortars have no firing sound · `GET /orders` is the catalogue, not issued orders · demo-city's houses are one storey | the platoon / urban demos |
 
-## 6. Open with the user *(each with my lean)*
+## 6. The user's rulings on the night's leans *(2026-10-19)*
 
-- ⭐ **`hold: true`** for a squad's Hold / Watch member (§2 step 1) — lean yes; measure the staff's PROGRESS first.
-- ⭐ the sector leans **DA-26…DA-30** (Defend & Attack §13c) — built as leaned; ask for a yes or the one to change.
-- **CE-2281's fire-team carrier** — lean: a `FireTeam` byte on `EntityInfo` (backend: the wire can take it). **Role takeover** needs a weapon pick-up design first (§12c).
-- **component-id blocks per lane** — lean yes, as backend proposed ([note](batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md)); three collisions in one day.
-- **TC-7** (how lethal a man holding a throwable counts, `CE-2256`) — backend and behaviors agree per held item; not ruled.
+🔒 User, `2026-10-19`: *"Pls also record there i am approving your leans. Backend might have already actend on those."*
+
+| lean | ruling | state |
+|---|---|---|
+| a squad's Hold / Watch man STAYS (`hold` flag on `CombatPosture`) | ✅ **R-2055** | ⏳ not built — §2 step 1 (measure the staff's PROGRESS first) |
+| the sector leans DA-26…DA-30 | ✅ **R-2054** | ✅ already built as leaned (`CE-2282`) — nothing to change |
+| the fire-team carrier (`CE-2281`) | ✅ **R-3019** (backend recorded it) | ✅ backend BUILT the wire half — a `FireTeam` byte on `EntityInfo` + a scenario key (`2c58000ea` on `backend`) — ⭐ **NOT YET MERGED into `behaviors`**; then the plays' split by team is buildable |
+| per-lane component-id blocks | ✅ **R-2056** | behaviors takes new component ids from **418–433**; ⏳ the table still belongs in `GlobalComponentIds.cs`'s header (backend's file — check whether backend wrote it) |
+| TC-7 — a held throwable is lethal only within its throw (`CE-2256`) | ✅ **R-2057** | ⏳ not built |
+| role takeover (`CE-2281`) | — | still needs a weapon pick-up design first (Defend & Attack §12c) |
+
+⭐ **First move next session:** merge `backend` (17 commits at `d1e524cd6`: R-3017…R-3019, the fire-team byte, Q94's "the muscle fires or
+refuses") and `ui` (UI-4 `cqb-village`, UI-5 the command picture on the map, UI-6 the Reports window, CE-1193 the lean drawn) — a
+merge was started on 2026-10-19 and aborted UNGATED when the session was stopped; it auto-merged with no conflicts. Gate it (SimHost,
+Toolkits, NED, Editor) before committing.
 
 ## 7. The 2026-10-19 night run — the record
 
