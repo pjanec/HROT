@@ -562,6 +562,68 @@ sequenceDiagram
 inside it is a new reader) — the anchor keeps him at his arc's origin meanwhile. ⚠ The posture's **advance** branch (flank, firing position)
 can still take a posted man out of his building — ⛔ not measured; the live demo answers it.
 
+#### D-2b — the set-back post, by the squad's tier *(DA-6, DA-16; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a window point is built by `TerrainCoverProvider.AddPanelFaces` 0.75 m inside the face, facing OUT
+(`Direction` = toward the window), at the lowest stance that clears the sill; nothing deeper in the room is generated. The floor and
+"something stands here" rules (`HasFloor`, `Occupied`) live there, and `TerrainWorld.SegmentBlocked` answers "is a wall in between".
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainCoverProvider { <<EXISTING, + SetBack>> SetBack(world, window point, metres, min) → a point on the line through the window }
+  class CoverPointsGenerator { <<EXISTING, + SetBackMetres>> WindowFiring points pushed back, else the sill point }
+  class FindDefensiveWindowSetBackPosts { <<NEW template>> the set-back twin of FindDefensiveWindowPosts }
+  class FindWindowSetBackPostsAllRound { <<NEW template>> twin of FindWindowPostsAllRound }
+  class FindWindowSetBackPosition { <<NEW template>> twin of FindWindowFiringPosition (the man's own hide ask) }
+  class ProficiencyOf { <<EXISTING, + MedianTier>> }
+  class SquadDefendPlay { <<EXISTING>> the window ask by the squad's median tier · MemberPost.SetBack }
+  class CombatPostureBehavior { <<EXISTING>> Post: a set-back window post hides with FindWindowSetBackPosition }
+  CoverPointsGenerator ..> TerrainCoverProvider : SetBack
+  FindDefensiveWindowSetBackPosts ..> CoverPointsGenerator : SetBackMetres 2
+  FindWindowSetBackPostsAllRound ..> CoverPointsGenerator
+  FindWindowSetBackPosition ..> CoverPointsGenerator
+  SquadDefendPlay ..> ProficiencyOf : MedianTier of its live men
+  SquadDefendPlay ..> FindDefensiveWindowSetBackPosts : Regular and above
+  CombatPostureBehavior ..> FindWindowSetBackPosition
+```
+*What the picture shows that prose hid:* the set-back is ONE geometry rule in the provider that already owns the window points, reached
+through one generator option — three templates are the existing three with the option set, so the post ask, the all-round ask and the
+man's own hide ask all agree on where a set-back post is.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay
+  participant EQS as EQS (muscle)
+  participant G as CoverPointsGenerator (SetBackMetres 2)
+  participant T as TerrainCoverProvider
+  P->>P: the median tier of its live men
+  alt Regular, Veteran, Elite
+    P->>EQS: FindDefensiveWindowSetBackPosts
+    EQS->>G: generate
+    G->>T: each window point: SetBack(2 m, else 1.5 m)
+    T-->>G: floor there, nothing standing, no wall between, else the sill point
+    G-->>EQS: the points (still WindowFiring, the window's stance)
+    EQS-->>P: those that see the EA point (the LOS filter judges the narrower view)
+  else Untrained, Militia
+    P->>EQS: FindDefensiveWindowPosts (at the sill)
+  end
+  P->>P: each window man's post set carries SetBack
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-41** | where a set-back post is | the window point pushed back along its own facing **2 m** (DA-6's 1.5–2.5 m, its middle), else **1.5 m**, kept only where the floor continues, nothing stands and no wall lies between it and the window (`SegmentBlocked` at 1 m); neither fits ⇒ **the sill point** (a shallow room still gets a post). Kind stays `WindowFiring` and keeps the window's stance, so `PeekAndFire` still comes up at it; the LOS filter decides whether the narrower view still sees the EA | a new `CoverKind.WindowSetBack` baked into the provider's database: every cover reader, the gizmo and the kind encoding learn a value for what is one push · the set-back computed in the play: the man's own hide ask (his PeekAndFire) would still answer sill points |
+| **DA-42** | who sets back | the **squad's median tier** (DA-16: "the commander's tier is his unit's median man") over its live men: **Regular and above** set back (DA-6), Untrained / Militia at the sill. One ask, so one tier for the squad; each window man's post set carries it into his own hide ask | per man: the posts come from one ask for the whole squad · the commander's own tier: a skilled leader with untrained men cannot run a regular's plan (DA-16's rejection) |
+
+📐 **Measured in the build (House A, `bt-range`):** an UPSTAIRS set-back post does not see a man 24 m from the house — 2 m back, the line
+down to him crosses the sill — so the post ask answers the ground-floor windows for a close EA; at 84 m the upstairs set-back posts see.
+⇒ a set-back defence gives up the near ground below its upper windows, as DA-6's narrower arc says; the LOS filter already makes that choice.
+
+⚠ **Not built here:** DA-16's "Veteran: set-back posts everywhere" vs Regular — both set back where the room allows (the sill fallback is the
+only difference that exists today) · DA-6's observation by a lean at the frame (BR-5) · the narrower view's effect on being SEEN needs
+DA-3 (backend `CE-3260`, built) — not measured live yet.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

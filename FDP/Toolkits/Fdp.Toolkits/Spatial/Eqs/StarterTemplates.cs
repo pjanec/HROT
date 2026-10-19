@@ -84,6 +84,63 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — the SET-BACK twin of <see cref="FindDefensiveWindowPosts"/>: each window point set back
+    /// 2 m (else 1.5 m, else at the sill) along the line through the window, kept when its eye still sees the engagement area's point. A
+    /// Regular-or-better squad's window posts. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindDefensiveWindowSetBackPosts
+    {
+        public const string AssetId = "3669bcc9-aad4-455f-bb9b-ad90354f7e12";
+        public const uint BlueprintId = 0xE4B1BBB2u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+        public const float SetBackMetres = 2f;
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = SetBackMetres },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2b — the set-back twin of <see cref="FindWindowPostsAllRound"/> (no engagement area).</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowSetBackPostsAllRound
+    {
+        public const string AssetId = "8d5cdcea-345e-4266-92d1-b7424f818c6a";
+        public const uint BlueprintId = 0x108713F8u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = FindDefensiveWindowSetBackPosts.SetBackMetres },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2b — the set-back twin of <see cref="FindWindowFiringPosition"/>: a set-back window man's own hide ask (his
+    /// <c>PeekAndFire</c>), so he rotates between set-back posts, never to the sill.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindWindowSetBackPosition
+    {
+        public const string AssetId = "c1c6d31a-cd0b-4a4b-8450-881418add1eb";
+        public const uint BlueprintId = 0xD3FE6EADu;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = FindDefensiveWindowSetBackPosts.SetBackMetres },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
+            MaxCandidates  = 32,
+        };
+    }
+
     /// <summary>⭐ A flank on the target: ring points around the TARGET that see it, scored by bearing — side-on to the
     /// target→self line scores most — then exposure and path cost.</summary>
     [EqsTemplate(AssetId)]

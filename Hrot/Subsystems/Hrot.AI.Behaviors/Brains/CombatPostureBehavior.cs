@@ -124,6 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (post.Radius <= 0f) return;
             peek = post.Window ? WindowDuelBehavior.Shape(0) : default;
+            if (post.Window && post.SetBack) peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId;   // ⭐ D-2b (DA-6)
             peek.Anchor = post.Point;
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;

@@ -110,6 +110,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte HasAlternate;
         public Vector3 Alternate;
         public float Radius;
+        /// <summary>⭐ D-2b (DA-6) — 1 = a SET-BACK window post: he hides and rotates among set-back points, never at the sill.</summary>
+        public byte SetBack;
     }
 
     /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
@@ -531,6 +533,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Post = post.Set == 0 ? default : new CombatPosturePostJsonDto   // ⭐ CE-2275 D-2a (PC-14) — he fights from his post
                 {
                     Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
+                    SetBack = post.SetBack != 0,
                 },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }

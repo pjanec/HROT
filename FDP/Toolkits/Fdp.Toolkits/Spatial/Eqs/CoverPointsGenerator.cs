@@ -19,6 +19,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// half its width + a margin, kept only where its box is clear, none round its own box. A person querier is unchanged. Default off.</summary>
         public bool VehicleFootprint { get; set; }
 
+        /// <summary>⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — with <see cref="CoverKind.WindowFiring"/>, each window point is set back into the room
+        /// this far (else <see cref="MinSetBackMetres"/>, else left at the sill — <see cref="TerrainCoverProvider.SetBack"/>). 0 = at the sill.</summary>
+        public float SetBackMetres { get; set; }
+
+        /// <summary>The shorter set-back tried when <see cref="SetBackMetres"/> does not fit (DA-6's 1.5 m).</summary>
+        public const float MinSetBackMetres = 1.5f;
+
         [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _vehicleScratch;
 
         /// <inheritdoc/>
@@ -42,12 +49,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
             float hullLength = 0f, hullWidth = 0f, hullHeight = 0f;
             bool hull = VehicleFootprint && Eqs.VehicleFootprint.Hull(repo, self, out hullLength, out hullWidth, out hullHeight);
             var world = hull ? EqsTerrainSight.World(repo) : null;
+            var terrain = Kind == CoverKind.WindowFiring && SetBackMetres > 0f ? EqsTerrainSight.World(repo) : null;   // ⭐ D-2b
 
             int rawCount = 0;
             for (int i = 0; i < found; i++)
             {
                 var at = new Vector3(rawPoints[i].PositionX, rawPoints[i].PositionY, rawPoints[i].PositionZ);
                 if (hull && !Sized(world, ref at, new Vector2(rawPoints[i].DirectionX, rawPoints[i].DirectionY), hullLength, hullWidth, hullHeight)) continue;
+                if (terrain != null) at = TerrainCoverProvider.SetBack(terrain, in rawPoints[i], SetBackMetres, MinSetBackMetres);   // ⭐ D-2b
                 // EntityId = 0 marks a positional candidate (no entity attached).
                 candidates[rawCount++] = new EqsResult
                 {

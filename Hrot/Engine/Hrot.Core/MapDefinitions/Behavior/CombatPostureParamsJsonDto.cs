@@ -68,6 +68,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>A WINDOW post: he fights it the window way (prone under the sill, up at it); else a cover post.</summary>
         [JsonPropertyName("window")]
         public bool Window;
+
+        /// <summary>⭐ D-2b (DA-6) — a SET-BACK window post: he hides among set-back points (1.5–2.5 m inside), never at the sill.</summary>
+        [JsonPropertyName("setBack")]
+        public bool SetBack;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

@@ -204,6 +204,31 @@ namespace Fdp.Toolkit.Spatial.Eqs
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — the SET-BACK post of a window firing point: pushed back into the room along its own facing
+        /// line by <paramref name="metres"/>, else <paramref name="minMetres"/>, kept only where the storey's floor continues, nothing stands
+        /// and no wall lies between it and the window (1 m up); neither fits ⇒ the window point itself. Same storey, same stance.
+        /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b.
+        /// </summary>
+        public static Vector3 SetBack(TerrainWorld world, in CoverPoint window, float metres, float minMetres)
+        {
+            var at = new Vector2(window.PositionX, window.PositionY);
+            var facing = new Vector2(window.DirectionX, window.DirectionY);
+            float floor = window.PositionZ;
+            var sill = new Vector3(at, floor);
+            if (facing.LengthSquared() < 1e-6f) return sill;
+            facing = Vector2.Normalize(facing);
+            if (Fits(metres, out var deep) || Fits(minMetres, out deep)) return new Vector3(deep, floor);
+            return sill;
+
+            bool Fits(float d, out Vector2 p)
+            {
+                p = at - facing * d;
+                return d > 0f && HasFloor(world, p, floor) && !Occupied(world, p, floor)
+                    && !world.SegmentBlocked(new Vector3(p, floor + 1f), new Vector3(at, floor + 1f));
+            }
+        }
+
         /// <summary>A walkable level within <see cref="LevelTolerance"/> of <paramref name="floor"/> at <paramref name="p"/>.</summary>
         private static bool HasFloor(TerrainWorld world, Vector2 p, float floor)
         {

@@ -1489,6 +1489,12 @@ sequenceDiagram
   L-->>S: keep the visible ones, Distance + PathCost rank them
 ```
 
+⭐ **`CE-2275` D-2b (2026-10-19) — the SET-BACK window post.** `TerrainCoverProvider.SetBack` pushes a `WindowFiring` point back along its own
+facing (2 m, else 1.5 m; the floor must continue, nothing stand there and no wall lie between; else it stays at the sill), reached through
+`CoverPointsGenerator.SetBackMetres`. The database is unchanged (no new `CoverKind`); three templates use the option —
+`FindDefensiveWindowSetBackPosts`, `FindWindowSetBackPostsAllRound`, `FindWindowSetBackPosition`. 📄
+[Defend & Attack §8c D-2b](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-41).
+
 ### 3l.4 Modules — who builds it, who reads it, each frame
 
 ```mermaid

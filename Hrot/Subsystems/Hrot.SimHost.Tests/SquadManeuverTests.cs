@@ -1834,7 +1834,8 @@ namespace Hrot.SimHost.Tests
                 CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
                 Assert.Equal(post, block.Peek.Anchor);
                 Assert.Equal(SquadDefendPlay.PostRadius, block.Peek.AnchorRadius);
-                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId : 0u, block.Peek.HideTemplate);
+                Assert.Equal(window, dto.Post.SetBack);   // ⭐ D-2b — no proficiency ⇒ Regular ⇒ the windows are set back
+                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : 0u, block.Peek.HideTemplate);
                 Assert.Equal(window ? (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1) : (byte)0, block.Peek.HideStanceOverride);
             }
 
@@ -1851,6 +1852,44 @@ namespace Hrot.SimHost.Tests
             Assert.True(spare.HasAlternate);
             Assert.Equal(new Vector3(0, 9, 0), spare.Alternate);
             Assert.True(spare.Window);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-16, DA-42) — the squad's MEDIAN man decides where its windows are held: a Regular squad asks for
+        /// SET-BACK window posts and each window man hides set back; a Militia squad asks for the sill and its men hide there; one Elite
+        /// among two militia does not move the median. ✅ Red-proofs: the tier read from the commander (no component ⇒ Regular) ⇒ the
+        /// militia set back; the set-back flag not passed to the man ⇒ he hides at the sill.
+        /// </summary>
+        [Theory]
+        [InlineData(ProficiencyOf.Regular, ProficiencyOf.Regular, true)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Militia, false)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Elite, false)]   // two militia and one elite: the median is militia
+        public void CE2275_SquadDefend_TheMedianManDecides_ARegularSquadSetsBack_AMilitiaSquadHoldsTheSill(float most, float first, bool setBack)
+        {
+            var s = new Squad(members: 3);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            for (int i = 0; i < 3; i++)
+                s.Repo.AddComponent(s.Members[i], new CombatProficiency { Authored = i == 0 ? first : most, Set = CombatProficiency.AuthoredSet });
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
+            Assert.False(ask.IsNull);
+            Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPostsAllRound.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowPostsAllRound.BlueprintId,
+                s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
+
+            AnswerAll(s, ask, new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(12, 5, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            foreach (var m in s.Members)
+            {
+                var dto = PostureOf(s, m);
+                Assert.True(dto.Post.Window);
+                Assert.Equal(setBack, dto.Post.SetBack);
+                var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+                CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
+                Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId,
+                    block.Peek.HideTemplate);
+            }
         }
 
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)

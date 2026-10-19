@@ -431,6 +431,64 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(2f, c[0].PositionX);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-41) — the SET-BACK post of House A's east window lies 2 m back into the room on the line through
+        /// the window (same storey, same facing); a depth that would cross the far wall at both tries falls back to the window point itself.
+        /// ✅ Red-proofs: pushed the wrong way ⇒ outside the house; the wall check dropped ⇒ the 40 m depth lands outside.
+        /// </summary>
+        [Fact]
+        public void CE2275_SetBack_TheEastWindowsPost_IsTwoMetresBackOnItsLine_AndAnImpossibleDepthStaysAtTheSill()
+        {
+            var (w, pts) = HouseA();
+            var fire = Assert.Single(pts, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f);
+
+            var back = TerrainCoverProvider.SetBack(w, in fire, 2f, 1.5f);
+            Assert.Equal(fire.PositionX - 2f, back.X, 2);   // the window faces +X: back is −X, deeper in the room
+            Assert.Equal(fire.PositionY, back.Y, 2);
+            Assert.Equal(fire.PositionZ, back.Z, 2);
+            Assert.True(InHouseA(new CoverPoint { PositionX = back.X, PositionY = back.Y }));
+
+            var none = TerrainCoverProvider.SetBack(w, in fire, 40f, 30f);   // through the west wall, both tries
+            Assert.Equal(new Vector3(fire.PositionX, fire.PositionY, fire.PositionZ), none);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2b — <c>FindWindowSetBackPosition</c> upstairs in House A (the acceptance of
+        /// <see cref="CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey"/>, set back): every answer is a
+        /// window position ≥ 1.5 m back from every sill point, on his storey, and still sees the target from its stance's eye.
+        /// ✅ Red-proof: the generator option ignored ⇒ the answers are the sill points.
+        /// </summary>
+        [Fact]
+        public void CE2275_FindWindowSetBackPosition_UpstairsInHouseA_AnswersSetBackPointsThatStillSeeTheTarget()
+        {
+            var w = Recipe("bt-range");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            // ⚠ measured: at the sill rail's 24 m target the upstairs set-back posts do NOT see it — 2 m back, the line down to a man that
+            //   close crosses the sill (DA-6's "narrower arc") and the ground floor answers instead. A far target is what a defence watches.
+            var target = new Vector3(104, 20, 0);
+            var sensor = new EqsSensor { SearchRadius = 15f, ContextSlot0 = At(104, 104, 3), ContextSlot1 = At(target.X, target.Y) };
+
+            var top = Run(FindWindowSetBackPosition.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(top);
+            Assert.Equal(3f, top[0].PositionZ, 2);
+            Assert.True(top[0].PositionY > 100.9f + 1.4f, $"set back from the south wall's inside face: {top[0].PositionY:F2}");
+            var sills = cover.Points.Where(p => p.Kind == CoverKind.WindowFiring).ToList();
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            Assert.All(top, r =>
+            {
+                Assert.True(r.TryGetKind(out var k) && k == CoverKind.WindowFiring);
+                Assert.All(sills, s => Assert.True(Vector3.Distance(new Vector3(s.PositionX, s.PositionY, s.PositionZ),
+                    new Vector3(r.PositionX, r.PositionY, r.PositionZ)) >= 1.45f));
+                Assert.False(w.SegmentBlocked(
+                    new Vector3(r.PositionX, r.PositionY, r.PositionZ + (r.TryGetStance(out var s) ? mount.For(s) : mount.Standing)),
+                    target + new Vector3(0, 0, 0.85f)), $"({r.PositionX:F2},{r.PositionY:F2},{r.PositionZ:F2}) does not see the target");
+            });
+        }
+
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
         /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
         /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert

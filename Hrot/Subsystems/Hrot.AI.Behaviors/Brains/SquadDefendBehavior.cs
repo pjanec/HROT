@@ -47,6 +47,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Count;
         /// <summary>⭐ D-2a — the first this many candidates came from the window ask (windows), the rest are cover.</summary>
         public byte WindowCount;
+        /// <summary>⭐ D-2b (DA-6, DA-42) — 1 = the window posts are SET BACK in the room (the squad's median man is Regular or better).</summary>
+        public byte SetBack;
         /// <summary>Per roster slot: the candidate he holds, or <see cref="None"/>.</summary>
         public fixed byte PostOf[Capacity];
         /// <summary>Per roster slot: rounds at him counted since <see cref="WindowStart"/>.</summary>
@@ -269,6 +271,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Post = new MemberPost   // ⭐ D-2a (PC-14, DA-40) — he fights from his post: its windows or his alternate, never elsewhere
                 {
                     Set = 1, Window = post < p.Posts.WindowCount ? (byte)1 : (byte)0, Radius = PostRadius,
+                    SetBack = post < p.Posts.WindowCount ? p.Posts.SetBack : (byte)0,   // ⭐ D-2b — his own hide ask sets back too
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
             };
@@ -287,10 +290,17 @@ namespace Hrot.AI.Behaviors.Brains
             if (from.IsNull) return;
             if (p.Posts.WindowStage < 2)
             {
-                if (p.Posts.WindowStage == 0) { p.Posts.WindowStage = 1; p.Posts.StageSince = ctx.Now; }
+                if (p.Posts.WindowStage == 0)
+                {
+                    p.Posts.WindowStage = 1; p.Posts.StageSince = ctx.Now;
+                    p.Posts.SetBack = SetsBack(in ctx) ? (byte)1 : (byte)0;   // ⭐ D-2b (DA-42) — once, by the squad's median man
+                }
+                bool back = p.Posts.SetBack != 0;
                 bool answered = hasEa
-                    ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindDefensiveWindowPosts.BlueprintId, WindowSite, p.SearchRadius, from, ea, out var buffer)
-                    : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindWindowPostsAllRound.BlueprintId, WindowSite, p.SearchRadius, from, p.Position, out buffer);
+                    ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindDefensiveWindowSetBackPosts.BlueprintId : FindDefensiveWindowPosts.BlueprintId,
+                        WindowSite, p.SearchRadius, from, ea, out var buffer)
+                    : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindWindowSetBackPostsAllRound.BlueprintId : FindWindowPostsAllRound.BlueprintId,
+                        WindowSite, p.SearchRadius, from, p.Position, out buffer);
                 if (!Settle(ref p, ref ws, in ctx, answered, in buffer)) return;
                 p.Posts.WindowStage = 2;
                 p.Posts.WindowCount = p.Posts.Count;
@@ -311,6 +321,16 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Posts.LastSense[i] = ctx.Live(i, out var m) ? LastRoundAt(ctx.World, m) : double.NegativeInfinity;
             }
             ws.Reissue = 1;
+        }
+
+        /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man is Regular or better ⇒ its window posts are set back.</summary>
+        private static bool SetsBack(in SquadPlayContext ctx)
+        {
+            Span<Entity> men = stackalloc Entity[DefencePosts.Capacity];
+            int n = 0;
+            for (int i = 0; i < ctx.Roster.Count && n < men.Length; i++)
+                if (ctx.Live(i, out var m)) men[n++] = m;
+            return ProficiencyOf.MedianTier(ctx.World, men[..n]) >= ProficiencyTier.Regular;
         }
 
         /// <summary>True once the ask is over: its points kept (append), or it timed out (the sensor goes).</summary>
