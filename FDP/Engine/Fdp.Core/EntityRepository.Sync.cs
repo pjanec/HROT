@@ -149,6 +149,20 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3267</c> — gives a MODULE'S SNAPSHOT the frame's clock: the source's <see cref="GlobalTime"/> as a VALUE (the main thread
+        /// rewrites the live singleton every frame, so the table is never shared). A background module's view then reads the time of the
+        /// frame it was taken at, as it reads that frame's positions. Called by the snapshot providers right after <see cref="SyncFrom"/>;
+        /// ⛔ deliberately NOT part of <see cref="SyncFrom"/> itself, which also restores the LIVE world from a snapshot (a preview's rewind)
+        /// and must never rewind the clock there (docs/blueprints/DESIGN_Time_Architecture.md §12a: one time discontinuity).
+        /// <para>📌 Before (measured 2026-10-19): a snapshot carried no clock, so the EQS memory stage read 0 for ever and a sighting's
+        /// acquisition dwell (CE-3260) never passed — a fully exposed man beyond 100 m was never acquired on SimHost.</para>
+        /// </summary>
+        public void CopyClockFrom(EntityRepository source)
+        {
+            if (source.HasSingleton<GlobalTime>()) SetSingletonUnmanaged(source.GetSingleton<GlobalTime>());
+        }
+
+        /// <summary>
         /// Copies a single singleton table slot from <paramref name="source"/> into this repository
         /// by sharing the table reference.  Only used for SoD singleton sync where the background
         /// thread reads the singleton as immutable data and the main thread does not structurally

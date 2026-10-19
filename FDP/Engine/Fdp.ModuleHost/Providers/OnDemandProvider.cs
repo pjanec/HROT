@@ -69,6 +69,7 @@ namespace Fdp.ModuleHost.Providers
 
             // Sync from live world (with component mask filtering)
             snapshot.SyncFrom(_liveWorld, _componentMask);
+            snapshot.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the module's view carries the frame's clock
 
             // Flush event history (only events after lastSeenTick).
             // FlushToReplica calls InjectIntoCurrent which writes directly into the READ buffer

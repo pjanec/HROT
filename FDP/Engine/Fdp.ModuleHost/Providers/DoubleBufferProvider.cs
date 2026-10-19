@@ -69,6 +69,7 @@ namespace Fdp.ModuleHost.Providers
 
             // Sync using the configured mask (or default snapshotable mask if null)
             _replica.SyncFrom(_liveWorld, _mask);
+            _replica.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the module's view carries the frame's clock
 
             // Flush event history
             // We flush events that happened since the last sync
