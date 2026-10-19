@@ -42,6 +42,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
 
+            // ⭐⭐ Q94 A-3 (R-3018) — the muscle's answers to this node's fire requests spend (or refuse) the rounds asked, before any
+            //   executor asks again this frame.
+            Fdp.Toolkit.Combat.ShotLedger.Settle(repo);
+
             // ⭐ CE-3089 (G7) — a weapon MOUNT child reloads too, whichever mount is firing (it has no WeaponChannel, so the loop
             //   below never reaches it). Measured live: the TOW fired once and its cooldown stayed at 1 for the rest of the run.
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>())
@@ -54,6 +58,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref var ws = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
                     DrainCooldown(ref ws, deltaTime);
+                    Fdp.Toolkit.Combat.ShotLedger.Tick(ref ws, deltaTime);   // ⭐ Q94 A-3 — the ask timeout and the refusal hold
                     Fdp.Toolkit.Combat.Magazine.Tick(ref ws, deltaTime);   // ⭐ CE-3136 P-5 — a reload runs whether or not the mount fires
                 }
             }
@@ -79,6 +84,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref var weaponState = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(entity);
                     DrainCooldown(ref weaponState, deltaTime);
+                    Fdp.Toolkit.Combat.ShotLedger.Tick(ref weaponState, deltaTime);   // ⭐ Q94 A-3
                     // ⭐ CE-3136 P-5 (D9) — the reload runs here, every frame, so it finishes while the unit is hidden (B8)
                     Fdp.Toolkit.Combat.Magazine.Tick(ref weaponState, deltaTime);
                 }

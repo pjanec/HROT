@@ -176,7 +176,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 SayHeld(world, entity, p.Point, reason, in weapon);
                 return;
             }
-            if (loadedAmmo != 0) AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ CE-3230 (H-5) — and that kind's count
+            // ⭐ CE-3230 (H-5) / Q94 A-3 — that kind's count is spent by the muscle's answer (ShotLedger.Answer), with the total
             if (PersonHands.IsHands(mountDto)) RoundPickUp.Thrown(world, entity, loadedAmmo);   // ⭐ CE-3235 (PU-6) — the live round left his hand
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
@@ -230,7 +230,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// ⭐ The ONE per-shot round at a point (shared with <see cref="AimAndFireExecutor"/>'s operator fire, <c>CE-3172</c> S4d):
         /// the mount's cooldown, the person's fire arc (when <paramref name="obeyArc"/> — the AI's, <c>CE-3195</c>), the unit's ROE (unless <paramref name="obeyRoe"/> is false — an operator overrides it, C-2), a
         /// DIRECT burst never through a friend (an indirect warhead arcs over — exempt), the magazine; then a
-        /// <see cref="WeaponFireIntent"/> at the point and the round spent. Returns <c>Firing</c> when a round left, otherwise why
+        /// <see cref="WeaponFireIntent"/> at the point and the round ASKED (⭐ Q94 A-3 — spent when the muscle answers it fired). Returns <c>Firing</c> when a round left, otherwise why
         /// not (the round is held, nothing spent). The caller has checked the ammunition.
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
@@ -241,6 +241,8 @@ namespace Fdp.Toolkit.Combat.Executors
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
             // ⭐ CE-2166 — read, never drained here: WeaponDispatcherSystem drains every weapon and mount once a frame
             if (weapon.CooldownSecondsRemaining > 0f) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown;
+            // ⭐⭐ Q94 A (R-3018) — the muscle refused this weapon's last round (masked by the wall at the muzzle, …): held a moment, its reason
+            if (ShotLedger.Held(in weapon, out var refused)) return AimAndFireExecutor.HoldReasonOf(refused);
             // ⭐ CE-3195 (W-14a) — a person's round at a point waits for his body to face it (the AI's; an operator turns himself)
             if (obeyArc && BodyAim.HoldsFire(world, unit, point)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Turning;
             // ⭐ Air Ops slice 6a (AW-1, §7a) — the AI's fixed gun / rocket pod: only inside its nose cone (the operator points it himself)
@@ -282,8 +284,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
                 FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
                 BurnSeconds = burnSeconds,   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left (0 = its own)
+                RequestId = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — asked; the muscle's answer spends it (CE-3136 P-5's magazine too)
             });
-            Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = cooldownSeconds;
             return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing;
         }

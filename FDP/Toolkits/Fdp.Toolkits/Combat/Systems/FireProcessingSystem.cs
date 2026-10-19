@@ -125,6 +125,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
                 // ⭐ WS-3 — a carried / station weapon system aims from its carrier's eye (HitModel.BodyOf; itself otherwise)
                 shooterPos = ShotOrigin.Eye(repo, shooter, out var sightBody);   // ⭐ CE-2218 — the one origin rule (the brain's hold reads it too)
+                // ⭐⭐ Q94 A-4 (R-3018) — a DIRECT round at a POINT (blind fire at where he was last seen, a burst at a spot) is judged the
+                //   same way: the muzzle line on the live terrain. An arcing or dropped round is exempt (MuzzleMasked's own rule).
+                if (evt.AtPoint && LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
+                {
+                    Refuse(repo, in evt, FireRefusal.Masked, now);
+                    continue;
+                }
                 if (!evt.AtPoint)
                 {
                     // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)

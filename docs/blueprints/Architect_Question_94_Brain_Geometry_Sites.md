@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: DESIGN — §2 E (the cloud drift and the fog judge take a replicated height, `CE-3258`) BUILT 2026-10-19 as the one zero-blast-radius site; A–D, F wait for the user.
-current-answer: §0 the one-page decision · §2 the sub-questions with leans · §1 the claim table.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); A-5 indirect, A-6 bomb, A-7 battery plan, B, C, D not yet.
+current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers · §2 the sub-questions with leans.
 stale-below: nothing.
 known-rot: none.
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
@@ -250,6 +250,62 @@ SPENT only at the report — the brain still never asks for more than it has.
 M4, A6, CE2173 ×2, CE2180, IF1 ×2; `ActionStatusTests.Masked_IsAHold`; spend-at-fire tests `WeaponStateTests:39`,
 `CountermeasureSystemTests:135`, `StarterPackIntegrationTests:694`, `AimAndFireExecutorTests:855`. ⚠ `BS-1-DESIGN.md` §5.4c ("one
 counter, the brain's, as for every round") stays true — the counter is the brain's — but its spend MOMENT changes; fold on build.
+
+### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; A-5 indirect, A-6 bomb, A-7 battery plan NOT YET)*
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponState { <<EXISTING brain, + 5 ledger fields>> Ammo MagazineRounds CooldownSecondsRemaining LastRequestId LastAnsweredId PendingSeconds RefusalHoldSeconds Refusal }
+  class ShotLedger { <<NEW static>> Ask() Pending() Held() Tick() Answer() Settle() MountOf() }
+  class Magazine { <<EXISTING>> Ready counts the pending asks · Spend }
+  class WeaponDispatcherSystem { <<EXISTING brain>> Settle once a frame · Tick beside the cooldown drain }
+  class AimAndFireExecutor { <<EXISTING brain>> asks · holds on Held · HoldReasonOf }
+  class FireAtPointExecutor { <<EXISTING brain>> ShootAtPoint asks · holds on Held }
+  class HiddenTargetThrow { <<EXISTING brain>> asks }
+  class FireProcessingSystem { <<EXISTING muscle>> MuzzleMasked for entity and point · Refuse }
+  class WeaponFireNotification { <<EXISTING>> RequestId Refusal Fired }
+  AimAndFireExecutor ..> ShotLedger : Ask, Held
+  FireAtPointExecutor ..> ShotLedger : Ask, Held
+  HiddenTargetThrow ..> ShotLedger : Ask
+  ShotLedger --> WeaponState : the ledger lives here
+  Magazine ..> ShotLedger : Pending
+  WeaponDispatcherSystem ..> ShotLedger : Settle, Tick
+  FireProcessingSystem --> WeaponFireNotification : fired or refused
+  WeaponFireNotification ..> ShotLedger : Settle matches RequestId
+  ShotLedger ..> Magazine : Answer fired spends
+```
+*What the picture shows that prose hid:* there is no new component and no new system — the ledger is a rule over fields of the counter it
+guards, driven by the dispatcher that already drains that counter's cooldown and reload; and the three brain paths that make a per-shot
+round all go through the same two calls (`Ask`, `Held`).
+
+
+| step | what landed | rails *(all red-proofed by mutants)* |
+|---|---|---|
+| **A-1** carrier | `WeaponFireIntent.RequestId` (uint, 70 B) · `WeaponFireNotification.RequestId` + `Refusal` (81 B) + `Fired` · DDS `WeaponFireRequest.RequestId`, `WeaponFire.RequestId` + `Refusal` (appended) · `FireRefusal` grows `Expired = 4`, `CannotFire = 5` | size rails · `M8_TheLoadedRound_RoundTripsTheWire` · `Q94_TheAnswer_CarriesTheRequestIdAndTheRefusal` · the IG ingress rail |
+| **A-2** readers | sound, heat, effects, event-to-effect, traffic panic skip `!Fired` | `Q94_ARefusedShot_IsNotHeard` |
+| **A-2** muscle answers every request | `FireProcessingSystem`: no `WeaponState` / a laid-down mount ⇒ `CannotFire`; the fired notification echoes `RequestId`; one `Refuse` helper | `FireProcessingSystemTests.Q94_AShotTheMuscleCannotMake_IsAnsweredCannotFire` |
+| **A-4** masked | `FireProcessingSystem` runs `LineOfFire.MuzzleMasked` on the live terrain for an entity target AND a direct round at a point ⇒ `Masked`; ⛔ the brain's two `MuzzleMasked` calls (aimed, blind) are GONE | `Q94_AMaskedShot_IsRefusedByTheMuscle_AnOpenOne_IsFired_EachAnswerNamesItsRequest` (bt-range, the live `ua-rpg-window` geometry) · `Q94_AMaskedRoundAtAPoint_IsRefusedByTheMuscle_AnOpenOne_Flies` |
+| **A-3** ledger | `ShotLedger` (static, `Combat/ShotLedger.cs`) over five APPENDED `WeaponState` fields (`LastRequestId`, `LastAnsweredId`, `PendingSeconds`, `RefusalHoldSeconds`, `Refusal`; 32 → 52 B). `Ask` at the request; `Magazine.Ready` reserves the pending rounds; `WeaponDispatcherSystem` calls `ShotLedger.Settle` (answers ⇒ `Magazine.Spend` + `AmmoChoice.SpendLoaded`) and `ShotLedger.Tick` (2 s timeout, 1 s refusal hold) | `Q94_TheAsk_ReservesTheRound_TheFiredAnswerSpendsIt_Once` · `Q94_AMaskedRefusal_SpendsNothing_HoldsMasked_ThenAsksAgain` · `Q94_AnUnansweredAsk_TimesOut_NothingSpent_ALateAnswerIgnored` |
+
+⭐ **Tests that moved (the spend moment changed, not what they assert):** a brain-only test world has no muscle, so `Fdp.Toolkits.Tests`
+gained `TestMuscle.FireAll` (every ask answered "fired") — called from `AimAndFireExecutorTests.Tick` and before the ammo asserts of
+`G3_R1`, `P2_ASelfPropelledGun`, `IF1_AGunnerFiresTheMortar`, `CE2173_ABombAtAPoint`, `PersonHandsTests.CE3230`, `StarterPack CE3089`;
+`AirAttackNodesTests` (SimHost) answers the same way after each executor frame — without it the ledger's reservation cap stopped the
+rocket ripples and door-gun bursts (7 reds, all of that one harness). `WeaponStateTests` size rail 32 → 52.
+
+**Deviations from §4, each argued:**
+
+| §4 said | built | why |
+|---|---|---|
+| `ShotLedger` a NEW class, per mount, `Pending(RequestId, rounds, sentAt)` | a static helper over five fields APPENDED to `WeaponState` (the ids are per mount and rise by one, so pending = `LastRequestId − LastAnsweredId`; one age, not one per ask) | the counter it guards already lives there (W-4: the brain's one counter) — no new component to register on every brain world, and no second entity lookup per shot. ⚠ An answer that skips ids drops the skipped asks unspent (the DDS writer is ordered, so it is only a lost sample) |
+| a refusal clears the reservation | it also CANCELS the cooldown the ask set and holds the weapon `RefusalHoldSeconds` (1 s) with the reason | without it a long-cooldown weapon (an RPG) reported `Cooldown` for its whole interval before `Masked` reached the behaviour — `PeekAndFire` would burn the window late. The hold is the "re-check hold" §4 left implicit: the brain does not re-ask every frame for a shot the muscle just refused |
+| (silent) | the muscle judges a DIRECT round at a POINT too, not only one at an entity | the blind path's brain check is gone, so the muscle must own it; an operator's direct round into the wall at his muzzle is now refused as well (it would have stopped there anyway) |
+| (silent) | the action's round count still counts ASKS; a refused round is not given back to the burst | a refusal holds the weapon and the behaviour moves (the `Masked` contract); refunding into a running action's slot would need the executor to read the ledger per frame for a case the behaviour already leaves |
+| — | ⛔ **not on the ledger:** the turret path (spent from the muscle's `RoundsFired`, W-4 — unchanged) and a DISPENSER release (`Countermeasures.Release`: the muscle never answers a dispenser, `FireProcessingSystem` skips it) | both already have their own honest counter |
+
+⚠ `FireRefusal` has no `OutOfRange` (§4's class box says so): the indirect "out of reach" is the existing `TooFar`, read as the hold
+`OutOfRange` (`AimAndFireExecutor.HoldReasonOf`). §4's table and diagrams above stay as the RULED design; this subsection is the as-built.
 
 ## 5. C and D — the carriers, measured *(backend, `2026-10-19`; build-state: READY-TO-BUILD as leaned below)*
 

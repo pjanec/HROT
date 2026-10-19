@@ -38,6 +38,24 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Seconds left of the running reload; 0 = not reloading.</summary>
         public float ReloadSecondsRemaining;
+
+        // ⭐⭐ Q94 A-3 (R-3018) — the SHOT LEDGER (Combat.ShotLedger owns the rule): the brain ASKS for a round, the muscle's answer spends it.
+        //   Pending = LastRequestId − LastAnsweredId, reserved against Ammo and the magazine (Magazine.Ready). Brain-only; never on the wire.
+
+        /// <summary>The id of the last fire request this weapon asked (<see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent.RequestId"/>).</summary>
+        public uint LastRequestId;
+
+        /// <summary>The newest request the muscle answered — fired or refused (or dropped by the timeout).</summary>
+        public uint LastAnsweredId;
+
+        /// <summary>Seconds the oldest unanswered request has waited (since the last ask or answer); the ledger drops it at its timeout.</summary>
+        public float PendingSeconds;
+
+        /// <summary>Seconds the last REFUSAL still holds this weapon (no new request); 0 = not held.</summary>
+        public float RefusalHoldSeconds;
+
+        /// <summary>The muscle's last refusal (why the round did not fly), read while <see cref="RefusalHoldSeconds"/> runs.</summary>
+        public Fdp.Toolkit.Combat.FireRefusal Refusal;
     }
 
     /// <summary>

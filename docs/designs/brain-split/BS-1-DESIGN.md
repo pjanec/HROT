@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§6.4a NEW — CE-3246: a hit reaches the Health owner from any node; the EntityHitDamage pair in the shared pack, SourceNodeId appended, one ownership rule) · 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
+updated: 2026-10-19 (§5.4c note — Q94 A-3: every per-shot round but a dispenser release is spent by the muscle's answer, ShotLedger) · 2026-10-19 (§6.4a NEW — CE-3246: a hit reaches the Health owner from any node; the EntityHitDamage pair in the shared pack, SourceNodeId appended, one ownership rule) · 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
 current-answer: whole document; §6.4a supersedes §6.3/§6.4/§7.2's role placement of the EntityHitDamage pair (now every node, CE-3246); §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
 stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
 known-rot: §5.4b's F4 slot (`WeaponSlots.Countermeasures = -1`) and its "Split" — superseded by §5.4c. §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
@@ -448,6 +448,12 @@ spent, reloaded and shown exactly as any weapon's (`WeaponState` + `AmmoLoadout`
 the HUD). A **salvo is the action's round count**, as a burst is; the interval is the mount's rate of fire. **One release = one decoy =
 one `WeaponFireNotification` with `Quantity = 1`** (DIS sends one Fire PDU per expendable launch). This also SUPERSEDES Missiles & Ammo
 §3c's `CountermeasuresDto` / `CountermeasureState` (the SimHost-side count) — one counter, the brain's, as for every round.
+
+> ⭐ **`2026-10-19` — Q94 A-3 (R-3018) moved the spend MOMENT of every OTHER per-shot round, not the counter:** the brain now only ASKS
+> (`WeaponFireIntent.RequestId`), the round is RESERVED, and the muscle's `WeaponFireNotification` — fired, or REFUSED with a reason —
+> is what spends it (`Combat/ShotLedger.cs`, run by `WeaponDispatcherSystem`). The counter is still the brain's one `WeaponState`. ⛔ A
+> DISPENSER release keeps its spend at the release (`Countermeasures.Release`): the muscle never answers a dispenser
+> (`FireProcessingSystem` skips it). 📄 [Architect Question 94 §4.1](../../blueprints/Architect_Question_94_Brain_Geometry_Sites.md).
 
 ```mermaid
 classDiagram

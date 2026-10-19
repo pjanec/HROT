@@ -106,6 +106,17 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
+        /// <summary>⭐ <c>Q94 A-3</c> (R-3018) — the stand-in muscle: every round a weapon ASKED is answered FIRED at once
+        /// (<see cref="ShotLedger.Answer"/>), so the rounds the asserts count are spent as the real muscle's notifications would spend them.</summary>
+        private void AnswerFired()
+        {
+            foreach (var e in _w.Query().With<WeaponState>().Build())
+            {
+                ref var w = ref _w.GetComponentRW<WeaponState>(e);
+                while (ShotLedger.Pending(w) > 0) ShotLedger.Answer(_w, e, ref w, unchecked(w.LastAnsweredId + 1), FireRefusal.None);
+            }
+        }
+
         /// <summary>One frame of the attack with the real weapon executor (entered once per action instance, cooldowns drained, as
         /// WeaponDispatcherSystem does); returns the frame's rounds as (mount, horizontal distance to the point).</summary>
         private NodeStatus Step(ref AirAttackParams p, ref AirAttackState ws, Entity aircraft, FireAtPointExecutor executor, ref uint entered,
@@ -117,6 +128,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (wc.ActionInstanceId != entered) { executor.OnEnter(aircraft, ref wc, _w); entered = wc.ActionInstanceId; }
                 executor.Execute(aircraft, ref wc, _w, Dt);
+                AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
             }
             foreach (var m in mounts)
             {
@@ -202,6 +214,7 @@ namespace Hrot.SimHost.Tests
                 {
                     if (wc.ActionInstanceId != entered) { executor.OnEnter(plane, ref wc, _w); entered = wc.ActionInstanceId; }
                     executor.Execute(plane, ref wc, _w, Dt);
+                    AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
                 }
                 _w.Bus.SwapBuffers();
                 if (_w.Bus.Read<WeaponFireIntent>().Length > 0 && released++ == 0)
@@ -377,6 +390,7 @@ namespace Hrot.SimHost.Tests
                 {
                     if (wc.ActionInstanceId != entered) { executor.OnEnter(plane, ref wc, _w); entered = wc.ActionInstanceId; }
                     executor.Execute(plane, ref wc, _w, Dt);
+                    AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
                 }
                 ref var w = ref _w.GetComponentRW<WeaponState>(plane);
                 w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
@@ -518,6 +532,7 @@ namespace Hrot.SimHost.Tests
                 {
                     if (wc.ActionInstanceId != entered) { executor.OnEnter(plane, ref wc, _w); entered = wc.ActionInstanceId; }
                     executor.Execute(plane, ref wc, _w, Dt);
+                    AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
                 }
                 ref var w = ref _w.GetComponentRW<WeaponState>(plane);
                 w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
@@ -612,6 +627,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (wc.ActionInstanceId != entered) { executor.OnEnter(heli, ref wc, _w); entered = wc.ActionInstanceId; }
                 executor.Execute(heli, ref wc, _w, Dt);
+                AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
             }
             foreach (var g in guns)
             {
@@ -836,6 +852,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (wc.ActionInstanceId != entered) { executor.OnEnter(aircraft, ref wc, _w); entered = wc.ActionInstanceId; }
                 executor.Execute(aircraft, ref wc, _w, Dt);
+                AnswerFired();   // ⭐ Q94 A-3 — the muscle answers every ask "fired" (no FireProcessingSystem in this harness)
             }
             foreach (var m in mounts)
             {
