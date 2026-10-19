@@ -125,6 +125,8 @@ public static class HrotOwnershipGroups
         //   parameters sit here beside VehicleState / VehicleParams (docs/designs/motion-models/DESIGN_Motion_Domains.md §5a).
         muscle.SetBit(GlobalComponentIds.FlightParams);
         muscle.SetBit(GlobalComponentIds.FlightState);
+        // ⭐ CE-3271 (Q94 D, R-3018) — a spawn's birth level travels with the position it sets (dtSpawnLevel).
+        muscle.SetBit(GlobalComponentIds.SpawnLevelRequest);
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

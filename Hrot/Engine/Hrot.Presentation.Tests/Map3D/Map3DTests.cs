@@ -802,6 +802,54 @@ public sealed class Map3DTests
         => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = subcategory };
 
     /// <summary>
+    /// ⭐ CE-1169 / CE-1179 (People Display U7, U8, U18) — a pick-up rifle, a pick-up pistol and an explosive charge are drawn as what they
+    /// are, not as the generic HMG on its tripod: their classes (DIS 1.1.*.50.8 / .9 / .10) name their kits; the catalogue's types resolve
+    /// to them; a pistol not in his hands sits on his hip, a rifle slung on his back, a hand weapon in his hands is held level in front.
+    /// 🔒 User, live, 2026-10-19: <i>"pistol weapon carried by person as entity appears as a big machine gun; same if dropped — shown as MG
+    /// on a tripod"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1169_APickUpWeaponOrACharge_IsDrawnAsWhatItIs()
+    {
+        Assert.Equal(WeaponKind.Rifle, WeaponKits.KindOf(Dis(50, 8)));
+        Assert.Equal(WeaponKind.Pistol, WeaponKits.KindOf(Dis(50, 9)));
+        Assert.Equal(WeaponKind.Charge, WeaponKits.KindOf(Dis(50, 10)));
+        var db = BuiltIn();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        WeaponKind KindOfType(long type)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            return WeaponKits.TypeOf(world, db, e).Kind;
+        }
+        Assert.Equal(WeaponKind.Rifle, KindOfType(TkbEntityTypes.WeaponSystem_PickUpRifle));
+        Assert.Equal(WeaponKind.Pistol, KindOfType(TkbEntityTypes.WeaponSystem_PickUpPistol));
+        Assert.Equal(WeaponKind.Charge, KindOfType(TkbEntityTypes.WeaponSystem_ExplosiveCharge));
+        Assert.Equal(WeaponKind.Hmg, KindOfType(TkbEntityTypes.WeaponSystem_M2Hmg));
+
+        // small, low things — no tripod: every part of each kit lies within 0.25 m of the ground, the HMG stands higher
+        foreach (var kind in new[] { WeaponKind.Rifle, WeaponKind.Pistol, WeaponKind.Charge })
+        {
+            var size = WeaponKits.DefaultSize(kind);
+            Assert.True(size.X < 1f && size.Z < 0.25f, $"{kind}: {size}");
+            Assert.NotEqual(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.Length, WeaponKits.Kit(kind, false).Parts.Length);
+            Assert.Null(WeaponKits.GunnerSpot(kind));                 // nobody kneels behind it
+        }
+        Assert.True(WeaponKits.IsHandWeapon(WeaponKind.Rifle) && WeaponKits.IsHandWeapon(WeaponKind.Pistol));
+        Assert.False(WeaponKits.IsHandWeapon(WeaponKind.Charge) || WeaponKits.IsHandWeapon(WeaponKind.Hmg));
+
+        // where he carries it: the hip below the hands, the back behind him, the hands in front
+        var body = Matrix4x4.Identity;
+        var hip = Vector3.Transform(Vector3.Zero, WeaponKits.OnHip(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Pistol)));
+        var hands = Vector3.Transform(Vector3.Zero, WeaponKits.InHands(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Rifle)));
+        var back = Vector3.Transform(Vector3.Zero, WeaponKits.OnBack(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Rifle)));
+        Assert.True(hands.X > 0.1f, $"in front: {hands}");
+        Assert.True(back.X < 0f, $"behind: {back}");
+        Assert.True(hip.Y < -0.1f && hip.Z < hands.Z, $"at his right hip: {hip}");
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1087 (§6n N-1) — every weapon-system class draws its OWN kit (no purple box): the kind comes from the class chain (HMG,
     /// minigun, ATGM, launcher, sentry, and the mortar and towed gun of Indirect Fire IF-G); each kind's stowed and deployed kits have the
     /// same parts in the same order, so a deploy blends; only a fully deployed kit articulates; the deploy state's timing reads as 0 → 1.
@@ -1511,6 +1559,72 @@ public sealed class Map3DTests
         Assert.Equal(Enum.GetNames<Fdp.Toolkit.Combat.GestureKind>(), Enum.GetNames<BlockFigure.ArmGesture>());
         foreach (var kind in Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>())
             Assert.Equal(kind.ToString(), ((BlockFigure.ArmGesture)(byte)kind).ToString());
+    }
+
+    /// <summary>⭐ CE-1195 — a man who has just thrown (a shot from his hands mount) is drawn mid-throw for <c>ThrowSeconds</c>: the
+    /// throwing hand sweeps from behind his shoulder (the wind-up) to in front of him and lower (the follow-through); a rifle shot, an old
+    /// throw or a man carried draws no throw. 🔒 User, live, 2026-10-19: <i>"there is no animation for person throwing stone"</i>.</summary>
+    [Fact]
+    public void CE1195_AThrow_SweepsTheArmFromTheWindUpToTheFollowThrough()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 Hand(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre;   // the right forearm
+        var windUp = Hand(BlockFigure.ThrowArms(plain, false, false, 0f));
+        var through = Hand(BlockFigure.ThrowArms(plain, false, false, 1f));
+        Assert.True(windUp.X < 0f, $"the wind-up: the hand behind him ({windUp})");
+        Assert.True(through.X > 0.05f && through.Z < windUp.Z, $"the follow-through: in front and lower ({through})");
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(db);   // as HrotEnvironment.CreateTkb does: every person has hands
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = Man(world, Vector3.Zero, type: TkbEntityTypes.Infantry_Rifleman);
+            int hands = Fdp.Toolkit.Combat.PersonHands.MountIndex(world, man);
+            Assert.True(hands > 0, "a rifleman has his hands mount after his rifle");
+            var shots = Hrot.UI.Common.Effects.RecentShots.In(world);
+            shots.Record(man, hands, 10.0);
+            var mid = EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 10.3);
+            Assert.NotEqual(plain, mid);
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 10.0 + BlockFigure.ThrowSeconds + 0.1));   // over
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, 10.3));            // his arms are busy
+            shots.Record(man, 0, 20.0);                                                                                                          // his rifle
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 20.2));
+        }
+    }
+
+    /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
+    /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
+    [Fact]
+    public void CE1171_ABlowStruck_SwingsTheArm_AFistOutAndBack_AKnifeLow_ABatonOverhead()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 Hand(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre;   // the right forearm
+        var fist = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist;
+        var knife = Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife;
+        var baton = Fdp.Toolkit.Combat.MeleeWeapon.MeleeBaton;
+        var guard = Hand(BlockFigure.StrikeArms(plain, false, false, fist, 0f));
+        var punch = Hand(BlockFigure.StrikeArms(plain, false, false, fist, 0.5f));
+        Assert.True(punch.X > guard.X + 0.15f, $"the punch reaches out ({guard} → {punch})");
+        Assert.True(Vector3.Distance(guard, Hand(BlockFigure.StrikeArms(plain, false, false, fist, 1f))) < 1e-3f, "and comes back");
+        var stab = BlockFigure.StrikeArms(plain, false, false, knife, 0.5f);
+        Assert.True(Hand(stab).Z < punch.Z - 0.1f, $"the stab is lower than the punch ({Hand(stab)} vs {punch})");
+        Assert.Equal(plain.Length + 1, stab.Length);                                                      // the blade
+        var raised = Hand(BlockFigure.StrikeArms(plain, false, false, baton, 0f));
+        var down = BlockFigure.StrikeArms(plain, false, false, baton, 1f);
+        Assert.True(raised.Z > guard.Z + 0.2f && raised.X < 0f && Hand(down).X > 0.1f && Hand(down).Z < raised.Z, $"the baton: raised high behind, over and down in front ({raised} → {Hand(down)})");   // kit units
+        Assert.Equal(plain.Length + 1, down.Length);                                                      // the stick
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            var man = Man(world, Vector3.Zero);
+            Hrot.UI.Common.Effects.StrikeTracker.In(world).Record(man, baton, 10.0);
+            var mid = EntityBodyLayer3D.Struck(world, man, false, FigureCarriage.Free, plain, 10.2);
+            Assert.NotEqual(plain, mid);
+            Assert.Same(plain, EntityBodyLayer3D.Struck(world, man, false, FigureCarriage.Free, plain, 10.0 + BlockFigure.StrikeSeconds + 0.1));   // over
+            Assert.Same(plain, EntityBodyLayer3D.Struck(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, 10.2));            // busy
+        }
     }
 
     /// <summary>⭐ CE-1166 (§8.7 U6-a, U6-e) — the replicated gesture reaches the figure: a free man's arms show it; cowering, carrying or
@@ -2952,6 +3066,70 @@ public sealed class Map3DTests
         Assert.False(sw2.Is3D);
         Assert.Same(two2, canvas2.Camera);
         Assert.InRange(Vector2.Distance(two2.ScreenToWorld(Viewport / 2f), new Vector2(-80f, 60f)), 0f, 0.1f);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1221 (R-260's open question: a scenario with NO saved camera) — once the load settles, the 2-D map frames every placed
+    /// entity, centred on them; a saved camera wins; a map the user already moved is left alone; SUMO's traffic is not framed. 🔒 User,
+    /// 2026-10-19: <i>"After loading the scenario, please position the 2D map to the center of all the entities in the scenario … Only if
+    /// the camera entity is not saved as part of the scenario."</i>
+    /// </summary>
+    [Fact]
+    public void CE1221_AScenarioWithNoSavedCamera_IsFramedIn2D_OnceItsLoadSettles()
+    {
+        using var w = CameraWorld();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.ReplicationRoute>();
+        Entity Unit(float x, float y)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            return e;
+        }
+        var (canvas, sw, two) = Map(new Vector2(-5000f, -5000f), 1f);
+        sw.Set(true, animate: false);                          // even from 3-D: the framing shows the 2-D map
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);                                  // an empty world: nothing to frame
+        Unit(1000f, 2000f); Unit(1400f, 2600f); Unit(1800f, 2200f);
+        var traffic = Unit(90000f, 90000f);                    // SUMO's car far away: not framed
+        w.AddComponent(traffic, new Fdp.Toolkit.Replication.Components.ReplicationRoute(Fdp.Toolkit.Replication.Components.ReplicationRoute.SumoSharp));
+        layer.Update(0.5f);
+        Assert.False(layer.Framed, "not before the load has settled");
+        for (int i = 0; i < 3; i++) layer.Update(0.5f);
+
+        Assert.True(layer.Framed);
+        Assert.False(sw.Is3D);
+        Assert.Same(two, canvas.Camera);
+        Assert.InRange(Vector2.Distance(two.ScreenToWorld(Viewport / 2f), new Vector2(1400f, 2300f)), 0f, 1f);
+        foreach (var at in new[] { new Vector2(1000f, 2000f), new Vector2(1400f, 2600f), new Vector2(1800f, 2200f) })
+        {
+            var px = two.WorldToScreen(at);
+            Assert.True(px.X > 0f && px.X < Viewport.X && px.Y > 0f && px.Y < Viewport.Y, $"{at} is off the screen at {px}");
+        }
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Null(layer.Camera);                             // framing is not a move: no camera asked for, nothing saved
+
+        // a saved camera wins
+        using var w2 = CameraWorld();
+        SaveCamera(w2, new CameraPose(new Vector3(-80f, 60f, 0f), 400f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        var (_, sw2, two2) = Map(new Vector2(900f, 900f), 3f);
+        var layer2 = new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2);
+        for (int i = 0; i < 4; i++) layer2.Update(0.5f);
+        Assert.True(layer2.Adopted);
+        Assert.False(layer2.Framed);
+
+        // a map the user moved first is left alone
+        using var w3 = CameraWorld();
+        var (_, sw3, two3) = Map(new Vector2(0f, 0f), 1f);
+        var layer3 = new Hrot.UI.Common.Map3D.MapCameraLayer(sw3, () => w3);
+        layer3.Update(0.016f);
+        two3.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
+        layer3.Update(0.016f);
+        var e3 = w3.CreateEntity();
+        w3.AddComponent(e3, new SimTransform { Position = new Vector3(5000f, 5000f, 0f), Rotation = Quaternion.Identity });
+        w3.AddComponent(e3, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        for (int i = 0; i < 4; i++) layer3.Update(0.5f);
+        Assert.False(layer3.Framed);
     }
 
     [Fact]

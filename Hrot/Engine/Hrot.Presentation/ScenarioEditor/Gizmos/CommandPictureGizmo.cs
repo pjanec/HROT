@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
@@ -19,6 +20,35 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// labelled with that unit's last PROGRESS; a <c>?</c> and the kind at each open request. Family <c>SquadAssignment</c>, as
 /// <c>SquadGizmo</c> beside it. ⚠ The picture is brain-local (D4): this draws on a node that holds it (SimHost's map today).
 /// </summary>
+/// <summary>
+/// ⭐ <c>CE-1192</c> D4 (behaviors' answer, R-2058: the picture is replicated read-only to every node) — a SELECTED commander whose
+/// <see cref="CommandPicture"/> has not reached this node yet says so over his head, rather than drawing nothing: 🔒 the user asked for
+/// absence to be visible. A commander = a unit some <see cref="UnitSubordinate"/> names as its commander.
+/// </summary>
+[GizmoProjector(typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
+public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
+{
+    public const string Text = "no picture on this node yet";   // ≤ 31 bytes (FixedString32)
+    public static readonly Rgba32 Colour = new(200, 200, 200, 220);
+
+    public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+    {
+        if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<UnitSubordinate>()) return;
+        if (repo.IsComponentTypeRegistered<CommandPicture>() && repo.HasComponent<CommandPicture>(entity)) return;
+        if (!IsCommander(repo, entity)) return;
+        var at = view.GetComponentRO<SimTransform>(entity).Position;
+        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f);
+    }
+
+    /// <summary>True when some unit names <paramref name="unit"/> as its commander.</summary>
+    public static bool IsCommander(EntityRepository world, Entity unit)
+    {
+        foreach (var e in world.Query().With<UnitSubordinate>().Build())
+            if (world.GetComponentRO<UnitSubordinate>(e).Commander == unit) return true;
+        return false;
+    }
+}
+
 [GizmoProjector(typeof(CommandPicture), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
 public sealed class CommandPictureGizmo : IStatelessGizmo
 {

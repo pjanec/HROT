@@ -33,9 +33,10 @@ public sealed partial class PossessionStationTests
         public bool LeftDown { get; set; }
         public bool LeftPressed { get; set; }    // ⭐ CE-1078
         public bool RightPressed { get; set; }
+        public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
         public bool? Locked { get; private set; }
         public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
-        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left && LeftDown;
+        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right && RightDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
         public bool IsKeyDown(MapKeyboardKey k) => Keys.Contains((int)k);
@@ -132,12 +133,13 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky is drawn ONLY in first person: the free 3-D camera keeps the clear
-    /// day it always had (no atmosphere); in a unit the camera gets the weather's at the eye; released, it is taken away again.
-    /// 🔒 User, 2026-10-16: "especially for the FPS mode; but not in the usual free camera 3d map mode where it would be obstructing the view".
+    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky in the 3-D map: ⭐ since 2026-10-19 in the FREE camera too, read at
+    /// what it looks at, its fog starting there (what is looked at stays clear); in a unit read at the eye with the fog from the eye; the 2-D
+    /// map gets none. 🔒 User, 2026-10-19: "I'm not asking for much more than just showing the same weather as in FPS as the first slice"
+    /// (supersedes 2026-10-16's "not in the usual free camera").
     /// </summary>
     [Fact]
-    public void CE1146_TheWeathersSky_OnlyInFirstPerson()
+    public void CE1146_TheWeathersSky_InTheFreeCameraAtWhatItLooksAt_AndInFirstPersonAtTheEye()
     {
         var (w, unit, _) = World();
         using (w)
@@ -145,20 +147,25 @@ public sealed partial class PossessionStationTests
             var (_, sw, _) = Map();
             var sky = new WeatherSkyLayer(sw, () => w);
             var station = new PossessionStation(sw, () => w);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);                              // the 2-D map: none
             sw.Set(true, animate: false);
             sky.Update(0.016f);
-            Assert.Null(sw.Camera3D.Atmosphere);                              // the free camera: the clear day
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // the free camera: the weather where it looks
+            Assert.Equal(sw.Camera3D.Distance * MapCamera3D.FreeFogStartShare, sw.Camera3D.FogStart, 3);   // the fog starts there
 
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
             sky.Update(0.016f);
             Assert.NotNull(sw.Camera3D.Atmosphere);                           // in the unit: the weather's
+            Assert.Equal(0f, sw.Camera3D.FogStart);                           // first person: the fog from the eye
 
             w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
             station.Update(0.016f);
             sky.Update(0.016f);
-            Assert.Null(sw.Camera3D.Atmosphere);
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // released: back to the free camera's weather
+            Assert.True(sw.Camera3D.FogStart > 0f);
         }
     }
 
@@ -316,13 +323,560 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1220 (docs/DESIGN_Entity_Control.md §8k K-1) — killed while held: the 3-D view stays (no cut to the map), the fall screen names
+    /// who hit him last; a release just after a hit waits a moment for the death to arrive; K runs a kill cam from the shooter's eye, Tab
+    /// takes a squad mate (one possession), Esc goes back to the map as it was.
+    /// </summary>
+    [Fact]
+    public void CE1220_KilledWhileHeld_TheViewStays_NamesTheShooter_KShowsHim_TabTakesASquadMate_EscTheMap()
+    {
+        var (w, me, map) = World();
+        using (w)
+        {
+            w.RegisterComponent<EntityInfo>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.RegisterEvent<PossessRequestEvent>();
+            w.RegisterEvent<ReleasePossessionEvent>();
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var leader = w.CreateEntity();
+            w.AddComponent(leader, new SimTransform { Position = new Vector3(90f, 50f, 0f), Rotation = Quaternion.Identity });
+            map.Register(700, leader);
+            w.AddComponent(me, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+            var sniper = w.CreateEntity();
+            w.AddComponent(sniper, new SimTransform { Position = new Vector3(400f, 50f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(sniper, new EntityInfo { Name = new FixedString64("Sniper Bob"), ForceId = ForceId.Hostile });
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(station.InFps);
+
+            Hrot.UI.Common.Effects.HitFeedback.In(w).Record(sniper, me, new Vector3(100f, 50f, 1.2f), new Vector3(-1f, 0f, 0f), 90f,
+                                                           Fdp.Toolkit.Time.SimClock.Of(w).TotalTime);
+            w.RemoveComponent<PossessedBy>(me);                                               // the release arrives first …
+            station.Update(0.016f);
+            Assert.True(station.InFps);                                                       // … just after a hit: wait for the death
+            w.SetComponent(me, new Health { Current = 0f, Max = 100f });                       // … and here it is
+            station.Update(0.016f);
+            var fall = Assert.IsType<FallScreen>(sw.Camera3D.Driver);
+            Assert.Same(fall, station.Fall);
+            Assert.False(station.InFps);
+            Assert.True(sw.Is3D);                                                             // no cut to the map
+            Assert.Equal(sniper, fall.Killer);
+            Assert.Equal("Sniper Bob", fall.KillerName(w));
+
+            var k = new Input();
+            k.Pressed.Add((int)Raylib_cs.KeyboardKey.K);
+            sw.Camera3D.HandleInput(k);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(fall.KillCamOn(station.Clock));
+            Assert.InRange(Vector3.Distance(sw.Camera3D.Eye, new Vector3(400f, 50f, FallScreen.KillCamEyeHeight)), 0f, 0.5f);
+            Assert.True(sw.Camera3D.Forward.X < -0.9f, "the kill cam looks back at the body");
+
+            var tab = new Input();
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            sw.Camera3D.HandleInput(tab);
+            w.Bus.SwapBuffers();
+            Assert.Equal(leader, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);   // his squad: the leader
+
+            var esc = new Input();
+            esc.Pressed.Add((int)Raylib_cs.KeyboardKey.Escape);
+            sw.Camera3D.HandleInput(esc);
+            Assert.Null(station.Fall);
+            Assert.Null(sw.Camera3D.Driver);
+            Assert.False(sw.Is3D);                                                            // the map as he had it (2-D here)
+        }
+    }
+
+    /// <summary>⭐ CE-1220 (§8k K-1) — a plain release (Esc, a take-over) with no hit on him leaves at once, as before.</summary>
+    [Fact]
+    public void CE1220_APlainRelease_LeavesAtOnce_NoFallScreen()
+    {
+        var (w, me, _) = World();
+        using (w)
+        {
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            w.RemoveComponent<PossessedBy>(me);
+            station.Update(0.016f);
+            Assert.False(station.InFps);
+            Assert.Null(station.Fall);
+            Assert.Null(sw.Camera3D.Driver);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1219 (docs/DESIGN_Entity_Control.md §8k B-1) — B held asks for the binoculars in the frame; the view narrows to their 10° only
+    /// once the sim has them UP; then LMB designates (his men's MapPoint, or Target under the crosshair) instead of firing; a man who carries
+    /// none is told so.
+    /// </summary>
+    [Fact]
+    public void CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen()
+    {
+        var (w, unit, map) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.RegisterComponent<WeaponPosture>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var observer = new Fdp.Interfaces.TkbTemplate("Observer", 4714);
+            observer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = true });
+            db.Register(observer);
+            db.Register(new Fdp.Interfaces.TkbTemplate("Rifleman", 4715));
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4714 });
+            w.AddComponent(unit, new WeaponPosture());
+            var man = w.CreateEntity();
+            w.AddComponent(man, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = unit });
+            map.Register(601, man);
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            OperatorControlFrameEvent Frame(Input input)
+            {
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+            var b = new Input();
+            b.Keys.Add((int)Raylib_cs.KeyboardKey.B);
+            Assert.Equal(1, Frame(b).Binoculars);
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);                                       // asked, not yet up: no zoom
+            Assert.False(driver.NoBinoculars);
+            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.Binoculars;          // what his brain does (EmbarkNodesTests.CE1219)
+            Frame(b);
+            Assert.Equal(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees, sw.Camera3D.FovyDegrees);
+
+            var click = new Input { LeftPressed = true, LeftDown = true };
+            click.Keys.Add((int)Raylib_cs.KeyboardKey.B);
+            var f = Frame(click);
+            Assert.Equal((0, (byte)0), (f.ShotSeq, f.Trigger));                                // no shot
+            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
+            Assert.Equal("Point designated for 1 man", driver.WheelVerdict(station.Clock));
+
+            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.None;
+            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4715 });   // a man who carries none
+            Frame(b);
+            Assert.True(driver.NoBinoculars);
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);
+            Assert.Equal(0, Frame(new Input()).Binoculars);                                    // let go
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1218 (docs/DESIGN_Entity_Control.md §8k M-1) — M in first person: one still frame (he stops), the 2-D map centred on him, the
+    /// cursor free, the unit still held; M on the map brings the operator back to his eyes (that same press does not reopen the map).
+    /// </summary>
+    [Fact]
+    public void CE1218_M_OpensTheMapCentredOnHim_HeHoldsStill_AndMBringsTheOperatorBack()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(sw.Is3D);
+            var input = new Input();
+            input.Keys.Add((int)Raylib_cs.KeyboardKey.W);                                       // walking …
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            Assert.Equal(1f, Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()).Forward);
+
+            input.Pressed.Add((int)Raylib_cs.KeyboardKey.M);                                    // … M
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            var still = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            Assert.Equal((0f, 0f, (byte)0), (still.Forward, still.Lateral, still.Trigger));   // he holds still
+            Assert.True(station.MapPeek);
+            Assert.False(sw.Is3D);
+            Assert.False(input.Locked);                                                         // the cursor is free to pan
+            Assert.InRange(Vector2.Distance(new Vector2(sw.CurrentPose.LookAt.X, sw.CurrentPose.LookAt.Y), new Vector2(100f, 50f)), 0f, 1f);
+            input.Pressed.Clear(); input.Keys.Clear();
+            station.Update(0.016f);
+            Assert.True(station.InFps);                                                         // still held
+            input.Pressed.Add((int)Raylib_cs.KeyboardKey.M);                                    // M on the map
+            station.Update(0.016f);
+            Assert.False(station.MapPeek);
+            Assert.True(sw.Is3D);
+            Assert.True(input.Locked);
+            sw.Camera3D.HandleInput(input);                                                     // the same frame's M: not the map again
+            Assert.False(station.MapPeek);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1217 (docs/DESIGN_Entity_Control.md §8k C-1, C-2) — the compass reads the view's heading (0 north, clockwise) and shows ±60°
+    /// with the eight points named; the names over heads are his side's, within 50 m, named, alive — nearest first, his own men marked.
+    /// </summary>
+    [Fact]
+    public void CE1217_TheCompassReadsTheHeading_AndTheNamesAreHisSidesWithin50m()
+    {
+        Assert.Equal(90f, FpsCompass.Heading(new Vector3(1f, 0f, -0.3f)), 3);                   // east, looking a little down
+        Assert.Equal(0f, FpsCompass.Heading(new Vector3(0f, 1f, 0f)), 3);
+        Assert.Equal(270f, FpsCompass.Heading(new Vector3(-1f, 0f, 0f)), 3);
+        var ticks = FpsCompass.Ticks(0f).ToList();
+        Assert.Equal(9, ticks.Count);                                                           // −60 … 60, every 15
+        Assert.Equal((0f, "N"), (ticks.Single(t => t.Degrees == 0).At, ticks.Single(t => t.Degrees == 0).Label));
+        Assert.Equal((0.75f, "NE"), (ticks.Single(t => t.Degrees == 45).At, ticks.Single(t => t.Degrees == 45).Label));
+        Assert.Equal((-0.75f, "NW"), (ticks.Single(t => t.Degrees == 315).At, ticks.Single(t => t.Degrees == 315).Label));
+        Assert.Equal("", ticks.Single(t => t.Degrees == 15).Label);
+
+        var (w, me, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<EntityInfo>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(me, new EntityInfo { Name = new FixedString64("Me"), ForceId = ForceId.Friend });
+            Entity Man(string name, ForceId side, float east, Entity commander = default)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(100f + east, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new EntityInfo { Name = new FixedString64(name), ForceId = side });
+                if (!commander.IsNull) w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                return m;
+            }
+            var buddy = Man("Buddy", ForceId.Friend, 20f);
+            var mine = Man("Mine", ForceId.Friend, 8f, me);
+            Man("Far", ForceId.Friend, 80f);
+            Man("Enemy", ForceId.Hostile, 10f);
+            Man("", ForceId.Friend, 12f);
+            var dead = Man("Dead", ForceId.Friend, 5f);
+            w.AddComponent(dead, new Health { Current = 0f, Max = 100f });
+            var friends = FriendMarks.Of(w, me, new Vector3(100f, 50f, 1.7f));
+            Assert.Equal(new[] { "Mine", "Buddy" }, friends.Select(f => f.Name));
+            Assert.Equal(new[] { true, false }, friends.Select(f => f.Mine));
+            w.SetComponent(me, new EntityInfo { Name = new FixedString64("Me"), ForceId = ForceId.Neutral });
+            Assert.Empty(FriendMarks.Of(w, me, new Vector3(100f, 50f, 1.7f)));                  // a civilian marks nobody
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1216 (docs/DESIGN_Entity_Control.md §8k S-1, S-2, S-3) — the spread ring is the sim's own σ for the selected weapon at the
+    /// view's scale (doubling when he moves, narrower in a zoom); a round cracking past him darkens the edges, fading in 0.4 s; his own
+    /// shot kicks the view up and it settles, while his look (the frame's aim) never moves.
+    /// </summary>
+    [Fact]
+    public void CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Rifleman", 4713);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1, DispersionMils = 6f },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+
+            float sigma = PossessionStation.SpreadOf(w, unit, 0);
+            Assert.Equal(0.006f, sigma, 5);                                                        // 6 mils, standing, still
+            float r45 = PossessionStation.SpreadRadiusPx(sigma, 45f, 800f);
+            Assert.Equal(MathF.Tan(0.006f) / MathF.Tan(22.5f * MathF.PI / 180f) * 400f, r45, 2);
+            Assert.True(PossessionStation.SpreadRadiusPx(sigma, 8f, 800f) > 4f * r45);            // the scope magnifies it
+            Assert.Equal(0f, PossessionStation.SpreadRadiusPx(0f, 45f, 800f));
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var round = w.CreateEntity();
+            var eye = sw.Camera3D.Eye;
+            w.AddComponent(round, new SimTransform { Position = eye + new Vector3(-40f, 1f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = Entity.Null });
+            station.Update(0.016f);
+            Assert.Equal(0f, station.Shock);
+            w.SetComponent(round, new SimTransform { Position = eye + new Vector3(40f, 1f, 0f), Rotation = Quaternion.Identity });
+            station.Update(0.016f);
+            Assert.True(station.Shock > 0.4f, $"a crack shocks ({station.Shock})");
+            for (int i = 0; i < 30; i++) station.Update(0.016f);
+            Assert.Equal(0f, station.Shock);                                                     // gone in 0.4 s
+
+            var shots = Hrot.UI.Common.Effects.RecentShots.In(w);
+            shots.Record(unit, 0, 1.0);
+            sw.Camera3D.Update(0.016f);                                                          // the first one he is seen with: no kick
+            Assert.Equal(0f, driver.Kick);
+            float look = sw.Camera3D.Pitch;
+            shots.Record(unit, 0, 2.0);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(driver.Kick > 0.8f * FpsCameraDriver.KickRadians(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms));
+            Assert.True(sw.Camera3D.Pitch > look, "the view kicks up");
+            for (int i = 0; i < 20; i++) sw.Camera3D.Update(0.016f);
+            Assert.Equal(0f, driver.Kick);
+            Assert.Equal(look, sw.Camera3D.Pitch, 4);                                            // settled where he looked
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1214 (docs/DESIGN_Entity_Control.md §8j T-1) — Tab jumps to the next man of his squad (his leader, the men naming that leader,
+    /// his own men — in network-id order, wrapping), Shift+Tab to the previous; another leader's man, a dead man and a man another
+    /// station holds are not in it; the jump is ONE possession, which also lets the man he leaves go back to his brain.
+    /// </summary>
+    [Fact]
+    public void CE1214_Tab_JumpsToTheNextManOfHisSquad_ShiftTabBack_AndTheManHeLeavesIsReleased()
+    {
+        var (w, me, map) = World();                                                    // network id 4242
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            Entity Man(long id, Entity commander, float health = 100f)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                w.AddComponent(m, new Health { Current = health, Max = 100f });
+                map.Register(id, m);
+                return m;
+            }
+            var leader = Man(100, Entity.Null);
+            w.AddComponent(me, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+            var buddy = Man(5000, leader);
+            var mine = Man(9000, me);
+            Man(6000, Man(7000, Entity.Null));                                         // another squad
+            Man(5500, leader, health: 0f);                                             // dead
+            var held = Man(5600, leader);
+            w.AddComponent(held, new PossessedBy { StationNodeId = 99, Mode = PossessionMode.Fps, Epoch = 1 });   // another station's
+
+            Assert.Equal(new[] { 100L, 4242L, 5000L, 9000L }, SquadRoster.Of(w, me).Select(r => r.Id));
+            Assert.Equal(buddy, SquadRoster.Next(w, me, 1));
+            Assert.Equal(leader, SquadRoster.Next(w, me, -1));
+            Assert.Equal(me, SquadRoster.Next(w, mine, 1));                            // my man's squad is his leader (me) and him: it wraps
+            Assert.Equal(Entity.Null, SquadRoster.Next(w, Man(8000, Entity.Null), 1)); // alone
+
+            w.RegisterEvent<PossessRequestEvent>();
+            w.RegisterEvent<ReleasePossessionEvent>();
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var tab = new Input();
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            sw.Camera3D.HandleInput(tab);
+            w.Bus.SwapBuffers();
+            Assert.Equal(buddy, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);
+            Assert.Equal(me, Assert.Single(w.Bus.Read<ReleasePossessionEvent>().ToArray()).Unit);   // the one he leaves goes back to his brain
+
+            var back = new Input();
+            back.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            back.Keys.Add((int)Raylib_cs.KeyboardKey.LeftShift);
+            sw.Camera3D.HandleInput(back);
+            w.Bus.SwapBuffers();
+            Assert.Equal(leader, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1213 (docs/DESIGN_Entity_Control.md §8j W-1) — hold T: the wheel shows the orders his MEN fulfil (Hold and Move first, none
+    /// needing the form); the mouse moves its cursor, not the look; letting go sends the sector under the cursor to every man naming him as
+    /// commander — never to himself, never to another leader's man — completed from the crosshair; letting go in the middle sends nothing.
+    /// </summary>
+    [Fact]
+    public void CE1213_HoldingT_OpensTheWheelOnHisMensOrders_AndLettingGoSendsTheSectorToThem()
+    {
+        var (w, leader, map) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(leader, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();   // every live host has one: a point order goes geodetic
+            geo.SetOrigin(52.520, 13.405, 0.0);
+            w.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var soldier = new Fdp.Core.DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) };
+            Entity Man(long id, Entity commander)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                w.SetDisType(m, soldier);
+                map.Register(id, m);
+                return m;
+            }
+            var a = Man(501, leader);
+            var b = Man(502, leader);
+            var stranger = Man(503, w.CreateEntity());
+            Assert.Equal(new[] { a, b }, CommandWheel.MenOf(w, leader));
+            var items = CommandWheel.Items(w, leader);
+            Assert.Equal(new[] { "Hold", "Move" }, items.Take(2).Select(o => o.Name));
+            Assert.All(items, o => Assert.True(CommandWheel.OneGesture(o), o.Name));
+            Assert.Empty(CommandWheel.Items(w, a));                                    // a man who leads nobody: an empty ring
+
+            Assert.Equal(0, CommandWheel.Pick(new Vector2(0f, -50f), 4));             // up, then clockwise
+            Assert.Equal(1, CommandWheel.Pick(new Vector2(50f, 0f), 4));
+            Assert.Equal(2, CommandWheel.Pick(new Vector2(0f, 50f), 4));
+            Assert.Equal(3, CommandWheel.Pick(new Vector2(-50f, 0f), 4));
+            Assert.Equal(-1, CommandWheel.Pick(new Vector2(5f, 5f), 4));              // the dead zone
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent[] Choose(string order)
+            {
+                var t = new Input();
+                t.Keys.Add((int)Raylib_cs.KeyboardKey.T);
+                sw.Camera3D.HandleInput(t);                                            // T pressed: the wheel opens
+                Assert.True(driver.WheelOpen);
+                int i = driver.WheelItems.Select(o => o.Name).ToList().IndexOf(order);
+                t.MouseDelta = CommandWheel.Direction(i, driver.WheelItems.Count) * 80f;
+                float yaw = sw.Camera3D.Yaw;
+                sw.Camera3D.HandleInput(t);                                            // held: the mouse moves the wheel's cursor
+                Assert.Equal(yaw, sw.Camera3D.Yaw);                                    // … not the look
+                w.Bus.SwapBuffers();
+                sw.Camera3D.HandleInput(new Input());                                  // let go: sent
+                Assert.False(driver.WheelOpen);
+                w.Bus.SwapBuffers();
+                return w.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent>().ToArray();
+            }
+
+            var hold = Choose("Hold");
+            Assert.Equal(new[] { a, b }, hold.Select(o => o.Entity).OrderBy(e => e.Index));
+            Assert.All(hold, o => Assert.Equal("Order.Hold", o.IntentId));
+            Assert.Equal("Hold: 2 of 2 men", driver.WheelVerdict(station.Clock));
+
+            var move = Choose("Move");
+            Assert.Equal(2, move.Length);
+            Assert.All(move, o => Assert.Equal("Order.Move", o.IntentId));
+            Assert.All(move, o => Assert.Contains("\"Location\"", o.JsonParams));      // the crosshair's point
+            Assert.DoesNotContain(move.Concat(hold), o => o.Entity == leader || o.Entity == stranger);
+
+            var t2 = new Input();
+            t2.Keys.Add((int)Raylib_cs.KeyboardKey.T);
+            sw.Camera3D.HandleInput(t2);
+            w.Bus.SwapBuffers();
+            sw.Camera3D.HandleInput(new Input());                                      // let go in the middle
+            w.Bus.SwapBuffers();
+            Assert.Empty(w.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent>().ToArray());
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1212 (docs/DESIGN_Entity_Control.md §8j L-1, L-2) — a person leans while Q / E is held (both or neither: upright), the frame
+    /// carrying it as a level; R is the next round now (F before) and F the use key (E before).
+    /// </summary>
+    [Fact]
+    public void CE1212_HoldingQOrE_LeansThePerson_AndTheFrameCarriesIt()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            OperatorControlFrameEvent Frame(params Raylib_cs.KeyboardKey[] down)
+            {
+                var input = new Input();
+                foreach (var k in down) input.Keys.Add((int)k);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanLeft, Frame(Raylib_cs.KeyboardKey.Q).Lean);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, driver.Leaning);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanRight, Frame(Raylib_cs.KeyboardKey.E).Lean);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanNone, Frame(Raylib_cs.KeyboardKey.Q, Raylib_cs.KeyboardKey.E).Lean);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanNone, Frame().Lean);                       // let go: upright
+            var e = Frame(Raylib_cs.KeyboardKey.E);
+            Assert.Equal(0, e.UseSeq);                                                                    // E no longer uses
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, true, false, null, false), l => l.Contains("Q/E lean") && l.Contains("R ammo") && l.Contains("F use"));
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1211 (docs/DESIGN_Entity_Control.md §8j Z-1) — holding RMB zooms: a scoped weapon to its scope's field of view, an unscoped one
+    /// to the iron sights' 30°; the mouse turns the view slower by the same ratio; letting go, and leaving the unit, give the map its 45° back.
+    /// </summary>
+    [Fact]
+    public void CE1211_HoldingRmb_ZoomsToTheScopeOrTheIronSights_AndSlowsTheLook()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var ammo = new WeaponAmmo { Count = 2 };
+            ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
+            ammo.Set(1, new WeaponState { Ammo = 10, MaxAmmo = 10 });
+            w.AddComponent(unit, ammo);
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Marksman", 4712);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1,
+                                                            ScopeMagnification = 4f, ScopeFovDegrees = 8f },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4712 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            var camera = sw.Camera3D;
+
+            float Turn(Input input)
+            {
+                float before = camera.Yaw;
+                input.MouseDelta = new Vector2(100f, 0f);
+                sw.Camera3D.HandleInput(input);
+                return MathF.Abs(camera.Yaw - before);
+            }
+
+            float normal = Turn(new Input());
+            Assert.Equal(45f, camera.FovyDegrees);
+            float iron = Turn(new Input { RightDown = true });                          // the rifle: no scope
+            Assert.True(driver.Zooming);
+            Assert.Equal(FpsZoom.IronSightsFovDegrees, camera.FovyDegrees);
+            Assert.InRange(iron / normal, 30f / 45f - 0.01f, 30f / 45f + 0.01f);
+
+            var two = new Input { RightDown = true };
+            two.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);                            // the scoped rifle
+            sw.Camera3D.HandleInput(two);
+            float scoped = Turn(new Input { RightDown = true });
+            Assert.Equal(8f, camera.FovyDegrees);
+            Assert.InRange(scoped / normal, 8f / 45f - 0.01f, 8f / 45f + 0.01f);
+
+            Turn(new Input());                                                          // let go
+            Assert.Equal(45f, camera.FovyDegrees);
+            Turn(new Input { RightDown = true });
+            sw.Camera3D.Driver = null;                                                  // left the unit while zoomed
+            Assert.Equal(45f, camera.FovyDegrees);
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1078 / CE-1079 / CE-1080 (docs/DESIGN_Entity_Control.md §8e) — the station's side: a LMB PRESS counts a shot and locks the
-    /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); RMB counts a cancel and drops
-    /// the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,
+    /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); X (RMB before CE-1211) counts a
+    /// cancel and drops the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,
     /// not levels: every frame carries them, so a coalesced or lost frame never loses a press.
     /// </summary>
     [Fact]
-    public void CE1078_APress_CountsAShot_LocksTheUnderCrosshairUnit_RmbCancels_FCountsAmmo_NumbersPickAWeapon()
+    public void CE1078_APress_CountsAShot_LocksTheUnderCrosshairUnit_XCancels_FCountsAmmo_NumbersPickAWeapon()
     {
         var (w, unit, _) = World();
         using (w)
@@ -373,12 +927,17 @@ public sealed partial class PossessionStationTests
             Assert.False(driver.ShotPending);
 
             Frame(new Input { LeftPressed = true });
-            f = Frame(new Input { RightPressed = true });
+            f = Frame(new Input { RightPressed = true, RightDown = true });   // ⭐ CE-1211 — RMB zooms now; it cancels nothing
+            Assert.Equal((2, 0), (f.ShotSeq, f.CancelSeq));
+            Assert.True(driver.ShotPending);
+            var x = new Input();
+            x.Pressed.Add((int)Raylib_cs.KeyboardKey.X);           // ⭐ CE-1211 (§8j Z-2) — X is the cancel
+            f = Frame(x);
             Assert.Equal((2, 1), (f.ShotSeq, f.CancelSeq));
             Assert.False(driver.ShotPending);
 
             var keys = new Input();
-            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.F);
+            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.R);
             keys.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
             f = Frame(keys);
             Assert.Equal((1, 1), (f.AmmoSeq, f.Mount));
@@ -401,12 +960,12 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1079 (§8e) — the HUD names the weapon and its round from the TKB: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP
+    /// ⭐ CE-1079 (§8e) — the HUD names the weapon and its round from the TKB: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  R: 120mm HEAT-MP
     /// LOADING</c> — the kind, the round in the breech and how many of it, the total, what <c>F</c> cycles to, and LOADING during a switch.
     /// 🔒 User, 2026-10-14: "for each weapon selecting ammo and see in the HUD what is selected".
     /// </summary>
     [Fact]
-    public void CE1079_TheHud_NamesTheWeapon_TheRoundInItsBreech_WhatFCyclesTo_AndLoading()
+    public void CE1079_TheHud_NamesTheWeapon_TheRoundInItsBreech_WhatRCyclesTo_AndLoading()
     {
         var (w, unit, _) = World();
         using (w)
@@ -432,9 +991,9 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, ammo);
 
             var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: true, hullLocked: false);
-            Assert.Equal("> 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP  LOADING", lines[1]);
+            Assert.Equal("> 1 CANNON  120mm APFSDS 19  41/42  R: 120mm HEAT-MP  LOADING", lines[1]);
             Assert.Equal("  2 MG  7.62x51 ball  2000/2000  [200]", lines[2]);
-            Assert.Contains("F ammo", lines[^1]);
+            Assert.Contains("R ammo", lines[^1]);
         }
     }
 

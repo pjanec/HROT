@@ -275,26 +275,54 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(NodeStatus.Failure, DoorNodes.OperateDoor(ref unknown, actor, w));
         }
 
-        /// <summary>⭐ 5d-2 — MoveToDoor walks to the doorway's near side ON THE ACTOR'S SIDE of the wall, and succeeds in reach.</summary>
+        /// <summary>
+        /// ⭐ 5d-2, ⭐ Q94 C (R-3018) — MoveToDoor names the DOOR (its network id, the centre as the fallback) on the approach action; the
+        /// MUSCLE's destination resolver turns it into the doorway's near side ON THE ACTOR'S SIDE of the wall; the node succeeds in reach.
+        /// A door id this node does not know falls back to the point it was given.
+        /// ✅ Red-proof: drop the door hook in <c>NavigationDestination.Of</c> ⇒ both actors aim at the doorway centre.
+        /// </summary>
         [Fact]
-        public void Stage5d2_MoveToDoor_AimsAtTheActorsSideOfTheWall_AndSucceedsInReach()
+        public void Stage5d2_MoveToDoor_NamesTheDoor_TheMusclePicksTheActorsSideOfTheWall_AndSucceedsInReach()
         {
             using var w = KeyedWorld(out var door);
+            w.RegisterComponent<NetworkIdentity>();
+            w.AddComponent(door, new NetworkIdentity(7001));
             var key = new TerrainObjectRef("range/R/front");
             var outside = Walker(w, new Vector3(25, 10, 0));
             var inside = Walker(w, new Vector3(23, 24, 0));
 
             var p = new MoveToDoorParams { Door = key };
             Assert.Equal(NodeStatus.Running, DoorNodes.MoveToDoor(ref p, outside, w));
-            var to = ReadMoveTo(w, outside);
+            var asked = ReadApproach(w, outside);
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdApproachDoor, w.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(outside).ActiveAction);
+            Assert.Equal(7001L, asked.DoorNetworkId);
+            Assert.Equal(new Vector3(25, 20, 0), asked.DoorCentre);                     // the brain sends the door, not a side
+
+            Vector3 Resolve(Entity mover) => Fdp.Toolkit.Navigation.NavigationDestination.Of(w, mover, new Fdp.Toolkit.Navigation.NavigationIntent
+                { Mode = Fdp.Toolkit.Navigation.NavigationMode.PathToPoint, RouteEntityId = asked.DoorNetworkId, FinalDestination = asked.DoorCentre });
+            var to = Resolve(outside);
             Assert.Equal(25f, to.X, 2);
-            Assert.Equal(20f - DoorNodes.ApproachMetres, to.Y, 2);                    // south of the south wall: the actor's side
-            var q = new MoveToDoorParams { Door = key };
-            DoorNodes.MoveToDoor(ref q, inside, w);
-            Assert.Equal(20f + DoorNodes.ApproachMetres, ReadMoveTo(w, inside).Y, 2);  // inside: north of it
+            Assert.Equal(20f - DoorApproach.ApproachMetres, to.Y, 2);                  // south of the south wall: the actor's side
+            Assert.Equal(20f + DoorApproach.ApproachMetres, Resolve(inside).Y, 2);     // inside: north of it
+            Assert.Equal(new Vector3(25, 20, 0), Fdp.Toolkit.Navigation.NavigationDestination.Of(w, outside, new Fdp.Toolkit.Navigation.NavigationIntent
+                { Mode = Fdp.Toolkit.Navigation.NavigationMode.PathToPoint, RouteEntityId = 9999, FinalDestination = asked.DoorCentre }));   // not a door here
+
+            // ⭐ CE-2304 seam — the same door move re-sent while the path to its near side is walked IS the same move (compared at the
+            //   resolved side, not the door's centre 1 m away).
+            var walking = new global::CarKinem.Core.NavState
+                { Mode = global::CarKinem.Core.KinematicsMode.CustomTrajectory, FinalDestination = to, TargetSpeed = 1.5f };
+            var resent = new Fdp.Toolkit.Navigation.NavigationIntent
+                { Mode = Fdp.Toolkit.Navigation.NavigationMode.PathToPoint, RouteEntityId = asked.DoorNetworkId, FinalDestination = asked.DoorCentre };
+            Assert.True(global::CarKinem.Systems.NavigationExecutionSystem.IsResentMove(w, outside, in resent, in walking));
 
             w.SetComponent(outside, new SimTransform { Position = new Vector3(25, 19, 0), Rotation = Quaternion.Identity });
             Assert.Equal(NodeStatus.Success, DoorNodes.MoveToDoor(ref p, outside, w));
+        }
+
+        private static unsafe Fdp.Toolkit.Navigation.Executors.ApproachDoorParams ReadApproach(EntityRepository w, Entity e)
+        {
+            var ch = w.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+            return *(Fdp.Toolkit.Navigation.Executors.ApproachDoorParams*)ch.Params;
         }
 
         private static class BehaviorConstantsIds { public const ushort Unlock = Fdp.Toolkit.Behavior.BehaviorConstants.ActionIdUnlockDoor; }
@@ -302,12 +330,6 @@ namespace Fdp.Toolkit.Terrain.Tests
         private static unsafe Entity ReadTarget(ref InteractionChannel ch)
         {
             fixed (byte* b = ch.Params) return ((OpenDoorParams*)b)->TargetDoor;
-        }
-
-        private static unsafe Vector3 ReadMoveTo(EntityRepository w, Entity e)
-        {
-            var ch = w.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
-            return ((Fdp.Toolkit.Navigation.MoveToParams*)ch.Params)->Destination;
         }
     }
 }

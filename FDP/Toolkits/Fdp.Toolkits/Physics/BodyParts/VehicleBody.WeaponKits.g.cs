@@ -217,6 +217,48 @@ namespace Fdp.Toolkit.Physics.BodyParts
                     new(2, KitShape.Box, new(-0.054347828f, 0.125f, 0.79999995f), new(0.030434784f, 0.041666664f, 0.099999994f), KitAxis.Z, 0f, 0f, KitRole.Gun),   // Weapon
                 })
             ),
+            (
+                new("Rifle", new(0.95f, 0.06f, 0.22f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(-0.37894738f, 0f, 0.3181818f), new(0.25263157f, 0.8333334f, 0.45454547f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.06315789f, 0f, 0.36363634f), new(0.4f, 0.8333334f, 0.3181818f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Cylinder, new(0.3368421f, 0f, 0.40909094f), new(0.42105263f, 0f, 0.11363637f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.02105263f, 0f, 0.090909086f), new(0.06315789f, 0.5f, 0.45454547f), KitAxis.Z, 15f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.18947369f, 0f, 0.13636364f), new(0.04210526f, 0.5f, 0.3181818f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                }),
+                new("Rifle", new(0.95f, 0.06f, 0.22f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(-0.37894738f, 0f, 0.3181818f), new(0.25263157f, 0.8333334f, 0.45454547f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.06315789f, 0f, 0.36363634f), new(0.4f, 0.8333334f, 0.3181818f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Cylinder, new(0.3368421f, 0f, 0.40909094f), new(0.42105263f, 0f, 0.11363637f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.02105263f, 0f, 0.090909086f), new(0.06315789f, 0.5f, 0.45454547f), KitAxis.Z, 15f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.18947369f, 0f, 0.13636364f), new(0.04210526f, 0.5f, 0.3181818f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                })
+            ),
+            (
+                new("Pistol", new(0.2f, 0.04f, 0.14f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(0.099999994f, 0f, 0.71428573f), new(0.90000004f, 0.75f, 0.28571427f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.25f, 0f, 0.35714287f), new(0.19999999f, 0.75f, 0.71428573f), KitAxis.Z, -12f, 0f, KitRole.Hull),   // Weapon
+                }),
+                new("Pistol", new(0.2f, 0.04f, 0.14f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(0.099999994f, 0f, 0.71428573f), new(0.90000004f, 0.75f, 0.28571427f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Box, new(-0.25f, 0f, 0.35714287f), new(0.19999999f, 0.75f, 0.71428573f), KitAxis.Z, -12f, 0f, KitRole.Hull),   // Weapon
+                })
+            ),
+            (
+                new("Charge", new(0.3f, 0.2f, 0.12f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(0f, 0f, 0.4166667f), new(1f, 1f, 0.8333334f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Cylinder, new(0.26666665f, 0.25f, 0.9166667f), new(0.08333333f, 0f, 0.25f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                }),
+                new("Charge", new(0.3f, 0.2f, 0.12f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+                {
+                    new(2, KitShape.Box, new(0f, 0f, 0.4166667f), new(1f, 1f, 0.8333334f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                    new(2, KitShape.Cylinder, new(0.26666665f, 0.25f, 0.9166667f), new(0.08333333f, 0f, 0.25f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Weapon
+                })
+            ),
         };
     }
 }

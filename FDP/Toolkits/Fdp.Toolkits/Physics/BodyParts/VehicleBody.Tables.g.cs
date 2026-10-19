@@ -58,7 +58,10 @@ namespace Fdp.Toolkit.Physics.BodyParts
             }),
             new("Helicopter", new(19.8f, 16.4f, 5.1f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
             {
-                new(0, KitShape.Box, new(0.06f, 0f, 0.36f), new(0.48f, 0.14f, 0.4f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(0, KitShape.Box, new(-0.04f, 0f, 0.36f), new(0.28f, 0.14f, 0.4f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(0, KitShape.Box, new(0.2775f, 0f, 0.36f), new(0.045f, 0.14f, 0.4f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(0, KitShape.Box, new(0.1775f, 0f, 0.1675f), new(0.155f, 0.14f, 0.015f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(0, KitShape.Box, new(0.1775f, 0f, 0.545f), new(0.155f, 0.14f, 0.03f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
                 new(1, KitShape.Box, new(0.31f, 0f, 0.38f), new(0.1f, 0.12f, 0.3f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Cockpit
                 new(4, KitShape.Box, new(-0.28f, 0f, 0.5f), new(0.42f, 0.04f, 0.09f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Tail
                 new(4, KitShape.Box, new(-0.47f, 0f, 0.64f), new(0.06f, 0.015f, 0.34f), KitAxis.Z, -25f, 0f, KitRole.Hull),   // Tail

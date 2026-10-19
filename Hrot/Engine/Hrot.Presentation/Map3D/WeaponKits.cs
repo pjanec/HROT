@@ -26,6 +26,12 @@ public enum WeaponKind : byte
     Manpads,
     /// <summary>⭐ CE-1112 (§6v AD-V3) — a twin-barrel anti-aircraft gun on a two-wheel carriage (ZU-23-2).</summary>
     AaGun,
+    /// <summary>⭐ CE-1169 / CE-1179 — a rifle one man picks up and carries (backend's pick-up rifle, CE-3233).</summary>
+    Rifle,
+    /// <summary>⭐ CE-1169 / CE-1179 — a pistol one man picks up and carries.</summary>
+    Pistol,
+    /// <summary>⭐ CE-1179 (People Display U18) — an explosive charge: worn hidden, placed, or in a vehicle's cargo.</summary>
+    Charge,
 }
 
 /// <summary>
@@ -53,6 +59,9 @@ public static class WeaponKits
                 case "TowedArtillery": return WeaponKind.TowedGun;
                 case "ManpadsWeaponSystem": return WeaponKind.Manpads;     // ⭐ CE-1112
                 case "AaGunWeaponSystem": return WeaponKind.AaGun;         // ⭐ CE-1112
+                case "PickUpRifleWeaponSystem": return WeaponKind.Rifle;    // ⭐ CE-1169 / CE-1179
+                case "PickUpPistolWeaponSystem": return WeaponKind.Pistol;
+                case "ExplosiveChargeWeaponSystem": return WeaponKind.Charge;
             }
         return WeaponKind.Hmg;
     }
@@ -68,6 +77,9 @@ public static class WeaponKits
         WeaponKind.TowedGun => new Vector3(6.0f, 2.0f, 1.8f),
         WeaponKind.Manpads => new Vector3(1.55f, 0.18f, 0.22f),
         WeaponKind.AaGun => new Vector3(4.6f, 2.4f, 1.6f),
+        WeaponKind.Rifle => new Vector3(0.95f, 0.06f, 0.22f),
+        WeaponKind.Pistol => new Vector3(0.20f, 0.04f, 0.14f),
+        WeaponKind.Charge => new Vector3(0.30f, 0.20f, 0.12f),
         _ => new Vector3(1.65f, 0.9f, 0.75f),
     };
 
@@ -344,6 +356,61 @@ public static class WeaponKits
         }, default);
     }
 
+    /// <summary>⭐ CE-1169 / CE-1179 — a rifle lying on its side: the stock, the receiver, the barrel, the magazine and the grip (the same
+    /// stowed and deployed — it is fired from the hands).</summary>
+    private static ShapeKit Rifle(bool deployed)
+    {
+        var s = DefaultSize(WeaponKind.Rifle);
+        return new ShapeKit(new[]
+        {
+            Block(s, -0.36f, 0f, 0.07f, 0.24f, 0.05f, 0.10f, ColourRole.Dark),          // the stock
+            Block(s, -0.06f, 0f, 0.08f, 0.38f, 0.05f, 0.07f, ColourRole.Metal),         // the receiver
+            Tube(s, 0.32f, 0f, 0.09f, 0.40f, 0.025f, ColourRole.Metal),                 // the barrel
+            Block(s, -0.02f, 0f, 0.02f, 0.06f, 0.03f, 0.10f, ColourRole.Dark, pitch: 15f),   // the magazine
+            Block(s, -0.18f, 0f, 0.03f, 0.04f, 0.03f, 0.07f, ColourRole.Dark),          // the pistol grip
+        }, default);
+    }
+
+    /// <summary>⭐ CE-1169 / CE-1179 — a pistol: the slide over the frame, and the grip.</summary>
+    private static ShapeKit Pistol(bool deployed)
+    {
+        var s = DefaultSize(WeaponKind.Pistol);
+        return new ShapeKit(new[]
+        {
+            Block(s, 0.02f, 0f, 0.10f, 0.18f, 0.03f, 0.04f, ColourRole.Metal),          // the slide
+            Block(s, -0.05f, 0f, 0.05f, 0.04f, 0.03f, 0.10f, ColourRole.Dark, pitch: -12f),  // the grip
+        }, default);
+    }
+
+    /// <summary>⭐ CE-1179 (People Display U18) — an explosive charge: a box, its detonator on top.</summary>
+    private static ShapeKit Charge(bool deployed)
+    {
+        var s = DefaultSize(WeaponKind.Charge);
+        return new ShapeKit(new[]
+        {
+            Block(s, 0f, 0f, 0.05f, 0.30f, 0.20f, 0.10f, ColourRole.Canvas),            // the charge
+            Upright(s, 0.08f, 0.05f, 0.11f, 0.03f, 0.025f, ColourRole.Dark),            // the detonator
+        }, default);
+    }
+
+    /// <summary>⭐ CE-1169 (People Display U8) — a pistol carried but not in his hands: in the holster on his right hip.</summary>
+    public static Matrix4x4 OnHip(Matrix4x4 carrierBody, float carrierHeight, Vector3 weaponSize)
+    {
+        float h = carrierHeight / 1.8f;
+        return Matrix4x4.CreateRotationY(MathF.PI / 2.4f) * Matrix4x4.CreateTranslation(0f, -0.20f * h, 0.95f * h) * carrierBody;
+    }
+
+    /// <summary>⭐ CE-1169 (People Display U7 — interim until the held-item drawing) — a hand weapon in his hands: level, pointing forward,
+    /// at the height of his hands.</summary>
+    public static Matrix4x4 InHands(Matrix4x4 carrierBody, float carrierHeight, Vector3 weaponSize)
+    {
+        float h = carrierHeight / 1.8f;
+        return Matrix4x4.CreateTranslation(0.25f * h, -0.10f * h, 1.05f * h) * carrierBody;
+    }
+
+    /// <summary>True for a weapon one man carries in his hands (a pick-up rifle or pistol).</summary>
+    public static bool IsHandWeapon(WeaponKind kind) => kind is WeaponKind.Rifle or WeaponKind.Pistol;
+
     /// <summary>
     /// ⭐ CE-1112 (§6v AD-V3) — the ZU-23-2: two barrels with flash hiders over a cradle, an ammunition box and a seat each side, on a turret
     /// ring. STOWED on its two wheels, barrels level forward; DEPLOYED lowered onto three jacks with the wheels lifted. Same 17 parts.
@@ -443,7 +510,7 @@ public static class WeaponKits
     private static ShapeKit[] Build(bool deployed) =>
     [
         Hmg(deployed), Minigun(deployed), Atgm(deployed), Launcher(deployed), Sentry(deployed), Mortar(deployed), TowedGun(deployed),
-        Manpads(deployed), AaGun(deployed),
+        Manpads(deployed), AaGun(deployed), Rifle(deployed), Pistol(deployed), Charge(deployed),
     ];
 }
 

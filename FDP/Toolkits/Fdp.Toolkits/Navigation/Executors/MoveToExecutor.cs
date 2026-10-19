@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             // ⭐ AQ93 R-4023 — "in traffic": SUMO drives it on its own roads; the result (Arrived) comes back the same way.
             if (NavigationConstants.RoadUseOf(p.Flags) == RoadUse.InTraffic) intent.Mode = NavigationMode.Traffic;
             intent.FinalDestination = p.Destination;   // raw Cartesian copy — no geo conversion
+            intent.RouteEntityId    = 0;   // ⭐ Q94 C — a plain point: never a door (or route) left from an earlier move
             intent.TargetSpeed      = p.Speed;
             intent.ArrivalRadius    = p.ArrivalRadius;
             intent.ReverseAllowed   = p.ReverseAllowed;

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
@@ -91,11 +92,27 @@ namespace Hrot.UI.Common.Map3D
             Clock += dt;
             var w = _world();
             if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
+            // ⭐ CE-1216 (§8k S-2) — a round passing his ear (the audio's own rule, RoundPasses) shocks the view; it fades in ShockSeconds
+            Shock = MathF.Max(0f, Shock - dt / ShockSeconds);
+            if (_driver != null && w is not null)
+                Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
-            if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave(restore: !handing);
+            if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
+            if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();   // ⭐ CE-1218
+            if (_driver != null && (held.IsNull || held != _driver.Unit))
+            {
+                // ⭐ CE-1220 (§8k K-1) — released because he FELL: the fall screen holds the view; a release just after a hit waits a
+                //   moment for his death to arrive (the release and the health may replicate in either order)
+                var gone = _driver.Unit;
+                if (held.IsNull && w is not null && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, gone)) BeginFall(w, gone);
+                else if (held.IsNull && w is not null && !handing && JustHit(w, gone) && WaitingForDeath()) { /* keep the view a moment */ }
+                else Leave(restore: !handing);
+            }
+            else _releasedAt = -1f;
             if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
-            if (_driver == null && _softLeft && !handing) RestoreView();   // a hand-over that came to nothing
+            if (_driver == null && _softLeft && !handing && Fall == null) RestoreView();   // a hand-over that came to nothing
+            if (Fall != null && w is not null) Fall.Step(w, dt);
         }
 
         /// <summary>
@@ -242,6 +259,8 @@ namespace Hrot.UI.Common.Map3D
 
         private void Enter(EntityRepository w, Entity unit)
         {
+            Fall = null;   // ⭐ CE-1220 — a squad mate taken from the fall screen
+            _releasedAt = -1f;
             HeldHere(w, out long netId);
             if (!_softLeft)
             {
@@ -266,6 +285,7 @@ namespace Hrot.UI.Common.Map3D
         /// <param name="restore">False during a hand-over: the view stays in first person while possession moves to the other unit.</param>
         private void Leave(bool restore = true)
         {
+            MapPeek = false;                // ⭐ CE-1218 — a peek ends with the possession
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
             if (Bodies != null) Bodies.FirstPerson = Entity.Null;
@@ -289,6 +309,15 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The operator lets the unit go (Esc); the view leaves FPS when <see cref="PossessedBy"/> says so.</summary>
         internal void Release(long netId) => Orders()?.Unpossess(netId);
 
+        /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the operator jumps to <paramref name="next"/>: one possession, which also lets the unit he
+        /// leaves go back to his brain (<see cref="EntityOrders.Possess(long, PossessionMode)"/> releases the station's other Fps unit —
+        /// C-8); the view follows <see cref="PossessedBy"/>.</summary>
+        internal void SwitchTo(Entity next)
+        {
+            if (Orders() is { } orders && _world() is { } w && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(next, out long id))
+                orders.Possess(id, PossessionMode.Fps);
+        }
+
         private EntityOrders? Orders()
             => _world() is { } w && w.HasSingletonManaged<NetworkEntityMap>()
                 ? new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null) : null;
@@ -302,7 +331,9 @@ namespace Hrot.UI.Common.Map3D
         /// ⭐ CE-1078 — plus a bracket on the locked target and a ring where the gun points, so the operator sees the turret catch up.</summary>
         public void DrawOverlay(RenderContext ctx)
         {
+            if (Fall != null && _world() is { } fw) { DrawFall(fw); return; }   // ⭐ CE-1220 (§8k K-1)
             if (_driver == null || _world() is not { } w) return;
+            if (MapPeek) { DrawPeekHint(); return; }   // ⭐ CE-1218 (§8k M-1) — the 2-D map, not his view
             var camera = _view.Camera3D;
             var size = camera.Viewport;
             int cx = (int)(size.X / 2), cy = (int)(size.Y / 2);
@@ -314,8 +345,14 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+            if (!_driver.BinocularsUp) DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through binoculars
+            else DrawBinoculars(camera, cx, cy);                             // ⭐ CE-1219 (§8k B-1)
+            DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
+            DrawDown(w, camera);                  // ⭐ CE-1220 (§8k K-1)
             var font = HudText.Font();
-            // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-E list and the verdict: under the crosshair, where the operator looks
+            DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
+            DrawCompass(camera, font, cx);  // ⭐ CE-1217 (§8k C-1)
+            // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
             foreach (var use in _driver.UseLines(w))
             {
@@ -323,6 +360,14 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangle(cx - uw / 2 - 6, uy - 3, uw + 12, HudLineHeight, new Color(0, 0, 0, 130));
                 HudText.Draw(font, use.Text, cx - uw / 2, uy, use.Colour);
                 uy += HudLineHeight;
+            }
+            // ⭐ CE-1213 (§8j W-1) — the command wheel round the crosshair while T is held; then what the order did, under it
+            if (_driver.WheelOpen) DrawWheel(font, cx, cy);
+            else if ((_driver.NoBinoculars ? "no binoculars" : _driver.WheelVerdict(Clock)) is { } verdict)
+            {
+                int vw = (int)HudText.Measure(font, verdict);
+                Raylib.DrawRectangle(cx - vw / 2 - 6, uy - 3, vw + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
                                   _driver.Scheme, _driver.Running);
@@ -336,6 +381,286 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1215</c> (§8j H-1, H-2) — what <see cref="Hrot.UI.Common.Effects.HitFeedback"/> says about the possessed unit: a HIT
+        /// MARKER (a cross round the crosshair, white; red when the one he hit is down) for <see cref="Hrot.UI.Common.Effects.HitFeedback.MarkerSeconds"/>
+        /// after he hit someone; a red DAMAGE ARC at the screen's edge toward where each hit on him came from, fading over
+        /// <see cref="Hrot.UI.Common.Effects.HitFeedback.ArcSeconds"/>, the thicker the more damage. Each read once a frame from sim time.
+        /// </summary>
+        private void DrawHitFeedback(EntityRepository w, MapCamera3D camera, int cx, int cy)
+        {
+            if (Hrot.UI.Common.Effects.HitFeedback.Of(w) is not { } feedback) return;
+            var unit = _driver!.Unit;
+            double now = Fdp.Toolkit.Time.SimClock.Of(w).TotalTime;
+            foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.MarkerSeconds))
+            {
+                if (hit.Shooter != unit) continue;
+                var colour = Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, hit.Target) ? Color.Red : Color.White;
+                for (int sx = -1; sx <= 1; sx += 2)
+                    for (int sy = -1; sy <= 1; sy += 2)
+                        Raylib.DrawLineEx(new Vector2(cx + sx * 7, cy + sy * 7), new Vector2(cx + sx * 14, cy + sy * 14), 2f, colour);
+                break;
+            }
+            float radius = MathF.Min(camera.Viewport.X, camera.Viewport.Y) * 0.38f;
+            foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.ArcSeconds))
+            {
+                if (hit.Target != unit) continue;
+                Vector3? shooterAt = !hit.Shooter.IsNull && w.IsAlive(hit.Shooter) && w.HasComponent<SimTransform>(hit.Shooter)
+                    ? w.GetComponentRO<SimTransform>(hit.Shooter).Position : null;
+                if (Hrot.UI.Common.Effects.HitFeedback.FromWhere(hit, shooterAt) is not { } from
+                    || Hrot.UI.Common.Effects.HitFeedback.ScreenAngle(camera.Forward, from) is not { } angle) continue;
+                float fade = 1f - (float)((now - hit.Time) / Hrot.UI.Common.Effects.HitFeedback.ArcSeconds);
+                float thick = HitArcThickness(hit.Damage);
+                Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
+                                new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
+            }
+        }
+
+        /// <summary>⭐ <c>CE-1219</c> (§8k B-1) — through the binoculars: the two eyepieces' rims, the range to the point under the crosshair
+        /// (the eye to it, m), and the click's meaning.</summary>
+        private void DrawBinoculars(MapCamera3D camera, int cx, int cy)
+        {
+            float r = camera.Viewport.Y * 0.42f;
+            var rim = new Color(0, 0, 0, 200);
+            Raylib.DrawRing(new Vector2(cx - r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
+            Raylib.DrawRing(new Vector2(cx + r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
+            var font = HudText.Font();
+            string range = $"RANGE {Vector3.Distance(camera.Eye, _driver!.AimAt):0} m   LMB designate";
+            int tw = (int)HudText.Measure(font, range);
+            Raylib.DrawRectangle(cx - tw / 2 - 6, cy + 40, tw + 12, HudLineHeight, new Color(0, 0, 0, 160));
+            HudText.Draw(font, range, cx - tw / 2, cy + 42, Color.Gold);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — how long the fall screen fades to its colour (s), how long a kill cam runs (s), and how long a
+        /// release just after a hit waits for the death (s).</summary>
+        public const float FallFadeSeconds = 1f, KillCamSeconds = 3f, FallGraceSeconds = 0.5f;
+        private float _releasedAt = -1f;
+
+        /// <summary>⭐ <c>CE-1220</c> — the world this station reads (the fall screen's camera reads it too).</summary>
+        internal EntityRepository? World => _world();
+
+        /// <summary>⭐ <c>CE-1220</c> — the fall screen while one is up (he was killed while held), else null.</summary>
+        public FallScreen? Fall { get; private set; }
+
+        /// <summary>⭐ <c>CE-1220</c> — true for <see cref="FallGraceSeconds"/> after the release was first seen.</summary>
+        private bool WaitingForDeath()
+        {
+            if (_releasedAt < 0f) _releasedAt = Clock;
+            return Clock - _releasedAt < FallGraceSeconds;
+        }
+
+        private static bool JustHit(EntityRepository w, Entity unit)
+            => Hrot.UI.Common.Effects.HitFeedback.Of(w) is { } fb
+               && fb.Recent(Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, 1.0).Any(h => h.Target == unit);
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — he fell while held: drop the first-person driver but keep the 3-D view (the fall screen's
+        /// camera holds it); who hit him is the last shooter <c>HitFeedback</c> saw on him.</summary>
+        private void BeginFall(EntityRepository w, Entity dead)
+        {
+            var feedback = Hrot.UI.Common.Effects.HitFeedback.Of(w);
+            var killer = Entity.Null;
+            if (feedback != null)
+                foreach (var hit in feedback.Recent(Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, Hrot.UI.Common.Effects.HitFeedback.KeepSeconds))
+                    if (hit.Target == dead && !hit.Shooter.IsNull) killer = hit.Shooter;
+            Leave(restore: false);
+            Fall = new FallScreen(this, dead, killer, Clock);
+            _view.Camera3D.Driver = Fall;
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — Esc on the fall screen: the map as the operator had it before he took the man.</summary>
+        internal void EndFall()
+        {
+            Fall = null;
+            _view.Camera3D.Driver = null;
+            RestoreView();
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — Tab on the fall screen: the first living man of the fallen man's squad (his leader, the men naming that
+        /// leader, his own men — <see cref="SquadRoster"/>); nothing when none is left.</summary>
+        internal void FallToSquadMate()
+        {
+            if (Fall == null || _world() is not { } w) return;
+            var roster = SquadRoster.Of(w, Fall.Dead);
+            if (roster.Count > 0) SwitchTo(roster[0].Unit);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — the fall screen's shade and lines (and the kill cam's label).</summary>
+        private void DrawFall(EntityRepository w)
+        {
+            var size = _view.Camera3D.Viewport;
+            var font = HudText.Font();
+            var fall = Fall!;
+            bool cam = fall.KillCamOn(Clock);
+            float fade = Math.Clamp((Clock - fall.Since) / FallFadeSeconds, 0f, 1f);
+            Raylib.DrawRectangle(0, 0, (int)size.X, (int)size.Y, new Color(70, 0, 0, (int)((cam ? 60 : 170) * fade)));
+            if (fade < 1f && !cam) return;
+            string head = cam ? $"KILL CAM - {fall.KillerName(w)}" : $"KILLED - by {fall.KillerName(w)}";
+            var options = new List<string>();
+            if (SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("Tab  a squad mate");
+            if (fall.CanKillCam(w)) options.Add("K  who hit you");
+            options.Add("Esc  the map");
+            string opts = string.Join("     ", options);
+            int hw = (int)HudText.Measure(font, head), ow = (int)HudText.Measure(font, opts);
+            int cy = cam ? 60 : (int)size.Y / 2 - HudLineHeight;
+            HudText.Draw(font, head, (int)size.X / 2 - hw / 2, cy, cam ? Color.Gold : new Color(255, 120, 120, 255));
+            HudText.Draw(font, opts, (int)size.X / 2 - ow / 2, cy + HudLineHeight + 8, Color.White);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — a possessed man knocked DOWN (alive, <c>Effects.IsKnockedDown</c>): the view dims, "DOWN".</summary>
+        private void DrawDown(EntityRepository w, MapCamera3D camera)
+        {
+            if (!Fdp.Toolkit.Combat.Effects.IsKnockedDown(w, _driver!.Unit)) return;
+            var size = camera.Viewport;
+            Raylib.DrawRectangle(0, 0, (int)size.X, (int)size.Y, new Color(0, 0, 0, 120));
+            var font = HudText.Font();
+            const string down = "DOWN";
+            HudText.Draw(font, down, (int)size.X / 2 - (int)HudText.Measure(font, down) / 2, (int)size.Y / 3, new Color(255, 170, 60, 255));
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — how far the 2-D map's camera stands off him when it opens (m): a few hundred metres across.</summary>
+        public const float PeekDistance = 400f;
+        private float _peekEndedAt = -1f;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — is the operator looking at the 2-D map (M) while still holding his unit?</summary>
+        public bool MapPeek { get; private set; }
+
+        /// <summary>⭐ <c>CE-1218</c> — the clock of the frame the peek ended (the driver ignores that frame's M, the same press).</summary>
+        internal float PeekEndedAt => _peekEndedAt;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — the 2-D map, centred on him; possession kept (the driver stays, so the map's own shortcuts stay
+        /// silent and nothing re-enters first person); the cursor freed to pan.</summary>
+        internal void BeginMapPeek(FpsCameraDriver driver)
+        {
+            if (_world() is not { } w || !w.IsAlive(driver.Unit) || !w.HasComponent<SimTransform>(driver.Unit)) return;
+            var at = w.GetComponentRO<SimTransform>(driver.Unit).Position;
+            MapPeek = true;
+            driver.Input?.SetCursorLocked(false);
+            _view.ShowPose(new CameraPose(at, PeekDistance, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> — back to his eyes (M on the map): the 3-D view again, the driver places it next frame; the cursor locked.</summary>
+        internal void EndMapPeek()
+        {
+            MapPeek = false;
+            _peekEndedAt = Clock;
+            if (_driver == null) return;
+            _driver.Input?.SetCursorLocked(true);
+            _view.ShowPose(_view.Camera3D.Pose with { Pitch = 0f });   // any non-overhead pose is the 3-D view; the driver places it
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> — the one line on the map while he is held: how to come back.</summary>
+        private void DrawPeekHint()
+        {
+            var font = HudText.Font();
+            const string hint = "M - back to first person (he is holding still)";
+            var size = _view.Camera3D.Viewport;
+            int w = (int)HudText.Measure(font, hint);
+            Raylib.DrawRectangle((int)size.X / 2 - w / 2 - 8, 8, w + 16, HudLineHeight + 4, new Color(0, 0, 0, 160));
+            HudText.Draw(font, hint, (int)size.X / 2 - w / 2, 10, Color.Gold);
+        }
+
+        /// <summary>⭐ <c>CE-1217</c> (§8k C-1) — the compass strip at the top: ±60° of heading, a tick every 15°, the eight points named, the
+        /// heading's number in a box in the middle; every scheme (the flyer's HDG line stays).</summary>
+        private static void DrawCompass(MapCamera3D camera, Font? font, int cx)
+        {
+            float heading = FpsCompass.Heading(camera.Forward);
+            int half = (int)MathF.Min(camera.Viewport.X * 0.3f, 360f), top = 12, height = 30;
+            Raylib.DrawRectangle(cx - half - 8, top - 4, 2 * half + 16, height + 8, new Color(0, 0, 0, 110));
+            foreach (var (at, degrees, label) in FpsCompass.Ticks(heading))
+            {
+                int x = cx + (int)(at * half);
+                bool major = label.Length > 0;
+                Raylib.DrawLine(x, top, x, top + (major ? 10 : 6), new Color(255, 255, 255, major ? 230 : 150));
+                if (major) HudText.Draw(font, label, x - (int)HudText.Measure(font, label) / 2, top + 10, Color.White);
+            }
+            string mid = ((int)MathF.Round(heading) % 360).ToString("000");
+            int mw = (int)HudText.Measure(font, mid);
+            Raylib.DrawRectangle(cx - mw / 2 - 4, top + height + 2, mw + 8, HudLineHeight, new Color(0, 0, 0, 150));
+            HudText.Draw(font, mid, cx - mw / 2, top + height + 4, Color.Gold);
+        }
+
+        /// <summary>⭐ <c>CE-1217</c> (§8k C-2) — the names of his side's units within 50 m over their heads (the top of the drawn body, else
+        /// a man's 1.9 m), small and green — his own men brighter.</summary>
+        private void DrawFriends(EntityRepository w, MapCamera3D camera, Font? font)
+        {
+            var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
+            foreach (var friend in FriendMarks.Of(w, _driver!.Unit, camera.Eye))
+            {
+                float top = map != null && map.TryGetNetworkId(friend.Unit, out long id) && Bodies?.TopAbove(id) is { } t ? t : 1.9f;
+                if (!OnScreen(camera, friend.At + new Vector3(0f, 0f, top + 0.1f), out var screen)) continue;
+                int tw = (int)HudText.Measure(font, friend.Name);
+                HudText.Draw(font, friend.Name, (int)screen.X - tw / 2, (int)screen.Y - HudFontSize,
+                             friend.Mine ? new Color(140, 255, 140, 255) : new Color(90, 200, 90, 210));
+            }
+        }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-2) — how long a near miss darkens the edges (s), and how much one pass adds (they stack to 1).</summary>
+        public const float ShockSeconds = 0.4f, ShockPerPass = 0.5f;
+        private readonly Hrot.UI.Common.Audio.RoundPasses _passes = new();
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-2) — 0 … 1: how hard the last near misses darkened the view's edges.</summary>
+        public float Shock { get; private set; }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1) — the sim's own spread of his shots (<see cref="Fdp.Toolkit.Combat.HitModel.Sigma"/>, radians,
+        /// the half-width) with the selected weapon, on this node's copy of him; 0 when the weapon states none.</summary>
+        public static float SpreadOf(EntityRepository w, Entity unit, int slot)
+        {
+            var (platform, mount) = FpsZoom.PlatformOf(w, unit, slot);
+            if (platform.IsNull || !w.IsAlive(platform)) return 0f;
+            return Fdp.Toolkit.Combat.HitModel.Sigma(w, platform, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, platform, mount),
+                                                     Fdp.Toolkit.Time.SimClock.Of(w).TotalTime);
+        }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1) — the spread ring's radius on the screen (px): σ at the view's vertical field of view.</summary>
+        public static float SpreadRadiusPx(float sigma, float fovDegrees, float viewportHeight)
+            => sigma <= 0f ? 0f : MathF.Tan(sigma) / MathF.Tan(fovDegrees * MathF.PI / 360f) * viewportHeight / 2f;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1, S-2) — the spread ring round the crosshair, and the edges darkened by near misses.</summary>
+        private void DrawSpreadAndShock(EntityRepository w, MapCamera3D camera, int cx, int cy)
+        {
+            float r = SpreadRadiusPx(SpreadOf(w, _driver!.Unit, _driver.Mount), camera.FovyDegrees, camera.Viewport.Y);
+            if (r >= 4f) Raylib.DrawCircleLines(cx, cy, MathF.Min(r, camera.Viewport.Y / 2f), new Color(255, 255, 255, 110));
+            if (Shock <= 0f) return;
+            int width = (int)camera.Viewport.X, height = (int)camera.Viewport.Y, band = (int)(MathF.Min(width, height) * 0.18f);
+            var dark = new Color(0, 0, 0, (int)(170 * Shock));
+            var clear = new Color(0, 0, 0, 0);
+            Raylib.DrawRectangleGradientH(0, 0, band, height, dark, clear);
+            Raylib.DrawRectangleGradientH(width - band, 0, band, height, clear, dark);
+            Raylib.DrawRectangleGradientV(0, 0, width, band, dark, clear);
+            Raylib.DrawRectangleGradientV(0, height - band, width, band, clear, dark);
+        }
+
+        /// <summary>⭐ <c>CE-1215</c> (H-2) — the damage arc's thickness (px): 6 for an unknown damage (a remote hit, a blow), growing with
+        /// the damage up to 18.</summary>
+        public static float HitArcThickness(float damage) => damage <= 0f ? 6f : Math.Clamp(6f + damage * 0.2f, 6f, 18f);
+
+        /// <summary>⭐ <c>CE-1213</c> — the wheel's ring radius (px): the labels sit on it.</summary>
+        public const int WheelRadius = 130;
+
+        /// <summary>⭐ <c>CE-1213</c> — the command wheel: a dark disc, one label per order on the ring (the one under the cursor lit), the
+        /// cursor; "no men under your command" when the ring is empty.</summary>
+        private void DrawWheel(Font? font, int cx, int cy)
+        {
+            var items = _driver!.WheelItems;
+            Raylib.DrawCircle(cx, cy, WheelRadius + 60, new Color(0, 0, 0, 110));
+            Raylib.DrawCircleLines(cx, cy, CommandWheel.DeadZonePx, new Color(255, 255, 255, 90));
+            if (items.Count == 0)
+            {
+                const string none = "no men under your command";
+                HudText.Draw(font, none, cx - (int)HudText.Measure(font, none) / 2, cy - HudLineHeight / 2, Color.LightGray);
+            }
+            int lit = CommandWheel.Pick(_driver.WheelCursor, items.Count);
+            for (int i = 0; i < items.Count; i++)
+            {
+                var at = new Vector2(cx, cy) + CommandWheel.Direction(i, items.Count) * WheelRadius;
+                int tw = (int)HudText.Measure(font, items[i].Name);
+                Raylib.DrawRectangle((int)at.X - tw / 2 - 8, (int)at.Y - HudLineHeight / 2 - 2, tw + 16, HudLineHeight + 4,
+                                     i == lit ? new Color(230, 150, 40, 220) : new Color(20, 20, 20, 200));
+                HudText.Draw(font, items[i].Name, (int)at.X - tw / 2, (int)at.Y - HudLineHeight / 2 + 2, Color.White);
+            }
+            Raylib.DrawCircle(cx + (int)_driver.WheelCursor.X, cy + (int)_driver.WheelCursor.Y, 4f, Color.White);
         }
 
         /// <summary>The HUD's text size and line pitch (px).</summary>
@@ -441,7 +766,7 @@ namespace Hrot.UI.Common.Map3D
                         lines.Add(WeaponLine(w, weapon, w.GetComponentRO<WeaponAmmo>(weapon), 0, slots[i] == mount, key: i + 1));
                     else lines.Add($"{(slots[i] == mount ? "> " : "  ")}{i + 1} {TypeName(w, weapon)?.ToUpperInvariant() ?? "WEAPON"}");
                 }
-                if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
+                if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
                 lines.Add(scheme switch
@@ -452,7 +777,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo  E use (hold E: more)");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -513,9 +838,9 @@ namespace Hrot.UI.Common.Map3D
                 _ => "",
             };
 
-            /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>E  Open door</c>, or greyed with its reason <c>E  Open door (too far)</c>.</summary>
+            /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>F  Open door</c>, or greyed with its reason <c>F  Open door (too far)</c> (⭐ CE-1212 — E before).</summary>
             public static string Prompt(EntityRepository w, in UseAction a)
-                => a.Available ? $"E  {Label(w, a)}" : $"E  {Label(w, a)} ({ReasonText(a.Reason)})";
+                => a.Available ? $"F  {Label(w, a)}" : $"F  {Label(w, a)} ({ReasonText(a.Reason)})";   // ⭐ CE-1212 — F is the use key
 
             /// <summary>⭐ CE-1158 (§8h.6 ②) — the brain's verdict on the press of <paramref name="label"/>: done, refused with its reason, or
             /// nothing while it runs.</summary>
@@ -531,7 +856,7 @@ namespace Hrot.UI.Common.Map3D
                 UsePicked = new(255, 220, 90, 255), UseDone = new(120, 235, 120, 255), UseRefused = new(255, 120, 100, 255);
 
             /// <summary>
-            /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
+            /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  R: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
             /// key, its kind, the round in its breech (and how many of that round), its total, the other rounds <c>F</c> cycles to (the
             /// selected weapon only), and LOADING while it reloads or switches.
             /// </summary>
@@ -556,7 +881,7 @@ namespace Hrot.UI.Common.Map3D
                     var others = new System.Collections.Generic.List<string>();
                     foreach (var l in loadout)
                         if (unchecked((long)l.AmmoGuid) != loaded && RoundName(w, unchecked((long)l.AmmoGuid)) is { } name) others.Add(name);
-                    if (others.Count > 0) line.Append("  F: ").Append(string.Join(" / ", others));
+                    if (others.Count > 0) line.Append("  R: ").Append(string.Join(" / ", others));   // ⭐ CE-1212 — R is the next round (F before)
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
                 return line.ToString();
@@ -662,7 +987,7 @@ namespace Hrot.UI.Common.Map3D
         private string _lastLabel = "Use";
         private readonly UseAction[] _actions = new UseAction[OperatorUseActions.MaxActions];
 
-        /// <summary>⭐ CE-1158 (O-1) — how long <c>E</c> is held before the list of the other verbs opens (s).</summary>
+        /// <summary>⭐ CE-1158 (O-1) — how long the use key (<c>F</c>, CE-1212) is held before the list of the other verbs opens (s).</summary>
         public const float HoldSeconds = 0.3f;
         /// <summary>⭐ CE-1158 (§8h.6 ②) — how long the brain's verdict line stays (s).</summary>
         public const float VerdictSeconds = 2f;
@@ -679,7 +1004,7 @@ namespace Hrot.UI.Common.Map3D
         public int Mount { get; private set; }
 
         /// <summary>⭐ CE-1078 — a shot locked by the last press has not left yet, as this station sees it (the mount's count has not
-        /// dropped since the press; RMB clears it). The HUD's LOCKED.</summary>
+        /// dropped since the press; X clears it — ⭐ CE-1211, RMB before). The HUD's LOCKED.</summary>
         public bool ShotPending { get; private set; }
 
         /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
@@ -740,6 +1065,7 @@ namespace Hrot.UI.Common.Map3D
             if (vehicle && HullLocked) _yaw = hullYaw;
             _eye = EyeOf(w, tf, vehicle);
             _eyeKnown = true;
+            StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
             // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
             Place(camera);
@@ -767,10 +1093,163 @@ namespace Hrot.UI.Common.Map3D
         {
             if (!_eyeKnown) return;
             camera.Yaw = _yaw;
-            camera.Pitch = _pitch;
+            camera.Pitch = _pitch + Kick;   // ⭐ CE-1216 (§8k S-3) — the recoil kick, on the view only (his look is _pitch)
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
             camera.LookAt = _eye + camera.Forward * camera.Distance;
+            camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
+        }
+
+        /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
+        public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — how long a recoil kick takes to settle (s).</summary>
+        public const float KickSeconds = 0.15f;
+        private double _lastShotAt = double.NaN;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — the view's recoil kick now (radians up), settling over <see cref="KickSeconds"/>.</summary>
+        public float Kick { get; private set; }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — one shot's kick (radians) by the weapon's class: a pistol or rifle a little, a machine gun
+        /// less per round, a cannon or a launcher hard; nothing for a throw or a weapon with no class.</summary>
+        public static float KickRadians(Fdp.Toolkit.Tkb.Domain.WeaponCategory category) => category switch
+        {
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => 0.012f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => 0.007f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => 0.015f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => 0.04f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket
+                or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => 0.025f,
+            _ => 0f,
+        };
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — his own new shot (the effects spawner's <c>RecentShots</c>) kicks the view; the kick settles.</summary>
+        private void StepKick(EntityRepository w, float dt)
+        {
+            Kick = Kick * MathF.Exp(-3f * dt / KickSeconds) is var k && k > 1e-4f ? k : 0f;   // ~95 % settled in KickSeconds
+            if (Hrot.UI.Common.Effects.RecentShots.Of(w) is not { } shots || !shots.TryGet(Unit, out int mount, out double at)) return;
+            if (at == _lastShotAt) return;
+            bool first = double.IsNaN(_lastShotAt);
+            _lastShotAt = at;
+            if (first) return;   // a shot from before he was held
+            var (platform, index) = FpsZoom.PlatformOf(w, Unit, mount);
+            if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, platform, index) is { } dto) Kick += KickRadians(dto.Category);
+        }
+
+        /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
+        public const KeyboardKey CommandWheelKey = KeyboardKey.T;
+        /// <summary>⭐ <c>CE-1214</c> (§8j T-1; key approved, R-1009) — the next man of his squad (Shift: the previous).</summary>
+        public const KeyboardKey TeamSwitchKey = KeyboardKey.Tab;
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1; key approved, R-1010) — the 2-D map and back.</summary>
+        public const KeyboardKey MapKey = KeyboardKey.M;
+
+        /// <summary>⭐ <c>CE-1218</c> — the input this driver reads (its cursor lock), for the station to watch M while the 2-D map is up.</summary>
+        internal IInputProvider? Input => _locked;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — one frame with every axis at rest, the trigger up and no lean (the counters unchanged, so no
+        /// press is repeated): the brain keeps the newest frame, so he stands still while the map is up.</summary>
+        private void SendStill()
+        {
+            Leaning = Fdp.Toolkit.Combat.LeanSide.LeanNone;
+            BinocularsHeld = false;   // ⭐ CE-1219 — the binoculars go down with him (Binoculars = 0 below)
+            _station.Send(_netId, new OperatorControlFrameEvent
+            {
+                Seq = ++_seq, Yaw = _yaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
+                Stance = !IsVehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,
+                ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,
+                UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,
+            });
+        }
+        /// <summary>⭐ <c>CE-1213</c> — how long the wheel's verdict stays under the crosshair (s).</summary>
+        public const float WheelVerdictSeconds = 2.5f;
+
+        /// <summary>⭐ <c>CE-1213</c> — is the command wheel open (T held)?</summary>
+        public bool WheelOpen { get; private set; }
+        /// <summary>⭐ <c>CE-1213</c> — the ring, fixed when the wheel opened (<see cref="CommandWheel.Items"/>).</summary>
+        public IReadOnlyList<Hrot.Common.Orders.OrderInfo> WheelItems { get; private set; } = Array.Empty<Hrot.Common.Orders.OrderInfo>();
+        /// <summary>⭐ <c>CE-1213</c> — the wheel's cursor, px from its middle (the mouse moves it while the wheel is open).</summary>
+        public Vector2 WheelCursor { get; private set; }
+        private string? _wheelVerdict;
+        private float _wheelVerdictAt;
+
+        /// <summary>⭐ <c>CE-1213</c> — what the last wheel order did (<c>Move: 3 of 3 men</c>), for <see cref="WheelVerdictSeconds"/>.</summary>
+        public string? WheelVerdict(float clock) => _wheelVerdict != null && clock - _wheelVerdictAt <= WheelVerdictSeconds ? _wheelVerdict : null;
+
+        /// <summary>⭐ <c>CE-1213</c> (§8j W-1) — T pressed opens the wheel on his men's orders; held, the mouse moves its cursor; let go,
+        /// the sector under the cursor is sent to his men at the crosshair (nothing inside the dead zone). True while it has the mouse.</summary>
+        private bool CommandWheelInput(IInputProvider input, Vector2 delta)
+        {
+            bool held = input.IsKeyDown((MapKeyboardKey)CommandWheelKey);
+            if (held && !WheelOpen && _world() is { } ow)
+            {
+                WheelItems = CommandWheel.Items(ow, Unit);
+                WheelCursor = Vector2.Zero;
+                WheelOpen = true;
+            }
+            if (!WheelOpen) return false;
+            if (held)
+            {
+                var cursor = WheelCursor + delta;
+                WheelCursor = cursor.Length() > CommandWheel.CursorReachPx ? Vector2.Normalize(cursor) * CommandWheel.CursorReachPx : cursor;
+                return true;
+            }
+            WheelOpen = false;
+            int pick = CommandWheel.Pick(WheelCursor, WheelItems.Count);
+            if (pick >= 0 && _world() is { } sw)
+            {
+                var order = WheelItems[pick];
+                int accepted = CommandWheel.Send(sw, Unit, order, AimAt, AimTarget);
+                _wheelVerdict = $"{order.Name}: {accepted} of {CommandWheel.MenOf(sw, Unit).Count} men";
+                _wheelVerdictAt = _station.Clock;
+            }
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-1212</c> — the lean held this frame (a person only; none in a vehicle).</summary>
+        public Fdp.Toolkit.Combat.LeanSide Leaning { get; private set; }
+
+        /// <summary>⭐ <c>CE-1211</c> (§8j Z-1) — is the right button held (looking down the sights or through the scope)?</summary>
+        public bool Zooming { get; private set; }
+
+        /// <summary>⭐ <c>CE-1211</c> — the field of view this frame: <see cref="FpsZoom.FovFor"/> the selected weapon while
+        /// <see cref="Zooming"/>, else the map's own.</summary>
+        public float ZoomFovDegrees => BinocularsUp ? Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees   // ⭐ CE-1219 — the sim's own 10°
+            : Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
+
+        /// <summary>⭐ <c>CE-1219</c> (§8k B-1; key approved, R-1010) — hold to raise his binoculars.</summary>
+        public const KeyboardKey BinocularsKey = KeyboardKey.B;
+
+        /// <summary>⭐ <c>CE-1219</c> — is B held (the frame asks his brain to raise them)?</summary>
+        public bool BinocularsHeld { get; private set; }
+
+        /// <summary>⭐ <c>CE-1219</c> — are his binoculars UP in the sim (<see cref="Fdp.Toolkit.Combat.HeldItems.BinocularsUp"/>, the
+        /// replicated posture)? The view narrows only then — never on the key alone, so it never shows what the sim does not see.</summary>
+        public bool BinocularsUp => _world() is { } bw && Fdp.Toolkit.Combat.HeldItems.BinocularsUp(bw, Unit);
+
+        /// <summary>⭐ <c>CE-1219</c> — B held by a man who carries none (his type's pockets): the HUD says so.</summary>
+        public bool NoBinoculars => BinocularsHeld && _world() is { } nw
+            && !Fdp.Toolkit.Combat.HeldItems.Has(nw, Unit, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+
+        /// <summary>
+        /// ⭐ <c>CE-1219</c> (§8k B-1) — with his binoculars up, LMB DESIGNATES for his men (<see cref="CommandWheel.MenOf"/>) in the station's
+        /// <see cref="Hrot.Common.Orders.OrderDesignations"/>: the unit under the crosshair as their Target, else the point as their MapPoint —
+        /// so the wheel's Attack / Move (and any order draft) then complete without a pick. Returns how many men got it.
+        /// </summary>
+        public int Designate(Vector3 aimAt, long aimTarget)
+        {
+            if (_world() is not { } w) return 0;
+            var store = Hrot.Common.Orders.OrderDesignations.For(w);
+            var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>()! : null;
+            var kind = aimTarget != 0 ? Hrot.Common.Orders.DesignationKind.Target : Hrot.Common.Orders.DesignationKind.MapPoint;
+            System.Text.Json.Nodes.JsonNode value = aimTarget != 0 ? System.Text.Json.Nodes.JsonValue.Create(aimTarget)
+                : Hrot.ScenarioEditor.Map.RtsCommands.OrderPoint(w, new Vector2(aimAt.X, aimAt.Y));
+            int count = 0;
+            foreach (var man in CommandWheel.MenOf(w, Unit))
+                if (map != null && map.TryGetNetworkId(man, out long id)) { store.Set(id, kind, value); count++; }
+            _wheelVerdict = count == 0 ? "no men to designate for"
+                : $"{(aimTarget != 0 ? "Target" : "Point")} designated for {count} {(count == 1 ? "man" : "men")}";
+            _wheelVerdictAt = _station.Clock;
+            return count;
         }
 
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
@@ -783,12 +1262,32 @@ namespace Hrot.UI.Common.Map3D
                 return true;
             }
 
+            // ⭐ CE-1218 (§8k M-1) — M: the 2-D map centred on him; he holds still (one still frame) until M brings the operator back
+            if (input.IsKeyPressed((MapKeyboardKey)MapKey) && _station.PeekEndedAt != _station.Clock)
+            {
+                SendStill();
+                _station.BeginMapPeek(this);
+                return true;
+            }
+            // ⭐ CE-1214 (§8j T-1) — Tab / Shift+Tab: the next / previous man of his squad (SquadRoster); the one he leaves goes back
+            //   to his brain (the possess releases him)
+            if (input.IsKeyPressed((MapKeyboardKey)TeamSwitchKey) && _world() is { } tw
+                && SquadRoster.Next(tw, Unit, input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift) ? -1 : 1) is { IsNull: false } next)
+            {
+                _station.SwitchTo(next);
+                return true;
+            }
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
+            // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
+            if (CommandWheelInput(input, delta)) delta = Vector2.Zero;
+            // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
+            Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
+            float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (vehicle && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) HullLocked = !HullLocked;
             if (vehicle && HullLocked) _mouseSteer = Math.Clamp(_mouseSteer - delta.X * MouseSteerPerPixel, -1f, 1f);
-            else _yaw -= delta.X * LookSensitivity;
-            _pitch = Math.Clamp(_pitch - delta.Y * LookSensitivity, -1.4f, 1.4f);
+            else _yaw -= delta.X * look;
+            _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
@@ -810,7 +1309,7 @@ namespace Hrot.UI.Common.Map3D
             if (slots.Slice(0, slotCount).IndexOf(Mount) < 0) Mount = slots[0];   // ⭐ CE-1158 — a controlled weapon gone (he left the seat)
             if (UseListOpen)
             {
-                // ⭐ CE-1158 (O-1) — while the hold-E list is open the wheel and 1-4 pick a verb, not a weapon
+                // ⭐ CE-1158 (O-1) — while the hold-use list is open the wheel and 1-4 pick a verb, not a weapon
                 int verbs = UseCount();
                 if (wheel != 0f && verbs > 0) _listIndex = ((_listIndex + (wheel > 0f ? -1 : 1)) % verbs + verbs) % verbs;
                 for (int k = 0; k < 4; k++)
@@ -827,8 +1326,13 @@ namespace Hrot.UI.Common.Map3D
                 for (int k = 0; k < 4; k++)
                     if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < slotCount) Mount = slots[k];
             }
-            // F moves the selected weapon to its next round
-            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.F)) unchecked { _ammoSeq++; }
+            // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
+            if (input.IsKeyPressed((MapKeyboardKey)NextRoundKey)) unchecked { _ammoSeq++; }
+            // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
+            bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
+            Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
+                    : leftHeld ? Fdp.Toolkit.Combat.LeanSide.LeanLeft : Fdp.Toolkit.Combat.LeanSide.LeanRight;
+            BinocularsHeld = Scheme == ControlScheme.Person && input.IsKeyDown((MapKeyboardKey)BinocularsKey);   // ⭐ CE-1219 (§8k B-1)
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
@@ -842,11 +1346,13 @@ namespace Hrot.UI.Common.Map3D
             }
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
-            // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, RMB drops it
+            // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, X drops it (CE-1211)
             (var aimAt, long aimTarget) = Aim(camera);
             AimAt = aimAt;
             AimTarget = aimTarget;
-            if (input.IsMouseButtonPressed(MapMouseButton.Left))
+            bool glassing = BinocularsUp;   // ⭐ CE-1219 (§8k B-1) — binoculars up: LMB designates, the trigger stays up
+            if (glassing && input.IsMouseButtonPressed(MapMouseButton.Left)) Designate(aimAt, aimTarget);
+            else if (input.IsMouseButtonPressed(MapMouseButton.Left))
             {
                 unchecked { _shotSeq++; }
                 _shotTarget = aimTarget;
@@ -857,7 +1363,8 @@ namespace Hrot.UI.Common.Map3D
                 _ammoAtPress = AmmoOf(Mount);
                 ShotPending = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock;   // ⭐ CE-1127 — a SIGHT shot holds nothing to show
             }
-            if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
+            // ⭐ CE-1211 (§8j Z-2) — the locked shot's cancel is X now (RMB zooms, as in every shooter)
+            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.X)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
             UseKey(input, aimTarget);
 
@@ -870,11 +1377,13 @@ namespace Hrot.UI.Common.Map3D
                 Yaw = _yaw,
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
-                Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
+                Trigger = !glassing && input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
                 AimPoint = aimAt,
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
+                Lean = (byte)Leaning,                                                                     // ⭐ CE-1212
+                Binoculars = BinocularsHeld ? (byte)1 : (byte)0,                                          // ⭐ CE-1219
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
             };
             _station.Send(_netId, frame);
@@ -884,6 +1393,7 @@ namespace Hrot.UI.Common.Map3D
         public void Detached(MapCamera3D camera)
         {
             camera.Roll = 0f;   // ⭐ CE-1095 — the operator's own view is never banked
+            camera.FovyDegrees = FpsZoom.NormalFovDegrees;   // ⭐ CE-1211 — never left zoomed
             _locked?.SetCursorLocked(false);
             _locked = null;
         }
@@ -931,14 +1441,14 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>
-        /// ⭐ CE-1158 (§8h U-1, O-1) — <c>E</c>: pressing it fixes the target (what the crosshair rests on); a TAP sends the primary verb;
+        /// ⭐ CE-1158 (§8h U-1, O-1) — the use key (<see cref="UseKeyCode"/>, <c>F</c> since CE-1212; <c>E</c> before): pressing it fixes the target (what the crosshair rests on); a TAP sends the primary verb;
         /// held past <see cref="HoldSeconds"/> it opens the list, and letting go sends the verb picked there. Sent on release, as a
-        /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, <c>E</c> is Get out (U-4).
+        /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, the use key is Get out (U-4).
         /// </summary>
         private void UseKey(IInputProvider input, long aimTarget)
         {
             if (_queuedUse) { _queuedUse = false; Press(_queuedVerb, _queuedTarget); }
-            var e = (MapKeyboardKey)KeyboardKey.E;
+            var e = (MapKeyboardKey)UseKeyCode;   // ⭐ CE-1212 (§8j L-2) — F (E before; E leans now)
             if (!_eHolding && input.IsKeyPressed(e))
             {
                 _eHolding = true;
@@ -987,7 +1497,7 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>
         /// ⭐ CE-1158 — what is drawn under the crosshair: the PROMPT (the primary action on what the crosshair rests on, from the same
-        /// rule the brain decides with, on this node's own copy of the world — §8h.6 ①), or the hold-E LIST (the picked one marked); then
+        /// rule the brain decides with, on this node's own copy of the world — §8h.6 ①), or the hold-use LIST (the picked one marked); then
         /// the brain's VERDICT on our last press for <see cref="VerdictSeconds"/> once it is done or refused (§8h.6 ②).
         /// </summary>
         public System.Collections.Generic.List<UseLine> UseLines(EntityRepository w)

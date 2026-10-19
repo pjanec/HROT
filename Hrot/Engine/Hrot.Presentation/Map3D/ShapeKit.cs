@@ -283,10 +283,16 @@ public static class ShapeKits
     }, default);
 
     /// <summary>A helicopter (UH-60-like proportions; y = main-rotor diameter): fuselage, cockpit glass, tail boom and fin,
-    /// tail rotor, mast, two crossed main blades, skids.</summary>
+    /// tail rotor, mast, two crossed main blades, skids. ⭐ <c>CE-1209</c> — drawn DOORS-OFF (🔒 user, 2026-10-19: <i>"no problem if you
+    /// draw uh60 without side door always"</i>): the fuselage is a closed rear section and a short closed front behind the cockpit, with
+    /// the CABIN between them only a floor and a roof — you see through it from the side, and the door riders (seats 0.6 … 2.4 m) and the
+    /// door gunners (3.0 m) sit in its openings. The sim's boxes are generated from these (CE-3214), so rounds pass the open doors.</summary>
     public static readonly ShapeKit Helicopter = new(new[]
     {
-        Box(0.06f, 0f, 0.36f, 0.48f, 0.14f, 0.40f, ColourRole.Body),                         // fuselage
+        Box(-0.04f, 0f, 0.36f, 0.28f, 0.14f, 0.40f, ColourRole.Body),                        // fuselage, behind the cabin
+        Box(0.2775f, 0f, 0.36f, 0.045f, 0.14f, 0.40f, ColourRole.Body),                      // fuselage, between the cabin and the cockpit
+        Box(0.1775f, 0f, 0.1675f, 0.155f, 0.14f, 0.015f, ColourRole.Body),                   // the cabin floor (its top under the riders' seats)
+        Box(0.1775f, 0f, 0.545f, 0.155f, 0.14f, 0.03f, ColourRole.Body),                     // the cabin roof
         Box(0.31f, 0f, 0.38f, 0.10f, 0.12f, 0.30f, ColourRole.Glass),                        // cockpit
         Box(-0.28f, 0f, 0.50f, 0.42f, 0.04f, 0.09f, ColourRole.Body),                        // tail boom
         Box(-0.47f, 0f, 0.64f, 0.06f, 0.015f, 0.34f, ColourRole.Body, -25f),                 // tail fin
@@ -1150,6 +1156,74 @@ public static partial class BlockFigure
         if (soldier && shaped.Length > WeaponIndex)
             shaped[WeaponIndex] = Limb(new Vector3(-0.16f, 0.22f, 1.55f) + drop, new Vector3(-0.14f, -0.24f, 0.85f) + drop, 0.05f, 0.08f, ColourRole.Metal);   // slung
         return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop + bob)] : shaped;
+    }
+
+    /// <summary>⭐ <c>CE-1195</c> — how long a throw is drawn after its shot, s.</summary>
+    public const float ThrowSeconds = 0.6f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1195</c> — the overarm THROW at <paramref name="phase"/> 0 … 1: the throwing (right) arm sweeps over the shoulder from the
+    /// wind-up (<see cref="ArmGesture.Throwing"/>'s, the hand back above it) to the follow-through (the hand forward and down), the other
+    /// arm swinging back from pointing at the target; a soldier's rifle slung. No state: the phase is the time since the throw /
+    /// <see cref="ThrowSeconds"/>.
+    /// </summary>
+    public static KitPart[] ThrowArms(KitPart[] parts, bool crouched, bool soldier, float phase)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var shaped = GestureArms(parts, ArmGesture.Throwing, crouched, soldier);   // the wind-up, a slung rifle
+        float p = Math.Clamp(phase, 0f, 1f);
+        float swing = (1f - (1f - p) * (1f - p)) * 170f * MathF.PI / 180f;          // fast, then easing out
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        KitPart[] arms =
+        [
+            .. Arm(l, l + Forward(new Vector3(0.28f, 0.02f, -0.04f), -0.6f * swing), l + Forward(new Vector3(0.56f, -0.02f, 0.02f), -0.6f * swing), PartRole.Hull),
+            .. Arm(r, r + Forward(new Vector3(-0.22f, -0.06f, 0.10f), swing), r + Forward(new Vector3(-0.30f, -0.04f, 0.38f), swing), PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
+        return shaped;
+    }
+
+    /// <summary>⭐ <c>CE-1171</c> — how long a blow is drawn after its strike, s (People Display §5 U10).</summary>
+    public const float StrikeSeconds = 0.45f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1171</c> (docs/DESIGN_People_Display.md §5 U10) — a BLOW at <paramref name="phase"/> 0 … 1, the right arm striking, the left
+    /// up as a guard, a soldier's rifle slung: a FIST punches straight out at the chin's height and back; a KNIFE stabs out and back at the
+    /// belly's (a short blade in the hand); a BATON swings from raised above and behind the head, over and down in front (the stick in the
+    /// hand). No state: the phase is the time since the strike / <see cref="StrikeSeconds"/>.
+    /// </summary>
+    public static KitPart[] StrikeArms(KitPart[] parts, bool crouched, bool soldier, Fdp.Toolkit.Combat.MeleeWeapon weapon, float phase)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var shaped = GestureArms(parts, ArmGesture.Throwing, crouched, soldier);   // a slung rifle
+        float p = Math.Clamp(phase, 0f, 1f);
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        Vector3 elbow, hand, item;
+        float itemLength;
+        if (weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeBaton)
+        {
+            float swing = (1f - (1f - p) * (1f - p)) * 150f * MathF.PI / 180f;   // fast, then easing out
+            elbow = r + Forward(new Vector3(-0.08f, 0.02f, 0.26f), swing);
+            hand = r + Forward(new Vector3(-0.14f, 0.04f, 0.52f), swing);
+            item = Vector3.Normalize(hand - elbow); itemLength = 0.60f;
+        }
+        else
+        {
+            float reach = MathF.Sin(MathF.PI * p);                                // out, then back
+            float low = weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife ? -0.30f : 0f;
+            elbow = r + Vector3.Lerp(new Vector3(0.10f, 0.04f, -0.22f), new Vector3(0.28f, 0.05f, -0.02f + low * 0.5f), reach);
+            hand = r + Vector3.Lerp(new Vector3(0.26f, 0.08f, -0.06f), new Vector3(0.60f, 0.10f, low), reach);
+            item = Vector3.Normalize(hand - elbow); itemLength = weapon == Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife ? 0.20f : 0f;
+        }
+        KitPart[] arms =
+        [
+            .. Arm(l, l + new Vector3(0.10f, -0.04f, -0.22f), l + new Vector3(0.24f, -0.08f, -0.04f), PartRole.Hull),   // the guard
+            .. Arm(r, elbow, hand, PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
+        return itemLength > 0f ? [.. shaped, Limb(hand, hand + item * itemLength, 0.035f, 0.035f, ColourRole.Metal)] : shaped;
     }
 
     /// <summary>⭐ CE-1175 — <paramref name="v"/> turned by <paramref name="radians"/> in the figure's side plane (about its forward axis X).</summary>

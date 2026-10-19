@@ -129,7 +129,7 @@ namespace CarKinem.Systems
                 //   the new id and keeps its stuck counts. 📌 Live in sq-defend-house the brain re-sent each post move ~2×/s; every
                 //   re-send restarted the count, so no watchdog ever reached its limit and the move stayed InProgress for good.
                 if (status.IntentId != intent.IntentId && status.Result == NavResult.InProgress
-                    && repo.HasComponent<NavState>(entity) && IsResentMove(in intent, in repo.GetComponentRO<NavState>(entity)))
+                    && repo.HasComponent<NavState>(entity) && IsResentMove(repo, entity, in intent, in repo.GetComponentRO<NavState>(entity)))
                 {
                     status.IntentId = intent.IntentId;
                     repo.SetComponent(entity, status);
@@ -281,12 +281,17 @@ namespace CarKinem.Systems
         /// ⭐ <c>CE-2304</c> — is <paramref name="intent"/> a RE-SEND of the move <paramref name="nav"/> is already walking: a path-to-point
         /// to the same point (<see cref="ResentMoveToleranceM"/> across, within a storey) while the path is followed and not yet arrived?
         /// The one test the intent bridge (keep the path, ask no new one) and this watchdog (keep the counts) share.
+        /// ⭐ <c>Q94 C</c> — compared at the RESOLVED point (<see cref="NavigationDestination.Of"/>), the one the path was planned to:
+        /// a door move names the door's centre but walks to its near side, and an on-surface move's Z is resolved too.
         /// </summary>
-        public static bool IsResentMove(in NavigationIntent intent, in NavState nav)
-            => intent.Mode == NavMode.PathToPoint && nav.Mode == KinematicsMode.CustomTrajectory && nav.HasArrived == 0 && nav.TargetSpeed > 0f
-               && Vector2.Distance(new Vector2(intent.FinalDestination.X, intent.FinalDestination.Y),
-                                   new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y)) <= ResentMoveToleranceM
-               && MathF.Abs(intent.FinalDestination.Z - nav.FinalDestination.Z) <= 1f;
+        public static bool IsResentMove(ISimulationView view, Entity mover, in NavigationIntent intent, in NavState nav)
+        {
+            if (intent.Mode != NavMode.PathToPoint || nav.Mode != KinematicsMode.CustomTrajectory || nav.HasArrived != 0 || nav.TargetSpeed <= 0f)
+                return false;
+            var to = NavigationDestination.Of(view, mover, intent);
+            return Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y)) <= ResentMoveToleranceM
+                   && MathF.Abs(to.Z - nav.FinalDestination.Z) <= 1f;
+        }
 
         /// <summary>
         /// ⭐ <c>CE-2304</c> — is this move MOVING BUT GETTING NOWHERE? A body on a path (<see cref="KinematicsMode.CustomTrajectory"/>,

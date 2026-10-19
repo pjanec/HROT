@@ -105,9 +105,13 @@ namespace Hrot.ScenarioEditor.Map
         }
 
         /// <summary>The clicked point as an order's geodetic point (without a transform, [y, x] — OrderGeo's fallback).</summary>
-        private JsonArray Point(Vector2 at)
+        private JsonArray Point(Vector2 at) => OrderPoint(_world, at);
+
+        /// <summary>⭐ <c>CE-1213</c> — a world point as an order's geodetic point, for any front-end (the first-person command wheel
+        /// too): <c>[lat, lon]</c>, or <c>[y, x]</c> without a transform (OrderGeo's fallback).</summary>
+        public static JsonArray OrderPoint(EntityRepository world, Vector2 at)
         {
-            var geo = Geo();
+            var geo = world.HasSingletonManaged<IGeographicTransform>() ? world.GetSingletonManaged<IGeographicTransform>() : null;
             if (geo == null) return new JsonArray((double)at.Y, (double)at.X);
             var (lat, lon, _) = geo.ToGeodetic(new Vector3(at.X, at.Y, 0f));
             return new JsonArray(lat, lon);

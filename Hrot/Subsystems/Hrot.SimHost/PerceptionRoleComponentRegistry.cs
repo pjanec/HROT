@@ -39,6 +39,7 @@ public static class PerceptionRoleComponentRegistry
         //   the solver runs on the node that declares Perception (SimHost), not on the Brain.
         world.RegisterComponent<EqsSensor>();
         world.RegisterComponent<EqsCognitiveBuffer>();
+        world.RegisterComponent<EqsContextPoints>();   // ⭐ CE-3272 (Q94 B) — the points a sensor's owner hands its solver
         // ⭐ CE-3072 B0 — the danger-area sensor's settings and answer (the AREA result family, R-213); possible only after
         //   QA-037 moved their ids off the navigation fakes'
         world.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();

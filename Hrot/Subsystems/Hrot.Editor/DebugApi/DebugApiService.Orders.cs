@@ -192,6 +192,9 @@ namespace Hrot.Editor.DebugApi
                 UseSeq = (byte)(Float(body, "use") ?? 0f),
                 UseVerb = (byte)(Float(body, "useVerb") ?? 0f),
                 UseTarget = long.TryParse(body?["useTarget"]?.ToString(), out long useTarget) ? useTarget : 0L,
+                // ⭐ CE-1212 (§8j L-1) — the lean held: "left" / "right" (else none)
+                Lean = body?["lean"]?.ToString().ToLowerInvariant() switch { "left" => 1, "right" => 2, _ => 0 },
+                Binoculars = (byte)((body?["binoculars"]?.ToString() is "true" or "1") ? 1 : 0),   // ⭐ CE-1219
             };
             if (body?["aim"] is JsonArray aim && aim.Count >= 2)
                 frame.AimPoint = new System.Numerics.Vector3(Float(aim, 0), Float(aim, 1), aim.Count > 2 ? Float(aim, 2) : 0f);

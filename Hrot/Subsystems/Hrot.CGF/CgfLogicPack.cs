@@ -159,6 +159,7 @@ namespace Hrot.CGF
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
                     (NavigationConstants.ActionIdMoveTo,        new MoveToExecutor()),
+                    (NavigationConstants.ActionIdApproachDoor,  new Fdp.Toolkit.Navigation.Executors.ApproachDoorExecutor()),   // ⭐ Q94 C — the muscle picks the door's side
                     (NavigationConstants.ActionIdFollowRoute,   new FollowRouteExecutor()),
                     (NavigationConstants.ActionIdJoinFormation, new JoinFormationExecutor(vehicleApi, entityMap)),
                 },

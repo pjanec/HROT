@@ -25,7 +25,7 @@ namespace Hrot.UI.Common.Audio
         public const float BurstRangeSmall = 700f, BurstRangeMedium = 2000f, BurstRangeLarge = 4000f;
 
         /// <summary>A round passing this close to the ear cracks (m).</summary>
-        public const float PassDistance = 5f;
+        public const float PassDistance = RoundPasses.PassDistance;
 
         /// <summary>An automatic weapon's burst sound is restarted at most this often per shooter (s) — its events come at the behaviour's
         /// cadence, not the gun's (the CE-1105 reason for the streams).</summary>
@@ -49,8 +49,7 @@ namespace Hrot.UI.Common.Audio
         private readonly Random _jitter = new(7);
         private readonly Dictionary<Entity, double> _lastBurst = new();
         private readonly Dictionary<Entity, Vector3> _lastPos = new();
-        private readonly Dictionary<Entity, Vector3> _lastRound = new();
-        private readonly HashSet<Entity> _cracked = new();
+        private readonly RoundPasses _passes = new();   // ⭐ CE-1216 — the rounds passing the ear (was _lastRound / _cracked)
         private readonly List<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority)> _movers = new();
         private int _ownMagazines = -1;
         private float _rumble;
@@ -105,7 +104,7 @@ namespace Hrot.UI.Common.Audio
         /// <summary>Forget everything per-entity (the unit lost).</summary>
         public void Reset()
         {
-            _lastBurst.Clear(); _lastPos.Clear(); _lastRound.Clear(); _cracked.Clear();
+            _lastBurst.Clear(); _lastPos.Clear(); _passes.Clear();
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
@@ -245,43 +244,15 @@ namespace Hrot.UI.Common.Audio
             _ => null,
         };
 
+        /// <summary>⭐ A2 — a round passing the ear cracks once (⭐ CE-1216 — the detection is <see cref="RoundPasses"/>, shared with the
+        /// first-person station's edge darkening).</summary>
         private void Rounds(EntityRepository w, Entity own, in Ear ear, double now)
-        {
-            bool ballistic = w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
-            bool light = w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>();
-            if (!ballistic && !light) { _lastRound.Clear(); return; }
-            var seen = new HashSet<Entity>();
-            if (ballistic) foreach (var e in w.Query().With<Fdp.Toolkit.Combat.Components.BallisticProjectile>().With<SimTransform>().Build())
-                {
-                    if (w.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(e).Shooter == own && !own.IsNull) continue;   // his own rounds leave him
-                    Round(w, e, ear, now, seen);
-                }
-            if (light) foreach (var e in w.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
-                    Round(w, e, ear, now, seen);
-            foreach (var gone in new List<Entity>(_lastRound.Keys)) if (!seen.Contains(gone)) { _lastRound.Remove(gone); _cracked.Remove(gone); }
-        }
-
-        private void Round(EntityRepository w, Entity e, in Ear ear, double now, HashSet<Entity> seen)
-        {
-            seen.Add(e);
-            var at = w.GetComponentRO<SimTransform>(e).Position;
-            if (!_lastRound.TryGetValue(e, out var before))
+            => _passes.Scan(w, own, ear.Position, (point, d) =>
             {
-                _lastRound[e] = at;
-                if (Vector3.Distance(at, ear.Position) < PassDistance) _cracked.Add(e);   // born at the ear: his own, or a muzzle beside him
-                return;
-            }
-            _lastRound[e] = at;
-            if (_cracked.Contains(e)) return;
-            var (point, d) = Spatializer.Closest(before, at, ear.Position);
-            if (d >= PassDistance) return;
-            _cracked.Add(e);
-            if (SoundTkbCatalog.SoundOf(_tkb(), SoundTkbCatalog.BulletPass) is { } s)
-            {
+                if (SoundTkbCatalog.SoundOf(_tkb(), SoundTkbCatalog.BulletPass) is not { } s) return;
                 _mixer.Request(SoundTkbCatalog.BulletPass, point, true, Spatializer.Gain(d, s.ReferenceM, PassDistance * 6f) * Volume(s), Jitter(s), s.Priority, now, 0.0);
                 Cracks++;
-            }
-        }
+            });
 
         private void Own(EntityRepository w, Entity own, double now, float dt, IAudioOutput output)
         {

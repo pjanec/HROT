@@ -25,6 +25,8 @@ namespace Fdp.Toolkit.Squad.DangerArea.Topics
         public float FarY;
         public float FarZ;
         public float DistanceAlongRoute;
+        /// <summary>⭐ <c>CE-3272</c> (Q94 B) — <see cref="DangerAreaDescriptor.SeenFrom"/>.</summary>
+        public ushort SeenFrom;
     }
 
     /// <summary>

@@ -5,6 +5,16 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
 {
     // ── Brain to Muscle: sensor configuration ────────────────────────────────────
 
+    /// <summary>⭐ <c>CE-3272</c> (Q94 B) — one <see cref="EqsContextPoints"/> point on the wire.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-eqs-msgs")]
+    public partial struct EqsContextPointWire
+    {
+        public float X;
+        public float Y;
+        public float Z;
+    }
+
     /// <summary>
     /// Wire-format struct for replicating <see cref="EqsSensor"/> parameters from the Brain
     /// to the Muscle node via CycloneDDS.
@@ -78,6 +88,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public float ContextPoint1Z;
         /// <summary>⭐ <c>CE-3063</c> — <see cref="EqsSensor.ContextPointMask"/>.</summary>
         public byte ContextPointMask;
+
+        /// <summary>⭐ <c>CE-3272</c> (Q94 B) — the sensor's <see cref="EqsContextPoints"/>, in slot order (empty = none).</summary>
+        [DdsManaged] public List<EqsContextPointWire> ContextPoints;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────

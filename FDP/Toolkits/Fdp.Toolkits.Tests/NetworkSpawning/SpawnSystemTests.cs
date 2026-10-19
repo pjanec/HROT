@@ -422,11 +422,22 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         }
         """;
 
-        /// <summary>Spawns one entity at (x, y, sentZ) with <paramref name="height"/> and returns its born Z.</summary>
-        private static float BornZ(float x, float y, float sentZ, SpawnHeight? height, bool withTerrain = true)
+        /// <summary>Spawns one entity at (x, y, sentZ) with <paramref name="height"/> and returns its born Z — through the CE-3271 path:
+        /// the spawn ASKS (<see cref="Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest"/>) and <see cref="SpawnLevelSystem"/> applies it on
+        /// this node, which owns the position.</summary>
+        private static float BornZ(float x, float y, float sentZ, Fdp.Toolkit.NetworkSpawning.SpawnHeight? height, bool withTerrain = true)
+        {
+            using var repo = SpawnWithLevel(x, y, sentZ, height, withTerrain, out var e);
+            new SpawnLevelSystem().Execute(repo, 0f);
+            return repo.GetComponent<SimTransform>(e).Position.Z;
+        }
+
+        private static EntityRepository SpawnWithLevel(float x, float y, float sentZ, Fdp.Toolkit.NetworkSpawning.SpawnHeight? height,
+                                                       bool withTerrain, out Entity e)
         {
             var repo = CreateWorld();
             repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();
             if (withTerrain) repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(LevelWorld));
             var tkb = CreateTkb();
             var map = new NetworkEntityMap();
@@ -439,8 +450,40 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
                 InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
                 SpawnHeight      = height,
             });
-            Assert.True(map.TryGetEntity(7001L, out var e));
-            return repo.GetComponent<SimTransform>(e).Position.Z;
+            Assert.True(map.TryGetEntity(7001L, out e));
+            return repo;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3271</c> (Q94 D, R-3018) — the spawn only ASKS; the level is applied by the node that owns the POSITION. A creator whose
+        /// <c>SimTransform</c> authority was yielded (the brain granting the Muscle group away) leaves the sent Z and the request waiting; the
+        /// node given the authority applies it once, and a resolved request never re-snaps a man who has since moved.
+        /// ✅ Red-proof: drop the authority check in <c>SpawnLevels.TryResolve</c> ⇒ the yielded creator resolves (Z 12 at once).
+        /// </summary>
+        [Fact]
+        public void CE3271_TheSpawnAsks_TheNodeOwningThePositionResolves_Once()
+        {
+            using var repo = SpawnWithLevel(60, 60, 50f, new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 1),
+                                            withTerrain: true, out var e);
+            Assert.Equal(50f, repo.GetComponent<SimTransform>(e).Position.Z);                       // 8b read no terrain
+            Assert.Equal(0, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            var levels = new SpawnLevelSystem();
+            repo.SetAuthority<SimTransform>(e, false);                                                // the yield: the position is granted away
+            levels.Execute(repo, 0f);
+            Assert.Equal(50f, repo.GetComponent<SimTransform>(e).Position.Z);
+            Assert.Equal(0, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            repo.SetAuthority<SimTransform>(e, true);                                                 // the grantee claims it
+            levels.Execute(repo, 0f);
+            Assert.Equal(12f, repo.GetComponent<SimTransform>(e).Position.Z);                       // the roof, level 1
+            Assert.Equal(1, repo.GetComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(e).Resolved);
+
+            var moved = repo.GetComponent<SimTransform>(e);
+            moved.Position = new System.Numerics.Vector3(60, 60, 5f);                                  // he went down the stairs, half way
+            repo.SetComponent(e, moved);
+            levels.Execute(repo, 0f);
+            Assert.Equal(5f, repo.GetComponent<SimTransform>(e).Position.Z);                        // never re-snapped to the roof
         }
 
         [Fact]

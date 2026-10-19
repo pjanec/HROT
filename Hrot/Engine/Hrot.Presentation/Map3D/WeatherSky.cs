@@ -71,10 +71,10 @@ public static class WeatherSky
 }
 
 /// <summary>
-/// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — hands the 3-D camera the weather's atmosphere while the operator is IN a unit (the first
-/// person camera drives), and takes it away otherwise, so the free camera keeps its clear, timeless day (🔒 user, 2026-10-16: <i>"especially
-/// for the FPS mode; but not in the usual free camera 3d map mode where it would be obstructing the view"</i>). The weather is read at the
-/// eye, every frame — <see cref="WeatherField"/> is allocation-free and pure.
+/// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — hands the 3-D camera the weather's atmosphere: in first person read at the EYE; ⭐ in the
+/// free camera (since 2026-10-19, 🔒 user: <i>"just showing the same weather as in FPS as the first slice"</i> — the 2026-10-16 "first person
+/// only" is superseded) read at the point it LOOKS AT, its fog starting there (<see cref="MapCamera3D.FogStart"/>) so what is looked at stays
+/// clear. Every frame — <see cref="WeatherField"/> is allocation-free and pure. Another driver (none today) and the 2-D map get none.
 /// </summary>
 public sealed class WeatherSkyLayer : IMapLayer
 {
@@ -93,9 +93,8 @@ public sealed class WeatherSkyLayer : IMapLayer
     public void Update(float dt)
     {
         var camera = _view.Camera3D;
-        camera.Atmosphere = _view.Is3D && camera.Driver is FpsCameraDriver && _world() is { } world
-            ? WeatherSky.Of(WeatherField.At(world, camera.Eye))
-            : null;
+        Vector3? at = !_view.Is3D ? null : camera.Driver is FpsCameraDriver ? camera.Eye : camera.Driver == null ? camera.LookAt : null;
+        camera.Atmosphere = at is { } point && _world() is { } world ? WeatherSky.Of(WeatherField.At(world, point)) : null;
     }
 
     public void Draw(RenderContext ctx) { }

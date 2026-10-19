@@ -418,6 +418,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
     /// ⭐ <c>CE-2234</c> M-1 (docs/DESIGN_Civilians_And_Crowd_Control.md §5a; CV-7) — a person CGF created is DELETED by CGF and gone on
     /// SimHost: the brain's <c>DestroyEntityCommand</c> (what a sheltered civilian issues after its hide time) is enough — no ownership
     /// move, no SimHost-side logic. The measurement the shelter slice (<c>CE-2236</c>) rests on.
+    /// <para>⭐ <c>CE-3271</c> (Q94 D, R-3018) — the same person is created "on the ground": the level is resolved by SimHost, which owns his
+    /// position and is the ONLY node here with terrain (ground 7 m), and both nodes end with Z 7 and the request resolved. 🔴 Red-proof: a
+    /// brain-side resolve (CGF has no terrain) leaves Z 0.</para>
     /// </summary>
     [Fact]
     public void CE2234_APersonCgfCreated_DeletedOnCgf_IsGoneOnSimHost()
@@ -432,11 +435,13 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             PumpBothFrames(simHost, cgf, 40);
 
             var cgfWorld = cgf.World!;
+            simHost.SimHost.World!.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(Ground7));   // CE-3271: SimHost only
             cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
                 TkbType            = TkbEntityTypes.Infantry_Rifleman,
+                SpawnHeight        = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
@@ -446,6 +451,21 @@ namespace Hrot.ClusterRunner.Integration.Tests;
                 PropagationTimeoutMs), "the person never reached SimHost");
             var simWorld = simHost.SimHost.World!;
             var cgfMan = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+
+            // ⭐ CE-3271 — born on the ground SimHost knows, on both nodes.
+            static (float Z, int Resolved) Level(EntityRepository w, Entity m)
+                => (w.GetComponentRO<SimTransform>(m).Position.Z,
+                    w.HasComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(m) ? w.GetComponentRO<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>(m).Resolved : -1);
+            bool grounded = PumpBothUntil(simHost, cgf, () =>
+            {
+                var sm = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+                if (sm.IsNull) return false;
+                var (sz, sr) = Level(simWorld, sm);
+                var (cz, cr) = Level(cgfWorld, cgfMan);
+                return sr == 1 && cr == 1 && MathF.Abs(sz - 7f) < 0.01f && MathF.Abs(cz - 7f) < 0.01f;
+            }, AuthorityTimeoutMs);
+            var simNow = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.True(grounded, $"the level must be resolved by SimHost (ground 7) and come back to CGF: SimHost {Level(simWorld, simNow)}, CGF {Level(cgfWorld, cgfMan)}");
             long netId = cgfWorld.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(cgfMan).Value;
 
             cgfWorld.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand { NetworkId = netId, Reason = "CE-2234 sheltered" });
@@ -460,6 +480,11 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         }
         finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
+
+    /// <summary>⭐ CE-3271 — a flat ground at 7 m (no buildings), for SimHost only.</summary>
+    private const string Ground7 = """
+        { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [-100, -100, 200, 200], "groundZ": 7 }, "features": [] }
+        """;
 
     private static Entity OfType(EntityRepository w, long tkbType)
     {

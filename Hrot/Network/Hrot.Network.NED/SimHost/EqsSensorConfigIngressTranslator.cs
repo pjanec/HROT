@@ -295,6 +295,7 @@ namespace Hrot.Network.NED.SimHost
                 if (config != null && view is EntityRepository repoC)
                     SensorChildFactory.SetCapability(repoC, child, config, config);
                 if (survey != null) cmd.SetManagedComponent(child, survey);   // CE-3249 — the new request
+                ApplyContextPoints(cmd, view, child, in data, existing: true);   // CE-3272
                 return true;
             }
 
@@ -328,9 +329,30 @@ namespace Hrot.Network.NED.SimHost
                 cmd.AddManagedComponent(child, new SensorCapability { Default = config, Current = config });
             }
             if (survey != null) cmd.AddManagedComponent(child, survey);   // CE-3249 — what the solver answers
+            ApplyContextPoints(cmd, view, child, in data, existing: false);   // CE-3272
             Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, child, view);   // CE-3045 — a carrier is never saved
             _awaitingPlayback.Add(key);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B) — the sample's <c>ContextPoints</c> onto the solver's carrier as <see cref="EqsContextPoints"/>: a
+        /// carrier that has points takes every sample's (an empty list clears them); one that never had any gets the component only when
+        /// points arrive, so no other sensor kind carries it.
+        /// </summary>
+        private static unsafe void ApplyContextPoints(IEntityCommandBuffer cmd, ISimulationView view, Entity child, in EqsSensorConfigTopic data,
+                                                      bool existing)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<EqsContextPoints>()) return;
+            int n = Math.Min(data.ContextPoints?.Count ?? 0, EqsContextPoints.Capacity);
+            if (n == 0 && !(existing && view.HasComponent<EqsContextPoints>(child))) return;
+            var points = new EqsContextPoints { Count = n };
+            for (int i = 0; i < n; i++)
+            {
+                var w = data.ContextPoints![i];
+                points.Set(i, new System.Numerics.Vector3(w.X, w.Y, w.Z));
+            }
+            cmd.AddComponent(child, points);
         }
 
         /// <summary>Configs refused for malformed JSON / an unknown kind (R-186 M′) — never half-configured.</summary>

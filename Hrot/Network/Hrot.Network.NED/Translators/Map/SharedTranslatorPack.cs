@@ -143,6 +143,9 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Map.Common.Replication.Ingress.EntityUtteranceIngressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant, entityMap);
+            // ⭐ CE-3271 (Q94 D) — a spawn's birth level: the creator's request out, the position owner's "resolved" back.
+            yield return new Hrot.Map.Common.Replication.Egress.EntitySpawnLevelEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntitySpawnLevelIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this

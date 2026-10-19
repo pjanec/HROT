@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Tests.Squad
             _repo.RegisterComponent<WeaponState>();
             _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<NavigationIntent>();
+            _repo.RegisterComponent<EqsContextPoints>();   // ⭐ CE-3272 — the contacts the solver judges
             _repo.RegisterManagedEvent<DangerAreaResultEvent>();
             _repo.RegisterEvent<SensorChangedEvent>();
             _repo.SetSingletonManaged(TestTown());
@@ -97,9 +98,15 @@ namespace Fdp.Toolkit.Tests.Squad
                 scoreBoost: PerceptionConstants.FreshnessSaturation, tick: 1, modality: SensorModality.Visual);
         }
 
-        // One solve, published locally (the fused world), then one Brain tick.
+        // One solve, published locally (the fused world), then one Brain tick. ⭐ CE-3272 — the brain first hands the solver its contacts
+        //   (as its tick does on every frame before), so the solve judges where they were last seen.
         private DangerAreaCognitiveBuffer SolveAndTick(Entity child, DangerAreaSensorSystem system)
         {
+            using (var contacts = new EntityCommandBuffer())
+            {
+                DangerAreaSensorSystem.WriteContacts(_repo, contacts);
+                contacts.Playback(_repo);
+            }
             var sensor = _repo.GetComponentRO<EqsSensor>(child);
             var areas = new DangerAreaDescriptor[8];
             int n = DangerAlongRouteSolve.Solve(_repo, child, in sensor, areas, _planner, _roads);
@@ -148,10 +155,56 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(1, b.Count);
             Assert.Equal(1f, b.GetSpanRO()[0].ThreatRating);
 
-            // the rifleman watched it walk behind the building: its last-known position no longer sees the crossing
+            // the rifleman watched it walk behind the building: its last-known position no longer sees the crossing — ⭐ CE-3272: the
+            //   SOLVER judges that on its next run (the brain reads no terrain), so the release waits for the next answer
             Remember(unit, watcher, new Vector3(290, 340, 0));
+            Assert.Equal(0f, SolveAndTick(child, system).GetSpanRO()[0].ThreatRating);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B, R-3018) — the brain rates ONLY from the solver's <see cref="DangerAreaDescriptor.SeenFrom"/>: a
+        /// contact in plain sight of the crossing is no threat while the answer says no point sees it, and a threat once it says one
+        /// does. ✅ Red-proof: a brain that still traced sight itself rates the first 1.
+        /// </summary>
+        [Fact]
+        public void CE3272_TheBrainRatesFromTheSolversSight_NotFromItsOwnTerrain()
+        {
+            var unit = Unit(new Vector3(150, 300, 0));
+            var child = DangerAreaChildSensor.Ensure(_repo, unit, 1, DangerAreaSettings.ToPoint(new Vector3(300, 300, 0)));
+            var watcher = Hostile(new Vector3(260, 300, 0));           // in plain sight of the crossing
+            Remember(unit, watcher, new Vector3(260, 300, 0));
+            var system = new DangerAreaSensorSystem();
+            SolveAndTick(child, system);
+            _repo.Bus.SwapBuffers();                                    // the answer is applied; it must not be re-read below
+
+            _repo.GetComponentRW<DangerAreaCognitiveBuffer>(child).GetSpanRW()[0].SeenFrom = 0;   // the solver: no remembered point sees it
             system.Execute(_repo, 0.1f);
             Assert.Equal(0f, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating);
+
+            _repo.GetComponentRW<DangerAreaCognitiveBuffer>(child).GetSpanRW()[0].SeenFrom = 1;   // slot 0 sees it
+            system.Execute(_repo, 0.1f);
+            Assert.Equal(1f, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> — the solver's mask: bit i when contact point i sees the area on the solver's terrain; every bit with none.
+        /// ✅ Red-proof: drop the terrain test in <c>MarkSeenFrom</c> ⇒ the blocked point's bit is set.
+        /// </summary>
+        [Fact]
+        public void CE3272_TheSolverMarksWhichContactsSeeTheArea()
+        {
+            var carrier = _repo.CreateEntity();
+            var points = new EqsContextPoints { Count = 2 };
+            points.Set(0, new Vector3(260, 300, 0));                   // on the line: sees the crossing at x 200
+            points.Set(1, new Vector3(290, 340, 0));                   // behind the building
+            _repo.AddComponent(carrier, points);
+            Span<DangerAreaDescriptor> areas = stackalloc DangerAreaDescriptor[1];
+            areas[0].Center = new Vector3(200, 300, 0);
+
+            DangerAlongRouteSolve.MarkSeenFrom(_repo, carrier, Fdp.Toolkit.World.WorldQuery.Of(_repo), areas);
+            Assert.Equal((ushort)0b01, areas[0].SeenFrom);
+            DangerAlongRouteSolve.MarkSeenFrom(_repo, carrier, null, areas);
+            Assert.Equal((ushort)0b11, areas[0].SeenFrom);             // no terrain: every point sees (the old "sight 1")
         }
 
         /// <summary>⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — a squad COMMANDER has no memory of its own: its sensor is rated from the
@@ -211,7 +264,7 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Empty(Edges());                                      // no change, no edge
 
             Remember(unit, watcher, new Vector3(290, 340, 0));           // gone behind the building
-            system.Execute(_repo, 0.1f);
+            SolveAndTick(child, system);                                 // ⭐ CE-3272 — the solver's next answer says so
             Assert.Equal(new[] { SensorChange.AreaCleared }, Edges());
         }
 

@@ -32,6 +32,7 @@ public sealed class EffectTests
         PresentationComponentRegistry.RegisterEffects(world);
         world.RegisterEvent<DetonationNotification>();
         world.RegisterEvent<WeaponFireNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-1171
         return (world, tkb);
     }
 
@@ -137,6 +138,54 @@ public sealed class EffectTests
     }
 
     [Fact]
+    public void CE1171_ABlowStruck_IsKeptForTheBodies_WithWhatItWasStruck_AndMakesNoEffect()
+    {
+        var (world, _) = World();
+        At(world, 10.0);
+        var man = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(0, 0, 0));
+        world.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = man, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife, IsRemote = true });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        Assert.True(StrikeTracker.Of(world)!.StruckWithin(man, 10.0, 0.1, out var with, out double at), "the spawner keeps the blow (a remote one too)");
+        Assert.Equal(Fdp.Toolkit.Combat.MeleeWeapon.MeleeKnife, with);
+        Assert.Equal(10.0, at);
+        Assert.Empty(Effects(world));   // a blow is no shot: no flash, no blast
+    }
+
+    /// <summary>⭐ CE-1215 (docs/DESIGN_Entity_Control.md §8j H-1, H-2) — the spawner keeps every hit that names a target (a round's,
+    /// with its travel and damage; a blow's, at the one struck) and not a burst on the ground; the arc's place on the screen is the bearing
+    /// toward where the hit came from, relative to the camera (ahead −90, right 0, behind 90 — raylib's ring degrees).</summary>
+    [Fact]
+    public void CE1215_AHitOnSomeone_IsKeptForTheHud_AndItsArcPointsWhereItCameFrom()
+    {
+        var (world, _) = World();
+        At(world, 10.0);
+        var shooter = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(0, 0, 0));
+        var victim = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(30, 0, 0));
+        world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = victim, HitX = 30, HitY = 0, HitZ = 1.2f,
+                                                       TravelX = 1f, Damage = 30f });
+        world.Bus.Publish(new DetonationNotification { Shooter = shooter, HitX = 50, HitY = 5, HitZ = 0, Damage = 30f });   // the ground
+        world.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = victim, Target = shooter, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var hits = HitFeedback.Of(world)!.Recent(10.0, HitFeedback.MarkerSeconds).ToArray();
+        Assert.Equal(2, hits.Length);
+        var round = Assert.Single(hits, h => h.Target == victim);
+        Assert.Equal((shooter, new Vector3(1f, 0f, 0f), 30f), (round.Shooter, round.Travel, round.Damage));
+        var blow = Assert.Single(hits, h => h.Target == shooter);
+        Assert.Equal((victim, Vector3.Zero, Vector3.Zero), (blow.Shooter, blow.At, blow.Travel));   // at the one struck; no travel
+
+        Assert.Equal(new Vector3(-1f, 0f, 0f), HitFeedback.FromWhere(round, null));                // back along the travel
+        Assert.Equal(new Vector3(30f, 0f, 0f), HitFeedback.FromWhere(blow, new Vector3(30f, 0f, 0f)));   // toward the striker
+        Assert.Null(HitFeedback.FromWhere(blow, null));                                            // nothing known: no arc
+        var east = new Vector3(1f, 0f, 0f);
+        Assert.Equal(-90f, HitFeedback.ScreenAngle(east, new Vector3(5f, 0f, 0f))!.Value, 3);      // ahead: top
+        Assert.Equal(0f, HitFeedback.ScreenAngle(east, new Vector3(0f, -5f, 0f))!.Value, 3);       // his right (south): right
+        Assert.Equal(90f, HitFeedback.ScreenAngle(east, new Vector3(-5f, 0f, 2f))!.Value, 3);      // behind: bottom
+        Assert.Null(HitFeedback.ScreenAngle(east, new Vector3(0f, 0f, 5f)));                       // straight above: no bearing
+        Assert.Equal((6f, 12f, 18f), (Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(0f),
+            Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(30f), Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(1000f)));
+    }
+
+    [Fact]
     public void E2_AShot_MakesAFlashAttachedToTheWeapon_AndNoDecorativeTracer()
     {
         var (world, _) = World();
@@ -176,6 +225,70 @@ public sealed class EffectTests
         var decal = Assert.Single(fx, f => f.Type == EffectTkbCatalog.DecalLarge);   // VE-M: none for the hit on the tank
         Assert.DoesNotContain(fx, f => f.Type == EffectTkbCatalog.DecalSmall);
         Assert.Equal(0f, world.GetComponentRO<SimTransform>(decal.Entity).Position.Z); // on the ground under the hit (VE-I step 1)
+    }
+
+    /// <summary>
+    /// ⭐ CE-1194 — a thrown STONE (or a thrown blade) lands as a little dust: no burst, no scorch on the ground, no bang; a hand GRENADE
+    /// still bursts and scorches. 🔒 User, live, 2026-10-19: <i>"stone falling on the ground create explosion effect and decal"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1194_AThrownStoneLandsAsDust_AGrenadeStillBursts()
+    {
+        var (world, tkb) = World();
+        long stone = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, hatchet = Hrot.Core.Tkb.MunitionTkbCatalog.TkbThrowingHatchet;
+        long grenade = Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade, ball = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball;
+        Assert.True(EffectSpawnSystem.IsInertHandItem(tkb, stone));
+        Assert.True(EffectSpawnSystem.IsInertHandItem(tkb, hatchet));
+        Assert.False(EffectSpawnSystem.IsInertHandItem(tkb, grenade));     // a hand item, but its warhead bursts
+        Assert.False(EffectSpawnSystem.IsInertHandItem(tkb, ball));        // not thrown: a rifle round keeps its impact
+        world.Bus.Publish(new DetonationNotification { HitX = 10, HitY = 10, HitZ = 0, Ammo = stone, Damage = 3f });
+        world.Bus.Publish(new DetonationNotification { HitX = 30, HitY = 10, HitZ = 0, Ammo = grenade, Damage = 400f });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        Assert.Equal(1, spawn.InertLandings);
+        var fx = Effects(world);
+        Vector3 At(Entity e) => world.GetComponentRO<SimTransform>(e).Position;
+        var atStone = fx.Where(f => At(f.Entity).X == 10f).Select(f => f.Type).ToList();
+        Assert.Equal(new[] { EffectTkbCatalog.ExplosionSmall }, atStone);  // the dust puff only — no decal
+        var atGrenade = fx.Where(f => At(f.Entity).X == 30f).Select(f => f.Type).ToList();
+        Assert.Contains(atGrenade, t => t == EffectTkbCatalog.DefaultFor(EffectTkbCatalog.ClassOf(400f)).Decal
+                                        || t == EffectTkbCatalog.EffectsFor(tkb, grenade, 400f).Decal);   // the grenade scorches
+        Assert.Equal(2, atGrenade.Count);                                     // its burst and its scorch
+    }
+
+    /// <summary>
+    /// ⭐ CE-1199 (VE-D) — a mark is the size of the round that made it: a tank's main-gun round marks a wall as a LARGE crater, a rifle
+    /// ball as a small hole — read through the shooter's gun, since the tank's round carries no damage of its own. 🔒 User, live,
+    /// 2026-10-19: <i>"decals left by ammo are unified size same for bullets and same for tank cannon shells"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1199_AnImpactMark_IsTheSizeOfItsRound_ATankShellsIsLarge_ABulletsSmall()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<RoundImpactNotification>();
+        if (!world.IsComponentTypeRegistered<TkbIdentity>()) world.RegisterComponent<TkbIdentity>();
+        Entity Shooter(long type)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        var tank = Shooter(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams);
+        var rifleman = Shooter(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman);
+        long gunRound = unchecked((long)Fdp.Toolkit.Combat.CombatTkb.MountOf(world, tank, 0)!.AmmoGuid);
+        long ball = unchecked((long)Fdp.Toolkit.Combat.CombatTkb.MountOf(world, rifleman, 0)!.AmmoGuid);
+        Assert.True(EffectSpawnSystem.ImpactDamage(world, tkb, new RoundImpactNotification { Shooter = tank, Ammo = gunRound })
+                    >= EffectTkbCatalog.LargeDamageFrom, "the tank's round reads its gun's damage");
+        world.Bus.Publish(new RoundImpactNotification { Shooter = tank, X = 10, Y = 19.9f, Z = 1.5f, NormalY = -1f, Ammo = gunRound });
+        world.Bus.Publish(new RoundImpactNotification { Shooter = rifleman, X = 30, Y = 19.9f, Z = 1.5f, NormalY = -1f, Ammo = ball });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        var fx = Effects(world);
+        Vector3 At(Entity e) => world.GetComponentRO<SimTransform>(e).Position;
+        Assert.Equal(10f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalLarge).Entity).X);
+        Assert.Equal(30f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalSmall).Entity).X);
     }
 
     /// <summary>
@@ -497,7 +610,8 @@ public sealed class EffectTests
     }
 
     /// <summary>⭐ W3 (VE-P) — only a CROSSING to zero burns: a vehicle killed now gets flames (60 s) and smoke (180 s) attached to its
-    /// body; a soldier does not burn; a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
+    /// body; a soldier does not burn; ⭐ CE-1198 nor does a weapon system (it only goes dark, 🔒 user 2026-10-19: "weapons are usually
+    /// non-flammable"); a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
     [Fact]
     public void W3_AVehicleKilledNowBurnsAndSmokes_ASoldierOrAWreckLoadedDeadDoesNot_AndAReplayMakesNothing()
     {
@@ -513,12 +627,14 @@ public sealed class EffectTests
         var tank = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);
         var soldier = Living(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, 100f);
         var loadedWreck = Living(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 0f);
+        var hmg = Living(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 100f);   // ⭐ CE-1198 — a weapon does not burn
         var wrecks = new WreckSpawnSystem();
         Tick(world, wrecks, 0.016f);
         Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing
 
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        world.SetComponent(hmg, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0.016f);
         var fx = Effects(world);
         Assert.Equal(new[] { EffectTkbCatalog.Fire, EffectTkbCatalog.Smoke }, fx.Select(f => f.Type).OrderBy(t => t).ToArray());

@@ -155,4 +155,25 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         // an asymmetric arc on purpose: a 0..90 arc reads the same with sin and cos swapped
         Assert.All(lines.Skip(2), p => Assert.Equal(40f, p.LineEnd.Length(), 2));                    // the far edge at 40 m
     }
+
+    /// <summary>⭐ CE-1192 D4 (behaviors' answer, R-2058) — a selected COMMANDER whose picture has not reached this node says so; a man who
+    /// commands nobody, or a commander whose picture is here, gets no such line. 🔒 The user asked for absence to be visible.</summary>
+    [Fact]
+    public void D4_ACommanderWithNoPictureOnThisNode_SaysSo()
+    {
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        var leader = Unit(10, "Leader");
+        var man = Unit(11, "Rifleman");
+        _w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+        string[] Texts(Entity e)
+        {
+            _draw.Clear();
+            new CommandPictureAbsentGizmo().Draw(_w, e, _draw);
+            return _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
+        }
+        Assert.Equal(new[] { CommandPictureAbsentGizmo.Text }, Texts(leader));
+        Assert.Empty(Texts(man));                                          // he commands nobody
+        _w.AddComponent(leader, new CommandPicture());
+        Assert.Empty(Texts(leader));                                       // the picture is here: CommandPictureGizmo draws it
+    }
 }

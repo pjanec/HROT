@@ -224,4 +224,17 @@ public class MapCommandControllerTests
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
         Assert.Single(DrainRequests(requests));
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3271</c> (Q94 D-2) — the IG's placement posts its request with the level the placement gizmo chose: the IG used to DROP
+    /// <c>SpawnHeight</c>, so an Add Entity drop from the IG kept the sent height (a man on a floor fell to the click's Z).
+    /// ✅ Red-proof: drop the line in <c>IgEntityCreationRequests.FromSpawnCommand</c> ⇒ null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3271_TheIgPlacementRequest_CarriesTheSpawnLevel()
+    {
+        var level = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 2);
+        var request = Hrot.IG.EntityCreation.IgEntityCreationRequests.FromSpawnCommand(new SpawnEntityCommand { TkbType = 1, SpawnHeight = level });
+        Assert.Equal(level, request.SpawnHeight);
+    }
 }

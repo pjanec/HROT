@@ -17,6 +17,12 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>The destination of <paramref name="intent"/> for <paramref name="mover"/>, as a real 3-D point.</summary>
         public static Vector3 Of(ISimulationView view, Entity mover, in NavigationIntent intent)
         {
+            // ⭐ Q94 C (R-3018) — a path to a DOOR (RouteEntityId names it): the near side of the wall from where the mover stands,
+            //   resolved here, on the node that has the door geometry. A name that is not a door here falls through to the point.
+            if (intent.Mode == NavigationMode.PathToPoint && intent.RouteEntityId != 0 && view is EntityRepository repo
+                && view.HasComponent<SimTransform>(mover)
+                && Fdp.Toolkit.Terrain.DoorApproach.TryPoint(repo, intent.RouteEntityId, view.GetComponentRO<SimTransform>(mover).Position, out var side))
+                return side;
             var d = intent.FinalDestination;
             if (!intent.OnSurface) return d;
             var world = WorldQuery.Of(view);
