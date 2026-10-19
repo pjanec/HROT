@@ -106,5 +106,94 @@ namespace Fdp.Toolkit.Navigation.Tests.Integration
             var status = _h.Repo.GetComponent<NavigationStatus>(e);
             Assert.Equal(0, status.ReplanCount);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — a walker on a path who keeps MOVING but gets NOWHERE (seven men pressed in two small rooms: 0.4 m/s,
+        /// his progress flat) ends his move <see cref="NavigationResult.FailedBlocked"/>, so his brain re-plans. The speed watchdog
+        /// never fires above its 0.2 m/s; the no-progress one does. A walker who gains ground, however slowly, is left alone.
+        /// ✅ Red-proof: without the no-progress count the stalled walker stays <see cref="NavigationResult.InProgress"/>.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, true)]
+        [InlineData(0.3f, false)]
+        public void CE2304_AWalkerWhoMovesButMakesNoProgress_EndsHisMove_FailedBlocked(float progressPerSecond, bool fails)
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NavigationIntent>();
+            repo.RegisterComponent<NavigationStatus>();
+            repo.RegisterComponent<global::CarKinem.Core.FrustrationTicks>();
+            repo.RegisterComponent<global::CarKinem.Core.NavState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, FinalDestination = new Vector3(50f, 0f, 0f), ArrivalRadius = 0.5f });
+            repo.AddComponent(e, new NavigationStatus());
+            repo.AddComponent(e, new global::CarKinem.Core.FrustrationTicks());
+            repo.AddComponent(e, new global::CarKinem.Core.NavState { Mode = global::CarKinem.Core.KinematicsMode.CustomTrajectory, TargetSpeed = 2f, ArrivalRadius = 0.5f });
+            repo.AddComponent(e, new SimTransform());
+            repo.AddComponent(e, new SimVelocity { Linear = new Vector3(0.4f, 0f, 0f) });   // jostled: moving, above the 0.2 m/s floor
+
+            var watchdog = new NavigationExecutionSystem();
+            const float dt = 1f / 60f;
+            for (int i = 0; i < 60 * 8; i++)
+            {
+                ref var nav = ref repo.GetComponentRW<global::CarKinem.Core.NavState>(e);
+                nav.ProgressS += progressPerSecond * dt;
+                watchdog.Execute(repo, dt);
+            }
+
+            var result = repo.GetComponent<NavigationStatus>(e).Result;
+            Assert.Equal(fails ? NavigationResult.FailedBlocked : NavigationResult.InProgress, result);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> (N1) — a move RE-SENT to the same point (a new <c>IntentId</c> every half second, as the posted men's brain
+        /// did live) is the same move: it keeps its stuck count, so the stalled walker still ends <see cref="NavigationResult.FailedBlocked"/>
+        /// (a re-send after that failure starts a new move), and the status answers the newest id. A re-send to a DIFFERENT point is a new move and starts over.
+        /// ✅ Red-proof: without the re-send test in the watchdog every re-send resets the count ⇒ InProgress for good.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, true)]
+        [InlineData(3f, false)]
+        public void CE2304_AMoveReSentToTheSamePoint_KeepsItsStuckCount(float pointShiftPerResend, bool fails)
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NavigationIntent>();
+            repo.RegisterComponent<NavigationStatus>();
+            repo.RegisterComponent<global::CarKinem.Core.FrustrationTicks>();
+            repo.RegisterComponent<global::CarKinem.Core.NavState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+
+            var dest = new Vector3(50f, 0f, 0f);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 1, FinalDestination = dest, ArrivalRadius = 0.5f });
+            repo.AddComponent(e, new NavigationStatus());
+            repo.AddComponent(e, new global::CarKinem.Core.FrustrationTicks());
+            repo.AddComponent(e, new global::CarKinem.Core.NavState
+                { Mode = global::CarKinem.Core.KinematicsMode.CustomTrajectory, TargetSpeed = 2f, ArrivalRadius = 0.5f, FinalDestination = dest });
+            repo.AddComponent(e, new SimTransform());
+            repo.AddComponent(e, new SimVelocity { Linear = new Vector3(0.4f, 0f, 0f) });
+
+            var watchdog = new NavigationExecutionSystem();
+            const float dt = 1f / 60f;
+            uint id = 1;
+            bool failed = false;   // a re-send AFTER the failure is a new move (as the brain's re-plan would be) — so record the failure itself
+            for (int i = 0; i < 60 * 8; i++)
+            {
+                if (i > 0 && i % 30 == 0)   // the brain re-sends the move every half second
+                {
+                    ref var intent = ref repo.GetComponentRW<NavigationIntent>(e);
+                    intent.IntentId = ++id;
+                    intent.FinalDestination += new Vector3(0f, pointShiftPerResend, 0f);   // the path still leads to the old point
+                }
+                watchdog.Execute(repo, dt);
+                failed |= repo.GetComponent<NavigationStatus>(e).Result == NavigationResult.FailedBlocked;
+            }
+
+            Assert.Equal(fails, failed);
+            if (!fails) Assert.Equal(id, repo.GetComponent<NavigationStatus>(e).IntentId);
+        }
     }
 }

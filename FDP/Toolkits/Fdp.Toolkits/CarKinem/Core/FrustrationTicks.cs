@@ -57,5 +57,17 @@ namespace CarKinem.Core
         /// Reset to 0 when a new intent begins.
         /// </summary>
         public float ElapsedSinceFirstReplan;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — the furthest path progress (<c>NavState.ProgressS</c>, metres) this move has reached in the current
+        /// no-progress window. Appended.
+        /// </summary>
+        public float BestProgressS;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — seconds the move has gone without gaining <c>NavigationExecutionSystem.NoProgressMinGainM</c> on
+        /// <see cref="BestProgressS"/> while it should be walking. Appended.
+        /// </summary>
+        public float NoProgressSeconds;
     }
 }

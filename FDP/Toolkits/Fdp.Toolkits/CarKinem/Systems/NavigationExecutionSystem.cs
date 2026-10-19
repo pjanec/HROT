@@ -64,6 +64,18 @@ namespace CarKinem.Systems
         /// </summary>
         public const int FrustrationTickLimit = 120;
 
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — the path progress (metres) a walking move must gain within <see cref="NoProgressLimitSeconds"/>.
+        /// A man crawling prone still gains it in about a second.
+        /// </summary>
+        public const float NoProgressMinGainM = 0.25f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — seconds without <see cref="NoProgressMinGainM"/> of progress before a move that is MOVING but getting
+        /// nowhere counts as a frustration episode (replan, or <see cref="NavigationResult.FailedBlocked"/>).
+        /// </summary>
+        public const float NoProgressLimitSeconds = 4f;
+
         // ── OnUpdate ───────────────────────────────────────────────────────────────────────────
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -113,6 +125,16 @@ namespace CarKinem.Systems
                 // FollowRouteExecutor therefore always observes at least one tick of InProgress
                 // before the new lap can produce an Arrived result. This is intentional and
                 // ensures the executor never mistakes the previous lap's Arrived for a new one.
+                // ⭐ CE-2304 — a RE-SENT move (a new IntentId, the same point, the path still being walked) is the SAME move: it takes
+                //   the new id and keeps its stuck counts. 📌 Live in sq-defend-house the brain re-sent each post move ~2×/s; every
+                //   re-send restarted the count, so no watchdog ever reached its limit and the move stayed InProgress for good.
+                if (status.IntentId != intent.IntentId && status.Result == NavResult.InProgress
+                    && repo.HasComponent<NavState>(entity) && IsResentMove(in intent, in repo.GetComponentRO<NavState>(entity)))
+                {
+                    status.IntentId = intent.IntentId;
+                    repo.SetComponent(entity, status);
+                }
+
                 if (status.IntentId != intent.IntentId)
                 {
                     status = new NavigationStatus
@@ -180,21 +202,32 @@ namespace CarKinem.Systems
                 //   stuck: it neither counts toward a replan nor raises MoveBlockedEvent. The count restarts when it ends.
                 if (repo.HasComponent<NavState>(entity) && repo.GetComponent<NavState>(entity).IsBlocked != 0)
                 {
-                    if (frustration.Ticks != 0) { frustration.Ticks = 0; repo.SetComponent(entity, frustration); }
+                    if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
+                    {
+                        frustration.Ticks = 0;
+                        frustration.NoProgressSeconds = 0f;
+                        frustration.BestProgressS = progressAtThisTick;
+                        repo.SetComponent(entity, frustration);
+                    }
                     repo.SetComponent(entity, status);   // ProgressS persisted, as on the steady-state path
                     continue;
                 }
 
                 float speed = vel.Linear.Length();
+                bool stalled = Stalled(repo, entity, ref frustration, progressAtThisTick, deltaTime);   // ⭐ CE-2304
 
-                if (speed < FrustrationSpeedThreshold)
+                if (speed < FrustrationSpeedThreshold || stalled)
                 {
                     frustration.Ticks++;
                     frustration.ElapsedSinceFirstReplan += deltaTime;
                     repo.SetComponent(entity, frustration);
 
-                    if (frustration.Ticks > FrustrationTickLimit)
+                    if (frustration.Ticks > FrustrationTickLimit || stalled)
                     {
+                        // ⭐ CE-2304 — the episode is spent either way: the no-progress window starts again from here
+                        frustration.NoProgressSeconds = 0f;
+                        frustration.BestProgressS = progressAtThisTick;
+
                         // §3.4 — allowed by the intent, within the replan and time budgets (one test, shared with the door passage system)
                         if (CanReplan(in intent, in status, frustration.ElapsedSinceFirstReplan))
                         {
@@ -228,12 +261,9 @@ namespace CarKinem.Systems
                 }
                 else
                 {
-                    // Vehicle is moving — reset frustration counter.
-                    if (frustration.Ticks != 0)
-                    {
-                        frustration.Ticks = 0;
-                        repo.SetComponent(entity, frustration);
-                    }
+                    // Vehicle is moving — reset frustration counter. ⭐ CE-2304 — written every tick: the no-progress window moved
+                    frustration.Ticks = 0;
+                    repo.SetComponent(entity, frustration);
                 }
 
                 // ── Keep InProgress and persist ProgressS ────────────────────────────────────
@@ -244,6 +274,42 @@ namespace CarKinem.Systems
                 repo.SetComponent(entity, status);
             }
         }
+        /// <summary>⭐ <c>CE-2304</c> — how close (metres, horizontally) a re-sent move's point must be to the walked path's end to be the same move.</summary>
+        public const float ResentMoveToleranceM = 0.25f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — is <paramref name="intent"/> a RE-SEND of the move <paramref name="nav"/> is already walking: a path-to-point
+        /// to the same point (<see cref="ResentMoveToleranceM"/> across, within a storey) while the path is followed and not yet arrived?
+        /// The one test the intent bridge (keep the path, ask no new one) and this watchdog (keep the counts) share.
+        /// </summary>
+        public static bool IsResentMove(in NavigationIntent intent, in NavState nav)
+            => intent.Mode == NavMode.PathToPoint && nav.Mode == KinematicsMode.CustomTrajectory && nav.HasArrived == 0 && nav.TargetSpeed > 0f
+               && Vector2.Distance(new Vector2(intent.FinalDestination.X, intent.FinalDestination.Y),
+                                   new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y)) <= ResentMoveToleranceM
+               && MathF.Abs(intent.FinalDestination.Z - nav.FinalDestination.Z) <= 1f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — is this move MOVING BUT GETTING NOWHERE? A body on a path (<see cref="KinematicsMode.CustomTrajectory"/>,
+        /// asked to move) that has not gained <see cref="NoProgressMinGainM"/> of path progress in <see cref="NoProgressLimitSeconds"/>.
+        /// The speed watchdog cannot see it: 📌 seven men pressed in two small rooms kept walking at ~0.4 m/s with their progress flat,
+        /// <c>InProgress</c> for good. A new path (progress back below the best) restarts the window.
+        /// </summary>
+        private static bool Stalled(EntityRepository repo, Entity entity, ref FrustrationTicks frustration, float progress, float deltaTime)
+        {
+            if (!repo.HasComponent<NavState>(entity)) return false;
+            ref readonly var nav = ref repo.GetComponentRO<NavState>(entity);
+            if (nav.Mode != KinematicsMode.CustomTrajectory || nav.TargetSpeed <= 0f || nav.HasArrived != 0) return false;
+
+            if (progress >= frustration.BestProgressS + NoProgressMinGainM || progress < frustration.BestProgressS)
+            {
+                frustration.BestProgressS = progress;
+                frustration.NoProgressSeconds = 0f;
+                return false;
+            }
+            frustration.NoProgressSeconds += deltaTime;
+            return frustration.NoProgressSeconds >= NoProgressLimitSeconds;
+        }
+
         /// <summary>
         /// ⭐ May <paramref name="entity"/>'s move be replanned now? Its intent allows replans, the replan budget is not spent and
         /// the time budget not exceeded (§3.4). The frustration watchdog and the door passage system (5d-4) ask the same question.

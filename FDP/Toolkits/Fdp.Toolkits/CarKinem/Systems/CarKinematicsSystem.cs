@@ -365,7 +365,7 @@ namespace CarKinem.Systems
             
             // Apply collision avoidance
             Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
-                desiredVelocity, pos2D, aimedPerson ? movedBefore : fwd2D * state.Speed,
+                desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
                 spatialGrid, @params, repo);
             
             // Speed control
@@ -424,6 +424,7 @@ namespace CarKinem.Systems
                 person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
             
             // Integrate: a person's gait, else the bicycle model
+            Vector2 stepFrom = pos2D;
             float yawRate;
             Vector2 planarOut = default;
             if (person && (aimedPerson || lookingPerson))
@@ -444,6 +445,17 @@ namespace CarKinem.Systems
                     @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);   // 0 = an unknown profile (CE-103): no cap
                 yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
             }
+
+            // ⭐ CE-2304 — an AI WALKER's step stays on the walkable mesh too (CE-3181's rule for an operator's, ManualMotion.KeepOnNavmesh):
+            //   his path is on the mesh, but avoidance pushes him off it, and with nothing to stop it, through a wall. 📌 Live in
+            //   sq-defend-house a rifleman ended 1 m outside the house he was posted in. Only a step avoidance bent is checked — the
+            //   path-following step stays on the path (CE-3115, CE-3145), and that keeps the navmesh queries off the open-ground walkers.
+            Vector2? keptPlanar = null;
+            if (person && dt > 0f && avoidanceVelocity != desiredVelocity
+                && repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()
+                && ManualMotion.KeepOnNavmesh(repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!,
+                    (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0), stepFrom, ref pos2D, tf.Position.Z))
+                keptPlanar = (pos2D - stepFrom) / dt;
 
             if (nav.ReverseAllowed == 0 && state.Speed < 0f)
             {
@@ -479,7 +491,9 @@ namespace CarKinem.Systems
                 nav.ProgressS += state.Speed * dt;
             }
             
-            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed, yawRate, person, dt);
+            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
+                keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt,
+                bentWalker: person && avoidanceVelocity != desiredVelocity);
         }
 
         /// <summary>
@@ -487,7 +501,7 @@ namespace CarKinem.Systems
         /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe).
         /// </summary>
         private void FinishMove(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav,
-            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt)
+            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt, bool bentWalker = false)
         {
             // Output conversion
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
@@ -513,11 +527,15 @@ namespace CarKinem.Systems
             // ⭐ CE-2198 — A VEHICLE NEVER ENTERS A BUILDING: a step whose hull-height line crosses a CLOSED BARRIER (a building's wall, a
             //   closed door — R-252's meaning, never a geometry type), or that rises like a wall (steeper than VehicleMaxClimbSlope and
             //   taller than VehicleMaxStepM — inside a solid footprint the sampler offers only the roof), is not taken: it stops there.
-            if (!person && _terrain != null)
+            // ⭐ CE-2304 (N3) — and A PERSON IS NEVER PUSHED THROUGH ONE: a walker's step that avoidance bent is traced against closed
+            //   barriers the same way (only the barrier test — a stair rises like a wall). The navmesh rule above it cannot hold him
+            //   alone: the mesh stops a body radius short of every wall, and a man pushed into that margin is "off the mesh" and free.
+            //   📌 Live in sq-defend-house a rifleman with no move at all was shoved 1.3 m out through the south wall at 3 m/s.
+            if ((!person || bentWalker) && _terrain != null)
             {
                 var here = new Vector2(tf.Position.X, tf.Position.Y);
                 float rise = z - tf.Position.Z;
-                bool wall = rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
+                bool wall = !person && rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
                 if (!wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
                 {
                     _crossings.Clear();
@@ -741,8 +759,16 @@ namespace CarKinem.Systems
             return (target.TargetPosition, target.TargetHeading, target.TargetSpeed);
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-2304</c> — a neighbour more than this far above or below is on another storey (or under a deck) and is not
+        /// avoided: the spatial grid is 2-D, so before this a man upstairs was pushed by the men in the room below him. 📌 Live in
+        /// <c>sq-defend-house</c> (seven men posted on two storeys of one house) four of seven never reached their posts.
+        /// A stair step is well inside it, so two men on one stair still give way.
+        /// </summary>
+        public const float AvoidanceStoreyGapM = 1.5f;
+
         // THREAD-SAFE: Read-only access to neighbors, writes only to local stack vars
-        private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, 
+        private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, float selfZ,
             Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo)
         {
             // Query neighbors within avoidance radius
@@ -761,6 +787,9 @@ namespace CarKinem.Systems
             {
                 var (neighborEntity, pos) = neighbors[i];
                 if (!neighborEntity.IsNull && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(neighborEntity)) continue;
+                // ⭐ CE-2304 — another storey is not a neighbour
+                if (!neighborEntity.IsNull && repo.HasComponent<SimTransform>(neighborEntity)
+                    && MathF.Abs(repo.GetComponentRO<SimTransform>(neighborEntity).Position.Z - selfZ) > AvoidanceStoreyGapM) continue;
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)
