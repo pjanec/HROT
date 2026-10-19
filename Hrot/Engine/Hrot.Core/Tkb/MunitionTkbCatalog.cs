@@ -138,6 +138,19 @@ namespace Hrot.Core.Tkb
         /// and its shrapnel; its warhead is the reference library's entry of the same name (one formula for blast and fragments).</summary>
         public const int TkbExplosiveCharge = 6043;
         public const string ExplosiveChargeName = "8 kg demolition charge";
+        /// <summary>⭐⭐ <c>CE-3247</c> (civilians B-17, TC-1…TC-5, R-3016; docs/DESIGN_Civilians_And_Crowd_Control.md §7.17) — a THROWING HATCHET: a
+        /// <c>Kinetic</c> round on the throw's arc (the stone's path), struck by the first body on its line; it lies where it lands and is
+        /// picked up again. ⛔ No throwing knife: a knife is melee (R-3016).</summary>
+        public const int TkbThrowingHatchet = 6044;
+        /// <summary>⭐ <c>CE-3247</c> — a thrown SPEAR (a javelin — not the missile).</summary>
+        public const int TkbThrowingSpear = 6045;
+        /// <summary>⭐ <c>CE-3247</c> — a THROWING STAR.</summary>
+        public const int TkbThrowingStar = 6046;
+        public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
+        /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
+        /// and how long one lies where it landed.</summary>
+        public const float ThrowingHatchetDamage = 35f, ThrowingSpearDamage = 45f, ThrowingStarDamage = 8f, ThrownBladePenetrationMm = 1.5f,
+                           ThrownBladeLiesSeconds = 300f;
 
         public const string BatonRoundName = "40mm baton round", StunGrenadeName = "stun grenade", StoneName = "thrown stone";
         public const string TearGasGrenadeName = "tear gas grenade", TearGasCanisterName = "40mm tear gas canister", SmokeGrenadeName = "smoke grenade";
@@ -293,6 +306,13 @@ namespace Hrot.Core.Tkb
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
             Register(tkb, StoneName, TkbStone, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f, Indirect = true }, damage: 3f);   // ⭐ CE-3230 — a stone arcs
+            // ⭐⭐ CE-3247 (B-17, TC-1/TC-2) — the thrown blades: KINETIC rounds on the stone's arc (a direct hit, no burst), each a hand item
+            Register(tkb, ThrowingHatchetName, TkbThrowingHatchet, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingHatchetDamage);
+            Register(tkb, ThrowingSpearName, TkbThrowingSpear, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingSpearDamage);
+            Register(tkb, ThrowingStarName, TkbThrowingStar, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingStarDamage);
             // ⭐⭐ CE-3219 part 3 (§7.3b) — the CLOUD rounds: no blast, no fragments; the warhead's Cloud* fields make AreaEffectSystem ask
             //   for an AreaEffectCloud where it bursts. A CS grenade's cloud ≈ 6 m across the first minute (public M7A3 figures, rounded);
             //   a smoke grenade's screen ≈ 8 m for about a minute (M18). Starter values — tuning starts here.
@@ -387,6 +407,7 @@ namespace Hrot.Core.Tkb
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
+                [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
             };
 
         /// <summary>
@@ -399,6 +420,9 @@ namespace Hrot.Core.Tkb
             {
                 [TkbStone] = new() { LiesSeconds = 60f },
                 [TkbM67Grenade] = new(), [TkbStunGrenade] = new(), [TkbTearGasGrenade] = new(), [TkbTearGasCanister] = new(), [TkbSmokeGrenade] = new(),
+                // ⭐ CE-3247 (TC-2) — a thrown blade lies where it landed and is picked up again
+                [TkbThrowingHatchet] = new() { LiesSeconds = ThrownBladeLiesSeconds }, [TkbThrowingSpear] = new() { LiesSeconds = ThrownBladeLiesSeconds },
+                [TkbThrowingStar] = new() { LiesSeconds = ThrownBladeLiesSeconds },
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
@@ -447,6 +471,10 @@ namespace Hrot.Core.Tkb
                 [TkbTearGasGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#5A6B3A" },
                 [TkbTearGasCanister] = new() { Shape = MunitionShape.Grenade, Length = 0.12f, Diameter = 0.04f, ColorHex = "#5A6B3A" },
                 [TkbSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#7A7A7A" },
+                // ⭐ CE-3247 (TC-3) — the thrown blades are drawn as blades (three appended shapes), in flight and lying
+                [TkbThrowingHatchet] = new() { Shape = MunitionShape.Axe, Length = 0.4f, Diameter = 0.1f, ColorHex = "#6B5A45" },
+                [TkbThrowingSpear] = new() { Shape = MunitionShape.Spear, Length = 1.6f, Diameter = 0.03f, ColorHex = "#7A6A50" },
+                [TkbThrowingStar] = new() { Shape = MunitionShape.Star, Length = 0.1f, Diameter = 0.1f, ColorHex = "#9A9A9A" },
             };
 
         /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6035), whether or not it has a look: a round, never a body.</summary>

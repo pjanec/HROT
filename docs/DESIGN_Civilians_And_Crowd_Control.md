@@ -3906,7 +3906,7 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
-### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule; ⭐ TC-6 BUILT `2026-10-19` — §7.17a)*
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule; ⭐ TC-6 BUILT `2026-10-19` — §7.17a; ⭐ TC-1…TC-5 BUILT `2026-10-19` — §7.17b)*
 
 🔒 **Approved, user, `2026-10-18`:** *"Approved. Lethality depends also on what the man is holding in hands i guess.
 Knife is usually not thrown unless by a circus artist."* ⇒ ⭐ TC-2 carries **no throwing knife** (a knife is the MELEE item of AW-19, never thrown by the AI — TC-4); ⭐ TC-7's
@@ -4035,6 +4035,24 @@ the fire event itself is untouched — the egress still sends it, so `RecentShot
 
 Rails, one per reader, each red with `Threw` dropped from that reader: `PersonHandsTests.CE3248_…` (report + heat),
 `EffectTests.CE3248_…`, `EventToEffectSystemTests.CE3248_…`, `PedestriansPanicIntoCiviliansTests.CE3248_…`.
+
+#### 7.17b AS-BUILT — TC-1…TC-5, the thrown blades *(backend, `CE-3247`, `2026-10-19`; build-state: BUILT)*
+
+As drawn in §7.17's class, sequence and module diagrams — every box existed but the three rows of data and the three appended shapes;
+⭐ no new path. Measured before building: a `Kinetic` + `Indirect` warhead with a `HandItemDto` gives `WarheadRound.Arc | Lingers` and no
+`Area` (`WarheadRound.BitsOf`), so the round flies the throw's arc, strikes the first body on its line as a DIRECT hit
+(`HitResolutionSystem` → `DetonationNotification { Target, Shooter, Damage, Ammo }`, the shooter carried on as the hit's source by `CE-3237`),
+and, missing, lies where it lands for its lying time and is picked up (`RoundPickUp`, §7.10).
+
+| | as built | rejected — one line |
+|---|---|---|
+| the munitions | `MunitionTkbCatalog` 6044 hatchet · 6045 spear · 6046 star — `Kinetic`, `Indirect`, 1.5 mm (≤ the 9 mm's 2 mm: a vest stops them), damage 35 / 45 / 8, cost 1 / 1 / 0.5 | a `WarheadKind.Edged` (TC-2's own rejection: no reader tells it from `Kinetic`) |
+| lying | `HandItemDto { LiesSeconds = 300 }` — five minutes (a stone lies one) | the stone's minute: a blade is worth walking back for |
+| the look | `MunitionShape` **Axe 6 · Spear 7 · Star 8** (appended) | the `Grenade` lump (TC-3) — ⚠ ui's `ProjectileLayer` has no case for them yet, so they draw NOTHING until ui adds one ([note](blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md)) |
+| a knife | ⛔ none (R-3016) — a rail pins that no built-in munition is a knife | — |
+
+Rails: `RoundPickUpTests.CE3247_…` (a hatchet strikes the man on its line, 8 m off, with its damage and thrower; one that misses lies and is
+picked up), `ThrownColdWeaponTests` (the three on the built-in catalogue: kind, arc, lingering, damage, armour, shape, lethal; no knife).
 
 ### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's [people-display gaps](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md); `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
 
