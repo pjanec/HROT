@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-current-answer: ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+current-answer: ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — finish Q94 / R-3018: A-5 indirect solve, A-6 bomb release, A-7 battery plan, then C, D, B (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,52 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 00000000. NOW (`2026-10-19`, evening) — finish Q94 (R-3018): A-5…A-7, then C, D, B *(🔒 user: "pls merge behaviors and write resumtion document so i can continue in another session")*
+
+⭐ **Start here.** `backend` is clean and pushed; behaviors is merged up to `73812700a` (CE-2275 D-2e). ⛔ Read `RULINGS.md` first
+(RULE ZERO), then **[Architect Question 94](Architect_Question_94_Brain_Geometry_Sites.md) §0a (the ruling), §4 (A as RULED), §4.1
+(A as BUILT), §5 (C and D carriers)** — that one document is the whole programme.
+
+**What R-3018 rules** (🔒 user: *"Approved. Move fire check to muscle. Anyway brain should be sending just fire requeat and can update ammo
+based on fire notification (and we would need to add refused flag to the notification)."*) — every geometry gate of a shot runs on the
+MUSCLE; the brain only asks; the muscle fires or REFUSES; the brain's ammo follows the answers.
+
+### Done this session (all on `backend`, all red-proofed)
+
+| what | commit | ⭐ |
+|---|---|---|
+| A-1 the carrier — `RequestId` on intent / request, `RequestId` + `Refusal` + `Fired` on the notification, both DDS topics appended | `2c8c18370` | size rails 70 / 81 B |
+| A-2 the muscle answers every request (`CannotFire`), echoes the id | `0d83a5ff3` | |
+| A-3/A-4 `Combat/ShotLedger.cs` — ask reserves, the fired answer spends, a refusal holds 1 s with its reason, 2 s timeout; the muscle refuses a MASKED direct round (unit or point); the brain's two `MuzzleMasked` calls gone | `05a12d58f` | tracker [`CE-3269`](Blueprint_Issues_Tracker.md) (Q94 A); design [Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md) + [BS-1 §5.4c](../designs/brain-split/BS-1-DESIGN.md) note |
+| behaviors told the one timing change (`Masked` arrives a frame or two after the ask) | `cacf88953` | [note](batches/NOTE_Backend_To_Behaviors_Fire_Refusal.md) |
+| earlier today: S2 weather in perception (R-3017, `CE-3216`), FireTeam byte (R-3019), `CE-3220` part 2, sectors / Hold-stay rulings recorded (R-3020 = R-2054, R-3021 = R-2055) | — | |
+
+### ⏭ The queue, in order
+
+| # | item | how to start | ⚠ watch |
+|---|---|---|---|
+| **1** | **A-5 — the indirect solve moves to the muscle** | `FireAtPointExecutor.cs` ~:112–148 calls `FireSolution.For(WorldQuery.Of(world)…)` on the BRAIN and puts `Charge` / `HighArc` on the intent. Ruled: the brain sends the point + its ARC PREFERENCE and `Charge = 0` ("solve there"); `FireProcessingSystem` runs `FireSolution.For` with the live terrain and refuses `TooClose` / `Masked` / `TooFar`. ⇒ the intent needs the arc preference (append a byte, or reuse `HighArc` as "prefer high" when `Charge == 0` — decide, size rail). The laying (`Lay`, turret slew) still needs an arc BEFORE the shot: lay with the terrain-free solution (`FireSolution.For(null, …)`), let the muscle's solve decide the charge. The executor's `!solution.Ok ⇒ Failure` becomes "the refusal ⇒ Failure" (read `ShotLedger.Held` → `HoldReasonOf`; an indirect refusal FAILS the action, not holds it — §4 A-5) | tests that move (`AimAndFireExecutorTests`): `IF1_*` ×2 and `P2_ASelfPropelledGun` assert the brain's charge; re-check the `M4_*` set §4 lists |
+| **2** | **A-6 — the bomb release moves to the muscle** | brain sites: `AimAndFireExecutor.ReleaseCue` / `ReleaseAt` (~:632–665, `GroundHeightAt`) and `FireAtPointExecutor.cs` ~:162. Ruled: the brain asks when ITS terrain-free cue (the replicated height) says "about now"; the muscle releases at its true cue (`BombBallistics.ReleaseNow`, live ground) or refuses `Expired` after 3 s. ⇒ the muscle must HOLD the request across frames (a small pending-release list in `FireProcessingSystem`, keyed by `RequestId`) — the one new piece of state | `CE2173_ABombAtAPoint_WaitsForTheReleaseCue`, `CE2180_AnIntentReadNFramesLate_*`, `A6_TheCue_SaysNow_*`, `A6_TheReleaseProfile_*`, `AirAttackNodesTests.B6_ALevelBombRun_HitsThePoint` (asserts the release point within ±1 frame) |
+| **3** | **A-7 — the battery plan stays terrain-free** | `Brains/IndirectFireBehaviors.cs` `SolutionFor` (~:82–90, plan ~:261, sheaf ~:307) ⇒ `FireSolution.For(null, …)`; a masked gun learns it from its refusal | behaviors' file — say it in the commit (cross-lane) |
+| **4** | fold A-5…A-7 into [Q94 §4.1](Architect_Question_94_Brain_Geometry_Sites.md), tick [`CE-3269`](Blueprint_Issues_Tracker.md) | — | |
+| **5** | **C — the door approach** ([Q94 §5.1](Architect_Question_94_Brain_Geometry_Sites.md)) | C-1 `NavigationMode.ApproachDoor` (appended) + the door's network id in `NavigationIntent.RouteEntityId` (already on the wire, `SimDescriptors.cs:745`); C-2 `NavigationDestination.Of` resolves it with `DoorNodes.ApproachPoint` moved there | allocate a CE id from the 3xxx block (next free **CE-3270**) |
+| **6** | **D — a spawn's ground level** ([Q94 §5.2](Architect_Question_94_Brain_Geometry_Sites.md)) | D-1 a one-shot `SpawnLevelRequest { Mode, Level }` in the Muscle ownership group, a `SpawnLevelSystem` on the muscle; D-2 the IG's remote placement carries the height (a found defect) | component id from backend's block **436–449** (434/435 used; R-2056) |
+| **7** | **B — the danger-area contact sight** ([Q94 §2 B](Architect_Question_94_Brain_Geometry_Sites.md)) | not designed beyond the lean (the `WorldSurvey` sensor fits it, [DESIGN_World_Survey_Sensor](../DESIGN_World_Survey_Sensor.md)) | design first (UML in Q94) |
+
+⏳ **Waiting on others:** `CE-3222` (ms budget — another session's) · `LD-4` (waits on behaviors' LD-3 rest + LD-5).
+
+### ⭐ Tooling that cost time this session — read before building
+
+| ⚠ | |
+|---|---|
+| **gate scripts: `set -o pipefail`** and test only after `BUILD-OK` of the **TEST** project | a `dotnet build … \| grep` swallowed a failed build and `--no-build` ran the stale binary green |
+| **a brain-only test world has no muscle** | after A-3 an executor test must ANSWER its asks: `TestMuscle.FireAll(world)` (`Fdp.Toolkits.Tests/Combat/TestMuscle.cs`) or a harness `AnswerFired()` (`AirAttackNodesTests`). A burst that stalls in a test = the reservation cap (`ShotLedger.MaxPending` 8 / `Ammo − pending`) with nobody answering |
+| **mutants must COMPILE** | `if (true)` / `if (false)` fail the build (warnings are errors — unreachable code) ⇒ use a non-constant form (`x == None \|\| x != None`, `* 1000f`). A `BUILD-FAIL` mutant proves nothing |
+| **don't edit source while a mutant run or a build is going** | stage edits in the scratchpad and copy them in after |
+| **known reds** | Editor `NoNewInlineNetworkIdLookupAppears` · SimHost `BranchedRecording_CapturesHistoricalStateAsKeyframe` (flaky) · Toolkits `Partition_ZeroAllocs` (flaky). Stride tests cannot run on Linux (build only) |
+| **twins for anything that fires** | `ClusterRunner.Integration.Tests` filter `CE3172_OperatorFire\|CE3136_P8_WindowDuel\|CE3088_U6\|CE2106_ARifleman\|CE2073_AnArmedRifleman\|CE1078_APress` — 6/6 in ~1.5 min |
+| **codebase-memory** | the MCP server does not connect here; use the CLI (`/opt/codebase-memory-mcp/codebase-memory-mcp cli search_graph …`, project `home-user-HROT`); `check_index_coverage` is NOT in the CLI — say so in any exhaustive claim |
 
 ## 0000000. NOW (`2026-10-18`) — the platoon programme *(🔒 user: "Merge behaviours branch, find the new handoff for you and start working on it autonomously overnight")*
 
