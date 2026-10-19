@@ -494,6 +494,19 @@ namespace Hrot.NED.Descriptors
         public byte Anger;
     }
 
+    // ⭐ CE-3271 (Q94 D, §5.2a) — a spawn's birth level (mode, level) and whether the position's owner has applied it.
+    [DdsTopic("EntitySpawnLevel")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntitySpawnLevel
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>Fdp.Toolkit.NetworkSpawning.SpawnHeightMode</c>.</summary>
+        public byte Mode;
+        public short Level;
+        public byte Resolved;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

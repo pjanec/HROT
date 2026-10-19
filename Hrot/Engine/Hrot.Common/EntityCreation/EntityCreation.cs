@@ -40,8 +40,10 @@ namespace Hrot.Common.EntityCreation
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
             Fdp.Core.EntityRepository world,
             Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem,
-            SeatPresetSystem seatPresetSystem)
+            SeatPresetSystem seatPresetSystem,
+            Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem spawnLevelSystem)
         {
+            SpawnLevelSystem   = spawnLevelSystem;
             ObstacleBakeSystem = obstacleBakeSystem;
             SeatPresetSystem   = seatPresetSystem;
             Translators        = translators;
@@ -76,6 +78,13 @@ namespace Hrot.Common.EntityCreation
         /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
         /// </summary>
         public SeatPresetSystem SeatPresetSystem { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3271</c> (Q94 D, R-3018) — applies a spawn's birth level on the node that owns its position. ⛔ Not optional: the spawn
+        /// system only ASKS for the level (8b), so unscheduled, an Add Entity person keeps the sent height. Schedule it
+        /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
+        /// </summary>
+        public Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem SpawnLevelSystem { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
@@ -302,11 +311,12 @@ namespace Hrot.Common.EntityCreation
             kernel.RegisterGlobalSystem(PromotionSystem);      // BeforeSync — [UpdateAfter(GhostCreationSystem)] orders it
             kernel.RegisterGlobalSystem(ObstacleBakeSystem);   // CE-3136 P-7a — static obstacles become terrain
             kernel.RegisterGlobalSystem(SeatPresetSystem);     // WS-4 (W-I) — a host's seat presets board their seats
+            kernel.RegisterGlobalSystem(SpawnLevelSystem);     // CE-3271 (Q94 D) — the birth level, where the position is owned
             kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", SpawnSystem));   // BeforeSync
 
             var missing = Unserviceable(new object[]
             {
-                SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem,
+                SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem, SpawnLevelSystem,
             }.Concat(NetworkSystems));
             if (missing.Length > 0)
                 Fdp.Core.Logging.FdpLog<EntityCreation>.Warn(missing);
@@ -340,6 +350,9 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(SeatPresetSystem))
                 missing.Add($"{nameof(SeatPresetSystem)} (WS-4) — a host's seat presets (a technical's gun and gunner) are created but never " +
                             "boarded: they stand beside it, and its gun has no gunner");
+            if (!seen.Contains(SpawnLevelSystem))
+                missing.Add($"{nameof(SpawnLevelSystem)} (CE-3271) — a spawn's requested level (Add Entity's ground / floor) is never applied: " +
+                            "the entity keeps the sent height");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");

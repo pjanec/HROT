@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022); B, D not yet.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022); B not yet.
 current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers + §5.1a C as built · §2 the sub-questions with leans.
 stale-below: nothing.
-known-rot: §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
+known-rot: §5.2 D-1 "resolve at 8b if the position stays here" and the §5 diagrams' "8b: resolve if the position stays here" / "remove the request" — SUPERSEDED by §5.2a (one path, the request stays Resolved). §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b OWNS R-2037 and the inventory this question settles for backend's sites (CE-2287)
@@ -12,6 +12,8 @@ related-designs:
   - docs/DESIGN_World_Query_Seam.md — IWorldQuery: R-2037 decides WHO may call it; its known-rot already records the brain-side callers
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — owns the fire chain (WeaponTask, FireProcessingSystem): A would move a gate into it
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — CB-19 / CB-22 consume door approach and the fire gate
+  - docs/DESIGN_Add_Entity_Picker.md — §2e owns the birth-height RULE and wire fields; §5.2a here owns WHERE it is resolved (CE-3271)
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns NavigationDestination.Of, the one resolver C's door hook sits in (§5.1a)
 -->
 
 # Architect Question 94 — backend's brain-side geometry reads (`CE-2287`, R-2037)
@@ -371,6 +373,74 @@ drop the hook ⇒ both actors aim at the centre).
 | **D-1** | a one-shot `SpawnLevelRequest { Mode, Level }` component written by 8b instead of resolving on a node that will GRANT the position away, in the Muscle ownership group (so it travels with the position grant, one small descriptor); the muscle's `SpawnLevelSystem` resolves it once with its live terrain when it owns the position, writes `SimTransform.Z`, removes it. A node that keeps the position (the editor, a muscle-creator) resolves at 8b as today | append the level to `dtWorldPos` — the hottest descriptor pays 3 bytes forever for a one-time fact · keep CGF resolving — R-2037 by principle, and a floor destroyed before the spawn is unseen there |
 | **D-2** | the IG's remote placement carries the height (`IgEntityCreationRequests`) — a found defect, fixed with D-1 | — |
 | ⚠ consequence | the person is at the SENT height on the brain's replica until the muscle's first position sample (Q94 §2 D foresaw "one frame") | — |
+
+#### 5.2a D — the detailed design, AS BUILT *(backend, `2026-10-19`, `CE-3271`; build-state: BUILT)* — ⚠ refines D-1
+
+📐 Measured before drawing: the yield clears the creator's `SimTransform` COMPONENT authority in the same `BeforeSync` as 8b
+(`NedReplicationModule.cs:705` `LocalAuthorityYieldSystem` → `SetAuthority(…, false)`), while the DESCRIPTOR record stays "mine"
+until the grantee confirms (`OutgoingGrantsPending`) — so the creator still publishes its Muscle-group samples while Constructing
+(the `EntityDescent` pattern, CE-2210). The grantee claims in `DeferredTakeoverSystem` (BeforeSync, on Constructing). `PostSimulation`
+(20) runs after `BeforeSync` (2) and before `Export` (40); `Simulation` is reserved for module systems (the kernel refuses a global one).
+
+| # | as designed | why it differs from D-1 |
+|---|---|---|
+| D-1a | ⭐ **ONE path:** 8b always writes `SpawnLevelRequest { Mode, Level, Resolved }` (no terrain read in 8b); `SpawnLevelSystem` (PostSimulation — a global system may not run in Simulation) resolves every unresolved request **where this node holds `SimTransform` authority** and sets `Resolved = 1` | D-1 resolved at 8b "if the position stays here" — but 8b cannot know (the grant is decided by `CreateEntityRequestSystem`'s strategy and applied by a NED-private system). The authority bit IS that answer, read one phase later: cleared on a granting brain, set on the editor / a muscle-creator / a single node |
+| D-1b | ⭐ the request **stays**, flagged `Resolved`, instead of being removed | a removal must be replicated as a "gone" sample, and a lingering unresolved copy on the brain would re-snap a moved man if the position ever came back to it (a reclaim) |
+| D-1c | ⭐ ingress is **monotonic**: `Resolved = 1` always applies; `Resolved = 0` applies only where the node has no request yet — no owner check | the owner-skip (`IsRecordedOwner`) would DROP the creator's request if the muscle had claimed before it arrived (two topics, two readers ⇒ no ordering) — the man would keep the sent height, worse than today |
+| D-1d | `dtSpawnLevel` = 155, component 436, **Muscle group** (granted with `dtWorldPos`, so the muscle publishes `Resolved` back) | as D-1 |
+| D-1e | no terrain resident on the resolving node ⇒ the sent Z stands, `Resolved = 1` (today's rule) | — |
+| D-2 | `IgEntityCreationRequests.FromSpawnCommand` copies `SpawnHeight` | as D-2 |
+
+```mermaid
+classDiagram
+  direction LR
+  class NetworkSpawningSystem { <<EXISTING, BeforeSync>> 8b: SpawnLevels.Request — no terrain read }
+  class SpawnLevelRequest { <<NEW component 436, Muscle group>> Mode · Level · Resolved }
+  class SpawnLevelSystem { <<NEW, PostSimulation>> resolve where SimTransform authority is held }
+  class SpawnLevels { <<NEW static>> Request(world, e, height) · Resolve(world, e) }
+  class WorldQuery { <<EXISTING>> Of(view).ResolveLevel(x, y, level) }
+  class EntitySpawnLevelTranslators { <<NEW dtSpawnLevel 155>> egress on change · ingress monotonic }
+  class EntityCreationPack { <<EXISTING>> builds SpawnLevelSystem · RegisterOn schedules it · Unserviceable names it }
+  class SpawnHeight { <<EXISTING>> Mode · Level · Apply(levelZ, sentZ) }
+  NetworkSpawningSystem --> SpawnLevels
+  SpawnLevels --> SpawnLevelRequest
+  SpawnLevelSystem --> SpawnLevels
+  SpawnLevels ..> WorldQuery
+  SpawnLevels ..> SpawnHeight
+  EntitySpawnLevelTranslators ..> SpawnLevelRequest
+  EntityCreationPack --> SpawnLevelSystem
+```
+*What the picture shows that prose hid:* `SpawnHeight` stays the one rule (`Apply`); the request only moves WHERE it is applied.
+
+```mermaid
+graph TD
+  subgraph H["every ECS host — EntityCreationPack.RegisterOn"]
+    NSS[NetworkSpawningSystem · BeforeSync] --> REQ[(SpawnLevelRequest)]
+    SLS[SpawnLevelSystem · PostSimulation] --> REQ
+  end
+  subgraph N["NED hosts — SharedTranslatorPack"]
+    EG[EntitySpawnLevel egress · Export] --> REQ
+    IN[EntitySpawnLevel ingress · Input] --> REQ
+  end
+  Y[LocalAuthorityYieldSystem · BeforeSync, NED-private] -. clears SimTransform authority .-> SLS
+  T[DeferredTakeoverSystem · BeforeSync, grantee] -. sets SimTransform authority .-> SLS
+```
+*What the picture shows that prose hid:* who calls `SpawnLevelSystem` each frame — the pack, on EVERY host (editor, CGF, SimHost, IG,
+traffic); the authority bit, set or cleared by two NED systems that run earlier in the same frame, is what makes it act on exactly one.
+
+```mermaid
+sequenceDiagram
+  participant C as CGF (creator)
+  participant M as SimHost (muscle)
+  C->>C: BeforeSync 8b — SpawnLevelRequest Resolved 0, yield clears SimTransform authority
+  C->>C: PostSimulation — SpawnLevelSystem: no authority ⇒ skip
+  C->>M: Export — dtWorldPos (sent Z) + dtSpawnLevel Resolved 0 (record still "mine")
+  M->>M: Input — ingress: no request here ⇒ add it (even if already owner)
+  M->>M: BeforeSync — DeferredTakeover: SimTransform authority
+  M->>M: PostSimulation — resolve on the live terrain, Z set, Resolved 1
+  M->>C: dtWorldPos (resolved Z) + dtSpawnLevel Resolved 1
+  C->>C: ingress — Resolved 1 always applies
+```
 
 ```mermaid
 classDiagram

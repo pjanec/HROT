@@ -1052,6 +1052,11 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Demeanour</c>: a civilian's mode, fear and anger in quarters, Brain group, replicated as
         /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
         public const int Demeanour = 435;
+
+        /// <summary>⭐ <c>CE-3271</c> (backend, Q94 D, R-3018) — <c>SpawnLevelRequest</c>: a spawn's birth level, resolved by the node that owns
+        /// the position (Muscle group), replicated as <c>dtSpawnLevel</c> (155). 📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md
+        /// §5.2a. Backend's block; measured free on every lane 2026-10-19.</summary>
+        public const int SpawnLevelRequest = 436;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
