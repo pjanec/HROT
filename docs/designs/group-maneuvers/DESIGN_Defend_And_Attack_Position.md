@@ -834,6 +834,41 @@ production reader); a stale or missing answer after the 5 s ask timeout leaves t
 automatic weapon in its cast — the in-process rail answers the survey by hand; the real solver's fan on OBJ is not yet measured. Rail
 `SquadManeuverTests.CE2275_SquadDefend_TheMachineGunnerTakesThePostWithTheLongestView`.
 
+
+#### D-2i — his hide search looks at his sector *(PC-14's `Allow` half; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a posted man's hide and peek sensors are aimed at his **top threat** (`PeekAndFireNodes.KeepSensors` →
+`SensorAim` → `EqsTacticsNodes.Point`), and the top threat is deliberately **not** filtered by his sector (DA-27, `CE-2282`: *"the
+threat he hides from may lie outside his sector"*; only the shot is, `LockTarget`). A window hide ask keeps points that **see** its
+slot-1 target ⇒ with the threat outside his arc he takes the window that faces the threat, i.e. away from his sector — the drift PC-14
+forbids. D-2a's anchor keeps him in his room; it does not keep him looking the right way.
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (posted man)
+  participant E as EngagementAreas
+  participant S as his hide / peek sensors
+  N->>N: SensorAim(top threat) — the freshest evidence (D13)
+  N->>E: Allows(him, the threat's spot)? (own arc · his squad's · self-defence 50 m / 5 s)
+  alt allowed, or no post
+    N->>S: aim at the threat (as before)
+  else outside his sector
+    N->>E: TryAllowPoint(him) — his arc's middle at mid-range
+    N->>S: aim at that point (heard id SectorAimId)
+  end
+```
+*What the picture shows that prose hid:* the shot and the search were already split — the shot asks `Allows` (`LockTarget`), the
+search did not; D-2i puts the same question in front of the search, and only for a posted man, so an unposted rifleman still hides
+from whatever threatens him most.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-49** | how a posted man's next hide point stays inside his sector | `PeekAndFireNodes.PostedAim`: a posted man (`AnchorRadius` > 0) whose threat his sector does not allow (`EngagementAreas.Allows` — his arc, his squad's, self-defence) aims his hide and peek sensors at his sector's point (`TryAllowPoint`) instead; allowed, unposted or no sector ⇒ the threat as before | a hide point "inside the Allow" taken literally: his arc's origin IS his post, so every point within 4 m is "inside" in some direction — the test says nothing · a new EQS test on the muscle (the point's facing in his arc): a new template variant per hide template for what one aim choice already answers · filtering the threat itself by sector: DA-27 keeps him hiding from the real danger when not posted |
+
+*As built (2026-10-19):* `PeekAndFireNodes.PostedAim` + `SectorAimId`, called from `KeepSensors` (both the cover and the step-peek sensor).
+Rail `PeekAndFireNodesTests.CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt` (outside ⇒ the sector point, and
+the node's own cover sensor is aimed there; inside, unposted, or self-defence ⇒ the threat).
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

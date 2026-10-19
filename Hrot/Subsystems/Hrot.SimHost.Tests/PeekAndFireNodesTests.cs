@@ -1027,6 +1027,49 @@ namespace Hrot.SimHost.Tests
             Assert.True(d.AimedRounds > 0, "fights from where he stands, never silent");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2i (PC-14's <c>Allow</c> half, DA-49) — a POSTED man whose threat lies outside his sector looks for his
+        /// hide points toward his SECTOR: his cover sensor is aimed at his sector's point, not at the threat (a window that sees the threat
+        /// would face away from his arc). A threat inside his arc, a man with no post, or a close threat that just fired at him (self-defence)
+        /// keep the aim on the threat. ✅ Red-proofs: the re-aim removed ⇒ the sensor looks east at the threat; the Allow test skipped ⇒
+        /// the sector even for a threat inside it.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt()
+        {
+            var d = new Duel(Rifleman() with { Anchor = Vector3.Zero, AnchorRadius = 4f });
+            if (!d.Repo.IsComponentTypeRegistered<EngagementArea>()) d.Repo.RegisterComponent<EngagementArea>();
+            d.Repo.AddComponent(d.Self, new EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = Vector3.Zero, LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            d.Repo.AddComponent(d.Enemy, new SimTransform { Position = new Vector3(80f, 0f, 0f), Rotation = Quaternion.Identity });   // east, beyond 50 m
+            var threat = new ThreatAim(d.Enemy, 0, default);
+
+            var aim = PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat);
+            Assert.Equal(PeekAndFireNodes.SectorAimId, aim.HeardId);
+            Assert.True(aim.IsPoint);
+            Assert.Equal(0f, aim.Point.X, 1);
+            Assert.Equal(100f, aim.Point.Y, 1);   // the arc's middle bearing (north) at 100 m (no range band)
+
+            d.Step();   // the node itself: its cover sensor looks at the sector
+            ref readonly var cover = ref d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite));
+            Assert.True(cover.ContextSlot1.IsNull);
+            Assert.NotEqual(0, cover.ContextPointMask & EqsSensor.Point1Bit);
+            Assert.Equal(100f, cover.ContextPoint1.Y, 1);
+
+            var unposted = d.P with { AnchorRadius = 0f };
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in unposted, in threat));   // no post: as before
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(0f, 80f, 0f);           // north, inside his arc
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(20f, 0f, 0f);           // close, east, and firing at him
+            if (!d.Repo.HasComponent<SimTransform>(d.Self)) d.Repo.AddComponent(d.Self, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            d.Repo.GetComponentRW<RecentSenses>(d.Self).Record(SensorChange.NearMiss, d.Time);
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
+        }
+
         /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>
         [Fact]
         public void G5_R2_AnExpiredClaim_FreesThePoint()

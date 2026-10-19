@@ -802,7 +802,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3144 (P-8 D14) — the sensors look from and for where the enemy is REMEMBERED (the freshest evidence, D13), never
             //   where he is now: a hidden enemy's true position is seen from nowhere, so both soldiers' searches answered nothing and
             //   the duel stood still (measured live). Re-pointed when that spot moves by RepointMetres or another slot becomes freshest.
-            var aim = SensorAim(world, self, in threat);
+            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat));
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var cover = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in aim, retarget);
@@ -826,6 +826,26 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
             => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+
+        /// <summary>⭐ <c>CE-2275</c> D-2i — the heard id the sensors carry when they look at the man's SECTOR, not at a threat.</summary>
+        internal const long SectorAimId = -2275;
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2i (PC-14's <c>Allow</c> half, DA-49) — a POSTED man (<c>AnchorRadius</c> &gt; 0) whose threat his sector does not
+        /// allow (<see cref="EngagementAreas"/>.<c>Allows</c> — self-defence
+        /// included, so a close one still counts) looks for his hide and peek points toward his SECTOR's point instead: a window or a step
+        /// that sees the threat outside his arc would take him off his sector (DA-27: the threat he hides from may lie outside it). No
+        /// post, no sector, or an allowed threat ⇒ the aim as it was. 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2i.
+        /// </summary>
+        internal static ThreatAim PostedAim(EntityRepository world, Entity self, in PeekAndFireParams p, in ThreatAim aim)
+        {
+            if (p.AnchorRadius <= 0f) return aim;
+            bool allowed = aim.IsPoint ? EngagementAreas.Allows(world, self, aim.Point)
+                         : aim.Entity.IsNull || !world.IsAlive(aim.Entity) || EngagementAreas.Allows(world, self, aim.Entity);
+            if (allowed) return aim;
+            return EngagementAreas.TryAllowPoint(world, self, out var sector)
+                ? new ThreatAim(Entity.Null, SectorAimId, sector) : aim;
+        }
 
         /// <summary>⭐ <c>CE-3158</c> G5 — publishes (and refreshes) the unit's claim on the point it holds or is going to: written when
         /// it COMMITS (the move is issued), so nobody races it there.</summary>
