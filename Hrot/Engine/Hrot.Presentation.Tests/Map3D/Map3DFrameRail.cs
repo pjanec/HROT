@@ -2527,6 +2527,59 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1169 / CE-1179 — a pick-up rifle, a pick-up pistol and an explosive charge lying on the ground, beside a soldier for scale and
+    /// the M2 on its tripod each of them used to be drawn as. Screenshot <c>people-3-items-on-the-ground.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1169_V_ItemsOnTheGround_AreWhatTheyAre()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.6f);
+        Entity Put(long type, float dx)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)), Rotation = facing });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        Put(TkbEntityTypes.WeaponSystem_PickUpRifle, -1.2f);
+        Put(TkbEntityTypes.WeaponSystem_PickUpPistol, -0.2f);
+        Put(TkbEntityTypes.WeaponSystem_ExplosiveCharge, 0.6f);
+        Put(TkbEntityTypes.Infantry_Rifleman, 1.6f);
+        Put(TkbEntityTypes.WeaponSystem_M2Hmg, 3.2f);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y, ground + 0.3f), 5f, MathF.PI * 1.5f, -0.45f);   // from the south, looking down
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-3-items-on-the-ground.png"));
+        Assert.Equal(5, bodies.BodiesDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1193 (backend's <c>Lean</c>, CE-3257 §13 LN-2) — three soldiers facing the camera: leaning LEFT, upright, leaning RIGHT, and a
     /// fourth leaning left while crouched. The drawn eye of each leaning man sits <see cref="Fdp.Toolkit.Combat.Leans.Shift"/> beside the
     /// upright man's (his own left), at the same height, with his feet where they were. Screenshot <c>people-2-lean.png</c>.

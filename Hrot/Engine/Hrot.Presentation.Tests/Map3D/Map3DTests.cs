@@ -802,6 +802,54 @@ public sealed class Map3DTests
         => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = subcategory };
 
     /// <summary>
+    /// ⭐ CE-1169 / CE-1179 (People Display U7, U8, U18) — a pick-up rifle, a pick-up pistol and an explosive charge are drawn as what they
+    /// are, not as the generic HMG on its tripod: their classes (DIS 1.1.*.50.8 / .9 / .10) name their kits; the catalogue's types resolve
+    /// to them; a pistol not in his hands sits on his hip, a rifle slung on his back, a hand weapon in his hands is held level in front.
+    /// 🔒 User, live, 2026-10-19: <i>"pistol weapon carried by person as entity appears as a big machine gun; same if dropped — shown as MG
+    /// on a tripod"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1169_APickUpWeaponOrACharge_IsDrawnAsWhatItIs()
+    {
+        Assert.Equal(WeaponKind.Rifle, WeaponKits.KindOf(Dis(50, 8)));
+        Assert.Equal(WeaponKind.Pistol, WeaponKits.KindOf(Dis(50, 9)));
+        Assert.Equal(WeaponKind.Charge, WeaponKits.KindOf(Dis(50, 10)));
+        var db = BuiltIn();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        WeaponKind KindOfType(long type)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            return WeaponKits.TypeOf(world, db, e).Kind;
+        }
+        Assert.Equal(WeaponKind.Rifle, KindOfType(TkbEntityTypes.WeaponSystem_PickUpRifle));
+        Assert.Equal(WeaponKind.Pistol, KindOfType(TkbEntityTypes.WeaponSystem_PickUpPistol));
+        Assert.Equal(WeaponKind.Charge, KindOfType(TkbEntityTypes.WeaponSystem_ExplosiveCharge));
+        Assert.Equal(WeaponKind.Hmg, KindOfType(TkbEntityTypes.WeaponSystem_M2Hmg));
+
+        // small, low things — no tripod: every part of each kit lies within 0.25 m of the ground, the HMG stands higher
+        foreach (var kind in new[] { WeaponKind.Rifle, WeaponKind.Pistol, WeaponKind.Charge })
+        {
+            var size = WeaponKits.DefaultSize(kind);
+            Assert.True(size.X < 1f && size.Z < 0.25f, $"{kind}: {size}");
+            Assert.NotEqual(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.Length, WeaponKits.Kit(kind, false).Parts.Length);
+            Assert.Null(WeaponKits.GunnerSpot(kind));                 // nobody kneels behind it
+        }
+        Assert.True(WeaponKits.IsHandWeapon(WeaponKind.Rifle) && WeaponKits.IsHandWeapon(WeaponKind.Pistol));
+        Assert.False(WeaponKits.IsHandWeapon(WeaponKind.Charge) || WeaponKits.IsHandWeapon(WeaponKind.Hmg));
+
+        // where he carries it: the hip below the hands, the back behind him, the hands in front
+        var body = Matrix4x4.Identity;
+        var hip = Vector3.Transform(Vector3.Zero, WeaponKits.OnHip(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Pistol)));
+        var hands = Vector3.Transform(Vector3.Zero, WeaponKits.InHands(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Rifle)));
+        var back = Vector3.Transform(Vector3.Zero, WeaponKits.OnBack(body, 1.8f, WeaponKits.DefaultSize(WeaponKind.Rifle)));
+        Assert.True(hands.X > 0.1f, $"in front: {hands}");
+        Assert.True(back.X < 0f, $"behind: {back}");
+        Assert.True(hip.Y < -0.1f && hip.Z < hands.Z, $"at his right hip: {hip}");
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1087 (§6n N-1) — every weapon-system class draws its OWN kit (no purple box): the kind comes from the class chain (HMG,
     /// minigun, ATGM, launcher, sentry, and the mortar and towed gun of Indirect Fire IF-G); each kind's stowed and deployed kits have the
     /// same parts in the same order, so a deploy blends; only a fully deployed kit articulates; the deploy state's timing reads as 0 → 1.

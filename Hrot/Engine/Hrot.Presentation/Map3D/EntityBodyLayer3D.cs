@@ -973,7 +973,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         foreach (var (weapon, bearer, look, size, colour) in _carried)
         {
             if (_shouldering.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
-            var frame = WeaponKits.OnBack(figure.Frame, figure.Height, size);
+            // ⭐ CE-1169 (People Display U8) — a HIDDEN station is not drawn (a concealed pistol, a worn charge); a hand weapon in his
+            //   HANDS is held level, a pistol in his back station is in its holster, the rest is slung across his back
+            if (Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, weapon)) continue;
+            bool stowed = Fdp.Toolkit.Behavior.CarryStations.IsStowed(world, weapon);
+            var frame = WeaponKits.IsHandWeapon(look.Weapon) && !stowed ? WeaponKits.InHands(figure.Frame, figure.Height, size)
+                      : look.Weapon == WeaponKind.Pistol ? WeaponKits.OnHip(figure.Frame, figure.Height, size)
+                      : WeaponKits.OnBack(figure.Frame, figure.Height, size);
             // ⭐ CE-1104 (§6t T-b4) — a two-man weapon: between the pair at their hands, stowed, the front man's way
             if (_teamPartner.TryGetValue(bearer, out var partner) && world.HasComponent<SimTransform>(bearer))
             {
