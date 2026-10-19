@@ -178,4 +178,56 @@ public sealed class PlatoonScenarioTests : IDisposable
         Assert.True(shooters.Count >= 2, $"③ …then Red fires: {shooters.Count} shooters");
         Assert.True(surveyAt > 0, "D-2h — the machine gunner's visibility fan was answered by the real solver (SurveyReady on the commander)");
     }
+
+    // ── pc-defend-dry (§12.2 stage A; DESIGN_Defend_And_Attack_Position §8d, CE-2276) ──────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2276</c> E-1 — the twin of <c>run_pc_defend_dry</c>: a Red platoon (with its default SOP) over two line squads and a
+    /// reserve on <c>cqb-village</c>; the squads' Set and the SPOTs are faked (<see cref="ReportInjection"/>, what
+    /// <c>POST /entities/{id}/reports</c> calls). ① every squad SquadDefends; the line holds fire, the reserve returns it · ② a SPOT outside
+    /// the EA changes nothing · ③ one inside opens every line man's fire; the reserve keeps ReturnFire · ④ the SOP never pauses it.
+    /// </summary>
+    [Fact(Timeout = 420_000)]
+    public async Task CE2276_PcDefendDry_TheLineHoldsFire_UntilAnEnemyIsReportedInsideTheEngagementArea()
+    {
+        using var harness = await Live("pc-defend-dry");
+        var cgf = harness.Cgf!.World!;
+        string[] squads = { "Red Squad 1", "Red Squad 2", "Red Reserve" };
+        string[] Men(string s) => new[] { $"{s} Leader" }.Concat(Enumerable.Range(1, 3).Select(i => $"{s} Rifleman {i}")).ToArray();
+        var line = Men(squads[0]).Concat(Men(squads[1])).ToArray();
+        var reserve = Men(squads[2]);
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Red Platoon").IsNull && squads.Concat(line).Concat(reserve).All(n => !ByName(cgf, n).IsNull),
+            timeoutFrames: 2000), "the platoon, its squads and their men must spawn");
+        var platoon = ByName(cgf, "Red Platoon");
+        int defend = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadDefend);
+        int platoonDefend = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonDefend);
+        int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+        RoeFire Fire(string n) => RoeOf.Fire(cgf, ByName(cgf, n));
+
+        Assert.True(harness.PumpUntil(() => squads.All(s => Task(ByName(cgf, s)) == defend), timeoutFrames: 3000),
+            "① every squad is ordered to SquadDefend its point");
+        Assert.True(harness.PumpUntil(() => line.All(n => Fire(n) == RoeFire.HoldFire) && reserve.All(n => Fire(n) == RoeFire.ReturnFire), timeoutFrames: 600),
+            $"① the line holds fire, the reserve returns it (line {string.Join(",", line.Select(Fire))}, reserve {string.Join(",", reserve.Select(Fire))})");
+
+        foreach (var s in squads.Take(2))
+            Assert.Null(ReportInjection.Inject(cgf, ByName(cgf, s), new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }));
+        harness.PumpFrames(120);
+        Assert.Null(ReportInjection.Inject(cgf, ByName(cgf, squads[0]), new CommandReport
+        {
+            Kind = ReportKind.Spot, At = new Vector3(120f, 260f, 0f), Count = 3, Size = ElementSize.Team,
+        }));
+        harness.PumpFrames(240);
+        Assert.True(line.All(n => Fire(n) == RoeFire.HoldFire), "② a SPOT north of OBJ — outside the EA — changes nothing");
+
+        Assert.Null(ReportInjection.Inject(cgf, ByName(cgf, squads[1]), new CommandReport
+        {
+            Kind = ReportKind.Spot, At = new Vector3(120f, 60f, 0f), Count = 3, Size = ElementSize.Team,
+        }));
+        Assert.True(harness.PumpUntil(() => line.All(n => Fire(n) == RoeFire.FireAtWill), timeoutFrames: 120),
+            $"③ a SPOT inside the EA opens every line man's fire ({string.Join(",", line.Select(Fire))})");
+        Assert.True(reserve.All(n => Fire(n) == RoeFire.ReturnFire), "③ …the reserve still only returns fire");
+        Assert.Equal(platoonDefend, Task(platoon));
+        Assert.False(cgf.HasComponent<PausedTask>(platoon), "④ the platoon's SOP did not pause the defence (DA-55)");
+        Assert.True(squads.All(s => Task(ByName(cgf, s)) == defend), "④ …no squad was pulled off to hold");
+    }
 }
