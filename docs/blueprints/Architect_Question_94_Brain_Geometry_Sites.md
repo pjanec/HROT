@@ -250,3 +250,69 @@ SPENT only at the report — the brain still never asks for more than it has.
 M4, A6, CE2173 ×2, CE2180, IF1 ×2; `ActionStatusTests.Masked_IsAHold`; spend-at-fire tests `WeaponStateTests:39`,
 `CountermeasureSystemTests:135`, `StarterPackIntegrationTests:694`, `AimAndFireExecutorTests:855`. ⚠ `BS-1-DESIGN.md` §5.4c ("one
 counter, the brain's, as for every round") stays true — the counter is the brain's — but its spend MOMENT changes; fold on build.
+
+## 5. C and D — the carriers, measured *(backend, `2026-10-19`; build-state: READY-TO-BUILD as leaned below)*
+
+📐 Measured with the codebase-memory CLI + grep (one sweep; ⚠ `check_index_coverage` is not available through the CLI).
+
+### 5.1 C — the door approach
+
+| fact | where |
+|---|---|
+| ⛔ no free carrier in the request path: `MoveToParams` is at its 32-byte limit (`NavigationActions.cs`), `NavigationIntent.Flags` bits 0–7 are all taken, `RoadUse` needs 3 bits (6 values, `NavigationComponents.cs:176-192`); a door key (`TerrainObjectRef`, a 64-byte `FixedString64`) cannot ride | `BehaviorConstants.cs:10`, `NavigationConstants.cs:86-125` |
+| ⭐ `NavigationIntent.RouteEntityId` (long) is ON THE WIRE (`SimDescriptors.cs:745`) and read only under FollowRoute (`NavigationIntentBridgeSystem.cs:103`, `AirMotionSystem.cs:48/61`) | — |
+| door entities replicate (SimTransform on `dtWorldPos`, the key on the door-state descriptor) ⇒ the muscle can find a door by network id; its `TerrainWorld` has `Doors`, `Panels`, `DoorIndexOf` | `TerrainObjectRequests.cs:49-62`, `EntityDoorStateIngressTranslator.cs:79`, `TerrainWorld.cs:111-145` |
+| one production caller: `DoorLocksmithBehavior` via `MoveToDoor` | `DoorLocksmithBehavior.cs:32/48`, `DoorNodes.cs:100` |
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **C-1** | a new `NavigationMode.ApproachDoor` (enum, appended) with the door's NETWORK id in `RouteEntityId` and the door's centre as `FinalDestination`; `MoveToDoor` raises it through its own small executor (a new action id, its params: door entity, speed, arrival) | a flag bit — none free · reusing `TargetNodeId` / `TrajectoryId` — not on the wire |
+| **C-2** | the muscle resolves it in `NavigationDestination.Of` — the ONE place a destination becomes a point — with `DoorNodes.ApproachPoint` moved there (from = the mover's own position); a door it cannot find ⇒ the centre, as today's fallback | a second resolver beside `NavigationDestination.Of` |
+
+### 5.2 D — the spawn's ground level
+
+| fact | where |
+|---|---|
+| ⛔ **the lean's premise does not hold for a person**: an owner-0 spawn is serviced by the broadcast arbiter — CGF (or the editor) — and step 8b runs ONLY there; the muscle never runs it on its replica, and no system there reads `SpawnHeight` (it is on no replicated descriptor) | `EntityCreationRouting.cs:55-67`, `CreateEntityRequestSystem.cs:187, 334-338`, `CgfSubsystem.cs:892` |
+| vehicles differ: `VehicleCommandSystem` resolves on the muscle because the vehicle command RUNS there | `VehicleCommandSystem.cs:61` |
+| CGF has terrain resident (R-182, terrain universal) — `WorldQuery.Of` is non-null on every ECS host | `WorldQuery.cs:17-21`, `CgfSubsystem.cs:1088` |
+| the creator's first `dtWorldPos` carries its 8b Z; the yield of the Muscle group happens the same tick, after 8b; the muscle's ghost takes the creator's value | `NedReplicationModule.cs:702-750`, `GeoSpatialEgressTranslator.cs:136` |
+| publisher: Add Entity's placement gizmo (`EntityPlacementGizmo.cs:271`); ⚠ IG's remote placement DROPS the height (`IgEntityCreationRequests.cs:62-73`) | — |
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **D-1** | a one-shot `SpawnLevelRequest { Mode, Level }` component written by 8b instead of resolving on a node that will GRANT the position away, in the Muscle ownership group (so it travels with the position grant, one small descriptor); the muscle's `SpawnLevelSystem` resolves it once with its live terrain when it owns the position, writes `SimTransform.Z`, removes it. A node that keeps the position (the editor, a muscle-creator) resolves at 8b as today | append the level to `dtWorldPos` — the hottest descriptor pays 3 bytes forever for a one-time fact · keep CGF resolving — R-2037 by principle, and a floor destroyed before the spawn is unseen there |
+| **D-2** | the IG's remote placement carries the height (`IgEntityCreationRequests`) — a found defect, fixed with D-1 | — |
+| ⚠ consequence | the person is at the SENT height on the brain's replica until the muscle's first position sample (Q94 §2 D foresaw "one frame") | — |
+
+```mermaid
+classDiagram
+  direction LR
+  class MoveToDoor { <<EXISTING brain node>> raises ApproachDoor instead of computing the side }
+  class ApproachDoorExecutor { <<NEW brain>> writes NavigationIntent Mode ApproachDoor, RouteEntityId = door net id }
+  class NavigationIntent { <<EXISTING wire>> Mode + ApproachDoor value appended · RouteEntityId · FinalDestination }
+  class NavigationDestination { <<EXISTING muscle>> Of(view, mover, intent) · + ApproachDoor }
+  class DoorApproach { <<MOVED from DoorNodes>> ApproachPoint(world, door, from) }
+  class SpawnLevelRequest { <<NEW component, Muscle group>> Mode Level }
+  class NetworkSpawningSystem { <<EXISTING>> 8b: resolve if the position stays here, else write SpawnLevelRequest }
+  class SpawnLevelSystem { <<NEW muscle>> resolves once when it owns the position }
+  MoveToDoor --> ApproachDoorExecutor
+  ApproachDoorExecutor --> NavigationIntent
+  NavigationIntent ..> NavigationDestination : on the muscle
+  NavigationDestination ..> DoorApproach
+  NetworkSpawningSystem --> SpawnLevelRequest
+  SpawnLevelRequest ..> SpawnLevelSystem : travels with the position grant
+```
+*What the picture shows that prose hid:* both sites become a REQUEST the brain writes and the muscle resolves where the geometry
+lives — C through the one destination resolver, D through the position's own ownership group, so neither adds a second channel.
+
+```mermaid
+sequenceDiagram
+  participant C as CGF (creator)
+  participant M as SimHost (muscle)
+  C->>C: 8b — the position is granted away: SpawnLevelRequest, no terrain read
+  C->>M: dtWorldPos (sent Z) + SpawnLevelRequest, then the Muscle group grant
+  M->>M: SpawnLevelSystem — owns the position: ResolveLevel with the live terrain, set Z, remove the request
+  M->>C: dtWorldPos (resolved Z)
+```
+*What the picture shows that prose hid:* the brain's replica holds the sent height for exactly the trip to the muscle and back.
