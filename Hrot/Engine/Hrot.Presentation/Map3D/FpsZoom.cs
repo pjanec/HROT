@@ -21,13 +21,17 @@ public static class FpsZoom
     /// index, or a controlled weapon system's — its mount 0).</summary>
     public static float FovFor(EntityRepository world, Entity unit, int slot)
     {
-        Entity platform = unit; int mount = slot;
-        if (WeaponSystems.IsControlledIndex(slot)) { platform = WeaponSystems.ControlledAt(world, unit, slot); mount = 0; }
+        var (platform, mount) = PlatformOf(world, unit, slot);
         if (platform == Entity.Null || !world.IsAlive(platform)) return IronSightsFovDegrees;
         return CombatTkb.MountOf(world, platform, mount) is { ScopeMagnification: > 1f } scoped
             ? (scoped.ScopeFovDegrees > 0f ? scoped.ScopeFovDegrees : HeldItems.ScopeFallbackFovDegrees)
             : IronSightsFovDegrees;
     }
+
+    /// <summary>⭐ <c>CE-1216</c> — the entity that fires weapon slot <paramref name="slot"/> of <paramref name="unit"/> and its mount index
+    /// there: his own mount, or a controlled weapon system's mount 0 (<see cref="WeaponSystems.IsControlledIndex"/>).</summary>
+    public static (Entity Platform, int Mount) PlatformOf(EntityRepository world, Entity unit, int slot)
+        => WeaponSystems.IsControlledIndex(slot) ? (WeaponSystems.ControlledAt(world, unit, slot), 0) : (unit, slot);
 
     /// <summary>The look's mouse sensitivity at <paramref name="fovDegrees"/>: the normal one scaled by the field of view.</summary>
     public static float SensitivityFor(float fovDegrees) => FpsCameraDriverSensitivity * fovDegrees / NormalFovDegrees;

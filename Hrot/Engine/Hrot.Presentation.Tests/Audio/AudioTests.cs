@@ -232,6 +232,36 @@ public sealed class AudioTests
         Assert.Equal(3, layer.Sources.ShotsHeard);
     }
 
+    /// <summary>⭐ CE-1216 (docs/DESIGN_Entity_Control.md §8k S-2) — the pass rule the crack and the first-person edge darkening share:
+    /// a round passing within 5 m counts ONCE; one passing 10 m off, his own round and a round born beside him never do.</summary>
+    [Fact]
+    public void CE1216_ARoundPassingTheEar_CountsOnce_NotHisOwn_NotFarOff_NotBornBesideHim()
+    {
+        var (world, _) = World();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()) world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var them = Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(-300f, 0f, 0f));
+        Entity Round(Entity shooter, Vector3 at)
+        {
+            var r = world.CreateEntity();
+            world.AddComponent(r, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(r, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter });
+            return r;
+        }
+        var near = Round(them, new Vector3(-30f, 2f, 0f));
+        var far = Round(them, new Vector3(-30f, 10f, 0f));
+        var mine = Round(me, new Vector3(-30f, 1f, 0f));
+        var beside = Round(them, new Vector3(0.5f, 0f, 0f));
+        var passes = new RoundPasses();
+        var heard = new List<float>();
+        Assert.Equal(0, passes.Scan(world, me, Vector3.Zero, (_, d) => heard.Add(d)));   // first sight: no segment yet
+        foreach (var r in new[] { near, far, mine, beside }) Move(world, r, new Vector3(60f, 0f, 0f));
+        Assert.Equal(1, passes.Scan(world, me, Vector3.Zero, (_, d) => heard.Add(d)));
+        Assert.Equal(2f, Assert.Single(heard), 3);                                         // the near one, 2 m off
+        foreach (var r in new[] { near, far, mine, beside }) Move(world, r, new Vector3(-60f, 0f, 0f));   // back past him
+        Assert.Equal(0, passes.Scan(world, me, Vector3.Zero));                             // once per round
+    }
+
     [Fact]
     public void CE1120_ATankComingIsHigherThanATankGoing_ARoundPastTheEarCracksOnce_AFarBattleRumbles()
     {

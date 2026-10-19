@@ -1583,8 +1583,8 @@ graph TD
   FX[EffectSpawnSystem] -.->|RecentShots · HitFeedback| ST
   DRV -->|OperatorControlFrameEvent + HeldItem| POS[Possession ingress, BRAIN node] --> OCB[OperatorControlBehavior]
 ```
-*Caption:* the darkening reads the AUDIO's crack detection — ⚠ the audio layer runs only where an FPS station listens (A1), which is
-exactly where the darkening is drawn; on a host with audio off the build must keep the counter running (to verify at build).
+*Caption:* ~~the darkening reads the AUDIO's crack detection~~ — ⛔ SUPERSEDED at build (§8k.5): the pass rule is extracted (`RoundPasses`)
+and the station keeps its own instance, so the darkening does not depend on the audio being on.
 
 ### 8k.4 Decisions — ✅ approved
 
@@ -1600,6 +1600,16 @@ exactly where the darkening is drawn; on a host with audio off the build must ke
 | **M-1** | map key (`CE-1218`) | **M** (free in first person; the map's M = Move shortcut is silent while possessed — `MenuShortcuts.cs:136`): the 2-D map centred on him, possession kept, his axes zero (he stops), the map free to pan; **M** again returns to his eyes | ⛔ releasing him — the user's *"and back"* |
 | **B-1** | binoculars (`CE-1219`) | hold **B**: the frame asks his brain to raise them (`HeldItems.Set`, a byte like the lean — refused without binoculars, the HUD says so); while up: 10° view (`HeldItems` FOV), the range to the crosshair's point, and **LMB designates** — the unit under it as his men's Target, else the point as their MapPoint (`OrderDesignations`), so the wheel's Attack / Move then go without a pick; ⚠ only one TKB template carries binoculars — ask backend to give them to leaders | ⛔ a free zoom with no item — the sim would not see what he sees (BR-9 again) |
 | **K-1** | when he falls (`CE-1220`) | killed: hold the 3-D view, fade 1 s, "KILLED — by <name>" (the last `HitFeedback` shooter on him), then **Tab** a squad mate (`SquadRoster` from his leader), **K** a 3-s kill cam from the shooter's eye, **Esc** the map; knocked DOWN (alive, `EffectState`): the view dims with "DOWN" until he is up | ⛔ the abrupt cut back to the map (today) |
+
+### 8k.5 As built *(`2026-10-19`, ui)*
+
+| what | built | ⭐ deviation / why |
+|---|---|---|
+| **S-1 the spread ring** (`CE-1216`) | `PossessionStation.SpreadOf` = `HitModel.Sigma(platform, the selected mount, sim now)` on this node (`FpsZoom.PlatformOf` — his own mount or a controlled weapon system's — now shared with the zoom); `SpreadRadiusPx` = tan σ / tan(fov/2) · half the view's height; a thin white circle when ≥ 4 px | — |
+| **S-2 the edges darken** (`CE-1216`) | `RoundPasses` — the pass rule EXTRACTED from `SoundSources` (A2: a round within 5 m, once, not his own, not born beside him); the audio plays its crack through it, the station keeps its own instance: each pass adds 0.5 to `Shock` (≤ 1), which fades in 0.4 s; four edge gradients, 18 % of the short side, alpha 170 · `Shock` | ⭐ **deviation from §8k.3:** not the audio's `Cracks` counter — that counts only where a sound plays (audio on, the clip known); one shared rule with two listeners instead, so the darkening needs no audio. ⚠ The ring's ×2 under-fire term stays missing on a remote station until `UnderFire` replicates (`CE-1223`, backend) |
+| **S-3 the recoil kick** (`CE-1216`) | `FpsCameraDriver.Kick`: a new own shot in `RecentShots` adds `KickRadians(category)` (small arms 0.012, MG 0.007, autocannon 0.015, tank gun / howitzer 0.04, launchers / mortar 0.025, else 0); it decays e^(−3t/0.15 s); only the CAMERA pitch carries it — his look (`_pitch`, the frame's aim) never moves | ⭐ the first shot seen after he is held does not kick (it predates him) |
+
+Rails `PossessionStationTests.CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles`, `AudioTests.CE1216_ARoundPassingTheEar_CountsOnce_NotHisOwn_NotFarOff_NotBornBesideHim` (both red-proved), and the audio's own crack rail `CE1120_…CracksOnce…` through the extraction.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

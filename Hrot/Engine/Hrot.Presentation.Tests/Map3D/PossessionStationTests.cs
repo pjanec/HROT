@@ -323,6 +323,70 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1216 (docs/DESIGN_Entity_Control.md §8k S-1, S-2, S-3) — the spread ring is the sim's own σ for the selected weapon at the
+    /// view's scale (doubling when he moves, narrower in a zoom); a round cracking past him darkens the edges, fading in 0.4 s; his own
+    /// shot kicks the view up and it settles, while his look (the frame's aim) never moves.
+    /// </summary>
+    [Fact]
+    public void CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Rifleman", 4713);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1, DispersionMils = 6f },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+
+            float sigma = PossessionStation.SpreadOf(w, unit, 0);
+            Assert.Equal(0.006f, sigma, 5);                                                        // 6 mils, standing, still
+            float r45 = PossessionStation.SpreadRadiusPx(sigma, 45f, 800f);
+            Assert.Equal(MathF.Tan(0.006f) / MathF.Tan(22.5f * MathF.PI / 180f) * 400f, r45, 2);
+            Assert.True(PossessionStation.SpreadRadiusPx(sigma, 8f, 800f) > 4f * r45);            // the scope magnifies it
+            Assert.Equal(0f, PossessionStation.SpreadRadiusPx(0f, 45f, 800f));
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var round = w.CreateEntity();
+            var eye = sw.Camera3D.Eye;
+            w.AddComponent(round, new SimTransform { Position = eye + new Vector3(-40f, 1f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = Entity.Null });
+            station.Update(0.016f);
+            Assert.Equal(0f, station.Shock);
+            w.SetComponent(round, new SimTransform { Position = eye + new Vector3(40f, 1f, 0f), Rotation = Quaternion.Identity });
+            station.Update(0.016f);
+            Assert.True(station.Shock > 0.4f, $"a crack shocks ({station.Shock})");
+            for (int i = 0; i < 30; i++) station.Update(0.016f);
+            Assert.Equal(0f, station.Shock);                                                     // gone in 0.4 s
+
+            var shots = Hrot.UI.Common.Effects.RecentShots.In(w);
+            shots.Record(unit, 0, 1.0);
+            sw.Camera3D.Update(0.016f);                                                          // the first one he is seen with: no kick
+            Assert.Equal(0f, driver.Kick);
+            float look = sw.Camera3D.Pitch;
+            shots.Record(unit, 0, 2.0);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(driver.Kick > 0.8f * FpsCameraDriver.KickRadians(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms));
+            Assert.True(sw.Camera3D.Pitch > look, "the view kicks up");
+            for (int i = 0; i < 20; i++) sw.Camera3D.Update(0.016f);
+            Assert.Equal(0f, driver.Kick);
+            Assert.Equal(look, sw.Camera3D.Pitch, 4);                                            // settled where he looked
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1214 (docs/DESIGN_Entity_Control.md §8j T-1) — Tab jumps to the next man of his squad (his leader, the men naming that leader,
     /// his own men — in network-id order, wrapping), Shift+Tab to the previous; another leader's man, a dead man and a man another
     /// station holds are not in it; the jump is ONE possession, which also lets the man he leaves go back to his brain.

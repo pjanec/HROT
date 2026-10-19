@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ui → backend: (1) first-person walk and run are too close, the speeds belong in the TKB (CE-1208); (2) the operator's weapon choice never reaches ActiveMount (CE-1222).
+state: LIVE — ui → backend: (1) first-person walk and run are too close, the speeds belong in the TKB (CE-1208); (2) the operator's weapon choice never reaches ActiveMount (CE-1222); (3) replicate UnderFire (CE-1223); (4) binoculars for leaders (CE-1224).
 updated: 2026-10-19
 current-answer: the whole file.
 stale-below: nothing.
@@ -10,7 +10,7 @@ related-designs:
   - docs/blueprints/PLAN_Ui_FPS_And_Quick_Wins.md — #9: this note is that step
 -->
 
-# NOTE — ui → backend: walk and run speeds per person type (`CE-1208`); the operator's active mount (`CE-1222`)
+# NOTE — ui → backend: walk and run speeds (`CE-1208`); the operator's active mount (`CE-1222`); `UnderFire` on the wire (`CE-1223`); binoculars for leaders (`CE-1224`)
 
 ## 1. Walk and run
 
@@ -43,6 +43,20 @@ Found building the first-person zoom ([`CE-1211`](../Blueprint_Issues_Tracker.md
 ⇒ while possessed, `WeaponPosture.ActiveMount` keeps the AI's last choice, not the weapon the operator picked with 1–4. It is read by the
 sim's scope rule (`HeldItems.ScopeUp`) and by every map's drawn weapon (P4, W-13e). **Lean:** `OperatorFire` calls
 `WeaponPostureOf.SetActiveMount(world, entity, mountIndex)` once it has resolved the mount (it already writes only on a change).
+
+## 3. Replicate `UnderFire` (`CE-1223`)
+
+The first-person spread ring ([Entity Control §8k S-1](../../DESIGN_Entity_Control.md), approved `R-1010`) draws the sim's own
+`HitModel.Sigma` on the station's node. Its ×2 under-fire term reads `UnderFire.LastTime`, which is muscle-local (`[DataPolicy(NoScenario)]`,
+no translator; `StandardInputs.cs:433` says so) ⇒ on a remote station the ring is half the size the round will actually be spread while he
+is under fire. **Lean:** replicate it (one timestamp, owner = the muscle that stamps it), or a byte "under fire until" — whichever the
+replication prefers.
+
+## 4. Binoculars for leaders (`CE-1224`)
+
+Hold B raises binoculars in first person (§8k B-1): the frame asks his brain for `HeldItems.Set(Binoculars)`, which the sim refuses unless
+his type's `PocketItemsDto.Binoculars` is set — and only ONE template has it (`UrbanCombatTkbCatalog.cs:269`). **Lean:** the leaders
+(squad / team leaders, officers, forward observers) of the BDC and urban catalogues carry them.
 
 ---
 _ui lane, 2026-10-19_

@@ -91,6 +91,10 @@ namespace Hrot.UI.Common.Map3D
             Clock += dt;
             var w = _world();
             if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
+            // ⭐ CE-1216 (§8k S-2) — a round passing his ear (the audio's own rule, RoundPasses) shocks the view; it fades in ShockSeconds
+            Shock = MathF.Max(0f, Shock - dt / ShockSeconds);
+            if (_driver != null && w is not null)
+                Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
             if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave(restore: !handing);
@@ -323,6 +327,7 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+            DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
             var font = HudText.Font();
             // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
@@ -389,6 +394,42 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
                                 new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
             }
+        }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-2) — how long a near miss darkens the edges (s), and how much one pass adds (they stack to 1).</summary>
+        public const float ShockSeconds = 0.4f, ShockPerPass = 0.5f;
+        private readonly Hrot.UI.Common.Audio.RoundPasses _passes = new();
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-2) — 0 … 1: how hard the last near misses darkened the view's edges.</summary>
+        public float Shock { get; private set; }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1) — the sim's own spread of his shots (<see cref="Fdp.Toolkit.Combat.HitModel.Sigma"/>, radians,
+        /// the half-width) with the selected weapon, on this node's copy of him; 0 when the weapon states none.</summary>
+        public static float SpreadOf(EntityRepository w, Entity unit, int slot)
+        {
+            var (platform, mount) = FpsZoom.PlatformOf(w, unit, slot);
+            if (platform.IsNull || !w.IsAlive(platform)) return 0f;
+            return Fdp.Toolkit.Combat.HitModel.Sigma(w, platform, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, platform, mount),
+                                                     Fdp.Toolkit.Time.SimClock.Of(w).TotalTime);
+        }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1) — the spread ring's radius on the screen (px): σ at the view's vertical field of view.</summary>
+        public static float SpreadRadiusPx(float sigma, float fovDegrees, float viewportHeight)
+            => sigma <= 0f ? 0f : MathF.Tan(sigma) / MathF.Tan(fovDegrees * MathF.PI / 360f) * viewportHeight / 2f;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-1, S-2) — the spread ring round the crosshair, and the edges darkened by near misses.</summary>
+        private void DrawSpreadAndShock(EntityRepository w, MapCamera3D camera, int cx, int cy)
+        {
+            float r = SpreadRadiusPx(SpreadOf(w, _driver!.Unit, _driver.Mount), camera.FovyDegrees, camera.Viewport.Y);
+            if (r >= 4f) Raylib.DrawCircleLines(cx, cy, MathF.Min(r, camera.Viewport.Y / 2f), new Color(255, 255, 255, 110));
+            if (Shock <= 0f) return;
+            int width = (int)camera.Viewport.X, height = (int)camera.Viewport.Y, band = (int)(MathF.Min(width, height) * 0.18f);
+            var dark = new Color(0, 0, 0, (int)(170 * Shock));
+            var clear = new Color(0, 0, 0, 0);
+            Raylib.DrawRectangleGradientH(0, 0, band, height, dark, clear);
+            Raylib.DrawRectangleGradientH(width - band, 0, band, height, clear, dark);
+            Raylib.DrawRectangleGradientV(0, 0, width, band, dark, clear);
+            Raylib.DrawRectangleGradientV(0, height - band, width, band, clear, dark);
         }
 
         /// <summary>⭐ <c>CE-1215</c> (H-2) — the damage arc's thickness (px): 6 for an unknown damage (a remote hit, a blow), growing with
@@ -824,6 +865,7 @@ namespace Hrot.UI.Common.Map3D
             if (vehicle && HullLocked) _yaw = hullYaw;
             _eye = EyeOf(w, tf, vehicle);
             _eyeKnown = true;
+            StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
             // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
             Place(camera);
@@ -851,7 +893,7 @@ namespace Hrot.UI.Common.Map3D
         {
             if (!_eyeKnown) return;
             camera.Yaw = _yaw;
-            camera.Pitch = _pitch;
+            camera.Pitch = _pitch + Kick;   // ⭐ CE-1216 (§8k S-3) — the recoil kick, on the view only (his look is _pitch)
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
             camera.LookAt = _eye + camera.Forward * camera.Distance;
@@ -860,6 +902,39 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
         public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — how long a recoil kick takes to settle (s).</summary>
+        public const float KickSeconds = 0.15f;
+        private double _lastShotAt = double.NaN;
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — the view's recoil kick now (radians up), settling over <see cref="KickSeconds"/>.</summary>
+        public float Kick { get; private set; }
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — one shot's kick (radians) by the weapon's class: a pistol or rifle a little, a machine gun
+        /// less per round, a cannon or a launcher hard; nothing for a throw or a weapon with no class.</summary>
+        public static float KickRadians(Fdp.Toolkit.Tkb.Domain.WeaponCategory category) => category switch
+        {
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => 0.012f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => 0.007f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => 0.015f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => 0.04f,
+            Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket
+                or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => 0.025f,
+            _ => 0f,
+        };
+
+        /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — his own new shot (the effects spawner's <c>RecentShots</c>) kicks the view; the kick settles.</summary>
+        private void StepKick(EntityRepository w, float dt)
+        {
+            Kick = Kick * MathF.Exp(-3f * dt / KickSeconds) is var k && k > 1e-4f ? k : 0f;   // ~95 % settled in KickSeconds
+            if (Hrot.UI.Common.Effects.RecentShots.Of(w) is not { } shots || !shots.TryGet(Unit, out int mount, out double at)) return;
+            if (at == _lastShotAt) return;
+            bool first = double.IsNaN(_lastShotAt);
+            _lastShotAt = at;
+            if (first) return;   // a shot from before he was held
+            var (platform, index) = FpsZoom.PlatformOf(w, Unit, mount);
+            if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, platform, index) is { } dto) Kick += KickRadians(dto.Category);
+        }
 
         /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
         public const KeyboardKey CommandWheelKey = KeyboardKey.T;
