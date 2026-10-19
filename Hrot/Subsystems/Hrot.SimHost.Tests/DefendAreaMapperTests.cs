@@ -77,6 +77,37 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2276</c> E-2 (DA-64) — a unit whose members are UNITS (a platoon) defends with its squads: <c>PlatoonDefend</c> at the area's
+        /// centre, the radius its squads' search radius. ✅ Red-proof: the platoon arm removed ⇒ <c>SquadDefend</c>.
+        /// </summary>
+        [Fact]
+        public void TryMap_AUnitOfUnits_DefendsWithPlatoonDefend_AtTheAreaCentre()
+        {
+            using var repo = CreateTestWorld();
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            geo.SetOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
+            var platoon = repo.CreateEntity();
+            var squad = repo.CreateEntity();
+            repo.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, squad);
+            repo.AddComponent(platoon, roster);
+
+            Assert.True(new DefendAreaMapper().TryMap(platoon, repo,
+                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment));
+            Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonDefend, assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.PlatoonDefendParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Position.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Y, 2);
+            Assert.Equal(25f, dto.SearchRadius);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3160</c> (L4, R-266) — an infantry soldier (and an insurgent) defends an area with the LIBRARY's
         /// <c>CombatPosture</c>, advancing to the area's centre and holding within its radius. ⛔ It mapped to <c>InfantryCombat</c>,
         /// the UrbanCombat example's tree registered on the editor only, so the order was silently dropped on CGF.

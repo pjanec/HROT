@@ -1057,8 +1057,86 @@ given **`DefendArea`** still runs `SquadDefend` (the mapper's roster arm) — E-
 | **DA-54** | fire control | Regular+: the line squads **`HoldFire`** (Superior) in Occupy and Ready, **`FireAtWill`** in Engage; the reserve **`ReturnFire`** throughout (it must not show itself, and may defend itself). Below Regular (the platoon's own tier): **`FireAtWill` from the start**, no hold (§5's repertoire) | one write on the platoon (PC-6 reaches all): the reserve could not differ · `ReturnFire` for the line: the first enemy in the EA walks through unengaged until he shoots |
 | **DA-55** | the platoon SOP during a defence | ⚠ `BasicPlatoonSop`'s hold row would order every squad `Hold` (off its posts) and pause the trigger. the row gets a first guard **`PlatoonDefendBehavior.NotDefending`** (no params: the running task is not `PlatoonDefend`) — *as built in E-1, 2026-10-19: `pc-defend-dry` needed it, the platoon type's TKB default SOP is `BasicPlatoonSop`* | `Reactions = StayOnTask` on the platoon: the chain (PC-6) would carry it to every man and kill their own contact drills · let `PlatoonHold` skip squads already defending: the task is still paused, so the trigger never fires |
 
-**Slices.** **E-1** (this build): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
-①② (Platoon §12.2). **E-2**: the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
+#### E-2 — the control region *(`CE-2276` E-2; behaviors, 2026-10-19 — Platoon §5's control region less Counterattack and DAnswer, which are E-3)*
+
+📐 **Measured first:** `HsmBuilder` has `Parallel()` + `InRegion(i)` (`CE-1003`, kernel rails `DeclaredRegionTests`,
+`RegionScopedTransitionTests`); the curated runner ticks every region's activity (rail ⑥, `BrainTickSystemHsmArmTests`). The SITREP
+road exists end to end: `SetReportingEvent{SitrepEverySeconds}` (Superior) → the squad staff's `ComposeSitrep` → `CommandPicture` row
+`Strength` → `PictureConditions.SubordinateColour`. ⛔ `SquadDefend` has **no OP team** (no member split) — so the OP is a squad.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "PlatoonDefend (parallel)" as PD {
+    state "region 0 — phase (E-1)" as R0 {
+      [*] --> DPlan
+      DPlan --> Occupy : Planned
+      Occupy --> Ready : LineSet
+      Ready --> Engage : EnemyInArea
+      Engage --> Ready : AreaQuiet
+    }
+    --
+    state "region 1 — control (E-2)" as R1 {
+      [*] --> DWatch
+      DWatch --> OpBack : OpThreatened
+      DWatch --> Supplementary : Flanked
+      DWatch --> Reinforce : LineSquadFailing
+      OpBack --> DWatch : Handled
+      Supplementary --> DWatch : Handled
+      Reinforce --> DWatch : Handled
+    }
+  }
+```
+*What the picture shows that prose hid:* the control states never ORDER anything. Each entry action rewrites one or two slots of the
+plan and marks them dirty; region 0's `KeepDefence` — already running in every post-plan state — is the one writer of orders and
+re-sends a dirty slot. ⇒ two regions, one order path, no race between them.
+
+```mermaid
+sequenceDiagram
+  participant SQ as line squad (staff)
+  participant PIC as CommandPicture
+  participant C as control region
+  participant PL as PlatoonDefencePlan
+  participant K as KeepDefence (phase region)
+  participant R as reserve squad
+  K->>SQ: SquadDefend + slice + SetReporting {SITREP 15 s}
+  SQ-->>PIC: SITREP strength RED · SPOT inside its slice
+  C->>PIC: LineSquadFailing? (colour ≥ Red, a fresh element in that slice, a reserve free)
+  C->>PL: reserve slot: point 15 m behind the squad, role Line, the squad's slice · Dirty · Committed
+  K->>R: SquadDefend {that point} + the slice + SetRoe FireAtWill
+```
+*What the picture shows that prose hid:* "Reinforce" is a plan edit plus the order the phase region would give anyway — the SITREP the
+guard reads exists only because `KeepDefence` asks for it with each order.
+
+```mermaid
+classDiagram
+  class PlatoonDefencePlan { <<EXTENDED>> Role Line|Reserve|Op · Dirty[] · Flank[] · BackX/Y/Z[] · Committed · Controls }
+  class PlatoonDefendBehavior { <<EXTENDED>> OpThreatened · Flanked · LineSquadFailing · Handled · BringOpBack · Supplement · Reinforce }
+  class KeepDefence { <<EXTENDED>> re-sends a Dirty slot · asks every squad for a 15 s SITREP }
+  class PictureConditions { <<existing>> SubordinateColour }
+  class DefendAreaMapper { <<EXTENDED>> a unit whose members are units ⇒ PlatoonDefend }
+  PlatoonDefendBehavior --> PlatoonDefencePlan
+  PlatoonDefendBehavior --> PictureConditions
+  KeepDefence --> PlatoonDefencePlan
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-59** | the OP | an authored squad with **`Op`** (DA-51's `Squads[]`) stands at its point with no sector and returns fire; **`OpThreatened`**: a fresh element (≤ 30 s) within **300 m** of the OP ⇒ **OpBack**: it goes to its `Back` point (authored, else the position) and **becomes a reserve** (depth, available to Reinforce) | a team-sized OP: `SquadDefend` has no member split — a new play for a later slice · the OP joining the line: re-slicing every line squad mid-defence re-plans their posts |
+| **DA-60** | Supplementary | **`Flanked`**: a fresh element within **150 m** of the position and **outside the EA** ⇒ the line squad nearest it, not yet turned, gets a slice **centred on the element's bearing** (its own slice's width) and is re-ordered — `SquadDefend` re-plans its posts facing the flank; once per squad, and an element a turned squad's slice already holds turns nobody else (📐 as built: without that test the east SPOT that turned Alpha turned Bravo two ticks later — the first rail passed only because its window was 4 ticks) | turning only its men (D-2c already does, per man) · a separate supplementary-posts plan: the squad's own post planner is the one that knows the building |
+| **DA-61** | Reinforce | **`LineSquadFailing`**: a line squad's SITREP **Red or worse** and a fresh element **inside its slice**, and a reserve not yet committed ⇒ the reserve goes **15 m behind that squad** (away from its slice's middle) with **that slice**, `FireAtWill`; once | the reserve on the squad's own point: two squads' post plans in one room · Reinforce on Amber: Amber is a casualty, not a failing squad (CB-37) |
+| **DA-62** | who orders | the control states **edit the plan and mark the slot dirty**; `KeepDefence` (region 0) re-sends a dirty slot and clears it — the one writer | the control entry actions ordering directly: two writers of one squad's order across two regions |
+| **DA-63** | the SITREP the guard needs | `KeepDefence` asks each squad it orders for a **15 s SITREP** (`SetReportingEvent`, Superior) | an always-on staff SITREP: a squad alone would report to nobody |
+| **DA-64** | `DefendArea` to a platoon | the mapper's roster arm: members that are **units** ⇒ `PlatoonDefend {Position, SearchRadius}` (the area's centre and radius); else `SquadDefend` as before | a separate intent id: the operator says "defend" to any unit |
+| **DA-65** | below Regular | **no control region work**: the guards read `p.Controls` (Regular+), so Untrained / Militia never OpBack, supplement or reinforce (Platoon §5 "below Regular") | a second asset without the region: one asset is the rule (DA-16) |
+
+✅ **As built (2026-10-19):** all of the above, in `PlatoonDefendBehavior.BuildPlatoonDefend` (root `Defending`, parallel) with
+`DefendAreaMapper.PlatoonDefendAt`. Rails: `SquadManeuverTests.CE2276_E2_*` (OP back · flank turn once per squad · Red + in-slice
+reinforce · the reserve committed once with two reserves · Militia does nothing; 12 mutants red) and `DefendAreaMapperTests.TryMap_AUnitOfUnits_*`; the platoon harness runs
+`ReportingRequirementsSystem` so the DA-63 SITREP request lands. ⛔ Not yet live: `pc-defend-dry` exercises region 0 only.
+
+**Slices.** **E-1** (built): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
+①② (Platoon §12.2). **E-2** (built): the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
 Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
 (Veteran) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey` (DA-51's deferred half); `pc-defend-house`.
 

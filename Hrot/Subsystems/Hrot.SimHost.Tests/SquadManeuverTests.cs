@@ -2364,7 +2364,10 @@ namespace Hrot.SimHost.Tests
 
             public Platoon(int squads = 2) => S = new Squad(members: squads);
 
-            public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); }
+            /// <summary>⭐ CE-2276 E-2 (DA-63) — the SITREP the platoon asks for lands.</summary>
+            public readonly Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem Reporting = new();
+
+            public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); Reporting.Execute(S.Repo, 0.016f); }
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
 
             public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f)
@@ -2653,6 +2656,132 @@ namespace Hrot.SimHost.Tests
             Assert.False(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
             Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Hold"));
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
+        }
+
+        // ── CE-2276 E-2 — the control region (Defend & Attack §8d E-2, DA-59…DA-65) ─────────────────────────────────────────────
+
+        private static void Sitrep(Platoon p, Entity from, Fdp.Toolkit.Squad.Command.StatusColour strength)
+            => p.Report(from, new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Sitrep, Strength = strength });
+
+        private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-59) — an OP forward at (0, 250): a SPOT 350 m from it changes nothing; one 250 m from it brings
+        /// it back to its <c>Back</c> point (0, −30), where it is a reserve (no sector) and is ordered once. ✅ Red-proof: the OP's 300 m
+        /// ignored ⇒ the far SPOT brings it back.</summary>
+        [Fact]
+        public void CE2276_E2_AnEnemyNearTheOp_BringsItBack_AsAReserve()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":400,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
+                    + "{\"Squad\":3,\"Op\":true,\"Point\":[0,250,0],\"Back\":[0,-30,0]}]}", BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            Assert.Equal(new Vector3(0, 250, 0), DefendOrderTo(p, p.Charlie).Position);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 600f, 0f), 2);
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            p.ReportSpot(p.Alpha, new Vector3(0f, 500f, 0f), 2);
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            Assert.Equal(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
+            p.Ticks(10);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));   // once
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-60) — a SPOT 100 m east of a north-facing position is a flank: the nearest line squad (Alpha)
+        /// is ordered again with a slice centred on it; a second one west turns Bravo; a third turns nobody (both turned), and an enemy in
+        /// front turns nobody. ✅ Red-proofs: the area's bearings ignored ⇒ the front SPOT turns a squad · the once-per-squad mark dropped ⇒
+        /// Alpha turned twice · the faced test dropped ⇒ the east SPOT turns Bravo too.</summary>
+        [Fact]
+        public void CE2276_E2_AFlankEnemy_TurnsTheNearestLineSquadToFaceIt_OncePerSquad()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSpot(p.Alpha, new Vector3(10f, 100f, 0f), 2);   // in front: inside the area's bearings
+            p.Ticks(4);
+            Assert.Equal((1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m
+            p.Ticks(12);
+            Assert.Equal((2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));   // Alpha faces it; Bravo is not turned too
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
+                SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "Alpha's slice faces the flank");
+            p.ReportSpot(p.Alpha, new Vector3(-100f, 0f, 0f), 2);   // west
+            p.Ticks(12);
+            Assert.Equal((2, 2), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            p.ReportSpot(p.Bravo, new Vector3(0f, -100f, 0f), 2);   // south: nobody left to turn
+            p.Ticks(12);
+            Assert.Equal((2, 2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-61, DA-63) — every squad is asked for a 15 s SITREP; Bravo reports RED but the enemy is not in its
+        /// slice ⇒ nothing; an enemy in its slice ⇒ the reserve (Charlie) goes 15 m behind Bravo with Bravo's slice and fires at will; once.
+        /// ✅ Red-proofs: the colour ignored ⇒ the reserve commits on the first SPOT · the slice test dropped ⇒ it commits at once.</summary>
+        [Fact]
+        public void CE2276_E2_ALineSquadReportingRed_WithTheEnemyInItsSlice_GetsTheReserveBehindIt()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal(PlatoonDefendBehavior.SitrepSeconds,
+                p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(p.Bravo).SitrepEverySeconds);
+            p.ReportSpot(p.Alpha, new Vector3(30f, 100f, 0f), 2);   // ~17°: inside Bravo's slice (358.5°…31.5°), not Alpha's
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // Alpha is red, but nothing in ITS slice
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            var at = DefendOrderTo(p, p.Charlie).Position;
+            Assert.InRange(Vector3.Distance(at, Vector3.Zero), 14.9f, 15.1f);
+            Assert.True(at.Y < 0f, "behind the squad, away from its slice");
+            Assert.Equal((SectorOf(p, p.Bravo).LeftBearing, SectorOf(p, p.Bravo).RightBearing),
+                         (SectorOf(p, p.Charlie).LeftBearing, SectorOf(p, p.Charlie).RightBearing));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.ReportSpot(p.Alpha, new Vector3(-20f, 100f, 0f), 2);   // Alpha's slice too: no second reserve
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-2 (DA-61 "once") — with TWO reserves, a second failing line squad gets no second reserve: the
+        /// platoon commits its reserve once. ✅ Red-proof: the <c>Committed</c> latch dropped ⇒ the second reserve goes behind Alpha.</summary>
+        [Fact]
+        public void CE2276_E2_TwoReserves_TheReserveIsCommittedOnce()
+        {
+            var p = new Platoon(squads: 4);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
+                    + "{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]},{\"Squad\":4,\"Reserve\":true,\"Point\":[10,-50,0]}]}",
+                      BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            var delta = p.S.Members[3];
+            p.ReportSpot(p.Alpha, new Vector3(30f, 100f, 0f), 2);    // Bravo's slice
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Charlie) + DefendOrders(p, delta));   // one reserve re-ordered
+            p.ReportSpot(p.Bravo, new Vector3(-20f, 100f, 0f), 2);   // Alpha's slice
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Charlie) + DefendOrders(p, delta));   // and no second
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-2 (DA-65) — a Militia platoon's control region does nothing: a flank SPOT turns nobody, a red squad
+        /// with the enemy in its slice gets no reserve. ✅ Red-proof: the tier ignored ⇒ the flank turns Alpha.</summary>
+        [Fact]
+        public void CE2276_E2_AMilitiaPlatoon_NeverSupplementsOrReinforces()
+        {
+            var p = new Platoon(squads: 3);
+            if (!p.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) p.S.Repo.RegisterComponent<CombatProficiency>();
+            p.S.Repo.AddComponent(p.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSpot(p.Alpha, new Vector3(100f, 0f, 0f), 2);
+            p.ReportSpot(p.Bravo, new Vector3(30f, 100f, 0f), 2);
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(6);
+            Assert.Equal((1, 1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
         }
 
         /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie

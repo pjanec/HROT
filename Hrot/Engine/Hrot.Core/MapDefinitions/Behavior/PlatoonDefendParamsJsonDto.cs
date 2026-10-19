@@ -64,5 +64,14 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>Its posts' search radius (m); 0 = the order's.</summary>
         [JsonPropertyName("SearchRadius")]
         public float SearchRadius;
+
+        /// <summary>⭐ <c>CE-2276</c> E-2 (DA-59) — the observation post: forward at <see cref="Point"/>, no sector, returns fire; an enemy within
+        /// 300 m of it brings it back to <see cref="Back"/>, where it becomes a reserve.</summary>
+        [JsonPropertyName("Op")]
+        public bool Op;
+
+        /// <summary>⭐ DA-59 — where the OP comes back to (sim metres); zero = the order's position.</summary>
+        [JsonPropertyName("Back")]
+        public Vector3 Back;
     }
 }
