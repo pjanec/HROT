@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§2 replaced by the approved plan, R-2060)
+updated: 2026-10-19 (§2: steps 1–2 done, step 3 BC-1 done)
 current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
 stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -48,7 +48,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ done before the plan | `CE-2276` E-1, E-2, E-3a (FallBack), E-3b (block the stair) — §8d, rails red-proved; `pc-defend-dry` live (region 0) |
 | ✅ step 1 — done 2026-10-19 | the frame lean, [Defend & Attack §8c D-2l](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-77…DA-84, R-2059) — built, rails red-proved, as-built folded; ⚠ not run live yet (no demo exercises a Regular squad at windows with a real survey — `sq-defend-house` is the one to watch) |
 | ✅ step 2 — done 2026-10-19 | battle positions over an area, Defend & Attack §8d **E-4** (DA-85…DA-92; the obstacle rule per the user) — built, rails red-proved, as-built folded; ⚠ not run live |
-| ▶ **step 3 — NOW** | `ClearBuilding` `CE-2259` — [Building Clearing §7](../designs/group-maneuvers/DESIGN_Building_Clearing.md): read it end to end, INVENTORY, UML, build |
+| 🟡 step 3 — BC-1 done 2026-10-19 | one room, one squad (`CE-2257`, [Building Clearing §7.1a](../designs/group-maneuvers/DESIGN_Building_Clearing.md)) — built, rails green (mutant red-proofs running); ⚠ not live (no CQB house yet) |
+| ▶ **step 3 — NOW** | `ClearBuilding` `CE-2259` (BC-3, room by room on top of `ClearRoom`) — Building Clearing §7: INVENTORY, UML in §7.2, build |
 | next | step 4 the request round trip (Casevac first) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |

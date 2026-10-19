@@ -119,6 +119,21 @@ namespace Fdp.Toolkit.Perception.Survey.Tests
             Assert.Equal((byte)TerrainDoorState.Destroyed, Assert.Single(after.Portals, p => p.IsDoor && p.RoomB == -1 && p.X < 105f).DoorState);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-56; behaviors, cross-lane) — a door portal carries its door's terrain-object key, the handle a squad commands
+        /// the door by (the same key the door's live state is found under); a window, gap or stair carries none. ✅ Red-proof: the key not
+        /// copied ⇒ "".
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_ADoorPortal_CarriesItsDoorsKey()
+        {
+            var answer = WorldSurveySolve.Solve(_w, WorldSurveyRequest.OfBuildings(HouseA));
+            var front = Assert.Single(answer.Portals, p => p.IsDoor && p.RoomB == -1 && p.X < 105f);
+            Assert.Equal("bt-range/House A/front", front.DoorKey);
+            Assert.All(answer.Portals.Where(p => !p.IsDoor), p => Assert.Equal("", p.DoorKey));
+            Assert.Contains(answer.Portals, p => !p.IsDoor);
+        }
+
         [Fact]
         public void CE3249_AnAreaSurvey_FindsTheHousesItMeets()
         {

@@ -55,6 +55,11 @@ namespace Fdp.Toolkit.Squad
             (SquadDefendManeuver.ManeuverKind, SquadDefendManeuver.PhaseMoving)                         => "Moving",
             (SquadDefendManeuver.ManeuverKind, SquadDefendManeuver.PhasePosting)                        => "Posting",
             (SquadDefendManeuver.ManeuverKind, SquadDefendManeuver.PhaseAborted)                        => "Aborted",
+            (StackAndRoomEntryManeuver.ManeuverKind, StackAndRoomEntryManeuver.PhaseStacking)           => "Stacking",   // ⭐ CE-2257
+            (StackAndRoomEntryManeuver.ManeuverKind, StackAndRoomEntryManeuver.PhaseBreaching)          => "Breaching",
+            (StackAndRoomEntryManeuver.ManeuverKind, StackAndRoomEntryManeuver.PhaseEntering)           => "Entering",
+            (StackAndRoomEntryManeuver.ManeuverKind, StackAndRoomEntryManeuver.PhaseCleared)            => "Cleared",
+            (StackAndRoomEntryManeuver.ManeuverKind, StackAndRoomEntryManeuver.PhaseAborted)            => "Aborted",
             _                                                                                           => "phase " + phase,
         };
 

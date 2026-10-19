@@ -58,6 +58,10 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-2275</c> D-1 — the squad defends a position: posts per man, his arc toward the squad's sector, displacing under fire.</summary>
         public const string SquadDefend = "SquadDefend";
+        /// <summary>⭐ <c>CE-2257</c> BC-1 — a squad clears one room (Battle Drill 6).</summary>
+        public const string ClearRoom = "ClearRoom";
+        /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — a man opens a door, and breaches it when it is locked.</summary>
+        public const string BreachDoor = "BreachDoor";
 
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";

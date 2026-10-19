@@ -111,16 +111,24 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
             /// default (no windows found ⇒ no frame posts, DA-84); null = never answered (the 5 s fallback).</summary>
             public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? FrameSurvey = new();
+            /// <summary>⭐ <c>CE-2257</c> BC-1 — the answers other plays' building surveys get at once, by site (absent = never answered).</summary>
+            public readonly Dictionary<int, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload> Surveys = new();
 
             private void AnswerFrameSurvey()
             {
-                if (FrameSurvey == null) return;
-                var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SquadDefendPlay.FrameSite);
+                foreach (var (site, payload) in Surveys) AnswerSurvey(site, payload);
+                AnswerSurvey(SquadDefendPlay.FrameSite, FrameSurvey);
+            }
+
+            private void AnswerSurvey(int site, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? payload)
+            {
+                if (payload == null) return;
+                var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, site);
                 if (child.IsNull || !Repo.IsAlive(child)) return;
                 if (Repo.HasComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child)
                     && Repo.GetComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child).Version != 0) return;
                 Repo.SetComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)_time, Version = 1 });
-                Repo.SetManagedComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = FrameSurvey });
+                Repo.SetManagedComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = payload });
             }
 
             public void Order(string json, string behaviour = BehaviorNames.BoundingOverwatch)
@@ -3065,10 +3073,6 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
         }
 
-        // ── CE-2276 E-3b — block the stair (Defend & Attack §8d E-3b, DA-72…DA-76) ────────────────────────────────────────────
-
-        /// <summary>The defended building as a survey answer: building 7 round the position, two storeys of one 10 m room (floors 0 and 3),
-        /// a stair from the ground floor at (4, 4, 1.5) and one higher at (4, −4, 4.5) — or no stair at all.</summary>
         // ── ⭐ CE-2276 E-4 — battle positions over an AREA (Defend & Attack §8d E-4, DA-85…DA-92, R-2060) ─────────────────────────
 
         private static void DefendArea(Platoon p, float radius = 80f)
@@ -3187,6 +3191,206 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((Vector3.Zero, Vector3.Zero), (DefendOrderTo(q, q.Alpha).Position, DefendOrderTo(q, q.Bravo).Position));
         }
 
+        // ── ⭐ CE-2257 BC-1 — clear ONE room (Building Clearing §7.1, CB-48…CB-56) ──────────────────────────────────────────────
+
+        /// <summary>A 6 × 6 m room (x 0…6, y 10…16, floor 0) of building 4, entered by a door on its south wall at (1.5, 10) — 1 m wide, key
+        /// "t/H/front" — with a window on the same wall NEARER the squad (no way in) and a gap in the far wall; or a 3 × 3 m room entered by a
+        /// gap only.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload RoomAnswer(bool small = false)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 4, CentreX = 3f, CentreY = 13f });
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom { Building = 4, Index = 0, Indoors = true, Corners = new[] { 20f, 10f, 26f, 10f, 26f, 16f, 20f, 16f } });   // another room
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+            {
+                Building = 4, Index = 1, Indoors = true, FloorZ = 0f,
+                Corners = small ? new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f } : new[] { 0f, 10f, 6f, 10f, 6f, 16f, 0f, 16f },
+            });
+            if (small)
+            {
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f });
+                return a;
+            }
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 1, RoomA = 1, RoomB = -1, X = 5f, Y = 10f, Width = 1f });   // a window
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 0, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f, IsDoor = true, DoorKey = "t/H/front" });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = 0, X = 3f, Y = 16f, Width = 1f });
+            return a;
+        }
+
+        private static readonly float[] BigRoom = { 0f, 10f, 6f, 10f, 6f, 16f, 0f, 16f };
+
+        /// <summary>The terrain door "t/H/front" in <paramref name="state"/>, as SimHost's terrain-object entities carry it.</summary>
+        private static Entity RoomDoor(Squad s, Fdp.Toolkit.Terrain.TerrainDoorState state)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.DoorState>()) s.Repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            s.Repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            var door = s.Repo.CreateEntity();
+            s.Repo.AddComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            s.Repo.SetManagedComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "t/H/front" });
+            return door;
+        }
+
+        private static void ClearRoom(Squad s) => s.Order("{\"Room\":[3,13,0]}", BehaviorNames.ClearRoom);
+
+        private static void Ticks(Squad s, double seconds) { for (int i = 0; i < (int)(seconds / 0.016) + 1; i++) s.Tick(); }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-50, CB-51, CB-52) — the plan, pure: the stack stands outside the wall on the side with LESS room (the
+        /// door is 1.5 m from the west wall, 4.5 m from the east), #1 nearest the door; #1 goes to the open (east) side, #2 to the stack's side,
+        /// #3 / #4 half as far, all inside the room; each sector looks into the room; a small room — or a squad of two — is a two-man entry.
+        /// ✅ Red-proofs: the stack side flipped ⇒ the stack east of the door; the two-man rule dropped ⇒ four into the 9 m² room.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_RoomEntryPlan_StacksOnTheShortSide_EachManToHisPoint_TwoManForASmallRoom()
+        {
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            Assert.Equal(4, plan.Entry);
+            for (int k = 0; k < 4; k++)
+            {
+                var st = plan.Stack(k);
+                Assert.True(st.Y < 10f && st.X < 1.5f - 0.5f, $"stack {k} outside, west of the door: {st}");
+                Assert.True(RoomEntryPlan.Inside(BigRoom, new Vector2(plan.Point(k).X, plan.Point(k).Y)), $"point {k} inside: {plan.Point(k)}");
+                float b = plan.Facing(k) * MathF.PI / 180f;
+                Assert.True(MathF.Cos(b) > 0f, $"sector {k} looks into the room (north): {plan.Facing(k)}");
+            }
+            Near(new Vector3(0.4f, 9.4f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.6 m off the wall");
+            Assert.Equal(0.8f, plan.Stack(0).X - plan.Stack(1).X, 3);
+            Assert.True(plan.Point0.X > 1.5f && plan.Point1.X < 1.5f, "#1 to the open side, #2 to the stack's side");
+            Assert.Equal(12f, plan.Point0.Y, 3);   // a third in
+            Assert.Equal(13f, plan.Point2.Y, 3);   // halfway
+            Assert.Equal((50f, 45f), (RoomEntryPlan.Result.HalfWidth(0), RoomEntryPlan.Result.HalfWidth(2)));
+
+            Assert.Equal(2, RoomEntryPlan.Plan(new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4).Entry);
+            Assert.Equal(2, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 2).Entry);
+            Assert.Equal(3, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 3).Entry);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2257</c> BC-1 (CB-48…CB-55) — the drill through the real brain: one survey of the room's point; the squad stacks on the
+        /// DOOR (not the nearer window); stacked, #1 is sent to open it (<c>BreachDoor</c> with its key) while the rest hold the stack; the door
+        /// open, the entry men go one after another 0.6 s apart, each to his point with his sector; with every man there and a hostile in the
+        /// room it is not clear; with none for 3 s PROGRESS RoomClear — and the squad HOLDS the room (the play stays running, CB-55). ✅
+        /// Red-proofs: the portal-kind filter dropped ⇒ the stack on the window; the flow released at once ⇒ #2 in with #1; the hostile check
+        /// dropped ⇒ RoomClear with an enemy in the room.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_ClearRoom_StacksOnTheDoor_OpensIt_FlowsInOneByOne_AndReportsTheRoomClear()
+        {
+            var s = new Squad(members: 4);
+            var door = RoomDoor(s, Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(s);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseStacking, s.Phase);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, ClearRoomPlay.RoomSite).IsNull, "the survey goes once read");
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) Near(plan.Stack(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} on the door's stack");
+
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseBreaching, s.Phase);
+            var breach = s.Orders.Last(o => o.Entity.Equals(s.Members[0]));
+            Assert.Equal(BehaviorNames.BreachDoor, breach.IntentId);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<BreachDoorParamsJsonDto>(breach.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal("t/H/front", dto.Door.ToString());
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 holds the stack");
+
+            s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 goes first");
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
+            Ticks(s, 0.6);
+            Near(plan.Point(1), PostureOf(s, s.Members[1]).Post.Point, "#2 0.6 s after");
+            Ticks(s, 1.3);
+            for (int k = 0; k < 4; k++)
+            {
+                Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
+                var arc = Sector(s, s.Members[k]);
+                Assert.Equal(1, arc.ArcSet);
+                float half = RoomEntryPlan.Result.HalfWidth(k);
+                Assert.Equal(2f * half, (arc.RightBearing - arc.LeftBearing + 360f) % 360f, 2);
+                Assert.Equal(plan.Facing(k), (arc.LeftBearing + half) % 360f, 2);
+            }
+
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Point(k));
+            s.PoolMany(1, new Vector3(4f, 15f, 0f));   // an enemy still in the far corner
+            Ticks(s, 4);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
+            s.ClearPool();
+            Ticks(s, ClearRoomPlay.ClearSeconds + 0.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
+            Assert.False(s.Finished(out _), "the squad holds the cleared room");
+            Assert.Equal(BehaviorNames.ClearRoom, s.TaskName);
+            for (int k = 0; k < 4; k++) Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} holds his point");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-51, CB-50) — six men at a 3 × 3 m room entered by a gap: a two-man entry; the leader stays out (last in the
+        /// stack, directing), so the first two after him go in; a gap needs no breach. ✅ Red-proof: the leader not moved last ⇒ he is #1.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_ASmallRoom_TwoGoIn_TheLeaderStaysOutside()
+        {
+            var s = new Squad(members: 6);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer(small: true);
+            s.Order("{\"Room\":[1.5,11.5,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 6);
+            Assert.Equal(2, plan.Entry);
+            Near(plan.Stack(0), PostureOf(s, s.Members[1]).Post.Point, "the first after the leader is #1");
+            Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader last");
+            for (int k = 0; k < 6; k++) s.Teleport(s.Members[k], plan.Stack((k + 5) % 6));
+            Ticks(s, 1.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
+            Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
+            for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");
+            Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader stays out");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-49, CB-53) — the room cannot be cleared: the survey never answers (5 s), or the door stays shut (12 s after
+        /// the breach began) — either way PROGRESS RoomBlocked and the drill fails. ✅ Red-proofs: no survey timeout ⇒ it waits for ever; no
+        /// breach timeout ⇒ it waits at the door for ever.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_NoAnswer_OrADoorThatWillNotOpen_ReportsTheRoomBlocked_AndFails()
+        {
+            var s = new Squad(members: 4);
+            ClearRoom(s);
+            for (int i = 0; i < 3; i++) s.Tick();
+            s.Pause(ClearRoomPlay.AskTimeoutSeconds + 0.5);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done && result == Fbt.NodeStatus.Failure, "no answer ⇒ the drill fails");
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+
+            var q = new Squad(members: 4);
+            RoomDoor(q, Fdp.Toolkit.Terrain.TerrainDoorState.Locked);
+            q.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(q);
+            for (int i = 0; i < 4; i++) q.Tick();
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) q.Teleport(q.Members[k], plan.Stack(k));
+            for (int i = 0; i < 4; i++) q.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseBreaching, q.Phase);
+            Assert.False(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+            q.Pause(ClearRoomPlay.BreachTimeoutSeconds + 0.5);
+            done = false;
+            for (int i = 0; i < 6 && !done; i++) { q.Tick(); done = q.Finished(out result); }
+            Assert.True(done && result == Fbt.NodeStatus.Failure, "the door stays shut ⇒ the drill fails");
+            Assert.True(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+        }
+
+        // ── CE-2276 E-3b — block the stair (Defend & Attack §8d E-3b, DA-72…DA-76) ────────────────────────────────────────────
+
+        /// <summary>The defended building as a survey answer: building 7 round the position, two storeys of one 10 m room (floors 0 and 3),
+        /// a stair from the ground floor at (4, 4, 1.5) and one higher at (4, −4, 4.5) — or no stair at all.</summary>
         private static void AnswerBuilding(Platoon p, bool stairs = true)
         {
             var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);

@@ -141,6 +141,7 @@ namespace Fdp.Toolkit.Perception.Survey
                         Building = b, Kind = (byte)p.Kind, RoomA = p.RoomA, RoomB = p.RoomB, X = p.Centre.X, Y = p.Centre.Y, Z = p.Centre.Z,
                         Width = p.Width, SillZ = p.SillZ, HeadZ = p.HeadZ, Walkable = p.Walkable, Face = p.Face,
                         IsDoor = p.Door >= 0,
+                        DoorKey = p.Door >= 0 ? world.Doors[p.Door].Key : "",   // ⭐ CE-2257 BC-1 (CB-56)
                         DoorState = p.Door >= 0 ? (byte)(doors != null ? doors[p.Door] : world.Doors[p.Door].Initial) : (byte)0,
                     });
                 foreach (var f in layout.Faces)
