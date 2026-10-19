@@ -717,6 +717,44 @@ from every D-2d move inside his room, and a plain "farther than 4 m" would let t
 then the occupy branch (shares the advance's state), then the options as before (they are exclusive, so the reorder is neutral). Rails
 `TacticsTreesTests.CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision` · `CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt`.
 
+#### D-2f — an authored fighting position *(DA-5's second half; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the order (`SquadDefendParamsJsonDto`) carries a point, a radius and a speed — no post. No params DTO carries a
+list yet; ⭐ the schema the order forms read (`DtoJsonSchemaExtractor.cs:261`) **describes an array field as `type: array`**, while a
+fixed-list wrapper (`FixedListShape`) would fall to its struct branch and show as an object of `Count` / `Items` — ⇒ a plain DTO
+**array** it is (the resolver copies it into the blittable order). The facing follows the posture order's own convention,
+`watchTowards` (a point he faces; zero = none). The posts' memory (`DefencePosts`) knows a window post only by its index (`< WindowCount`).
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendParamsJsonDto { <<EXISTING, + Posts>> Position · SearchRadius · Speed · Posts }
+  class AuthoredPostJsonDto { <<NEW>> point · watchTowards · window }
+  class AuthoredPosts { <<NEW, in the order, 8>> X Y Z · watch · window · Count }
+  class SquadDefendParams { <<EXISTING, + Authored>> }
+  class DefencePosts { <<EXISTING, WindowCount → per-candidate Window · Facing>> }
+  class SquadDefendPlay { <<EXISTING>> Plan: authored first, then the asks for the men left · ArcOf: an authored facing }
+  class DefencePostPicker { <<EXISTING, unchanged>> candidates in rank order to the nearest man }
+  SquadDefendParamsJsonDto *-- AuthoredPostJsonDto : Posts[]
+  SquadDefendParams *-- AuthoredPosts
+  SquadDefendPlay ..> SquadDefendParams
+  SquadDefendParams *-- DefencePosts
+  SquadDefendPlay ..> DefencePostPicker
+```
+*What the picture shows that prose hid:* nothing new picks a post — an authored post is a **candidate ranked first**, so the one
+picker gives it to the nearest man exactly as it gives a window; what changes is only that "window" and "facing" become properties of
+a candidate instead of a position in the list.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** array (≤ 8 used; each a `point`, an optional `watchTowards`, and whether it is a `window`) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. An authored `watchTowards` points that man's arc (±45°) instead of the EA; a window post fights the window way (D-2a, at the authored point — no set-back). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Watch`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a fixed-list wrapper in the DTO: the order-form schema would show it as an object of `Count`/`Items` (`DtoJsonSchemaExtractor`'s struct branch) · a facing bearing: needs a "none" the zero bearing cannot be — the posture order already faces by a point |
+
+*As built (2026-10-19):* `SquadDefendParamsJsonDto.Posts` (`SquadDefendPostJsonDto[]`: `point`, `watchTowards`, `window`; the first 8)
+→ the resolver copies them into `SquadDefendParams.Authored` (`AuthoredPosts`) · `Plan` places them once (`DefencePosts.AddAuthored`), runs
+the one picker, and skips both asks when no live man is left without a post · `DefencePosts.Window` / `Authored` / `Watch` per candidate
+replace `WindowCount` · an authored window post is not set back · `ArcOf` turns a man's arc to his post's `watchTowards`. Rail
+`SquadManeuverTests.CE2275_SquadDefend_AuthoredPostsComeFirst_TheTerrainIsAskedOnlyForTheMenLeft_AndAWatchPointTurnsTheArc`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

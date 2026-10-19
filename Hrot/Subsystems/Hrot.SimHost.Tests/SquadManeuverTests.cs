@@ -1893,6 +1893,69 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        /// <summary>The squad defending at (6, 20) with its sector north, ordered with <paramref name="postsJson"/> (an authored Posts array).</summary>
+        private static Squad DefendingWithPosts(string postsJson)
+        {
+            var s = new Squad(members: 4);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25,\"Posts\":" + postsJson + "}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            return s;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — AUTHORED fighting positions come first: four for four men ⇒ every man holds one and the
+        /// terrain is never asked; the authored window post is fought the window way and NOT set back (the author placed him); an authored
+        /// <c>watchTowards</c> turns that man's arc to it (here west, against a north sector). Two for four men ⇒ two men take them and the
+        /// window ask still runs for the other two.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_AuthoredPostsComeFirst_TheTerrainIsAskedOnlyForTheMenLeft_AndAWatchPointTurnsTheArc()
+        {
+            var s = DefendingWithPosts("[{\"point\":[2,24,0],\"window\":true},{\"point\":[5,24,3]},{\"point\":[9,24,0]},"
+                                     + "{\"point\":[12,22,0],\"watchTowards\":[-60,22,0]}]");
+            Assert.Equal(SquadDefendManeuver.PhasePosting, s.Phase);
+            Assert.True(DefendQuery(s, SquadDefendPlay.WindowSite).IsNull, "every man holds an authored post: no window ask");
+            Assert.True(DefendQuery(s, SquadDefendPlay.CoverSite).IsNull, "… and no cover ask");
+            var given = s.LastOrders();
+            var authored = new[] { new Vector3(2, 24, 0), new Vector3(5, 24, 3), new Vector3(9, 24, 0), new Vector3(12, 22, 0) };
+            Assert.Equal(authored.OrderBy(p => p.X), given.Values.Select(v => v.Objective).OrderBy(p => p.X));
+            foreach (var m in s.Members)
+            {
+                var dto = PostureOf(s, m);
+                bool window = dto.Post.Point == authored[0];
+                Assert.Equal(window, dto.Post.Window);
+                Assert.False(dto.Post.SetBack, "an authored post is where the author put him");
+                ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(m);
+                bool west = Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, dto.Post.Point + new Vector3(-50, 0, 0));
+                bool north = Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, dto.Post.Point + new Vector3(0, 50, 0));
+                if (dto.Post.Point == authored[3]) Assert.True(west && !north, "his watch point turned his arc west");
+                else Assert.True(north && !west, "the others face the sector");
+            }
+
+            var s2 = DefendingWithPosts("[{\"point\":[2,24,0],\"window\":true},{\"point\":[12,22,0]}]");
+            Assert.False(DefendQuery(s2, SquadDefendPlay.WindowSite).IsNull, "two men are left: the window ask runs");
+            AnswerAll(s2, DefendQuery(s2, SquadDefendPlay.WindowSite), new Vector3(6, 25, 0), new Vector3(8, 25, 3));
+            s2.Orders.Clear();
+            s2.Tick(); s2.Tick();
+            var points = s2.LastOrders().Values.Select(v => v.Objective).ToList();
+            Assert.Contains(new Vector3(2, 24, 0), points);
+            Assert.Contains(new Vector3(12, 22, 0), points);
+            Assert.Contains(new Vector3(6, 25, 0), points);
+            Assert.Contains(new Vector3(8, 25, 3), points);
+            foreach (var m in s2.Members)   // a Regular squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
+            {
+                var dto = PostureOf(s2, m);
+                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the authored window: where he was put");
+                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && dto.Post.SetBack, "the terrain's window: set back");
+            }
+        }
+
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
         {
             var o = s.Orders.Last(x => x.Entity.Equals(m) && x.IntentId == BehaviorNames.CombatPosture);
