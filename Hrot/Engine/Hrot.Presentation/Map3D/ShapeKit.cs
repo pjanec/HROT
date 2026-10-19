@@ -283,10 +283,16 @@ public static class ShapeKits
     }, default);
 
     /// <summary>A helicopter (UH-60-like proportions; y = main-rotor diameter): fuselage, cockpit glass, tail boom and fin,
-    /// tail rotor, mast, two crossed main blades, skids.</summary>
+    /// tail rotor, mast, two crossed main blades, skids. ⭐ <c>CE-1209</c> — drawn DOORS-OFF (🔒 user, 2026-10-19: <i>"no problem if you
+    /// draw uh60 without side door always"</i>): the fuselage is a closed rear section and a short closed front behind the cockpit, with
+    /// the CABIN between them only a floor and a roof — you see through it from the side, and the door riders (seats 0.6 … 2.4 m) and the
+    /// door gunners (3.0 m) sit in its openings. The sim's boxes are generated from these (CE-3214), so rounds pass the open doors.</summary>
     public static readonly ShapeKit Helicopter = new(new[]
     {
-        Box(0.06f, 0f, 0.36f, 0.48f, 0.14f, 0.40f, ColourRole.Body),                         // fuselage
+        Box(-0.04f, 0f, 0.36f, 0.28f, 0.14f, 0.40f, ColourRole.Body),                        // fuselage, behind the cabin
+        Box(0.2775f, 0f, 0.36f, 0.045f, 0.14f, 0.40f, ColourRole.Body),                      // fuselage, between the cabin and the cockpit
+        Box(0.1775f, 0f, 0.1675f, 0.155f, 0.14f, 0.015f, ColourRole.Body),                   // the cabin floor (its top under the riders' seats)
+        Box(0.1775f, 0f, 0.545f, 0.155f, 0.14f, 0.03f, ColourRole.Body),                     // the cabin roof
         Box(0.31f, 0f, 0.38f, 0.10f, 0.12f, 0.30f, ColourRole.Glass),                        // cockpit
         Box(-0.28f, 0f, 0.50f, 0.42f, 0.04f, 0.09f, ColourRole.Body),                        // tail boom
         Box(-0.47f, 0f, 0.64f, 0.06f, 0.015f, 0.34f, ColourRole.Body, -25f),                 // tail fin

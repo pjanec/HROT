@@ -83,3 +83,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 6 | ✅ a thrown stone lands as dust (a grenade still bursts); the throw's arm swing; Presentation 778 / 0 |
 | `2026-10-19` | 5 | ▶ un-parked by the user — every UH-60 drawn doors-off (the one `Helicopter` kit), done after #7 |
 | `2026-10-19` | 7 | ✅ a destroyed weapon system goes dark, it does not burn; Presentation 778 / 0 |
+| `2026-10-19` | 5 | ✅ every UH-60 drawn doors-off: the cabin seen through, riders and gunners in its openings; the sim's boxes regenerated; Presentation 778 / 0, parity 6 / 0, Toolkits bodies 46 / 0 |
