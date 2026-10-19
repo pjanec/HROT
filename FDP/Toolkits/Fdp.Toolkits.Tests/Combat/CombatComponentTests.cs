@@ -99,9 +99,10 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(typeof(WeaponFireIntent).IsValueType);
             // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes; ⭐ CE-1032 + AtPoint (bool) and
             // TargetPoint (Vector3) = 40, ⭐ M8 + AmmoGuid (long, 8-aligned) = 48, ⭐ IF-1 (I3) + Charge, HighArc (bytes) = 50,
-            // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66.
+            // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66,
+            // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70.
             // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
-            Assert.Equal(66, Marshal.SizeOf<WeaponFireIntent>());
+            Assert.Equal(70, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>
@@ -113,8 +114,9 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             Assert.True(typeof(WeaponFireNotification).IsValueType);
             // 2×Entity(8) + int(4) + bool (marshalled as a 4-byte BOOL) = 24, then ⭐ CE-1111 (BS-1 §5.4b F1, appended): AmmoGuid(8) +
-            //   Round(8) + Origin(12) + Velocity(12) + Quantity(4) + FiredAt(8) = 52 ⇒ 76.
-            Assert.Equal(76, Marshal.SizeOf<WeaponFireNotification>());
+            //   Round(8) + Origin(12) + Velocity(12) + Quantity(4) + FiredAt(8) = 52 ⇒ 76, then ⭐ Q94 A-1 (R-3018, appended):
+            //   RequestId(4) + Refusal(1) ⇒ 81.
+            Assert.Equal(81, Marshal.SizeOf<WeaponFireNotification>());
         }
 
         /// <summary>

@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             // Shots fired this frame (FireProcessingSystem's notification, one per round).
             if (repo.Bus.IsRegistered<WeaponFireNotification>())
                 foreach (ref readonly var shot in view.ReadEvents<WeaponFireNotification>())
-                    if (repo.IsAlive(shot.Shooter) && repo.HasComponent<ThermalState>(shot.Shooter)
+                    if (shot.Fired && repo.IsAlive(shot.Shooter) && repo.HasComponent<ThermalState>(shot.Shooter)   // ⭐ Q94 A-2 (R-3018)
                         && !Fdp.Toolkit.Combat.Munitions.IsExpendable(repo, shot.AmmoGuid)   // ⭐ CE-2188 (§5.4b F5) — a dispenser heats no barrel
                         && !Fdp.Toolkit.Combat.PersonHands.Threw(repo, in shot))              // ⭐ CE-3248 (TC-6) — nor does a hand
                     {

@@ -85,7 +85,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         if (world.Bus.IsRegistered<WeaponFireNotification>())
             foreach (var shot in world.Bus.Read<WeaponFireNotification>())
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a throw is no gunshot: it frightens nobody off the street (its blast, if any, does)
-                if (!Fdp.Toolkit.Combat.PersonHands.Threw(world, in shot) && Origin(world, shot) is { } at) Add(net.Placement, at, demand.ShotRadius);
+                if (shot.Fired && !Fdp.Toolkit.Combat.PersonHands.Threw(world, in shot) && Origin(world, shot) is { } at) Add(net.Placement, at, demand.ShotRadius);   // ⭐ Q94 A-2
         if (world.Bus.IsRegistered<DetonationNotification>())
             foreach (var blast in world.Bus.Read<DetonationNotification>())
                 Add(net.Placement, new Vector3(blast.HitX, blast.HitY, blast.HitZ), demand.BlastRadius);

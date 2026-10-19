@@ -92,6 +92,19 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(0f, w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft);
         }
 
+        /// <summary>⭐ Q94 A-2 (R-3018) — a shot the muscle REFUSED never flew: nobody hears it. ✅ Red-proof: the <c>Fired</c> skip removed ⇒
+        /// the refused shot is heard ⇒ red.</summary>
+        [Fact]
+        public void Q94_ARefusedShot_IsNotHeard()
+        {
+            var (w, e) = World();
+            var s = new SoundEmissionSystem();
+            w.Bus.Publish(new WeaponFireNotification { Shooter = e, Refusal = Fdp.Toolkit.Combat.FireRefusal.Masked });
+            w.Bus.SwapBuffers();
+            Step(w, s);
+            Assert.Equal(0f, w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft);
+        }
+
         [Fact]
         public void ADetonation_IsHeardWhereItBurst()
         {

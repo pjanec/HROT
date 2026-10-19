@@ -98,6 +98,22 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0,  msg.WeaponIndex);
         }
 
+        /// <summary>⭐ Q94 A-1 (R-3018) — the muscle's answer carries the request it answers and why it REFUSED it. ✅ Red-proof: the
+        /// two mapped lines removed ⇒ 0 / 0 ⇒ red.</summary>
+        [Fact]
+        public void Q94_TheAnswer_CarriesTheRequestIdAndTheRefusal()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnEntity(networkId: 1L);
+            var target  = SpawnEntity(networkId: 2L);
+            _world.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, RequestId = 41u, Refusal = Fdp.Toolkit.Combat.FireRefusal.Masked });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal(41u, msg.RequestId);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.FireRefusal.Masked, msg.Refusal);
+        }
+
         // ── SC-2: Multiple notifications → multiple DDS writes ────────────────
 
         /// <summary>

@@ -64,6 +64,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7, R-169 — APPENDED) — a thrown-back venting canister's burn left (s); 0 = its own.</summary>
         public float BurnSeconds;
+
+        // ⭐ Q94 A-1 (R-3018) — the brain's request id, echoed by the muscle's WeaponFire (fired or refused). APPENDED.
+        public uint RequestId;
     }
 
     /// <summary>
@@ -108,6 +111,11 @@ namespace Hrot.NED.Messages
 
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
         public long SourceNodeId;
+
+        // ⭐ Q94 A-1 (R-3018) — the request this answers, and why the muscle REFUSED it (Fdp.Toolkit.Combat.FireRefusal; 0 = fired).
+        //   APPENDED: an older sender reads as fired.
+        public uint RequestId;
+        public byte Refusal;
     }
 
     // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────

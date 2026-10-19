@@ -94,11 +94,16 @@ namespace Hrot.IG.Tests
                 ShooterEntityId = 1L,
                 TargetEntityId  = 2L,
                 WeaponIndex     = 0,
+                RequestId       = 41u,                                        // ⭐ Q94 A-1 (R-3018)
+                Refusal         = (byte)Fdp.Toolkit.Combat.FireRefusal.Masked,
             };
 
             var events = ProcessAndFlush(translator, in msg);
 
             Assert.Equal(1, events.Length);
+            Assert.Equal(41u, events[0].RequestId);
+            Assert.Equal(Fdp.Toolkit.Combat.FireRefusal.Masked, events[0].Refusal);
+            Assert.False(events[0].Fired);
             Assert.Equal(entityA, events[0].Shooter);
             Assert.Equal(entityB, events[0].Target);
             Assert.Equal(0,       events[0].WeaponIndex);

@@ -721,6 +721,8 @@ sequenceDiagram
 *What the picture shows that prose hid:* the sector travels the way ROE and reporting do (CC-2's shape, R-2044), not inside every
 order's params — so no play's params change and a shift of fire is one event.
 
+✅ **RULED `2026-10-19` (R-3020 — a duplicate of R-2054 above, recorded in the backend lane)** — DA-26…DA-30 as leaned. 🔒 User: *"Sector leans accepted."*
+
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-26** | how a sector reaches the man | ⭐ **the ROE twin** `SetEngagementAreaEvent` beside the order (origin-gated, replace, all-empty withdraws), the shape CC-2 (R-2044) chose for reporting; across nodes on the tactical-intent road like kinds 2 and 3 (a kind 4 — asked of backend) | inside every order's params (DA-20's first wording): each play's DTO grows a sector, and CB-42 lost to CC-2 for the same reason |

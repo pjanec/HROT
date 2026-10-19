@@ -54,6 +54,7 @@ public class EventToEffectSystem : IEcsModuleSystem
         var weaponFires = view.ReadEvents<WeaponFireNotification>();
         foreach (ref readonly var evt in weaponFires)
         {
+            if (!evt.Fired) continue;   // ⭐ Q94 A-2 (R-3018) — a REFUSED shot never flew: nothing to hear, see or fear
             // Skip if either entity is gone or lacks a position.
             if (evt.Shooter == Entity.Null || evt.Target == Entity.Null) continue;
             if (!view.IsAlive(evt.Shooter) || !view.IsAlive(evt.Target)) continue;

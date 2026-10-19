@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             if (repo.Bus.IsRegistered<WeaponFireNotification>())
                 foreach (ref readonly var shot in view.ReadEvents<WeaponFireNotification>())
                 {
+                    if (!shot.Fired) continue;   // ⭐ Q94 A-2 (R-3018) — a REFUSED shot never flew: nothing to hear, see or fear
                     if (!repo.IsAlive(shot.Shooter) || !repo.HasComponent<AcousticEmitter>(shot.Shooter)
                         || !repo.HasComponent<SimTransform>(shot.Shooter)) continue;
                     // ⭐ CE-2188 (BS-1-DESIGN §5.4b F5) — a flare / chaff release is no gunshot: no report
