@@ -41,7 +41,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | lane | block | next free *(update when you allocate)* |
 > |---|---|---|
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1194` |
-> | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2303` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
+> | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2304` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
 > | `backend` | **`CE-3000` – `CE-3999`** | `CE-3253` |
 > | `coordinator` *(added `2026-10-15`)* | **`CE-4000` – `CE-4999`** | `CE-4032` |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
@@ -3590,6 +3590,7 @@ not against references in `Hrot.SimHost`.
   ⚠ **NOT fixed here and not caused by it:** the vehicles still fall once physics integrates, because the scenario sits at world coordinates ~450–670 while the Stride ground is near the origin. Separate row.
 
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
+- [ ] **CE-2304** · `RW-M` 📋 **OPEN `2026-10-19` (behaviors → backend, [NOTE](batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md)) — POSTED DEFENDERS STALL INSIDE OBJ AND THEIR MOVES NEVER END.** `sq-defend-house`: four of seven men sent to posts 2–7 m away inside `house-3f` sit 4–6 m short for 20 s+, SimHost `NavigationStatus` `InProgress / Following` throughout; one ends 1 m outside the house's south wall; walk ≈ 0.4 m/s on a 2 m/s order. Asks: ① a man inside a house is not pushed through its walls · ② a move with no progress ends (Failure / blocked) so the brain re-plans. Blocks PROGRESS `Set` in the demo (the behaviour half — D-2d, D-2e of [CE-2275](#) — is built).
 
   ⭐ **What it asserts:** that a collectible `AssemblyLoadContext` has been GC-collected after **exactly two** `GC.Collect()` passes *(`AiHotReloadCoordinatorTests.cs:150-157`)*.
 
