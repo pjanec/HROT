@@ -154,6 +154,7 @@ public sealed class PlatoonScenarioTests : IDisposable
         var shooters = new HashSet<string>();
         // ⭐ CE-2304 — the frame the squad came closest to Set (its farthest live man nearest his post), and each man's distance then
         float bestWorst = float.MaxValue; double bestAt = 0; string bestMen = "";
+        var nearest = new Dictionary<string, (Vector3 post, float min)>();   // ⭐ DA-58 — each man's nearest approach to his CURRENT post
         void OffPost()
         {
             var tr = Fdp.Toolkit.Squad.SquadDrillTrace.Of(cgf, squad);
@@ -163,10 +164,14 @@ public sealed class PlatoonScenarioTests : IDisposable
                 if (o.Kind != 5 || !cgf.IsAlive(o.Member) || !cgf.HasComponent<SimTransform>(o.Member)) continue;
                 float d = Vector3.Distance(cgf.GetComponent<SimTransform>(o.Member).Position, o.Point);
                 worst = MathF.Max(worst, d);
-                men.Add($"{cgf.GetComponent<EntityInfo>(o.Member).Name.ToString().Replace("Red ", "")} {d:F1}");
+                string who = cgf.GetComponent<EntityInfo>(o.Member).Name.ToString().Replace("Red ", "");
+                men.Add($"{who} {d:F1}");
+                nearest[who] = nearest.TryGetValue(who, out var n) && Vector3.Distance(n.post, o.Point) < 0.05f ? (o.Point, MathF.Min(n.min, d)) : (o.Point, d);
             }
             if (men.Count > 0 && worst < bestWorst) { bestWorst = worst; bestAt = harness.Cgf!.World!.GetSingleton<GlobalTime>().TotalTime; bestMen = string.Join(", ", men); }
         }
+        string NeverReached() => string.Join(", ", nearest.Where(kv => kv.Value.min > Hrot.AI.Behaviors.Brains.SquadDefendPlay.PostRadius)
+            .Select(kv => $"{kv.Key} nearest {kv.Value.min:F1} m to ({kv.Value.post.X:F1},{kv.Value.post.Y:F1},{kv.Value.post.Z:F1})"));
         for (int frame = 0; frame < 9000 && !((set || !requireSet) && blueIn && shooters.Count >= 2); frame++)
         {
             harness.PumpFrames(1);
@@ -183,13 +188,14 @@ public sealed class PlatoonScenarioTests : IDisposable
         }
         _out.WriteLine($"set={set} blueIn={blueIn} early={earlyRound} shooters={string.Join(",", shooters)}");
         _out.WriteLine($"closest to Set at {bestAt:F1} s — farthest man {bestWorst:F1} m from his post (PostRadius 4): {bestMen}");
+        _out.WriteLine($"never reached his current post: {NeverReached()}");
         // ⭐ D-2h (DA-48) — the squad has a machine gunner (Red Rifleman 1), so the post plan asked ONE visibility fan; the real
         //   solver's answer must reach the brain (WorldSurveyApplySystem announces it as SurveyReady on the commander)
         double surveyAt = cgf.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad)
             ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad).SurveyReady : 0;
         _out.WriteLine($"fan answered at {surveyAt:F2} s");
 
-        if (requireSet) Assert.True(set, $"PROGRESS Set — every man on his post (D-2d, D-2e); closest at {bestAt:F1} s: {bestMen}");
+        if (requireSet) Assert.True(set, $"PROGRESS Set — every man on his post (D-2d, D-2e); never reached: {NeverReached()}");
         Assert.True(blueIn, "the Blue fire team walks into the sector");
         Assert.False(earlyRound, "③ no Red round before the first Blue enters the sector (DA-35)");
         Assert.True(shooters.Count >= 2, $"③ …then Red fires: {shooters.Count} shooters");
