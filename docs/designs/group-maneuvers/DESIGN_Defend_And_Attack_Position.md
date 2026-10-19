@@ -1012,7 +1012,7 @@ sequenceDiagram
   participant L as Leans
   SQ->>WS: Ensure OfArea(position, search radius) — with the window ask
   WS-->>SQ: portals (Window) + faces
-  SQ->>SQ: window point ⇒ FrameA/B, Opening; the post = the frame point away from the EA
+  SQ->>SQ: window point ⇒ FrameA/B, Opening · the post = the frame point away from the EA
   SQ->>M: Hold {post: Frame, FrameA, FrameB, Opening}
   M->>M: no threat ⇒ HoldWatch: at the frame point, lean toward the opening
   M->>L: Set(side from his facing)
