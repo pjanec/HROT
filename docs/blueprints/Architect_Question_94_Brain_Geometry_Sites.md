@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — OPEN: sub-questions A–F carry a recommended answer each; the USER approves or changes them (no build of A–D before that).
+state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
 build-state: DESIGN — §2 E (the cloud drift and the fog judge take a replicated height, `CE-3258`) BUILT 2026-10-19 as the one zero-blast-radius site; A–D, F wait for the user.
 current-answer: §0 the one-page decision · §2 the sub-questions with leans · §1 the claim table.
@@ -20,6 +20,12 @@ related-designs:
 (🔒 *"the line of sight must always be a sensor or raycast query which goes to the muscle and returns back as a result … the final
 decisions, of course, can stay on brain"*) is ruled. The question is the HOME of each site — and three of them sit in the FIRE CHAIN,
 which is why this is an architect question and not a batch.
+
+## 0a. ✅ ANSWERED `2026-10-19` (R-3018)
+
+🔒 User: *"Approved. Move fire check to muscle. Anyway brain should be sending just fire requeat and can update ammo based on fire notification (and we would need to add  refused flag to the notification)."*
+
+⇒ A–F approved as leaned, with A REFINED: the brain sends only the fire REQUEST; the muscle runs every check and either fires or REFUSES; the fire notification gains a REFUSED flag (with the reason — masked, too close, out of range); the brain's ammo count follows the notifications (a fired round spends, a refused one does not) — so §2 A's "a refused shot must give the round back" falls away: the brain never spends before the muscle has fired.
 
 ## 0. The decision, in under a page
 

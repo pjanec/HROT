@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED 2026-10-19 (§8: inventory, UML, leans S2-0…S2-5; the night/fog/wind NUMBERS await the user). S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED and APPROVED 2026-10-19 (§8, R-3017) — READY-TO-BUILD. S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
 current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice) · §8 S2 perception design (leans, awaiting the user). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
@@ -380,7 +380,9 @@ both regions outlined, dusk, clear / fog / blended). Each red-proved.
 is ready for them; left for the user's live look).
 
 
-## 8. S2 — weather and night in PERCEPTION *(backend, `CE-3216`; designed `2026-10-19`; ⏳ build-state: DESIGN — S2-0 and the shape are measured, the NUMBERS in §8.3 await the user)*
+## 8. S2 — weather and night in PERCEPTION *(backend, `CE-3216`; designed `2026-10-19`; ✅ APPROVED `2026-10-19` (R-3017) — build-state: READY-TO-BUILD)*
+
+✅ **RULED `2026-10-19` (R-3017)** — every lean in §8.3 as written. 🔒 User: *"The visual and hearing ranges accepted."* · *"Thermal and nihht vision leans accepted."*
 
 ### 8.1 INVENTORY *(codebase-memory CLI `search_graph` + grep, one corpus sweep over `docs/` and `.dev/`; ⚠ `check_index_coverage` is not available through the CLI)*
 
@@ -476,7 +478,7 @@ graph TD
 *What the picture shows that prose hid:* the perception sensors run on the muscle hosts' background snapshot, while the CE-3229 judge
 runs on the brain's live world — two readers of one curve on two kinds of world; the red box is what a snapshot gives today.
 
-### 8.3 Decisions — leans *(⏳ the user rules; S2-0 is a measured defect-in-waiting, the rest are leans)*
+### 8.3 Decisions — ✅ approved as leaned (R-3017)
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
