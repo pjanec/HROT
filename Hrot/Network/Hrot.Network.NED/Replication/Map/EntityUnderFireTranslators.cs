@@ -28,6 +28,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnderFire };
 
+        /// <summary>A newer stamp is sent only this long (s) after the last one sent: the remote window ends at most this early.</summary>
+        public const double RefreshSeconds = 0.5;
+
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtUnderFire;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
@@ -58,7 +61,10 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(e, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<UnderFire>(e));
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                // ⭐ a man under a machine gun is re-stamped by every near miss: a stamp within RefreshSeconds of the last one sent changes
+                //   no remote window by more than that (HitModel.UnderFireSeconds is 5 s), so it is not sent — never a sample per round
+                if (_last.TryGetValue(netId, out var prev)
+                    && sample.LastTime >= prev.LastTime && sample.LastTime - prev.LastTime < RefreshSeconds) continue;
                 _last[netId] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;

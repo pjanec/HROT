@@ -1491,7 +1491,7 @@ each joins the station to data the sim already has.
 | exists | what it gives | file |
 |---|---|---|
 | `HitModel.Sigma(repo, shooter, mount, now)` (public) | THE shot spread, radians: the mount's `DispersionMils` × 2 moving × 2 under fire (5 s) × stance (prone 0.5, crouched 0.75) × a wounded arm × proficiency — and the OPERATOR's shots use it too (`AimAndFire` → `FireProcessingSystem.cs:175`) | `FDP/Toolkits/Fdp.Toolkits/Combat/HitModel.cs:46` |
-| `UnderFire { LastTime }`, stamped on a near miss / a hit | the "under fire" term — ⚠ muscle-local, NOT replicated (`StandardInputs.cs:433`) | `Combat/Components/HitChanceComponents.cs:22` |
+| `UnderFire { LastTime }`, stamped on a near miss / a hit | the "under fire" term — ⚠ muscle-local, NOT replicated (`StandardInputs.cs:433`) — ✅ *(closed `2026-10-19`, backend `CE-1223`)* replicated as `dtUnderFire` 156 (Muscle group → every node), a newer stamp sent at most every 0.5 s | `Combat/Components/HitChanceComponents.cs:22` |
 | the audio CRACK: a round within 5 m of the ear, once per round (`SoundSources.Round`, `Cracks`) | the station node's own near-miss detection | `Hrot.Presentation/Audio/SoundSources.cs:255` |
 | `RecentShots` | the possessed unit's own shots, per mount, on every node | `Hrot.Presentation/Effects/RecentShots.cs` |
 | `Hud.FlightLine` (`HDG 045`) | a heading — flyers only | `PossessionStation.cs` `Hud` |
@@ -1510,7 +1510,7 @@ each joins the station to data the sim already has.
 |---|---|---|
 | the sim already spreads the operator's shots by σ | ✅ `HitModel.Sigma`, `FireProcessingSystem.cs:175` | ✅ Hit model (DA-2, HL-7) |
 | a VISUAL sway the sim does not apply would lie | ✅ the sim's deflection is its own low-discrepancy draw (`FireProcessingSystem.cs:175-186`), not the crosshair | ✅ §8g F-4 (the crosshair is where the round goes) |
-| `UnderFire` is not on a remote station's node | ✅ no translator under `Hrot/Network`; `[DataPolicy(NoScenario)]` | ⛔ searched: not stated |
+| `UnderFire` is not on a remote station's node | ⛔ *(SUPERSEDED `2026-10-19`, `CE-1223`: `EntityUnderFireTranslators.cs` replicates it)* ✅ no translator under `Hrot/Network`; `[DataPolicy(NoScenario)]` | ⛔ searched: not stated |
 | the map's shortcuts stay silent in the map peek | ✅ `MenuShortcuts.cs:136` keys on `Driver != null`; the peek keeps the driver | — |
 | a soldier usually has NO binoculars in the TKB | ✅ one template (`UrbanCombatTkbCatalog.cs:269`) | ⛔ searched: no design names who carries them |
 

@@ -81,6 +81,10 @@ namespace Hrot.SimHost.Tests
                 egress.ScanAndPublish(w);                                    // unchanged
                 Assert.Single(wire.Written);
 
+                HitModel.StampUnderFire(w, man, 12.5 + EntityUnderFireEgressTranslator.RefreshSeconds / 2);   // the next round, a moment later
+                egress.ScanAndPublish(w);
+                Assert.Single(wire.Written);                                 // not one sample per round
+
                 HitModel.StampUnderFire(w, man, 14.0);                       // a fresh near miss
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
