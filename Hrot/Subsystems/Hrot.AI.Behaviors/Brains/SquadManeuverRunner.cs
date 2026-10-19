@@ -528,7 +528,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed, in MemberPost post = default)
         {
             if (IsUnit(world, member)) { Order(world, commander, member, nameof(OrderKind.Hold), "{}"); return; }
-            Publish(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
+            Keep(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
                 Stay = true,   // ⭐ CE-2297 slice 2a (R-2055) — he holds there until the squad's next order, eyes and fight with him
@@ -552,10 +552,19 @@ namespace Hrot.AI.Behaviors.Brains
                 }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
                 return;
             }
-            Publish(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
+            Keep(world, commander, member, BehaviorNames.AdvanceTo, JsonSerializer.Serialize(new AdvanceToParamsJsonDto
             {
                 Objective = point, Speed = speed, ArrivalRadius = arrival,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2304</c> — a HOLD or a MOVE: sent unless the member already runs exactly this order from this run (a re-issue
+        /// re-sends every member's order, and an unchanged one would only stop him and start him again). ⛔ Not for the orders a play
+        /// re-sends ON PURPOSE to nudge a man still running one (the airborne exit, a battery's next salvo) — those keep <see cref="Publish"/>.</summary>
+        private static void Keep(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            if (CommandOrders.StillRunning(world, commander, member, behaviour, json)) return;
+            Publish(world, commander, member, behaviour, json);
         }
 
         /// <summary>⭐ <c>CE-2152</c> C-c (R-b) — SUPPRESS: the library <c>Suppress</c> on <paramref name="target"/>, last reported at

@@ -106,6 +106,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed double WindowStart[Capacity];
         /// <summary>Per roster slot: the newest hit / near-miss time already counted.</summary>
         public fixed double LastSense[Capacity];
+        /// <summary>⭐ <c>CE-2304</c> — when each man was last sent to a new post (DA-38's count waits <see cref="SquadDefendPlay.DisplacedGraceSeconds"/>).</summary>
+        public fixed double MovedAt[Capacity];
         /// <summary>0 = not asked · 1 = asked · 2 = done (answered, empty, or timed out).</summary>
         public byte WindowStage, RoofStage, CoverStage;
         /// <summary>⭐ D-2h (DA-48) — the visibility fan that puts the automatic weapon on the longest view: 0 · 1 asked · 2 done.</summary>
@@ -274,6 +276,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>DA-38 — this many rounds at a man within <see cref="UntenableSeconds"/> ⇒ his alternate post.</summary>
         public const int UntenableHits = 3;
         public const float UntenableSeconds = 10f;
+        /// <summary>⭐ <c>CE-2304</c> (DA-56) — the rounds at a man in this long after he was sent to a new post do not count toward DA-38:
+        /// he is moving there, not holding it. 📌 Measured live (<c>sq-defend-house</c>): without it each displaced man was sent straight
+        /// back by the rounds of the fire he moved through — 43 displacements in 14 s, every man ping-ponging between two posts.</summary>
+        public const float DisplacedGraceSeconds = 10f;
         /// <summary>DA-37 — a man's arc half-width toward the engagement area / outward all-round (°).</summary>
         public const float ArcHalfWidth = 45f;
         public const float AllRoundHalfWidth = 60f;
@@ -293,7 +299,7 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
-            unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) p.Posts.PostOf[i] = DefencePosts.None; }
+            unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; } }
             return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
         }
 
@@ -577,6 +583,7 @@ namespace Hrot.AI.Behaviors.Brains
                 double last = LastRoundAt(ctx.World, m);
                 if (last <= p.Posts.LastSense[i]) continue;
                 p.Posts.LastSense[i] = last;
+                if (ctx.Now - p.Posts.MovedAt[i] < DisplacedGraceSeconds) continue;   // ⭐ CE-2304 (DA-56) — still moving to it
                 if (ctx.Now - p.Posts.WindowStart[i] > UntenableSeconds) { p.Posts.WindowStart[i] = ctx.Now; p.Posts.Hits[i] = 1; }
                 else p.Posts.Hits[i]++;
                 if (p.Posts.Hits[i] < UntenableHits) continue;
@@ -584,6 +591,7 @@ namespace Hrot.AI.Behaviors.Brains
                 int alternate = AlternateOf(ref p, in ctx, i);
                 if (alternate < 0) continue;
                 p.Posts.PostOf[i] = (byte)alternate;
+                p.Posts.MovedAt[i] = ctx.Now;
                 ws.Reissue = 1;
                 Report(in ctx, p.Posts.Point(alternate), ProgressKind.Displacing);
             }
@@ -612,7 +620,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (Vector3.Distance(at, post) > FlankedMetres
                         || EngagementAreas.InArc(post, arc.LeftBearing, arc.RightBearing, arc.MinRange, arc.MaxRange, at)) continue;
                     int alternate = AlternateOf(ref p, in ctx, i);
-                    if (alternate >= 0) p.Posts.PostOf[i] = (byte)alternate;
+                    if (alternate >= 0) { p.Posts.PostOf[i] = (byte)alternate; p.Posts.MovedAt[i] = ctx.Now; }
                     var from = p.Posts.Point(p.Posts.PostOf[i]);
                     p.Posts.Faces[i] = 1;
                     p.Posts.FaceBearing[i] = LookAt.BearingTo(from, at);

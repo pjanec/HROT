@@ -901,6 +901,45 @@ One bit carries it, and the tier rule stays on the brain where every other tier 
 (was `SetsBack`) · `Settle` drops unmarked window points for `SetBackOnly`. Rails `TerrainEqsTests.CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_*`,
 `SquadManeuverTests.CE2275_D2j_AVeteranSquad_TakesOnlyRealSetBackWindows` (Veteran 2 window posts, Regular 4).
 
+#### D-2k — one move per post: a re-issue sends only what changed *(`CE-2304`'s behaviour half; behaviors, 2026-10-19)*
+
+📐 **Measured first** (`sq-defend-house` in process, the squad's drill trace and every man's `BehaviorState` / `NavigationIntent`
+per frame): the squad's run never restarted (one instance, phase Posting throughout) and its roster never reordered, yet from 10 s every
+man got a fresh order **26 times in 14 s, all in the same frames**. Each was `SquadDefendPlay.Displace` (DA-38): **43 displacements in
+14 s**, each man ping-ponging between two posts (slot 1: posts 10 ↔ 12, slot 2: 5 ↔ 6, slot 5: 2 ↔ 3). Two defects compounded:
+the rounds of the fire a man moved through counted at once at his new post, so he was sent straight back; and every displacement
+re-sent **every** man's order, each re-send a new behaviour instance (stop, then start) for six men who had not moved.
+
+```mermaid
+sequenceDiagram
+  participant D as SquadDefendPlay.Displace
+  participant R as SquadManeuverRunner.Issue
+  participant K as Keep (Hold / Move)
+  participant C as CommandOrders
+  participant M as each member
+  D->>D: rounds at man i since MovedAt[i] + DisplacedGraceSeconds? (DA-56)
+  D->>D: 3 within 10 s ⇒ PostOf[i] = alternate · MovedAt[i] = now · Reissue
+  R->>K: every live member's order for the phase
+  K->>C: StillRunning(member, behaviour, json)? (DA-57)
+  alt same run, same behaviour, same params, he still runs it from his superior
+    C-->>K: true ⇒ nothing sent
+  else anything differs (his new post, a reaction took him, it finished)
+    K->>C: Assign ⇒ SubordinateOrders.Record(json) + publish
+    C->>M: the order (a new instance)
+  end
+```
+*What the picture shows that prose hid:* the play decides **which** man moves; the runner used to tell **all** of them. The skip sits at
+the one order helper (`CommandOrders`), keyed on what the record already holds plus the params, so every play that re-issues gets it.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-56** | when a displaced man's rounds count again | for **`DisplacedGraceSeconds` = 10 s** (DA-38's own window) after he is sent to a new post — by DA-38 or a flank (DA-43) — his rounds are read and dropped: he is moving there, not holding it; after it, three more move him again | counting only within `PostRadius` of the new post: two posts of one room (2.5 m apart, a storey up) are both "within 4 m", so he would count from the moment he left · a cap of N displacements per man: hides a post that is really untenable |
+| **DA-57** | what a re-issue re-sends | the runner's **Hold / Watch and Move** orders (`Keep`) are skipped when `CommandOrders.StillRunning`: the ticking run's record for him names the same behaviour **and the same params** (`SubordinateOrders.Entry.Json`), and his `BehaviorState` runs that behaviour from `Superior`. A pause, a retake or a silent leader still re-sends whatever a reaction replaced | dedup in every `Assign`: the airborne exit re-sends ON PURPOSE to a man still aboard (`AirborneDrill.ReorderSeconds`) and a battery's next salvo is the same params · dedup on the receiving side (the intent ingress): a re-send from an operator or a new run is a real new order there · dropping the alternate from the Watch params so they change less: the man's hide search reads it (D-2a) |
+
+*As built (2026-10-19):* `SubordinateOrders.Entry.Json` (and `Record`'s `json`) · `CommandOrders.StillRunning` · `SquadManeuverRunner.Keep`
+(Hold, Move) · `DefencePosts.MovedAt` · `SquadDefendPlay.DisplacedGraceSeconds`. Rails `SquadManeuverTests.CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_*`,
+`…CE2304_ADisplacedMan_IsNotSentStraightBack_*`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

@@ -2141,6 +2141,81 @@ namespace Hrot.SimHost.Tests
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Displacing));
         }
 
+        /// <summary>A squad of three defending at (4, 0) whose window ask gave (0,5) (4,5) (8,5) and a spare behind each — (0,9), and the
+        /// nearer (4,8) and (8,8), so one man's move changes nobody else's alternate; every man on his post and running his order (as
+        /// SimHost would have him). Returns the man on (0,5).</summary>
+        private static Entity PostedAndRunning(Squad s)
+        {
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0), new Vector3(4, 8, 0), new Vector3(8, 8, 0));
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            foreach (var m in s.Members)
+            {
+                s.Teleport(m, given[m].Objective);
+                s.Repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), Origin = BehaviorOrigin.Superior });
+            }
+            s.Tick();
+            return s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+        }
+
+        private static void RoundAt(Squad s, Entity m)
+        {
+            s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            s.Tick(); s.Tick();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> — a re-issue re-sends only the orders that CHANGED: one man displaced gets his new post, the two still running
+        /// theirs get nothing (an unchanged re-send stopped each of them and started him again — measured live, every posted man's move
+        /// restarting in step). A man no longer running his order (a reaction took him) gets it again on the next re-issue.
+        /// ✅ Red-proof: <c>Keep</c> publishing regardless ⇒ all three get an order.
+        /// </summary>
+        [Fact]
+        public void CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_AndAManWhoStoppedRunningHisGetsItAgain()
+        {
+            var s = new Squad(members: 3);
+            var first = PostedAndRunning(s);
+            s.Orders.Clear();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
+            Assert.Equal(new[] { first }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+
+            var other = s.Members.First(m => !m.Equals(first));
+            s.Repo.GetComponentRW<BehaviorState>(other).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            s.Repo.GetComponentRW<BehaviorState>(first).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture);
+            s.Orders.Clear();
+            s.Pause(1.0);   // back from a pause: the runner re-issues every order (S1-G)
+            s.Tick(); s.Tick();
+            Assert.Equal(new[] { other }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> (DA-56) — a displaced man is not sent straight back by the rounds of the fire he moves through: for
+        /// <see cref="SquadDefendPlay.DisplacedGraceSeconds"/> after the move his rounds do not count; after it, three more move him again.
+        /// 📌 Live, without it: 43 displacements in 14 s, every man ping-ponging between two posts. ✅ Red-proof: the grace check dropped ⇒
+        /// three rounds right after the move send him back.
+        /// </summary>
+        [Fact]
+        public void CE2304_ADisplacedMan_IsNotSentStraightBack_TheRoundsWhileHeMovesDoNotCount()
+        {
+            var s = new Squad(members: 3);
+            var first = PostedAndRunning(s);
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
+            s.Teleport(first, new Vector3(0, 9, 0));
+
+            s.Orders.Clear();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(first));   // still inside the grace: he stays
+
+            for (int i = 0; i < (int)(SquadDefendPlay.DisplacedGraceSeconds / 0.016f) + 5; i++) s.Tick();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 5, 0), s.LastOrders()[first].Objective);   // untenable again: the free point is his old post
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-2275</c> D-2c (DA-21, DA-43) — a seen enemy 25 m behind the posts, outside every man's arc, FLANKS them: the man with the
         /// free point takes it as his alternate and his arc now faces the enemy; PROGRESS Displacing; the same enemy never turns him twice;
