@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (SL-0 built, §7.0; BC-1 built, §7.1a)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a — not live yet, the CQB house is BR-1) · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
+updated: 2026-10-19 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a)
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
@@ -759,7 +759,7 @@ the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an
 room: two go in, the leader stays out · RoomBlocked on no answer or a door that stays shut) · `WorldSurveySolveTests.CE2257_BC1_*`
 (the key). ✅ Red-proved by 11 compiling mutants, all killed (stack side · two-man rule · portal kind · flow · hostile check · leader last · both timeouts · succeeding when cleared · the key · the breach order). ⚠ The hostile mutant first SURVIVED: the rail's `Ticks(s, 4)` bound to the suite's `Ticks(Squad, int frames)` — four FRAMES, not four seconds — so the enemy was pooled for 64 ms; the seconds helper is now `TickFor`. ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
 
-### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILDING — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
+### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILT (§7.2a) — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — codebase-memory CLI `search_graph` `.*(Clear|Clearance|Room).*` (Class, 20, `has_more:false`: no
 `BuildingClearance`, no building play — only BC-1's) and `.*CommandPicture.*` (3); reads of `WorldSurveySolve` (an AREA ask returns EVERY
@@ -846,6 +846,26 @@ record (dashed) is built from the reports this slice already sends, in PL-1.
 **Slice.** BC-3 v1 = CB-57…CB-63; rails in `SquadManeuverTests.CE2259_*` (the room order, pure; a two-room house cleared room by room with
 the teams swapped; a blocked door skipped; a stair to the upper room; BuildingClear and Success). ⛔ Not in it: civilians (BC-2), contact
 and casualties inside (BC-5), grenades (BC-4), the platoon's record (PL-1), a live demo (`bc-house-clear` — the CQB house, BR-1).
+
+#### 7.2a As built *(2026-10-19)*
+
+| piece | as built | where |
+|---|---|---|
+| the order | `ClearBuilding {Building, Speed}` → `ClearBuildingPlay` on kind 5; the survey `OfArea(point, 3 m)` is kept for the run, re-read for each next room (age ignored — doors are read live); the building = the non-solid one whose centre is nearest the point | `ClearBuildingBehavior.cs`, `ClearRoomParamsJsonDto.cs` |
+| one drill (CB-58) | `RoomDrill` + `RoomDrillState` carry BC-1's stack · breach · flow · clear; `ClearRoomPlay` is now its room survey + "a blocked door fails" | `RoomDrill.cs`, `ClearRoomBehavior.cs` |
+| the loop | kind 5 gains Cleared + BoundComplete → Stacking (the next room) and Breaching + FarSideReached → Stacking (a blocked door, the next room) | `StackAndRoomEntryManeuver.cs` |
+| the next room (CB-59) | `RoomOrder.Next` — pure, as the table | `ClearBuildingBehavior.cs` |
+| a stair (CB-60) | `RoomEntryPlan.PlanFrom(corners, floor, stair, footZ, men)`: `Into` from the stair to the room's middle; the stack beside the stair on the foot floor (`Result.StackZ`) | `RoomEntryPlan.cs` |
+| the teams (CB-61) | `Places` turns the non-leader men by `turn × Entry`; `turn` = rooms finished | `RoomDrill.cs` |
+| the end (CB-62) | BuildingClear when `RoomOrder` finds nothing and a room was cleared ⇒ Success; a blocked door with nothing cleared ⇒ Failure | `ClearBuildingBehavior.cs` |
+
+⚠ **Found while extracting:** BC-1's stack timeout (60 s) never set the breach clock, so a squad that gave up waiting for its stack
+would have been blocked at the door the same frame. `RoomDrill` sets it on both paths.
+
+Rails: `SquadManeuverTests.CE2259_BC3_*` — the room order (pure) · a six-man squad clearing hall, back room, side room and upstairs
+through the real brain with men that obey, the front door breached by the first man after the leader and the side door by the man the
+turn brings round, Foothold, BuildingClear, Success · a locked side door: RoomBlocked, the rest cleared, Success · no answer: Failure.
+The four BC-1 rails pass on the extracted drill unchanged. ⛔ Not live (the CQB house, BR-1).
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 

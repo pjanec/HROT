@@ -31,12 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>The door's centre, the unit vector along the wall toward the stack, the door's half width, the floor.</summary>
             public Vector2 Door, Along;
             public float Half, FloorZ;
+            /// <summary>The floor the stack stands on — the room's, or for a stair the floor at its foot (CB-60).</summary>
+            public float StackZ;
 
             /// <summary>The <paramref name="k"/>-th man's stack point (#1 = 0, nearest the door; any number of men).</summary>
             public Vector3 Stack(int k)
             {
                 var at = Door - Into * StackOffWallMetres + Along * (Half + StackPastJambMetres + StackSpacingMetres * k);
-                return new Vector3(at, FloorZ);
+                return new Vector3(at, StackZ);
             }
 
             public Vector3 Point(int k) => k switch { 0 => Point0, 1 => Point1, 2 => Point2, _ => Point3 };
@@ -51,9 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static Result Plan(ReadOnlySpan<float> corners, float floorZ, Vector2 door, float width, int inFight)
         {
-            var c = new Vector2[4];
-            for (int i = 0; i < 4; i++) c[i] = new Vector2(corners[i * 2], corners[i * 2 + 1]);
-            var centroid = (c[0] + c[1] + c[2] + c[3]) * 0.25f;
+            var c = Quad(corners, out var centroid);
 
             // the door's wall: the room edge nearest the door
             int best = 0;
@@ -67,7 +67,35 @@ namespace Hrot.AI.Behaviors.Brains
             t = t.LengthSquared() > 1e-6f ? Vector2.Normalize(t) : Vector2.UnitX;
             var n = new Vector2(-t.Y, t.X);
             if (Vector2.Dot(centroid - door, n) < 0f) n = -n;   // into the room
+            return Core(c, floorZ, floorZ, door, width, t, n, inFight);
+        }
 
+        /// <summary>
+        /// ⭐ <c>CE-2259</c> BC-3 (CB-60) — the plan for a room entered from INSIDE it, by a stair whose centre is <paramref name="from"/>:
+        /// no wall to stack on, so "into the room" points from the stair toward the room's middle; the stack gathers beside the stair on the
+        /// floor below (<paramref name="stackZ"/>).
+        /// </summary>
+        public static Result PlanFrom(ReadOnlySpan<float> corners, float floorZ, Vector2 from, float stackZ, int inFight)
+        {
+            var c = Quad(corners, out var centroid);
+            var n = centroid - from;
+            n = n.LengthSquared() > 1e-4f ? Vector2.Normalize(n) : Vector2.UnitY;
+            var t = new Vector2(n.Y, -n.X);
+            return Core(c, floorZ, stackZ, from, 1f, t, n, inFight);
+        }
+
+        private static Vector2[] Quad(ReadOnlySpan<float> corners, out Vector2 centroid)
+        {
+            var c = new Vector2[4];
+            for (int i = 0; i < 4; i++) c[i] = new Vector2(corners[i * 2], corners[i * 2 + 1]);
+            centroid = (c[0] + c[1] + c[2] + c[3]) * 0.25f;
+            return c;
+        }
+
+        /// <summary>The plan from the way in (<paramref name="door"/>), the unit vector along the wall (<paramref name="t"/>) and the one
+        /// into the room (<paramref name="n"/>).</summary>
+        private static Result Core(Vector2[] c, float floorZ, float stackZ, Vector2 door, float width, Vector2 t, Vector2 n, int inFight)
+        {
             // the room as seen from the door: how far it reaches each way along the wall, and how deep it is
             float minS = float.MaxValue, maxS = float.MinValue, depth = 0f;
             foreach (var p in c)
@@ -84,7 +112,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             var r = new Result
             {
-                Into = n, Door = door, Along = t * stackSide, Half = MathF.Max(0.3f, width * 0.5f), FloorZ = floorZ,
+                Into = n, Door = door, Along = t * stackSide, Half = MathF.Max(0.3f, width * 0.5f), FloorZ = floorZ, StackZ = stackZ,
                 Entry = inFight < FourManFrom || area < TwoManAreaSquareMetres ? Math.Min(2, inFight) : Math.Min(MaxEntry, inFight),
             };
 

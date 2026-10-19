@@ -3322,7 +3322,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             s.ClearPool();
-            TickFor(s, ClearRoomPlay.ClearSeconds + 0.5);
+            TickFor(s, RoomDrill.ClearSeconds + 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             Assert.False(s.Finished(out _), "the squad holds the cleared room");
@@ -3381,11 +3381,190 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) q.Tick();
             Assert.Equal(StackAndRoomEntryManeuver.PhaseBreaching, q.Phase);
             Assert.False(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
-            q.Pause(ClearRoomPlay.BreachTimeoutSeconds + 0.5);
+            q.Pause(RoomDrill.BreachTimeoutSeconds + 0.5);
             done = false;
             for (int i = 0; i < 6 && !done; i++) { q.Tick(); done = q.Finished(out result); }
             Assert.True(done && result == Fbt.NodeStatus.Failure, "the door stays shut ⇒ the drill fails");
             Assert.True(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+        }
+
+        // ── ⭐ CE-2259 BC-3 — clear the building, room by room (Building Clearing §7.2, CB-57…CB-63) ─────────────────────────────
+
+        /// <summary>A house (building 5): a hall (room 0, x 0…6, y 10…14) by the front door "t/H/front" at (3, 10) from outside; a back room
+        /// (1, y 14…18) by a gap at (3, 14); a side room (2, x 6…10, y 10…14) by the door "t/H/side" at (6, 12); upstairs one room (3, floor
+        /// 3, over rooms 0 and 1) by a stair from the back room at (5, 16); the roof (outdoors) and a window that is no way in.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload HouseAnswer()
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 5, CentreX = 5f, CentreY = 14f, Levels = { 0f, 3f } });
+            void Room(int i, int level, float z, float x0, float y0, float x1, float y1, bool indoors = true)
+                => a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                {
+                    Building = 5, Index = i, Level = level, FloorZ = z, Indoors = indoors, CentreX = (x0 + x1) / 2f, CentreY = (y0 + y1) / 2f,
+                    Corners = new[] { x0, y0, x1, y0, x1, y1, x0, y1 },
+                });
+            Room(0, 0, 0f, 0f, 10f, 6f, 14f);
+            Room(1, 0, 0f, 0f, 14f, 6f, 18f);
+            Room(2, 0, 0f, 6f, 10f, 10f, 14f);
+            Room(3, 1, 3f, 0f, 10f, 6f, 18f);
+            Room(4, 2, 6f, 0f, 10f, 10f, 18f, indoors: false);
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 5, Kind = 1, RoomA = 2, RoomB = -1, X = 8f, Y = 10f, Width = 1f });   // a window
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 5, Kind = 0, RoomA = 0, RoomB = -1, X = 3f, Y = 10f, Width = 1f, IsDoor = true, DoorKey = "t/H/front" });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 5, Kind = 2, RoomA = 0, RoomB = 1, X = 3f, Y = 14f, Width = 1f });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 5, Kind = 0, RoomA = 0, RoomB = 2, X = 6f, Y = 12f, Width = 1f, IsDoor = true, DoorKey = "t/H/side" });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 5, Kind = 3, RoomA = 1, RoomB = 3, X = 5f, Y = 16f, Z = 1.5f, Width = 1f, SillZ = 0f, HeadZ = 3f });
+            return a;
+        }
+
+        private static Entity HouseDoor(Squad s, string key, Fdp.Toolkit.Terrain.TerrainDoorState state)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.DoorState>()) s.Repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            s.Repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            var door = s.Repo.CreateEntity();
+            s.Repo.AddComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            s.Repo.SetManagedComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = key });
+            return door;
+        }
+
+        /// <summary>Every report the commander has queued, in order: (PROGRESS subtype, where).</summary>
+        private static List<(Fdp.Toolkit.Squad.Command.ProgressKind Kind, Vector3 At)> Progress(Squad s)
+        {
+            var list = new List<(Fdp.Toolkit.Squad.Command.ProgressKind, Vector3)>();
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander)) return list;
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Progress)
+                    list.Add(((Fdp.Toolkit.Squad.Command.ProgressKind)q.Items[i].Report.Subtype, q.Items[i].Report.At));
+            return list;
+        }
+
+        /// <summary>The men do as they are told: each goes to his latest post; a man sent to a door opens it unless it is in
+        /// <paramref name="stuck"/>. Runs until the commander's run ends or <paramref name="seconds"/> pass; every door order is recorded
+        /// as (key, who).</summary>
+        private static (bool Done, Fbt.NodeStatus Result) Obey(Squad s, double seconds, List<(string Door, Entity By)> breaches, params string[] stuck)
+        {
+            var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            int handled = 0;
+            for (int t = 0; t < (int)(seconds / 0.016); t++)
+            {
+                s.Tick();
+                if (s.Finished(out var result)) return (true, result);
+                for (; handled < s.Orders.Count; handled++)
+                {
+                    var o = s.Orders[handled];
+                    if (o.IntentId == BehaviorNames.BreachDoor)
+                    {
+                        var key = System.Text.Json.JsonSerializer.Deserialize<BreachDoorParamsJsonDto>(o.JsonParams, opts).Door.ToString();
+                        breaches.Add((key, o.Entity));
+                        if (Array.IndexOf(stuck, key) < 0)
+                        {
+                            var door = Fdp.Toolkit.Terrain.TerrainObjects.Find(s.Repo, key);
+                            s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+                        }
+                    }
+                    else if (o.IntentId == BehaviorNames.CombatPosture)
+                        s.Teleport(o.Entity, System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, opts).Post.Point);
+                }
+            }
+            return (false, default);
+        }
+
+        private static Squad HouseSquad(params string[] lockedDoors)
+        {
+            var s = new Squad(members: 6);
+            HouseDoor(s, "t/H/front", Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            HouseDoor(s, "t/H/side", lockedDoors.Contains("t/H/side") ? Fdp.Toolkit.Terrain.TerrainDoorState.Locked : Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            s.Surveys[ClearBuildingPlay.BuildingSite] = HouseAnswer();
+            s.Order("{\"Building\":[3,9,0]}", BehaviorNames.ClearBuilding);
+            return s;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2259</c> BC-3 (CB-59) — the room order, pure: first the room a door leads into from outside; then, on the same storey, the
+        /// room whose way in is nearest the squad, reached from a cleared room; the stair's room only once the ground floor is done; a
+        /// window is no way in, the roof is not a room to clear, a room behind a blocked one is not reached; nothing cleared and the only door
+        /// blocked ⇒ nothing. ✅ Red-proofs: the storey order dropped ⇒ the upstairs room before the side room; the reach rule dropped ⇒ the
+        /// side room first (nearer by the window).
+        /// </summary>
+        [Fact]
+        public void CE2259_BC3_RoomOrder_FromOutside_ThenNearestFromACleared_GroundFloorFirst()
+        {
+            var a = HouseAnswer();
+            var states = new byte[ClearBuildingParams.MaxRooms];
+            int Next(Vector3 squad) => RoomOrder.Next(a, 5, states, squad, out var r, out _) ? r.Index : -1;
+            Assert.True(RoomOrder.Next(a, 5, states, new Vector3(8f, 6f, 0f), out var first, out var way));
+            Assert.Equal((0, "t/H/front"), (first.Index, way.DoorKey));   // the side room is nearer, but only by its window
+            states[0] = RoomOrder.Cleared;
+            Assert.Equal(1, Next(new Vector3(3f, 12f, 0f)));                // the gap (2 m) before the side door (3 m)
+            Assert.Equal(2, Next(new Vector3(5.5f, 12f, 0f)));              // the side door nearer now
+            states[1] = RoomOrder.Cleared;
+            Assert.Equal(2, Next(new Vector3(5f, 16f, 0f)));                // the ground floor first, though the stair is at hand
+            states[2] = RoomOrder.Cleared;
+            Assert.Equal(3, Next(new Vector3(5f, 16f, 0f)));
+            states[3] = RoomOrder.Cleared;
+            Assert.Equal(-1, Next(Vector3.Zero));                          // the roof is outdoors
+
+            Array.Clear(states);
+            states[0] = RoomOrder.Blocked;
+            Assert.Equal(-1, Next(new Vector3(3f, 6f, 0f)));                // the only way in is blocked
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> BC-3 (CB-57…CB-62) — six men clear the house through the real brain: hall, back room, side room, upstairs —
+        /// each RoomClear at its room's centre, the hall's with the Foothold, then BuildingClear and the run SUCCEEDS; the teams swap: the
+        /// front door is breached by the first man after the leader, the side door (the third room) by the man the turn brings round; the
+        /// upstairs room is entered by the stair, its stack on the floor below. ✅ Red-proofs: no loop back from Cleared ⇒ one room only; the
+        /// turn dropped ⇒ the same man breaches both doors; no Foothold ⇒ none in the list.
+        /// </summary>
+        [Fact]
+        public void CE2259_BC3_ClearBuilding_RoomByRoom_TheTeamsSwap_UpTheStair_ThenBuildingClear()
+        {
+            var s = HouseSquad();
+            var breaches = new List<(string Door, Entity By)>();
+            var (done, result) = Obey(s, 90, breaches);
+            Assert.True(done, "the building is cleared");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            var progress = Progress(s);
+            var cleared = progress.Where(r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear).Select(r => r.At).ToList();
+            Assert.Equal(new[] { new Vector3(3f, 12f, 0f), new Vector3(3f, 16f, 0f), new Vector3(8f, 12f, 0f), new Vector3(3f, 14f, 3f) }, cleared);
+            Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.Foothold && r.At == new Vector3(3f, 12f, 0f));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear, progress[^1].Kind);
+            Assert.DoesNotContain(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked);
+            Assert.Equal(s.Members[1], breaches.First(b => b.Door == "t/H/front").By);   // the leader stays out; the first after him
+            Assert.Equal(s.Members[4], breaches.First(b => b.Door == "t/H/side").By);    // the third room: turned by 2 × 4 of 5
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2259</c> BC-3 (CB-58) — the side door stays locked: after 12 s PROGRESS RoomBlocked for the side room, and the squad goes on
+        /// — the upstairs room is still cleared, then BuildingClear and success; the side room is never reported clear. ✅ Red-proof: the
+        /// blocked branch failing the play (BC-1's single-room rule) ⇒ the run fails.
+        /// </summary>
+        [Fact]
+        public void CE2259_BC3_ALockedDoor_ItsRoomIsBlocked_TheSquadGoesOn()
+        {
+            var s = HouseSquad("t/H/side");
+            var (done, result) = Obey(s, 120, new List<(string, Entity)>(), "t/H/side");
+            Assert.True(done && result == Fbt.NodeStatus.Success, $"the building ends: done {done}, {result}");
+            var progress = Progress(s);
+            Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked && r.At == new Vector3(8f, 12f, 0f));
+            Assert.DoesNotContain(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(8f, 12f, 0f));
+            Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(3f, 14f, 3f));
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear, progress[^1].Kind);
+        }
+
+        /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — the survey never answers: after 5 s the drill fails with RoomBlocked at the order's point.
+        /// ✅ Red-proof: no timeout ⇒ it waits for ever.</summary>
+        [Fact]
+        public void CE2259_BC3_NoAnswer_TheDrillFails()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Building\":[3,9,0]}", BehaviorNames.ClearBuilding);
+            for (int i = 0; i < 3; i++) s.Tick();
+            s.Pause(ClearBuildingPlay.AskTimeoutSeconds + 0.5);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done && result == Fbt.NodeStatus.Failure);
+            Assert.Contains(Progress(s), r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked && r.At == new Vector3(3f, 9f, 0f));
         }
 
         // ── CE-2276 E-3b — block the stair (Defend & Attack §8d E-3b, DA-72…DA-76) ────────────────────────────────────────────

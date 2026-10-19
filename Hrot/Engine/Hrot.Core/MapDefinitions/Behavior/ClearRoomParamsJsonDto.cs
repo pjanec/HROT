@@ -24,6 +24,25 @@ namespace Hrot.Map.Definitions.Behavior
         public float Speed;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2259</c> BC-3 (CB-57) — the authored contract of a squad commander's <c>ClearBuilding</c>: the squad surveys the building at
+    /// <see cref="Building"/> once and clears it room by room — the lowest storey first, each room by the next portal from one already
+    /// cleared — reporting each room, a Foothold and BuildingClear. 📄 docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §7.2.
+    /// </summary>
+    [ParamsDto]
+    public struct ClearBuildingParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ClearBuilding;
+
+        /// <summary>A point on or in the building (sim metres).</summary>
+        [JsonPropertyName("Building")]
+        public Vector3 Building;
+
+        /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+    }
+
     /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — the authored contract of <c>BreachDoor</c>: walk to the door, open it, and when it refuses
     /// (locked) breach it.</summary>
     [ParamsDto]

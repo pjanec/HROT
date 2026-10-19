@@ -47,6 +47,10 @@ namespace Fdp.Toolkit.Squad.Maneuvers
                 new PhaseTransitionEntry { FromPhaseId = PhaseBreaching, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
                 new PhaseTransitionEntry { FromPhaseId = PhaseEntering, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseCleared  },
                 new PhaseTransitionEntry { FromPhaseId = PhaseEntering, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
+                // ⭐ CE-2259 BC-3 (CB-58, CB-59) — the building drill goes on: a room cleared, or one whose door would not open, and the
+                //   squad stacks on the next (a single-room order never sends these)
+                new PhaseTransitionEntry { FromPhaseId = PhaseCleared,   EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseStacking },
+                new PhaseTransitionEntry { FromPhaseId = PhaseBreaching, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseStacking },
             };
 
         // 4 candidates: 1 PointMan + 1 BreachCover + 2 Secondary

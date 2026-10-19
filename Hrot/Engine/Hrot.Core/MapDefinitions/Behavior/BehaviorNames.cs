@@ -60,6 +60,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string SquadDefend = "SquadDefend";
         /// <summary>⭐ <c>CE-2257</c> BC-1 — a squad clears one room (Battle Drill 6).</summary>
         public const string ClearRoom = "ClearRoom";
+        /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — a squad clears a building room by room (Building Clearing §7.2).</summary>
+        public const string ClearBuilding = "ClearBuilding";
         /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — a man opens a door, and breaches it when it is locked.</summary>
         public const string BreachDoor = "BreachDoor";
 
