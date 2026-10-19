@@ -999,7 +999,7 @@ graph TD
 ```
 *Caption:* everything runs where the first chain (`cc-platoon-bound`) already runs; the new box is the task. ⚠ **Not reached:** a platoon
 given **`DefendArea`** still runs `SquadDefend` (the mapper's roster arm) — E-1 is ordered by name; and a platoon carrying
-`BasicPlatoonSop` would be paused by its hold row (DA-55).
+`BasicPlatoonSop` was paused by its hold row — closed by DA-55's guard.
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -1007,11 +1007,11 @@ given **`DefendArea`** still runs `SquadDefend` (the mapper's roster arm) — E-
 | **DA-52** | the squad's sector | **an ARC slice of the platoon's EA on each line squad's `EngagementArea`** (Superior; origin the platoon's position; the EA split by bearing into equal shares, each 10 % wider; squads matched left to right by their bearing), the reserve none; a polygon EA is given whole to each line squad (`AllowArea`). ⚠ **Deviates from DA-24's "squad level = a polygon area entity"** — the arc is what every squad-level reader already reads, it is one event with no entity to create, replicate and destroy per plan, and an operator's polygon still wins by the origin gate | polygon `SquadSector` entities now: entity lifecycle for nothing a reader uses (none reads a polygon the arc cannot say) · no sectors: two squads fire at the same man and the flank goes unwatched |
 | **DA-53** | the trigger and its end | **`EnemyInArea`: a picture element inside the plan's EA observed within 30 s** (the SPOT refresh is 15 s); **`AreaQuiet`: none inside observed within 120 s** ⇒ back to Ready. No EA at all ⇒ any element within 300 m of the position | the PIR `InArea` path: no composer reads PIR flags, and the pool's SPOT is sent regardless · each squad lifting its own hold (D-1's `LiftOwnHold`): the line opens fire piecemeal and the first squad gives every post away |
 | **DA-54** | fire control | Regular+: the line squads **`HoldFire`** (Superior) in Occupy and Ready, **`FireAtWill`** in Engage; the reserve **`ReturnFire`** throughout (it must not show itself, and may defend itself). Below Regular (the platoon's own tier): **`FireAtWill` from the start**, no hold (§5's repertoire) | one write on the platoon (PC-6 reaches all): the reserve could not differ · `ReturnFire` for the line: the first enemy in the EA walks through unengaged until he shoots |
-| **DA-55** | the platoon SOP during a defence | ⚠ `BasicPlatoonSop`'s hold row would order every squad `Hold` (off its posts) and pause the trigger. **E-1: the defend scenarios carry no platoon SOP**; E-2 gives the row a guard "the task is not a defence" (a new SOP condition, the row's only change) | `Reactions = StayOnTask` on the platoon: the chain (PC-6) would carry it to every man and kill their own contact drills · let `PlatoonHold` skip squads already defending: the task is still paused, so the trigger never fires |
+| **DA-55** | the platoon SOP during a defence | ⚠ `BasicPlatoonSop`'s hold row would order every squad `Hold` (off its posts) and pause the trigger. the row gets a first guard **`PlatoonDefendBehavior.NotDefending`** (no params: the running task is not `PlatoonDefend`) — *as built in E-1, 2026-10-19: `pc-defend-dry` needed it, the platoon type's TKB default SOP is `BasicPlatoonSop`* | `Reactions = StayOnTask` on the platoon: the chain (PC-6) would carry it to every man and kill their own contact drills · let `PlatoonHold` skip squads already defending: the task is still paused, so the trigger never fires |
 
 **Slices.** **E-1** (this build): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
 ①② (Platoon §12.2). **E-2**: the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
-Reinforce (needs the line's SITREP extras) — and DA-55's SOP guard, the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
+Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
 (Veteran) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey` (DA-51's deferred half); `pc-defend-house`.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*

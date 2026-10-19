@@ -148,6 +148,8 @@ public sealed class BTreeCallShapeTests
         //   (ref TParams, Entity, EntityRepository) ⇒ the plain three-param shared form.
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-2276 DA-55 — the hold row's first guard: PlatoonDefendBehavior.NotDefending is (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000014", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),

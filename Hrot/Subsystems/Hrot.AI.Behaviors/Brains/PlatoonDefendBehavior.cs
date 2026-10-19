@@ -375,6 +375,15 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        private static readonly int DefendHash = BehaviorHash.FromName(BehaviorNames.PlatoonDefend);
+
+        /// <summary>⭐ DA-55 — the platoon's task is NOT a defence. <c>BasicPlatoonSop</c>'s hold row asks it first: a defending platoon's
+        /// squads already hold their posts, and pausing the task to order them <c>Hold</c> would pull them off the posts and stop the
+        /// trigger.</summary>
+        [SharedAiCondition]
+        public static bool NotDefending(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+
         private static int RosterCount(EntityRepository world, Entity self)
             => world.HasComponent<UnitRoster>(self) ? world.GetComponentRO<UnitRoster>(self).Count : 0;
     }

@@ -2533,6 +2533,26 @@ namespace Hrot.SimHost.Tests
                          (FireOf(p, p.Alpha), FireOf(p, p.Charlie)));
         }
 
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-55) — a defending platoon WITH its SOP (<c>BasicPlatoonSop</c>): an enemy reported inside the
+        /// area does not pause the defence for <c>PlatoonHold</c> (no squad is ordered off its post to hold) — the task stays on and opens
+        /// the line's fire. ✅ Red-proof: the guard always true ⇒ the hold reaction pauses the defence and orders every squad Hold.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_WithItsSop_AReportedEnemy_DoesNotPauseTheDefence()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.StartSop("BasicPlatoonSop");
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            p.ReportSpot(p.Bravo, new Vector3(20f, 100f, 0f), 3);
+            p.Ticks(6);
+            Assert.Equal(BehaviorNames.PlatoonDefend, p.S.TaskName);
+            Assert.False(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Hold"));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie
         /// the reserve; the slices follow the squads' bearings from the position, not their roster order (Bravo, further left, gets the
         /// left half). ✅ Red-proof: slices in roster order ⇒ Alpha gets the left half.</summary>

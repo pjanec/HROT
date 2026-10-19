@@ -9,6 +9,7 @@ using Fbt.Compiler;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Squad.Command;
+using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.AI.Behaviors.Trees;
 
@@ -20,6 +21,8 @@ public static class BasicPlatoonSop
             {
                 sel.Sequence(seq =>
                 {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending",
+                        visualId: new Guid("c2294000-0000-0000-0000-000000000014"));
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
                         visualId: new Guid("c2294000-0000-0000-0000-000000000011"));
                     seq.Condition("Fdp.Toolkit.Squad.Command.PictureConditions.ElementReported@8",

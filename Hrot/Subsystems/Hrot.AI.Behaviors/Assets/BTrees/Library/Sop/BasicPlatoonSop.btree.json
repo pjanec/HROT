@@ -43,6 +43,7 @@
       "kind": "Sequence",
       "VisualId": "c2294000-0000-0000-0000-000000000010",
       "ChildVisualIds": [
+        "c2294000-0000-0000-0000-000000000014",
         "c2294000-0000-0000-0000-000000000011",
         "c2294000-0000-0000-0000-000000000012",
         "c2294000-0000-0000-0000-000000000013"
@@ -52,6 +53,22 @@
         "X": 300,
         "Y": 260,
         "Comment": "A squad reported an enemy element (team-size or larger, within 400 m, seen within 30 s): every squad holds until it is gone.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending"
+      },
+      "VisualId": "c2294000-0000-0000-0000-000000000014",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not defending a position",
+      "EditorMetadata": {
+        "X": -20,
+        "Y": 400,
+        "Comment": "CE-2276 DA-55: a defending platoon's squads already hold their posts — holding them again would pull them off the posts and stop the defence's trigger.",
         "Collapsed": false,
         "Color": null
       }
