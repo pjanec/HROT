@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: BR-14…BR-16 built (rows CE-3273…CE-3275); one question to the user on the hearing cap (CE-3276).
+state: LIVE — backend → behaviors: BR-14…BR-16 built (rows CE-3273…CE-3275); the hearing cap ruled and built (CE-3276, R-3023): a soldier now hears a launch at 1.2 km.
 updated: 2026-10-19
 current-answer: the whole note
 stale-below: nothing
@@ -21,10 +21,11 @@ Answers [HANDOFF_Behaviors_To_Backend_Urban_Battle_Data](HANDOFF_Behaviors_To_Ba
 ⚠ **Found on the way (BR-14):** a crewed weapon's round names the WEAPON as its shooter (WS-3), so the sound sits on the weapon's
 emitter. The technicals' own `FiringAudibleRange` (on the pickup) never sounded — today's change gives the M2 / DShK / ZU-23 their own.
 
-⏳ **Asked of the user — `CE-3276`:** a listener's ear range caps every sound (`AcousticPerception.Hear`: `d > carries || d > range`).
+✅ **Ruled and built `2026-10-19` — `CE-3276` (R-3023): a `HeavyWeapon` / `Explosion` sound now carries past the ear range** ([Thermal & Acoustic §8.2](../../DESIGN_Thermal_And_Acoustic_Sensing.md)); the original question: a listener's ear range caps every sound (`AcousticPerception.Hear`: `d > carries || d > range`).
 An urban soldier hears 200 m and a BDC rifleman 750 m ⇒ **a soldier does not hear the 81 mm at 1.2 km** even now. The rail uses a 5 km
 listening post. Lean: a loud class (`HeavyWeapon`, `Explosion`) is heard within its OWN carry, whatever the ear range. Until it is
-ruled, counter-battery (IF-6) and "finding a mortar" (§4 ②) only hear tubes inside the soldier's ear range.
+ruled, counter-battery (IF-6) and "finding a mortar" (§4 ②) only hear tubes inside the soldier's ear range. ⇒ Now: a soldier
+hears the 81 mm at 1.2 km (`EqsModuleTests.CE3276_…`), so §4 ② and IF-6 can build on a heard launch.
 
 ⛔ Fences kept: no behaviour changed.
 

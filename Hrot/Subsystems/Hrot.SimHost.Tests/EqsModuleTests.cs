@@ -1150,8 +1150,7 @@ namespace Hrot.SimHost.Tests
         /// ⭐ BR-14 (Urban Battle §4 ②; DESIGN_Thermal_And_Acoustic_Sensing §6 B) — an 81 mm tube's LAUNCH is heard, from the TUBE: the real
         /// catalogue's <c>WeaponSystem_Mortar81</c> carries its own report (a crewed weapon's round names the weapon as its shooter, WS-3), so a
         /// fired tube is a <c>HeavyWeapon</c> shot at its own position — heard by a listener 1.2 km away, not by one 3 km away (the report's
-        /// 2 km). The listeners are acoustic posts whose ears reach 5 km: a SOLDIER's ear range caps what he hears (§8.1) — that cap is the
-        /// open question sent back with BR-14, not this rail's.
+        /// 2 km). The listeners are acoustic posts whose ears reach 5 km; a SOLDIER's 200 m ears are <c>CE3276_…</c>'s (R-3023).
         /// </summary>
         [Fact]
         public void BR14_AnEightyOneMillimetreLaunch_IsHeardFromTheTube_At1200m_NotAt3km()
@@ -1208,6 +1207,80 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);
                 Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f,
                     "the launch is heard at the TUBE (inside the estimate's radius)");
+                Assert.DoesNotContain(heard, h => h.Observer == far);
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3276 (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — a LOUD sound carries past the listener's ear range: a man whose
+        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 2 km carry), and not at 3 km. A QUIET class keeps both caps: a
+        /// small-arms shot that would carry 1.5 km, from the same spot, is not heard at 1.2 km. His own side's gun is never heard (the
+        /// broadphase's rule). 🔴 Red before: the near man heard nothing.
+        /// </summary>
+        [Fact]
+        public void CE3276_ALoudLaunch_CarriesPastASoldiersEars_AQuietShotDoesNot()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+                var at = new Vector3(100f, 100f, 0f);
+
+                Entity Source(ForceId force)
+                {
+                    var e = _world.CreateEntity();
+                    _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                    _world.AddComponent(e, new EntityInfo { ForceId = force });
+                    return e;
+                }
+                var tube = Source(ForceId.Hostile);
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+                var rifle = Source(ForceId.Hostile);
+                _world.AddComponent(rifle, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+                    { FiringAudibleRange = 1500f, FiringClass = (byte)SoundSourceClass.SmallArms });
+                var ours = Source(ForceId.Friend);
+                _world.AddComponent(ours, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+                    { FiringAudibleRange = 3000f, FiringClass = (byte)SoundSourceClass.HeavyWeapon });
+
+                Entity Soldier(float east, long netId)
+                {
+                    var unit = _world.CreateEntity();
+                    _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+                    _world.AddComponent(unit, new NetworkIdentity { Value = netId });
+                    var man = new TkbTemplate("Soldier", 1500 + netId);
+                    man.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });   // the urban soldier's ears (implicit sensor, CE-2106)
+                    new PerceptionTkbTranslator().Inject(_world, unit, man);
+                    return unit;
+                }
+                var near = Soldier(1200f, 4311);
+                var far  = Soldier(3000f, 4312);
+
+                foreach (var shooter in new[] { tube, rifle, ours })
+                    _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = shooter });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+                var one = Assert.Single(heard);                                   // the tube's launch, by the near man only
+                Assert.Equal(near, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // not the rifle, not his own side's gun
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f);
                 Assert.DoesNotContain(heard, h => h.Observer == far);
             }
             finally
