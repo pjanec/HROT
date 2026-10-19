@@ -199,5 +199,46 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(GrenadeAmmo, PersonHands.ReadyNext(_world, civ));
             Assert.Equal(0f, _world.GetComponent<AmmoLoadout>(civ).SwitchRemaining);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3248</c> (TC-6; Civilians §7.17a) — a THROW is no gunshot: the rifleman who throws a stone from his hands makes no shot
+        /// report and heats no barrel; the one who fires his rifle does both. ✅ Red-proofs: <c>Threw</c> dropped from
+        /// <c>SoundEmissionSystem</c> ⇒ the thrower has a report ⇒ red; dropped from <c>ThermalHeatSystem</c> ⇒ his barrel warms ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3248_AThrow_MakesNoShotReport_AndHeatsNoBarrel_ARifleShotDoes()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+            _world.RegisterEvent<WeaponFireNotification>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+            Entity Man(float x)
+            {
+                var e = Spawn(RiflemanType, new Vector3(x, 0f, 0f));
+                _world.AddComponent(e, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter { FiringAudibleRange = 800f });
+                _world.AddComponent(e, new Fdp.Toolkit.Perception.Signatures.ThermalState { FiringHeatPerShot = 0.2f });
+                return e;
+            }
+            var thrower = Man(0f);
+            var shooter = Man(10f);
+            int hands = PersonHands.MountIndex(_world, thrower);
+            Assert.Equal(1, hands);
+
+            var thrown = new WeaponFireNotification { Shooter = thrower, WeaponIndex = hands, AmmoGuid = StoneAmmo, Quantity = 1 };
+            var shot = new WeaponFireNotification { Shooter = shooter, WeaponIndex = 0, AmmoGuid = BulletAmmo, Quantity = 1 };
+            Assert.True(PersonHands.Threw(_world, in thrown));
+            Assert.False(PersonHands.Threw(_world, in shot));
+
+            _world.Bus.Publish(thrown);
+            _world.Bus.Publish(shot);
+            _world.Bus.SwapBuffers();
+            new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(_world, 0.1f);
+            new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem().Execute(_world, 0.1f);
+
+            Assert.Equal(0f, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(thrower).ShotTimeLeft);
+            Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(shooter).ShotTimeLeft > 0f);
+            Assert.Equal(0f, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(thrower).Heat);
+            Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(shooter).Heat > 0f);
+        }
     }
 }

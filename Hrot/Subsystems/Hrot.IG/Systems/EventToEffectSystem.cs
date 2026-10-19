@@ -58,6 +58,8 @@ public class EventToEffectSystem : IEcsModuleSystem
             if (evt.Shooter == Entity.Null || evt.Target == Entity.Null) continue;
             if (!view.IsAlive(evt.Shooter) || !view.IsAlive(evt.Target)) continue;
             if (!view.HasComponent<SimTransform>(evt.Shooter) || !view.HasComponent<SimTransform>(evt.Target)) continue;
+            // ⭐ CE-3248 (Civilians §7.17a TC-6) — a stone thrown at a man draws no tracer: a hand is no gun
+            if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in evt)) continue;
 
             ref readonly var shooterTf = ref view.GetComponentRO<SimTransform>(evt.Shooter);
             ref readonly var targetTf  = ref view.GetComponentRO<SimTransform>(evt.Target);

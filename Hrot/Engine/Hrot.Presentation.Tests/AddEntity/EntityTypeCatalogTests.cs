@@ -212,10 +212,16 @@ public sealed class EntityTypeCatalogTests
         204 Paratrooper | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         205 SF operator | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         206 Pilot | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        207 Automatic rifleman (M249) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        208 Machine gunner (PKM) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        209 Sniper (M24) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        210 Marksman (M110) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        211 Marksman (SVD) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         304 Artillery Battery | dis 11.1.225.4.5.1.0 | family Unit | folder Units/Land/United States/Artillery | icon _unit
+        305 Infantry Platoon | dis 11.1.225.1.4.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         400 UH-60A Black Hawk | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
         402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
