@@ -1329,7 +1329,7 @@ Filed from the user's live tests (`2026-10-19`). Each item still gets its INVENT
 | **PK-1** *(`CE-1207`)* | ✅ The operator may PICK UP a lying stone or round (`RoundPickUp`, Civilians §7.10) and TAKE a lying weapon into his Hands station — new verbs in the use list (§8h), the target the nearest lying item within reach of the crosshair (a round has no pick box today). ⭐ A lying pick-up weapon is not offered for possession (`CE-1205`): it cannot fire by itself (Weapon Systems W-D) | 🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* |
 | **MW-1** *(`CE-1210`)* | ✅ **SEAT SWITCHING:** a vehicle with several crewed weapons (the UH-60's two door guns) is played by **switching seats**, as in most crew-vehicle games: the driver / pilot seat drives and fires what can be aimed from it (the vehicle's own mounts, a station whose arc holds the crosshair); a **gunner seat** puts the camera at that gun, the look clamped to its arc, keys 1–4 its weapons, while the vehicle's own brain keeps flying / driving its order. ⛔ Rejected: every weapon from the pilot's eye (today) — a side door gun's arc rarely holds the pilot's crosshair | the user's question, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* — 🔒 then: *"Seat switching approved, record it."* |
 
-## 8j. S11 DESIGN — zoom, lean keys, the command wheel, team switch, hit feedback (`CE-1211` … `CE-1215`, `2026-10-19`, ui) — build-state: DESIGN (the keys await the user)
+## 8j. S11 DESIGN — zoom, lean keys, the command wheel, team switch, hit feedback (`CE-1211` … `CE-1215`, `2026-10-19`, ui) — build-state: READY-TO-BUILD (the leans and keys approved, `R-1009`)
 
 The first five of [PLAN_Ui_FPS_And_Quick_Wins](blueprints/PLAN_Ui_FPS_And_Quick_Wins.md) §1. ⭐ Almost nothing is new: each item joins the
 station to data the sim already has.
@@ -1449,7 +1449,10 @@ graph TD
 calls); the lean and the aiming run on the BRAIN node through the existing possession path. `HitFeedbackSystem` must be registered
 where `EffectSpawnSystem` is — ⚠ the build checks that this is every host with a station, not just the editor.
 
-### 8j.4 Decisions — leans for the user
+### 8j.4 Decisions — ✅ approved
+
+🔒 User, `2026-10-19`, on the key layout below (zoom on the right button, the lock cancel on X, lean on Q / E, use on F, the next round on R, the wheel on T, the switch on Tab): *"Keys approved"*.
+
 
 | # | item | lean | rejected |
 |---|---|---|---|

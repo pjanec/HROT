@@ -20,7 +20,7 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 
 ## 1. The order
 
-🔒 User, `2026-10-19`, then: *"And please plan for doing the cheap ones before the first 5 ones."* ⇒ the quick wins (#1–#9) come first; the five first-person items (#10–#14, designed in Entity Control §8j, the keys awaiting the user) after them.
+🔒 User, `2026-10-19`, then: *"And please plan for doing the cheap ones before the first 5 ones."* ⇒ the quick wins (#1–#9) come first; the five first-person items (#10–#14, designed in Entity Control §8j, keys approved R-1009) after them.
 
 | # | id | what | lane | design first? |
 |---|---|---|---|---|
@@ -70,6 +70,6 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | date | # | state |
 |---|---|---|
 | `2026-10-19` | — | plan written |
-| `2026-10-19` | #10–#14 | Entity Control §8j designed (INVENTORY, claim table, class / sequence / module diagrams, leans Z-1…H-2); ⏳ the key layout awaits the user |
+| `2026-10-19` | #10–#14 | Entity Control §8j designed (INVENTORY, claim table, class / sequence / module diagrams, leans Z-1…H-2); ✅ keys approved (`R-1009`) |
 | `2026-10-19` | — | reordered by the user: the quick wins first |
 | `2026-10-19` | 2 | `CE-1221` added (frame the entities after a load with no camera) |
