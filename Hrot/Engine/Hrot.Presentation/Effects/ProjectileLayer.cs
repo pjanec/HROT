@@ -36,6 +36,9 @@ public sealed class ProjectileLayer : IMapLayer
     /// <summary>A grenade's tumble, turns per second.</summary>
     public const float TumbleTurnsPerSecond = 2.5f;
 
+    /// <summary>⭐ CE-1190 — a throwing star's spin, turns per second (about its normal; it flies flat).</summary>
+    public const float SpinTurnsPerSecond = 6f;
+
     /// <summary>⭐ P2 (§8 PR-F) — a tracer's visible streak: the last <see cref="TracerSeconds"/> of its flight, at most
     /// <see cref="TracerMaxLength"/> metres, at least <see cref="TracerMinPixels"/> wide.</summary>
     public const float TracerSeconds = 0.03f, TracerMaxLength = 25f, TracerMinPixels = 2.5f;
@@ -158,7 +161,7 @@ public sealed class ProjectileLayer : IMapLayer
                 else
                 {
                     nose = velocity / speed;
-                    if (look.Shape == MunitionShape.Grenade) nose = Tumble(nose, now, seed);
+                    nose = InFlightPose(look.Shape, nose, now, seed);
                 }
                 // the muzzle is unknown on a viewer: a tracer / smoke trail runs back along the flight, capped by its own limits
                 var muzzle = at - (lying ? Vector3.Zero : nose * (look.SmokeTrail ? TrailSpacing * TrailPuffs : TracerMaxLength));
@@ -188,7 +191,7 @@ public sealed class ProjectileLayer : IMapLayer
             else
             {
                 nose = Vector3.Normalize(heading);
-                if (look.Shape == MunitionShape.Grenade) nose = Tumble(nose, now, seed);
+                nose = InFlightPose(look.Shape, nose, now, seed);
             }
             list.Add(new Round(look, at, nose, lying, (round.Warhead & WarheadRound.TimeFuze) != 0 ? round.FuzeRemaining : 0f, round.Muzzle, seed,
                                lying ? 0f : velocity.Length(), e));
@@ -211,12 +214,44 @@ public sealed class ProjectileLayer : IMapLayer
         Vector3 At(float along) => centre + n * (along * length);   // along: −0.5 = tail … +0.5 = nose
         switch (r.Look.Shape)
         {
+            // ⭐ CE-1190 (docs/blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md) — `default:` shares the Grenade lump: a shape
+            //   appended to MunitionShape later is a visible lump until it gets a case of its own, never invisible
             case MunitionShape.Grenade:
+            default:
                 solids.Add(new Solid(At(-0.2f), At(0.2f), radius, radius, false, colour));
                 solids.Add(new Solid(At(-0.2f), default, radius, radius, true, colour));
                 solids.Add(new Solid(At(0.2f), default, radius, radius, true, colour));
                 solids.Add(new Solid(At(0.38f), At(0.5f), radius * 0.35f, radius * 0.35f, false, metal));   // the fuze head
                 break;
+            case MunitionShape.Axe:
+            {
+                // ⭐ CE-1190 — a thin haft with a head at the nose end (a block along the haft + the blade across it); it tumbles end over end
+                //   in flight (InFlightPose), and lies flat (the blade across the ground) on the ground
+                var side = Vector3.Cross(n, Vector3.UnitZ);
+                side = side.LengthSquared() > 1e-6f ? Vector3.Normalize(side) : Vector3.UnitY;
+                var wood = new Color((byte)(colour.R * 1.1f), (byte)(colour.G * 1.1f), (byte)(colour.B * 1.1f), (byte)255);
+                solids.Add(new Solid(At(-0.5f), At(0.38f), radius * 0.3f, radius * 0.3f, false, wood));             // the haft
+                solids.Add(new Solid(At(0.3f), At(0.5f), radius * 0.6f, radius * 0.6f, false, metal));              // the head block
+                solids.Add(new Solid(At(0.4f) - side * (0.2f * length), At(0.4f) + side * (0.2f * length), radius * 0.25f, radius * 0.25f, false, metal)); // the blade
+                break;
+            }
+            case MunitionShape.Spear:
+                // ⭐ CE-1190 — a long shaft, the point along the flight (no tumble); the point is a metal cone at the nose
+                solids.Add(new Solid(At(-0.5f), At(0.4f), radius, radius, false, colour));
+                solids.Add(new Solid(At(0.4f), At(0.5f), radius, radius * 0.1f, false, metal));
+                break;
+            case MunitionShape.Star:
+            {
+                // ⭐ CE-1190 — a small flat star: two crossed thin arms in the horizontal plane (+ a hub) — Nose is the arm direction, which
+                //   InFlightPose spins about the vertical; lying, it rests flat
+                var perp = Vector3.Cross(Vector3.UnitZ, n);
+                perp = perp.LengthSquared() > 1e-6f ? Vector3.Normalize(perp) : Vector3.UnitY;
+                float arm = radius * 0.3f;
+                solids.Add(new Solid(At(-0.5f), At(0.5f), arm, arm, false, colour));
+                solids.Add(new Solid(centre - perp * (0.5f * length), centre + perp * (0.5f * length), arm, arm, false, colour));
+                solids.Add(new Solid(centre, default, radius * 0.45f, radius * 0.45f, true, dark));
+                break;
+            }
             case MunitionShape.Bomb:
                 solids.Add(new Solid(At(0.25f), At(0.5f), radius, radius * 0.25f, false, colour));         // nose
                 solids.Add(new Solid(At(-0.15f), At(0.25f), radius, radius, false, colour));               // body
@@ -418,6 +453,22 @@ public sealed class ProjectileLayer : IMapLayer
             Raylib.EndBlendMode();
             StreamsDrawn++;
         }
+    }
+
+    /// <summary>⭐ CE-1190 — the pose a round's nose takes IN FLIGHT: a grenade and a thrown axe tumble end over end, a throwing star spins flat
+    /// about the vertical (its nose is the direction of one arm), everything else points along its flight.</summary>
+    private static Vector3 InFlightPose(MunitionShape shape, Vector3 flight, double now, int seed) => shape switch
+    {
+        MunitionShape.Grenade or MunitionShape.Axe => Tumble(flight, now, seed),
+        MunitionShape.Star => Spin(now, seed),
+        _ => flight,
+    };
+
+    /// <summary>⭐ CE-1190 — a flat spin: a horizontal direction turning about the vertical at <see cref="SpinTurnsPerSecond"/>.</summary>
+    private static Vector3 Spin(double now, int seed)
+    {
+        float angle = (float)((now * SpinTurnsPerSecond + (seed & 1023) / 1024.0) % 1.0) * MathF.PI * 2f;
+        return new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
     }
 
     /// <summary>A grenade's tumble: its axis turned end over end about the horizontal perpendicular to its flight.</summary>

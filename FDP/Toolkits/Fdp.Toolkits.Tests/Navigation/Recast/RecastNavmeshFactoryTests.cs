@@ -106,6 +106,9 @@ public sealed class RecastNavmeshFactoryTests
         var upstairs = new Vector3(22, 24, 3);
         int n = nav.PlanPath(new Vector3(25, 10, 0), upstairs, wps, (uint)NavLayerMask.Infantry);
         Assert.True(n >= 2, $"no path to the upper storey ({n} waypoints)");
+        // ⭐ CE-1189 — a partial path ends at the goal's x/y AND height when the goal is straight above a reachable floor (Navigation design
+        //   §14 note): the end point alone cannot tell; completeness is the poly path's
+        Assert.True(nav.PathExists(new Vector3(25, 10, 0), upstairs, (uint)NavLayerMask.Infantry), "the path to the upper storey is partial");
         var last = wps[n - 1].Position;
         Assert.InRange(last.Z, 2.6f, 3.4f);                                       // it ENDS on storey 2, not under it
         Assert.InRange(last.X, 21f, 23f);
@@ -476,6 +479,9 @@ public sealed class RecastNavmeshFactoryTests
         var wps = new NavWaypoint[256];
         int n = nav.PlanPath(new Vector3(24.2f, 12, 0), roof, wps, Inf, open);
         Assert.True(n >= 2, $"no path to the roof ({n} waypoints)");
+        // ⚠ a PARTIAL path ends at the goal's x/y clamped onto the last reachable polygon WITH THE GOAL'S OWN HEIGHT (Detour), so a goal straight
+        //   above a reachable floor looks reached by its end point alone — completeness is the poly path's (PathExists)
+        Assert.True(nav.PathExists(new Vector3(24.2f, 12, 0), roof, Inf, open), "the path to the roof is partial");
         var last = wps[n - 1].Position;
         Assert.True(MathF.Abs(last.Z - 6f) < 0.4f && Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(roof.X, roof.Y)) < 0.5f,
             $"the path must END on the roof at {roof}, not short of it — ends at {last}");
@@ -527,7 +533,8 @@ public sealed class RecastNavmeshFactoryTests
             var goal = new Vector3(20 + xyz[0], 20 + xyz[1], xyz[2]);
             int n = nav.PlanPath(start, goal, wps, Inf, open);
             var last = n > 0 ? wps[n - 1].Position : default;
-            if (n < 2 || MathF.Abs(last.Z - goal.Z) > 0.4f || Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(goal.X, goal.Y)) > 0.5f)
+            // ⚠ completeness is the poly path's: a partial path ends at the goal's x/y and height when the goal is straight above a reachable floor
+            if (n < 2 || !nav.PathExists(start, goal, Inf, open) || MathF.Abs(last.Z - goal.Z) > 0.4f || Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(goal.X, goal.Y)) > 0.5f)
                 misses.Add($"{string.Join(' ', parts[..^1])} {goal}: ends at {(n > 0 ? last.ToString() : "nothing")}");
         }
         Assert.True(misses.Count == 0, $"{template}: " + string.Join(" | ", misses));
@@ -567,12 +574,52 @@ public sealed class RecastNavmeshFactoryTests
             var outside = door.Center + outward * 3f;
             int n = nav.PlanPath(new Vector3(outside, door.SillZ), new Vector3(inside, door.SillZ), wps, Inf, open);
             var last = n > 0 ? wps[n - 1].Position : default;
-            if (n < 2 || Vector2.Distance(new Vector2(last.X, last.Y), inside) > 0.5f) misses.Add($"{door.Key} (ends at {last})");
+            if (n < 2 || !nav.PathExists(new Vector3(outside, door.SillZ), new Vector3(inside, door.SillZ), Inf, open)
+                || Vector2.Distance(new Vector2(last.X, last.Y), inside) > 0.5f) misses.Add($"{door.Key} (ends at {last})");
             else entered++;
         }
         Console.WriteLine($"[UI-10] demo-city: {world.Buildings.Count} buildings, {world.Doors.Count} doors; infantry bake {bakeMs} ms; {entered} front doors / gates entered");
         Assert.True(entered >= 130, $"only {entered} quarter front doors were tried");
         Assert.True(misses.Count == 0, $"{misses.Count} quarter buildings not entered from their street: " + string.Join(" | ", misses.Take(12)));
+    }
+
+    /// <summary>
+    /// ⭐ UI-4 (HANDOFF_Behaviors_To_Ui_Platoon_Demos, <c>CE-2290</c>) — <c>cqb-village</c> bakes, and the demos can walk it: every house is entered
+    /// from its street through its front door (3 m outside → 2 m inside, doors open), a path from the attacker assembly area (AA) ends on OBJ's
+    /// roof through its stair house, and one from outside the compound ends in its yard through the west gate.
+    /// </summary>
+    [Fact]
+    public void UI4_CqbVillage_EveryHouseIsEntered_OBJsRoofIsReachedFromTheAssemblyArea_AndTheCompoundByItsGate()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "cqb-village");
+        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "cqb-village.world.geojson")), "cqb-village",
+            TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = null }.Build(world)!;
+        var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, world.Doors.Select(d => (d.Key, TerrainDoorState.Open)).ToArray());
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        var wps = new NavWaypoint[512];
+        var misses = new System.Collections.Generic.List<string>();
+        bool Reaches(Vector3 from, Vector3 to, string what)
+        {
+            int n = nav.PlanPath(from, to, wps, Inf, open);
+            var last = n > 0 ? wps[n - 1].Position : default;
+            // ⚠ completeness is the poly path's (PathExists): a partial path ends at the goal's x/y AND height when the goal is above a reachable floor
+            bool ok = n >= 2 && nav.PathExists(from, to, Inf, open) && MathF.Abs(last.Z - to.Z) < 0.4f && Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(to.X, to.Y)) < 0.5f;
+            if (!ok) misses.Add($"{what} {to}: ends at {(n > 0 ? last.ToString() : "nothing")}");
+            return ok;
+        }
+        foreach (var door in world.Doors.Where(d => d.Key.EndsWith("/front")))
+        {
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EnterableDoorGenerator.TryInside(world, door, 2f, out var inside), $"{door.Key}: no inside");
+            var outside = door.Center + Vector2.Normalize(door.Center - inside) * 3f;
+            Reaches(new Vector3(outside, door.SillZ), new Vector3(inside, door.SillZ), door.Key);
+        }
+        Reaches(new Vector3(120, 10, 0), new Vector3(123, 157, 6), "AA -> OBJ's roof");
+        Reaches(new Vector3(230, 84, 0), new Vector3(265, 95, 0), "outside -> the CMP yard by the west gate");
+        Assert.Equal(7, world.Doors.Count(d => d.Key.EndsWith("/front")));
+        Assert.True(misses.Count == 0, string.Join(" | ", misses));
     }
 
     // ── CE-3111 · CE-1029 · R-218 P2 — the tiled bake (📄 Navigation_Design_v2_0.md §14 "P2 as built") ─────────────────
