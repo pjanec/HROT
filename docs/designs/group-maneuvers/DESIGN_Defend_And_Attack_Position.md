@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 for the user) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 for the user) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
@@ -332,6 +332,60 @@ frame; a man moved to another squad takes the new squad's.
 Rails: `CombatProficiencyTests` (neutral at Regular / none / unregistered — bit-exact; the presets and the line; precedence; the unit
 fill, nearest wins, taken back; the TKB projection under an authored value) · `CombatProficiencyTranslatorTests` (number or tier
 name, only the authored value saved) · `CgfLogicPackTests` (+1 system). Red-proof: the fill writing nothing reddens the fill rail.
+
+### 8b. DA-C in detail — proficiency in the peek-and-fire cycle *(`CE-2274`, behaviors, 2026-10-19)*
+
+**INVENTORY** (grep `ExposeSeconds|ExposuresPerPosition|RoundsPerExposure|BlindRounds` over `Hrot/` `FDP/`: one owner,
+`PeekAndFireNodes` — `Effective` resolves the authored values once per tick, line ~244, and every phase reads that one copy; the
+readers already built in DA-A: `ProficiencyOf.ExposeFactor`, `ReactionDelaySeconds`, `Bursts`, `Tier`; PC-15 (R-2046) sets who switches.
+codebase-memory not connected this session; `check_index_coverage` NOT run.)
+
+```mermaid
+classDiagram
+  direction LR
+  class PeekAndFireNodes { <<EXISTING>> PeekAndFire · Effective · Skilled NEW · Expose }
+  class PeekAndFireParams { <<EXISTING>> ExposeSeconds · RoundsPerExposure · BlindRounds · ExposuresPerPosition }
+  class PeekAndFireState { <<EXISTING, + 3 fields>> Engaged · Reacting · ReactingSince }
+  class ProficiencyOf { <<EXISTING CE-2273, the one reader>> ExposeFactor · ReactionDelaySeconds · Bursts · Tier }
+  class WeaponState { <<EXISTING>> MagazineRounds · MagazineSize }
+  PeekAndFireNodes ..> PeekAndFireParams : Skilled(Effective(authored))
+  PeekAndFireNodes ..> ProficiencyOf
+  PeekAndFireNodes ..> WeaponState : empty the magazine
+  PeekAndFireNodes --> PeekAndFireState
+```
+*What the picture shows that prose hid:* the whole slice is one function between the node's parameter resolution and its phases —
+every timing the cycle uses comes from that one copy, so no phase learns about skill.
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (each tick)
+  participant SK as Skilled
+  participant PO as ProficiencyOf
+  participant EX as Expose phase
+  N->>SK: Effective(authored)
+  SK->>PO: ExposeFactor, Bursts, Tier
+  SK-->>N: exposure x factor, bursts, exposures per position
+  N->>EX: up at the window, the target seen
+  EX->>PO: ReactionDelaySeconds
+  alt a new target and a delay (below Regular)
+    EX->>EX: stay up, no shot until the delay has run
+  else the target he already shot at, or Regular and up
+    EX->>EX: fire the burst now
+  end
+```
+*What the picture shows that prose hid:* the delay is per TARGET, not per exposure — the second time he comes up at the same man he
+fires at once, which is what "reaction to a new contact" means.
+
+| ⭐ decision | as built | rejected — one line each |
+|---|---|---|
+| where | `PeekAndFireNodes.Skilled`, applied to `Effective(authored)` each tick | in each phase: four places to keep in step |
+| exposure | × `ExposeFactor` (1.8 · 1.4 · 1.0 · 0.85 · 0.7) | — |
+| bursts | Militia × 2 (aimed and blind) · Untrained the rounds left in his magazine (its size when empty, 30 without one) | a fixed 30: a pistol has 15 |
+| who switches (PC-15) | Untrained / Militia: never by count (`int.MaxValue`) — heat still burns a spot · Regular as authored (3) · Veteran one sooner · Elite after one | below Regular never moving: a burned window would hold him forever |
+| reaction delay | before the FIRST shot at a NEW target (`Engaged` ≠ it), up and visible meanwhile | before every exposure: the same man twice is not a new contact |
+
+⭐ Neutral at Regular and with no component, exactly (rail). Rails `PeekAndFireNodesTests.CE2274_*` (3, the node's suite).
+⚠ Not here: DA-6's set-back window post for Regular+ (`CE-2275`, the squad defence picks the post).
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

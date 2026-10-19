@@ -146,6 +146,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// 2 = every answered cover point is burned: the unit fires from where it stands meanwhile.</summary>
         public byte Waiting;
         public double WaitingSince;
+        /// <summary>⭐ <c>CE-2274</c> DA-C — the target he has already shot at · the new one he is still reacting to, since when (sim s).</summary>
+        public Entity Engaged, Reacting;
+        public double ReactingSince;
     }
 
     /// <summary>
@@ -220,6 +223,46 @@ namespace Hrot.AI.Behaviors.Brains
             return e;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2274</c> DA-C (DA-2, PC-15; 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8b) — the cycle's
+        /// timings by the man's proficiency (<see cref="ProficiencyOf"/>, the one reader): exposure × <c>ExposeFactor</c>; bursts — Militia
+        /// doubles them, Untrained empties the magazine; who switches — Untrained / Militia never leave a position by count (they stay at
+        /// the sill), Veteran one exposure sooner, Elite after one. ⭐ EXACTLY the given values at Regular and with no component.
+        /// </summary>
+        public static PeekAndFireParams Skilled(in PeekAndFireParams p, EntityRepository world, Entity self)
+        {
+            var s = p;
+            s.ExposeSeconds = p.ExposeSeconds * ProficiencyOf.ExposeFactor(world, self);
+            switch (ProficiencyOf.Bursts(world, self))
+            {
+                case BurstDiscipline.LongBursts:
+                    s.RoundsPerExposure = p.RoundsPerExposure * 2;
+                    s.BlindRounds = p.BlindRounds * 2;
+                    break;
+                case BurstDiscipline.EmptyTheMagazine:
+                    int magazine = MagazineOf(world, self);
+                    s.RoundsPerExposure = Math.Max(p.RoundsPerExposure, magazine);
+                    s.BlindRounds = Math.Max(p.BlindRounds, magazine);
+                    break;
+            }
+            s.ExposuresPerPosition = ProficiencyOf.Tier(world, self) switch
+            {
+                ProficiencyTier.Untrained or ProficiencyTier.Militia => int.MaxValue,   // PC-15: stays at the sill (heat still burns a spot)
+                ProficiencyTier.Veteran => Math.Max(1, p.ExposuresPerPosition - 1),
+                ProficiencyTier.Elite => 1,
+                _ => p.ExposuresPerPosition,
+            };
+            return s;
+        }
+
+        /// <summary>The rounds left in his magazine (its size when empty, 30 with no magazine) — what "empties the magazine" fires.</summary>
+        private static int MagazineOf(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<WeaponState>(self)) return 30;
+            ref readonly var w = ref world.GetComponentRO<WeaponState>(self);
+            return w.MagazineSize <= 0 ? 30 : w.MagazineRounds > 0 ? w.MagazineRounds : w.MagazineSize;
+        }
+
         /// <summary>B2–B5's numbers out of the node's parameters.</summary>
         public static HeatRules Rules(in PeekAndFireParams p) => new()
         {
@@ -241,7 +284,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus PeekAndFire(ref PeekAndFireParams authored, ref PeekAndFireState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<LocomotionChannel>(self) || !world.HasComponent<WeaponChannel>(self)) return NodeStatus.Failure;
-            var p = Effective(in authored);
+            var p = Skilled(Effective(in authored), world, self);   // ⭐ CE-2274 DA-C — the timings by his proficiency
             double now = Now(world);
 
             var was = new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint);
@@ -506,6 +549,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (!target.IsNull && SightNow.Sees(world, self, target))
             {
                 ws.LastSeenAt = now;
+                // ⭐ CE-2274 DA-C — a NEW target: below Regular he takes his reaction delay before the first shot, staying up meanwhile
+                float delay = ProficiencyOf.ReactionDelaySeconds(world, self);
+                if (delay > 0f && !target.Equals(ws.Engaged))
+                {
+                    if (!target.Equals(ws.Reacting)) { ws.Reacting = target; ws.ReactingSince = now; }
+                    if (now - ws.ReactingSince < delay) return;
+                }
+                ws.Engaged = target;
                 ws.Fire = default;   // a fresh aimed action each exposure (B7's count starts at 0)
                 // ⭐ CE-3158 G4 — the target is LOCKED for the exposure: the one whose sight was just checked is the one shot at
                 PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds, p.RoundsPerExposure, target);
