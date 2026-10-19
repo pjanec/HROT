@@ -1805,7 +1805,8 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "not yet at the posts");
-            foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
+            // ⭐ D-2d (DA-44) — "at his post" is within its radius (his room): 3 m off the point, fighting between its points, he mans it
+            foreach (var m in s.Members) s.Teleport(m, given[m].Objective + new Vector3(3f, 0f, 0f));
             s.Tick(); s.Tick();
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "every man at his post ⇒ PROGRESS Set");
         }

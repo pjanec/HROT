@@ -560,7 +560,7 @@ sequenceDiagram
 
 ⚠ **Not built here:** PC-14's other half — the hide point inside his `EngagementArea.Allow` (an `Allow` tests TARGETS; a shooter's point
 inside it is a new reader) — the anchor keeps him at his arc's origin meanwhile. ⚠ The posture's **advance** branch (flank, firing position)
-can still take a posted man out of his building — ⛔ not measured; the live demo answers it.
+could still take a posted man off his post — ✅ measured live and closed by **D-2d** below.
 
 #### D-2b — the set-back post, by the squad's tier *(DA-6, DA-16; behaviors, 2026-10-19)*
 
@@ -651,6 +651,41 @@ one flanker never makes him dither.
 | **DA-43** | what a flanked defender does | DA-21's `ContactOutsideSector` **counted in the play** (DA-38's precedent, replaced by the sensor when `CE-2283` lands): a **seen** hostile pooled contact within **50 m** of his post, outside his arc ⇒ he displaces to **his alternate** (DA-21's reader) and **his arc faces the contact** there (DA-4: "supplementary posts face" a new axis) — no alternate ⇒ he turns where he is; once per contact (its id); PROGRESS `Displacing` | only the alternate (DA-21's words alone): the alternate faces the EA too, so he would move and still may not shoot the man beside him · only the arc turn: a man flanked at his post stays in the flanker's sights · a HEARD contact: anonymous, its id unstable — a turn per sound would dither (it waits for the sensor) |
 
 *As built (2026-10-19):* `SquadDefendPlay.Flanked` beside `Displace`, `DefencePosts.Faces` / `FaceBearing` / `Flanker`, the arc read through one `ArcOf` (so the order and the check agree). Rail `CE2275_SquadDefend_AFlankedManTakesHisAlternate_FacingTheFlanker_OncePerContact`: too far (85 m) and in front (25 m) turn nobody; the same flanker working round behind again turns nobody twice.
+
+#### D-2d — his approach moves stay on his post too *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first, live** (`sq-defend-house`): every man reached his post (0–0.4 m at 2.5 s), and by 5 s — no Blue in the sector yet — they
+stood **3–7 m off it**, later up to 9 m. The utility trace of a drifted man: his posture's winner was **AdvanceAndAttack (1.08)** against Hold
+(0.38), TakeCover 0 — the posted man was not hiding, he was **approaching**: the approach decision's firing-position / flank move
+(`EqsTacticsNodes.Run`, `FindOpenFiringPosition` 40 m round him) walked him away. D-2a anchored only the take-cover branch. Because the men
+never stood within 1.5 m of their posts together, PROGRESS `Set` never fired either.
+
+```mermaid
+sequenceDiagram
+  participant M as the man (CombatPosture, stay, a post)
+  participant A as his approach move (Flank · FiringPosition · CloseToThrow)
+  participant S as its EQS sensor (centred on him)
+  M->>A: the decision advances, the approach picks a move
+  A->>S: ask (unchanged — the sensor is shared and centres on Self)
+  S-->>A: the ranked answer
+  A->>A: TryNewAnswer: the best-ranked point within 4 m of his post
+  alt one is on his post
+    A->>M: MoveTo there, firing on the move
+  else none
+    A->>M: no move — aimed fire from where he stands
+  end
+```
+*What the picture shows that prose hid:* the anchor is the SAME one D-2a put on the hide (`PickHide`), applied at the one place each approach
+move takes its point (`TryNewAnswer`) — the sensor, the decision and the branch are untouched, so a posted man still flanks or finds a better
+firing spot, inside his room; and with nothing there he still fights (before, a move with no answer stood silent).
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-44** | how a posted man's approach moves stay on his post | `EqsTacticsParams` gets `Anchor` + `AnchorRadius` (D-2a's shape on `PeekAndFireParams`); `CombatPostureBehavior.Post` sets them on **Flank, Firing and Throw** from the order's post (4 m); `TryNewAnswer` takes the best-ranked point inside it, none ⇒ no move and **he fires from where he stands**. **Flee is free** (breaking is morale, not repositioning). PROGRESS `Set` counts a man within **the post radius** (his room), not 1.5 m of its point — his fight moves him between its points | remove the advance branch for a posted man: he loses the throw and the flank inside his own building, and the decision layer has no "posted" input · lower the advance score when posted: a utility tweak every posture user would feel, and a high enough threat still wins it · move him back to the point after each fight move: a dither between two points |
+
+*As built (2026-10-19):* `EqsTacticsParams.Anchor/AnchorRadius` · `EqsTacticsNodes.TryNewAnswer(…, in p, …)` · `FireOnTheMove` fires for a
+posted man with no move · `CombatPostureBehavior.Post(…, ref CombatPostureBlackboard)` · `SquadDefendPlay.Manned` reads `PostRadius`
+(`MannedMetres` retired). Rail `TacticsTreesTests.CE2275_APostedMansFlank_StaysOnHisPost_AndNothingOnItMeansHeFightsWhereHeStands`.
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and

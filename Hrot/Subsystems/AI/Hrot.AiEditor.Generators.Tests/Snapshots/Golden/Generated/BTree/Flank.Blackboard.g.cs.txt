@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 36)]
+[StructLayout(LayoutKind.Explicit, Size = 52)]
 public struct Flank_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams tactics;
-    [FieldOffset(32)]
+    [FieldOffset(48)]
     public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
 }
 

@@ -20,7 +20,7 @@ public static class FiringPosition
             {
                 seq.Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@0@162327491",
                     visualId: new Guid("c2108000-0000-0000-0000-000000000103"));
-                seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@32@246215586",
+                seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@48@246215586",
                     visualId: new Guid("c2108000-0000-0000-0000-000000000104"));
             },
                 visualId: new Guid("c2108000-0000-0000-0000-000000000102"));

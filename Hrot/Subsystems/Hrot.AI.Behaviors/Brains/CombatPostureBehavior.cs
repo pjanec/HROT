@@ -92,7 +92,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
             block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
-            Post(in authored.Post, ref block.Peek);   // ⭐ CE-2275 D-2a (PC-14)
+            Post(in authored.Post, ref block);   // ⭐ CE-2275 D-2a / D-2d (PC-14) — his hide points and his approach moves stay on his post
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -129,6 +129,17 @@ namespace Hrot.AI.Behaviors.Brains
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;
             peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
+        }
+
+        /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a posted man's approach moves (flank, firing position, close to throw) stay on his post
+        /// too: measured live (<c>sq-defend-house</c>), his posture chose AdvanceAndAttack and its firing-position move took him 5–7 m off it.
+        /// ⛔ Not the retreat (Flee): breaking is morale, not repositioning.</summary>
+        internal static void Post(in CombatPosturePostJsonDto post, ref CombatPostureBlackboard block)
+        {
+            Post(in post, ref block.Peek);
+            if (post.Radius <= 0f) return;
+            block.Flank.Anchor = block.Firing.Anchor = block.Throw.Anchor = post.Point;
+            block.Flank.AnchorRadius = block.Firing.AnchorRadius = block.Throw.AnchorRadius = post.Radius;
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs

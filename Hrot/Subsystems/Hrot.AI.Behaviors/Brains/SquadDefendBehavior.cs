@@ -200,8 +200,6 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MoveTimeoutSeconds = 90f;
         /// <summary>A post query unanswered this long is given up (s): the men left without a post hold where they are.</summary>
         public const float AskTimeoutSeconds = 5f;
-        /// <summary>A man this close to his post is manned (m).</summary>
-        public const float MannedMetres = 1.5f;
         /// <summary>DA-38 — this many rounds at a man within <see cref="UntenableSeconds"/> ⇒ his alternate post.</summary>
         public const int UntenableHits = 3;
         public const float UntenableSeconds = 10f;
@@ -390,14 +388,15 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        /// <summary>Every live man with a post is at it ⇒ PROGRESS Set, once.</summary>
+        /// <summary>Every live man with a post is at it ⇒ PROGRESS Set, once. ⭐ D-2d — "at it" is within <see cref="PostRadius"/>: the post is
+        /// the man's room (D-2a), and his fight moves him between its points.</summary>
         private static unsafe void Manned(ref SquadDefendParams p, in SquadPlayContext ctx)
         {
             if (p.Posts.ReportedSet != 0) return;
             for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
             {
                 if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
-                if (Vector3.Distance(ctx.At(m), p.Posts.Point(p.Posts.PostOf[i])) > MannedMetres) return;
+                if (Vector3.Distance(ctx.At(m), p.Posts.Point(p.Posts.PostOf[i])) > PostRadius) return;
             }
             p.Posts.ReportedSet = 1;
             Report(in ctx, p.Position, ProgressKind.Set);

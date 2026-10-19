@@ -60,14 +60,14 @@ public static class FiringPositionRegistrar
                     return global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@32@246215586",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@48@246215586",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)32));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)48));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 246215586;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -105,13 +105,13 @@ public static class FiringPositionRegistrar
                     global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Deactivate_FiringPosition(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@32@246215586",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@48@246215586",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)32));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)48));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 246215586;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -148,7 +148,7 @@ public static class FiringPositionRegistrar
                 }
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EngageParams>("{\"CooldownSeconds\":1}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 32, __v);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __v);
                 }
             }
             __bakeDefaults = __BakeDefaults;
@@ -169,11 +169,11 @@ public static class FiringPositionRegistrar
             Group        = "Library/Tactics",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 8951572453834992612UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 11933901969916543516UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("tactics", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 0),
-                new("engage", typeof(global::Hrot.AI.Behaviors.Brains.EngageParams), 32),
+                new("engage", typeof(global::Hrot.AI.Behaviors.Brains.EngageParams), 48),
             },
             JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.FiringPosition_Block),

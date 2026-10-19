@@ -114,6 +114,15 @@ namespace Hrot.SimHost.Tests
                 Repo.SetComponent(sensor, buf);
             }
 
+            /// <summary>⭐ CE-2275 D-2d — an answer of several points, best first.</summary>
+            public void AnswerPoints(Entity sensor, uint tick, params (float X, float Y)[] points)
+            {
+                var buf = new EqsCognitiveBuffer { Count = points.Length, LastUpdateTick = tick };
+                for (int i = 0; i < points.Length; i++)
+                    buf.GetSpanRW()[i] = new EqsResult { PositionX = points[i].X, PositionY = points[i].Y, Score = 1f - 0.1f * i };
+                Repo.SetComponent(sensor, buf);
+            }
+
             /// <summary>⭐ CE-2073 — a contact remembered FRESH (tracked to saturation), armed or not.</summary>
             public unsafe Entity Contact(bool armed)
             {
@@ -411,6 +420,48 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());
             Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());  // straight on to the objective
             Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        private const string PostedObjective = "{\"advance\":{\"Objective\":[0,0,0],\"Speed\":3,\"ArrivalRadius\":1,\"CooldownSeconds\":1},\"stay\":true,"
+                                             + "\"post\":{\"point\":[0,0,0],\"radius\":4,\"window\":false}}";
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2d (PC-14, DA-44) — a POSTED man's flank stays on his post: of a flank answer whose best point is 50 m off
+        /// it and whose second is inside it, he takes the second; an answer with nothing on his post moves him nowhere and he fights
+        /// from where he stands. 🔴 Red before: measured live (<c>sq-defend-house</c>) the approach moves took posted men 5–7 m off.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedMansFlank_StaysOnHisPost_AndNothingOnItMeansHeFightsWhereHeStands()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: false);                       // a weak enemy ⇒ AdvanceAndAttack; NOT in sight
+            w.Order("CombatPosture", PostedObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);   // a good flank exists
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
+            var flank = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite);
+            Assert.False(flank.IsNull, "the Flank manoeuvre runs");
+
+            w.AnswerPoints(flank, 6, (30f, 40f), (3f, 1f));            // best 50 m off his post, second inside it
+            w.Tick();
+            Assert.Equal(new Vector3(3f, 1f, 0f), w.Destination());     // ⭐ the best point ON his post
+
+            var w2 = new World();
+            w2.Arm();
+            w2.Contact(armed: false);
+            w2.Order("CombatPosture", PostedObjective);
+            for (int i = 0; i < 4; i++) w2.Tick();
+            w2.Answer(EqsChildSensor.Find(w2.Repo, w2.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
+            for (int i = 0; i < 3; i++) w2.Tick();
+            var flank2 = EqsChildSensor.Find(w2.Repo, w2.Unit, EqsTacticsNodes.FlankSite);
+            Assert.False(flank2.IsNull, "the Flank manoeuvre runs");
+            w2.AnswerPoints(flank2, 6, (30f, 40f), (12f, 9f));         // nothing on his post
+            for (int i = 0; i < 3; i++) w2.Tick();
+            Assert.NotEqual(new Vector3(30f, 40f, 0f), w2.Destination());
+            Assert.NotEqual(new Vector3(12f, 9f, 0f), w2.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w2.Repo.GetComponentRO<WeaponChannel>(w2.Unit).ActiveAction);   // … he fights
         }
 
         /// <summary>

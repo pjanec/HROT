@@ -20,7 +20,7 @@ public static class Flank
             {
                 seq.Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@0@1740004031",
                     visualId: new Guid("c2108000-0000-0000-0000-000000000003"));
-                seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@32@1689671174",
+                seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@48@1689671174",
                     visualId: new Guid("c2108000-0000-0000-0000-000000000004"));
             },
                 visualId: new Guid("c2108000-0000-0000-0000-000000000002"));
