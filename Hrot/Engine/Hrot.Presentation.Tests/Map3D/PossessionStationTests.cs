@@ -323,6 +323,52 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1217 (docs/DESIGN_Entity_Control.md §8k C-1, C-2) — the compass reads the view's heading (0 north, clockwise) and shows ±60°
+    /// with the eight points named; the names over heads are his side's, within 50 m, named, alive — nearest first, his own men marked.
+    /// </summary>
+    [Fact]
+    public void CE1217_TheCompassReadsTheHeading_AndTheNamesAreHisSidesWithin50m()
+    {
+        Assert.Equal(90f, FpsCompass.Heading(new Vector3(1f, 0f, -0.3f)), 3);                   // east, looking a little down
+        Assert.Equal(0f, FpsCompass.Heading(new Vector3(0f, 1f, 0f)), 3);
+        Assert.Equal(270f, FpsCompass.Heading(new Vector3(-1f, 0f, 0f)), 3);
+        var ticks = FpsCompass.Ticks(0f).ToList();
+        Assert.Equal(9, ticks.Count);                                                           // −60 … 60, every 15
+        Assert.Equal((0f, "N"), (ticks.Single(t => t.Degrees == 0).At, ticks.Single(t => t.Degrees == 0).Label));
+        Assert.Equal((0.75f, "NE"), (ticks.Single(t => t.Degrees == 45).At, ticks.Single(t => t.Degrees == 45).Label));
+        Assert.Equal((-0.75f, "NW"), (ticks.Single(t => t.Degrees == 315).At, ticks.Single(t => t.Degrees == 315).Label));
+        Assert.Equal("", ticks.Single(t => t.Degrees == 15).Label);
+
+        var (w, me, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<EntityInfo>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(me, new EntityInfo { Name = new FixedString64("Me"), ForceId = ForceId.Friend });
+            Entity Man(string name, ForceId side, float east, Entity commander = default)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(100f + east, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new EntityInfo { Name = new FixedString64(name), ForceId = side });
+                if (!commander.IsNull) w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                return m;
+            }
+            var buddy = Man("Buddy", ForceId.Friend, 20f);
+            var mine = Man("Mine", ForceId.Friend, 8f, me);
+            Man("Far", ForceId.Friend, 80f);
+            Man("Enemy", ForceId.Hostile, 10f);
+            Man("", ForceId.Friend, 12f);
+            var dead = Man("Dead", ForceId.Friend, 5f);
+            w.AddComponent(dead, new Health { Current = 0f, Max = 100f });
+            var friends = FriendMarks.Of(w, me, new Vector3(100f, 50f, 1.7f));
+            Assert.Equal(new[] { "Mine", "Buddy" }, friends.Select(f => f.Name));
+            Assert.Equal(new[] { true, false }, friends.Select(f => f.Mine));
+            w.SetComponent(me, new EntityInfo { Name = new FixedString64("Me"), ForceId = ForceId.Neutral });
+            Assert.Empty(FriendMarks.Of(w, me, new Vector3(100f, 50f, 1.7f)));                  // a civilian marks nobody
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1216 (docs/DESIGN_Entity_Control.md §8k S-1, S-2, S-3) — the spread ring is the sim's own σ for the selected weapon at the
     /// view's scale (doubling when he moves, narrower in a zoom); a round cracking past him darkens the edges, fading in 0.4 s; his own
     /// shot kicks the view up and it settles, while his look (the frame's aim) never moves.

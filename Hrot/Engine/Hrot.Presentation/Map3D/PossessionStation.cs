@@ -330,6 +330,8 @@ namespace Hrot.UI.Common.Map3D
             DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
             var font = HudText.Font();
+            DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
+            DrawCompass(camera, font, cx);  // ⭐ CE-1217 (§8k C-1)
             // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
             foreach (var use in _driver.UseLines(w))
@@ -393,6 +395,41 @@ namespace Hrot.UI.Common.Map3D
                 float thick = HitArcThickness(hit.Damage);
                 Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
                                 new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
+            }
+        }
+
+        /// <summary>⭐ <c>CE-1217</c> (§8k C-1) — the compass strip at the top: ±60° of heading, a tick every 15°, the eight points named, the
+        /// heading's number in a box in the middle; every scheme (the flyer's HDG line stays).</summary>
+        private static void DrawCompass(MapCamera3D camera, Font? font, int cx)
+        {
+            float heading = FpsCompass.Heading(camera.Forward);
+            int half = (int)MathF.Min(camera.Viewport.X * 0.3f, 360f), top = 12, height = 30;
+            Raylib.DrawRectangle(cx - half - 8, top - 4, 2 * half + 16, height + 8, new Color(0, 0, 0, 110));
+            foreach (var (at, degrees, label) in FpsCompass.Ticks(heading))
+            {
+                int x = cx + (int)(at * half);
+                bool major = label.Length > 0;
+                Raylib.DrawLine(x, top, x, top + (major ? 10 : 6), new Color(255, 255, 255, major ? 230 : 150));
+                if (major) HudText.Draw(font, label, x - (int)HudText.Measure(font, label) / 2, top + 10, Color.White);
+            }
+            string mid = ((int)MathF.Round(heading) % 360).ToString("000");
+            int mw = (int)HudText.Measure(font, mid);
+            Raylib.DrawRectangle(cx - mw / 2 - 4, top + height + 2, mw + 8, HudLineHeight, new Color(0, 0, 0, 150));
+            HudText.Draw(font, mid, cx - mw / 2, top + height + 4, Color.Gold);
+        }
+
+        /// <summary>⭐ <c>CE-1217</c> (§8k C-2) — the names of his side's units within 50 m over their heads (the top of the drawn body, else
+        /// a man's 1.9 m), small and green — his own men brighter.</summary>
+        private void DrawFriends(EntityRepository w, MapCamera3D camera, Font? font)
+        {
+            var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
+            foreach (var friend in FriendMarks.Of(w, _driver!.Unit, camera.Eye))
+            {
+                float top = map != null && map.TryGetNetworkId(friend.Unit, out long id) && Bodies?.TopAbove(id) is { } t ? t : 1.9f;
+                if (!OnScreen(camera, friend.At + new Vector3(0f, 0f, top + 0.1f), out var screen)) continue;
+                int tw = (int)HudText.Measure(font, friend.Name);
+                HudText.Draw(font, friend.Name, (int)screen.X - tw / 2, (int)screen.Y - HudFontSize,
+                             friend.Mine ? new Color(140, 255, 140, 255) : new Color(90, 200, 90, 210));
             }
         }
 

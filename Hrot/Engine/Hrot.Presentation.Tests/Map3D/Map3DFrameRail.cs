@@ -1282,7 +1282,13 @@ public sealed class Map3DFrameRail
         var feedback = Hrot.UI.Common.Effects.HitFeedback.In(world);
         feedback.Record(me, down, new Vector3(stand.X + 1f, stand.Y, 0f), new Vector3(1f, 0f, 0f), 30f, now);
         feedback.Record(Entity.Null, me, new Vector3(stand.X, stand.Y, 1.2f), new Vector3(1f, 1f, 0f), 40f, now);
-        Shot("fps-hit-feedback.png", new FrameInput(), 1002L);
+        // ⭐ CE-1217 (§8k C-1, C-2) — the compass strip at the top, and the friend's name over him (both of his side)
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        world.AddComponent(me, new EntityInfo { Name = new FixedString64("Rifleman Novak"), ForceId = ForceId.Friend });
+        world.AddComponent(down, new EntityInfo { Name = new FixedString64("Pvt. Dvorak"), ForceId = ForceId.Friend });
+        var buddy = Man(stand + new Vector2(7f, 1.5f), 100f, 1004L, StanceId.Standing);   // a friend standing ahead: his name over his head
+        world.AddComponent(buddy, new EntityInfo { Name = new FixedString64("Cpl. Svoboda"), ForceId = ForceId.Friend });
+        Shot("fps-hit-feedback.png", new FrameInput { MouseDelta = new Vector2(0f, -90f) }, 1002L);   // look up to the standing friend
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
