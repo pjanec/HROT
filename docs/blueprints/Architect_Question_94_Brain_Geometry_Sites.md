@@ -251,7 +251,9 @@ M4, A6, CE2173 ×2, CE2180, IF1 ×2; `ActionStatusTests.Masked_IsAHold`; spend-a
 `CountermeasureSystemTests:135`, `StarterPackIntegrationTests:694`, `AimAndFireExecutorTests:855`. ⚠ `BS-1-DESIGN.md` §5.4c ("one
 counter, the brain's, as for every round") stays true — the counter is the brain's — but its spend MOMENT changes; fold on build.
 
-### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; A-5 indirect, A-6 bomb, A-7 battery plan NOT YET)*
+### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED — R-3022)*
+
+⏸ **A-5…A-7 DEFERRED (R-3022).** 🔒 User, `2026-10-19`: *"yes, postpone them and start CE-2304 and the points C,B,D, leaving A-5…A-7 deferred until destruction is designed or until suitable opportunity comes"*. Why it is safe: the brain's terrain is the muscle's today — every host runs the same load steps (`HrotUniversalLoadParts.cs:27`), static obstacles bake on every node (`EntityCreationPack.cs:111-116`), breached doors replicate, and no wall or building destruction exists (only the hook `BuildingLayout.Invalidate`, `BuildingLayout.cs:388`). The muscle flies an arc round and a bomb exactly as the brain decided (`FireProcessingSystem.cs:202-213, 241-257`) and answers every request, so the ledger holds for them. Residual windows: a shot while this node's terrain still loads (the brain solves terrain-free) and the obstacle-bake debounce. ⭐ **Trigger to resume:** destruction designed, or a Stride / production muscle owning world state the brain does not mirror — or a suitable opportunity (work in `FireAtPointExecutor` / `IndirectFireBehaviors` anyway).
 
 ```mermaid
 classDiagram
