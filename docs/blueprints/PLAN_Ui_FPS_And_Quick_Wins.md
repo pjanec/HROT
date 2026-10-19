@@ -97,3 +97,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 17 | ✅ the compass strip (every scheme) and his side's names within 50 m over their heads, his own men brighter; Presentation 789 / 0 |
 | `2026-10-19` | 18 | ✅ M: the 2-D map centred on him (he holds still, still possessed), M again back to his eyes; Presentation 790 / 0 |
 | `2026-10-19` | 19 | ✅ hold B: the binoculars (raised by his brain, refused without them), 10° view when up, the range, LMB designates for his men; cross-lane: `OperatorControlBehavior` + the frame byte through the wire; Presentation 791 / 0, SimHost 1689 / 0 |
+| `2026-10-19` | 20 | ✅ when he falls: the view stays and fades, "KILLED - by <name>", Tab a squad mate / K a kill cam / Esc the map; DOWN dims the view; Presentation 793 / 0. **#16–#20 done.** |

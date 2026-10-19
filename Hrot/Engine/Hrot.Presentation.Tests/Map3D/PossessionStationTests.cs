@@ -323,6 +323,92 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1220 (docs/DESIGN_Entity_Control.md §8k K-1) — killed while held: the 3-D view stays (no cut to the map), the fall screen names
+    /// who hit him last; a release just after a hit waits a moment for the death to arrive; K runs a kill cam from the shooter's eye, Tab
+    /// takes a squad mate (one possession), Esc goes back to the map as it was.
+    /// </summary>
+    [Fact]
+    public void CE1220_KilledWhileHeld_TheViewStays_NamesTheShooter_KShowsHim_TabTakesASquadMate_EscTheMap()
+    {
+        var (w, me, map) = World();
+        using (w)
+        {
+            w.RegisterComponent<EntityInfo>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.RegisterEvent<PossessRequestEvent>();
+            w.RegisterEvent<ReleasePossessionEvent>();
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var leader = w.CreateEntity();
+            w.AddComponent(leader, new SimTransform { Position = new Vector3(90f, 50f, 0f), Rotation = Quaternion.Identity });
+            map.Register(700, leader);
+            w.AddComponent(me, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = leader });
+            var sniper = w.CreateEntity();
+            w.AddComponent(sniper, new SimTransform { Position = new Vector3(400f, 50f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(sniper, new EntityInfo { Name = new FixedString64("Sniper Bob"), ForceId = ForceId.Hostile });
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(station.InFps);
+
+            Hrot.UI.Common.Effects.HitFeedback.In(w).Record(sniper, me, new Vector3(100f, 50f, 1.2f), new Vector3(-1f, 0f, 0f), 90f,
+                                                           Fdp.Toolkit.Time.SimClock.Of(w).TotalTime);
+            w.RemoveComponent<PossessedBy>(me);                                               // the release arrives first …
+            station.Update(0.016f);
+            Assert.True(station.InFps);                                                       // … just after a hit: wait for the death
+            w.SetComponent(me, new Health { Current = 0f, Max = 100f });                       // … and here it is
+            station.Update(0.016f);
+            var fall = Assert.IsType<FallScreen>(sw.Camera3D.Driver);
+            Assert.Same(fall, station.Fall);
+            Assert.False(station.InFps);
+            Assert.True(sw.Is3D);                                                             // no cut to the map
+            Assert.Equal(sniper, fall.Killer);
+            Assert.Equal("Sniper Bob", fall.KillerName(w));
+
+            var k = new Input();
+            k.Pressed.Add((int)Raylib_cs.KeyboardKey.K);
+            sw.Camera3D.HandleInput(k);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(fall.KillCamOn(station.Clock));
+            Assert.InRange(Vector3.Distance(sw.Camera3D.Eye, new Vector3(400f, 50f, FallScreen.KillCamEyeHeight)), 0f, 0.5f);
+            Assert.True(sw.Camera3D.Forward.X < -0.9f, "the kill cam looks back at the body");
+
+            var tab = new Input();
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            sw.Camera3D.HandleInput(tab);
+            w.Bus.SwapBuffers();
+            Assert.Equal(leader, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);   // his squad: the leader
+
+            var esc = new Input();
+            esc.Pressed.Add((int)Raylib_cs.KeyboardKey.Escape);
+            sw.Camera3D.HandleInput(esc);
+            Assert.Null(station.Fall);
+            Assert.Null(sw.Camera3D.Driver);
+            Assert.False(sw.Is3D);                                                            // the map as he had it (2-D here)
+        }
+    }
+
+    /// <summary>⭐ CE-1220 (§8k K-1) — a plain release (Esc, a take-over) with no hit on him leaves at once, as before.</summary>
+    [Fact]
+    public void CE1220_APlainRelease_LeavesAtOnce_NoFallScreen()
+    {
+        var (w, me, _) = World();
+        using (w)
+        {
+            w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            w.RemoveComponent<PossessedBy>(me);
+            station.Update(0.016f);
+            Assert.False(station.InFps);
+            Assert.Null(station.Fall);
+            Assert.Null(sw.Camera3D.Driver);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1219 (docs/DESIGN_Entity_Control.md §8k B-1) — B held asks for the binoculars in the frame; the view narrows to their 10° only
     /// once the sim has them UP; then LMB designates (his men's MapPoint, or Target under the crosshair) instead of firing; a man who carries
     /// none is told so.

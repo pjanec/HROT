@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
@@ -99,9 +100,19 @@ namespace Hrot.UI.Common.Map3D
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
             if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
             if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();   // ⭐ CE-1218
-            if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave(restore: !handing);
+            if (_driver != null && (held.IsNull || held != _driver.Unit))
+            {
+                // ⭐ CE-1220 (§8k K-1) — released because he FELL: the fall screen holds the view; a release just after a hit waits a
+                //   moment for his death to arrive (the release and the health may replicate in either order)
+                var gone = _driver.Unit;
+                if (held.IsNull && w is not null && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, gone)) BeginFall(w, gone);
+                else if (held.IsNull && w is not null && !handing && JustHit(w, gone) && WaitingForDeath()) { /* keep the view a moment */ }
+                else Leave(restore: !handing);
+            }
+            else _releasedAt = -1f;
             if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
-            if (_driver == null && _softLeft && !handing) RestoreView();   // a hand-over that came to nothing
+            if (_driver == null && _softLeft && !handing && Fall == null) RestoreView();   // a hand-over that came to nothing
+            if (Fall != null && w is not null) Fall.Step(w, dt);
         }
 
         /// <summary>
@@ -248,6 +259,8 @@ namespace Hrot.UI.Common.Map3D
 
         private void Enter(EntityRepository w, Entity unit)
         {
+            Fall = null;   // ⭐ CE-1220 — a squad mate taken from the fall screen
+            _releasedAt = -1f;
             HeldHere(w, out long netId);
             if (!_softLeft)
             {
@@ -318,6 +331,7 @@ namespace Hrot.UI.Common.Map3D
         /// ⭐ CE-1078 — plus a bracket on the locked target and a ring where the gun points, so the operator sees the turret catch up.</summary>
         public void DrawOverlay(RenderContext ctx)
         {
+            if (Fall != null && _world() is { } fw) { DrawFall(fw); return; }   // ⭐ CE-1220 (§8k K-1)
             if (_driver == null || _world() is not { } w) return;
             if (MapPeek) { DrawPeekHint(); return; }   // ⭐ CE-1218 (§8k M-1) — the 2-D map, not his view
             var camera = _view.Camera3D;
@@ -334,6 +348,7 @@ namespace Hrot.UI.Common.Map3D
             if (!_driver.BinocularsUp) DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through binoculars
             else DrawBinoculars(camera, cx, cy);                             // ⭐ CE-1219 (§8k B-1)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
+            DrawDown(w, camera);                  // ⭐ CE-1220 (§8k K-1)
             var font = HudText.Font();
             DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
             DrawCompass(camera, font, cx);  // ⭐ CE-1217 (§8k C-1)
@@ -416,6 +431,92 @@ namespace Hrot.UI.Common.Map3D
             int tw = (int)HudText.Measure(font, range);
             Raylib.DrawRectangle(cx - tw / 2 - 6, cy + 40, tw + 12, HudLineHeight, new Color(0, 0, 0, 160));
             HudText.Draw(font, range, cx - tw / 2, cy + 42, Color.Gold);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — how long the fall screen fades to its colour (s), how long a kill cam runs (s), and how long a
+        /// release just after a hit waits for the death (s).</summary>
+        public const float FallFadeSeconds = 1f, KillCamSeconds = 3f, FallGraceSeconds = 0.5f;
+        private float _releasedAt = -1f;
+
+        /// <summary>⭐ <c>CE-1220</c> — the world this station reads (the fall screen's camera reads it too).</summary>
+        internal EntityRepository? World => _world();
+
+        /// <summary>⭐ <c>CE-1220</c> — the fall screen while one is up (he was killed while held), else null.</summary>
+        public FallScreen? Fall { get; private set; }
+
+        /// <summary>⭐ <c>CE-1220</c> — true for <see cref="FallGraceSeconds"/> after the release was first seen.</summary>
+        private bool WaitingForDeath()
+        {
+            if (_releasedAt < 0f) _releasedAt = Clock;
+            return Clock - _releasedAt < FallGraceSeconds;
+        }
+
+        private static bool JustHit(EntityRepository w, Entity unit)
+            => Hrot.UI.Common.Effects.HitFeedback.Of(w) is { } fb
+               && fb.Recent(Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, 1.0).Any(h => h.Target == unit);
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — he fell while held: drop the first-person driver but keep the 3-D view (the fall screen's
+        /// camera holds it); who hit him is the last shooter <c>HitFeedback</c> saw on him.</summary>
+        private void BeginFall(EntityRepository w, Entity dead)
+        {
+            var feedback = Hrot.UI.Common.Effects.HitFeedback.Of(w);
+            var killer = Entity.Null;
+            if (feedback != null)
+                foreach (var hit in feedback.Recent(Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, Hrot.UI.Common.Effects.HitFeedback.KeepSeconds))
+                    if (hit.Target == dead && !hit.Shooter.IsNull) killer = hit.Shooter;
+            Leave(restore: false);
+            Fall = new FallScreen(this, dead, killer, Clock);
+            _view.Camera3D.Driver = Fall;
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — Esc on the fall screen: the map as the operator had it before he took the man.</summary>
+        internal void EndFall()
+        {
+            Fall = null;
+            _view.Camera3D.Driver = null;
+            RestoreView();
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — Tab on the fall screen: the first living man of the fallen man's squad (his leader, the men naming that
+        /// leader, his own men — <see cref="SquadRoster"/>); nothing when none is left.</summary>
+        internal void FallToSquadMate()
+        {
+            if (Fall == null || _world() is not { } w) return;
+            var roster = SquadRoster.Of(w, Fall.Dead);
+            if (roster.Count > 0) SwitchTo(roster[0].Unit);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> — the fall screen's shade and lines (and the kill cam's label).</summary>
+        private void DrawFall(EntityRepository w)
+        {
+            var size = _view.Camera3D.Viewport;
+            var font = HudText.Font();
+            var fall = Fall!;
+            bool cam = fall.KillCamOn(Clock);
+            float fade = Math.Clamp((Clock - fall.Since) / FallFadeSeconds, 0f, 1f);
+            Raylib.DrawRectangle(0, 0, (int)size.X, (int)size.Y, new Color(70, 0, 0, (int)((cam ? 60 : 170) * fade)));
+            if (fade < 1f && !cam) return;
+            string head = cam ? $"KILL CAM - {fall.KillerName(w)}" : $"KILLED - by {fall.KillerName(w)}";
+            var options = new List<string>();
+            if (SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("Tab  a squad mate");
+            if (fall.CanKillCam(w)) options.Add("K  who hit you");
+            options.Add("Esc  the map");
+            string opts = string.Join("     ", options);
+            int hw = (int)HudText.Measure(font, head), ow = (int)HudText.Measure(font, opts);
+            int cy = cam ? 60 : (int)size.Y / 2 - HudLineHeight;
+            HudText.Draw(font, head, (int)size.X / 2 - hw / 2, cy, cam ? Color.Gold : new Color(255, 120, 120, 255));
+            HudText.Draw(font, opts, (int)size.X / 2 - ow / 2, cy + HudLineHeight + 8, Color.White);
+        }
+
+        /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — a possessed man knocked DOWN (alive, <c>Effects.IsKnockedDown</c>): the view dims, "DOWN".</summary>
+        private void DrawDown(EntityRepository w, MapCamera3D camera)
+        {
+            if (!Fdp.Toolkit.Combat.Effects.IsKnockedDown(w, _driver!.Unit)) return;
+            var size = camera.Viewport;
+            Raylib.DrawRectangle(0, 0, (int)size.X, (int)size.Y, new Color(0, 0, 0, 120));
+            var font = HudText.Font();
+            const string down = "DOWN";
+            HudText.Draw(font, down, (int)size.X / 2 - (int)HudText.Measure(font, down) / 2, (int)size.Y / 3, new Color(255, 170, 60, 255));
         }
 
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — how far the 2-D map's camera stands off him when it opens (m): a few hundred metres across.</summary>
