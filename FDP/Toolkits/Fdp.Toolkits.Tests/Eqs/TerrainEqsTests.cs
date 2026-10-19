@@ -454,6 +454,36 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2j (DA-16, DA-50) — a set-back pass MARKS what it did: House A's east window, moved 2 m back, carries §4.2 bit 8
+        /// <c>IsSetBack</c>; a window 1 m in front of the west wall (no room behind it at either depth) stays at the sill with the bit
+        /// meaningful and UNSET; a plain window pass marks nothing. What lets a Veteran squad keep only real set-back posts.
+        /// ✅ Red-proof: the flag written for every point ⇒ the shallow window reads as set back.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_AndLeavesTheShallowOneUnmarked()
+        {
+            var (w, pts) = HouseA();
+            var east = Assert.Single(pts, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f);
+            var shallow = east with { PositionX = 101f, DirectionX = 1f, DirectionY = 0f };   // backs onto the west wall at x 100
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[] { east, shallow }));
+            var sensor = new EqsSensor { SearchRadius = 20f, ContextSlot0 = At(105f, 104f) };
+            var c = new EqsResult[8];
+
+            int n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = 2f }.Generate(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(2, n);
+            var moved = c[..n].Single(r => MathF.Abs(r.PositionX - (east.PositionX - 2f)) < 0.05f);   // 📐 109.1 → 107.1, 2 m back
+            var stayed = c[..n].Single(r => MathF.Abs(r.PositionX - 101f) < 0.05f);
+            Assert.NotEqual(0, moved.Flags & CoverPointsGenerator.FlagSetBack);
+            Assert.NotEqual(0, stayed.FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+            Assert.Equal(0, stayed.Flags & CoverPointsGenerator.FlagSetBack);
+
+            n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c);
+            for (int i = 0; i < n; i++) Assert.Equal(0, c[i].FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2275</c> D-2b — <c>FindWindowSetBackPosition</c> upstairs in House A (the acceptance of
         /// <see cref="CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey"/>, set back): every answer is a
         /// window position ≥ 1.5 m back from every sill point, on his storey, and still sees the target from its stance's eye.

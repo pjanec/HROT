@@ -1999,6 +1999,50 @@ namespace Hrot.SimHost.Tests
             Assert.True(DefendQuery(plain, SquadDefendPlay.FanSite).IsNull, "no automatic weapon: no fan");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2j (DA-16 "Veteran: set-back posts everywhere", DA-50) — a VETERAN squad keeps only the window points its
+        /// set-back pass really moved back (§4.2 bit 8 <c>IsSetBack</c>): a window whose room was too shallow is no post, and the man left
+        /// without one takes a cover post; a Regular squad keeps both kinds. ✅ Red-proofs: the filter dropped ⇒ the Veteran squad mans the
+        /// shallow windows; the tier read as Regular+ instead of Veteran+ ⇒ the Regular squad drops them too.
+        /// </summary>
+        [Theory]
+        [InlineData(ProficiencyOf.Veteran, 2)]
+        [InlineData(ProficiencyOf.Regular, 4)]
+        public void CE2275_D2j_AVeteranSquad_TakesOnlyRealSetBackWindows(float tier, int windowPosts)
+        {
+            var s = new Squad(members: 4);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new CombatProficiency { Authored = tier, Set = CombatProficiency.AuthoredSet });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowSetBackPosts.BlueprintId, s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
+            const short bit = Fdp.Toolkit.Spatial.Eqs.CoverPointsGenerator.FlagSetBack;
+            var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = 4, LastUpdateTick = 7 };
+            var span = buf.GetSpanRW();
+            span[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 2, PositionY = 25, Score = 1.0f, Flags = bit, FlagsMeaningful = bit };
+            span[1] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 6, PositionY = 25, Score = 0.9f, Flags = 0, FlagsMeaningful = bit };    // shallow: at the sill
+            span[2] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 10, PositionY = 25, Score = 0.8f, Flags = bit, FlagsMeaningful = bit };
+            span[3] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 14, PositionY = 25, Score = 0.7f, Flags = 0, FlagsMeaningful = bit };   // shallow
+            s.Orders.Clear();   // with every man on a window the posts go out on the next ticks
+            s.Repo.SetComponent(ask, buf);
+            s.Tick(); s.Tick();
+            if (windowPosts < 4) { AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite)); s.Tick(); s.Tick(); }   // men are left: the roof is asked (empty)
+            var cover = DefendQuery(s, SquadDefendPlay.CoverSite);
+            if (windowPosts < 4) AnswerAll(s, cover, new Vector3(4, 30, 0), new Vector3(12, 30, 0));
+            else Assert.True(cover.IsNull, "every man holds a window post: no cover ask");
+            s.Tick(); s.Tick();
+            var windows = s.Members.Select(m => PostureOf(s, m)).Where(d => d.Post.Window).Select(d => d.Post.Point.X).OrderBy(x => x).ToArray();
+            Assert.Equal(windowPosts, windows.Length);
+            if (windowPosts == 2) Assert.Equal(new[] { 2f, 10f }, windows);   // only the windows really set back
+        }
+
         /// <summary>The squad defending at (6, 20) with its sector north, ordered with <paramref name="postsJson"/> (an authored Posts array).</summary>
         private static Squad DefendingWithPosts(string postsJson)
         {

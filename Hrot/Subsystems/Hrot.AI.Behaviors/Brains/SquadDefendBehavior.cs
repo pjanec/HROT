@@ -97,6 +97,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte AuthoredPlaced;
         /// <summary>⭐ D-2b (DA-6, DA-42) — 1 = the window posts are SET BACK in the room (the squad's median man is Regular or better).</summary>
         public byte SetBack;
+        /// <summary>⭐ D-2j (DA-16, DA-50) — 1 = ONLY set-back window posts (Veteran or better): a window whose room is too shallow is no post.</summary>
+        public byte SetBackOnly;
         /// <summary>Per roster slot: the candidate he holds, or <see cref="None"/>.</summary>
         public fixed byte PostOf[Capacity];
         /// <summary>Per roster slot: rounds at him counted since <see cref="WindowStart"/>.</summary>
@@ -392,7 +394,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Posts.WindowStage == 0)
                 {
                     p.Posts.WindowStage = 1; p.Posts.StageSince = ctx.Now;
-                    p.Posts.SetBack = SetsBack(in ctx) ? (byte)1 : (byte)0;   // ⭐ D-2b (DA-42) — once, by the squad's median man
+                    var tier = MedianTier(in ctx);   // ⭐ D-2b (DA-42) — once, by the squad's median man
+                    p.Posts.SetBack = tier >= ProficiencyTier.Regular ? (byte)1 : (byte)0;
+                    p.Posts.SetBackOnly = tier >= ProficiencyTier.Veteran ? (byte)1 : (byte)0;   // ⭐ D-2j (DA-16) — "set-back posts everywhere"
                 }
                 bool back = p.Posts.SetBack != 0;
                 bool answered = hasEa
@@ -494,14 +498,15 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
-        /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man is Regular or better ⇒ its window posts are set back.</summary>
-        private static bool SetsBack(in SquadPlayContext ctx)
+        /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man's tier: Regular or better ⇒ its window posts are set back,
+        /// ⭐ D-2j Veteran or better ⇒ ONLY set-back ones.</summary>
+        private static ProficiencyTier MedianTier(in SquadPlayContext ctx)
         {
             Span<Entity> men = stackalloc Entity[DefencePosts.Capacity];
             int n = 0;
             for (int i = 0; i < ctx.Roster.Count && n < men.Length; i++)
                 if (ctx.Live(i, out var m)) men[n++] = m;
-            return ProficiencyOf.MedianTier(ctx.World, men[..n]) >= ProficiencyTier.Regular;
+            return ProficiencyOf.MedianTier(ctx.World, men[..n]);
         }
 
         /// <summary>True once the ask is over: its points kept (append), or it timed out (the sensor goes).</summary>
@@ -515,7 +520,12 @@ namespace Hrot.AI.Behaviors.Brains
             }
             var points = buffer.GetSpanRO();
             for (int k = 0; k < buffer.Count && k < points.Length; k++)
+            {
+                // ⭐ D-2j (DA-16, DA-50) — a Veteran squad keeps only the windows its set-back pass really moved back from the sill
+                if (window && p.Posts.SetBackOnly != 0 && (points[k].FlagsMeaningful & CoverPointsGenerator.FlagSetBack) != 0
+                    && (points[k].Flags & CoverPointsGenerator.FlagSetBack) == 0) continue;
                 p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ), window, roof);
+            }
             return true;
         }
 

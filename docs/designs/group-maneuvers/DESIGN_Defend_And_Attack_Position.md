@@ -620,8 +620,8 @@ sequenceDiagram
 down to him crosses the sill — so the post ask answers the ground-floor windows for a close EA; at 84 m the upstairs set-back posts see.
 ⇒ a set-back defence gives up the near ground below its upper windows, as DA-6's narrower arc says; the LOS filter already makes that choice.
 
-⚠ **Not built here:** DA-16's "Veteran: set-back posts everywhere" vs Regular — both set back where the room allows (the sill fallback is the
-only difference that exists today) · DA-6's observation by a lean at the frame (BR-5) · the narrower view's effect on being SEEN needs
+⚠ **Not built here:** DA-16's "Veteran: set-back posts everywhere" vs Regular — ✅ built in **D-2j** below (DA-50) · ⛔ SUPERSEDED: "both set
+back where the room allows (the sill fallback is the only difference that exists today)" · DA-6's observation by a lean at the frame (BR-5) · the narrower view's effect on being SEEN needs
 DA-3 (backend `CE-3260`, built) — not measured live yet.
 
 #### D-2c — flanked: a contact close beside or behind a posted man *(DA-21 `ContactOutsideSector`, DA-4; behaviors, 2026-10-19)*
@@ -868,6 +868,38 @@ from whatever threatens him most.
 *As built (2026-10-19):* `PeekAndFireNodes.PostedAim` + `SectorAimId`, called from `KeepSensors` (both the cover and the step-peek sensor).
 Rail `PeekAndFireNodesTests.CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt` (outside ⇒ the sector point, and
 the node's own cover sensor is aimed there; inside, unposted, or self-defence ⇒ the threat).
+
+
+#### D-2j — a Veteran squad takes only real set-back windows *(DA-16 "Veteran: set-back posts everywhere"; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the set-back pass (`TerrainCoverProvider.SetBack`, D-2b) tries 2 m, then 1.5 m, then **leaves the point at the
+sill** — and nothing in the answer says which happened, so a Regular and a Veteran squad got the same posts. `EqsResult.Flags` crosses
+the wire unchanged (SimHost egress `Flags`/`FlagsMeaningful` → `EqsResultUpdateSystem` on the brain), and EQS §4.2 reserves bits 8–15.
+
+```mermaid
+sequenceDiagram
+  participant G as CoverPointsGenerator (set-back pass, SimHost)
+  participant W as the wire (EqsResult Flags)
+  participant P as SquadDefendPlay.Settle (brain)
+  G->>G: SetBack(window) — moved ≥ 0.1 m from the sill?
+  G->>W: FlagsMeaningful bit 8 on every point · Flags bit 8 only when it moved
+  W->>P: the window answer, flags intact
+  alt the squad's median man is Veteran or better (SetBackOnly)
+    P->>P: drop a window point whose bit 8 is meaningful and unset
+  else Regular
+    P->>P: keep it (set back where the room allows, else the sill)
+  end
+```
+*What the picture shows that prose hid:* the muscle already knew whether each window fit a set-back; the answer simply had no field for it.
+One bit carries it, and the tier rule stays on the brain where every other tier rule is.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-50** | what "Veteran: set-back posts everywhere" changes | §4.2 bit 8 **`IsSetBack`** (`CoverPointsGenerator.FlagSetBack`), written by every set-back pass (meaningful on each point; set when the point really moved back); a squad whose median live man is **Veteran or better** (`DefencePosts.SetBackOnly`) drops the window points left at the sill — a too-shallow room is no post, and the man goes to the roof or cover asks instead. Regular keeps the sill fallback | a strict template per variant (`…SetBackStrict`): three more templates for one bit of the same pass · re-deriving "did it move" on the brain from the sill points: the brain never reads geometry (R-2037) · Veteran's own hide ask filtered too: deferred — his post is already a real set-back point, and his hide ask is anchored to it |
+
+*As built (2026-10-19):* `CoverPointsGenerator.FlagSetBack` (bit 8, recorded in EQS §4.2) · `DefencePosts.SetBackOnly` · `SquadDefendPlay.MedianTier`
+(was `SetsBack`) · `Settle` drops unmarked window points for `SetBackOnly`. Rails `TerrainEqsTests.CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_*`,
+`SquadManeuverTests.CE2275_D2j_AVeteranSquad_TakesOnlyRealSetBackWindows` (Veteran 2 window posts, Regular 4).
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and

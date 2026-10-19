@@ -34,6 +34,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// roof out of the candidate cap.</summary>
         public const int RoofRawPoints = 256;
 
+        /// <summary>⭐ <c>CE-2275</c> D-2j (DA-16, DA-50) — §4.2 bit 8 <c>IsSetBack</c>: a window point a set-back pass really moved back from
+        /// the sill (meaningful on every point of a set-back pass; unset = the room was too shallow and the point stayed at the sill).</summary>
+        public const short FlagSetBack = 1 << 8;
+
         [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _vehicleScratch;
 
         /// <inheritdoc/>
@@ -66,7 +70,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 var at = new Vector3(rawPoints[i].PositionX, rawPoints[i].PositionY, rawPoints[i].PositionZ);
                 if (RoofOnly && (roofWorld == null || !OnRoof(roofWorld, at))) continue;   // ⭐ D-2g
                 if (hull && !Sized(world, ref at, new Vector2(rawPoints[i].DirectionX, rawPoints[i].DirectionY), hullLength, hullWidth, hullHeight)) continue;
-                if (terrain != null) at = TerrainCoverProvider.SetBack(terrain, in rawPoints[i], SetBackMetres, MinSetBackMetres);   // ⭐ D-2b
+                short flags = 0, meaningful = 0;
+                if (terrain != null)
+                {
+                    var sill = at;
+                    at = TerrainCoverProvider.SetBack(terrain, in rawPoints[i], SetBackMetres, MinSetBackMetres);   // ⭐ D-2b
+                    meaningful = FlagSetBack;   // ⭐ D-2j — whether it moved is part of the answer
+                    if (Vector3.Distance(sill, at) > 0.1f) flags = FlagSetBack;
+                }
                 // EntityId = 0 marks a positional candidate (no entity attached).
                 candidates[rawCount++] = new EqsResult
                 {
@@ -80,6 +91,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     Stance    = EqsResult.EncodeStance(StanceOf(rawPoints[i].StanceHeight)),
                     // ⭐ CE-3158 G1 — and what the point IS (a cover, a window to fire from): the peek is chosen from the point
                     Kind      = EqsResult.EncodeKind(rawPoints[i].Kind),
+                    Flags     = flags,
+                    FlagsMeaningful = meaningful,
                     // ⛔ SUPERSEDED (§19): Flags = StanceHeight — it wrote stance into the §4.2 flag bits 0–1 (HasLOSToContext).
                 };
             }
