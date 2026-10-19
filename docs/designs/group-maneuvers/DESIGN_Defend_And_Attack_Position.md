@@ -387,6 +387,118 @@ fires at once, which is what "reaction to a new contact" means.
 ⭐ Neutral at Regular and with no component, exactly (rail). Rails `PeekAndFireNodesTests.CE2274_*` (3, the node's suite).
 ⚠ Not here: DA-6's set-back window post for Regular+ (`CE-2275`, the squad defence picks the post).
 
+### 8c. DA-D in detail — `SquadDefend`, the squad holds a position *(`CE-2275`, behaviors, 2026-10-19 — slice D-1 designed here; D-2 below)*
+
+**INVENTORY** *(2026-10-19 — one read-only sweep agent, grep + every hit opened; the codebase-memory CLI was reachable (`home-user-HROT`) but
+not used for this sweep, `check_index_coverage` not run — so "does not exist" below means "not found by text search")*:
+
+| need | exists | where | ⇒ |
+|---|---|---|---|
+| a squad play | ✅ 14 `ISquadPlay`s on one runner; the closest is `SquadHoldPlay` (one element, every man `Hold`, ends on time or all-clear) | `SquadManeuverRunner.cs:320-341`; `SquadContactBehaviors.cs:34-104` | ⭐ a 15th play, the hold's shape |
+| the terrain from a play | ✅ `AskTerrainAll` — one-shot child EQS sensor on the commander, solved on SimHost, **≤ 16 ranked points**, not the same frame, dropped after its answer; a point in slot 1 (`ContextPoint1`) | `SquadManeuverRunner.cs:686-731`; `EqsComponents.cs:89` | ⭐ the posts' road; the answer carries position, score, stance, kind, **no facing** |
+| window posts | ✅ `CoverPointsGenerator { Kind = WindowFiring }` — one point per window on **every storey**, 0.75 m in from the inside face, at the lowest stance that clears the sill; `FindWindowFiringPosition` keeps those that see a target | `CoverPointsGenerator.cs:12-80`; `StarterTemplates.cs:32`; `TerrainCoverProvider.cs:122-182` | ⭐ reuse the generator; ⛔ no set-back variant (DA-6 ⇒ D-2) |
+| outside posts | ✅ `FindCoverFromTarget` (cover points hidden from a target or a point) | `Spatial/Eqs/FindCoverFromTarget.cs:13` | ⭐ the second ask |
+| picking one point per man | ✅ `SquadCover.Pick` — spacing **2-D** (`PickSpacingMetres` 2 m) | `SquadCover.cs:96-120` | ⚠ two storeys of one window column share XY ⇒ the defence picks in **3-D** |
+| the engagement area | ✅ the squad commander's own `EngagementArea` Allow (an arc or an area entity) — set by the operator's *Set sector* (`CE-2149`) or a platoon; `EngagementAreas.AllowsUnit(view, commander, point)`; a man may CHOOSE a target inside his commander's Allow (Militia+), self-defence excepted | `EngagementArea.cs:36-200` | ⭐ the EA is read, never stamped by the play |
+| fire control | ✅ `SetRoeEvent` (3104, origin-gated) through the chain (`RoeOf`, `CE-2289`); ⛔ **no withdraw**: a field once set stays set; ⛔ **no play sets ROE** today | `SetRoeEvent.cs:13`; `RoeSystem.cs:49-66`; `Roe.cs:104-130` | ⇒ DA-35 |
+| the trigger / displace sensors | ⛔ `ContactInEngagementArea`, `ContactOutsideSector`, `PositionUntenable` do not exist (the enum ends at `ReportReceived` 19); `RecentSenses` keeps the LAST time per kind, no count | `SensorChangedEvent.cs:12-73`; `RecentSenses.cs:78-140` | ⇒ the play counts near misses itself (DA-38) |
+| reports | ✅ `ReportQueue.Enqueue` (the play's own PROGRESS: `Set`, `Displacing`, `FallingBack` exist) | `ReportQueue.cs:14`; `CommandReports.cs:32-51` | ⭐ reuse |
+| the defend order | ⚠ `DefendArea` {centre lat/lon, radius} ⇒ `CombatPosture` for a soldier (by TKB type); nothing for a squad | `DefendAreaMapper.cs:45-87`; `DefendAreaIntentDto.cs:16-28` | ⭐ a unit with a roster ⇒ `SquadDefend` |
+| authored fighting positions | ⛔ none in the scenario format | — | DA-5's authored post stays open (D-2) |
+| `house-3f` (roof storey, stair house, parapet) | ✅ built by ui | `CE-1182`; `Recipes/Buildings/house-3f.building.json` | the demo's house |
+
+**Design docs checked:** [Platoon §5–§6a, §12.2](DESIGN_Platoon_Attack_Defend_Clear.md) — ✅ applies: the play's phases, its PROGRESS, `sq-defend-house` · §4.2 / DA-4…DA-7 above — ✅ applies, D-1 builds the squad half · §13a (DA-24) — ✅ the squad sector is the EA, `MemberArc` per man · `DESIGN_Operations_Behaviour_Catalogue.md` §4 `OccupyPost` — a catalogue row, no mechanism · `.dev/` — searched, no record.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendBehavior { <<NEW library behaviour, Commander>> Resolve · BuildTree · Run }
+  class SquadDefendParams { <<NEW>> Position · SearchRadius · Speed · DefencePosts Posts }
+  class DefencePosts { <<NEW memory in the params>> 16 points · post per man · alternate per man · near-miss count and last time per man · Manned reported }
+  class SquadDefendPlay { <<NEW ISquadPlay>> Move · Post · Hold }
+  class DefencePostPicker { <<NEW pure>> Pick(answers, men) 3-D spacing · Alternate(man) }
+  class FindDefensiveWindowPosts { <<NEW EQS template>> WindowFiring points that see the EA point }
+  class FindCoverFromTarget { <<EXISTING EQS>> }
+  class CoverPointsGenerator { <<EXISTING>> }
+  class SquadManeuverRunner { <<EXISTING>> AskTerrainAll · Issue · Sector }
+  class MemberArc { <<EXISTING CE-2302>> }
+  class EngagementAreas { <<EXISTING>> AllowsUnit · the commander's Allow }
+  class ReportQueue { <<EXISTING>> PROGRESS Set · Displacing }
+  class DefendAreaMapper { <<EXISTING, + 1 arm>> a unit with a roster ⇒ SquadDefend }
+  SquadDefendBehavior ..> SquadDefendPlay : SquadManeuverRunner.Tick
+  class ISquadPlay { <<EXISTING>> }
+  SquadDefendPlay ..|> ISquadPlay
+  SquadDefendParams *-- DefencePosts
+  SquadDefendPlay ..> SquadManeuverRunner : AskTerrainAll, twice
+  SquadManeuverRunner ..> FindDefensiveWindowPosts
+  SquadManeuverRunner ..> FindCoverFromTarget
+  FindDefensiveWindowPosts ..> CoverPointsGenerator : Kind WindowFiring
+  SquadDefendPlay ..> DefencePostPicker
+  SquadDefendPlay ..> EngagementAreas : the EA point and the arcs
+  SquadDefendPlay ..> MemberArc : one per member order
+  SquadDefendPlay ..> ReportQueue
+  DefendAreaMapper ..> SquadDefendBehavior
+```
+*What the picture shows that prose hid:* the play owns **no new mechanism** — posts come from the EQS road plays already use, the men's
+sectors from `MemberArc`, hold fire from the squad's own sector, reports from the queue. The new parts are a template, a pure picker and the
+play's memory; the picker is pure so the 3-D spacing and the alternate rule are railed without a world.
+
+```mermaid
+sequenceDiagram
+  participant OP as operator or platoon
+  participant P as SquadDefendPlay (squad commander's brain)
+  participant EQS as EQS on SimHost
+  participant R as SquadManeuverRunner
+  participant M as members (CombatPosture, stay)
+  OP->>P: SquadDefend {position, radius} (the squad's sector set before, or none)
+  P->>R: Move: AdvanceTo the position (skipped when the squad is already there)
+  P->>EQS: AskTerrainAll(FindDefensiveWindowPosts, from a man at the position, at the EA point)
+  EQS-->>P: ≤ 16 window points (every storey)
+  P->>EQS: only if men are left without a post: AskTerrainAll(FindCoverFromTarget, at the EA point)
+  EQS-->>P: cover points
+  P->>P: DefencePostPicker: a post per man (3-D spacing, best score), the rest = alternates
+  P->>R: Post: each man Watch at his post + MemberArc toward the EA
+  R->>M: CombatPosture(stay) + SetEngagementAreaEvent (Superior)
+  M-->>P: all within 1.5 m of their posts
+  P->>P: PROGRESS Set, once
+  loop Hold (until the next order)
+    M-->>P: his RecentSenses NearMiss / Hit time moved (the play counts it)
+    P->>R: 3 within 10 s: his alternate post, PROGRESS Displacing
+  end
+  Note over M: fire: each man chooses only inside the squad's sector (Militia+, self-defence excepted) — the hold-fire, DA-35
+```
+
+```mermaid
+graph TD
+  BT[BrainTickSystem, the squad commander's brain node] -->|ticks| SDB[SquadDefend BTree: one stateful action]
+  SDB --> RUN[SquadManeuverRunner.Tick]
+  RUN --> PLAY[SquadDefendPlay]
+  PLAY -->|child sensor| EQSS[EqsSolverSystem on the Perception node]
+  RUN -->|AssignTacticalIntentEvent Superior| MEN[members' brains: CombatPosture]
+  RUN -->|SetEngagementAreaEvent| EAS[EngagementAreaSystem on each man's brain node]
+  MAP[DefendAreaMapper, the ingress] -->|DefendArea on a squad| SDB
+  classDef new fill:#ffd,stroke:#aa0
+  SDB:::new
+  PLAY:::new
+```
+*Caption:* nothing new runs per frame outside the commander's own tick — the play is reached only through the runner, and the posts are
+solved where every EQS query is. ⚠ The near-miss count reads each man's `RecentSenses` on the COMMANDER's node: true where the squad's
+brains share a node (the CGF norm); ⛔ not measured for a squad split across nodes.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-34** | where D-1's posts come from | **two asks in turn**: `FindDefensiveWindowPosts` (window points within `SearchRadius` of the position that see the EA point) — then, only for men still without a post, `FindCoverFromTarget` at the EA point (walls, sandbags, berms, and the roof parapet if it yields cover points — ⛔ measure in the build). One post per man by score with **3-D** spacing ≥ 2.5 m; the unused points are the alternates | three templates (`FindBuildingPosts` / `FindRoofPosts` / `FindDefensivePosts`, DA-5's names) at once: the same generator twice under three names before any user needs the difference · the BuildingSurvey's windows: a standing sensor for what one EQS ask already answers; it returns with the set-back (D-2) |
+| **DA-35** | hold fire in D-1 | ⭐ **the squad's sector IS the hold-fire**: a man chooses only a target inside his commander's Allow (Militia+, `CE-2282`), self-defence excepted — the ambush effect with no ROE change. ⇒ D-1 sets **no ROE**; the coordinated `HoldFire` → `FireAtWill` lift across squads stays the **platoon's** (DA-E, PC-6 `SetSquadRoe`). ⚠ **Revises §6a of the Platoon design** (*"SquadDefend alone lifts its own hold-fire"*) — **asked of the user** | the play publishing `SetRoeEvent` on its commander: `SetRoeEvent` has **no withdraw**, and a task CLEAR runs no play `Release` (DA-32, measured) ⇒ a cleared defence would leave the squad on `HoldFire` for good · per-man ROE: the same, ×9 |
+| **DA-36** | the EA | the squad commander's own Allow (an operator's *Set sector*, a platoon's `SquadSector`); its point for the asks = the area's position, or the arc's middle at half its range. **None ⇒ all-round**: the window ask without a target (every window within the radius), arcs outward, no hold | an EA in the order: a second place a sector lives, and a squad sector is an area entity by DA-24 |
+| **DA-37** | each man's arc | `MemberArc` from his post: centred on the bearing to the EA point, ±45°; all-round ⇒ centred on the bearing position → post, ±60° | splitting the EA between men by bearing (DA-24's `ForMembers`): needs `SectorPlanner`, which D-1 does not — it returns with roles (DA-K) |
+| **DA-38** | displace | the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
+| **DA-39** | the order | a new library behaviour **`SquadDefend`** {Position, SearchRadius 30 m, Speed}; `DefendArea` on a unit with a roster ⇒ `SquadDefend` at the area's centre (radius ⇒ `SearchRadius`); runs until the next order; Failure when no man is alive | a `Defend` preset of `SquadHold`: the hold has no posts and no memory |
+
+**Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
+**D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
+the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
+scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-house` live + its twin (needs D-2's roof check).
+
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
 | demo | cast | must end with |
