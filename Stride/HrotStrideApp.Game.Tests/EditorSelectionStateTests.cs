@@ -246,7 +246,7 @@ public sealed class EditorSelectionStateTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = 1001L, // CivilianPedestrian
+            TkbType            = 1101L, // CivilianAdultMale (⭐ CE-3220 part 2: 1001 retired)
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = new System.Numerics.Vector3(0f, 5f, 0f) },

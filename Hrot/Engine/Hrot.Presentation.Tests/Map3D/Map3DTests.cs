@@ -369,7 +369,7 @@ public sealed class Map3DTests
     [InlineData(TkbEntityTypes.Truck_HMMWV, VisualFamily.WheeledUtility)]
     [InlineData(UrbanCombatTkbCatalog.TkbCivilianCar, VisualFamily.WheeledCar)]
     [InlineData(TkbEntityTypes.Infantry_Rifleman, VisualFamily.Person)]
-    [InlineData(UrbanCombatTkbCatalog.TkbCivilianPedestrian, VisualFamily.Person)]
+    [InlineData(CivilianTkbCatalog.TkbCivilianAdultMale, VisualFamily.Person)]
     [InlineData(TkbEntityTypes.Unit_TankPlatoon, VisualFamily.Unit)]
     public void S1_BuiltInTypes_MapToTheirKit(long type, VisualFamily expected)
         => Assert.Equal(expected, VisualFamilies.Of(BuiltIn().GetByType(type)));
@@ -379,7 +379,7 @@ public sealed class Map3DTests
     {
         var db = BuiltIn();
         Assert.True(EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Infantry_Rifleman)).Soldier);
-        Assert.False(EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian)).Soldier);
+        Assert.False(EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale)).Soldier);
         Assert.Equal(BlockFigure.Parts(StanceId.Standing, false).Length + 1, BlockFigure.Parts(StanceId.Standing, true).Length);
     }
 
@@ -1378,12 +1378,12 @@ public sealed class Map3DTests
     public void CE1099_TheChildType_IsASmallPerson_DrawnAsAChild()
     {
         var db = BuiltIn();
-        var child = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianChild));
+        var child = EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianChild));
         Assert.Equal(VisualFamily.Person, child.Family);
         Assert.True(child.Child);
         Assert.False(child.Soldier);
         Assert.InRange(child.Size.Z, 1.2f, 1.3f);
-        var grown = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian));
+        var grown = EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale));
         Assert.False(grown.Child);
         Assert.False(grown.TypeColoured);   // ⇒ his clothes come from the everyday palette, not the family green
     }

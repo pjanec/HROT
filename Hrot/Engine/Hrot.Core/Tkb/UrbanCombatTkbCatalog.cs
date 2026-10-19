@@ -8,8 +8,9 @@ using Fdp.Toolkit.Tkb.Domain;
 namespace Hrot.Core.Tkb
 {
     /// <summary>
-    /// The ONE shared source of the UrbanCombat TKB templates (types 1001-2003):
-    /// CivilianPedestrian, CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent, and (⭐ CE-1032) Grenadier and MortarTeam.
+    /// The ONE shared source of the UrbanCombat TKB templates (types 1002-2007):
+    /// CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent, and (⭐ CE-1032) Grenadier and MortarTeam. ⛔ The pedestrian (1001) and child
+    /// (1003) are retired (CE-3220 part 2): people are the civilian family, <see cref="CivilianTkbCatalog"/>.
     ///
     /// <para><b>Why this lives in Hrot.Core.</b> These templates used to live in
     /// <c>Fdp.Examples.Scenarios</c>, an assembly referenced by exactly TWO production projects
@@ -39,12 +40,9 @@ namespace Hrot.Core.Tkb
     {
         // ── TKB type codes — PUBLIC because UrbanCombatNewScenario's spawn calls need them, and
         //    this class is now the single source of them. ─────────────────────────────────────────
-        /// <summary>TKB type code for the CivilianPedestrian template.</summary>
-        public const int TkbCivilianPedestrian = 1001;
+        // ⛔ CE-3220 part 2 — 1001 (CivilianPedestrian) and 1003 (CivilianChild) are retired, never reused: see CivilianTkbCatalog.
         /// <summary>TKB type code for the CivilianCar template.</summary>
         public const int TkbCivilianCar        = 1002;
-        /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-3) — TKB type code for the CivilianChild template.</summary>
-        public const int TkbCivilianChild      = 1003;
         /// <summary>⭐ AQ93 §12 T1 — the TRAFFIC car block 1050–1059 (SUMO drives these; kept clear of the sequential run): a hatchback.</summary>
         public const int TkbTrafficHatchback   = 1050;
         /// <summary>⭐ AQ93 T1 — a delivery van.</summary>
@@ -67,6 +65,9 @@ namespace Hrot.Core.Tkb
         public const int TkbJavelinTeam        = 2006;
         /// <summary>⭐ M5 — an anti-tank gunner with NLAWs (fire-and-forget, short range) and a rifle.</summary>
         public const int TkbNlawGunner         = 2007;
+        /// <summary>⭐ <c>CE-3220</c> part 2 (Civilians §7.2b) — an UNARMED FIGHTER: an Infantry-class person (3.1.*.1, a combatant by STATUS —
+        /// AW-21) with no weapon and no brain. The stand-in the retired 1001 used to play by accident (an unclassed LandPerson), now explicit.</summary>
+        public const int TkbUnarmedFighter     = 2008;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         internal const float CivilianVisionRange  = 30f;
@@ -136,7 +137,7 @@ namespace Hrot.Core.Tkb
         private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
 
         /// <summary>
-        /// Registers all the UrbanCombat entity blueprints (1001–2007) into <paramref name="tkb"/>.
+        /// Registers all the UrbanCombat entity blueprints (1002–2007) into <paramref name="tkb"/>.
         ///
         /// <para>⚠ <c>TkbDatabase.Register</c> THROWS on a duplicate name or type, so call this exactly
         /// once per database. <c>HrotEnvironment.CreateTkb()</c> already does; a host that uses
@@ -158,30 +159,8 @@ namespace Hrot.Core.Tkb
             //   dangerous direction, and it is silent.
             //   ⚠ Nothing reads it yet — steps 1-3 of that design are the consumers.
 
-            // CivilianPedestrian (1001)
-            {
-                var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                Master(t, "CivilianPedestrian", new DISEntityType { Kind = 3, Domain = 1 });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
-                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true, CanInteract = true });   // ⭐ 5d-2 — a person opens doors (the interaction channel requires CanInteract)
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
-                tkb.Register(t);
-            }
-
-            // ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-3) — CivilianChild (1003): a pedestrian 1.25 m tall who runs a little slower; the 3-D
-            //   map draws a person under 1.5 m as a child (a larger head, brighter clothes). Otherwise a CivilianPedestrian.
-            {
-                var t = new TkbTemplate("CivilianChild", TkbCivilianChild);
-                Master(t, "CivilianChild", new DISEntityType { Kind = 3, Domain = 1 });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.22f, ShapeHeight = 1.25f });
-                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.45f, Width = 0.32f, MaxSpeedFwd = 4.5f, MaxAccel = 2.5f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true, CanInteract = true });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
-                tkb.Register(t);
-            }
+            // ⛔ CE-3220 part 2 (civilians B-2, B2-c; docs/DESIGN_Civilians_And_Crowd_Control.md §7.2b) — CivilianPedestrian (1001) and
+            //   CivilianChild (1003) are RETIRED, never reused: a person is one of the civilian family (CivilianTkbCatalog 1101–1104).
 
             // CivilianCar (1002)
             {
@@ -237,6 +216,20 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-3220 part 2 (Civilians §7.2b) — UnarmedFighter (2008): the retired 1001's body (no weapon, no brain, a civilian's senses and
+            //   footsteps, health from the scenario) under the Infantry class, so a soldier judges him on STATUS (AW-21) — a Civilian-class person
+            //   who has done nothing hostile is no target, whatever his side. The scenarios' unarmed hostiles and decoys are these.
+            {
+                var t = new TkbTemplate("UnarmedFighter", TkbUnarmedFighter);
+                Master(t, "UnarmedFighter", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = 0, CanMove = true, CanInteract = true });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
                 tkb.Register(t);
             }
 

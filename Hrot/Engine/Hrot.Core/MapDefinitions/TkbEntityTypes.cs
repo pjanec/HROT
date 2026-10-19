@@ -163,7 +163,7 @@ namespace Hrot.Map.Common
         public const long Unit_InfantryPlatoon = 305;
 
         // Civilian & Insurgent Types
-        public const long CivilianPedestrian = 501;
+        // ⛔ CE-3220 part 2 — 501 (CivilianPedestrian) retired: a person is the civilian family (Hrot.Core.Tkb.CivilianTkbCatalog 1101–1104).
         public const long CivilianCar = 502;
         public const long MilitaryApc = 503;
         public const long InfantrySoldier = 504;

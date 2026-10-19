@@ -172,9 +172,9 @@ public sealed class DebugApiHeadlessSmokeTests
                 $"entityCount still 0 after scenario load. Body: {statusAfterLoadBody}");
 
             // POST /entities/spawn — spawn an additional entity.
-            // TkbType 1001 = CivilianPedestrian (registered by UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates).
+            // TkbType 1101 = CivilianAdultMale (CivilianTkbCatalog; ⛔ CE-3220 part 2 retired the old 1001 CivilianPedestrian).
             var spawnBody = new StringContent(
-                "{\"tkbType\":1001}",
+                "{\"tkbType\":1101}",
                 Encoding.UTF8, "application/json");
             var spawnResp = await client.PostAsync($"{baseUrl}/entities/spawn", spawnBody);
             Assert.Equal(System.Net.HttpStatusCode.OK, spawnResp.StatusCode);

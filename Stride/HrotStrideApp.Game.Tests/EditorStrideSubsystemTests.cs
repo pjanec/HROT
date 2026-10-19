@@ -101,13 +101,13 @@ public sealed class EditorStrideSubsystemTests : IDisposable
         // Supply SimTransform as an InitialComponent so the entity carries it at birth;
         // with OwnerAppInstanceId=0 (=localNodeId=0) the NetworkSpawningSystem sets
         // authority on all initial components immediately.
-        // BATCH-03 STR-D8: Use a real UrbanCombat TKB type (1001 = CivilianPedestrian)
+        // BATCH-03 STR-D8: Use a real built-in TKB type (1101 = CivilianAdultMale; ⭐ CE-3220 part 2 retired 1001)
         // now that EditorStrideSubsystem.Initialize registers the real UrbanCombat templates.
         _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,           // localNodeId = EditorNodeId = 0
-            TkbType            = 1001L,        // CivilianPedestrian (UrbanCombat templates)
+            TkbType            = 1101L,        // CivilianAdultMale (the civilian family)
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform { Position = new System.Numerics.Vector3(100f, 200f, 0f) }
@@ -155,8 +155,8 @@ public sealed class EditorStrideSubsystemTests : IDisposable
 
         // BATCH-03 STR-D8: The spawned entity was created from a real UrbanCombat TKB template.
         // Verify the TkbDb contains the CivilianPedestrian template with a StrideRenderModelDefDto.
-        Assert.True(_sut.TkbDb.TryGetByType(1001L, out var pedTemplate),
-            "CivilianPedestrian TKB template (1001) must be registered (STR-D8).");
+        Assert.True(_sut.TkbDb.TryGetByType(1101L, out var pedTemplate),
+            "CivilianAdultMale TKB template (1101) must be registered (STR-D8).");
         var renderDef = pedTemplate.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StrideRenderModelDefDto>();
         Assert.NotNull(renderDef);
         Assert.Equal("Models/mannequinModel", renderDef!.ModelAssetRef);

@@ -1093,8 +1093,8 @@ namespace Hrot.Editor.DebugApi
                 "Use list_entity_types to discover valid tkbType values.",
                 "CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
             },
-            ExampleArgsJson: "{\"tkbType\":1001,\"transform\":{\"position\":{\"x\":100,\"y\":0,\"z\":50},\"rotation\":{\"x\":0,\"y\":0,\"z\":0,\"w\":1}}}",
-            ExampleGist: "spawn entity type 1001 at position (100,0,50)"),
+            ExampleArgsJson: "{\"tkbType\":1101,\"transform\":{\"position\":{\"x\":100,\"y\":0,\"z\":50},\"rotation\":{\"x\":0,\"y\":0,\"z\":0,\"w\":1}}}",
+            ExampleGist: "spawn entity type 1101 at position (100,0,50)"),
 
         [("POST", "/breakpoints")] = new RouteDoc(
             Tool:    "set_breakpoint",
@@ -2272,13 +2272,13 @@ namespace Hrot.Editor.DebugApi
             Group:   "M (TKB) — Entity-type catalog",
             Summary: "Full TKB descriptor: mandatory components, child blueprints, DIS type, and descriptor DTOs.",
             Returns: "Full TKB descriptor including mandatory components, child blueprints, descriptors. No spawn.",
-            Hint:    "Req: tkbType (number/long from list_entity_types). Example: get_entity_type({tkbType:1001})",
+            Hint:    "Req: tkbType (number/long from list_entity_types). Example: get_entity_type({tkbType:1101})",
             Params: new RouteParam[]
             {
                 new("tkbType", "number", true, "TKB type ID (long)"),
             },
-            ExampleArgsJson: "{\"tkbType\":1001}",
-            ExampleGist: "inspect TKB descriptor for type 1001"),
+            ExampleArgsJson: "{\"tkbType\":1101}",
+            ExampleGist: "inspect TKB descriptor for type 1101"),
 
         [("GET", "/tkb/resolve")] = new RouteDoc(
             Tool:    "resolve_entity_type_parameters",

@@ -38,7 +38,7 @@ public class BehaviorCatalogTests
     [Fact]
     public void GetValidBehaviors_CivilianPedestrian_ContainsWanderCivil_NotAmbush()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale);
 
         Assert.Contains("WanderCivil", behaviors);
         Assert.DoesNotContain("Ambush", behaviors);

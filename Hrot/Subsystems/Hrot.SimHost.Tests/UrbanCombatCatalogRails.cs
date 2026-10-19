@@ -29,7 +29,7 @@ namespace Hrot.SimHost.Tests
         // The catalogue owns these codes now; naming them here keeps the rail readable.
         public static TheoryData<long, string> AllFive => new()
         {
-            { UrbanCombatTkbCatalog.TkbCivilianPedestrian, "CivilianPedestrian" },
+            // ⛔ CE-3220 part 2 — CivilianPedestrian (1001) retired; people are CivilianTkbCatalog's family
             { UrbanCombatTkbCatalog.TkbCivilianCar,        "CivilianCar"        },
             { UrbanCombatTkbCatalog.TkbMilitaryApc,        "MilitaryAPC"        },
             { UrbanCombatTkbCatalog.TkbInfantrySoldier,    "InfantrySoldier"    },
@@ -133,7 +133,7 @@ namespace Hrot.SimHost.Tests
             int seededCount = seeded.GetAll().Count();
             int urbanOnly   = urbanCombatOnly.GetAll().Count();
 
-            Assert.Equal(14, urbanOnly);         // the five templates + ⭐ CE-1032's Grenadier (2004) and MortarTeam (2005) + ⭐ M5's JavelinTeam (2006) and NlawGunner (2007) + ⭐ CE-1099's CivilianChild (1003) + ⭐ AQ93 T1's four traffic cars (1050–1053)
+            Assert.Equal(13, urbanOnly);         // ⛔ CE-3220 part 2: 1001 and 1003 retired, ⭐ UnarmedFighter (2008) added (was 14) — the four remaining templates + ⭐ CE-1032's Grenadier (2004) and MortarTeam (2005) + ⭐ M5's JavelinTeam (2006) and NlawGunner (2007) + ⭐ AQ93 T1's four traffic cars (1050–1053)
             Assert.True(seededCount > urbanOnly,
                 $"CreateTkb() carries {seededCount} templates and UrbanCombat alone is {urbanOnly}. " +
                 "CreateTkb() must ALSO carry NedTkbCatalog's content — equal counts mean a contributor " +

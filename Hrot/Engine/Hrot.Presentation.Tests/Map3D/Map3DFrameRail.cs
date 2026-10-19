@@ -41,7 +41,7 @@ public sealed class Map3DFrameRail
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Standing, -6f, -9f),
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Crouched, -3f, -9f),
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Prone, 0f, -9f),
-        (UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, 3f, -9f),
+        (CivilianTkbCatalog.TkbCivilianAdultMale, StanceId.Standing, 3f, -9f),
         (TkbEntityTypes.Unit_TankPlatoon, StanceId.Standing, 6f, -9f),   // a unit: no body
     };
 
@@ -556,7 +556,7 @@ public sealed class Map3DFrameRail
         Person(1.5f, -9f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         var runner = Person(-5f, 1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         var glider = Person(-5f, -1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // ⭐ WL-6c — the glide
-        var walker = Person(-5f, -4.5f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        var walker = Person(-5f, -4.5f, CivilianTkbCatalog.TkbCivilianAdultMale, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -1334,7 +1334,7 @@ public sealed class Map3DFrameRail
         Person(0f, 1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         Person(0f, 0f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         var runner = Person(-4f, -1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
-        var civilian = Person(-4f, -3f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        var civilian = Person(-4f, -3f, CivilianTkbCatalog.TkbCivilianAdultMale, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -1594,7 +1594,7 @@ public sealed class Map3DFrameRail
         Unit(TkbEntityTypes.Infantry_Rifleman, 1.6f);
         Unit(TkbEntityTypes.Infantry_Rifleman, 0.6f, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         Unit(TkbEntityTypes.Infantry_Rifleman, -0.4f, StanceId.Crouched);
-        Unit(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, -1.4f);   // a PERSON (TkbEntityTypes.CivilianPedestrian is drawn as a box)
+        Unit(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, -1.4f);   // a PERSON (TkbEntityTypes.CivilianPedestrian is drawn as a box)
         var dead = Unit(TkbEntityTypes.Infantry_Rifleman, 0f, dx: -2.4f);
         world.SetComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });   // first seen dead: he lies there
 
@@ -2329,7 +2329,7 @@ public sealed class Map3DFrameRail
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = side });
         }
-        long civilian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, child = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianChild;
+        long civilian = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, child = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianChild;
         for (int i = 0; i < 10; i++) Person(civilian, 0f, 4.5f - i * 0.9f);
         Person(child, 1.0f, 2.2f); Person(child, 1.0f, 1.3f); Person(child, 1.0f, 0.4f);
         Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, 2.0f, ForceId.Friend);    // in front of the civilians (the camera is east)

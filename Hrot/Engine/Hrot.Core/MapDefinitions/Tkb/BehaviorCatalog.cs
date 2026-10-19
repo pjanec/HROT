@@ -24,6 +24,11 @@ public static class BehaviorCatalog
     private static readonly IReadOnlyList<string> s_civilianBehaviors =
         ["WanderCivil", "PanicFlee"];
 
+    /// <summary>⭐ <c>CE-3220</c> part 2 — the civilian family's people (1101–1104): their own HSM first, a move, and <c>Idle</c> (the
+    /// behaviourless stand-in the retired 1001 used to be).</summary>
+    private static readonly IReadOnlyList<string> s_civilianPeople =
+        ["CivilianHsm", "MoveToLocation", "FollowRoute", "Idle", "WanderCivil", "PanicFlee"];
+
     private static readonly IReadOnlyList<string> s_defaultBehaviors =
         ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle", "FireAtTarget"];
 
@@ -52,7 +57,11 @@ public static class BehaviorCatalog
     /// <summary>As <see cref="GetValidBehaviors(long)"/>, over <paramref name="registry"/> (a rail scans a known set).</summary>
     public static IReadOnlyList<string> GetValidBehaviors(long tkbType, ParamsDtoRegistry registry) => tkbType switch
     {
-        TkbEntityTypes.CivilianPedestrian => s_civilianBehaviors,
+        // ⭐ CE-3220 part 2 — the civilian family (1101–1104) replaces the retired map key 501
+        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale   => s_civilianPeople,
+        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultFemale => s_civilianPeople,
+        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianChild       => s_civilianPeople,
+        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly     => s_civilianPeople,
         TkbEntityTypes.CivilianCar        => s_civilianBehaviors,
         TkbEntityTypes.MilitaryApc        => MapFor(registry)[BehaviorCategory.MilitaryApc],
         TkbEntityTypes.InfantrySoldier    => MapFor(registry)[BehaviorCategory.Infantry],

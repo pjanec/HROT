@@ -65,7 +65,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
 {
     // ── TKB type constants (match UrbanCombatNewScenario) ─────────────────────
     private const long TkbInfantrySoldier    = 2002L;
-    private const long TkbCivilianPedestrian = 1001L; // Capsule shape, no BTree — safe for legacy test
+    private const long TkbCivilianPedestrian = 1101L; // Capsule shape — ⭐ CE-3220 part 2: the civilian adult (the old 1001 is retired)
     private const long TkbMilitaryApc        = 2001L;
 
     // ── Known-good on-navmesh coordinates (FDP space: X=East, Y=North, Z=Up) ─

@@ -179,7 +179,7 @@ namespace Hrot.Map.Common.Tests
                 Assert.False(t.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
             }
 
-            foreach (var type in new long[] { 1001, 1002, 2001, 2002, 2003 })   // the UrbanCombat five
+            foreach (var type in new long[] { 1002, 2001, 2002, 2003 })   // the UrbanCombat four (⛔ CE-3220 part 2: 1001 retired)
             {
                 var t = db.GetByType(type)!;
                 Assert.NotEqual((byte)0, t.DisType.Kind);
@@ -206,7 +206,9 @@ namespace Hrot.Map.Common.Tests
             var db = new TkbDatabase();
             NedTkbCatalog.RegisterAll(db);
             Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
-            foreach (var type in new long[] { 1001, 2002, 2003, TkbEntityTypes.Infantry_Rifleman })
+            Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 part 2 — the civilian family replaces the retired 1001
+            foreach (var type in new long[] { Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianChild,
+                                              Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbUnarmedFighter, 2002, 2003, TkbEntityTypes.Infantry_Rifleman })
             {
                 var t = db.GetByType(type)!;
                 Assert.Equal(CarKinem.Core.VehicleClass.Pedestrian, t.GetDescriptor<VehicleParametersDto>()?.VehicleClass);

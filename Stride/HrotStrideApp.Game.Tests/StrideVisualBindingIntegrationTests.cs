@@ -94,7 +94,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
     }
 
     // ── TKB type constants (match UrbanCombatNewScenario) ─────────────────
-    private const long TkbCivilianPedestrian = 1001L;
+    private const long TkbCivilianPedestrian = 1101L;   // ⭐ CE-3220 part 2 — the civilian adult (1001 retired)
     private const long TkbCivilianCar        = 1002L;
     private const long TkbMilitaryApc        = 2001L;
     private const long TkbInfantrySoldier    = 2002L;
