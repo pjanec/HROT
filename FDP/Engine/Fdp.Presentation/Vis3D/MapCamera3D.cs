@@ -531,6 +531,18 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The far clip distance, m.</summary>
         public float FarClip => MathF.Max(2000f, Distance * 60f);
 
+        /// <summary>⭐ <c>CE-1196</c> — the near clip's share of the look-at distance. 📐 It was 0.001: from 2 km out the 24-bit depth buffer then
+        /// told apart only ~12 cm at the look-at, so SUMO's roads (lifted 3–6 cm over our ground) flickered through it; 0.005 resolves ~2.4 cm
+        /// there, and the nearest drawn point is still well inside the eye-to-look-at distance.</summary>
+        public const float NearClipShare = 0.005f;
+
+        /// <summary>⭐ <c>CE-1196</c> — the near clip distance, m: <see cref="NearClipShare"/> of the look-at distance, never under 5 cm.</summary>
+        public float NearClip => MathF.Max(0.05f, Distance * NearClipShare);
+
+        /// <summary>⭐ <c>CE-1196</c> — the smallest depth difference the 24-bit depth buffer tells apart at <paramref name="atMetres"/> from
+        /// the eye with the near clip <paramref name="near"/> (m): ≈ d² / (near · 2²⁴) for a far clip much farther than the near.</summary>
+        public static float DepthStepAt(float atMetres, float near) => atMetres * atMetres / (near * 16_777_216f);
+
         /// <summary>⭐ CE-1146 — the fog constant for <paramref name="a"/>: its visibility's, never thinner than one that fades fully by
         /// the far clip (so the world ends in haze, not at an edge); without a visibility, the camera-distance haze it always had.</summary>
         public float FogDensityFor(in SceneAtmosphere a)
@@ -550,7 +562,7 @@ namespace Fdp.Toolkit.Vis3D
                 LitShader.Shared.ApplyFrame(cam.Position, FogDensityFor(a), Atmosphere is { VisibilityM: > 0f } ? FogStart : 0f);
                 LitShader.Shared.ApplyAtmosphere(a);
             }
-            Rlgl.SetClipPlanes(MathF.Max(0.05f, Distance * 0.001f), FarClip);
+            Rlgl.SetClipPlanes(NearClip, FarClip);
             Raylib.BeginMode3D(cam);
         }
 

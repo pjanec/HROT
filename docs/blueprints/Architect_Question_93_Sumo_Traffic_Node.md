@@ -417,6 +417,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 - `TerrainResidency` loads only the FIRST entry of `roadNetworks[]` (`:214-232`).
 - ⚠ R-4025's consequence: with SUMO's z, roads and cars sit where the NET says, which can differ from our height grid where the net's z was not built from it — a road may hover over, or sink into, our terrain mesh. A terrain must ship a net whose z matches its height grid (or a flat net, E2b).
 - *(Inference, not run)* `RoadNetworkGizmo` emits Z = 0 (drape) and so would draw a bridge road on the ground below it; the new layer must use the lane z on bridges.
+- ✅ *(`CE-1196`, ui, 2026-10-19)* the roads no longer z-fight our ground from afar: the 3-D camera's near clip was the cause, not the lifts (`DESIGN_Map_3D_Mode.md` §6z CA-3); `TrafficLayer3D` unchanged.
 - The vehicle-type id is always 0 on the wire (`ReplicationPublisher.cs:84-88`): car / bus / truck models need the type carried — lifecycle carries the SUMO id and dims only.
 
 ## 6. Slice plan *(re-cut by R-4047 — embedded first; slice 1 BUILT 2026-10-17)*

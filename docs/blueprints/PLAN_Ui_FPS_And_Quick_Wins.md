@@ -84,3 +84,5 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 5 | ▶ un-parked by the user — every UH-60 drawn doors-off (the one `Helicopter` kit), done after #7 |
 | `2026-10-19` | 7 | ✅ a destroyed weapon system goes dark, it does not burn; Presentation 778 / 0 |
 | `2026-10-19` | 5 | ✅ every UH-60 drawn doors-off: the cabin seen through, riders and gunners in its openings; the sim's boxes regenerated; Presentation 778 / 0, parity 6 / 0, Toolkits bodies 46 / 0 |
+| `2026-10-19` | 8 | ✅ the roads stop flickering from afar: the 3-D camera's near clip 0.1 % → 0.5 % of its distance (the depth step from 2 km under the road's lift); Presentation 779 / 0, Fdp.Presentation 581 / 0 |
+| `2026-10-19` | 9 | 📨 `CE-1208` sent to backend as a [NOTE](batches/NOTE_Ui_To_Backend_Walk_And_Run_Speeds.md) — the walk / run speeds belong in the TKB |
