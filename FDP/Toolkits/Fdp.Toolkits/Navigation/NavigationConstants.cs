@@ -50,6 +50,12 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Release a route handle allocated by <see cref="ActionIdPlanRoute"/>.</summary>
         public const ushort ActionIdReleasePath      = 9;
 
+        /// <summary>
+        /// ⭐ <c>Q94 C</c> (R-3018) — walk to a DOOR's near side: the brain names the door (<see cref="Executors.ApproachDoorParams"/>), the
+        /// muscle picks the side of the wall the mover is on (<see cref="NavigationDestination.Of"/>), where the door geometry lives.
+        /// </summary>
+        public const ushort ActionIdApproachDoor     = 10;
+
         // ── Frustration guard ─────────────────────────────────────────────────────
 
         /// <summary>

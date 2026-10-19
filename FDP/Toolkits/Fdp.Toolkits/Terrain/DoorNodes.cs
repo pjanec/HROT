@@ -53,8 +53,8 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>Walking speed when the params give none (m/s).</summary>
         public const float DefaultSpeed = 1.5f;
-        /// <summary>How far off the doorway centre (m, on the actor's side) the walk aims.</summary>
-        public const float ApproachMetres = 1.0f;
+        /// <summary>How far off the doorway centre (m, on the actor's side) the walk aims — ⭐ Q94 C: decided on the muscle, <see cref="DoorApproach"/>.</summary>
+        public const float ApproachMetres = DoorApproach.ApproachMetres;
 
         [SharedAiAction]
         public static unsafe NodeStatus MoveToDoor(ref MoveToDoorParams p, Entity self, EntityRepository world)
@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Terrain
                 if (p.Started != 0 && world.HasComponent<LocomotionChannel>(self))
                 {
                     ref var walk = ref world.GetComponentRW<LocomotionChannel>(self);
-                    if (walk.ActionInstanceId == p.Started && walk.ActiveAction == NavigationConstants.ActionIdMoveTo) Release(ref walk.ActiveAction, ref walk.ActionInstanceId);
+                    if (walk.ActionInstanceId == p.Started && walk.ActiveAction == NavigationConstants.ActionIdApproachDoor) Release(ref walk.ActiveAction, ref walk.ActionInstanceId);
                 }
                 p.Started = 0;
                 return NodeStatus.Success;
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Terrain
             }
 
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
-            if (p.Started != 0 && channel.ActionInstanceId == p.Started && channel.ActiveAction == NavigationConstants.ActionIdMoveTo)
+            if (p.Started != 0 && channel.ActionInstanceId == p.Started && channel.ActiveAction == NavigationConstants.ActionIdApproachDoor)
             {
                 if (channel.Status == NodeStatus.Running) return NodeStatus.Running;
                 p.Started = 0;
@@ -90,16 +90,18 @@ namespace Fdp.Toolkit.Terrain
                 return NodeStatus.Failure;   // the walk ended (arrived or failed) and the actor is still out of reach
             }
 
-            var at = world.GetComponentRO<SimTransform>(self).Position;
+            // ⭐ Q94 C (R-3018) — the brain names the DOOR; the muscle picks the side of the wall (NavigationDestination.Of →
+            //   DoorApproach). ⛔ It used to compute the near side here, from this node's copy of the terrain.
             if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
             unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
-            channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
+            channel.ActiveAction = NavigationConstants.ActionIdApproachDoor;
             channel.Status = NodeStatus.Running;
-            Unsafe.As<byte, MoveToParams>(ref channel.Params[0]) = new MoveToParams
+            Unsafe.As<byte, Fdp.Toolkit.Navigation.Executors.ApproachDoorParams>(ref channel.Params[0]) = new Fdp.Toolkit.Navigation.Executors.ApproachDoorParams
             {
-                Destination = ApproachPoint(world, door, p.Door, new Vector2(at.X, at.Y)),
+                DoorNetworkId = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, door),
+                DoorCentre    = world.GetComponentRO<SimTransform>(door).Position,
                 ArrivalRadius = 0.5f,
-                Speed = p.Speed > 0f ? p.Speed : DefaultSpeed,
+                Speed         = p.Speed > 0f ? p.Speed : DefaultSpeed,
             };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
@@ -161,34 +163,6 @@ namespace Fdp.Toolkit.Terrain
             _ => BehaviorConstants.ActionIdBreachDoor,
         };
 
-        /// <summary>
-        /// The point <see cref="ApproachMetres"/> off the doorway's centre, on the side of the wall <paramref name="from"/> is on
-        /// (the terrain's door definition gives the wall; without it, the point between the actor and the door).
-        /// </summary>
-        public static Vector3 ApproachPoint(EntityRepository world, Entity door, TerrainObjectRef key, Vector2 from)
-        {
-            var d = world.GetComponentRO<SimTransform>(door).Position;
-            var c = new Vector2(d.X, d.Y);
-            var terrain = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
-            int i = key.DoorIndex(terrain);
-            Vector2 n;
-            if (i >= 0)
-            {
-                var def = terrain!.Doors[i];
-                var panel = terrain.Panels[def.Panel];
-                var along = panel.B - panel.A;
-                n = along.LengthSquared() > 1e-6f ? Vector2.Normalize(new Vector2(-along.Y, along.X)) : Vector2.UnitY;
-                c = def.Center;
-                if (Vector2.Dot(from - c, n) < 0f) n = -n;
-            }
-            else
-            {
-                var away = from - c;
-                n = away.LengthSquared() > 1e-6f ? Vector2.Normalize(away) : Vector2.UnitY;
-            }
-            var p = c + n * ApproachMetres;
-            return new Vector3(p.X, p.Y, d.Z);
-        }
 
     }
 }

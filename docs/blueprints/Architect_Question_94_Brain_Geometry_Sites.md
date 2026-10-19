@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); A-5 indirect, A-6 bomb, A-7 battery plan, B, C, D not yet.
-current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers · §2 the sub-questions with leans.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022); B, D not yet.
+current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers + §5.1a C as built · §2 the sub-questions with leans.
 stale-below: nothing.
-known-rot: none.
+known-rot: §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b OWNS R-2037 and the inventory this question settles for backend's sites (CE-2287)
@@ -326,6 +326,35 @@ rocket ripples and door-gun bursts (7 reds, all of that one harness). `WeaponSta
 |---|---|---|
 | **C-1** | a new `NavigationMode.ApproachDoor` (enum, appended) with the door's NETWORK id in `RouteEntityId` and the door's centre as `FinalDestination`; `MoveToDoor` raises it through its own small executor (a new action id, its params: door entity, speed, arrival) | a flag bit — none free · reusing `TargetNodeId` / `TrajectoryId` — not on the wire |
 | **C-2** | the muscle resolves it in `NavigationDestination.Of` — the ONE place a destination becomes a point — with `DoorNodes.ApproachPoint` moved there (from = the mover's own position); a door it cannot find ⇒ the centre, as today's fallback | a second resolver beside `NavigationDestination.Of` |
+
+#### 5.1a C — AS BUILT *(backend, `2026-10-19`, `CE-3270`; build-state: BUILT)* — ⚠ C-1 deviates: no new mode
+
+| | as built | where |
+|---|---|---|
+| ⚠ **C-1 SUPERSEDED** | ⛔ **no `NavigationMode.ApproachDoor`.** The intent stays `PathToPoint`; a non-zero `RouteEntityId` under `PathToPoint` names the door. 📐 Why: `PathToPoint` has ~12 consumers (bridge, `PathRequests.FromIntent`, crowd target, `DangerAlongRouteSolve`, watchdogs) and the enum is on the wire (IDL regen) — a new mode needed every one taught; `RouteEntityId` was read only under `FollowRoute`, so under `PathToPoint` it was free. All consumers already ask `NavigationDestination.Of` for the point, so ONE hook reaches them all | `NavigationDestination.cs` |
+| C-1 the action | new action id `NavigationConstants.ActionIdApproachDoor = 10`, `ApproachDoorExecutor` + `ApproachDoorParams { DoorNetworkId, DoorCentre, Speed, ArrivalRadius }` (28 B); status and stop delegate to `MoveToExecutor` (one implementation); registered in `CgfLogicPack` (the only locomotion executor table) | `Navigation/Executors/ApproachDoorExecutor.cs` |
+| C-1 the brain node | `DoorNodes.MoveToDoor` sends the door's runtime network id + centre; `ApproachPoint` deleted from the brain | `Terrain/DoorNodes.cs` |
+| C-2 | `DoorApproach.TryPoint(repo, doorNetId, from)` — resolves the id (`NetworkIdResolver`), needs `DoorState`+`SimTransform`; `DoorApproach.Point` is the moved `ApproachPoint`. Not a door here ⇒ the intent's point (the centre) | `Terrain/DoorApproach.cs` |
+| guard | `MoveToExecutor.OnEnter` zeroes `RouteEntityId`, so a plain move after a door move never inherits the door | `MoveToExecutor.cs` |
+| CE-2304 seam | `IsResentMove` compares the RESOLVED point (`NavigationDestination.Of`), not the raw intent point — a re-sent door move (centre ≠ side) and an on-surface move (Z resolved) are the same move | `NavigationExecutionSystem.cs` |
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF) — MoveToDoor
+  participant X as ApproachDoorExecutor
+  participant M as SimHost — bridge / path request
+  participant D as NavigationDestination.Of
+  B->>X: action 10 {door net id, centre}
+  X->>M: NavigationIntent PathToPoint, RouteEntityId = door, FinalDestination = centre
+  M->>D: where is it, for this mover?
+  D->>D: DoorApproach.TryPoint — door known here: the near side, 1 m off
+  D-->>M: the side point (unknown id: the centre)
+```
+*What the picture shows that prose hid:* the brain's message carries no side at all — the only point it sends is the door's centre,
+used solely as the fallback; the side exists only on the muscle.
+
+Rails: `DoorCommandTests.Stage5d2_MoveToDoor_NamesTheDoor_TheMusclePicksTheActorsSideOfTheWall_AndSucceedsInReach` (✅ red-proofed:
+drop the hook ⇒ both actors aim at the centre).
 
 ### 5.2 D — the spawn's ground level
 
