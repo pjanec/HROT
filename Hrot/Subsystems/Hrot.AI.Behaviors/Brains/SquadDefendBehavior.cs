@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Squad;
@@ -58,6 +59,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Ready;
         /// <summary>1 = PROGRESS Set went up (every man at his post).</summary>
         public byte ReportedSet;
+        /// <summary>1 = this play lifted its squad's own hold-fire (DA-35) — once.</summary>
+        public byte HoldLifted;
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
@@ -214,6 +217,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            LiftOwnHold(ref p, ref ws, in ctx);
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhasePosting) return;
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }
             Manned(ref p, in ctx);
@@ -380,6 +384,46 @@ namespace Hrot.AI.Behaviors.Brains
             Span<int> postOf = stackalloc int[DefencePosts.Capacity];
             for (int i = 0; i < n; i++) postOf[i] = p.Posts.PostOf[i] == DefencePosts.None || !ctx.Live(i, out _) ? -1 : p.Posts.PostOf[i];
             return DefencePostPicker.Alternate(candidates[..p.Posts.Count], postOf[..n], man);
+        }
+
+        /// <summary>
+        /// ⭐ DA-35 (corrected 2026-10-19; Platoon §6a "alone, it lifts its own hold-fire", DA-7) — a squad defending ALONE lifts its hold:
+        /// a <see cref="RoeFire.HoldFire"/> set on the squad commander ITSELF by a non-Superior order (the operator's) goes to
+        /// <see cref="RoeFire.FireAtWill"/> on the first pooled contact inside the squad's sector, or the first round at one of its men since the
+        /// order. ⛔ A hold a SUPERIOR set (a platoon play), or one inherited from above, is the platoon's to lift (§5 Engage); a TKB default
+        /// (<see cref="BehaviorOrigin.Unmarked"/>) is no order. Origin <see cref="BehaviorOrigin.Self"/>: the lift carries the rank of the order
+        /// that set the hold. The play never SETS a hold (no withdraw exists — it would outlive a cleared defence).
+        /// </summary>
+        private static void LiftOwnHold(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            var world = ctx.World;
+            if (p.Posts.HoldLifted != 0 || !world.IsComponentTypeRegistered<Roe>() || !world.HasComponent<Roe>(ctx.Commander)) return;
+            ref readonly var roe = ref world.GetComponentRO<Roe>(ctx.Commander);
+            if (roe.Fire != RoeFire.HoldFire || roe.SetBy == BehaviorOrigin.Superior || roe.SetBy == BehaviorOrigin.Unmarked) return;
+            if (!ContactInSector(in ctx) && !RoundAtAMan(in ctx, ws.StartedAt)) return;
+            if (!world.Bus.IsRegistered<SetRoeEvent>()) return;
+            world.Bus.Publish(new SetRoeEvent { Entity = ctx.Commander, Fire = RoeFire.FireAtWill, Origin = BehaviorOrigin.Self });
+            p.Posts.HoldLifted = 1;
+        }
+
+        /// <summary>Any pooled contact (seen or heard) inside the squad's sector — with no sector, any contact.</summary>
+        private static bool ContactInSector(in SquadPlayContext ctx)
+        {
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
+                if (EngagementAreas.AllowsUnit(ctx.World, ctx.Commander, new Vector3(pool[i].PositionX, pool[i].PositionY, pool[i].PositionZ)))
+                    return true;
+            return false;
+        }
+
+        private static bool RoundAtAMan(in SquadPlayContext ctx, double since)
+        {
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (ctx.Live(i, out var m) && LastRoundAt(ctx.World, m) >= since) return true;
+            return false;
         }
 
         /// <summary>The newest hit or near-miss time on the man (his own senses), −∞ when none.</summary>

@@ -48,6 +48,7 @@ namespace Hrot.SimHost.Tests
             private readonly BrainTickSystem _brain;
             private readonly RecentSensesSystem _senses = new();   // ⭐ CE-2123 S2 — the squad edges reach the leader's SOP
             private readonly Fdp.Toolkit.Behavior.Systems.EngagementAreaSystem _sectors = new();   // ⭐ CE-2302 — the runner's arcs land
+            private readonly Fdp.Toolkit.Behavior.Systems.RoeSystem _roe = new();   // ⭐ CE-2275 DA-35 — a squad's own hold-fire lift lands
             private double _time;
             private long _frame;
             public readonly List<AssignTacticalIntentEvent> Orders = new();
@@ -99,6 +100,7 @@ namespace Hrot.SimHost.Tests
                 Repo.Bus.SwapBuffers();
                 foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
                 _sectors.Execute(Repo, 0.016f);
+                _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
@@ -1835,6 +1837,61 @@ namespace Hrot.SimHost.Tests
             RoundAt(first);
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Displacing));
+        }
+
+        /// <summary>A squad of three at (4, 0) whose own sector looks north (arc from (4, 0), 330°–30°, to 200 m), HOLDING FIRE by an order
+        /// of <paramref name="holdBy"/>, ordered to defend where it stands.</summary>
+        private static Squad HoldingFire(BehaviorOrigin holdBy)
+        {
+            var s = new Squad(members: 3);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(4, 0, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.Roe { Fire = Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SetBy = holdBy });
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            return s;
+        }
+
+        private static Fdp.Toolkit.Behavior.Components.RoeFire SquadFire(Squad s) => s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(s.Commander).Fire;
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> DA-35 (corrected; Platoon §6a "alone, it lifts its own hold-fire", DA-7) — a squad defending ALONE under an
+        /// operator's hold keeps holding while the only contact is outside its sector, and lifts to FireAtWill the moment one is inside it;
+        /// the lift keeps the operator's rank. ✅ Red-proof: the sector test dropped (any contact lifts) ⇒ the outside contact lifts it.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefendAlone_LiftsAnOperatorsHoldFire_OnAContactInsideItsSector_NotOutside()
+        {
+            var s = HoldingFire(BehaviorOrigin.Operator);
+            s.Pool(s.Repo.CreateEntity(), new Vector3(4, -120, 0), reporters: 1);   // behind the squad
+            s.Tick(); s.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(s));
+            s.Pool(s.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);    // inside the sector
+            s.Tick(); s.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, SquadFire(s));
+            Assert.Equal(BehaviorOrigin.Operator, s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(s.Commander).SetBy);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> DA-35 — a round at one of its men lifts an alone squad's hold too (DA-7: "a post is fired upon"), and a hold a
+        /// SUPERIOR set (a platoon play's) is never lifted by the squad — the platoon lifts it (Platoon §5 Engage). ✅ Red-proofs: the round
+        /// trigger dropped ⇒ the first squad keeps holding; the Superior guard dropped ⇒ the second squad lifts.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_ARoundAtAManLiftsItsOwnHold_ButNeverAPlatoonsHold()
+        {
+            var alone = HoldingFire(BehaviorOrigin.Operator);
+            alone.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = alone.Members[1], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            alone.Tick(); alone.Tick(); alone.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, SquadFire(alone));
+
+            var underPlatoon = HoldingFire(BehaviorOrigin.Superior);
+            underPlatoon.Pool(underPlatoon.Repo.CreateEntity(), new Vector3(4, 120, 0), reporters: 1);
+            underPlatoon.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = underPlatoon.Members[1], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            underPlatoon.Tick(); underPlatoon.Tick(); underPlatoon.Tick();
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, SquadFire(underPlatoon));
         }
 
         private static bool HasProgress(Squad s, Fdp.Toolkit.Squad.Command.ProgressKind kind)
