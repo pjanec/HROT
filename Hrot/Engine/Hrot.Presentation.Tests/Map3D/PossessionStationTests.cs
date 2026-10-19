@@ -323,6 +323,91 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1213 (docs/DESIGN_Entity_Control.md §8j W-1) — hold T: the wheel shows the orders his MEN fulfil (Hold and Move first, none
+    /// needing the form); the mouse moves its cursor, not the look; letting go sends the sector under the cursor to every man naming him as
+    /// commander — never to himself, never to another leader's man — completed from the crosshair; letting go in the middle sends nothing.
+    /// </summary>
+    [Fact]
+    public void CE1213_HoldingT_OpensTheWheelOnHisMensOrders_AndLettingGoSendsTheSectorToThem()
+    {
+        var (w, leader, map) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            w.AddComponent(leader, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();   // every live host has one: a point order goes geodetic
+            geo.SetOrigin(52.520, 13.405, 0.0);
+            w.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var soldier = new Fdp.Core.DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) };
+            Entity Man(long id, Entity commander)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                w.SetDisType(m, soldier);
+                map.Register(id, m);
+                return m;
+            }
+            var a = Man(501, leader);
+            var b = Man(502, leader);
+            var stranger = Man(503, w.CreateEntity());
+            Assert.Equal(new[] { a, b }, CommandWheel.MenOf(w, leader));
+            var items = CommandWheel.Items(w, leader);
+            Assert.Equal(new[] { "Hold", "Move" }, items.Take(2).Select(o => o.Name));
+            Assert.All(items, o => Assert.True(CommandWheel.OneGesture(o), o.Name));
+            Assert.Empty(CommandWheel.Items(w, a));                                    // a man who leads nobody: an empty ring
+
+            Assert.Equal(0, CommandWheel.Pick(new Vector2(0f, -50f), 4));             // up, then clockwise
+            Assert.Equal(1, CommandWheel.Pick(new Vector2(50f, 0f), 4));
+            Assert.Equal(2, CommandWheel.Pick(new Vector2(0f, 50f), 4));
+            Assert.Equal(3, CommandWheel.Pick(new Vector2(-50f, 0f), 4));
+            Assert.Equal(-1, CommandWheel.Pick(new Vector2(5f, 5f), 4));              // the dead zone
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent[] Choose(string order)
+            {
+                var t = new Input();
+                t.Keys.Add((int)Raylib_cs.KeyboardKey.T);
+                sw.Camera3D.HandleInput(t);                                            // T pressed: the wheel opens
+                Assert.True(driver.WheelOpen);
+                int i = driver.WheelItems.Select(o => o.Name).ToList().IndexOf(order);
+                t.MouseDelta = CommandWheel.Direction(i, driver.WheelItems.Count) * 80f;
+                float yaw = sw.Camera3D.Yaw;
+                sw.Camera3D.HandleInput(t);                                            // held: the mouse moves the wheel's cursor
+                Assert.Equal(yaw, sw.Camera3D.Yaw);                                    // … not the look
+                w.Bus.SwapBuffers();
+                sw.Camera3D.HandleInput(new Input());                                  // let go: sent
+                Assert.False(driver.WheelOpen);
+                w.Bus.SwapBuffers();
+                return w.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent>().ToArray();
+            }
+
+            var hold = Choose("Hold");
+            Assert.Equal(new[] { a, b }, hold.Select(o => o.Entity).OrderBy(e => e.Index));
+            Assert.All(hold, o => Assert.Equal("Order.Hold", o.IntentId));
+            Assert.Equal("Hold: 2 of 2 men", driver.WheelVerdict(station.Clock));
+
+            var move = Choose("Move");
+            Assert.Equal(2, move.Length);
+            Assert.All(move, o => Assert.Equal("Order.Move", o.IntentId));
+            Assert.All(move, o => Assert.Contains("\"Location\"", o.JsonParams));      // the crosshair's point
+            Assert.DoesNotContain(move.Concat(hold), o => o.Entity == leader || o.Entity == stranger);
+
+            var t2 = new Input();
+            t2.Keys.Add((int)Raylib_cs.KeyboardKey.T);
+            sw.Camera3D.HandleInput(t2);
+            w.Bus.SwapBuffers();
+            sw.Camera3D.HandleInput(new Input());                                      // let go in the middle
+            w.Bus.SwapBuffers();
+            Assert.Empty(w.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent>().ToArray());
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1212 (docs/DESIGN_Entity_Control.md §8j L-1, L-2) — a person leans while Q / E is held (both or neither: upright), the frame
     /// carrying it as a level; R is the next round now (F before) and F the use key (E before).
     /// </summary>

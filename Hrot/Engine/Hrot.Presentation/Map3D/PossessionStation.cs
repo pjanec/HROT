@@ -324,6 +324,14 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, use.Text, cx - uw / 2, uy, use.Colour);
                 uy += HudLineHeight;
             }
+            // ⭐ CE-1213 (§8j W-1) — the command wheel round the crosshair while T is held; then what the order did, under it
+            if (_driver.WheelOpen) DrawWheel(font, cx, cy);
+            else if (_driver.WheelVerdict(Clock) is { } verdict)
+            {
+                int vw = (int)HudText.Measure(font, verdict);
+                Raylib.DrawRectangle(cx - vw / 2 - 6, uy - 3, vw + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
+            }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
                                   _driver.Scheme, _driver.Running);
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
@@ -336,6 +344,33 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
             }
+        }
+
+        /// <summary>⭐ <c>CE-1213</c> — the wheel's ring radius (px): the labels sit on it.</summary>
+        public const int WheelRadius = 130;
+
+        /// <summary>⭐ <c>CE-1213</c> — the command wheel: a dark disc, one label per order on the ring (the one under the cursor lit), the
+        /// cursor; "no men under your command" when the ring is empty.</summary>
+        private void DrawWheel(Font? font, int cx, int cy)
+        {
+            var items = _driver!.WheelItems;
+            Raylib.DrawCircle(cx, cy, WheelRadius + 60, new Color(0, 0, 0, 110));
+            Raylib.DrawCircleLines(cx, cy, CommandWheel.DeadZonePx, new Color(255, 255, 255, 90));
+            if (items.Count == 0)
+            {
+                const string none = "no men under your command";
+                HudText.Draw(font, none, cx - (int)HudText.Measure(font, none) / 2, cy - HudLineHeight / 2, Color.LightGray);
+            }
+            int lit = CommandWheel.Pick(_driver.WheelCursor, items.Count);
+            for (int i = 0; i < items.Count; i++)
+            {
+                var at = new Vector2(cx, cy) + CommandWheel.Direction(i, items.Count) * WheelRadius;
+                int tw = (int)HudText.Measure(font, items[i].Name);
+                Raylib.DrawRectangle((int)at.X - tw / 2 - 8, (int)at.Y - HudLineHeight / 2 - 2, tw + 16, HudLineHeight + 4,
+                                     i == lit ? new Color(230, 150, 40, 220) : new Color(20, 20, 20, 200));
+                HudText.Draw(font, items[i].Name, (int)at.X - tw / 2, (int)at.Y - HudLineHeight / 2 + 2, Color.White);
+            }
+            Raylib.DrawCircle(cx + (int)_driver.WheelCursor.X, cy + (int)_driver.WheelCursor.Y, 4f, Color.White);
         }
 
         /// <summary>The HUD's text size and line pitch (px).</summary>
@@ -452,7 +487,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  R ammo  F use (hold F: more)  Q/E lean");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  R ammo  F use (hold F: more)  Q/E lean  T orders");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -777,6 +812,53 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
         public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
 
+        /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
+        public const KeyboardKey CommandWheelKey = KeyboardKey.T;
+        /// <summary>⭐ <c>CE-1213</c> — how long the wheel's verdict stays under the crosshair (s).</summary>
+        public const float WheelVerdictSeconds = 2.5f;
+
+        /// <summary>⭐ <c>CE-1213</c> — is the command wheel open (T held)?</summary>
+        public bool WheelOpen { get; private set; }
+        /// <summary>⭐ <c>CE-1213</c> — the ring, fixed when the wheel opened (<see cref="CommandWheel.Items"/>).</summary>
+        public IReadOnlyList<Hrot.Common.Orders.OrderInfo> WheelItems { get; private set; } = Array.Empty<Hrot.Common.Orders.OrderInfo>();
+        /// <summary>⭐ <c>CE-1213</c> — the wheel's cursor, px from its middle (the mouse moves it while the wheel is open).</summary>
+        public Vector2 WheelCursor { get; private set; }
+        private string? _wheelVerdict;
+        private float _wheelVerdictAt;
+
+        /// <summary>⭐ <c>CE-1213</c> — what the last wheel order did (<c>Move: 3 of 3 men</c>), for <see cref="WheelVerdictSeconds"/>.</summary>
+        public string? WheelVerdict(float clock) => _wheelVerdict != null && clock - _wheelVerdictAt <= WheelVerdictSeconds ? _wheelVerdict : null;
+
+        /// <summary>⭐ <c>CE-1213</c> (§8j W-1) — T pressed opens the wheel on his men's orders; held, the mouse moves its cursor; let go,
+        /// the sector under the cursor is sent to his men at the crosshair (nothing inside the dead zone). True while it has the mouse.</summary>
+        private bool CommandWheelInput(IInputProvider input, Vector2 delta)
+        {
+            bool held = input.IsKeyDown((MapKeyboardKey)CommandWheelKey);
+            if (held && !WheelOpen && _world() is { } ow)
+            {
+                WheelItems = CommandWheel.Items(ow, Unit);
+                WheelCursor = Vector2.Zero;
+                WheelOpen = true;
+            }
+            if (!WheelOpen) return false;
+            if (held)
+            {
+                var cursor = WheelCursor + delta;
+                WheelCursor = cursor.Length() > CommandWheel.CursorReachPx ? Vector2.Normalize(cursor) * CommandWheel.CursorReachPx : cursor;
+                return true;
+            }
+            WheelOpen = false;
+            int pick = CommandWheel.Pick(WheelCursor, WheelItems.Count);
+            if (pick >= 0 && _world() is { } sw)
+            {
+                var order = WheelItems[pick];
+                int accepted = CommandWheel.Send(sw, Unit, order, AimAt, AimTarget);
+                _wheelVerdict = $"{order.Name}: {accepted} of {CommandWheel.MenOf(sw, Unit).Count} men";
+                _wheelVerdictAt = _station.Clock;
+            }
+            return true;
+        }
+
         /// <summary>⭐ <c>CE-1212</c> — the lean held this frame (a person only; none in a vehicle).</summary>
         public Fdp.Toolkit.Combat.LeanSide Leaning { get; private set; }
 
@@ -799,6 +881,8 @@ namespace Hrot.UI.Common.Map3D
 
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
+            // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
+            if (CommandWheelInput(input, delta)) delta = Vector2.Zero;
             // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
             Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
