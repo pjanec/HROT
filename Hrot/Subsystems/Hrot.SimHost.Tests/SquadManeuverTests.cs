@@ -3069,6 +3069,124 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>The defended building as a survey answer: building 7 round the position, two storeys of one 10 m room (floors 0 and 3),
         /// a stair from the ground floor at (4, 4, 1.5) and one higher at (4, −4, 4.5) — or no stair at all.</summary>
+        // ── ⭐ CE-2276 E-4 — battle positions over an AREA (Defend & Attack §8d E-4, DA-85…DA-92, R-2060) ─────────────────────────
+
+        private static void DefendArea(Platoon p, float radius = 80f)
+            => p.S.Order("{\"Position\":[0,0,0],\"SearchRadius\":" + radius.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                         + ",\"Left\":330,\"Right\":30,\"MaxRange\":150}", BehaviorNames.PlatoonDefend);
+
+        /// <summary>A building of the area: enterable or solid, its footprint a square of <paramref name="side"/> round (x, y), and windows on
+        /// its north face (outward +Y) and its south face (outward −Y).</summary>
+        private static void AddBuilding(Fdp.Toolkit.Perception.Survey.WorldSurveyPayload a, int id, float x, float y, bool solid = false,
+                                        int northWindows = 0, int southWindows = 0, float side = 14f)
+        {
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = id, Solid = solid, CentreX = x, CentreY = y, Levels = { 0f, 3f } });
+            if (solid) return;   // a solid building's layout has no faces (BuildingLayout.Derive)
+            float h = side * 0.5f;
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = id, AX = x - h, AY = y + h, BX = x + h, BY = y + h, OutX = 0, OutY = 1 });
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = id, AX = x + h, AY = y - h, BX = x - h, BY = y - h, OutX = 0, OutY = -1 });
+            for (int i = 0; i < northWindows; i++)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = id, Kind = 1, X = x - h + 2f + 3f * i, Y = y + h, Width = 1f, Face = 0 });
+            for (int i = 0; i < southWindows; i++)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = id, Kind = 1, X = x - h + 2f + 3f * i, Y = y - h, Width = 1f, Face = 1 });
+        }
+
+        private static void AnswerPositions(Platoon p, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload answer)
+        {
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.PositionsSite);
+            Assert.False(survey.IsNull, "the platoon surveys its area");
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)p.S.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey);
+            Assert.Equal((Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey, 80f), (request.Kind, request.AreaRadius));
+            var now = p.S.Repo.GetSingleton<GlobalTime>().TotalTime;
+            p.S.Repo.SetComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            p.S.Repo.SetManagedComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = answer });
+        }
+
+        private static void Near(Vector3 expected, Vector3 actual, string what)
+            => Assert.True(Vector3.Distance(expected, actual) < 0.05f, $"{what}: expected {expected}, was {actual}");
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2276</c> E-4 (DA-85, DA-86, DA-87) — a platoon given an AREA (80 m) surveys it and sends each line squad to its own house:
+        /// the house whose windows look at the area first (2 north windows beat 3 facing away), each squad's radius its house's size (half
+        /// its 14 m face + 3 = 10 m), the solid shed nobody's house; the reserve 40 m behind with an open-ground radius; nothing is ordered
+        /// before the answer. ✅ Red-proofs: the facing count ignored ⇒ the house with more windows first; the survey not read ⇒ both at
+        /// the centre; the solid filter dropped ⇒ the shed (nearest) taken.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_AnArea_EachLineSquadHoldsItsOwnHouse_TheOneFacingTheAreaFirst()
+        {
+            var p = new Platoon(squads: 3);
+            DefendArea(p);
+            p.Ticks(3);
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));   // waiting for the survey
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            AddBuilding(answer, 1, -30f, 10f, southWindows: 3);    // its windows look away from the area (north)
+            AddBuilding(answer, 2, 30f, 20f, northWindows: 2);
+            AddBuilding(answer, 3, 0f, 5f, solid: true);           // a shed — nearest, but no house
+            AnswerPositions(p, answer);
+            p.Ticks(4);
+            var alpha = DefendOrderTo(p, p.Alpha);
+            var bravo = DefendOrderTo(p, p.Bravo);
+            Near(new Vector3(30f, 20f, 0f), alpha.Position, "Alpha holds the house facing the area");
+            Near(new Vector3(-30f, 10f, 0f), bravo.Position, "Bravo the other house");
+            Assert.Equal((10f, 10f), (alpha.SearchRadius, bravo.SearchRadius));
+            var reserve = DefendOrderTo(p, p.Charlie);
+            Near(new Vector3(0f, -40f, 0f), reserve.Position, "the reserve behind");
+            Assert.Equal(BattlePositions.OpenRadius, reserve.SearchRadius);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
+                "the survey goes once read");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2276</c> E-4 (DA-88, 🔒 "the area … can contain various obstacles and buildings") — three line squads, one house, one
+        /// solid obstacle: the first squad takes the house, the second the obstacle's LEE (away from the area: 4 + 2 m south of the shed,
+        /// which carries no faces), the third open ground 40 m to the right of the centre across the area's bearing — the open-ground
+        /// squads with radius 25 m for their own cover asks. ✅ Red-proofs: the obstacle pass skipped ⇒ Bravo on the open line; the lee
+        /// toward the area ⇒ Bravo north of the shed.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_SquadsLeftOver_TakeTheObstaclesLee_ThenOpenGroundAcrossTheArea()
+        {
+            var p = new Platoon(squads: 4);
+            DefendArea(p);
+            p.Ticks(3);
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            AddBuilding(answer, 1, -30f, 10f, northWindows: 1);
+            AddBuilding(answer, 3, 0f, 30f, solid: true);
+            AnswerPositions(p, answer);
+            p.Ticks(4);
+            var delta = p.S.Members[3];
+            Near(new Vector3(-30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position, "Alpha in the house");
+            Near(new Vector3(0f, 24f, 0f), DefendOrderTo(p, p.Bravo).Position, "Bravo in the shed's lee");
+            Near(new Vector3(40f, 0f, 0f), DefendOrderTo(p, p.Charlie).Position, "Charlie on open ground, right of the centre");
+            Assert.Equal((BattlePositions.OpenRadius, BattlePositions.OpenRadius), (DefendOrderTo(p, p.Bravo).SearchRadius, DefendOrderTo(p, p.Charlie).SearchRadius));
+            Near(new Vector3(0f, -40f, 0f), DefendOrderTo(p, delta).Position, "Delta the reserve");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2276</c> E-4 (DA-90, DA-85) — the survey never answers: after 5 s the line spreads across the area (the centre, then 40 m
+        /// right) rather than crowding one spot; an order narrower than 40 m is one position and asks nothing (E-1). ✅ Red-proofs: no timeout
+        /// ⇒ no orders; the area threshold dropped ⇒ the narrow order asks the survey.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_NoAnswer_TheLineSpreadsAcrossTheArea_ANarrowOrderIsOnePosition()
+        {
+            var p = new Platoon(squads: 2);
+            DefendArea(p);
+            p.Ticks(3);
+            p.S.Pause(PlatoonDefendBehavior.PositionsTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Near(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position, "Alpha at the centre");
+            Near(new Vector3(40f, 0f, 0f), DefendOrderTo(p, p.Bravo).Position, "Bravo 40 m to the right");
+
+            var q = new Platoon(squads: 2);
+            DefendArea(q, radius: 30f);
+            q.Ticks(4);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(q.S.Repo, q.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
+                "30 m is one position: no survey");
+            Assert.Equal((Vector3.Zero, Vector3.Zero), (DefendOrderTo(q, q.Alpha).Position, DefendOrderTo(q, q.Bravo).Position));
+        }
+
         private static void AnswerBuilding(Platoon p, bool stairs = true)
         {
             var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);

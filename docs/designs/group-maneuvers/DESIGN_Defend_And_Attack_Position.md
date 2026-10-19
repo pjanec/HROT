@@ -1370,7 +1370,7 @@ classDiagram
 sector) with the stair as its point. Rails: `SquadManeuverTests.CE2276_E3b_*` (2), the answer faked as D-2h fakes its fan.
 ⛔ Not yet live: no scenario puts an enemy inside a defended building (`pc-defend-house`, E-3).
 
-#### E-4 — battle positions over an AREA *(`CE-2276` E-4; behaviors, 2026-10-19 — Urban Battle §5 step 2, R-2060's area rule (Platoon §5a), DA-51's deferred half; build-state: BUILDING — leans DA-85…DA-92 ✅ approved by the user 2026-10-19 ("Yes go ahead autonomously"), with the obstacle rule below)*
+#### E-4 — battle positions over an AREA *(`CE-2276` E-4; behaviors, 2026-10-19 — Urban Battle §5 step 2, R-2060's area rule (Platoon §5a), DA-51's deferred half; build-state: ✅ BUILT 2026-10-19 — leans DA-85…DA-92 ✅ approved by the user ("Yes go ahead autonomously"), with the obstacle rule below; the diagrams are the as-built)*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — codebase-memory CLI `search_graph` `.*(BattlePosition|DefencePlan|PlanDefence|PlatoonDefence|Position(Planner|Picker)|SquadPosition).*` (Class): **1** — `PlatoonDefencePlan`; `.*(Survey|WorldSurvey).*` (Class): 24 — the CE-3249 model, sensor, solve and wire; ⚠ `check_index_coverage` is not reachable through the CLI, so the counts are best effort):**
 `PlanDefence` puts every line squad on the order's position with the order's radius (E-1, `PlatoonDefendBehavior.cs:254`) ⇒ in an area
@@ -1435,8 +1435,19 @@ graph TD
 | **DA-91** | **the line's sectors**: E-1's `Slice` as it is — the squads now stand apart, so it orders them by bearing | a slice per building face: a sector the squad's posts cannot see is no better than the arc |
 | **DA-92** | ⚠ **cross-lane (backend's file `WorldSurveySolve`)**: an area ask keeps the **nearest** 4 buildings (by footprint distance to the centre), not the first 4 by index — D-2l's frame survey has the same need | asking backend and waiting: one sort, in a file whose owner's rule (`MaxBuildings`) it keeps |
 
-**Slices.** E-4 is one slice: the planner, the cross-lane sort, rails in the platoon suite (`SquadManeuverTests.CE2276_E4_*`) and
-the solve's own suite (`WorldSurveySolveTests`). ⛔ Not in it: open-ground positions picked from a cover answer (DA-88 leaves that to
+**As built (2026-10-19)** — the deviations, each argued:
+
+| as built | why |
+|---|---|
+| `PlatoonDefencePlan.Asked` / `AskedAt`; `PlanDefence` asks on its first tick and returns Running until the answer or `PositionsTimeoutSeconds` (5 s) | DPlan already runs until `Made` — no HSM change |
+| the planner runs only when no `Squads[]` are authored (DA-51's authored squads still win) | an authored plan is the author's |
+| in an area the reserve's radius is the open-ground 25 m, not the area's | the reserve would otherwise ask for every window of the area |
+| ⚠ a SOLID building's layout has no faces (`BuildingLayout.Derive`), so its lee uses `ObstacleHalfMetres` 4 m + 2 m | 📐 measured in the build; a footprint size in `SurveyBuilding` would make it exact — a later backend field, not needed for the slice |
+| the nearest sort keeps NAMED buildings (`OfBuildings`) first, then the area's by footprint distance | a named building was asked for by name |
+| 📐 the solve rail on cqb-village round H5 (230, 204), 200 m: **H5 · SNP · H3 · OBJ** (OBJ ~104 m beats the CMP shed ~119 m); unsorted it was H1 · OBJ · H3 · H6 | the rail's first expectation guessed the shed — the measurement corrected it |
+
+**Slices.** E-4 is one slice: the planner, the cross-lane sort, rails in the platoon suite (`SquadManeuverTests.CE2276_E4_*`, 3) and
+the solve's own suite (`WorldSurveySolveTests.CE2276_E4_*`). ⛔ Not in it: open-ground positions picked from a cover answer (DA-88 leaves that to
 each squad), more than 4 buildings (a second ask), a squad split over two houses.
 
 **Slices.** **E-1** (built): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`

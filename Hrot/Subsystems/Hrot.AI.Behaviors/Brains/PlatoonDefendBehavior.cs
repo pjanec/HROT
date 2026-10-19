@@ -47,6 +47,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Falling;
         /// <summary>⭐ E-3a (DA-66) — the fall-back point (made at plan time when the order has none).</summary>
         public Vector3 FallBackTo;
+        /// <summary>⭐ E-4 (DA-85, DA-90) — 1 once the area's survey was asked (battle positions) · when (sim s).</summary>
+        public byte Asked;
+        public double AskedAt;
         public fixed byte Role[Capacity];
         public fixed float X[Capacity];
         public fixed float Y[Capacity];
@@ -142,6 +145,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ E-3b (DA-74) — the reserve's posts round the stair (m).</summary>
         public const float StairRadius = 6f;
         private const byte StairPortal = 3;   // BuildingPortalKind.Stair
+        /// <summary>⭐ E-4 (DA-85, DA-90) — the area's building survey (the battle positions) · how long the plan waits for it (s).</summary>
+        public const int PositionsSite = 0x22760002;
+        public const float PositionsTimeoutSeconds = 5f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct PlatoonDefendBlackboard
@@ -251,9 +257,37 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (p.Position == Vector3.Zero && p.Area.ArcSet != 0) p.Position = p.Area.ArcOrigin;
             if (p.Authored == 0)
+            {
+                // ⭐ E-4 (DA-85…DA-90) — an AREA: one survey of its buildings, then a battle position per line squad
+                BattlePositions.Position[]? positions = null;
+                if (p.SearchRadius >= BattlePositions.AreaMetres)
+                {
+                    double now = CommandPictureOps.Now(world);
+                    if (p.Asked == 0)
+                    {
+                        WorldSurveyChildSensor.Ensure(world, self, PositionsSite,
+                            WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), p.SearchRadius));
+                        p.Asked = 1;
+                        p.AskedAt = now;
+                        return NodeStatus.Running;
+                    }
+                    var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, self, PositionsSite);
+                    var read = WorldSurveyChildSensor.Read(world, child, now);
+                    bool ready = read.Ready && !read.Stale && read.Payload != null;
+                    if (!ready && now - p.AskedAt < PositionsTimeoutSeconds) return NodeStatus.Running;
+                    var area = p.Area;
+                    Vector3? middle = EngagementAreasMiddle(world, in area, out var m) ? m : null;
+                    positions = BattlePositions.Plan(ready ? read.Payload : null, p.Position, p.SearchRadius, middle, n >= 3 ? n - 1 : n);
+                    WorldSurveyChildSensor.Release(world, child);
+                }
                 for (int slot = 0; slot < n; slot++)
-                    p.Set(slot, n >= 3 && slot == n - 1 ? PlatoonDefencePlan.Reserve : PlatoonDefencePlan.Line,
-                          n >= 3 && slot == n - 1 ? Behind(world, in p, ReserveBehindMetres) : p.Position, p.SearchRadius);
+                {
+                    bool reserve = n >= 3 && slot == n - 1;
+                    if (reserve) p.Set(slot, PlatoonDefencePlan.Reserve, Behind(world, in p, ReserveBehindMetres), positions != null ? BattlePositions.OpenRadius : p.SearchRadius);
+                    else if (positions != null) p.Set(slot, PlatoonDefencePlan.Line, positions[slot].Point, positions[slot].Radius);
+                    else p.Set(slot, PlatoonDefencePlan.Line, p.Position, p.SearchRadius);
+                }
+            }
             if (p.Area.ArcSet != 0) Slice(ref p, n);
             if (p.FallBackTo == Vector3.Zero) p.FallBackTo = Behind(world, in p, FallBackMetres);   // ⭐ E-3a (DA-66)
             if (p.Controls != 0)   // ⭐ E-3b (DA-72) — the defended building, surveyed once and kept (a standing sensor)

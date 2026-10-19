@@ -50,6 +50,26 @@ namespace Fdp.Toolkit.Perception.Survey.Tests
             _w.SetManagedComponent(e, new TerrainObjectKey { Key = "bt-range/House A/" + id });
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2276</c> E-4 (DA-92; behaviors, cross-lane) — an AREA wider than four buildings keeps the four NEAREST its centre, not the
+        /// first four the world file lists: on the shipped cqb-village, round H5 (230, 204) with 200 m, H5 (0 m) · SNP · H3 · OBJ (~104 m; the CMP shed
+        /// ~119 m and H4 ~124 m fall off) — and says it was cut short. ✅ Red-proof: without the sort the answer is H1 · OBJ · H3 · H6 (the file's first four).
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_AnAreaKeepsItsNearestFourBuildings()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "cqb-village");
+            var village = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "cqb-village.world.geojson")), "cqb-village",
+                TerrainAssets.ForFolder(folder));
+            using var w = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(village);
+            w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0 });
+            var answer = WorldSurveySolve.Solve(w, WorldSurveyRequest.OfArea(new Vector2(230f, 204f), 200f));
+            Assert.True(answer.Truncated);
+            Assert.Equal(new[] { "H3", "H5", "OBJ", "SNP" }, answer.Buildings.Select(b => b.Label).OrderBy(l => l, StringComparer.Ordinal).ToArray());
+        }
+
         [Fact]
         public void CE3249_AFanSeesOutThroughAWindow_AndNotThroughAWall()
         {

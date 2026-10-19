@@ -92,11 +92,22 @@ namespace Fdp.Toolkit.Perception.Survey
             var chosen = new List<int>();
             foreach (int b in request.Buildings)
                 if (b >= 0 && b < world.Buildings.Count && !chosen.Contains(b)) chosen.Add(b);
+            int named = chosen.Count;
             if (request.AreaRadius > 0f)
             {
                 var c = new Vector2(request.AreaX, request.AreaY);
                 for (int b = 0; b < world.Buildings.Count; b++)
                     if (!chosen.Contains(b) && Meets(world.Buildings[b].Footprint, c, request.AreaRadius)) chosen.Add(b);
+            }
+            if (chosen.Count > WorldSurveyRequest.MaxBuildings && request.AreaRadius > 0f)
+            {
+                // ⭐ CE-2276 E-4 (DA-92; behaviors, cross-lane) — an area keeps its NEAREST buildings (footprint distance to the centre),
+                //   named ones first: the first ones by index are wherever the world file happened to list them
+                var c = new Vector2(request.AreaX, request.AreaY);
+                var rest = chosen.GetRange(named, chosen.Count - named);
+                rest.Sort((x, y) => Distance(world.Buildings[x].Footprint, c).CompareTo(Distance(world.Buildings[y].Footprint, c)));
+                chosen.RemoveRange(named, chosen.Count - named);
+                chosen.AddRange(rest);
             }
             if (chosen.Count > WorldSurveyRequest.MaxBuildings)
             {
@@ -175,6 +186,21 @@ namespace Fdp.Toolkit.Perception.Survey
             var s = Vector2.Zero;
             foreach (var p in footprint) s += p;
             return footprint.Length == 0 ? s : s / footprint.Length;
+        }
+
+        /// <summary>How far <paramref name="c"/> is from the footprint (0 inside it).</summary>
+        private static float Distance(Vector2[] footprint, Vector2 c)
+        {
+            if (footprint.Length == 0) return float.MaxValue;
+            if (PolygonMath.Contains(footprint, c)) return 0f;
+            float best = float.MaxValue;
+            for (int i = 0, j = footprint.Length - 1; i < footprint.Length; j = i++)
+            {
+                var a = footprint[j]; var b = footprint[i]; var ab = b - a;
+                float t = ab.LengthSquared() < 1e-9f ? 0f : Math.Clamp(Vector2.Dot(c - a, ab) / ab.LengthSquared(), 0f, 1f);
+                best = MathF.Min(best, Vector2.Distance(c, a + ab * t));
+            }
+            return best;
         }
 
         private static bool Meets(Vector2[] footprint, Vector2 c, float radius)
