@@ -21,6 +21,10 @@ namespace Fdp.Core
     ///   <item><term>160â€“199</term><description>Application-level descriptor components</description></item>
     ///   <item><term>200â€“255</term><description>Reserved â€” examples and future use</description></item>    ///   <item><term>256â€"299</term><description>Squad coordination components</description></item>    /// </list>
     ///
+    /// <para><b>⭐ R-2056 (2026-10-19) — NEW ids come from the LANE's block</b> (existing ids are never renumbered):
+    /// behaviors 418–433 · backend 434–449 · traffic 450–459 (reserved) · ui 460–475 · coordinator / a new lane 476–495 ·
+    /// 496–511 held back (the 512-bit mask). 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</para>
+    ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
     /// add a constant here, and decorate the struct with
