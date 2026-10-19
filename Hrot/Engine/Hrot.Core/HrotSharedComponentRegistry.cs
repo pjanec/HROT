@@ -200,6 +200,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();   // AQ89 B (R-269) — bravery / obedience; the editor saves it too
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-2273 DA-A — what he CAN do; the hit model reads it where fire resolves
+        // ⭐⭐ CE-3268 — a man's / a commander's sector (CE-2282 DA-L), replicated by its owner (dtEngagementArea, CE-3261) ⇒ every node takes it.
+        //   🔴 It was registered only by the brain's cognitive registry: SimHost crashed on the first sector order (measured live, 2026-10-19).
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();

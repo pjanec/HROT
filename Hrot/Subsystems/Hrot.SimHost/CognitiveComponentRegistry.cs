@@ -33,7 +33,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();          // ⭐ CE-2291 CC-A — what subordinates reported
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportingRequirements>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();   // ⭐ CE-2282 DA-L — a man's / a commander's sector   // ⭐ CE-2291 CC-A — the superior's extras
+            // (⭐ CE-3268 — EngagementArea (CE-2282 DA-L) is registered by HrotSharedComponentRegistry: replicated since CE-3261, every node takes it.)
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>();            // ⭐ CE-2291 CC-A — reports waiting to go up
             world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)

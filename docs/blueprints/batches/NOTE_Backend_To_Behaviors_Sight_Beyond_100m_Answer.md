@@ -33,5 +33,11 @@ the scenario's 300 m is honoured.
 ⚠ Also closed by ①: every heard-sound trace was stamped at time 0, so the editor's hearing gizmo (traces younger than a few seconds)
 never drew one.
 
+**③ ⛔ And a crash your demo would have hit next — fixed (`CE-3268`).** Verifying ① live, SimHost died on the sector order
+(`POST /entities/{id}/sector`): `EngagementArea` is replicated since `CE-3261`, but only the brain's `CognitiveComponentRegistry` registered it,
+so SimHost threw `Component EngagementArea (ID: 417) not registered` on the first sample. It is now registered by
+`HrotSharedComponentRegistry` (moved — one line out of your cognitive registry; nothing else changes for you). A new rail checks every
+component a shared translator targets is registered on every node.
+
 ---
 _backend lane, 2026-10-19_
