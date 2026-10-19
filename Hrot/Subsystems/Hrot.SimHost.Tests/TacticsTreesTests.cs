@@ -257,9 +257,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
 
             w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            uint move = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
             for (int i = 0; i < 6; i++) w.Tick();
             Assert.Equal("CombatPosture", w.TaskName);                 // he stays
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            // … THERE: the arrived advance holds (AdvanceParams.Stay) — without it the branch succeeds, restarts and re-issues the move
+            Assert.Equal(move, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run and its sensors go on");
         }
 
