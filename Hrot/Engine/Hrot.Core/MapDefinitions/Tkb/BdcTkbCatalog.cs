@@ -52,6 +52,48 @@ namespace Hrot.Map.Definitions.Tkb
             ScopeMagnification = 4f, ScopeFovDegrees = scopeFovDegrees,
         };
 
+        /// <summary>⭐ The US rifleman's body, carbine, sensor, injury, carrier and brain (DIS 3.1.US.1) — the rifleman (200) and, ⭐ CE-3277,
+        /// the officer (201), who also carries binoculars (a leader by ROLE holds them anyway, CE-1224; a seated commander has no role).</summary>
+        private static void Soldier(NedTkbBuilder builder, long type, string name, bool binoculars)
+        {
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v =>
+                {
+                    v.IconName = "rifleman";   // CE-1017 S0
+                    v.SymbolCode = "SFGPUCI--------";
+                    v.ModelPath = "models/soldier.obj";
+                    v.ColorHex = "#556B2F";
+                    v.Scale = 0.6f;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 100;
+                    p.Length = 0.6f;
+                    p.Width = 0.4f;
+                    p.Height = 1.75f;
+                    p.MaxSpeed = PersonRunSpeed;   // ⭐ CE-1208 (R-265 A) — his RUN; was 2.5 "walking", so Shift ran at a walk
+                    p.Acceleration = PersonAcceleration;
+                    p.TurnRate = 90.0f;
+                    p.Mobility = TerrainMobility.Infantry;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 5; // Body armor
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+                        DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
+                        Category = WeaponCategory.SmallArms });
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
+                .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
+                .WithBehavior(type)
+                .WithPocketItems(type, new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = binoculars })
+                .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
+        }
+
         /// <summary>⭐ <c>CE-3253</c> (BR-8) — an infantry MACHINE GUNNER: the rifleman's body, sensor, injury, carrier and brain with an LMG
         /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type. ⭐ <c>CE-3254</c>:
         /// the sniper and the marksmen are the same man with a scoped rifle.</summary>
@@ -753,42 +795,10 @@ namespace Hrot.Map.Definitions.Tkb
                 gunnerSeat: new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman,
                                           X = -1.3f - 0.55f, Y = 0.45f, Z = BedFloorZ + 0.95f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit });
             
-            // Infantry Rifleman
-            builder
-                .DefineVehicle(TkbEntityTypes.Infantry_Rifleman, "Rifleman")
-                .WithVisual(TkbEntityTypes.Infantry_Rifleman, v =>
-                {
-                    v.IconName = "rifleman";   // CE-1017 S0
-                    v.SymbolCode = "SFGPUCI--------";
-                    v.ModelPath = "models/soldier.obj";
-                    v.ColorHex = "#556B2F";
-                    v.Scale = 0.6f;
-                })
-                .WithPhysics(TkbEntityTypes.Infantry_Rifleman, p =>
-                {
-                    p.Mass = 100;
-                    p.Length = 0.6f;
-                    p.Width = 0.4f;
-                    p.Height = 1.75f;
-                    p.MaxSpeed = PersonRunSpeed;   // ⭐ CE-1208 (R-265 A) — his RUN; was 2.5 "walking", so Shift ran at a walk
-                    p.Acceleration = PersonAcceleration;
-                    p.TurnRate = 90.0f;
-                    p.Mobility = TerrainMobility.Infantry;
-                })
-                .WithCombat(TkbEntityTypes.Infantry_Rifleman, c =>
-                {
-                    c.ArmorFront = 5; // Body armor
-                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
-                        DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
-                        Category = WeaponCategory.SmallArms });
-                    c.SensorRange = 500;
-                })
-                .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
-                .WithInjury(TkbEntityTypes.Infantry_Rifleman, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
-                .WithCarrier(TkbEntityTypes.Infantry_Rifleman, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
-                .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
-                .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
+            // Infantry Rifleman · ⭐ CE-3277 — and the OFFICER (201): the same man with binoculars in his pocket. The squad's leader slot and the
+            //   M109's commander seat named 201 since they were written, and it had no template — both spawned nothing.
+            Soldier(builder, TkbEntityTypes.Infantry_Rifleman, "Rifleman", binoculars: false);
+            Soldier(builder, TkbEntityTypes.Infantry_Officer, "Officer", binoculars: true);
 
             // ⭐ CE-2187 (DESIGN_Weapon_Systems §5c) — the MANPADS gunners: a rifleman whose carry station starts with the launcher
             //   (W-I SeatPresets fills it once on the creating node) — the first soldier preset with a weapon on his back

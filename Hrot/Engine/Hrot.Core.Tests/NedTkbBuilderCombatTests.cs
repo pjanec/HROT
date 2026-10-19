@@ -740,6 +740,47 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3277</c> — the catalogue's INTEGRITY: every type a seat preset (<c>SeatDto.StartWith</c>), a composite's slot
+        /// (<c>TkbCompositionDef</c>) or a child blueprint names EXISTS in the catalogue every host builds. 🔴 Red before: the squad's leader
+        /// slot and the M109's commander seat named <c>Infantry_Officer</c> (201), which had no template — both spawned nothing.
+        /// </summary>
+        [Fact]
+        public void CE3277_EveryTypeAPresetOrASlotNames_Exists()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var missing = new System.Collections.Generic.List<string>();
+            void Check(Fdp.Interfaces.TkbTemplate owner, long named, string where)
+            {
+                if (named != 0 && !db.TryGetByType(named, out _)) missing.Add($"{owner.Name} ({owner.TkbType}) {where} names {named}");
+            }
+            int checkedRefs = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<CarrierDefDto>() is { } carrier)
+                    for (int i = 0; i < carrier.Seats.Count; i++) { Check(t, carrier.Seats[i].StartWith, $"seat {i}"); if (carrier.Seats[i].StartWith != 0) checkedRefs++; }
+                if (t.GetDescriptor<TkbCompositionDef>() is { } comp)
+                    foreach (var slot in comp.Subordinates) { Check(t, slot.TkbType, $"slot {slot.Designation}"); checkedRefs++; }
+                foreach (var child in t.ChildBlueprints) { Check(t, child.ChildTkbType, $"child {child.InstanceId}"); checkedRefs++; }
+            }
+            Assert.True(checkedRefs >= 20, $"only {checkedRefs} references checked");
+            Assert.Empty(missing);
+        }
+
+        /// <summary>⭐ <c>CE-3277</c> — the officer (201) is the rifleman's man with binoculars in his pocket.</summary>
+        [Fact]
+        public void CE3277_TheOfficer_IsARiflemanWithBinoculars()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var officer = db.GetByType(TkbEntityTypes.Infantry_Officer);
+            Assert.NotNull(officer);
+            Assert.Equal(3, officer!.DisType.Kind);
+            Assert.True(officer.GetDescriptor<PocketItemsDto>() is { Binoculars: true });
+            Assert.Null(db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<PocketItemsDto>());   // the rifleman carries none
+            Assert.Equal(db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<VehicleParametersDto>(),
+                         officer.GetDescriptor<VehicleParametersDto>());                                      // the same body
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-1208</c> (R-265 A, missed in this catalogue) — every BDC PERSON's top speed is a sprint (6 m/s, 2.5 m/s²), as the urban
         /// soldiers' and the pedestrian preset's: the operator's Shift runs at it, the AI's moves ask their own speed under it. 🔴 Red before:
         /// 2.5 m/s "walking", so the run was a walk.
