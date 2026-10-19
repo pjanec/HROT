@@ -97,6 +97,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         public byte UseVerb;
         /// <summary>⭐ CE-1151 — the network id of what the crosshair rested on at the last use press (0 = nothing).</summary>
         public long UseTarget;
+        /// <summary>⭐ CE-1212 (DESIGN_Entity_Control §8j L-1, appended) — the lean the operator holds (<c>LeanSide</c>: 0 none, 1 left, 2
+        /// right) — a LEVEL, every frame: it lasts while Q / E is held.</summary>
+        public byte Lean;
     }
 
     /// <summary>
@@ -138,6 +141,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// (<see cref="OperatorControlFrameEvent.UseSeq"/>).</summary>
         public byte UseSeq, UseVerb;
         public long UseTarget;
+        /// <summary>⭐ CE-1212 (§8j L-1, appended) — the lean the operator holds (<see cref="OperatorControlFrameEvent.Lean"/>).</summary>
+        public byte Lean;
     }
 
     /// <summary>
@@ -187,6 +192,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                         Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
                         ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
                         UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
+                        Lean = f.Lean,                                                     // ⭐ CE-1212
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
                     else repo.AddComponent(f.Unit, input);
@@ -229,6 +235,9 @@ namespace Fdp.Toolkit.Behavior.Possession
                 intent.Mode = NavigationMode.None;
                 unchecked { intent.IntentId++; }
                 repo.SetComponent(unit, new ManualDrive { Yaw = repo.GetComponentRO<ManualDrive>(unit).Yaw });
+                // ⭐ CE-1212 (§8j L-1) — and stands straight: an operator's lean does not outlive him (his task leans again if it wants)
+                if (Fdp.Toolkit.Combat.Leans.Of(repo, unit) != Fdp.Toolkit.Combat.LeanSide.LeanNone)
+                    Fdp.Toolkit.Combat.Leans.Set(repo, unit, Fdp.Toolkit.Combat.LeanSide.LeanNone);
             }
         }
 

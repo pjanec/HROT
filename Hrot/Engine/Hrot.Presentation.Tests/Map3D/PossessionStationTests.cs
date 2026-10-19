@@ -323,6 +323,41 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1212 (docs/DESIGN_Entity_Control.md §8j L-1, L-2) — a person leans while Q / E is held (both or neither: upright), the frame
+    /// carrying it as a level; R is the next round now (F before) and F the use key (E before).
+    /// </summary>
+    [Fact]
+    public void CE1212_HoldingQOrE_LeansThePerson_AndTheFrameCarriesIt()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            OperatorControlFrameEvent Frame(params Raylib_cs.KeyboardKey[] down)
+            {
+                var input = new Input();
+                foreach (var k in down) input.Keys.Add((int)k);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanLeft, Frame(Raylib_cs.KeyboardKey.Q).Lean);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, driver.Leaning);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanRight, Frame(Raylib_cs.KeyboardKey.E).Lean);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanNone, Frame(Raylib_cs.KeyboardKey.Q, Raylib_cs.KeyboardKey.E).Lean);
+            Assert.Equal((byte)Fdp.Toolkit.Combat.LeanSide.LeanNone, Frame().Lean);                       // let go: upright
+            var e = Frame(Raylib_cs.KeyboardKey.E);
+            Assert.Equal(0, e.UseSeq);                                                                    // E no longer uses
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, true, false, null, false), l => l.Contains("Q/E lean") && l.Contains("R ammo") && l.Contains("F use"));
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1211 (docs/DESIGN_Entity_Control.md §8j Z-1) — holding RMB zooms: a scoped weapon to its scope's field of view, an unscoped one
     /// to the iron sights' 30°; the mouse turns the view slower by the same ratio; letting go, and leaving the unit, give the map its 45° back.
     /// </summary>
@@ -454,7 +489,7 @@ public sealed partial class PossessionStationTests
             Assert.False(driver.ShotPending);
 
             var keys = new Input();
-            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.F);
+            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.R);
             keys.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
             f = Frame(keys);
             Assert.Equal((1, 1), (f.AmmoSeq, f.Mount));
@@ -477,12 +512,12 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1079 (§8e) — the HUD names the weapon and its round from the TKB: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP
+    /// ⭐ CE-1079 (§8e) — the HUD names the weapon and its round from the TKB: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  R: 120mm HEAT-MP
     /// LOADING</c> — the kind, the round in the breech and how many of it, the total, what <c>F</c> cycles to, and LOADING during a switch.
     /// 🔒 User, 2026-10-14: "for each weapon selecting ammo and see in the HUD what is selected".
     /// </summary>
     [Fact]
-    public void CE1079_TheHud_NamesTheWeapon_TheRoundInItsBreech_WhatFCyclesTo_AndLoading()
+    public void CE1079_TheHud_NamesTheWeapon_TheRoundInItsBreech_WhatRCyclesTo_AndLoading()
     {
         var (w, unit, _) = World();
         using (w)
@@ -508,9 +543,9 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, ammo);
 
             var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: true, hullLocked: false);
-            Assert.Equal("> 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP  LOADING", lines[1]);
+            Assert.Equal("> 1 CANNON  120mm APFSDS 19  41/42  R: 120mm HEAT-MP  LOADING", lines[1]);
             Assert.Equal("  2 MG  7.62x51 ball  2000/2000  [200]", lines[2]);
-            Assert.Contains("F ammo", lines[^1]);
+            Assert.Contains("R ammo", lines[^1]);
         }
     }
 

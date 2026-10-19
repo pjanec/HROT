@@ -524,6 +524,37 @@ namespace Hrot.SimHost.Tests
             if (ch2.Status == NodeStatus.Running) exec.Execute(op, ref ch2, _w, 0.016f);
         }
 
+        /// <summary>⭐ <c>CE-1212</c> (docs/DESIGN_Entity_Control.md §8j L-1) — the lean the operator holds reaches his replicated
+        /// <c>Lean</c> through its one writer, and goes when he lets go of the key; when the possession ends his body stands straight.</summary>
+        [Fact]
+        public void CE1212_TheOperatorsLean_IsSetByHisBrain_AndGoesWithTheKey_AndWithThePossession()
+        {
+            var op = Operator(Vector3.Zero);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            void Hold(Fdp.Toolkit.Combat.LeanSide side)
+            {
+                ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+                input.Seq++;
+                input.Lean = (byte)side;
+                Tick(op, ref ws);
+            }
+            Tick(op, ref ws);
+            Assert.False(_w.HasComponent<Fdp.Toolkit.Combat.Lean>(op));                          // never leaned: nothing added
+            Hold(Fdp.Toolkit.Combat.LeanSide.LeanLeft);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, Fdp.Toolkit.Combat.Leans.Of(_w, op));
+            Hold(Fdp.Toolkit.Combat.LeanSide.LeanRight);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, Fdp.Toolkit.Combat.Leans.Of(_w, op));
+            Hold(Fdp.Toolkit.Combat.LeanSide.LeanNone);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, Fdp.Toolkit.Combat.Leans.Of(_w, op));
+
+            Hold(Fdp.Toolkit.Combat.LeanSide.LeanLeft);                                          // leaning when the possession ends
+            if (!_w.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(op))
+                _w.AddComponent(op, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+            _w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(op, true);
+            new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl).Execute(_w, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, Fdp.Toolkit.Combat.Leans.Of(_w, op));   // let go with the body
+        }
+
         /// <summary>⭐ <c>CE-1154</c> (U-7) — one E on a closed door within reach opens it, a second closes it; the brain's verdict is
         /// Running when the action starts and Done when it ends, each for the press it answers, and the channel is handed back between.
         /// ✅ Red-proof: OperateUse not called from ManualControl ⇒ no action on the channel ⇒ red.</summary>

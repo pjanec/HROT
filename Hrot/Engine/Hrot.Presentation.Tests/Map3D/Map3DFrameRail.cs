@@ -1256,14 +1256,14 @@ public sealed class Map3DFrameRail
             return driver.UseLines(world).Select(l => l.Text).ToArray();
         }
         var look = new FrameInput { MouseDelta = new Vector2(0f, 120f) };   // look down at him
-        Assert.Equal(new[] { "E  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
-        Assert.Equal(new[] { "E  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
+        Assert.Equal(new[] { "F  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
+        Assert.Equal(new[] { "F  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
 
         var press = new FrameInput();
-        press.Pressed.Add((int)KeyboardKey.E); press.Down.Add((int)KeyboardKey.E);
+        press.Pressed.Add((int)KeyboardKey.F); press.Down.Add((int)KeyboardKey.F);
         Shot("fps-use-0-pressed.png", press, 1002L);
         var hold = new FrameInput();
-        hold.Down.Add((int)KeyboardKey.E);
+        hold.Down.Add((int)KeyboardKey.F);
         Assert.Equal(new[] { "> 1  Drag", "  2  Carry" }, Shot("fps-use-3-list.png", hold, 1002L, FpsCameraDriver.HoldSeconds + 0.05f));
 
         Shot("fps-use-3b-released.png", new FrameInput(), 1002L);   // let go: the press of Drag is sent
@@ -1272,7 +1272,7 @@ public sealed class Map3DFrameRail
         {
             UseSeq = 1, Outcome = Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, ActionId = 9,
         });
-        Assert.Equal(new[] { "E  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
+        Assert.Equal(new[] { "F  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
         File.Delete(Path.Combine(shots, "fps-use-0-pressed.png"));
         File.Delete(Path.Combine(shots, "fps-use-3b-released.png"));
     }

@@ -1466,14 +1466,17 @@ where `EffectSpawnSystem` is — ⚠ the build checks that this is every host wi
 | **H-1** | hit marker (`CE-1215`) | a `DetonationNotification` with `Shooter` = the possessed unit and a `Target` ⇒ a white cross at the crosshair for 0.3 s (red when the target is destroyed after it) | ⛔ a marker from the impact puff — it cannot tell a body from a wall |
 | **H-2** | damage direction | `Target` = the possessed unit ⇒ a red arc at the screen's edge toward the shot's origin (−`Travel`, else the shooter), fading over 2 s, the thicker the more damage | ⛔ a full-screen flash — it hides where it came from |
 
-### 8j.5 As built — `CE-1211` zoom (Z-1, Z-2) *(`2026-10-19`, ui)*
+### 8j.5 As built — `CE-1211` zoom (Z-1, Z-2) · `CE-1212` lean (L-1, L-2) *(`2026-10-19`, ui; the brain line cross-lane — behaviors' `OperatorControlBehavior`, said)*
 
 | what | built | ⭐ deviation / why |
 |---|---|---|
 | **Z-1 the zoom** | `FpsCameraDriver.Zooming` = RMB held; `Place` sets `MapCamera3D.FovyDegrees` = `FpsZoom.FovFor(world, unit, selected slot)` — a scoped mount's `ScopeFovDegrees` (else `HeldItems.ScopeFallbackFovDegrees` 6°), an unscoped one 30°, a controlled weapon system its mount 0; 45° otherwise and on `Detached`. The look's sensitivity × fov / 45 (`FpsZoom.SensitivityFor`) | ⛔ **no `Aiming` bit on the frame** — 📐 its premise was false: a possessed man is ALREADY Aimed the whole time, because `OperatorFire` reports `Aiming` whenever the trigger is up and `Firing` when it is down (`AimAndFireExecutor.cs:390`, `WeaponPostureOf.For` ⇒ Aimed), so `HeldItems.ScopeUp` (BR-9) already sees through his scope, zoomed or not. ⇒ the zoom is camera-only and the wire is untouched. ⚠ Found with it: the operator path never writes `WeaponPosture.ActiveMount` (only the AI path, `:102`, after the operator return at `:73`), so the sim's scope rule reads the last AI-chosen mount, not the one keys 1–4 picked — a backend gap |
 | **Z-2 the cancel** | the LOCKED shot's cancel (`CancelSeq`) is **X**; RMB no longer cancels; the HUD says so | — |
 
-Rails `PossessionStationTests.CE1211_HoldingRmb_ZoomsToTheScopeOrTheIronSights_AndSlowsTheLook` (red-proved) and `CE1078_…_XCancels_…` (the cancel moved).
+| **L-1 the lean** | the station: `FpsCameraDriver.Leaning` = Q held ⇒ left, E ⇒ right, both or neither ⇒ none, a person only; the frame carries it as a LEVEL (`OperatorControlFrameEvent.Lean`, appended — and on `OperatorInput`, `ControlFrameInteractionPayload`, the transport both ways, the debug API's `"lean"`). The brain: `OperatorControlBehavior.ManualControl` calls `Leans.Set` (the one writer of `dtLean`) only when it differs. On release `PossessionSystem.LetGoOfManual` — the invariant site that already stops the body — sets the lean to none | ⭐ a level, not a counter (unlike the presses): a lost frame is healed by the next one. ⭐ The drawn lean (CE-1193) and the sim's eye / profile / boxes all read the replicated `Lean`, so the operator's view and what others see move together. ⭐ Prone: sent anyway, the sim's own rule ignores it (`Leans.SignOf`) |
+| **L-2 the keys that moved** | **use: E → F** (`UseKeyCode`; the prompt reads `F  Open door`), **next round: F → R** (`NextRoundKey`); the HUD's key line `LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  R ammo  F use (hold F: more)  Q/E lean` | ⚠ §8h's text says *E* for use throughout — historical; the key is `UseKeyCode` |
+
+Rails `PossessionStationTests.CE1211_HoldingRmb_ZoomsToTheScopeOrTheIronSights_AndSlowsTheLook` (red-proved), `CE1078_…_XCancels_…` (the cancel moved), `CE1212_HoldingQOrE_LeansThePerson_AndTheFrameCarriesIt` (red-proved); `EmbarkNodesTests.CE1212_TheOperatorsLean_IsSetByHisBrain_AndGoesWithTheKey_AndWithThePossession` (red-proved); `InteractionTransportTests` (the lean crosses the wire unchanged); the use-key rails and frames (`PossessionStationTests.UseKey`, `Map3DFrameRail` fps-use) press F.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

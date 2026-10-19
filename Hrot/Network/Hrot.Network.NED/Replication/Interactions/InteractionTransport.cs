@@ -150,6 +150,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                     Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z, Vertical = e.Vertical, Stance = e.Stance,
                     ShotSeq = e.ShotSeq, CancelSeq = e.CancelSeq, AmmoSeq = e.AmmoSeq, ShotTarget = e.ShotTarget,
                     UseSeq = e.UseSeq, UseVerb = e.UseVerb, UseTarget = e.UseTarget,   // ⭐ CE-1151
+                    Lean = e.Lean,                                                     // ⭐ CE-1212
                 },
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
@@ -161,6 +162,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                 ShotSeq = p.ControlFrame.ShotSeq, CancelSeq = p.ControlFrame.CancelSeq, AmmoSeq = p.ControlFrame.AmmoSeq,
                 ShotTarget = p.ControlFrame.ShotTarget, IsRemote = true,
                 UseSeq = p.ControlFrame.UseSeq, UseVerb = p.ControlFrame.UseVerb, UseTarget = p.ControlFrame.UseTarget,   // ⭐ CE-1151
+                Lean = p.ControlFrame.Lean,                                                                               // ⭐ CE-1212
             });
 
         /// <summary>⭐ CE-3110 I-2a (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7) — a passenger boards; the VEHICLE's owner applies it.</summary>

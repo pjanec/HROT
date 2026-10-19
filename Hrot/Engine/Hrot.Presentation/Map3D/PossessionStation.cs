@@ -315,7 +315,7 @@ namespace Hrot.UI.Common.Map3D
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
             var font = HudText.Font();
-            // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-E list and the verdict: under the crosshair, where the operator looks
+            // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
             foreach (var use in _driver.UseLines(w))
             {
@@ -452,7 +452,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  F ammo  E use (hold E: more)");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 / wheel weapon  R ammo  F use (hold F: more)  Q/E lean");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -513,9 +513,9 @@ namespace Hrot.UI.Common.Map3D
                 _ => "",
             };
 
-            /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>E  Open door</c>, or greyed with its reason <c>E  Open door (too far)</c>.</summary>
+            /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>F  Open door</c>, or greyed with its reason <c>F  Open door (too far)</c> (⭐ CE-1212 — E before).</summary>
             public static string Prompt(EntityRepository w, in UseAction a)
-                => a.Available ? $"E  {Label(w, a)}" : $"E  {Label(w, a)} ({ReasonText(a.Reason)})";
+                => a.Available ? $"F  {Label(w, a)}" : $"F  {Label(w, a)} ({ReasonText(a.Reason)})";   // ⭐ CE-1212 — F is the use key
 
             /// <summary>⭐ CE-1158 (§8h.6 ②) — the brain's verdict on the press of <paramref name="label"/>: done, refused with its reason, or
             /// nothing while it runs.</summary>
@@ -531,7 +531,7 @@ namespace Hrot.UI.Common.Map3D
                 UsePicked = new(255, 220, 90, 255), UseDone = new(120, 235, 120, 255), UseRefused = new(255, 120, 100, 255);
 
             /// <summary>
-            /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
+            /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  R: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
             /// key, its kind, the round in its breech (and how many of that round), its total, the other rounds <c>F</c> cycles to (the
             /// selected weapon only), and LOADING while it reloads or switches.
             /// </summary>
@@ -556,7 +556,7 @@ namespace Hrot.UI.Common.Map3D
                     var others = new System.Collections.Generic.List<string>();
                     foreach (var l in loadout)
                         if (unchecked((long)l.AmmoGuid) != loaded && RoundName(w, unchecked((long)l.AmmoGuid)) is { } name) others.Add(name);
-                    if (others.Count > 0) line.Append("  F: ").Append(string.Join(" / ", others));
+                    if (others.Count > 0) line.Append("  R: ").Append(string.Join(" / ", others));   // ⭐ CE-1212 — R is the next round (F before)
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
                 return line.ToString();
@@ -662,7 +662,7 @@ namespace Hrot.UI.Common.Map3D
         private string _lastLabel = "Use";
         private readonly UseAction[] _actions = new UseAction[OperatorUseActions.MaxActions];
 
-        /// <summary>⭐ CE-1158 (O-1) — how long <c>E</c> is held before the list of the other verbs opens (s).</summary>
+        /// <summary>⭐ CE-1158 (O-1) — how long the use key (<c>F</c>, CE-1212) is held before the list of the other verbs opens (s).</summary>
         public const float HoldSeconds = 0.3f;
         /// <summary>⭐ CE-1158 (§8h.6 ②) — how long the brain's verdict line stays (s).</summary>
         public const float VerdictSeconds = 2f;
@@ -774,6 +774,12 @@ namespace Hrot.UI.Common.Map3D
             camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
         }
 
+        /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
+        public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
+
+        /// <summary>⭐ <c>CE-1212</c> — the lean held this frame (a person only; none in a vehicle).</summary>
+        public Fdp.Toolkit.Combat.LeanSide Leaning { get; private set; }
+
         /// <summary>⭐ <c>CE-1211</c> (§8j Z-1) — is the right button held (looking down the sights or through the scope)?</summary>
         public bool Zooming { get; private set; }
 
@@ -821,7 +827,7 @@ namespace Hrot.UI.Common.Map3D
             if (slots.Slice(0, slotCount).IndexOf(Mount) < 0) Mount = slots[0];   // ⭐ CE-1158 — a controlled weapon gone (he left the seat)
             if (UseListOpen)
             {
-                // ⭐ CE-1158 (O-1) — while the hold-E list is open the wheel and 1-4 pick a verb, not a weapon
+                // ⭐ CE-1158 (O-1) — while the hold-use list is open the wheel and 1-4 pick a verb, not a weapon
                 int verbs = UseCount();
                 if (wheel != 0f && verbs > 0) _listIndex = ((_listIndex + (wheel > 0f ? -1 : 1)) % verbs + verbs) % verbs;
                 for (int k = 0; k < 4; k++)
@@ -838,8 +844,12 @@ namespace Hrot.UI.Common.Map3D
                 for (int k = 0; k < 4; k++)
                     if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < slotCount) Mount = slots[k];
             }
-            // F moves the selected weapon to its next round
-            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.F)) unchecked { _ammoSeq++; }
+            // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
+            if (input.IsKeyPressed((MapKeyboardKey)NextRoundKey)) unchecked { _ammoSeq++; }
+            // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
+            bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
+            Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
+                    : leftHeld ? Fdp.Toolkit.Combat.LeanSide.LeanLeft : Fdp.Toolkit.Combat.LeanSide.LeanRight;
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
@@ -887,6 +897,7 @@ namespace Hrot.UI.Common.Map3D
                 AimPoint = aimAt,
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
+                Lean = (byte)Leaning,                                                                     // ⭐ CE-1212
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
             };
             _station.Send(_netId, frame);
@@ -944,14 +955,14 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>
-        /// ⭐ CE-1158 (§8h U-1, O-1) — <c>E</c>: pressing it fixes the target (what the crosshair rests on); a TAP sends the primary verb;
+        /// ⭐ CE-1158 (§8h U-1, O-1) — the use key (<see cref="UseKeyCode"/>, <c>F</c> since CE-1212; <c>E</c> before): pressing it fixes the target (what the crosshair rests on); a TAP sends the primary verb;
         /// held past <see cref="HoldSeconds"/> it opens the list, and letting go sends the verb picked there. Sent on release, as a
-        /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, <c>E</c> is Get out (U-4).
+        /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, the use key is Get out (U-4).
         /// </summary>
         private void UseKey(IInputProvider input, long aimTarget)
         {
             if (_queuedUse) { _queuedUse = false; Press(_queuedVerb, _queuedTarget); }
-            var e = (MapKeyboardKey)KeyboardKey.E;
+            var e = (MapKeyboardKey)UseKeyCode;   // ⭐ CE-1212 (§8j L-2) — F (E before; E leans now)
             if (!_eHolding && input.IsKeyPressed(e))
             {
                 _eHolding = true;
@@ -1000,7 +1011,7 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>
         /// ⭐ CE-1158 — what is drawn under the crosshair: the PROMPT (the primary action on what the crosshair rests on, from the same
-        /// rule the brain decides with, on this node's own copy of the world — §8h.6 ①), or the hold-E LIST (the picked one marked); then
+        /// rule the brain decides with, on this node's own copy of the world — §8h.6 ①), or the hold-use LIST (the picked one marked); then
         /// the brain's VERDICT on our last press for <see cref="VerdictSeconds"/> once it is done or refused (§8h.6 ②).
         /// </summary>
         public System.Collections.Generic.List<UseLine> UseLines(EntityRepository w)
