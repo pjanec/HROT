@@ -167,7 +167,7 @@ output). ⚠ Not measured: a live cluster load of demo-city with the quarters (t
 
 | # | step | what it brings | home |
 |---|---|---|---|
-| 1 | the frame lean (D-2l) | a trained man watches and fires from beside the window frame | Defend & Attack §8c D-2l |
+| 1 ✅ | the frame lean (D-2l) — built 2026-10-19 | a trained man watches and fires from beside the window frame | Defend & Attack §8c D-2l |
 | 2 | battle positions from the survey | a platoon defends an AREA — buildings and open ground, one position per squad (R-2060's area rule) | Defend & Attack §8d, Platoon §5a |
 | 3 | `ClearBuilding` (`CE-2259`) | the room-by-room drill; then the Veteran counterattack (DA-75) is one switch | Building Clearing §7 |
 | 4 | the request round trip, Casevac first | a squad asks, the platoon answers, the request closes — the seed of ① | Platoon §4 Answer, §5 DAnswer |

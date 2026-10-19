@@ -46,8 +46,9 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | | |
 |---|---|
 | ✅ done before the plan | `CE-2276` E-1, E-2, E-3a (FallBack), E-3b (block the stair) — §8d, rails red-proved; `pc-defend-dry` live (region 0) |
-| ▶ **step 1 — NOW** | the frame lean, [Defend & Attack §8c D-2l](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-77…DA-81, R-2059): design the UML, build, rails, mutants, fold |
-| next | step 2 battle positions over an area (Platoon §5a) · step 3 `ClearBuilding` `CE-2259` · step 4 the request round trip |
+| ✅ step 1 — done 2026-10-19 | the frame lean, [Defend & Attack §8c D-2l](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-77…DA-84, R-2059) — built, rails red-proved, as-built folded; ⚠ not run live yet (no demo exercises a Regular squad at windows with a real survey — `sq-defend-house` is the one to watch) |
+| ▶ **step 2 — NOW** | battle positions over an area ([Platoon §5a](../designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md), Defend & Attack §8d DA-51's deferred half): INVENTORY, design the UML, build, rails, mutants, fold |
+| next | step 3 `ClearBuilding` `CE-2259` · step 4 the request round trip |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 

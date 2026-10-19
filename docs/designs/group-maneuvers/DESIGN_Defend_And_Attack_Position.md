@@ -614,7 +614,7 @@ sequenceDiagram
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **DA-41** | where a set-back post is | the window point pushed back along its own facing **2 m** (DA-6's 1.5–2.5 m, its middle), else **1.5 m**, kept only where the floor continues, nothing stands and no wall lies between it and the window (`SegmentBlocked` at 1 m); neither fits ⇒ **the sill point** (a shallow room still gets a post). Kind stays `WindowFiring` and keeps the window's stance, so `PeekAndFire` still comes up at it; the LOS filter decides whether the narrower view still sees the EA | a new `CoverKind.WindowSetBack` baked into the provider's database: every cover reader, the gizmo and the kind encoding learn a value for what is one push · the set-back computed in the play: the man's own hide ask (his PeekAndFire) would still answer sill points |
-| **DA-42** | who sets back | the **squad's median tier** (DA-16: "the commander's tier is his unit's median man") over its live men: **Regular and above** set back (DA-6), Untrained / Militia at the sill. One ask, so one tier for the squad; each window man's post set carries it into his own hide ask | per man: the posts come from one ask for the whole squad · the commander's own tier: a skilled leader with untrained men cannot run a regular's plan (DA-16's rejection) |
+| **DA-42** | who sets back | the **squad's median tier** (DA-16: "the commander's tier is his unit's median man") over its live men: ⛔ SUPERSEDED 2026-10-19 by D-2l (R-2059): **Veteran and above** set back, a Regular stands at the window FRAME — was: **Regular and above** set back (DA-6), Untrained / Militia at the sill. One ask, so one tier for the squad; each window man's post set carries it into his own hide ask | per man: the posts come from one ask for the whole squad · the commander's own tier: a skilled leader with untrained men cannot run a regular's plan (DA-16's rejection) |
 
 📐 **Measured in the build (House A, `bt-range`):** an UPSTAIRS set-back post does not see a man 24 m from the house — 2 m back, the line
 down to him crosses the sill — so the post ask answers the ground-floor windows for a close EA; at 84 m the upstairs set-back posts see.
@@ -949,7 +949,7 @@ came again. ⇒ ⭐ a full outbox drops its oldest report instead (`ReportQueue.
 After it Set came in 2 runs of 3; in the third, one man (Rifleman 6) stood **4.2 m** from his post — fighting from a hide point of
 it — for 4½ minutes, and no frame had all seven within 4 m ⇒ **DA-58**: Set counts a man who has *reached* his post.
 
-#### D-2l — the frame lean: a trained man watches AND fires from beside the window frame *(`CE-2275`; behaviors — ✅ approved 2026-10-19, R-2059; build-state: DESIGN — the UML lands with the build)*
+#### D-2l — the frame lean: a trained man watches AND fires from beside the window frame *(`CE-2275`; behaviors — ✅ approved 2026-10-19, R-2059; build-state: ✅ BUILT 2026-10-19 — the diagrams below are the as-built)*
 
 🔒 User, `2026-10-19`, asking: *"isn't the peak and fire better implemented using leaning from the side of the frame towards the window
 center than by lying under the window and then crouching, looking out, firing, and go back to lying?"* — then *"Approved, keep the
@@ -980,25 +980,30 @@ centre + `Width`, its `SurveyFace` gives the wall's direction and outward normal
 
 ```mermaid
 classDiagram
-  class SquadDefendPlay { <<EXTENDED>> Plan: FrameSite survey asked with the window ask (Regular+) · Settle turns a window point into a frame post }
-  class DefencePosts { <<EXTENDED>> per candidate Frame · FrameA/B · Opening }
-  class WindowFrame { <<NEW, pure>> FromSurvey(answer, post) ⇒ FrameA, FrameB, Opening · Facing(A,B,Opening,target) ⇒ the frame point away from the target }
+  class SquadDefendPlay { <<EXTENDED>> FrameSite 0x22750005 · Plan: the survey Ensured at the window stage start (Regular+) · Frames() after the window answer }
+  class DefencePosts { <<EXTENDED>> FrameWanted · WindowFrom · WindowSettled · per candidate Frame · Shallow · FrameA/B · Opening }
+  class WindowFrame { <<NEW, pure>> FromSurvey(answer, post) · Facing(A, B, Opening, target) · Other · SideToward(at, facing, opening) · SideFromFrame }
   class MemberPost { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
-  class CombatPosturePostJsonDto { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
+  class CombatPosturePostJsonDto { <<EXTENDED>> frame · frameA · frameB · opening }
   class PeekAndFireParams { <<EXTENDED>> Frame · FrameA · FrameB · Opening }
-  class PeekAndFireNodes { <<EXTENDED>> frame mode: hide standing at a frame point · expose = lean out · HoldFire = lean out to watch · suppressed = prone }
-  class PostureNodes { <<EXTENDED>> HoldWatch: holding at a frame post he leans out to watch; its deactivator straightens him }
+  class PeekAndFireState { <<EXTENDED>> Framed · FrameOff · Leaning · LeanAt }
+  class PeekAndFireNodes { <<EXTENDED>> ChooseFrame · GoToFrame · FrameHidden · LeanToward · LeanSeconds 0.4 }
+  class PostureNodes { <<EXTENDED>> HoldWatch + Deactivate_HoldWatch · FrameWatchState }
+  class CombatPostureBehavior { <<EXTENDED>> Post sets Peek.Frame* · the Hold leaf is HoldWatch }
   class Leans { <<existing CE-3257>> Set · Of }
-  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure · Read }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure · Read · Release }
   SquadDefendPlay --> WorldSurveyChildSensor
   SquadDefendPlay --> WindowFrame
   SquadDefendPlay --> DefencePosts
   SquadDefendPlay --> MemberPost
   MemberPost --> CombatPosturePostJsonDto : SquadManeuverRunner.Hold
   CombatPosturePostJsonDto --> PeekAndFireParams : CombatPostureBehavior.Post
+  PeekAndFireNodes --> PeekAndFireState
   PeekAndFireNodes --> WindowFrame
   PeekAndFireNodes --> Leans
+  PostureNodes --> PeekAndFireNodes : LeanToward
   PostureNodes --> Leans
+  CombatPostureBehavior --> PostureNodes
 ```
 *What the picture shows that prose hid:* the frame geometry is worked out ONCE, by the squad, from one survey — the man only ever receives
 two points and an opening. The lean itself is the existing `Leans` writer; nothing new crosses the wire but the post's fields.
@@ -1010,16 +1015,18 @@ sequenceDiagram
   participant M as CombatPosture (the man)
   participant PF as PeekAndFire (frame mode)
   participant L as Leans
-  SQ->>WS: Ensure OfArea(position, search radius) — with the window ask
-  WS-->>SQ: portals (Window) + faces
-  SQ->>SQ: window point ⇒ FrameA/B, Opening · the post = the frame point away from the EA
-  SQ->>M: Hold {post: Frame, FrameA, FrameB, Opening}
-  M->>M: no threat ⇒ HoldWatch: at the frame point, lean toward the opening
-  M->>L: Set(side from his facing)
-  M->>PF: a threat ⇒ PeekAndFire
-  PF->>PF: Choose the frame point away from the target · hide standing (prone if suppressed)
-  PF->>L: expose = lean out · aim after the lean time · fire
-  PF->>L: recover = LeanNone · masked ⇒ burn this side, cross to the other
+  SQ->>SQ: window stage starts · median tier ⇒ FrameWanted (Regular+) · SetBack (Veteran+)
+  SQ->>WS: Ensure OfArea(position, search radius)
+  SQ->>SQ: the window ask settles · a Veteran's shallow points kept, marked Shallow
+  WS-->>SQ: portals (Window) + faces — or nothing by AskTimeoutSeconds from the stage start
+  SQ->>SQ: Frames() · eligible point with a window ⇒ frame post at the point away from the EA · shallow without ⇒ dropped · survey released
+  SQ->>M: Hold {post: frame, frameA, frameB, opening}
+  M->>M: no threat ⇒ HoldWatch: walk to the frame point (beyond 0.75 m), stand, lean toward the opening
+  M->>L: Set(side from his facing — else from the frame)
+  M->>PF: a threat ⇒ PeekAndFire (HoldWatch's exit straightens him)
+  PF->>PF: ChooseFrame: the point away from the target (the other when burned) · hide standing, prone if suppressed
+  PF->>L: expose = lean out · the exposure counts after LeanSeconds · fire
+  PF->>L: recover = LeanNone · masked or exposures spent ⇒ cross to the other point · move fails ⇒ FrameOff, the sill
 ```
 *What the picture shows that prose hid:* watching and fighting are the same lean from the same point — the fight only adds choosing the
 side by the target and the fire.
@@ -1040,6 +1047,18 @@ transport, `dtLean`) — no new system is registered anywhere.
 | **DA-82** | the frame point: **the frame edge + 0.25 m along the wall, 0.5 m inside it** — his shoulder at the edge, so the 0.4 m lean puts his eye ~0.15 m into the opening | 0.35 m: the eye stays behind the wall · deeper than 0.5 m: he sees through a narrower cone |
 | **DA-83** | the lean takes **0.4 s** before the first round (the exposure starts after it) | instant: faster than the 0.6 s stance blend it replaces |
 | **DA-84** | **no frame for a post** (no survey answer in 5 s, no window portal within 2.5 m, or his move there fails) ⇒ that post fights as before: the sill pop-up (Regular) or dropped (a Veteran's shallow window, D-2j) | waiting for the survey forever: a squad that never posts |
+
+**As built (2026-10-19)** — where the build went beyond the approved table, each a deviation argued here, not a new decision:
+
+| as built | why |
+|---|---|
+| ⛔ **SUPERSEDES D-2b's DA-42 row for Regular**: a Regular squad asks the SILL window template and stands at the frame; only **Veteran+** sets back (`SetBack` = `SetBackOnly` = Veteran+, `FrameWanted` = Regular+) | DA-77 — the frame lean replaces the Regular's set-back; keeping both would put a Regular in the room's shadow AND at the frame |
+| the survey is asked when the window stage STARTS and read after the window ask settles (`WindowSettled`); the 5 s timeout runs from the stage start | the two asks run in parallel — a squad waits for the slower one, never for both in turn |
+| a Veteran's shallow window point is kept through `Settle` (marked `Shallow`) and decided in `Frames()`: a frame ⇒ a frame post, none ⇒ dropped (D-2j's rule, moved one step later) | D-2j dropped it in `Settle`, before any frame was known |
+| the lean side falls back to the frame's own geometry (`WindowFrame.SideFromFrame`) for a man with no transform | DA-79 (refined) reads his facing; a man without one still leans the right way |
+| `HoldWatch` walks a man more than 0.75 m from his frame point to it (1.5 m/s) before leaning; a failed move ⇒ he holds where he is | `Occupy` (D-2e) stops at 1.5 m, which can leave him in the opening |
+| a frame fighter ignores `SuppressBeforeRelocate` (no burst-and-bound between two frame points ~1.5 m apart) | the crossing is a step behind the wall, not a bound |
+| 📐 rails: `SquadManeuverTests` `CE2275_D2l_*` (4) and `PeekAndFireNodesTests` `D2l_R1…R5`; the squad harness answers the frame survey at once (`Squad.FrameSurvey`, empty by default — DA-84's no-frame case), standing in for SimHost's solve | the existing D-2a / D-2b / D-2f / D-2j rails changed with the Regular row above |
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
@@ -1350,6 +1369,75 @@ classDiagram
 `PlanDefence` (site `BuildingSite`), only for Regular+ (a Militia platoon never asks). The reserve keeps its `Reserve` role (no
 sector) with the stair as its point. Rails: `SquadManeuverTests.CE2276_E3b_*` (2), the answer faked as D-2h fakes its fan.
 ⛔ Not yet live: no scenario puts an enemy inside a defended building (`pc-defend-house`, E-3).
+
+#### E-4 — battle positions over an AREA *(`CE-2276` E-4; behaviors, 2026-10-19 — Urban Battle §5 step 2, R-2060's area rule (Platoon §5a), DA-51's deferred half; build-state: BUILDING — leans DA-85…DA-92 ✅ approved by the user 2026-10-19 ("Yes go ahead autonomously"), with the obstacle rule below)*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — codebase-memory CLI `search_graph` `.*(BattlePosition|DefencePlan|PlanDefence|PlatoonDefence|Position(Planner|Picker)|SquadPosition).*` (Class): **1** — `PlatoonDefencePlan`; `.*(Survey|WorldSurvey).*` (Class): 24 — the CE-3249 model, sensor, solve and wire; ⚠ `check_index_coverage` is not reachable through the CLI, so the counts are best effort):**
+`PlanDefence` puts every line squad on the order's position with the order's radius (E-1, `PlatoonDefendBehavior.cs:254`) ⇒ in an area
+two squads ask for the windows of the same house. The area survey exists (`WorldSurveyRequest.OfArea`) and answers each building's
+centre, `Solid`, levels, faces (outward) and portals (windows with their face) — ⚠ **at most 4 buildings, the FIRST 4 BY INDEX**
+(`WorldSurveySolve.cs:101`), not the nearest. `SquadDefend` asks its windows within its order's radius of its first man (`Plan`), so a
+squad given a building's centre and a building-sized radius asks for that building only. `Slice` already orders spread squads by bearing.
+
+```mermaid
+classDiagram
+  direction LR
+  class PlatoonDefendBehavior { <<EXTENDED>> PlanDefence: an AREA ⇒ ask PositionsSite, wait ≤ 5 s, then BattlePositions.Plan }
+  class PlatoonDefencePlan { <<EXTENDED>> Asked · AskedAt }
+  class BattlePositions { <<NEW, pure>> Plan(answer, centre, radius, ea, lines) ⇒ a point and a radius per line squad · Rank(buildings) }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure · Read · Release }
+  class WorldSurveySolve { <<EXTENDED — backend's file>> an area keeps its NEAREST 4 buildings }
+  class SquadDefendPlay { <<existing D-1…D-2l>> one squad, one building's windows }
+  PlatoonDefendBehavior --> PlatoonDefencePlan
+  PlatoonDefendBehavior ..> WorldSurveyChildSensor : PositionsSite 0x22760002
+  PlatoonDefendBehavior ..> BattlePositions
+  WorldSurveyChildSensor ..> WorldSurveySolve : solved on SimHost
+  PlatoonDefendBehavior ..> SquadDefendPlay : SquadDefend {Position, SearchRadius} per squad
+```
+*What the picture shows that prose hid:* the planner is one pure function between an answer that already exists and an order that
+already exists — the squads below are unchanged; only WHERE each one is sent moves.
+
+```mermaid
+sequenceDiagram
+  participant PD as PlanDefence (DPlan)
+  participant WS as BuildingSurvey (PositionsSite)
+  participant BP as BattlePositions
+  participant SQ as each line squad
+  PD->>PD: an area? (radius ≥ 40 m, no Squads[] authored) — else E-1's one position
+  PD->>WS: Ensure OfArea(centre, radius)
+  WS-->>PD: the nearest 4 buildings (or nothing by 5 s)
+  PD->>BP: Plan(answer, centre, radius, EA, line squads)
+  BP->>BP: rank non-solid buildings: windows facing the EA, then nearness
+  BP-->>PD: one building centre per line squad · the rest across the EA's middle, 40 m apart
+  PD->>PD: the reserve 40 m behind (E-1) · Slice the EA by bearing · Made
+  PD->>SQ: SquadDefend {Position: its point, SearchRadius: its building's size}
+```
+*What the picture shows that prose hid:* the wait is the only new state — DPlan already runs until `Made`, so a five-second answer
+costs no new HSM state.
+
+```mermaid
+graph TD
+  CGF[CGF node: the platoon's brain] --> PD[PlatoonDefend · DPlan]
+  PD -->|EQS child sensor, PositionsSite| SH[SimHost: WorldSurveySolve]
+  SH -->|WorldSurveyResult| PD
+  PD -->|CommandOrders.Assign SquadDefend| SQ[the squads' brains]
+```
+*What the picture shows that prose hid:* the same road as E-3b's survey (one more site on the same sensor); nothing is registered anywhere.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **DA-85** | **what is an area**: a platoon order with **radius ≥ 40 m** and no authored `Squads[]`; smaller ⇒ E-1's one position (a single building is the one-position case, §5a) | always plan: every E-1 order would wait 5 s for a survey of one point · a separate intent: the operator says "defend" either way (DA-64) |
+| **DA-86** | **which building per line squad**: the survey's non-solid buildings, ranked by **windows on faces looking toward the EA** (outward within 72° of the bearing to the EA's middle; all windows with no EA), then **nearness to the centre**; one line squad per building in rank order | every building whatever it faces: a squad in a house with its back to the enemy · the solid prisms: nobody can enter them (test-town) |
+| **DA-87** | **a building squad's order**: its building's **centre** at the ground floor, **radius = half its longest face + 3 m** (≥ 8 m) — its window ask covers its own house | the area's radius: back to every squad asking for every window · a fixed 10 m: a long block loses its far end |
+| **DA-88** | **open ground — the obstacles first** 🔒 *(user, 2026-10-19: "the area to defend/attack can contain various obstacles and buildings")*: the line squads left over take the survey's **solid** buildings (a shed, a wreck — an obstacle, not a house) nearest the centre first, each squad in its **lee** (the side away from the EA, half its longest face + 2 m out); the rest (all of them when there is nothing) stand **across the EA's middle bearing**, 40 m apart from the centre — right, left, right … — inside the area. Every open-ground squad gets **radius 25 m**, so its own cover ask finds the walls, fences and berms there (⚠ kind `wall` / `fence` is NOT in the survey — measured: 27 walls and 4 fences across the shipped worlds, none a building) | all at the centre: two squads crowd one spot · a cover ask by the platoon first: an EQS query needs an origin ENTITY (`EqsSensor.ContextSlot0`), and a platoon has none at the centre · walls in the survey now: backend's answer shape — a later `Obstacles` survey kind, not this slice |
+| **DA-89** | **the reserve, the OP, the fall-back**: unchanged (E-1 / E-2 / E-3a) — the reserve 40 m behind, never given a building | the last-ranked building for the reserve: it is behind the line only by luck |
+| **DA-90** | **no answer in 5 s** (no survey solver, a lost answer) ⇒ DA-88 for every line squad; the plan is never held longer | waiting: a platoon that never occupies · E-1's one position: two squads in one house |
+| **DA-91** | **the line's sectors**: E-1's `Slice` as it is — the squads now stand apart, so it orders them by bearing | a slice per building face: a sector the squad's posts cannot see is no better than the arc |
+| **DA-92** | ⚠ **cross-lane (backend's file `WorldSurveySolve`)**: an area ask keeps the **nearest** 4 buildings (by footprint distance to the centre), not the first 4 by index — D-2l's frame survey has the same need | asking backend and waiting: one sort, in a file whose owner's rule (`MaxBuildings`) it keeps |
+
+**Slices.** E-4 is one slice: the planner, the cross-lane sort, rails in the platoon suite (`SquadManeuverTests.CE2276_E4_*`) and
+the solve's own suite (`WorldSurveySolveTests`). ⛔ Not in it: open-ground positions picked from a cover answer (DA-88 leaves that to
+each squad), more than 4 buildings (a second ask), a squad split over two houses.
 
 **Slices.** **E-1** (built): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
 ①② (Platoon §12.2). **E-2** (built): the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,

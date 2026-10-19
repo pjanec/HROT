@@ -114,6 +114,10 @@ namespace Hrot.AI.Behaviors.Brains
         public byte SetBack;
         /// <summary>⭐ D-2g (DA-5, DA-22) — 1 = a ROOF post: he hides prone behind the parapet and comes up crouched to fire over it.</summary>
         public byte Roof;
+        /// <summary>⭐ D-2l (DA-78, R-2059) — 1 = a FRAME post: the post is a frame point of its window; he leans out from it toward
+        /// <see cref="Opening"/>, crossing to the other frame point (<see cref="FrameA"/> / <see cref="FrameB"/>) when this side is used up.</summary>
+        public byte Frame;
+        public Vector3 FrameA, FrameB, Opening;
     }
 
     /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
@@ -536,6 +540,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
                     SetBack = post.SetBack != 0, Roof = post.Roof != 0,
+                    Frame = post.Frame != 0, FrameA = post.FrameA, FrameB = post.FrameB, Opening = post.Opening,   // ⭐ D-2l
                 },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }

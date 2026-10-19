@@ -103,8 +103,24 @@ namespace Hrot.SimHost.Tests
                 _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
+                AnswerFrameSurvey();
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
+            }
+
+            /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
+            /// default (no windows found ⇒ no frame posts, DA-84); null = never answered (the 5 s fallback).</summary>
+            public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? FrameSurvey = new();
+
+            private void AnswerFrameSurvey()
+            {
+                if (FrameSurvey == null) return;
+                var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SquadDefendPlay.FrameSite);
+                if (child.IsNull || !Repo.IsAlive(child)) return;
+                if (Repo.HasComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child)
+                    && Repo.GetComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child).Version != 0) return;
+                Repo.SetComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)_time, Version = 1 });
+                Repo.SetManagedComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = FrameSurvey });
             }
 
             public void Order(string json, string behaviour = BehaviorNames.BoundingOverwatch)
@@ -1862,8 +1878,10 @@ namespace Hrot.SimHost.Tests
                 CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
                 Assert.Equal(post, block.Peek.Anchor);
                 Assert.Equal(SquadDefendPlay.PostRadius, block.Peek.AnchorRadius);
-                Assert.Equal(window, dto.Post.SetBack);   // ⭐ D-2b — no proficiency ⇒ Regular ⇒ the windows are set back
-                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : 0u, block.Peek.HideTemplate);
+                // ⭐ D-2l (DA-77) — no proficiency ⇒ Regular ⇒ the frame lean, not the set-back; the survey found no window ⇒ the sill (DA-84)
+                Assert.False(dto.Post.SetBack);
+                Assert.False(dto.Post.Frame);
+                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId : 0u, block.Peek.HideTemplate);
                 Assert.Equal(window ? (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1) : (byte)0, block.Peek.HideStanceOverride);
             }
 
@@ -1883,16 +1901,18 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-16, DA-42) — the squad's MEDIAN man decides where its windows are held: a Regular squad asks for
+        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-16, DA-42) — the squad's MEDIAN man decides where its windows are held: a Veteran squad asks for
         /// SET-BACK window posts and each window man hides set back; a Militia squad asks for the sill and its men hide there; one Elite
-        /// among two militia does not move the median. ✅ Red-proofs: the tier read from the commander (no component ⇒ Regular) ⇒ the
-        /// militia set back; the set-back flag not passed to the man ⇒ he hides at the sill.
+        /// among two militia does not move the median. ⭐ D-2l (DA-77, R-2059) — a REGULAR squad no longer sets back (it stands at the frame,
+        /// asked from the survey; none here) and only a Regular-or-better squad asks that survey. ✅ Red-proofs: the tier read from the
+        /// commander (no component ⇒ Regular) ⇒ the militia ask the survey; the set-back flag not passed to the man ⇒ he hides at the sill.
         /// </summary>
         [Theory]
-        [InlineData(ProficiencyOf.Regular, ProficiencyOf.Regular, true)]
-        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Militia, false)]
-        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Elite, false)]   // two militia and one elite: the median is militia
-        public void CE2275_SquadDefend_TheMedianManDecides_ARegularSquadSetsBack_AMilitiaSquadHoldsTheSill(float most, float first, bool setBack)
+        [InlineData(ProficiencyOf.Veteran, ProficiencyOf.Veteran, true, true)]
+        [InlineData(ProficiencyOf.Regular, ProficiencyOf.Regular, false, true)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Militia, false, false)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Elite, false, false)]   // two militia and one elite: the median is militia
+        public void CE2275_SquadDefend_TheMedianManDecides_AVeteranSquadSetsBack_AMilitiaSquadHoldsTheSill(float most, float first, bool setBack, bool frames)
         {
             var s = new Squad(members: 3);
             if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
@@ -1902,6 +1922,9 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
             Assert.False(ask.IsNull);
+            s.FrameSurvey = null;   // the survey stays where the play made it
+            Assert.Equal(frames, !DefendQuery(s, SquadDefendPlay.FrameSite).IsNull);
+            s.FrameSurvey = new();
             Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPostsAllRound.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowPostsAllRound.BlueprintId,
                 s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
 
@@ -2047,7 +2070,9 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
             s.Tick(); s.Tick(); s.Tick();
             var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
-            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowSetBackPosts.BlueprintId, s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
+            Assert.Equal(tier >= ProficiencyOf.Veteran ? Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowSetBackPosts.BlueprintId   // ⭐ D-2l — Regular: the sill ask
+                                                       : Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowPosts.BlueprintId,
+                s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
             const short bit = Fdp.Toolkit.Spatial.Eqs.CoverPointsGenerator.FlagSetBack;
             var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = 4, LastUpdateTick = 7 };
             var span = buf.GetSpanRW();
@@ -2123,12 +2148,172 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(new Vector3(12, 22, 0), points);
             Assert.Contains(new Vector3(6, 25, 0), points);
             Assert.Contains(new Vector3(8, 25, 3), points);
-            foreach (var m in s2.Members)   // a Regular squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
+            foreach (var m in s2.Members)   // a Veteran squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
             {
                 var dto = PostureOf(s2, m);
-                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the authored window: where he was put");
-                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && dto.Post.SetBack, "the terrain's window: set back");
+                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack && !dto.Post.Frame, "the authored window: where he was put");
+                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the terrain's window: a Regular squad's sill (no frame found)");
             }
+        }
+
+        // ── ⭐ CE-2275 D-2l — the frame lean (DA-77…DA-84, R-2059; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) ─────────────────
+
+        /// <summary>One building whose north face runs along y = 25 (outward +Y) with windows at <paramref name="windows"/> (x, width).</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload NorthFace(params (float X, float Width)[] windows)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = 3, AX = -5, AY = 25, BX = 20, BY = 25, OutX = 0, OutY = 1 });
+            foreach (var w in windows)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 3, Kind = 1, X = w.X, Y = 25, Z = 1f, Width = w.Width, SillZ = 0.9f, HeadZ = 2f, Face = 0 });
+            return a;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>WindowFrame</c> (pure, D-2l DA-78/DA-79/DA-82) — a window's frame from the survey: two points 0.25 m past each edge along the
+        /// wall and 0.5 m inside it, the opening at the post's height; the frame point AWAY from the target; the side a man there leans to
+        /// reach the opening, by his facing and by the frame alone; no window within 2.5 m ⇒ no frame. ✅ Red-proofs: the face's outward
+        /// ignored (post→portal) — same here, so the inside offset is checked on a post off the centre line; Facing returning the nearer point
+        /// ⇒ the target side.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_WindowFrame_FromTheSurvey_TheSideAwayFromTheTarget_AndTheLeanSide()
+        {
+            var answer = NorthFace((2f, 1f));
+            Assert.True(WindowFrame.FromSurvey(answer, new Vector3(2.4f, 23.8f, 3f), out var a, out var b, out var opening));
+            Assert.Equal(new Vector3(2f, 25f, 3f), opening);
+            Assert.InRange(Vector3.Distance(a, new Vector3(1.25f, 24.5f, 3f)), 0f, 1e-4f);   // left of a man looking out (north) is west
+            Assert.InRange(Vector3.Distance(b, new Vector3(2.75f, 24.5f, 3f)), 0f, 1e-4f);
+            Assert.False(WindowFrame.FromSurvey(answer, new Vector3(6f, 24f, 0f), out _, out _, out _), "no window within 2.5 m");
+            Assert.False(WindowFrame.FromSurvey(null, new Vector3(2f, 24f, 0f), out _, out _, out _));
+
+            // a target to the north-west ⇒ the EAST frame point (he sees west through the opening from beside its east edge)
+            Assert.Equal(b, WindowFrame.Facing(a, b, opening, new Vector3(-40f, 120f, 0f)));
+            Assert.Equal(a, WindowFrame.Facing(a, b, opening, new Vector3(40f, 120f, 0f)));
+            Assert.Equal(a, WindowFrame.Other(a, b, b));
+
+            // looking north from the east point the opening is on his LEFT; from the west point on his right
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, WindowFrame.SideToward(b, 0f, opening));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideToward(a, 0f, opening));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, WindowFrame.SideFromFrame(a, b, opening, b));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideFromFrame(a, b, opening, a));
+            // facing north-east from the west point, the opening (east-north-east of him) is still to his right
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideToward(a, 30f, opening));
+        }
+
+        /// <summary>The squad of three Regulars at (6, 20), sector north (its point (0, 120)), at the position; window ask still open.</summary>
+        private static Squad DefendingThree(float tier = ProficiencyOf.Regular)
+        {
+            var s = new Squad(members: 3);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new CombatProficiency { Authored = tier, Set = CombatProficiency.AuthoredSet });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 3; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            return s;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2l (DA-77, DA-78, DA-79, R-2059) — a REGULAR squad asks ONE building survey of its position with its window ask;
+        /// each window point with a window in the survey becomes a FRAME post at the frame point away from the sector, its order carrying both
+        /// frame points and the opening, and his posture flies the frame mode (the sill shape as the fallback); a window the survey does not
+        /// know stays a sill post (DA-84). ✅ Red-proofs: the frame pass skipped ⇒ every post at the sill point; <c>Frame</c> not passed to the
+        /// posture ⇒ <c>Peek.Frame</c> 0; Facing toward the target ⇒ the west frame points.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_ARegularSquad_FightsItsWindowsFromBesideTheFrame_AwayFromTheSector()
+        {
+            var s = DefendingThree();
+            s.FrameSurvey = NorthFace((2f, 1f), (10f, 1.2f));
+            s.Tick(); s.Tick(); s.Tick();
+            var survey = DefendQuery(s, SquadDefendPlay.FrameSite);
+            Assert.Equal(Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey,
+                ((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey).Kind);
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(10, 24.5f, 0), new Vector3(14, 24.5f, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            Assert.Equal(3, given.Count);
+            var east1 = new Vector3(2.75f, 24.5f, 0f);    // the sector's point is north-west of both windows ⇒ their EAST frame points
+            var east2 = new Vector3(10.85f, 24.5f, 0f);
+            var first = given.Single(d => Vector3.Distance(d.Post.Point, east1) < 1e-3f);
+            var second = given.Single(d => Vector3.Distance(d.Post.Point, east2) < 1e-3f);
+            var sill = given.Single(d => d.Post.Point == new Vector3(14, 24.5f, 0));
+            Assert.True(first.Post.Frame && second.Post.Frame && first.Post.Window && !first.Post.SetBack);
+            Assert.Equal(new Vector3(2f, 25f, 0f), first.Post.Opening);
+            Assert.InRange(Vector3.Distance(first.Post.FrameA, new Vector3(1.25f, 24.5f, 0f)), 0f, 1e-3f);
+            Assert.InRange(Vector3.Distance(first.Post.FrameB, east1), 0f, 1e-3f);
+            Assert.True(sill.Post.Window && !sill.Post.Frame, "a window the survey does not know: the sill (DA-84)");
+            Assert.True(DefendQuery(s, SquadDefendPlay.FrameSite).IsNull, "the survey goes once its answer is read");
+
+            var m0 = s.Members.First(m => PostureOf(s, m).Post.Frame);
+            var dto = PostureOf(s, m0);
+            var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+            CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m0);
+            Assert.Equal((byte)1, block.Peek.Frame);
+            Assert.Equal(dto.Post.FrameA, block.Peek.FrameA);
+            Assert.Equal(dto.Post.FrameB, block.Peek.FrameB);
+            Assert.Equal(dto.Post.Opening, block.Peek.Opening);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId, block.Peek.HideTemplate);   // the fallback: the sill
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2l (DA-77, DA-84 + D-2j) — a VETERAN squad keeps its set-back post where the room is deep enough (never a frame
+        /// there, though a window lies within reach), stands at the frame of a shallow window that has one, and drops a shallow window with
+        /// none — the man left takes a cover post. ✅ Red-proofs: shallow windows dropped before the frame pass ⇒ two men on cover; the frame
+        /// pass over set-back points ⇒ the deep post moves to the frame.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_AVeteranSquad_KeepsItsSetBackPost_StandsAtAShallowWindowsFrame_AndDropsOneWithoutAFrame()
+        {
+            var s = DefendingThree(ProficiencyOf.Veteran);
+            s.FrameSurvey = NorthFace((2f, 1f), (10f, 1.2f));
+            s.Tick(); s.Tick(); s.Tick();
+            var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
+            const short bit = Fdp.Toolkit.Spatial.Eqs.CoverPointsGenerator.FlagSetBack;
+            var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = 3, LastUpdateTick = 7 };
+            var span = buf.GetSpanRW();
+            span[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 2, PositionY = 23, Score = 1.0f, Flags = bit, FlagsMeaningful = bit };      // deep: set back 2 m
+            span[1] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 10, PositionY = 24.5f, Score = 0.9f, Flags = 0, FlagsMeaningful = bit };   // shallow, a frame
+            span[2] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 14, PositionY = 24.5f, Score = 0.8f, Flags = 0, FlagsMeaningful = bit };   // shallow, no frame
+            s.Repo.SetComponent(ask, buf);
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite));
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.CoverSite), new Vector3(16, 30, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            var deep = given.Single(d => d.Post.Point == new Vector3(2, 23, 0));
+            Assert.True(deep.Post.SetBack && !deep.Post.Frame, "deep enough: the set-back post");
+            var framed = given.Single(d => d.Post.Frame);
+            Assert.InRange(Vector3.Distance(framed.Post.Point, new Vector3(10.85f, 24.5f, 0f)), 0f, 1e-3f);
+            Assert.False(framed.Post.SetBack);
+            Assert.Contains(given, d => d.Post.Point == new Vector3(16, 30, 0) && !d.Post.Window);
+            Assert.DoesNotContain(given, d => d.Post.Point.X == 14f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2l (DA-84) — the survey never answers: after <see cref="SquadDefendPlay.AskTimeoutSeconds"/> the posts go out as
+        /// sill posts (a squad never waits forever for a frame). ✅ Red-proof: no timeout ⇒ no orders.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_TheSurveyNeverAnswers_ThePostsGoOutAtTheSill()
+        {
+            var s = DefendingThree();
+            s.FrameSurvey = null;
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(10, 24.5f, 0), new Vector3(14, 24.5f, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);   // waiting for the frames
+            for (int i = 0; i < (int)(SquadDefendPlay.AskTimeoutSeconds / 0.016f) + 5; i++) s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            Assert.Equal(3, given.Count);
+            Assert.All(given, d => Assert.True(d.Post.Window && !d.Post.Frame));
         }
 
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
