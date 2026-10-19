@@ -114,7 +114,19 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             }
         }
 
+        // ⭐ CE-1171 (People Display §5 U10) — a blow struck (backend CE-3266, G3): the striker's swing is drawn by the 3-D bodies
+        if (world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>())
+            foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
+            {
+                if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
+                // ⭐ CE-1215 (§8j H-1, H-2) — a blow is a hit too: the striker's marker, the arc toward him on the one struck
+                if (strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
+                    HitFeedback.In(world).Record(strike.Striker, strike.Target, view.GetComponentRO<SimTransform>(strike.Target).Position,
+                                                 Vector3.Zero, 0f, now);
+            }
+
         ImpactsDrawn = 0;
+        InertLandings = 0;
         if (world.Bus.IsRegistered<RoundImpactNotification>())   // ⭐ CE-1129 (VE §10) — every surface a round marked
             foreach (ref readonly var impact in view.ReadEvents<RoundImpactNotification>())
                 SpawnImpact(cmd, tkb, world, impact, now);
@@ -126,6 +138,16 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             {
                 var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, hit.Damage);
                 var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
+                // ⭐ CE-1215 (§8j H-1, H-2) — a round that met someone: the first-person hit marker and damage arc read it
+                if (hit.Target != Entity.Null)
+                    HitFeedback.In(world).Record(hit.Shooter, hit.Target, point, new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ), hit.Damage, now);
+                // ⭐ CE-1194 — a thrown stone or blade LANDS, it does not burst: a little dust, no scorch, no bang
+                if (IsInertHandItem(tkb, hit.Ammo))
+                {
+                    Spawn(cmd, tkb, EffectTkbCatalog.ExplosionSmall, point, null, now);   // the impact puff — dust
+                    InertLandings++;
+                    continue;
+                }
                 Spawn(cmd, tkb, set.Explosion, point, null, now);
                 // ⭐ VE-M — a decal marks the static world only: none when the round hit a vehicle or a person.
                 bool hitABody = hit.Target != Entity.Null && view.IsAlive(hit.Target);
@@ -147,7 +169,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// </summary>
     private void SpawnImpact(IEntityCommandBuffer cmd, ITkbDatabase? tkb, EntityRepository world, in RoundImpactNotification hit, double now)
     {
-        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, 0f);
+        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, ImpactDamage(world, tkb, hit));   // ⭐ CE-1199 — sized by its round
         var point = new Vector3(hit.X, hit.Y, hit.Z);
         var normal = SurfaceOf(hit);
         Spawn(cmd, tkb, set.Explosion, point + normal * 0.05f, null, now);
@@ -155,6 +177,43 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         ImpactsDrawn++;
         if (hit.Kind == (byte)ImpactKind.Stop)
             Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, 0f, false));   // the ricochet
+    }
+
+    /// <summary>⭐ <c>CE-1194</c> — landings drawn as dust only in the last tick (the rail's counter).</summary>
+    public int InertLandings { get; private set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-1194</c> — a round a hand THROWS and that carries no explosive: a hand item (<see cref="HandItemDto"/> — the stone, the thrown
+    /// hatchet / spear / star, CE-3247) whose warhead says <c>Kinetic</c> or <c>Blunt</c> (no warhead stated is NOT inert: the M67 states none). Its "detonation" is where it lands: dust, not
+    /// a burst. ⛔ A hand GRENADE is a hand item too, but its warhead bursts — it keeps its explosion.
+    /// </summary>
+    public static bool IsInertHandItem(ITkbDatabase? tkb, long ammo)
+    {
+        if (tkb == null || ammo == 0 || !tkb.TryGetByType(ammo, out var t) || t == null || t.GetDescriptor<HandItemDto>() == null) return false;
+        return t.GetDescriptor<WarheadDto>() is { Kind: WarheadKind.Kinetic or WarheadKind.Blunt };   // ⚠ the M67 states no warhead here, and bursts
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1199</c> (VE-D) — how hard the round that made <paramref name="hit"/> strikes, so its puff and mark take its calibre class: the
+    /// shooter's mount firing that ammo (its own round or one of its loadout, <see cref="CombatTkb.RoundOf(ITkbDatabase?, WeaponMountDto?, long)"/>
+    /// — a tank's 120 mm round carries no damage of its own, its gun does), else the round's own number, else 0 (the small class).
+    /// 📐 Before: 0 always ⇒ a tank shell's mark was a bullet's.
+    /// </summary>
+    public static float ImpactDamage(EntityRepository world, ITkbDatabase? tkb, in RoundImpactNotification hit)
+    {
+        if (hit.Ammo == 0) return 0f;
+        if (!hit.Shooter.IsNull && world.IsAlive(hit.Shooter) && CombatTkb.TryGetTemplate(world, hit.Shooter, out var t)
+            && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
+            foreach (var mount in suite.Mounts)
+            {
+                bool fires = unchecked((long)mount.AmmoGuid) == hit.Ammo;
+                foreach (var load in mount.Loadout) fires |= unchecked((long)load.AmmoGuid) == hit.Ammo;
+                if (fires) return CombatTkb.RoundOf(tkb, mount, hit.Ammo).Damage;
+            }
+        if (tkb != null && tkb.TryGetByType(hit.Ammo, out var ammo) && ammo != null)
+            foreach (var (type, _, data) in ammo.GetAllDescriptors())
+                if (type == typeof(AmmoWeaponBallisticsDto) && data is AmmoWeaponBallisticsDto b && b.Damage > 0f) return b.Damage;
+        return 0f;
     }
 
     /// <summary>⭐ CE-1129 (IM-4) — the face a mark lies on: the impact's normal, else back along the round's travel, else up.</summary>
@@ -334,13 +393,14 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         }
     }
 
-    /// <summary>A vehicle burns; a person, a unit with no body, or a type the TKB does not know does not.</summary>
+    /// <summary>A vehicle burns; a person, a unit with no body, a type the TKB does not know — ⭐ CE-1198 or a WEAPON SYSTEM (it goes dark,
+    /// it does not burn; 🔒 user, 2026-10-19: "weapons are usually non-flammable") — does not.</summary>
     private bool Burns(ITkbDatabase? tkb, long type)
     {
         if (_burns.TryGetValue(type, out bool burns)) return burns;
         var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
         return _burns[type] = family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
-                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown);
+                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown or Hrot.UI.Common.Map3D.VisualFamily.WeaponSystem);
     }
 
     private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)

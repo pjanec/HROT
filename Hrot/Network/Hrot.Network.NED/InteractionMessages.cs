@@ -93,6 +93,10 @@ namespace Hrot.NED.Messages
         public byte UseSeq;
         public byte UseVerb;
         public long UseTarget;
+        /// <summary>⭐ CE-1212 (appended after UseTarget; DESIGN_Entity_Control §8j L-1) — the lean the operator holds (LeanSide).</summary>
+        public byte Lean;
+        /// <summary>⭐ CE-1219 (appended after Lean; §8k B-1) — 1 while his binoculars are held up.</summary>
+        public byte Binoculars;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =

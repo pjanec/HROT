@@ -191,6 +191,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 }
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
+                parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
+                parts = Struck(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1171 — the arm of a blow just struck
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -507,6 +509,39 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var m = Matrix4x4.Identity;
         m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
         return m;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1195</c> — a man who has just THROWN (a shot from his hands mount, <c>PersonHands</c>, within
+    /// <see cref="BlockFigure.ThrowSeconds"/> — the shot the effects spawner keeps in <c>RecentShots</c>) is drawn mid-throw
+    /// (<see cref="BlockFigure.ThrowArms"/>). Standing or crouched, free, alive and not cowering; otherwise the parts as they are.
+    /// 🔒 User, live, 2026-10-19: <i>"there is no animation for person throwing stone"</i>.
+    /// </summary>
+    public static KitPart[] Thrown(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime)
+    {
+        if (carriage.Kind != CarriageKind.Free || Hrot.UI.Common.Effects.RecentShots.Of(world) is not { } shots) return parts;
+        if (!shots.TryGet(e, out int mount, out double at) || simTime < at || simTime - at > BlockFigure.ThrowSeconds) return parts;
+        if (mount != Fdp.Toolkit.Combat.PersonHands.MountIndex(world, e)) return parts;
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return BlockFigure.ThrowArms(parts, stance == StanceId.Crouched, soldier, (float)((simTime - at) / BlockFigure.ThrowSeconds));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1171</c> (docs/DESIGN_People_Display.md §5 U10) — a man who has just STRUCK a blow (a <c>StrikeNotification</c> within
+    /// <see cref="BlockFigure.StrikeSeconds"/>, kept in <c>StrikeTracker</c>) is drawn mid-swing with what he struck with
+    /// (<see cref="BlockFigure.StrikeArms"/>). Standing or crouched, free, alive and not cowering; otherwise the parts as they are.
+    /// 🔒 User, live, 2026-10-19: <i>"a person hit by melee simply goes down but there is no sign of why (weird)"</i>.
+    /// </summary>
+    public static KitPart[] Struck(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime)
+    {
+        if (carriage.Kind != CarriageKind.Free || Hrot.UI.Common.Effects.StrikeTracker.Of(world) is not { } strikes) return parts;
+        if (!strikes.StruckWithin(e, simTime, BlockFigure.StrikeSeconds, out var weapon, out double at)) return parts;
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return BlockFigure.StrikeArms(parts, stance == StanceId.Crouched, soldier, weapon, (float)((simTime - at) / BlockFigure.StrikeSeconds));
     }
 
     /// <summary>
@@ -973,7 +1008,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         foreach (var (weapon, bearer, look, size, colour) in _carried)
         {
             if (_shouldering.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
-            var frame = WeaponKits.OnBack(figure.Frame, figure.Height, size);
+            // ⭐ CE-1169 (People Display U8) — a HIDDEN station is not drawn (a concealed pistol, a worn charge); a hand weapon in his
+            //   HANDS is held level, a pistol in his back station is in its holster, the rest is slung across his back
+            if (Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, weapon)) continue;
+            bool stowed = Fdp.Toolkit.Behavior.CarryStations.IsStowed(world, weapon);
+            var frame = WeaponKits.IsHandWeapon(look.Weapon) && !stowed ? WeaponKits.InHands(figure.Frame, figure.Height, size)
+                      : look.Weapon == WeaponKind.Pistol ? WeaponKits.OnHip(figure.Frame, figure.Height, size)
+                      : WeaponKits.OnBack(figure.Frame, figure.Height, size);
             // ⭐ CE-1104 (§6t T-b4) — a two-man weapon: between the pair at their hands, stowed, the front man's way
             if (_teamPartner.TryGetValue(bearer, out var partner) && world.HasComponent<SimTransform>(bearer))
             {

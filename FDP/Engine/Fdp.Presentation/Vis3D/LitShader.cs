@@ -53,6 +53,7 @@ uniform vec3 viewPos;
 uniform vec3 sunDir;
 uniform vec3 fogColor;
 uniform float fogDensity;
+uniform float fogStart;
 uniform float ambient;
 uniform float sunLight;
 out vec4 finalColor;
@@ -67,7 +68,7 @@ void main()
     vec4 base = fragColor * colDiffuse;
     vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
     vec3 lit = albedo * (ambient + sunLight * diffuse);
-    float d = length(viewPos - fragPos) * fogDensity;
+    float d = max(length(viewPos - fragPos) - fogStart, 0.0) * fogDensity;   // CE-1146: the free camera's fog starts at what it looks at
     float visible = clamp(exp(-d * d), 0.0, 1.0);
     finalColor = vec4(mix(fogColor, lit, visible), base.a);
 }";
@@ -129,7 +130,7 @@ void main()
         /// <summary>False when the GL driver refused the program — Raylib then falls back to its default shader (unlit).</summary>
         public bool IsValid { get; }
 
-        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _ambient, _sunLight;
+        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _fogStart, _ambient, _sunLight;
 
         /// <summary>Sky colour the fog fades into (also the sky gradient's horizon, <see cref="MapCamera3D"/>).</summary>
         public static readonly Color SkyHorizon = new(196, 214, 230, 255);
@@ -146,6 +147,7 @@ void main()
             _sunDir = Raylib.GetShaderLocation(shader, "sunDir");
             _fogColor = Raylib.GetShaderLocation(shader, "fogColor");
             _fogDensity = Raylib.GetShaderLocation(shader, "fogDensity");
+            _fogStart = Raylib.GetShaderLocation(shader, "fogStart");
             _ambient = Raylib.GetShaderLocation(shader, "ambient");
             _sunLight = Raylib.GetShaderLocation(shader, "sunLight");
             Shader = shader;
@@ -172,11 +174,13 @@ void main()
             Raylib.SetShaderValue(Shader, _sunLight, a.SunLight, ShaderUniformDataType.Float);
         }
 
-        /// <summary>Per frame: where the eye is (Raylib coordinates) and how far the fog lets you see.</summary>
-        public void ApplyFrame(Vector3 eyeRaylib, float fogDensity)
+        /// <summary>Per frame: where the eye is (Raylib coordinates), how far the fog lets you see, and ⭐ CE-1146 how far from the eye it
+        /// starts (0 = at the eye — first person; the free camera starts it at what it looks at).</summary>
+        public void ApplyFrame(Vector3 eyeRaylib, float fogDensity, float fogStart = 0f)
         {
             Raylib.SetShaderValue(Shader, _viewPos, eyeRaylib, ShaderUniformDataType.Vec3);
             Raylib.SetShaderValue(Shader, _fogDensity, fogDensity, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(Shader, _fogStart, fogStart, ShaderUniformDataType.Float);
         }
 
         /// <summary>The shared material with its diffuse colour set to <paramref name="color"/>. ⚠ The colour lives in the shared

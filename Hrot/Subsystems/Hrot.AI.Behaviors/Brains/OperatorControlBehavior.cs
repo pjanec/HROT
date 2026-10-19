@@ -95,6 +95,15 @@ namespace Hrot.AI.Behaviors.Brains
                 //   need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".
                 if (input.Stance is >= 1 and <= 3)
                     Hrot.MuscleCharacter.Animation.Stance.StanceRequest.Set(world, self, (Fdp.Toolkit.Tkb.Domain.StanceId)(input.Stance - 1), OperatorStanceBlendSeconds);
+                // ⭐ CE-1212 (DESIGN_Entity_Control §8j L-1) — the lean the operator holds (Q / E), through its one writer; written only on a
+                //   change, so a frame per tick does not re-send dtLean. A prone man does not lean (the sim's rule, Leans.SignOf).
+                if (input.Lean <= (byte)LeanSide.LeanRight && Leans.Of(world, self) != (LeanSide)input.Lean)
+                    Leans.Set(world, self, (LeanSide)input.Lean);
+                // ⭐ CE-1219 (§8k B-1) — binoculars up while B is held, through the one writer (it refuses a man who carries none); down again
+                //   when let go — only his OWN binoculars, never another held item
+                bool up = HeldItems.BinocularsUp(world, self);
+                if (input.Binoculars != 0 && !up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+                else if (input.Binoculars == 0 && up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing

@@ -171,11 +171,11 @@ public sealed partial class PossessionStationTests
         u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Closed, 77);
         var (_, sw, _) = Station(u, 77);
 
-        Assert.Equal(0, Frame(u, sw, Key(Raylib_cs.KeyboardKey.E)).UseSeq);     // pressed: not yet (a hold may follow)
+        Assert.Equal(0, Frame(u, sw, Key(Raylib_cs.KeyboardKey.F)).UseSeq);     // pressed: not yet (a hold may follow)
         var f = Frame(u, sw, new Input());                                       // let go: one press
         Assert.Equal((1, 0, 77L), (f.UseSeq, f.UseVerb, f.UseTarget));
         Assert.Equal(1, Frame(u, sw, new Input()).UseSeq);                       // the counter holds
-        Frame(u, sw, Key(Raylib_cs.KeyboardKey.E));
+        Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         Assert.Equal(2, Frame(u, sw, new Input()).UseSeq);
     }
 
@@ -193,11 +193,11 @@ public sealed partial class PossessionStationTests
         var (station, sw, _) = Station(u, 77);
         var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
 
-        Frame(u, sw, Key(Raylib_cs.KeyboardKey.E));
+        Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         Assert.False(driver.UseListOpen);
         station.Update(FpsCameraDriver.HoldSeconds + 0.05f);
         Assert.True(driver.UseListOpen);
-        var hold = Key(Raylib_cs.KeyboardKey.E, pressed: false);
+        var hold = Key(Raylib_cs.KeyboardKey.F, pressed: false);
         hold.Pressed.Add((int)Raylib_cs.KeyboardKey.Three);
         var f = Frame(u, sw, hold);
         Assert.Equal((0, 0), (f.UseSeq, f.Mount));                               // nothing sent yet; 3 did not pick weapon 3
@@ -217,27 +217,27 @@ public sealed partial class PossessionStationTests
         using var u = new UseWorld();
         string Prompt(Entity target) => PossessionStation.Hud.Prompt(u.W, OperatorUseActions.For(u.W, u.Me, target)[0]);
 
-        Assert.Equal("E  Open door", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Closed, 70)));
-        Assert.Equal("E  Close door", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Open, 71)));
-        Assert.Equal("E  Open door (locked)", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Locked, 72)));
-        Assert.Equal("E  Open door (too far)", Prompt(u.Door(new Vector3(DoorRules.ReachMetres + 1f, 0f, 0f), TerrainDoorState.Closed, 73)));
-        Assert.Equal("E  Drag", Prompt(u.Soldier(new Vector3(1f, 0f, 0f), 10f, 74)));
-        Assert.Equal("E  Drag (not down)", Prompt(u.Soldier(new Vector3(1f, 0f, 0f), 90f, 75)));
-        Assert.Equal("E  Drive BMP-2", Prompt(u.Vehicle(new Vector3(2f, 0f, 0f), 76)));
-        Assert.Equal("E  Man ZU-23-2", Prompt(u.Tripod(new Vector3(1f, 0f, 0f), 77)));
-        Assert.Equal("E  Drive BMP-2 (too far)", Prompt(u.Vehicle(new Vector3(OperatorUseActions.VehicleReach + 2f, 0f, 0f), 78)));
+        Assert.Equal("F  Open door", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Closed, 70)));
+        Assert.Equal("F  Close door", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Open, 71)));
+        Assert.Equal("F  Open door (locked)", Prompt(u.Door(new Vector3(1f, 0f, 0f), TerrainDoorState.Locked, 72)));
+        Assert.Equal("F  Open door (too far)", Prompt(u.Door(new Vector3(DoorRules.ReachMetres + 1f, 0f, 0f), TerrainDoorState.Closed, 73)));
+        Assert.Equal("F  Drag", Prompt(u.Soldier(new Vector3(1f, 0f, 0f), 10f, 74)));
+        Assert.Equal("F  Drag (not down)", Prompt(u.Soldier(new Vector3(1f, 0f, 0f), 90f, 75)));
+        Assert.Equal("F  Drive BMP-2", Prompt(u.Vehicle(new Vector3(2f, 0f, 0f), 76)));
+        Assert.Equal("F  Man ZU-23-2", Prompt(u.Tripod(new Vector3(1f, 0f, 0f), 77)));
+        Assert.Equal("F  Drive BMP-2 (too far)", Prompt(u.Vehicle(new Vector3(OperatorUseActions.VehicleReach + 2f, 0f, 0f), 78)));
 
         // drawn by the crosshair, in the colour of what it says
         var (_, sw, crosshair) = Station(u, 73);
         var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
         Frame(u, sw, new Input());
         var far = Assert.Single(driver.UseLines(u.W));
-        Assert.Equal(("E  Open door (too far)", PossessionStation.Hud.UseGreyed), (far.Text, far.Colour));
+        Assert.Equal(("F  Open door (too far)", PossessionStation.Hud.UseGreyed), (far.Text, far.Colour));
         crosshair.Id = 70;
         sw.Camera3D.Update(0.016f);
         Frame(u, sw, new Input());
         var near = Assert.Single(driver.UseLines(u.W));
-        Assert.Equal(("E  Open door", PossessionStation.Hud.UseReady), (near.Text, near.Colour));
+        Assert.Equal(("F  Open door", PossessionStation.Hud.UseReady), (near.Text, near.Colour));
         crosshair.Id = 0;
         sw.Camera3D.Update(0.016f);
         Frame(u, sw, new Input());
@@ -261,7 +261,7 @@ public sealed partial class PossessionStationTests
 
         crosshair.Id = 77;
         sw.Camera3D.Update(0.016f);
-        Frame(u, sw, Key(Raylib_cs.KeyboardKey.E));
+        Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         Assert.Equal((1, 77L), (Frame(u, sw, new Input()) is var pressed ? (pressed.UseSeq, pressed.UseTarget) : default));   // our press 1
         crosshair.Id = 0;
         sw.Camera3D.Update(0.016f);
@@ -315,7 +315,7 @@ public sealed partial class PossessionStationTests
         var (station, sw, _) = Station(u, 88);
         Assert.Equal(u.Me, station.Unit);
 
-        Frame(u, sw, Key(Raylib_cs.KeyboardKey.E));
+        Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         var f = Frame(u, sw, new Input());
         Assert.Equal((1, 0, 88L), (f.UseSeq, f.UseVerb, f.UseTarget));
         Assert.Equal(PossessionStation.HandOverStep.AwaitBoard, station.Step);
@@ -342,7 +342,7 @@ public sealed partial class PossessionStationTests
         Assert.Equal(u.Me, PossessionStation.RiderOf(u.W, bmp));
         sw.Camera3D.Update(0.016f);
 
-        Frame(u, sw, Key(Raylib_cs.KeyboardKey.E));                              // Get out
+        Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));                              // Get out
         Frame(u, sw, new Input());
         u.ApplyPossession(swap: false);
         Assert.Equal(PossessionMode.Fps, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);

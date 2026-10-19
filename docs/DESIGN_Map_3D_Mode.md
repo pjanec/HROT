@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -1204,6 +1204,7 @@ NO host wiring at all: the layer is added by the shared map attach, and it asks 
 | the request path: `EntityCreationPack` (composed by IG, Stride, CGF, SimHost, Editor) publishes its local `ScenarioEntityCreationRequestSource` as a world singleton (id 349) — so the default processor creates and OWNS the camera (R-140), never an IG; zero per-host lines, pinned by a source rail | `Hrot.Common/EntityCreation/EntityCreationPack.cs` |
 | `MapViewSwitch.CurrentPose` / `ShowPose` / `IsTwoDPose` — the 2-D map is the pose straight down, north up (M10) | `Vis3D/MapViewSwitch.cs` |
 | never drawn or picked: no 3-D body, no 2-D symbol / anchor / pick box | `EntityBodyLayer3D.LookOf`, `EntityPresentationGizmo.Draw` |
+| ⭐ `CE-1221` (`2026-10-19`) — a scenario with NO saved camera: once its load settles (the world's entity count unchanged for `LoadSettleSeconds` = 1 s — the same on every host, the networkless editor included, so no cluster-state hook is needed), and the user has not moved the map, the 2-D map frames every placed entity (`FramePose`: the bounding box's middle, filling `FrameFill` = 80 % of the view, at least `FrameMinExtent` = 200 m across; the camera itself, SUMO's traffic — `ReplicationRoute.SumoSharp` — and non-finite positions left out). Framing is not a move: no camera is requested or saved. Rail `Map3DTests.CE1221_AScenarioWithNoSavedCamera_IsFramedIn2D_OnceItsLoadSettles` | `MapCameraLayer.Update` / `FramePose` |
 
 ⛔ **Superseded the same day:** the first build had each host pass a `MapCameraOwnership` argument (Editor / CGF saved it). Measured wrong: every host, IG included, registers the SAME scenario save handler and saves what it OWNS (`IgNodeBootstrapper.cs:435-440`, CE-275), so "saves the scenario" is not a host property; and the user ruled out per-host wiring. ⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
 attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
@@ -1543,6 +1544,7 @@ scaled, on the node that moves the man.
 | **C-1 carried / dragged** | DRAWING only. Carried: limp across the carrier's shoulders, crosswise, head to his left; the carrier leans forward, both hands on the load, rifle slung. Dragged: on his back ~1 m behind (the sim's place), head to the carrier, arms up to the carrier's hand; the carrier reaches back with his right arm. Neither casualty plays a gait |
 | **C-2 wounded** | WOUNDED: a limp (right leg stiff, steps shorter, upper body bent ~15°, also standing still). INCAPACITATED: lying on his back, one knee up, a hand on his chest, fallen into it over 0.6 s. ⭐ **+ slice I-b**: a wounded man moves at `WoundedSpeedFactor` (TKB `Gen.Injury`, default **0.6**) |
 | **C-3 seats** | `SeatDto` gains a place (`X, Y, Z` from the reference point), `FacingDegrees` and a `Pose`; a rider in an EXPOSED seat with a place is drawn sitting there. New type **UH-60A (doors off)** (`Heli_UH60_DoorsOff`, 404): 8 seats, 4 in each door, legs out over the sill |
+| **C-3b the open cabin** ⭐ *(`CE-1209`, `2026-10-19`)* | 🔒 user: *"no problem if you draw uh60 without side door always"* — the ONE `Helicopter` kit (only the two UH-60s use it) is drawn doors-off: a closed rear section and a short closed front behind the cockpit, the cabin between them only a floor and a roof, so it is seen through from the side and the door riders and door gunners sit in its openings. The sim's boxes are regenerated from it (`VehicleBody.Tables.g.cs`, CE-3214 parity; part ids rear / front / floor / roof = Fuselage) — rounds pass the open doors. Frames `held-3-doors-off.png`, `stream-3-door-gun.png` |
 | **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched. ⚠ **Amended `2026-10-16` (§6w AB-V6, Airborne D-8):** only for a hop ≤ 3 m — a rope or parachute descent is SIMULATED and drawn from its `Descent`, never as a jump |
 
 **Rejected — one line each:**
@@ -2558,6 +2560,7 @@ classDiagram
 | **MQ-1 the marquee** | in 3-D, free camera, a drag selects what PROJECTS inside the screen rectangle (a click — under 4 px — is a click); ⛔ not in first person (the driver owns the mouse) |
 | **CA-1 the wheel** | a lone click moves 4 % of the distance; clicks within 0.35 s of each other form a streak whose step grows by 0.6× per click up to 8× — a fast spin travels far, a single click nudges |
 | **CA-2 the keys** | speed = 0.4 m/s per metre of eye height above the ground (min 0.6 m/s) — close to the ground a tap moves centimetres whatever the look distance; it starts at 25 % and reaches full in 1 s, then up to 5× by 5 s held; Shift ×4, Ctrl ×20, both ×100 (long-distance travel) |
+| **CA-3 the near clip** ⭐ *(`CE-1196`, `2026-10-19`)* | 🔒 user, live: *"sumo roads (black) z-fight heavily with artificial terrain if looked at from distance"*. 📐 The near clip was 0.1 % of the look-at distance; a 24-bit depth step at distance d is d² / (near · 2²⁴), so from 2 km the step was ~12 cm while `TrafficLayer3D.Style` lifts the road kinds only 3–6 cm over the ambient ground. ⇒ `MapCamera3D.NearClip` = `NearClipShare` (0.5 %) of the distance, never under 5 cm: the step from 2 km is ~2.4 cm, inside the lift. ⭐ First person is untouched — it sits at `MinDistance` 2 m, so its near clip stays on the 5 cm floor. ⛔ Not a polygon offset (the tracker's first lean): one camera-wide constant serves every thin layer, not the road pass only (decals and area clouds should gain too — not measured). Rail `TrafficLayer3DTests.CE1196_FromTwoKilometresTheRoadsLiftIsWithinTheDepthBuffersReach` (`MapCamera3D.DepthStepAt`) |
 | **TM-1 telemetry** | fps and frame ms over a 2 s window, the camera's mode / eye / forward / yaw / pitch / distance / height above ground / viewport — `GET /diagnostics/render` (`get_render_diagnostics`); the counter sits top-left of the map's visible area (`OpenMapArea`, so it never hides under a docked panel) |
 
 **Rejected — one line each:** *a 3-D ground-rectangle marquee* — tilted, a ground rectangle is a trapezoid on screen and selects what the user
@@ -2636,7 +2639,7 @@ the draw path — they never touch the shader.*
 
 | decision | rule |
 |---|---|
-| **WS-1 only in first person** | the layer sets `Atmosphere` while `FpsCameraDriver` drives the 3-D camera, else null; null is `SceneAtmosphere.Default`, the look the map always had |
+| **WS-1 where** ⭐ *(superseded `2026-10-19`)* | ~~only in first person~~ ⇒ 🔒 user, `2026-10-19`: *"I'm not asking for much more than just showing the same weather as in FPS as the first slice"* — first person reads the weather at the EYE (fog from the eye); the FREE camera reads it at the point it LOOKS AT and starts the fog there (`MapCamera3D.FogStart` = 0.9 × the look-at distance, the shader's `fogStart`), so what is looked at stays clear and the world beyond fades by the visibility; the 2-D map and any other driver get none |
 | **WS-2 the light** | shown light = 0.35 + 0.65 × `RelativeLight` (the field's, cloud-dimmed) ⇒ ambient 0.30 at the darkest night … 0.42 at day; the sun's share 0.58 × sin(el)/0.25 (capped) × the field's own cloud cut `1 − 0.75·(octas/8)^3.4`, 0 below the horizon — the darkest night is a dusk, never black |
 | **WS-3 the sky** | day blue → dusk blue with the light; greyed toward overcast with the cloud cover above; a warm glow on the horizon with the sun within ±8° of it (thinned by cloud); the sun disc and its glow where the field puts the sun (azimuth clockwise from north), hidden under ≥ 7 octas; in fog or mist (visibility under 2 km) the sky takes the fog's grey, fully by ~200 m, and the disc goes |
 | **WS-4 the fog** | `exp(−(d·k)²)` with `k = 1.73 / V` — 5 % contrast at the visibility (Koschmieder, the field's own σ = 3.912 / V); never thinner than a fog that has faded fully by 90 % of the far clip, so the world never ends at an edge |
@@ -2647,8 +2650,8 @@ noise texture per layer: the cost question), the MOON (the field has no lunar po
 light their surroundings at night (a flare lighting the ground).
 
 **Rejected — one line each:** *a skybox / dome mesh* — a screen gradient plus a disc costs nothing and shows the same at FPS scale; *darkening the
-effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; *weather in the free
-camera* — the user ruled it out (it would obstruct the view).
+effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; ~~*weather in the free
+camera* — the user ruled it out (it would obstruct the view)~~ — superseded `2026-10-19` (WS-1): the fog starting at the look-at is what keeps it from obstructing; *the fog from the eye in the free camera* — from hundreds of metres up a 500 m mist would grey out the whole map.
 
 **As-built `2026-10-16`** — matches the diagrams. Rails `WeatherSkyTests.CE1146_*` ×5 (noon, night floor, overcast, sunrise glow, fog) and
 `PossessionStationTests.CE1146_TheWeathersSky_OnlyInFirstPerson`; frame rail `Map3DFrameRail.CE1146_V` (Mesa under Xvfb: the shader
@@ -2659,6 +2662,12 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ![](assets/map-3d/weather-noon.png) | ![](assets/map-3d/weather-sunset.png) |
 | **the darkest night — still a dusk** | **fog, 150 m visibility** |
 | ![](assets/map-3d/weather-night.png) | ![](assets/map-3d/weather-fog.png) |
+
+**As-built `2026-10-19` — the free camera (WS-1):** `WeatherSkyLayer` samples at the look-at with no driver; `LitShader` gained `fogStart` (`ApplyFrame`'s third argument), set from `MapCamera3D.FogStart` only when the weather states a visibility. Rails `PossessionStationTests.CE1146_TheWeathersSky_InTheFreeCameraAtWhatItLooksAt_AndInFirstPersonAtTheEye` and the frame rail's free-camera fog shot (the centre of a 150 m fog seen from 120 m is the ground, not the fog colour — red-proved with the fog from the eye).
+
+| the free camera in a 150 m fog, 120 m from what it looks at |
+|---|
+| ![](assets/map-3d/weather-free-camera-fog.png) |
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
 

@@ -34,7 +34,7 @@ public class VehicleBodyParityTests
     /// </summary>
     private static readonly Dictionary<VisualFamily, byte[]> AircraftIds = new()
     {
-        [VisualFamily.Helicopter] = new byte[] { 0, 1, 4, 4, 3 },                    // fuselage, cockpit, tail boom, fin, mast
+        [VisualFamily.Helicopter] = new byte[] { 0, 0, 0, 0, 1, 4, 4, 3 },           // ⭐ CE-1209 the fuselage's rear, front, cabin floor and roof; cockpit, tail boom, fin, mast
         [VisualFamily.Jet] = new byte[] { 0, 0, 1, 2, 2, 4, 4, 4, 3 },               // fuselage, nose, canopy, wings, tailplanes, fin, nozzle
         [VisualFamily.CargoPlane] = new byte[] { 0, 0, 1, 2, 3, 3, 3, 3, 4, 4, 4 },  // fuselage, nose, cockpit, wing, 4 engines, tail, fin, tailplane
         [VisualFamily.AttackJet] = new byte[] { 0, 0, 6, 1, 2, 3, 3, 4, 4, 4 },      // fuselage, nose, the GAU-8, canopy, wing, 2 engines, tailplane, 2 fins

@@ -1215,7 +1215,7 @@ public sealed class Map3DFrameRail
             return e;
         }
         var me = Man(stand, 100f, 1001L, StanceId.Standing);   // he faces east (+X)
-        Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
+        var down = Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
         Man(stand + new Vector2(6f, -0.4f), 10f, 1003L, StanceId.Prone);   // another, out of reach
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
@@ -1256,14 +1256,14 @@ public sealed class Map3DFrameRail
             return driver.UseLines(world).Select(l => l.Text).ToArray();
         }
         var look = new FrameInput { MouseDelta = new Vector2(0f, 120f) };   // look down at him
-        Assert.Equal(new[] { "E  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
-        Assert.Equal(new[] { "E  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
+        Assert.Equal(new[] { "F  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
+        Assert.Equal(new[] { "F  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
 
         var press = new FrameInput();
-        press.Pressed.Add((int)KeyboardKey.E); press.Down.Add((int)KeyboardKey.E);
+        press.Pressed.Add((int)KeyboardKey.F); press.Down.Add((int)KeyboardKey.F);
         Shot("fps-use-0-pressed.png", press, 1002L);
         var hold = new FrameInput();
-        hold.Down.Add((int)KeyboardKey.E);
+        hold.Down.Add((int)KeyboardKey.F);
         Assert.Equal(new[] { "> 1  Drag", "  2  Carry" }, Shot("fps-use-3-list.png", hold, 1002L, FpsCameraDriver.HoldSeconds + 0.05f));
 
         Shot("fps-use-3b-released.png", new FrameInput(), 1002L);   // let go: the press of Drag is sent
@@ -1272,9 +1272,23 @@ public sealed class Map3DFrameRail
         {
             UseSeq = 1, Outcome = Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, ActionId = 9,
         });
-        Assert.Equal(new[] { "E  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
+        Assert.Equal(new[] { "F  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
         File.Delete(Path.Combine(shots, "fps-use-0-pressed.png"));
         File.Delete(Path.Combine(shots, "fps-use-3b-released.png"));
+
+        // ⭐ CE-1215 (docs/DESIGN_Entity_Control.md §8j H-1, H-2) — he has just hit the man at his feet (the marker round the crosshair),
+        //   and a round has hit him from his right-rear (he faces east; it travelled north-east): a red arc at the screen's lower right
+        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        var feedback = Hrot.UI.Common.Effects.HitFeedback.In(world);
+        feedback.Record(me, down, new Vector3(stand.X + 1f, stand.Y, 0f), new Vector3(1f, 0f, 0f), 30f, now);
+        feedback.Record(Entity.Null, me, new Vector3(stand.X, stand.Y, 1.2f), new Vector3(1f, 1f, 0f), 40f, now);
+        // ⭐ CE-1217 (§8k C-1, C-2) — the compass strip at the top, and the friend's name over him (both of his side)
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        world.AddComponent(me, new EntityInfo { Name = new FixedString64("Rifleman Novak"), ForceId = ForceId.Friend });
+        world.AddComponent(down, new EntityInfo { Name = new FixedString64("Pvt. Dvorak"), ForceId = ForceId.Friend });
+        var buddy = Man(stand + new Vector2(7f, 1.5f), 100f, 1004L, StanceId.Standing);   // a friend standing ahead: his name over his head
+        world.AddComponent(buddy, new EntityInfo { Name = new FixedString64("Cpl. Svoboda"), ForceId = ForceId.Friend });
+        Shot("fps-hit-feedback.png", new FrameInput { MouseDelta = new Vector2(0f, -90f) }, 1002L);   // look up to the standing friend
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
@@ -2000,6 +2014,18 @@ public sealed class Map3DFrameRail
         float sunset = Shot("weather-sunset.png", S(2, 200, 0.32f));
         float night = Shot("weather-night.png", S(-35, 0, 0.001f));
         float fog = Shot("weather-fog.png", S(40, 180, 0.8f, vis: 150f));
+
+        // ⭐ CE-1146 (2026-10-19) — the FREE camera in the same 150 m fog, 120 m from what it looks at: the fog starts there, so the ground
+        //   it looks at is seen (with the fog from the eye it would be ~85 % fog colour), and the far town fades
+        var mist = WeatherSky.Of(S(40, 180, 0.8f, vis: 150f));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 5f, spot.Y - 6f, ground), 120f, MathF.PI * 1.5f, -0.55f);
+        Shot("weather-free-camera-fog.png", S(40, 180, 0.8f, vis: 150f));
+        var centreShot = Raylib.LoadImage(Path.Combine(shots, "weather-free-camera-fog.png"));
+        Color centre;
+        try { centre = Raylib.GetImageColor(centreShot, centreShot.Width / 2, centreShot.Height / 2); }
+        finally { Raylib.UnloadImage(centreShot); }
+        int fogDistance = Math.Abs(centre.R - mist.SkyHorizon.R) + Math.Abs(centre.G - mist.SkyHorizon.G) + Math.Abs(centre.B - mist.SkyHorizon.B);
+        Assert.True(fogDistance > 40, $"what the free camera looks at is fogged out: centre {centre.R},{centre.G},{centre.B} vs fog {mist.SkyHorizon.R},{mist.SkyHorizon.G},{mist.SkyHorizon.B}");
         sw.Camera3D.Atmosphere = null;
 
         Assert.True(night < noon * 0.75f, $"night {night:F0} darker than noon {noon:F0}");
@@ -2524,6 +2550,59 @@ public sealed class Map3DFrameRail
         Assert.All(men, e => Assert.NotNull(bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(e).Value)));
         float? TopOf(int k) => bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(men[k]).Value);
         Assert.True(TopOf(2) > TopOf(1) + 0.3f, "the sign carrier's card does not clear his sign");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1169 / CE-1179 — a pick-up rifle, a pick-up pistol and an explosive charge lying on the ground, beside a soldier for scale and
+    /// the M2 on its tripod each of them used to be drawn as. Screenshot <c>people-3-items-on-the-ground.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1169_V_ItemsOnTheGround_AreWhatTheyAre()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.6f);
+        Entity Put(long type, float dx)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)), Rotation = facing });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        Put(TkbEntityTypes.WeaponSystem_PickUpRifle, -1.2f);
+        Put(TkbEntityTypes.WeaponSystem_PickUpPistol, -0.2f);
+        Put(TkbEntityTypes.WeaponSystem_ExplosiveCharge, 0.6f);
+        Put(TkbEntityTypes.Infantry_Rifleman, 1.6f);
+        Put(TkbEntityTypes.WeaponSystem_M2Hmg, 3.2f);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y, ground + 0.3f), 5f, MathF.PI * 1.5f, -0.45f);   // from the south, looking down
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-3-items-on-the-ground.png"));
+        Assert.Equal(5, bodies.BodiesDrawn);
     }
 
     /// <summary>

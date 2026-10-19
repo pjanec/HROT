@@ -497,7 +497,7 @@ namespace Hrot.ScenarioEditor.Map
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
             canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky, first person only
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider));   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated

@@ -97,8 +97,20 @@ public sealed class MapCameraLayer : IMapLayer
     /// <summary>How long to wait for a requested camera to appear before asking again.</summary>
     public const float RequestRetrySeconds = 5f;
 
+    /// <summary>⭐ <c>CE-1221</c> — how long the world's entity count must stay unchanged before a load counts as finished.</summary>
+    public const float LoadSettleSeconds = 1f;
+
+    /// <summary>⭐ <c>CE-1221</c> — the share of the view the framed entities may fill (the rest is margin).</summary>
+    public const float FrameFill = 0.8f;
+
+    /// <summary>⭐ <c>CE-1221</c> — the smallest ground extent framed (m): a lone entity is not zoomed into.</summary>
+    public const float FrameMinExtent = 200f;
+
     private Entity? _camera;
     private bool _adopted, _userMoved, _dirty, _haveLast;
+    private bool _framePending = true;   // ⭐ CE-1221 — a scenario may still be framed (no saved camera, not moved yet)
+    private int _settleCount = -1;
+    private float _settled;
     private CameraPose _last;
     private float _still, _scanIn, _requestedFor = -1f;
     private int _lastCount;
@@ -117,6 +129,9 @@ public sealed class MapCameraLayer : IMapLayer
 
     /// <summary>True once the saved view was adopted (or this map created the camera).</summary>
     public bool Adopted => _adopted;
+
+    /// <summary>⭐ <c>CE-1221</c> — true once this map framed a scenario that had no saved camera.</summary>
+    public bool Framed { get; private set; }
 
     public string Name => "Map camera";
     public int LayerBitIndex => -1;
@@ -167,6 +182,25 @@ public sealed class MapCameraLayer : IMapLayer
             return;
         }
 
+        // ⭐ CE-1221 — a scenario WITHOUT a saved camera: once its load has settled (the entity count unchanged for LoadSettleSeconds —
+        //   on every host alike, the networkless editor included), the 2-D map frames all its placed entities. Never over a saved view,
+        //   never after the user moved the map.
+        if (_framePending && _camera == null && !_adopted && !_userMoved)
+        {
+            if (count != _settleCount) { _settleCount = count; _settled = 0f; }
+            else if ((_settled += dt) >= LoadSettleSeconds && count > 0)
+            {
+                _framePending = false;
+                if (Find(w) == null && FramePose(w, _switch.Camera3D) is { } framed)
+                {
+                    _switch.ShowPose(framed);
+                    Framed = true;
+                    _last = _switch.CurrentPose; _haveLast = true;   // the framing is not the user's move: nothing to save
+                    return;
+                }
+            }
+        }
+
         if (!_haveLast) { _last = now; _haveLast = true; return; }   // the first frame is the baseline, not a move
         if (!Same(now, _last))
         {
@@ -211,8 +245,42 @@ public sealed class MapCameraLayer : IMapLayer
     {
         _camera = null;
         _adopted = _userMoved = _dirty = false;
+        _framePending = true; _settleCount = -1; _settled = 0f; Framed = false;   // ⭐ CE-1221 — the next scenario may be framed
         _still = _scanIn = 0f;
         _requestedFor = -1f;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1221</c> — the 2-D pose (straight down, north up) that shows every PLACED entity of the scenario: the middle of their
+    /// bounding box, far enough that it fills <see cref="FrameFill"/> of the view (at least <see cref="FrameMinExtent"/> across). Left
+    /// out: the camera itself, SUMO's traffic (its own route — ambient, it would frame the whole road net) and any non-finite position.
+    /// Null when there is nothing to frame.
+    /// </summary>
+    public static CameraPose? FramePose(EntityRepository w, MapCamera3D camera)
+    {
+        bool routes = w.IsComponentTypeRegistered<ReplicationRoute>();
+        float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+        int n = 0;
+        foreach (var e in w.Query().With<TkbIdentity>().With<SimTransform>().Build())
+        {
+            if (MapCameraTkb.Is(w.GetComponentRO<TkbIdentity>(e).TkbType)) continue;
+            if (routes && w.HasComponent<ReplicationRoute>(e) && w.GetComponentRO<ReplicationRoute>(e).RouteId == ReplicationRoute.SumoSharp) continue;
+            var p = w.GetComponentRO<SimTransform>(e).Position;
+            if (!float.IsFinite(p.X) || !float.IsFinite(p.Y)) continue;
+            minX = MathF.Min(minX, p.X); maxX = MathF.Max(maxX, p.X);
+            minY = MathF.Min(minY, p.Y); maxY = MathF.Max(maxY, p.Y);
+            n++;
+        }
+        if (n == 0) return null;
+        var centre = new Vector2((minX + maxX) / 2f, (minY + maxY) / 2f);
+        float width = MathF.Max(maxX - minX, FrameMinExtent), height = MathF.Max(maxY - minY, FrameMinExtent);
+        var vp = camera.Viewport;
+        float aspect = vp.Y > 0f ? vp.X / vp.Y : 16f / 9f;
+        float tanHalf = MathF.Tan(camera.FovyDegrees * MathF.PI / 360f);
+        // the view shows 2·d·tan(fov/2) metres tall and aspect times that wide; both extents must fit in FrameFill of it
+        float distance = MathF.Max(height, width / aspect) / FrameFill / (2f * tanHalf);
+        float ground = camera.GroundHeight?.Invoke(centre.X, centre.Y) ?? 0f;
+        return new CameraPose(new Vector3(centre, ground), distance, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch);
     }
 
     /// <summary>The scenario's camera: the camera-type entity with the lowest network id (two saving hosts may each have made

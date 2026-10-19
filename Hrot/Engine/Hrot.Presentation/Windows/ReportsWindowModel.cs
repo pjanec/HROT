@@ -46,9 +46,9 @@ public readonly record struct ReportUnit(Entity Unit, string Name);
 /// </summary>
 public static class ReportsWindowModel
 {
-    /// <summary>Shown when the node has no log, or an empty one: the staff's inbox fills it, and it runs on brain nodes only.</summary>
-    public const string EmptyText =
-        "No report has reached this node yet — reports are logged where the commander's staff runs (brain nodes); see DESIGN_Command_Display §6 D4.";
+    /// <summary>Shown when the node has no log, or an empty one. ⭐ D4 (behaviors, R-2058) — the inbox fills the log on every node now, so an
+    /// empty log means no report has arrived here yet.</summary>
+    public const string EmptyText = "No report on this node yet.";
 
     /// <summary>Shown when the log has reports but the filters keep none.</summary>
     public const string NoMatchText = "No report matches the filters.";

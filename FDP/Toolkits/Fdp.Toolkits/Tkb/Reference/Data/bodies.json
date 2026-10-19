@@ -183,6 +183,42 @@
       ]
     },
     {
+      "name": "RifleWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.8",
+      "kit": "Rifle",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "PistolWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.9",
+      "kit": "Pistol",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "ChargeWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.10",
+      "kit": "Charge",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
       "name": "MortarWeapon",
       "plan": "WeaponSystem",
       "dis": "1.1.*.10",
