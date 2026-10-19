@@ -3911,11 +3911,20 @@ def run_sq_defend_house(c, timeout):
     print(f"    maneuver: {json.dumps(m)[:1200]}")
     for nid in reds[:2]:
         print(f"    order {nid}: {json.dumps(data(call('GET', f'/entities/{nid}/order')))[:700]}")
-    posts = [((x.get("target") or [None, None, None]), x.get("role")) for x in m.get("members", [])]
-    storeys = sorted({round((t[2] or 0.0) / 3.0) for t, _ in posts if t and t[0] is not None})
-    c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys}; posts {posts})")
+    posts = [((x.get("order") or {}).get("kind"), (x.get("order") or {}).get("point")) for x in m.get("members", [])]
+    storeys = sorted({round(pt[2] / 3.0) for k, pt in posts if k == "Watch" and pt})
+    windows = []
+    for nid in reds:
+        post = ((((data(call("GET", f"/entities/{nid}/order")) or {}).get("task") or {}).get("params") or {}).get("post") or {})
+        if post.get("window"):
+            windows.append((nid, post.get("point"), post.get("setBack")))
+    print(f"    posts {posts}; window posts {windows}")
+    c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys})")
+    print(f"    ⚠ ① the roof: {'manned' if any(z >= 2 for z in storeys) else 'NOT manned'} — roof posts (DA-5 FindRoofPosts) are not built; "
+          f"a roof post comes only when the cover ask happens to answer one")
+    c.ok(len(windows) >= 1 and all(sb for _, _, sb in windows), f"① window posts, set back (a Regular squad, DA-6): {windows}")
 
-    first_in, red_shots, blue_shots, seen = [None], {}, {}, set()
+    first_in, red_shots, blue_shots, seen, queued = [None], {}, {}, set(), set()
     t0 = sim_time() or 0.0
     while (sim_time() or 0.0) - t0 < 150.0:
         t = sim_time() or 0.0
@@ -3927,6 +3936,8 @@ def run_sq_defend_house(c, timeout):
                 continue
             seen.add(k)
             (red_shots if x.get("shooter") in reds else blue_shots).setdefault(x.get("shooter"), []).append(t)
+        for r in (((data(call("GET", f"/entities/{sq}/reports")) or {}).get("outbox") or {}).get("queued") or []):
+            queued.add(json.dumps({k: r.get(k) for k in ("kind", "kindName", "subtype", "subtypeName")}))
         wait_for(lambda: False, 1.0, every=1.0)
     early = [(s, ts) for s, ts in red_shots.items() if first_in[0] is None or min(ts) < first_in[0] - 0.5]
     print(f"    first Blue in the sector at {first_in[0]}; Red shots: { {s: (len(ts), round(min(ts), 1)) for s, ts in red_shots.items()} }; "
@@ -3934,10 +3945,11 @@ def run_sq_defend_house(c, timeout):
     c.ok(first_in[0] is not None, "the Blue fire team walks into the sector")
     c.ok(not early, f"③ no Red round before the first Blue enters the sector ({early})")
     c.ok(len(red_shots) >= 2, f"③ …then Red fires: {len(red_shots)} shooters")
-    reps = squad_reports(sq)
-    print(f"    reports: {[ (r.get('kindName') or r.get('kind'), r.get('subtypeName') or r.get('subtype')) for r in reps][:20]}")
-    c.ok(any("Set" in json.dumps(r) for r in reps), "PROGRESS Set (every man at his post)")
-    c.ok(any("Displacing" in json.dumps(r) for r in reps), "④ a man under fire moves to his alternate (PROGRESS Displacing)")
+    # a squad with no superior addresses its reports to nobody, so no inbox logs them — its OUTBOX is where they show (sampled above)
+    seen_reports = list(queued) + [json.dumps(r) for r in squad_reports(sq)]
+    print(f"    reports queued or logged: {sorted(queued)[:12]}")
+    c.ok(any("Set" in r for r in seen_reports), "PROGRESS Set (every man at his post)")
+    c.ok(any("Displacing" in r for r in seen_reports), "④ a man under fire moves to his alternate (PROGRESS Displacing)")
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
