@@ -65,8 +65,38 @@ namespace Fdp.Toolkit.Squad.DangerArea
             }
             // ⭐ CE-3081 (§10.7b A1/A6) — the node's cover map (the one the cover query reads) judges OpenGround; none ⇒ crossings only
             var cover = repo.HasSingletonManaged<ICoverProvider>() ? repo.GetSingletonManaged<ICoverProvider>() : null;
-            return DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas,
+            int count = DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas,
                 gas.Slice(0, gasCount));
+            MarkSeenFrom(repo, carrier, terrain, areas.Slice(0, count));   // ⭐ CE-3272 (Q94 B)
+            return count;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B, R-3018 — 📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.3) — which of the sensor's
+        /// <see cref="EqsContextPoints"/> (its unit's remembered contacts) see each area: bit i when point i at eye height has sight of the
+        /// area's centre on THIS node's terrain; every bit with no terrain (the brain's old "sight 1"). The brain rates from it and reads
+        /// no geometry.
+        /// </summary>
+        public static void MarkSeenFrom(EntityRepository repo, Entity carrier, Fdp.Toolkit.World.IWorldQuery? terrain, Span<DangerAreaDescriptor> areas)
+        {
+            if (!repo.IsComponentTypeRegistered<EqsContextPoints>() || !repo.HasComponent<EqsContextPoints>(carrier))
+            {
+                for (int a = 0; a < areas.Length; a++) areas[a].SeenFrom = 0;
+                return;
+            }
+            ref readonly var points = ref repo.GetComponentRO<EqsContextPoints>(carrier);
+            int n = Math.Min(points.Count, EqsContextPoints.Capacity);
+            for (int a = 0; a < areas.Length; a++)
+            {
+                var target = areas[a].Center + new Vector3(0f, 0f, Systems.DangerAreaSensorSystem.AreaHeight);
+                ushort mask = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    var eye = points[i] + new Vector3(0f, 0f, Systems.DangerAreaSensorSystem.EyeHeight);
+                    if (terrain == null || !terrain.SightBlocked(eye, target)) mask |= (ushort)(1 << i);
+                }
+                areas[a].SeenFrom = mask;
+            }
         }
 
         /// <summary>Where the watched route ends — see the class remarks — and the unit's road use for it.</summary>

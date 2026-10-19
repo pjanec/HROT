@@ -164,6 +164,7 @@ namespace Hrot.Network.NED.SimHost
                     ContextPoint1Y        = sensor.ContextPoint1.Y,
                     ContextPoint1Z        = sensor.ContextPoint1.Z,
                     ContextPointMask      = sensor.ContextPointMask,
+                    ContextPoints         = PointsOf(view, entity),   // ⭐ CE-3272 (Q94 B)
                 };
                 if (topic.SolverNodeId != 0 && !parent.IsNull && view is EntityRepository repo)
                     RecordSolver(repo, parent, (parentNetworkId, localChildIndex), topic.SolverNodeId);
@@ -201,6 +202,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 var last = _published[entity];
                 _published.Remove(entity);
+                _points.Remove(entity);   // CE-3272
                 _parentOf.Remove(entity, out var parent);
                 if (last.LocalChildIndex == 0) continue;
 
@@ -403,7 +405,31 @@ namespace Hrot.Network.NED.SimHost
             && a.ContextPointMask      == b.ContextPointMask   // CE-3063: a heard contact's point
             && a.ContextPoint1X.Equals(b.ContextPoint1X) && a.ContextPoint1Y.Equals(b.ContextPoint1Y) && a.ContextPoint1Z.Equals(b.ContextPoint1Z)
             && string.Equals(a.ConfigKind, b.ConfigKind, StringComparison.Ordinal)
-            && string.Equals(a.ConfigJson, b.ConfigJson, StringComparison.Ordinal);
+            && string.Equals(a.ConfigJson, b.ConfigJson, StringComparison.Ordinal)
+            && ReferenceEquals(a.ContextPoints, b.ContextPoints);   // CE-3272: PointsOf hands back the SAME list until the points change
+
+        // ⭐ CE-3272 (Q94 B) — the sensor's EqsContextPoints as the wire list, rebuilt only when the component changed (this egress runs
+        //   for every sensor every frame — CE-3243's lesson): an unchanged component returns the list already published.
+        private readonly Dictionary<Entity, (Fdp.Toolkit.Spatial.Eqs.EqsContextPoints Points, List<EqsContextPointWire> Wire)> _points = new();
+        private static readonly List<EqsContextPointWire> s_noPoints = new();
+
+        private List<EqsContextPointWire> PointsOf(ISimulationView view, Entity entity)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>()
+                || !repo.HasComponent<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>(entity))
+                return s_noPoints;
+            ref readonly var now = ref repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>(entity);
+            if (now.Count <= 0) return s_noPoints;
+            if (_points.TryGetValue(entity, out var cached) && !cached.Points.DiffersFrom(in now, 0f)) return cached.Wire;
+            var wire = new List<EqsContextPointWire>(now.Count);
+            for (int i = 0; i < now.Count && i < Fdp.Toolkit.Spatial.Eqs.EqsContextPoints.Capacity; i++)
+            {
+                var p = now[i];
+                wire.Add(new EqsContextPointWire { X = p.X, Y = p.Y, Z = p.Z });
+            }
+            _points[entity] = (now, wire);
+            return wire;
+        }
     }
 }
 

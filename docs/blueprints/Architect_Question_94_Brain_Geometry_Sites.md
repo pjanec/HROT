@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022); B not yet.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); B BUILT (§5.3, `CE-3272`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022).
 current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers + §5.1a C as built · §2 the sub-questions with leans.
 stale-below: nothing.
-known-rot: §5.2 D-1 "resolve at 8b if the position stays here" and the §5 diagrams' "8b: resolve if the position stays here" / "remove the request" — SUPERSEDED by §5.2a (one path, the request stays Resolved). §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
+known-rot: §2 B's "a re-pointed contact list bumps the epoch" — SUPERSEDED by §5.3 B-3 (no bump). §5.2 D-1 "resolve at 8b if the position stays here" and the §5 diagrams' "8b: resolve if the position stays here" / "remove the request" — SUPERSEDED by §5.2a (one path, the request stays Resolved). §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b OWNS R-2037 and the inventory this question settles for backend's sites (CE-2287)
@@ -13,6 +13,7 @@ related-designs:
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — owns the fire chain (WeaponTask, FireProcessingSystem): A would move a gate into it
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — CB-19 / CB-22 consume door approach and the fire gate
   - docs/DESIGN_Add_Entity_Picker.md — §2e owns the birth-height RULE and wire fields; §5.2a here owns WHERE it is resolved (CE-3271)
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — §10.7 owns the danger-area sensor and its rating; §5.3 here moves its contact sight onto the solver (CE-3272)
   - docs/designs/navig-2/Navigation_Design_v2_0.md — owns NavigationDestination.Of, the one resolver C's door hook sits in (§5.1a)
 -->
 
@@ -473,3 +474,61 @@ sequenceDiagram
   M->>C: dtWorldPos (resolved Z)
 ```
 *What the picture shows that prose hid:* the brain's replica holds the sent height for exactly the trip to the muscle and back.
+
+### 5.3 B — the danger-area contact sight, AS BUILT *(backend, `2026-10-19`, `CE-3272`; build-state: BUILT)* — refines B's lean
+
+📐 **INVENTORY** — `codebase-memory-mcp cli search_graph name_pattern=".*DangerArea.*" label=Class` → 25 (`has_more:false`), `".*DangerAlongRoute.*"`
+→ 3; ⚠ `check_index_coverage` is not available through the CLI. The brain-side terrain reads are exactly two: `DangerAreaSensorSystem.ThreatOn`
+and `.ThreatOnFromPool` (`terrain.SightBlocked`, `DangerAreaSensorSystem.cs:150,175`); no other caller (grep).
+
+| claim the design rests on | code — how it IS | design basis |
+|---|---|---|
+| the danger sensor is solved on the muscle every scheduled run, not only on a new epoch | ✅ `EqsSolverSystem.cs:219-224` (`SolveDangerArea` on every `RunSensor`) | ✅ `DESIGN_Utility_AI_Demo_Scenarios.md` §10.7 |
+| the config already carries per-sensor extras brain → solver, with child create / pending / ordering solved | ✅ `EqsDdsTopics.cs:62-80` (`ConfigJson`, `ContextPoint1`), `EqsSensorConfigIngressTranslator.cs:308` | ✅ CE-3036 / CE-3063 |
+| the brain's memory never reaches the muscle | ✅ `TargetMemory` is in the Brain group but no NED translator sends it (grep) | ⛔ searched, none found |
+| memory and the squad pool are 16 slots each | ✅ `PerceptionConstants.MaxTrackedTargets` = 16; the pool span is 16 (`DangerAreaSensorSystem.cs:172`) | — |
+| the descriptor has room for a 16-bit mask without growing | ✅ `DangerAreaDescriptor.PinnedSize` 72 with `Kind` (1 byte) padded to 4 before `Center` | — |
+
+| # | as designed | why — and how it differs from the lean |
+|---|---|---|
+| B-1 | ⭐ the brain writes its contacts' LAST-KNOWN positions into a generic `EqsContextPoints` on the sensor child (component 437, ≤ 16 points, slot i = memory / pool slot i) — rewritten only when a slot moves > `ContactMoveMetres` 3 m or the count changes | the lean said "into the sensor's config" — this IS the config's carrier, as a component the egress reads; generic (EQS), not a danger-only field |
+| B-2 | `EqsSensorConfigTopic` gains `[DdsManaged] List<EqsContextPointWire> ContextPoints` (appended); the egress compares it like the other fields; the ingress writes `EqsContextPoints` on the solver's child | ⛔ **no new topic**: the config ingress already finds or creates that child and orders samples (CE-492) |
+| B-3 | ⭐ **no epoch bump** on a contact move | the lean said "a re-pointed contact list bumps the epoch" — but the epoch drops every answer in flight, and a contact moving faster than one round trip per 3 m would starve the sensor; the danger sensor already re-solves every run (row 1), so the next answer simply carries the new mask |
+| B-4 | the muscle's solve sets `DangerAreaDescriptor.SeenFrom` (ushort): bit i ⇐ point i + `EyeHeight` sees the area's centre + `AreaHeight` on ITS live terrain; no terrain ⇒ every bit (today's "sight 1 with no terrain") | as the lean |
+| B-5 | `DangerAreaWire.SeenFrom` appended; the brain's `Rate` = the strongest danger among the slots whose bit is set (memory: `ThreatDanger.OfSlot`; pool: 1 when alive or heard); gas stays 1. ⛔ `terrain.SightBlocked` leaves the brain | as the lean ("the brain multiplies the area's danger by it") |
+| ⚠ consequence | the release waits for the next answer after a contact moves (one solver run, ~0.1–1 s) — not the same tick. A new contact's slot reads "not seen" until then | the lean's blast radius; the CE-3138 rail pumps ≤ 600 frames |
+
+```mermaid
+classDiagram
+  direction LR
+  class DangerAreaSensorSystem { <<EXISTING brain>> WriteContacts(child) NEW · Rate() reads SeenFrom · ⛔ no terrain }
+  class EqsContextPoints { <<NEW component 437, Fdp.Toolkit.Spatial.Eqs>> Count · X Y Z[16] }
+  class EqsSensorConfigEgressTranslator { <<EXISTING brain>> + ContextPoints list, compared }
+  class EqsSensorConfigIngressTranslator { <<EXISTING muscle>> writes EqsContextPoints on the child }
+  class DangerAlongRouteSolve { <<EXISTING muscle>> + SeenFrom per area }
+  class DangerAreaDescriptor { <<EXISTING>> + ushort SeenFrom (in Kind's padding) }
+  class DangerAreaWire { <<EXISTING wire>> + SeenFrom }
+  DangerAreaSensorSystem --> EqsContextPoints
+  EqsSensorConfigEgressTranslator ..> EqsContextPoints
+  EqsSensorConfigIngressTranslator --> EqsContextPoints
+  DangerAlongRouteSolve ..> EqsContextPoints
+  DangerAlongRouteSolve --> DangerAreaDescriptor
+  DangerAreaDescriptor ..> DangerAreaWire
+```
+*What the picture shows that prose hid:* every box but `EqsContextPoints` already exists — B adds one component and two fields, and the
+brain's terrain read disappears rather than moves.
+
+```mermaid
+sequenceDiagram
+  participant B as CGF — DangerAreaSensorSystem
+  participant E as config egress / ingress
+  participant M as SimHost — EqsSolverSystem
+  B->>B: contact slot moved more than 3 m, or count changed ⇒ EqsContextPoints rewritten
+  B->>E: EqsSensorConfig + ContextPoints (on change)
+  E->>M: EqsContextPoints on the solver's child
+  M->>M: next run — areas along the route, SeenFrom bit i per point (live terrain)
+  M->>B: DangerAreaResult, each area with SeenFrom
+  B->>B: Rate — strongest danger among the seen slots (memory or pool)
+```
+*What the picture shows that prose hid:* the only new wire traffic is a config sample when a contact moves 3 m; the answer path is the
+existing one.

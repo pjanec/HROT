@@ -59,7 +59,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>Coarse feature classification.</summary>
         public DangerAreaKind Kind;
         private byte _pad0;
-        private ushort _pad1;
+        /// <summary>
+        /// ⭐ <c>CE-3272</c> (Q94 B, R-3018) — which of the sensor's <c>EqsContextPoints</c> (the unit's remembered contacts, slot i = bit i)
+        /// SEE this area, judged by the solver on its live terrain; every bit when the solver has no terrain. The Brain rates the area from it.
+        /// </summary>
+        public ushort SeenFrom;
 
         /// <summary>OBB footprint centre in world-space 3D.</summary>
         public Vector3 Center;
