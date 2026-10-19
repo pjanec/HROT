@@ -500,3 +500,17 @@ runs on the brain's live world — two readers of one curve on two kinds of worl
 | S2-3: a cold vehicle's base signature passes at noon and fails at crossover; a hot engine passes both; fog caps thermal at 2 × visibility | thermal perception |
 | S2-4: a shot heard at 380 m in calm is not heard in 10 m/s wind | acoustic perception |
 | S2-5: no World Environment ⇒ every range as today | each of the above |
+
+### 8.5 AS BUILT `2026-10-19` (`CE-3216` S2, R-3017)
+
+| as built | deviation, and why |
+|---|---|
+| `PerceptionWeather` (`Perception/Sensors/PerceptionWeather.cs`): `TrySample(view, unit)` → `WeatherField.At` once per sensor; `VisionRange`, `ThermalRange`, `BaseContrast`, `HearingFactor`; the constants of §8.3 | ⚠ **sampled at EYE/EAR height** (`SenseHeightM` = 1.7 m above the man's own Z, still his own Z as the ground) — 📐 the wind's log profile is ZERO at the ground (W-3), so a sample at his feet never masked his hearing (the trap `CE-3258` met for a cloud lying on the ground). ⇒ S2-4's "wind" is the wind at his ears: a 10 m/s wind at the 10 m level is ~7 m/s there (× 0.53) |
+| `Identification.LightFactor(relativeLight, nightFactor)` — the one curve, two floors (A-4's 0.1, detection's 0.25) | — |
+| `WeatherSample.DiurnalPhase` (−1…1, appended): the diurnal swing's phase; `BaseContrast = clamp(|phase|, 0.2, 1)` | the sample carried no mean or swing — the phase IS the crossover signal, so no second field |
+| S2-0: `EntityRepository.SyncFrom` borrows `IGeographicTransform` (75) with the other singletons | — |
+| seams: `VisualPerception.Optics` (after binoculars / scope), `ThermalPerception.Optics`, `SignatureFilterTest.ExecuteBatch` (`Base × contrast + Heat × (1 − Base)`), `AcousticSensorGenerator.Generate` (the listener's range × the factor) | ⚠ hearing's factor sits in the GENERATOR, not `AcousticPerception.Ears`: `Ears` takes no unit, and the generator is its one production caller |
+
+Rails (`Fdp.Toolkits.Tests` `PerceptionWeatherTests`): sight at noon / night / in fog / with no clock · thermal ignores the night,
+fog caps it at 2×, the crossover filters a cold hull and passes a running engine · a shot heard in calm, lost in a strong wind and in
+heavy rain · the approved numbers. `Fdp.ModuleHost.Tests` `SnapshotClockTests.CE3216_ASnapshot_BorrowsTheGeoTransform` (S2-0).

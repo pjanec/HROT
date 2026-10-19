@@ -109,6 +109,8 @@ namespace Fdp.Core
             //     EqsResultEvent is valid when the main-thread consumer reads from it.
             //   - GlobalComponentIds.IEqsTemplateRegistry (210): query template lookup.
             //   - GlobalComponentIds.ICoverProvider (211): cover database for positional EQS queries.
+            //   - GlobalComponentIds.IGeographicTransform (75): ⭐ CE-3216 S2-0 — the perception sensors read the weather
+            //     (WeatherField), whose sun needs the point's latitude / longitude; without it the sun stood at 0° N 0° E.
             // Syncing all singletons would expose live-world state to unrelated SoD modules and
             // could alter their behaviour (e.g. slow code paths) causing unrelated tests to fail.
             // Background readers treat these as immutable for the duration of the task; the SoD
@@ -121,6 +123,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.RaycastBatchData); // AccurateLineOfSightTest ring-buffer reads
             SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
             SyncSingletonById(source, GlobalComponentIds.TerrainWorld); // ⭐ EQS §19 — terrain sight + ground placement
+            SyncSingletonById(source, GlobalComponentIds.IGeographicTransform); // ⭐ CE-3216 S2-0 (R-3017) — the sun's lat/lon (WeatherField), read-only
 
             // 4. Sync BOTH version clocks.
             //

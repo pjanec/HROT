@@ -79,6 +79,9 @@ namespace Fdp.Toolkit.Weather
         public LightBand Light;
         /// <summary>Light relative to a clear noon, 0…1 (cloud-dimmed).</summary>
         public float RelativeLight;
+        /// <summary>⭐ <c>CE-3216</c> S2 (R-3017) — where the day is in the ground temperature's swing, −1…1: ±1 at the day's extremes, 0
+        /// where it crosses its daily mean (the thermal crossover, dawn and dusk).</summary>
+        public float DiurnalPhase;
     }
 
     /// <summary>
@@ -319,7 +322,8 @@ namespace Fdp.Toolkit.Weather
 
             // temperature: the daily mean + a closed-form diurnal swing (±6 K clear … ±2 K overcast, the peak ~2.5 h after solar noon)
             float amplitude = 2f + 4f * (1f - Math.Clamp(octas / 8f, 0f, 1f));
-            s.GroundTemperatureC = mean + amplitude * (float)Math.Cos(2 * Math.PI * (sun.SolarHour - 14.5) / 24.0);
+            s.DiurnalPhase = (float)Math.Cos(2 * Math.PI * (sun.SolarHour - 14.5) / 24.0);
+            s.GroundTemperatureC = mean + amplitude * s.DiurnalPhase;
             float hAgl = MathF.Max(0f, point.Z - ground);
             s.TemperatureC = s.GroundTemperatureC - lapse * hAgl / 1000f;
 

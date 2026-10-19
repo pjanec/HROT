@@ -74,5 +74,23 @@ namespace Fdp.ModuleHost.Tests
             live.SyncFrom(older);
             Assert.Equal(50.0, live.GetSingleton<GlobalTime>().TotalTime);
         }
+
+        /// <summary>⭐ <c>CE-3216</c> S2-0 (R-3017) — a module's view carries the GEO TRANSFORM too: the perception sensors read the weather on
+        /// the EQS snapshot, and its sun needs the point's latitude / longitude. 📌 Without it the snapshot's sun stood at 0° N 0° E — at the
+        /// default start (06:00 UTC) sunrise on the equator, twilight in every scenario. ✅ Red-proof: the sync line removed ⇒ no transform ⇒ red.</summary>
+        [Fact]
+        public void CE3216_ASnapshot_BorrowsTheGeoTransform()
+        {
+            using var live = LiveAt(1.0);
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            live.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var mask = new BitMask512();
+            for (int i = 0; i < 256; i++) mask.SetBit(i);
+            var provider = new OnDemandProvider(live, new EventAccumulator(), mask, null, 5);
+            var snap = Assert.IsType<EntityRepository>(provider.AcquireView());
+            Assert.True(snap.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(), "the snapshot borrows the geo transform");
+            Assert.Same(geo, snap.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
+            provider.ReleaseView(snap);
+        }
     }
 }

@@ -72,6 +72,9 @@ namespace Fdp.Toolkit.Perception.Sensors
                 range *= magnification;
                 fovCos = MathF.Max(fovCos, MathF.Cos(scopeFov * 0.5f * MathF.PI / 180f));
             }
+            // ⭐ CE-3216 S2-1 (R-3017) — then the light and the fog: × the detection light factor, capped by the visibility (none without a clock)
+            if (PerceptionWeather.TrySample(view, unit, out var weather))
+                range = PerceptionWeather.VisionRange(range, in weather);
             return true;
         }
 
