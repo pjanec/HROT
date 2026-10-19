@@ -47,7 +47,8 @@ classDiagram
     class IGlobalStatelessGizmo { <<existing>> Draw(view, draw) once per frame }
     class IStatelessGizmo { <<existing>> Draw(view, entity, draw) }
     class SectorAreasGizmo { <<NEW, UI-5a>> each unit's AllowArea outlined in its colour + name · each NoFire area hatched red, each area ONCE }
-    class CommandPictureGizmo { <<NEW, UI-5b>> family SquadAssignment · elements as symbols, age fading · subordinate rows · requests · a man's arc }
+    class CommandPictureGizmo { <<NEW, UI-5b>> family SquadAssignment · elements as symbols, age fading · subordinate rows · requests }
+    class SectorArcGizmo { <<NEW, UI-5b, as built>> family SquadAssignment · a man's arc }
     class ReportsWindowModel { <<NEW, UI-6>> Rows(log, now, unitFilter, kindFilter) · pure, no ImGui }
     class ReportsWindow { <<NEW, UI-6>> ManagedWindow · table + two filters }
     class EngagementArea { <<existing, replicated>> AllowArea · NoFire[4] · Arc }
@@ -62,6 +63,8 @@ classDiagram
     SectorAreasGizmo ..> WeatherField : outline
     SectorAreasGizmo ..> EntityPresentationGizmoShared : outline
     CommandPictureGizmo ..> CommandPicture : reads (where present)
+    IStatelessGizmo <|.. SectorArcGizmo
+    SectorArcGizmo ..> EngagementArea : reads the arc
     ReportsWindow --> ReportsWindowModel : renders
     ReportsWindowModel ..> SquadReportLog : Peek(world)
 ```
@@ -121,4 +124,8 @@ registered there and draw nothing until D4 lands; on SimHost's map (and `--mode 
 
 ## 7. As built
 
-*(filled as each lands)*
+| | as built *(`CE-1192`, ui, `2026-10-19`)* — and the deviations, argued |
+|---|---|
+| **D1** `SectorAreasGizmo` | `Hrot.Presentation/ScenarioEditor/Gizmos/SectorAreasGizmo.cs`, a global gizmo (auto-registered): one query over `EngagementArea`, sectors keyed by area id (the first unit naming it gives the colour and the name), NoFire areas in a set ⇒ each drawn once; outline via `EntityPresentationGizmoShared.DrawClosedPolylineOutline`, the hatch `SectorAreasGizmo.Hatch` (45°, 3 m, even-odd pairs per line, so a concave area hatches only inside) |
+| **D2** `CommandPictureGizmo` + ⚠ `SectorArcGizmo` | the picture as §6 D2 (diamonds by size class, flag letters, count + age + `SYN`, alpha `max(0.25, 1 − age / 120 s)`, dashed lines to subordinates with their last progress, `? kind` at requests). ⚠ **Deviation:** the man's arc is its OWN projector (`SectorArcGizmo`, on `EngagementArea` + `SimTransform`, family `SquadAssignment`) — a man has an arc and no picture, so it cannot ride the picture's projector |
+| rails | `CommandDisplayGizmoTests` (`Hrot.Presentation.Tests`): two sectors in their units' colours with names and the NoFire room hatched ONCE though eleven units name it (the hand-off's fixture: two sectors, one NoFire room, three elements) · the hatch lies inside a concave L · the picture's three elements sized by class and fading with age · a man's arc along his bearings. Red-proved: dedup off, hatch pairing shifted, no fading, bearings swapped |
