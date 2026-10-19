@@ -6,10 +6,12 @@ current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: the §3 sequence diagram and the §5 S3 acceptance said Shift+click — rev 4 (always-multi) replaced that; both now say click / right-click. Fixed in place.
+known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" — SUPERSEDED: 8b now only ASKS (a replicated SpawnLevelRequest) and SpawnLevelSystem resolves it on the node that owns the position (Q94 D, R-3018) — docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. The rule (SpawnHeight.Apply, level 0 = ground) is unchanged.
 known-rot: (2026-10-12) D2b (DIS names in a data table, DisNames.json) is SUPERSEDED by R-280 (behaviors): the names are hard-coded and come from the shared entity class table — docs/blueprints/Architect_Question_90_Unit_Orders_Carry_Capacity.md §2.3p.
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
+  - blueprints/Architect_Question_94_Brain_Geometry_Sites.md — §5.2a owns WHERE the level is resolved (the position's owner, CE-3271); this doc owns the rule and the wire fields
   - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): the picker path from the class chain; DisNames.json deleted
   - DESIGN_Building_Interiors.md — resolves CE-1031 (ground inside buildings); storeys become levels through SurfacesAt
   - designs/gizmos-1/canvas-context-menu-design.md — owns HOW the empty-map menu is built (JSON in

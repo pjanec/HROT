@@ -70,6 +70,7 @@ public static class IgEntityCreationRequests
             PreAllocatedNetworkId = cmd.NetworkId,
             InitType              = cmd.InitType,
             IsTransient           = false,
+            SpawnHeight           = cmd.SpawnHeight,   // ⭐ CE-3271 (Q94 D-2) — was dropped: an IG placement lost its level
         };
     }
 }

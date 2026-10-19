@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
 updated: 2026-10-19
-build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); A-5 indirect, A-6 bomb, A-7 battery plan, B, C, D not yet.
-current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers · §2 the sub-questions with leans.
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); B BUILT (§5.3, `CE-3272`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022).
+current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers + §5.1a C as built · §2 the sub-questions with leans.
 stale-below: nothing.
-known-rot: none.
+known-rot: §2 B's "a re-pointed contact list bumps the epoch" — SUPERSEDED by §5.3 B-3 (no bump). §5.2 D-1 "resolve at 8b if the position stays here" and the §5 diagrams' "8b: resolve if the position stays here" / "remove the request" — SUPERSEDED by §5.2a (one path, the request stays Resolved). §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
 known-conflict: R-2037's premise ("only the muscle knows smoke, doors") is NOT literally true in the cluster today — doors and clouds are CGF-owned (§1 rows 1–2). The ruling is not contested; F asks what follows.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b OWNS R-2037 and the inventory this question settles for backend's sites (CE-2287)
@@ -12,6 +12,9 @@ related-designs:
   - docs/DESIGN_World_Query_Seam.md — IWorldQuery: R-2037 decides WHO may call it; its known-rot already records the brain-side callers
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — owns the fire chain (WeaponTask, FireProcessingSystem): A would move a gate into it
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — CB-19 / CB-22 consume door approach and the fire gate
+  - docs/DESIGN_Add_Entity_Picker.md — §2e owns the birth-height RULE and wire fields; §5.2a here owns WHERE it is resolved (CE-3271)
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — §10.7 owns the danger-area sensor and its rating; §5.3 here moves its contact sight onto the solver (CE-3272)
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns NavigationDestination.Of, the one resolver C's door hook sits in (§5.1a)
 -->
 
 # Architect Question 94 — backend's brain-side geometry reads (`CE-2287`, R-2037)
@@ -327,6 +330,35 @@ rocket ripples and door-gun bursts (7 reds, all of that one harness). `WeaponSta
 | **C-1** | a new `NavigationMode.ApproachDoor` (enum, appended) with the door's NETWORK id in `RouteEntityId` and the door's centre as `FinalDestination`; `MoveToDoor` raises it through its own small executor (a new action id, its params: door entity, speed, arrival) | a flag bit — none free · reusing `TargetNodeId` / `TrajectoryId` — not on the wire |
 | **C-2** | the muscle resolves it in `NavigationDestination.Of` — the ONE place a destination becomes a point — with `DoorNodes.ApproachPoint` moved there (from = the mover's own position); a door it cannot find ⇒ the centre, as today's fallback | a second resolver beside `NavigationDestination.Of` |
 
+#### 5.1a C — AS BUILT *(backend, `2026-10-19`, `CE-3270`; build-state: BUILT)* — ⚠ C-1 deviates: no new mode
+
+| | as built | where |
+|---|---|---|
+| ⚠ **C-1 SUPERSEDED** | ⛔ **no `NavigationMode.ApproachDoor`.** The intent stays `PathToPoint`; a non-zero `RouteEntityId` under `PathToPoint` names the door. 📐 Why: `PathToPoint` has ~12 consumers (bridge, `PathRequests.FromIntent`, crowd target, `DangerAlongRouteSolve`, watchdogs) and the enum is on the wire (IDL regen) — a new mode needed every one taught; `RouteEntityId` was read only under `FollowRoute`, so under `PathToPoint` it was free. All consumers already ask `NavigationDestination.Of` for the point, so ONE hook reaches them all | `NavigationDestination.cs` |
+| C-1 the action | new action id `NavigationConstants.ActionIdApproachDoor = 10`, `ApproachDoorExecutor` + `ApproachDoorParams { DoorNetworkId, DoorCentre, Speed, ArrivalRadius }` (28 B); status and stop delegate to `MoveToExecutor` (one implementation); registered in `CgfLogicPack` (the only locomotion executor table) | `Navigation/Executors/ApproachDoorExecutor.cs` |
+| C-1 the brain node | `DoorNodes.MoveToDoor` sends the door's runtime network id + centre; `ApproachPoint` deleted from the brain | `Terrain/DoorNodes.cs` |
+| C-2 | `DoorApproach.TryPoint(repo, doorNetId, from)` — resolves the id (`NetworkIdResolver`), needs `DoorState`+`SimTransform`; `DoorApproach.Point` is the moved `ApproachPoint`. Not a door here ⇒ the intent's point (the centre) | `Terrain/DoorApproach.cs` |
+| guard | `MoveToExecutor.OnEnter` zeroes `RouteEntityId`, so a plain move after a door move never inherits the door | `MoveToExecutor.cs` |
+| CE-2304 seam | `IsResentMove` compares the RESOLVED point (`NavigationDestination.Of`), not the raw intent point — a re-sent door move (centre ≠ side) and an on-surface move (Z resolved) are the same move | `NavigationExecutionSystem.cs` |
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF) — MoveToDoor
+  participant X as ApproachDoorExecutor
+  participant M as SimHost — bridge / path request
+  participant D as NavigationDestination.Of
+  B->>X: action 10 {door net id, centre}
+  X->>M: NavigationIntent PathToPoint, RouteEntityId = door, FinalDestination = centre
+  M->>D: where is it, for this mover?
+  D->>D: DoorApproach.TryPoint — door known here: the near side, 1 m off
+  D-->>M: the side point (unknown id: the centre)
+```
+*What the picture shows that prose hid:* the brain's message carries no side at all — the only point it sends is the door's centre,
+used solely as the fallback; the side exists only on the muscle.
+
+Rails: `DoorCommandTests.Stage5d2_MoveToDoor_NamesTheDoor_TheMusclePicksTheActorsSideOfTheWall_AndSucceedsInReach` (✅ red-proofed:
+drop the hook ⇒ both actors aim at the centre).
+
 ### 5.2 D — the spawn's ground level
 
 | fact | where |
@@ -342,6 +374,74 @@ rocket ripples and door-gun bursts (7 reds, all of that one harness). `WeaponSta
 | **D-1** | a one-shot `SpawnLevelRequest { Mode, Level }` component written by 8b instead of resolving on a node that will GRANT the position away, in the Muscle ownership group (so it travels with the position grant, one small descriptor); the muscle's `SpawnLevelSystem` resolves it once with its live terrain when it owns the position, writes `SimTransform.Z`, removes it. A node that keeps the position (the editor, a muscle-creator) resolves at 8b as today | append the level to `dtWorldPos` — the hottest descriptor pays 3 bytes forever for a one-time fact · keep CGF resolving — R-2037 by principle, and a floor destroyed before the spawn is unseen there |
 | **D-2** | the IG's remote placement carries the height (`IgEntityCreationRequests`) — a found defect, fixed with D-1 | — |
 | ⚠ consequence | the person is at the SENT height on the brain's replica until the muscle's first position sample (Q94 §2 D foresaw "one frame") | — |
+
+#### 5.2a D — the detailed design, AS BUILT *(backend, `2026-10-19`, `CE-3271`; build-state: BUILT)* — ⚠ refines D-1
+
+📐 Measured before drawing: the yield clears the creator's `SimTransform` COMPONENT authority in the same `BeforeSync` as 8b
+(`NedReplicationModule.cs:705` `LocalAuthorityYieldSystem` → `SetAuthority(…, false)`), while the DESCRIPTOR record stays "mine"
+until the grantee confirms (`OutgoingGrantsPending`) — so the creator still publishes its Muscle-group samples while Constructing
+(the `EntityDescent` pattern, CE-2210). The grantee claims in `DeferredTakeoverSystem` (BeforeSync, on Constructing). `PostSimulation`
+(20) runs after `BeforeSync` (2) and before `Export` (40); `Simulation` is reserved for module systems (the kernel refuses a global one).
+
+| # | as designed | why it differs from D-1 |
+|---|---|---|
+| D-1a | ⭐ **ONE path:** 8b always writes `SpawnLevelRequest { Mode, Level, Resolved }` (no terrain read in 8b); `SpawnLevelSystem` (PostSimulation — a global system may not run in Simulation) resolves every unresolved request **where this node holds `SimTransform` authority** and sets `Resolved = 1` | D-1 resolved at 8b "if the position stays here" — but 8b cannot know (the grant is decided by `CreateEntityRequestSystem`'s strategy and applied by a NED-private system). The authority bit IS that answer, read one phase later: cleared on a granting brain, set on the editor / a muscle-creator / a single node |
+| D-1b | ⭐ the request **stays**, flagged `Resolved`, instead of being removed | a removal must be replicated as a "gone" sample, and a lingering unresolved copy on the brain would re-snap a moved man if the position ever came back to it (a reclaim) |
+| D-1c | ⭐ ingress is **monotonic**: `Resolved = 1` always applies; `Resolved = 0` applies only where the node has no request yet — no owner check | the owner-skip (`IsRecordedOwner`) would DROP the creator's request if the muscle had claimed before it arrived (two topics, two readers ⇒ no ordering) — the man would keep the sent height, worse than today |
+| D-1d | `dtSpawnLevel` = 155, component 436, **Muscle group** (granted with `dtWorldPos`, so the muscle publishes `Resolved` back) | as D-1 |
+| D-1e | no terrain resident on the resolving node ⇒ the sent Z stands, `Resolved = 1` (today's rule) | — |
+| D-2 | `IgEntityCreationRequests.FromSpawnCommand` copies `SpawnHeight` | as D-2 |
+
+```mermaid
+classDiagram
+  direction LR
+  class NetworkSpawningSystem { <<EXISTING, BeforeSync>> 8b: SpawnLevels.Request — no terrain read }
+  class SpawnLevelRequest { <<NEW component 436, Muscle group>> Mode · Level · Resolved }
+  class SpawnLevelSystem { <<NEW, PostSimulation>> resolve where SimTransform authority is held }
+  class SpawnLevels { <<NEW static>> Request(world, e, height) · Resolve(world, e) }
+  class WorldQuery { <<EXISTING>> Of(view).ResolveLevel(x, y, level) }
+  class EntitySpawnLevelTranslators { <<NEW dtSpawnLevel 155>> egress on change · ingress monotonic }
+  class EntityCreationPack { <<EXISTING>> builds SpawnLevelSystem · RegisterOn schedules it · Unserviceable names it }
+  class SpawnHeight { <<EXISTING>> Mode · Level · Apply(levelZ, sentZ) }
+  NetworkSpawningSystem --> SpawnLevels
+  SpawnLevels --> SpawnLevelRequest
+  SpawnLevelSystem --> SpawnLevels
+  SpawnLevels ..> WorldQuery
+  SpawnLevels ..> SpawnHeight
+  EntitySpawnLevelTranslators ..> SpawnLevelRequest
+  EntityCreationPack --> SpawnLevelSystem
+```
+*What the picture shows that prose hid:* `SpawnHeight` stays the one rule (`Apply`); the request only moves WHERE it is applied.
+
+```mermaid
+graph TD
+  subgraph H["every ECS host — EntityCreationPack.RegisterOn"]
+    NSS[NetworkSpawningSystem · BeforeSync] --> REQ[(SpawnLevelRequest)]
+    SLS[SpawnLevelSystem · PostSimulation] --> REQ
+  end
+  subgraph N["NED hosts — SharedTranslatorPack"]
+    EG[EntitySpawnLevel egress · Export] --> REQ
+    IN[EntitySpawnLevel ingress · Input] --> REQ
+  end
+  Y[LocalAuthorityYieldSystem · BeforeSync, NED-private] -. clears SimTransform authority .-> SLS
+  T[DeferredTakeoverSystem · BeforeSync, grantee] -. sets SimTransform authority .-> SLS
+```
+*What the picture shows that prose hid:* who calls `SpawnLevelSystem` each frame — the pack, on EVERY host (editor, CGF, SimHost, IG,
+traffic); the authority bit, set or cleared by two NED systems that run earlier in the same frame, is what makes it act on exactly one.
+
+```mermaid
+sequenceDiagram
+  participant C as CGF (creator)
+  participant M as SimHost (muscle)
+  C->>C: BeforeSync 8b — SpawnLevelRequest Resolved 0, yield clears SimTransform authority
+  C->>C: PostSimulation — SpawnLevelSystem: no authority ⇒ skip
+  C->>M: Export — dtWorldPos (sent Z) + dtSpawnLevel Resolved 0 (record still "mine")
+  M->>M: Input — ingress: no request here ⇒ add it (even if already owner)
+  M->>M: BeforeSync — DeferredTakeover: SimTransform authority
+  M->>M: PostSimulation — resolve on the live terrain, Z set, Resolved 1
+  M->>C: dtWorldPos (resolved Z) + dtSpawnLevel Resolved 1
+  C->>C: ingress — Resolved 1 always applies
+```
 
 ```mermaid
 classDiagram
@@ -374,3 +474,61 @@ sequenceDiagram
   M->>C: dtWorldPos (resolved Z)
 ```
 *What the picture shows that prose hid:* the brain's replica holds the sent height for exactly the trip to the muscle and back.
+
+### 5.3 B — the danger-area contact sight, AS BUILT *(backend, `2026-10-19`, `CE-3272`; build-state: BUILT)* — refines B's lean
+
+📐 **INVENTORY** — `codebase-memory-mcp cli search_graph name_pattern=".*DangerArea.*" label=Class` → 25 (`has_more:false`), `".*DangerAlongRoute.*"`
+→ 3; ⚠ `check_index_coverage` is not available through the CLI. The brain-side terrain reads are exactly two: `DangerAreaSensorSystem.ThreatOn`
+and `.ThreatOnFromPool` (`terrain.SightBlocked`, `DangerAreaSensorSystem.cs:150,175`); no other caller (grep).
+
+| claim the design rests on | code — how it IS | design basis |
+|---|---|---|
+| the danger sensor is solved on the muscle every scheduled run, not only on a new epoch | ✅ `EqsSolverSystem.cs:219-224` (`SolveDangerArea` on every `RunSensor`) | ✅ `DESIGN_Utility_AI_Demo_Scenarios.md` §10.7 |
+| the config already carries per-sensor extras brain → solver, with child create / pending / ordering solved | ✅ `EqsDdsTopics.cs:62-80` (`ConfigJson`, `ContextPoint1`), `EqsSensorConfigIngressTranslator.cs:308` | ✅ CE-3036 / CE-3063 |
+| the brain's memory never reaches the muscle | ✅ `TargetMemory` is in the Brain group but no NED translator sends it (grep) | ⛔ searched, none found |
+| memory and the squad pool are 16 slots each | ✅ `PerceptionConstants.MaxTrackedTargets` = 16; the pool span is 16 (`DangerAreaSensorSystem.cs:172`) | — |
+| the descriptor has room for a 16-bit mask without growing | ✅ `DangerAreaDescriptor.PinnedSize` 72 with `Kind` (1 byte) padded to 4 before `Center` | — |
+
+| # | as designed | why — and how it differs from the lean |
+|---|---|---|
+| B-1 | ⭐ the brain writes its contacts' LAST-KNOWN positions into a generic `EqsContextPoints` on the sensor child (component 437, ≤ 16 points, slot i = memory / pool slot i) — rewritten only when a slot moves > `ContactMoveMetres` 3 m or the count changes | the lean said "into the sensor's config" — this IS the config's carrier, as a component the egress reads; generic (EQS), not a danger-only field |
+| B-2 | `EqsSensorConfigTopic` gains `[DdsManaged] List<EqsContextPointWire> ContextPoints` (appended); the egress compares it like the other fields; the ingress writes `EqsContextPoints` on the solver's child | ⛔ **no new topic**: the config ingress already finds or creates that child and orders samples (CE-492) |
+| B-3 | ⭐ **no epoch bump** on a contact move | the lean said "a re-pointed contact list bumps the epoch" — but the epoch drops every answer in flight, and a contact moving faster than one round trip per 3 m would starve the sensor; the danger sensor already re-solves every run (row 1), so the next answer simply carries the new mask |
+| B-4 | the muscle's solve sets `DangerAreaDescriptor.SeenFrom` (ushort): bit i ⇐ point i + `EyeHeight` sees the area's centre + `AreaHeight` on ITS live terrain; no terrain ⇒ every bit (today's "sight 1 with no terrain") | as the lean |
+| B-5 | `DangerAreaWire.SeenFrom` appended; the brain's `Rate` = the strongest danger among the slots whose bit is set (memory: `ThreatDanger.OfSlot`; pool: 1 when alive or heard); gas stays 1. ⛔ `terrain.SightBlocked` leaves the brain | as the lean ("the brain multiplies the area's danger by it") |
+| ⚠ consequence | the release waits for the next answer after a contact moves (one solver run, ~0.1–1 s) — not the same tick. A new contact's slot reads "not seen" until then | the lean's blast radius; the CE-3138 rail pumps ≤ 600 frames |
+
+```mermaid
+classDiagram
+  direction LR
+  class DangerAreaSensorSystem { <<EXISTING brain>> WriteContacts(child) NEW · Rate() reads SeenFrom · ⛔ no terrain }
+  class EqsContextPoints { <<NEW component 437, Fdp.Toolkit.Spatial.Eqs>> Count · X Y Z[16] }
+  class EqsSensorConfigEgressTranslator { <<EXISTING brain>> + ContextPoints list, compared }
+  class EqsSensorConfigIngressTranslator { <<EXISTING muscle>> writes EqsContextPoints on the child }
+  class DangerAlongRouteSolve { <<EXISTING muscle>> + SeenFrom per area }
+  class DangerAreaDescriptor { <<EXISTING>> + ushort SeenFrom (in Kind's padding) }
+  class DangerAreaWire { <<EXISTING wire>> + SeenFrom }
+  DangerAreaSensorSystem --> EqsContextPoints
+  EqsSensorConfigEgressTranslator ..> EqsContextPoints
+  EqsSensorConfigIngressTranslator --> EqsContextPoints
+  DangerAlongRouteSolve ..> EqsContextPoints
+  DangerAlongRouteSolve --> DangerAreaDescriptor
+  DangerAreaDescriptor ..> DangerAreaWire
+```
+*What the picture shows that prose hid:* every box but `EqsContextPoints` already exists — B adds one component and two fields, and the
+brain's terrain read disappears rather than moves.
+
+```mermaid
+sequenceDiagram
+  participant B as CGF — DangerAreaSensorSystem
+  participant E as config egress / ingress
+  participant M as SimHost — EqsSolverSystem
+  B->>B: contact slot moved more than 3 m, or count changed ⇒ EqsContextPoints rewritten
+  B->>E: EqsSensorConfig + ContextPoints (on change)
+  E->>M: EqsContextPoints on the solver's child
+  M->>M: next run — areas along the route, SeenFrom bit i per point (live terrain)
+  M->>B: DangerAreaResult, each area with SeenFrom
+  B->>B: Rate — strongest danger among the seen slots (memory or pool)
+```
+*What the picture shows that prose hid:* the only new wire traffic is a config sample when a contact moves 3 m; the answer path is the
+existing one.

@@ -286,11 +286,13 @@ namespace Hrot.SimHost.Tests
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
+                creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
+                creation.SpawnLevelSystem,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -301,6 +303,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("PromotionSystem", missingAll);
             Assert.Contains("ObstacleBakeSystem", missingAll);
             Assert.Contains("SeatPresetSystem", missingAll);
+            Assert.Contains("SpawnLevelSystem", missingAll);   // ⭐ CE-3271
         }
 
         /// <summary>
@@ -467,6 +470,7 @@ namespace Hrot.SimHost.Tests
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
+                creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
             }));
         }
 
@@ -557,7 +561,7 @@ namespace Hrot.SimHost.Tests
             var scheduled = globals.Cast<object>().ToList();
             Assert.Equal(string.Empty, creation.Unserviceable(scheduled.Append(creation.SpawnSystem)));
             foreach (var piece in new object[] { creation.RequestSystem, creation.FinalizationSystem, creation.PromotionSystem,
-                                                 creation.ObstacleBakeSystem, creation.SeatPresetSystem }.Concat(creation.NetworkSystems))
+                                                 creation.ObstacleBakeSystem, creation.SeatPresetSystem, creation.SpawnLevelSystem }.Concat(creation.NetworkSystems))
                 Assert.Contains(piece, scheduled);
             Assert.DoesNotContain(creation.SpawnSystem, scheduled);   // the spawner is the one module (SingleSystemModule)
         }

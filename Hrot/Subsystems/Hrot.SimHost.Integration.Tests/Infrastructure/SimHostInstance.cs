@@ -254,6 +254,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         // ⭐ CE-3136 P-7a — the pack's obstacle bake (a static obstacle waits Constructing until this node's terrain holds it).
         private readonly Hrot.Map.Common.Services.StaticObstacleBakeSystem _obstacleBakeSystem;
         private readonly Hrot.Common.EntityCreation.SeatPresetSystem _seatPresetSystem;   // ⭐ WS-4 (W-I)
+        private readonly Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem _spawnLevelSystem;   // ⭐ CE-3271 (Q94 D)
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
@@ -367,13 +368,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _promotionSystem    = creation.PromotionSystem;
             _obstacleBakeSystem = creation.ObstacleBakeSystem;
             _seatPresetSystem = creation.SeatPresetSystem;
+            _spawnLevelSystem = creation.SpawnLevelSystem;
             Translators         = creation.Translators;
 
             // The pack builds every piece; this harness schedules all three below in Tick(), so
             // nothing may be unserviceable. Asserting here rather than logging keeps the harness
             // honest about the thing it now exists to prove.
             var unserviceable = creation.Unserviceable(new object[]
-                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem, _seatPresetSystem });
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem, _seatPresetSystem, _spawnLevelSystem });
             if (unserviceable.Length > 0)
                 throw new InvalidOperationException(
                     "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
@@ -842,6 +844,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             //   from 0566241b1 on, which left this whole suite unconstructible (found running CE-2144's gates, 2026-10-13).
             _obstacleBakeSystem.Execute(view, dt);
             _seatPresetSystem.Execute(view, dt);
+            _spawnLevelSystem.Execute(view, dt);   // ⭐ CE-3271 — Simulation: after the spawn and the yield
             ActivateConstructingEntities();
 
             // Phase-2 ACK dispatch: now that entities have been force-activated, the

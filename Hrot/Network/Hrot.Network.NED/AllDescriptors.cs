@@ -148,6 +148,9 @@ namespace Hrot.NED.Descriptors
         dtUtterance                   = 152,
         dtDemeanour                   = 153,
         dtMeleeStrike                 = 154,
+        // ⭐ CE-3271 (Q94 D, R-3018) — a spawn's birth level: the creator asks, the position's owner resolves it (Muscle group → every node).
+        //   📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. Measured free on ui, behaviors, backend, coordinator 2026-10-19.
+        dtSpawnLevel                  = 155,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,
