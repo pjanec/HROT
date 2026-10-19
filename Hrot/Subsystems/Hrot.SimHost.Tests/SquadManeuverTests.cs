@@ -1946,6 +1946,59 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, onRoof);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2h (DA-19, DA-25, DA-48) — the squad's MACHINE GUNNER gets the post with the longest view down the sector:
+        /// once the posts are picked, ONE visibility fan is asked (an origin per held post, each looking at the sector's point), and the
+        /// gun swaps posts with the holder of the longest mean view; then the posts are given. A squad with no automatic weapon asks
+        /// no fan. ✅ Red-proofs: the swap skipped ⇒ the gun keeps the nearest post; the role read skipped ⇒ no fan.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_TheMachineGunnerTakesThePostWithTheLongestView()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.GetComponentRW<UnitSubordinate>(s.Members[1]).Designation = TacticalDesignation.MachineGunner;
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            var posts = new[] { new Vector3(2, 25, 0), new Vector3(5, 25, 0), new Vector3(8, 25, 0), new Vector3(11, 25, 0) };
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), posts);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);   // the fan comes before the posts are given
+
+            var fan = DefendQuery(s, SquadDefendPlay.FanSite);
+            Assert.False(fan.IsNull, "the squad has a gun: the fan is asked");
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(fan);
+            Assert.Equal(Fdp.Toolkit.Perception.Survey.WorldSurveyKind.VisibilityFan, request.Kind);
+            Assert.Equal(4, request.Origins.Count);
+            var far = new Vector3(11, 25, 0);
+            var payload = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.VisibilityFan };
+            for (int o = 0; o < request.Origins.Count; o++)
+            {
+                var origin = request.Origins[o];
+                Assert.InRange(origin.Bearing, MathF.PI / 2f - 0.3f, MathF.PI / 2f + 0.3f);   // toward the sector's point, north (+Y)
+                bool longest = new Vector3(origin.X, origin.Y, origin.Z) == far;
+                for (int r = 0; r < request.Rays; r++)
+                    payload.Rays.Add(new Fdp.Toolkit.Perception.Survey.SurveyRay { Origin = o, Free = longest ? 120f : 20f });
+            }
+            var now = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            s.Repo.SetComponent(fan, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            s.Repo.SetManagedComponent(fan, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = payload });
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            Assert.Equal(4, given.Count);
+            Assert.Equal(far, given[s.Members[1]].Objective);   // the gun on the longest view
+            Assert.Equal(posts.OrderBy(p => p.X), given.Values.Select(v => v.Objective).OrderBy(p => p.X));   // the same posts, one each
+
+            var plain = Defending(out _);
+            Assert.True(DefendQuery(plain, SquadDefendPlay.FanSite).IsNull, "no automatic weapon: no fan");
+        }
+
         /// <summary>The squad defending at (6, 20) with its sector north, ordered with <paramref name="postsJson"/> (an authored Posts array).</summary>
         private static Squad DefendingWithPosts(string postsJson)
         {

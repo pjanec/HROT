@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
@@ -9,6 +10,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Command;
@@ -104,6 +106,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed double LastSense[Capacity];
         /// <summary>0 = not asked · 1 = asked · 2 = done (answered, empty, or timed out).</summary>
         public byte WindowStage, RoofStage, CoverStage;
+        /// <summary>⭐ D-2h (DA-48) — the visibility fan that puts the automatic weapon on the longest view: 0 · 1 asked · 2 done.</summary>
+        public byte FanStage;
         public double StageSince;
         /// <summary>1 = the posts are given (orders carry them).</summary>
         public byte Ready;
@@ -254,6 +258,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const int WindowSite = 0x22750001;
         public const int CoverSite  = 0x22750002;
         public const int RoofSite   = 0x22750003;   // ⭐ D-2g
+        /// <summary>⭐ D-2h (DA-48) — the visibility fan's site; its rays per post; how much longer a view must be to move the gun (m).</summary>
+        public const int FanSite    = 0x22750004;
+        public const int FanRays = 9;
+        public const float LongerViewMetres = 5f;
 
         /// <summary>Everyone within this of the position ⇒ the posts are asked for (m).</summary>
         public const float ArrivedMetres = 6f;
@@ -414,6 +422,7 @@ namespace Hrot.AI.Behaviors.Brains
                 p.Posts.CoverStage = 2;
                 PickAll(ref p, in ctx);
             }
+            if (p.Posts.FanStage < 2 && !GunOnTheLongestView(ref p, in ctx, hasEa, ea)) return;
             p.Posts.Ready = 1;
             unsafe
             {
@@ -421,6 +430,68 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Posts.LastSense[i] = ctx.Live(i, out var m) ? LastRoundAt(ctx.World, m) : double.NegativeInfinity;
             }
             ws.Reissue = 1;
+        }
+
+        /// <summary>
+        /// ⭐ D-2h (DA-19, DA-25, DA-48) — the squad's automatic weapon (AR / MG) on the post with the longest view down the sector: one
+        /// visibility fan from every held non-roof post toward the EA point; a post's view is the mean free distance of its rays; the gun
+        /// swaps posts with the holder of a view longer by <see cref="LongerViewMetres"/> (never with another gun). True once the stage is
+        /// over — answered, nothing to compare, or timed out (posts as picked). ⛔ Roof posts are not origins: a horizontal ray over a
+        /// parapet measures the sky, not grazing fire. 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2h.
+        /// </summary>
+        private static unsafe bool GunOnTheLongestView(ref SquadDefendParams p, in SquadPlayContext ctx, bool hasEa, Vector3 ea)
+        {
+            int gun = -1, n = 0;
+            Span<int> posts = stackalloc int[WorldSurveyRequest.MaxOrigins];
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+            {
+                byte post = p.Posts.PostOf[i];
+                if (!ctx.Live(i, out _) || post == DefencePosts.None || p.Posts.Roof[post] != 0) continue;
+                if (gun < 0 && SquadRoles.CarriesSupportWeapon(SquadRoles.Of(ctx.World, in ctx.Roster, i))) gun = i;
+                if (n < posts.Length) posts[n++] = post;
+            }
+            int gunOrigin = gun < 0 ? -1 : posts[..n].IndexOf(p.Posts.PostOf[gun]);
+            if (!hasEa || gunOrigin < 0 || n < 2) { p.Posts.FanStage = 2; return true; }
+            if (p.Posts.FanStage == 0)
+            {
+                var origins = new List<SurveyOrigin>(n);
+                for (int k = 0; k < n; k++)
+                {
+                    var at = p.Posts.Point(posts[k]);
+                    origins.Add(new SurveyOrigin { X = at.X, Y = at.Y, Z = at.Z, Bearing = MathF.Atan2(ea.Y - at.Y, ea.X - at.X), HalfArc = MathF.PI / 4f });
+                }
+                float range = Math.Clamp(Flat(ea - p.Position) * 1.5f, 50f, 300f);
+                WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, FanSite, WorldSurveyRequest.Fan(origins, FanRays, range));
+                p.Posts.FanStage = 1; p.Posts.StageSince = ctx.Now;
+                return false;
+            }
+            var child = EqsChildSensor.Find(ctx.World, ctx.Commander, FanSite);
+            var read = WorldSurveyChildSensor.Read(ctx.World, child, ctx.Now);
+            if (!read.Ready || read.Stale || read.Payload == null)
+            {
+                if (ctx.Now - p.Posts.StageSince < AskTimeoutSeconds) return false;
+                WorldSurveyChildSensor.Release(ctx.World, child);
+                p.Posts.FanStage = 2;
+                return true;
+            }
+            Span<float> view = stackalloc float[WorldSurveyRequest.MaxOrigins];
+            Span<int> rays = stackalloc int[WorldSurveyRequest.MaxOrigins];
+            foreach (var ray in read.Payload.Rays)
+                if (ray.Origin >= 0 && ray.Origin < n) { view[ray.Origin] += ray.Free; rays[ray.Origin]++; }
+            for (int k = 0; k < n; k++) view[k] = rays[k] == 0 ? 0f : view[k] / rays[k];   // the mean free distance of its rays
+            int best = gunOrigin;
+            for (int k = 0; k < n; k++) if (view[k] > view[best]) best = k;
+            if (best != gunOrigin && view[best] > view[gunOrigin] + LongerViewMetres)
+                for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+                {
+                    if (i == gun || !ctx.Live(i, out _) || p.Posts.PostOf[i] != posts[best]) continue;
+                    if (SquadRoles.CarriesSupportWeapon(SquadRoles.Of(ctx.World, in ctx.Roster, i))) break;   // never displace another gun
+                    (p.Posts.PostOf[gun], p.Posts.PostOf[i]) = (p.Posts.PostOf[i], p.Posts.PostOf[gun]);
+                    break;
+                }
+            WorldSurveyChildSensor.Release(ctx.World, child);
+            p.Posts.FanStage = 2;
+            return true;
         }
 
         /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man is Regular or better ⇒ its window posts are set back.</summary>

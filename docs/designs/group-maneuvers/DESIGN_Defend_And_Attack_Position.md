@@ -797,6 +797,43 @@ window's fight (prone, up at the point's stance) with a different hide ask, so n
 is fought as cover; mark it when a scenario needs one. Rails `TerrainEqsTests.CE2275_D2g_FindRoofPosts_OnOBJ_AnswersRoofPointsOnly_ThatSeeTheSector`
 (cqb-village: every answer at 6 m, on the roof, seeing the sector) · `SquadManeuverTests.CE2275_SquadDefend_TheRoofIsAskedAfterTheWindows_ForTheMenLeft_AndARoofManHidesBehindTheParapet`.
 
+#### D-2h — the automatic weapon on the longest view *(DA-19, DA-25 VisibilityFan; behaviors, 2026-10-19)*
+
+📐 **Measured first:** the `WorldSurvey` sensor (`CE-3249`, backend — [World Survey](../../DESIGN_World_Survey_Sensor.md)) is built and
+has **no production reader yet**; its `VisibilityFan` casts ≤ 24 **horizontal** rays from ≤ 12 origins at `EyeHeight` above each and
+answers each ray's free distance (`WorldSurveySolve.Fan`). ⚠ Horizontal ⇒ from a roof (eye 7.6 m over a 7 m parapet top) every ray runs
+to the range: the fan cannot tell a roof's long view from plunging fire into the sky. The squad's roles are read in one place,
+`SquadRoles` (`CarriesSupportWeapon` = AR or MG, `CE-2281`). The picker hands posts out by distance only.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay.Plan
+  participant W as WorldSurvey (FanSite, standing child)
+  participant S as SimHost solver
+  P->>P: posts picked (authored · windows · roof · cover)
+  alt the squad has an AR / MG holding a post, an EA, and ≥ 2 non-roof posts held
+    P->>W: Ensure(Fan: one origin per held non-roof post, bearing → the EA point, ±45°, 9 rays, range to the EA's far edge)
+    W->>S: SensorConfigPayload (WorldSurvey)
+    S-->>W: rays · Free per ray
+    P->>P: view(post) = mean Free of its rays
+    P->>P: the AR / MG not on the longest view (by > 5 m) ⇒ swap posts with its holder (not another AR / MG)
+    P->>W: Release
+  end
+  P->>P: Ready · re-issue
+```
+*What the picture shows that prose hid:* the fan is asked **once, before the posts are given** — the swap changes who stands where,
+never what the posts are, so no man is sent twice; and the roof posts are never origins at all.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-48** | how the AR / MG gets the post with the longest view down the EA | a **last stage of `Plan`**: one `VisibilityFan` survey (origins = the held non-roof posts, ≤ 12, each looking at the EA point ± 45°, 9 rays, eye 1.6 m, range = distance to the EA point + its depth, capped 300 m); a post's view = the mean free distance of its rays; the automatic weapon whose post's view is beaten by more than 5 m **swaps posts** with that post's holder (never with another automatic weapon); no answer within the ask timeout ⇒ posts as picked. Roof posts are never origins (a horizontal ray over a parapet measures the sky, not grazing fire) | after the posts are given: every swap sends two men twice · an EQS score instead (`FindLongestView`): an EQS answer ranks points, it does not compare the ones already chosen, and DA-25 put this question on the survey · the max ray instead of the mean: one gap between houses would win over a post that covers the whole sector |
+
+*As built (2026-10-19):* `SquadDefendPlay.GunOnTheLongestView` — the last stage of `Plan` (`FanSite`, `DefencePosts.FanStage`,
+`FanRays` 9, `LongerViewMetres` 5), the survey through `WorldSurveyChildSensor.Ensure` / `Read` / `Release` (the sensor's first
+production reader); a stale or missing answer after the 5 s ask timeout leaves the posts as picked. ⚠ Live, `sq-defend-house` has no
+automatic weapon in its cast — the in-process rail answers the survey by hand; the real solver's fan on OBJ is not yet measured. Rail
+`SquadManeuverTests.CE2275_SquadDefend_TheMachineGunnerTakesThePostWithTheLongestView`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
