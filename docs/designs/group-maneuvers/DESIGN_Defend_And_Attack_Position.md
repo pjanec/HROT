@@ -719,23 +719,24 @@ then the occupy branch (shares the advance's state), then the options as before 
 
 #### D-2f — an authored fighting position *(DA-5's second half; behaviors, 2026-10-19)*
 
-📐 **Measured first:** the order (`SquadDefendParamsJsonDto`) carries a point, a radius and a speed — no post; no params DTO carries a
-list yet, but the behaviour decoder's options (`FdpJsonOptionsRegistry.DefaultRelaxed`, `BehaviorParams.cs:122`) already hold the
-`FixedListJsonConverterFactory`, so the canonical fixed-list wrapper (`int Count` + an `[InlineArray(N)]` buffer, `FixedListShape`)
-reads and writes as a plain JSON array. The posts' memory (`DefencePosts`) knows a window post only by its index (`< WindowCount`).
+📐 **Measured first:** the order (`SquadDefendParamsJsonDto`) carries a point, a radius and a speed — no post. No params DTO carries a
+list yet; ⭐ the schema the order forms read (`DtoJsonSchemaExtractor.cs:261`) **describes an array field as `type: array`**, while a
+fixed-list wrapper (`FixedListShape`) would fall to its struct branch and show as an object of `Count` / `Items` — ⇒ a plain DTO
+**array** it is (the resolver copies it into the blittable order). The facing follows the posture order's own convention,
+`watchTowards` (a point he faces; zero = none). The posts' memory (`DefencePosts`) knows a window post only by its index (`< WindowCount`).
 
 ```mermaid
 classDiagram
   direction LR
   class SquadDefendParamsJsonDto { <<EXISTING, + Posts>> Position · SearchRadius · Speed · Posts }
-  class AuthoredPostList { <<NEW fixed list, 8>> Count · Items }
-  class AuthoredPostJsonDto { <<NEW>> point · facing · hasFacing · window }
+  class AuthoredPostJsonDto { <<NEW>> point · watchTowards · window }
+  class AuthoredPosts { <<NEW, in the order, 8>> X Y Z · watch · window · Count }
   class SquadDefendParams { <<EXISTING, + Authored>> }
   class DefencePosts { <<EXISTING, WindowCount → per-candidate Window · Facing>> }
   class SquadDefendPlay { <<EXISTING>> Plan: authored first, then the asks for the men left · ArcOf: an authored facing }
   class DefencePostPicker { <<EXISTING, unchanged>> candidates in rank order to the nearest man }
-  SquadDefendParamsJsonDto *-- AuthoredPostList
-  AuthoredPostList *-- AuthoredPostJsonDto
+  SquadDefendParamsJsonDto *-- AuthoredPostJsonDto : Posts[]
+  SquadDefendParams *-- AuthoredPosts
   SquadDefendPlay ..> SquadDefendParams
   SquadDefendParams *-- DefencePosts
   SquadDefendPlay ..> DefencePostPicker
@@ -746,7 +747,7 @@ a candidate instead of a position in the list.
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** (≤ 8; each a point, an optional facing, and whether it is a window) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. A post's facing, when authored, is that man's arc (±45°) instead of the EA's; a window post fights the window way (D-2a). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Facing`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a DTO array: no params DTO carries one, and the order forms read fixed shapes |
+| **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** array (≤ 8 used; each a `point`, an optional `watchTowards`, and whether it is a `window`) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. An authored `watchTowards` points that man's arc (±45°) instead of the EA; a window post fights the window way (D-2a, at the authored point — no set-back). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Watch`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a fixed-list wrapper in the DTO: the order-form schema would show it as an object of `Count`/`Items` (`DtoJsonSchemaExtractor`'s struct branch) · a facing bearing: needs a "none" the zero bearing cannot be — the posture order already faces by a point |
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
