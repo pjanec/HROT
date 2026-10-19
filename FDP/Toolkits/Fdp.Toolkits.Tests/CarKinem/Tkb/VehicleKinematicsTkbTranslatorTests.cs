@@ -232,5 +232,22 @@ namespace CarKinem.Tkb.Tests
         }
 
         // ⛔ CE-2151 (R-2009 B2) — the open-cabin rail moved to CarrierTkbTranslatorTests: exposure is the carrier's fact (Gen.Carrier).
+
+        /// <summary>⭐ <c>CE-1208</c> — a type's stated WALK reaches <c>VehicleParams.WalkSpeed</c>; unstated, it stays 0 (the engine's default walk).</summary>
+        [Fact]
+        public void CE1208_ATypesWalk_ReachesTheParams_AndUnstatedStaysTheDefault()
+        {
+            var repo = MakeWorldWithComponents();
+            var stated = repo.CreateEntity();
+            var t = new TkbTemplate("Officer", 1208L);
+            t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, MaxSpeedFwd = 6f, WalkSpeed = 1.3f });
+            new VehicleKinematicsTkbTranslator().Inject(repo, stated, t);
+            Assert.Equal(1.3f, repo.GetComponent<VehicleParams>(stated).WalkSpeed);
+
+            var unstated = repo.CreateEntity();
+            new VehicleKinematicsTkbTranslator().Inject(repo, unstated, MakeTemplate());
+            Assert.Equal(0f, repo.GetComponent<VehicleParams>(unstated).WalkSpeed);
+            Assert.Equal(CarKinem.Controllers.HumanGait.WalkSpeed, CarKinem.Controllers.HumanGait.WalkOf(repo.GetComponent<VehicleParams>(unstated)));
+        }
     }
 }

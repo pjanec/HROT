@@ -740,6 +740,27 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1208</c> (R-265 A, missed in this catalogue) — every BDC PERSON's top speed is a sprint (6 m/s, 2.5 m/s²), as the urban
+        /// soldiers' and the pedestrian preset's: the operator's Shift runs at it, the AI's moves ask their own speed under it. 🔴 Red before:
+        /// 2.5 m/s "walking", so the run was a walk.
+        /// </summary>
+        [Fact]
+        public void CE1208_EveryBdcPerson_RunsAtASprint()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            int people = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.DisType.Kind != 3 || t.GetDescriptor<VehicleParametersDto>() is not { } v || t.TkbType >= 1000) continue;   // BDC lifeforms
+                people++;
+                Assert.True(v.MaxSpeedFwd >= 5f, $"{t.Name} runs at {v.MaxSpeedFwd} m/s");
+            }
+            Assert.True(people >= 5, $"only {people} BDC people");
+            var rifleman = db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal((6f, 2.5f), (rifleman.MaxSpeedFwd, rifleman.MaxAccel));
+        }
+
+        /// <summary>
         /// ⭐⭐ BR-15 (Urban Battle §4 ⑧) — the HMMWV can be hit and killed: it declares a light platform; the urban soldier's rifle round
         /// (the ONE hit rule, <c>ArmorModel.HitDamage</c>) does armour-SCALED damage on its side — some, not all; the insurgent's RPG
         /// takes it all at once on any face. Its crewed roof gun firing is pinned by SimHost's P1 rail (the HMMWV row).

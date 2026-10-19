@@ -63,7 +63,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = 2.5f; p.Acceleration = 1.0f; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
                 })
                 .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); c.SensorRange = 500; })
                 .WithFaction(type, faction)
@@ -234,7 +234,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = 2.5f; p.Acceleration = 1.0f; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
                 })
                 .WithCombat(type, c =>
                 {
@@ -265,7 +265,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = 2.5f; p.Acceleration = 1.0f; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
                 })
                 .WithCombat(type, c =>
                 {
@@ -288,6 +288,11 @@ namespace Hrot.Map.Definitions.Tkb
             => new() { PivotZ = WeaponPivotZ, TrunnionX = trunnionX, TraverseMinDeg = -180f, TraverseMaxDeg = 180f,
                        ElevationMinDeg = elevationMinDeg, ElevationMaxDeg = elevationMaxDeg,
                        TraverseRateDegPerSec = traverseRate, ElevationRateDegPerSec = elevationRate };
+
+        /// <summary>⭐ <c>CE-1208</c> (AQ88 A, R-265 A — the urban soldiers' figures, missed here) — a BDC person's top speed is his SPRINT
+        /// (the AI's moves ask their own speed under it; the operator's Shift runs at it) and his acceleration; his walk is the engine's
+        /// default (<c>HumanGait.WalkSpeed</c>, 1.5 m/s) unless the type states one.</summary>
+        private const float PersonRunSpeed = 6.0f, PersonAcceleration = 2.5f;
 
         /// <summary>⭐ BR-14 — a weapon's report: how far its shot is heard (m) and what it sounds like (a class, never an identity — R-207).</summary>
         private readonly record struct Report(float Range, SoundSourceClass Class);
@@ -765,8 +770,8 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Length = 0.6f;
                     p.Width = 0.4f;
                     p.Height = 1.75f;
-                    p.MaxSpeed = 2.5f; // Walking
-                    p.Acceleration = 1.0f;
+                    p.MaxSpeed = PersonRunSpeed;   // ⭐ CE-1208 (R-265 A) — his RUN; was 2.5 "walking", so Shift ran at a walk
+                    p.Acceleration = PersonAcceleration;
                     p.TurnRate = 90.0f;
                     p.Mobility = TerrainMobility.Infantry;
                 })

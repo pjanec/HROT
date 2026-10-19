@@ -164,6 +164,7 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxSpeedFwd = physicsDef.MaxSpeed,
                 MaxSpeedRev = physicsDef.MaxSpeedRev,
                 MaxAccel    = physicsDef.Acceleration,
+                WalkSpeed   = physicsDef.WalkSpeed,   // ⭐ CE-1208
                 TurnRate    = physicsDef.TurnRate,
                 VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });

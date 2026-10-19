@@ -151,11 +151,15 @@ namespace CarKinem.Systems
             //   crawls at a fifth. A local copy — the component is not written back.
             //   ⭐ CE-2152 (R-2011 C8) — and a casualty on his shoulder or in tow slows him by the carry / drag factor (CarryLoad).
             if (@params.Class == VehicleClass.Pedestrian)
-                @params.MaxSpeedFwd *= Hrot.MuscleCharacter.Animation.Components.StanceSpeed.Factor(
+            {
+                float slowed = Hrot.MuscleCharacter.Animation.Components.StanceSpeed.Factor(
                     Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, entity))
                     * Fdp.Toolkit.Behavior.CarryLoad.Factor(repo, entity)
                     // ⭐ CE-1082 (Injury slice I-b) — and a WOUNDED man limps along at his type's WoundedSpeedFactor (0.6)
                     * (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() ? Fdp.Toolkit.Combat.Injury.SpeedFactor(repo, entity) : 1f);
+                @params.WalkSpeed    = HumanGait.WalkOf(in @params) * slowed;   // ⭐ CE-1208 — his walk slows as his run does
+                @params.MaxSpeedFwd *= slowed;
+            }
             
             // Input conversion (bridge from SimTransform to 2D locals)
             Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);
@@ -182,7 +186,9 @@ namespace CarKinem.Systems
                 {
                     planar = new Vector2(vel.Linear.X, vel.Linear.Y);
                     float yawTo = hasDrive ? drive.Yaw : MathF.Atan2(fwd2D.Y, fwd2D.X);
-                    float top = @params.MaxSpeedFwd * (drive.Gait == 1 ? 0.5f : 1f);
+                    // ⭐ CE-1208 — Gait 1 WALKS at his type's walk (HumanGait.WalkOf, scaled above), never above his run; Gait 0 RUNS at
+                    //   the type's top (R-265). Was a hard-coded half of the top: a BDC rifleman ran 2.5 and walked 1.25.
+                    float top = drive.Gait == 1 ? MathF.Min(@params.WalkSpeed, @params.MaxSpeedFwd) : @params.MaxSpeedFwd;
                     var before = pos2D;
                     turnRate = ManualMotion.Person(ref pos2D, ref fwd2D, ref planar, ref state, drive.Forward, drive.Lateral, yawTo,
                         top, MathF.Max(@params.MaxAccel, HumanGait.StopDecel), dt);

@@ -40,6 +40,13 @@ namespace CarKinem.Controllers
         /// <summary>Within this of the floor under him (m), a person is standing on it (the ledge rule applies).</summary>
         public const float OnFloorTolerance = 0.15f;
 
+        /// <summary>⭐ <c>CE-1208</c> (Entity Control §8b) — a person's WALK (m/s) when his type states none (<c>VehicleParams.WalkSpeed</c> 0):
+        /// the operator's walking gait; his run is the type's top speed (R-265).</summary>
+        public const float WalkSpeed = 1.5f;
+
+        /// <summary>⭐ <c>CE-1208</c> — <paramref name="p"/>'s walk, unscaled: its type's, else <see cref="WalkSpeed"/>.</summary>
+        public static float WalkOf(in VehicleParams p) => p.WalkSpeed > 0f ? p.WalkSpeed : WalkSpeed;
+
         /// <summary>
         /// The speed a person should aim for now: <paramref name="wantedSpeed"/> when <paramref name="fwd"/> is within
         /// <see cref="WalkWithinAngle"/> of <paramref name="wanted"/>, else 0 (turn first).

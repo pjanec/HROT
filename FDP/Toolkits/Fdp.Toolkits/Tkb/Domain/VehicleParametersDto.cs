@@ -60,6 +60,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("m/s^2")]
         public float MaxAccel { get; init; }
 
+        /// <summary>⭐ <c>CE-1208</c> — a person's WALK: the operator's walking gait (his run is <see cref="MaxSpeedFwd"/>, R-265).
+        /// <c>0</c> = not authored ⇒ <c>HumanGait.WalkSpeed</c>.</summary>
+        [EditUnit("m/s")]
+        public float WalkSpeed { get; init; }
+
         /// <summary>
         /// Maximum turn rate in degrees per second.  The translator converts this to
         /// <c>VehicleParams.MaxSteerRate</c> in radians.  <c>0</c> means "not authored"
