@@ -501,9 +501,66 @@ brains share a node (the CGF norm); ⛔ not measured for a squad split across no
 middle at the middle of its range, 100 m with none) · `DefendAreaMapper`'s roster arm. Details the diagrams leave open: the move ends when every
 live man is within 6 m of the position (or after 90 s); a post ask unanswered for 5 s is given up and the men left over hold where they are; a
 man with no post holds with an arc toward the EA; only rounds after the posts are given count. ⚠ The window answer's STANCE is not passed to
-the man (CombatPosture picks his stance) — D-2, with the set-back. Rails (the play's suite, `SquadManeuverTests`):
+the man — ⭐ since D-2a his take-cover branch reads it from the window point itself (the window column); the set-back stays D-2. Rails (the play's suite, `SquadManeuverTests`):
 `CE2275_DefencePostPicker_SpacesPostsIn3D_AndGivesTheNearestFreeAlternate` · `CE2275_SquadDefend_MovesThenMansWindowAndCoverPosts_WithArcsTowardItsSector_AndReportsSet`
 · `CE2275_SquadDefend_AManUnderFire_MovesToHisAlternatePost_AndReportsDisplacing`; the mapper's suite: `TryMap_AUnitWithMen_DefendsWithSquadDefend_AtTheAreaCentre`. ⭐ The alone lift (DA-35): `CE2275_SquadDefendAlone_LiftsAnOperatorsHoldFire_OnAContactInsideItsSector_NotOutside` · `CE2275_SquadDefend_ARoundAtAManLiftsItsOwnHold_ButNeverAPlatoonsHold` (the harness now runs `RoeSystem` beside `EngagementAreaSystem`); a TKB-default hold (`Unmarked`) is not an order and is never lifted.
+
+#### D-2a — a man fights FROM his post *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first:** a posted man runs `CombatPosture` (stay) and its take-cover branch runs `PeekAndFire` with the **defaults** —
+`FindCoverFromTarget`, 15 m round **wherever he stands** (`CombatPostureBehavior.cs:156`; `Resolve` never sets `Peek`). ⇒ under fire
+D-1's window man could hide anywhere within 15 m: the drift PC-14 forbids.
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendPlay { <<EXISTING, + post on the order>> OrderFor: post · alternate · window or cover }
+  class MemberOrder { <<EXISTING, + Post>> }
+  class MemberPost { <<NEW>> Set · Window · Alternate · HasAlternate · Radius }
+  class SquadManeuverRunner { <<EXISTING>> Hold(…, post) }
+  class CombatPostureParamsJsonDto { <<EXISTING, + post>> }
+  class CombatPosturePostJsonDto { <<NEW>> point · alternate · radius · window }
+  class CombatPostureBehavior { <<EXISTING>> Resolve: Peek = the window column or the defaults, anchored }
+  class WindowDuelBehavior { <<EXISTING>> Shape(0) — the window column, reused }
+  class PeekAndFireParams { <<EXISTING, + Anchor · AnchorAlternate · AnchorRadius · AnchorHasAlternate>> }
+  class PeekAndFireNodes { <<EXISTING>> PickHide skips a point off the post · WithinPost }
+  MemberOrder *-- MemberPost
+  SquadDefendPlay ..> MemberOrder
+  SquadManeuverRunner ..> CombatPostureParamsJsonDto : Watch with a post
+  CombatPostureParamsJsonDto *-- CombatPosturePostJsonDto
+  CombatPostureBehavior ..> WindowDuelBehavior : a window post
+  CombatPostureBehavior ..> PeekAndFireParams : anchored
+  PeekAndFireNodes ..> PeekAndFireParams
+```
+*What the picture shows that prose hid:* the post rides the order the man **already** gets — no new member order, no new behaviour; the one
+new rule sits in the ONE place a hide point is chosen (`PickHide`), so every peek path (first pick, rotation, suppress-and-bound) obeys it.
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay
+  participant R as SquadManeuverRunner
+  participant M as the man (CombatPosture, stay)
+  participant PF as PeekAndFire (his take-cover branch)
+  P->>R: Watch at his post · Post {window, alternate, 4 m}
+  R->>M: CombatPosture {advance to the post, stay, post}
+  M->>PF: contact: the decision takes cover
+  PF->>PF: the cover sensor answers (windows ≤ 12 m round him)
+  PF->>PF: PickHide: only a point ≤ 4 m from his post, or his alternate
+  alt one is free
+    PF->>M: hide there prone, up at the window, switch after his exposures (PC-15)
+  else none (all off the post, burned or claimed)
+    PF->>M: aimed fire from where he stands (the G2 path)
+  end
+  P->>R: 3 rounds in 10 s: Watch at the alternate (its own alternate next)
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-40** | how a posted man fights from his post | the order carries his **post set** (PC-14's "SquadDefend hands the post set into the order"): the post, his alternate, a 4 m radius, window or cover. `CombatPosture` anchors its own `PeekAndFire`: a window post flies **the window column** (`WindowDuelBehavior.Shape(0)` — prone under the sill, a stance peek, `FindWindowFiringPosition`), a cover post the defaults; `PickHide` skips a point farther than 4 m from the post and not on his alternate (`MatchRadius`). None left ⇒ he fires from where he stands | a new `FightFromPost` member order publishing `WindowDuel`: the man loses his posture's decision (suppress, hold prone, the throw) and `PeekAndFire` answers Success when nothing is in view, so he stops watching · the filter in the EQS template: the sensor is shared and centres on Self; the post is per man |
+
+⚠ **Not built here:** PC-14's other half — the hide point inside his `EngagementArea.Allow` (an `Allow` tests TARGETS; a shooter's point
+inside it is a new reader) — the anchor keeps him at his arc's origin meanwhile. ⚠ The posture's **advance** branch (flank, firing position)
+can still take a posted man out of his building — ⛔ not measured; the live demo answers it.
 
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and

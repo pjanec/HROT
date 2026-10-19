@@ -45,6 +45,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float Y[Capacity];
         public fixed float Z[Capacity];
         public byte Count;
+        /// <summary>⭐ D-2a — the first this many candidates came from the window ask (windows), the rest are cover.</summary>
+        public byte WindowCount;
         /// <summary>Per roster slot: the candidate he holds, or <see cref="None"/>.</summary>
         public fixed byte PostOf[Capacity];
         /// <summary>Per roster slot: rounds at him counted since <see cref="WindowStart"/>.</summary>
@@ -199,6 +201,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>DA-37 — a man's arc half-width toward the engagement area / outward all-round (°).</summary>
         public const float ArcHalfWidth = 45f;
         public const float AllRoundHalfWidth = 60f;
+        /// <summary>⭐ D-2a (PC-14, DA-40) — a hide point this close to his post is one of his post's points (m): the windows of his room.</summary>
+        public const float PostRadius = 4f;
 
         private static readonly SquadHsmShell s_shell = new(SquadDefendManeuver.BuildTransitionTable(), SquadDefendManeuver.PhaseAborted);
 
@@ -256,11 +260,17 @@ namespace Hrot.AI.Behaviors.Brains
                     Sector = hasEa && p.Posts.Ready != 0 ? MemberArc.Around(LookAt.BearingTo(at, ea), ArcHalfWidth) : default,
                 };
             var spot = p.Posts.Point(post);
+            int alternate = AlternateOf(ref p, in ctx, member);
             return new MemberOrder
             {
                 Kind = MemberOrderKind.Watch, Point = spot, Speed = p.Speed, RoleId = SquadDefendManeuver.RolePosted, Cover = 1,
                 Sector = hasEa ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
                                : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth),
+                Post = new MemberPost   // ⭐ D-2a (PC-14, DA-40) — he fights from his post: its windows or his alternate, never elsewhere
+                {
+                    Set = 1, Window = post < p.Posts.WindowCount ? (byte)1 : (byte)0, Radius = PostRadius,
+                    HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
+                },
             };
         }
 
@@ -283,6 +293,7 @@ namespace Hrot.AI.Behaviors.Brains
                     : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindWindowPostsAllRound.BlueprintId, WindowSite, p.SearchRadius, from, p.Position, out buffer);
                 if (!Settle(ref p, ref ws, in ctx, answered, in buffer)) return;
                 p.Posts.WindowStage = 2;
+                p.Posts.WindowCount = p.Posts.Count;
                 PickAll(ref p, in ctx);
             }
             if (p.Posts.CoverStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))

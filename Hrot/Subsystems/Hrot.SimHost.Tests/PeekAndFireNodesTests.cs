@@ -988,6 +988,45 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(d.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(d.Self).Until - d.Time, 1.5, 2.1);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2a (PC-14, R-2047) — A POSTED MAN HIDES ONLY ON HIS POST: the better point 5 m off his post is passed over for
+        /// the one on it; with his post elsewhere, his ALTERNATE is taken. ✅ Red-proof: the post filter removed ⇒ he takes the best point.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedMan_HidesOnlyOnHisPost_OrOnHisAlternate()
+        {
+            var d = new Duel(Rifleman() with { Anchor = new Vector3(9f, 1f, 0f), AnchorRadius = 4f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(9f, 1f, 0f), d.Moves[^1]);
+
+            var a = new Duel(Rifleman() with
+            {
+                Anchor = new Vector3(30f, 0f, 0f), AnchorRadius = 4f, AnchorAlternate = new Vector3(9f, 1f, 0f), AnchorHasAlternate = 1,
+            });
+            a.Step();
+            a.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.MoveToHide, a.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(new Vector3(9f, 1f, 0f), a.Moves[^1]);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2a (PC-14: "a man who finds none fights from where he is") — every answered point is off his post: he does not
+        /// leave it, and fires AIMED from where he stands (G2's every-point-burned path). ✅ Red-proof: the post filter removed ⇒ he moves.
+        /// </summary>
+        [Fact]
+        public void CE2275_NoPointOnHisPost_HeStaysAndFightsFromWhereHeStands()
+        {
+            var d = new Duel(Rifleman() with { Anchor = new Vector3(30f, 0f, 0f), AnchorRadius = 4f });
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (4f, 1f, StanceId.Crouched), (9f, 1f, StanceId.Crouched));
+            d.Run(6);
+            Assert.Empty(d.Moves);
+            Assert.Equal(2, d.Ws.Waiting);
+            Assert.True(d.AimedRounds > 0, "fights from where he stands, never silent");
+        }
+
         /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>
         [Fact]
         public void G5_R2_AnExpiredClaim_FreesThePoint()

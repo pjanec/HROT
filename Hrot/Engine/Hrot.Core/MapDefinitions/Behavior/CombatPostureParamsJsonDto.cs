@@ -41,6 +41,33 @@ namespace Hrot.Map.Definitions.Behavior
         /// Default false: the posture ends when its winner does. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
         [JsonPropertyName("stay")]
         public bool Stay;
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — his POST: he takes cover only on it or his alternate. A squad defence sends it; none
+        /// (radius 0) = anywhere. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2a.</summary>
+        [JsonPropertyName("post")]
+        public CombatPosturePostJsonDto Post;
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2a — the post of <see cref="CombatPostureParamsJsonDto"/>.</summary>
+    public struct CombatPosturePostJsonDto
+    {
+        /// <summary>The post (sim metres, Z up).</summary>
+        [JsonPropertyName("point")]
+        public Vector3 Point;
+
+        /// <summary>His alternate post, when <see cref="HasAlternate"/>.</summary>
+        [JsonPropertyName("alternate")]
+        public Vector3 Alternate;
+
+        [JsonPropertyName("hasAlternate")]
+        public bool HasAlternate;
+
+        /// <summary>A hide point this close to <see cref="Point"/> is on his post (m); 0 = no post.</summary>
+        [JsonPropertyName("radius")]
+        public float Radius;
+
+        /// <summary>A WINDOW post: he fights it the window way (prone under the sill, up at it); else a cover post.</summary>
+        [JsonPropertyName("window")]
+        public bool Window;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

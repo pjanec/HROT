@@ -104,6 +104,12 @@ namespace Hrot.AI.Behaviors.Brains
         public float HeardMatchRadius;
         /// <summary>⭐ <c>CE-3158</c> G8 — see <see cref="PeekDisable"/>.</summary>
         public PeekDisable Disable;
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, R-2047) — his POST: with <see cref="AnchorRadius"/> &gt; 0 a hide point must lie within it of
+        /// <see cref="Anchor"/>, or be his alternate (<see cref="AnchorAlternate"/>, within <see cref="MatchRadius"/>, when
+        /// <see cref="AnchorHasAlternate"/> is 1). 0 = no post: anywhere the sensor answers. 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2a.</summary>
+        public Vector3 Anchor, AnchorAlternate;
+        public float AnchorRadius;
+        public byte AnchorHasAlternate;
     }
 
     /// <summary>
@@ -745,6 +751,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (relocating && Vector3.Distance(at, ws.HidePoint) < p.MinRelocateMetres) continue;
+                if (!OnPost(in p, at)) continue;                         // ⭐ CE-2275 D-2a (PC-14) — never off his post
                 if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5 — first claim wins
                 float score = r.Score - PositionHeat.Penalty(ref mem, at, now, Rules(in p));
                 if (score <= best) continue;   // ties keep the first: the sensor's order, deterministic
@@ -754,6 +761,15 @@ namespace Hrot.AI.Behaviors.Brains
                 kind = r.Kind;
             }
             return !float.IsNegativeInfinity(best);
+        }
+
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — <paramref name="at"/> is one of his post's points (within <c>AnchorRadius</c> of it) or
+        /// his alternate; true with no post.</summary>
+        internal static bool OnPost(in PeekAndFireParams p, Vector3 at)
+        {
+            if (p.AnchorRadius <= 0f) return true;
+            if (Vector3.Distance(at, p.Anchor) <= p.AnchorRadius) return true;
+            return p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= p.MatchRadius;
         }
 
         /// <summary>The step-out point: the peek sensor's best answer within <c>PeekSearchRadius</c> of the hide point.</summary>

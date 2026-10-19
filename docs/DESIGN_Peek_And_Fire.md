@@ -322,6 +322,8 @@ his Relocate is "another window"; B's Expose is a step and his Relocate is "run 
 | | `FactionFilter` | 0 (every acquired contact) | | |
 | as built | `BlindAimHeight` (m) · `ScoreDeltaThreshold` | 1.0 · 0.05 | | |
 
+*⭐ `CE-2275` D-2a (PC-14, 2026-10-19): `Anchor` · `AnchorRadius` · `AnchorAlternate` · `AnchorHasAlternate` — a posted man's hide point lies within `AnchorRadius` of his post or on his alternate (`MatchRadius`), checked in `PickHide` (`OnPost`) so the first pick, the rotation and the bound all obey it; none ⇒ G2's fight-from-where-he-stands. 0 = no post. Set by `CombatPosture`'s `post` (📄 [Defend & Attack §8c D-2a](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)).*
+
 *As built (P-6): the struct is `PeekAndFireParams`; a zero field means the default column (`PeekAndFireNodes.Effective`); `Mode` is `PeekMode` (Auto / Stance / Step); `HideStanceOverride` is `StanceId + 1` (0 = from the point); `RelocateSpeed` is also the step-out speed.*
 
 ⚠ The aim time is NOT here: it is the weapon's (D3, `ParameterResolver`), so every behaviour aims alike.

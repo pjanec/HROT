@@ -96,6 +96,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the man's arc of fire from the order's point; the runner sends it as his sector.
         /// Unset ⇒ a sector a Superior gave him is withdrawn. ⚠ Not <see cref="Arc"/> (FireAtPoint's low / high preference).</summary>
         public MemberArc Sector;
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — <see cref="MemberOrderKind.Watch"/>: his post set (the post is <see cref="Point"/>); he takes
+        /// cover only on it. Unset ⇒ anywhere.</summary>
+        public MemberPost Post;
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a man's post set beyond the post itself: his alternate, how far round the post counts
+    /// as on it, and whether it is a window. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2a.</summary>
+    public struct MemberPost
+    {
+        public byte Set;
+        public byte Window;
+        public byte HasAlternate;
+        public Vector3 Alternate;
+        public float Radius;
     }
 
     /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
@@ -489,7 +503,7 @@ namespace Hrot.AI.Behaviors.Brains
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
                 if (order.Kind == MemberOrderKind.Stay) continue;   // ⭐ CE-1118 H-1 (D-19) — he keeps what he is doing
                 Sector(ctx.World, m, in order.Sector, point);         // ⭐ CE-2302 — his arc, or withdraw a Superior's
-                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed, in order.Post);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m, in order);
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
@@ -507,13 +521,17 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)
         /// and stays (measured, §2). From the commander; the intent id IS the behaviour (no mapper). ⭐ <c>CE-2141</c> (A4): a member
         /// that is itself a UNIT gets the order <c>Order.Hold</c> and decides for itself how to hold.</summary>
-        public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed)
+        public static void Hold(EntityRepository world, Entity commander, Entity member, Vector3 at, float speed, in MemberPost post = default)
         {
             if (IsUnit(world, member)) { Order(world, commander, member, nameof(OrderKind.Hold), "{}"); return; }
             Publish(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
                 Stay = true,   // ⭐ CE-2297 slice 2a (R-2055) — he holds there until the squad's next order, eyes and fight with him
+                Post = post.Set == 0 ? default : new CombatPosturePostJsonDto   // ⭐ CE-2275 D-2a (PC-14) — he fights from his post
+                {
+                    Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
+                },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

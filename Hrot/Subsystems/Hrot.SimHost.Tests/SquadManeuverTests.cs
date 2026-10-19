@@ -1811,6 +1811,55 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — each man is sent his POST SET with his post: a window man fights it the window way (the
+        /// window column, prone under the sill), a cover man from his cover — both anchored to the post (4 m) — and a man with a free point
+        /// near him has it as his alternate. ✅ Red-proofs: the post dropped from the order ⇒ an unanchored posture; every post marked cover
+        /// ⇒ the window men get the street column; no alternate passed ⇒ none.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_EachManIsSentHisPostSet_AWindowManFightsItTheWindowWay_AnchoredToIt()
+        {
+            var s = Defending(out var posts);
+            foreach (var m in s.Members)
+            {
+                var dto = PostureOf(s, m);
+                var post = dto.Advance.Objective;
+                bool window = post != posts[3];
+                Assert.Equal(SquadDefendPlay.PostRadius, dto.Post.Radius);
+                Assert.Equal(post, dto.Post.Point);
+                Assert.Equal(window, dto.Post.Window);
+                Assert.False(dto.Post.HasAlternate, "four men, four points: nothing is left over");
+
+                var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+                CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
+                Assert.Equal(post, block.Peek.Anchor);
+                Assert.Equal(SquadDefendPlay.PostRadius, block.Peek.AnchorRadius);
+                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId : 0u, block.Peek.HideTemplate);
+                Assert.Equal(window ? (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1) : (byte)0, block.Peek.HideStanceOverride);
+            }
+
+            // three men, four windows: the point left over is each man's alternate
+            var t = new Squad(members: 3);
+            t.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            t.Tick(); t.Tick(); t.Tick();
+            AnswerAll(t, DefendQuery(t, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
+            t.Orders.Clear();
+            t.Tick(); t.Tick();
+            var first = t.Members.Single(m => PostureOf(t, m).Advance.Objective == new Vector3(0, 5, 0));
+            var spare = PostureOf(t, first).Post;
+            Assert.True(spare.HasAlternate);
+            Assert.Equal(new Vector3(0, 9, 0), spare.Alternate);
+            Assert.True(spare.Window);
+        }
+
+        private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
+        {
+            var o = s.Orders.Last(x => x.Entity.Equals(m) && x.IntentId == BehaviorNames.CombatPosture);
+            return System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2275</c> D-1 (DA-38) — three rounds at one man within 10 s move him to his alternate post (the nearest free point the
         /// terrain gave) with PROGRESS Displacing; two do not. ✅ Red-proof: the count never reaching three (a hit counted once per window)
         /// ⇒ he stays.

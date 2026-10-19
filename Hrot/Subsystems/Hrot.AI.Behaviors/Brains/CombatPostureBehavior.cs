@@ -92,6 +92,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
             block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
+            Post(in authored.Post, ref block.Peek);   // ⭐ CE-2275 D-2a (PC-14)
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -114,6 +115,19 @@ namespace Hrot.AI.Behaviors.Brains
             block.Designate.TargetPacked = (long)target.PackedValue;
             if (a.Objective == Vector3.Zero && world.HasComponent<SimTransform>(target))
                 block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
+        }
+
+        /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a posted man's take-cover branch is anchored to his post: a window post flies the
+        /// window column (<see cref="WindowDuelBehavior.Shape"/> A — prone under the sill, up at it), a cover post the defaults; either way a
+        /// hide point off the post is never taken (<see cref="PeekAndFireNodes.OnPost"/>). No post ⇒ the defaults, unanchored.</summary>
+        internal static void Post(in CombatPosturePostJsonDto post, ref PeekAndFireParams peek)
+        {
+            if (post.Radius <= 0f) return;
+            peek = post.Window ? WindowDuelBehavior.Shape(0) : default;
+            peek.Anchor = post.Point;
+            peek.AnchorRadius = post.Radius;
+            peek.AnchorAlternate = post.Alternate;
+            peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
