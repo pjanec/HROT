@@ -260,6 +260,7 @@ namespace Hrot.SimHost.Tests
             {
                 CommanderNetworkId = new EntityRef(commanderNetId),
                 Designation        = TacticalDesignation.SquadLeader,
+                FireTeam           = FireTeam.A,   // ⭐ CE-2281 / R-3019
             });
 
             var sys = CreateAndStartSystem();
@@ -270,6 +271,7 @@ namespace Hrot.SimHost.Tests
             var sub = _repo.GetComponent<UnitSubordinate>(subordinate);
             Assert.Equal(commander, sub.Commander);
             Assert.Equal(TacticalDesignation.SquadLeader, sub.Designation);
+            Assert.Equal(FireTeam.A, sub.FireTeam);   // ⭐ CE-2281 / R-3019 — the scenario's team reaches the component
 
             Assert.True(_repo.HasComponent<UnitRoster>(commander));
             var roster = _repo.GetComponent<UnitRoster>(commander);

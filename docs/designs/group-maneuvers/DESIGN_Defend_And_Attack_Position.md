@@ -525,7 +525,7 @@ classDiagram
   class CasualtyCare { <<EXISTING, routed>> the medic pick }
   class SuppressAndManeuverPlay { <<EXISTING, + roles>> the AR / MG join the base of fire }
   class TacticalDesignation { <<EXISTING + BR-8>> AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank }
-  class FireTeam { <<NOT BUILT: no carrier on the wire>> }
+  class FireTeam { <<BUILT, backend R-3019: on UnitSubordinate, CmdAssignSubordinate, the scenario and the wire>> None A B C D }
   class RoleTakeover { <<NOT BUILT: needs a weapon to pick up>> }
   SquadSensing ..> SquadRoles
   CasualtyCare ..> SquadRoles
@@ -540,7 +540,7 @@ blocked for reasons outside this lane.
 |---|---|---|
 | the role reader | ✅ `SquadRoles.Of` (succession and the medic pick routed through it) | — |
 | the AR / MG first into the base of fire | ✅ `SuppressAndManeuverPlay.Start`: after the split by reporters (or halves), every AR / MG goes to the base of fire, if a live man is left to assault | — |
-| ⛔ the element split BY FIRE TEAM | **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
+| ⛔ the element split BY FIRE TEAM | ✅ **carrier BUILT `2026-10-19` (backend, R-3019)**: `Fdp.Core.CommandHierarchy.FireTeam` (byte: None, A…D) on `UnitSubordinate` (in its trailing pad, still 12 B), on `CmdAssignSubordinate` (so an in-place reassignment carries it, CE-3263), `InitialUnitSubordinateIntent`, the scenario key `UnitSubordinate.FireTeam` ("A"…"D", absent = none) and appended to the wire `EntityInfo` (`FireTeam` byte) — ⏳ the plays' split is behaviors'. ⛔ WAS **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
 | ⛔ role takeover on a casualty | **blocked**: the AR's gun is his TYPE's mount, nothing can pick it up; re-labelling a rifleman would send a man with no MG to the base of fire as one | ⭐ wait for a weapon pick-up design (a held item from a body, `ItemSources`); and make succession's designation change reach the wire first (mark it dirty, and fix the duplicate append) — both backend |
 
 ⚠ Neither blocked part is decided by this lane alone: the user rules on the fire-team carrier and on weapon pick-up.

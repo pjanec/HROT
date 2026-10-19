@@ -207,6 +207,7 @@ namespace Hrot.SimHost.Systems
                 {
                     Commander   = commander,
                     Designation = intent.Designation,
+                    FireTeam    = intent.FireTeam,   // ⭐ CE-2281 / R-3019
                 });
 
                 // ⭐⭐⭐ O1 — the SECOND roster creator, and the one the live run proved was needed:

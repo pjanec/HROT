@@ -109,7 +109,7 @@ namespace Hrot.Common.Systems
         /// for the wire. ⛔ Before, a second assign for the same commander appended him to the roster again — a man listed twice. False when
         /// he is not in the roster (a stale UnitSubordinate): the caller assigns as usual.
         /// </summary>
-        private static unsafe bool UpdateInPlace(EntityRepository repo, Entity cmd, Entity sub, TacticalDesignation designation)
+        private static unsafe bool UpdateInPlace(EntityRepository repo, Entity cmd, Entity sub, TacticalDesignation designation, FireTeam team)
         {
             if (!repo.HasComponent<UnitRoster>(cmd)) return false;
             ref var roster = ref repo.GetComponentRW<UnitRoster>(cmd);
@@ -117,7 +117,9 @@ namespace Hrot.Common.Systems
             {
                 if (!roster.SubordinateEntities[i].Equals(sub)) continue;
                 roster.TacticalDesignations[i] = (ushort)designation;
-                repo.GetComponentRW<UnitSubordinate>(sub).Designation = designation;
+                ref var current = ref repo.GetComponentRW<UnitSubordinate>(sub);
+                current.Designation = designation;
+                current.FireTeam    = team;   // ⭐ CE-2281 / R-3019 — the team travels with the assignment
                 SmartEgressUtil.MarkDirty(repo, sub, EntityInfoDescriptorOrdinal);
                 return true;
             }
@@ -156,7 +158,7 @@ namespace Hrot.Common.Systems
                     var current = repo.GetComponent<UnitSubordinate>(sub);
                     if (!current.Commander.Equals(cmd))
                         RemoveFromHierarchy(repo, sub);
-                    else if (UpdateInPlace(repo, cmd, sub, evt.Designation))
+                    else if (UpdateInPlace(repo, cmd, sub, evt.Designation, evt.FireTeam))
                     {
                         ApplyFormationSlot(repo, sub, evt);
                         continue;   // ⭐ CE-3263 — the same commander again: a designation change, never a second roster entry
@@ -177,7 +179,7 @@ namespace Hrot.Common.Systems
 
                 // ── Atomic writes ─────────────────────────────────────────────
                 // a. UnitSubordinate on the subordinate entity
-                var subComp = new UnitSubordinate { Commander = cmd, Designation = evt.Designation };
+                var subComp = new UnitSubordinate { Commander = cmd, Designation = evt.Designation, FireTeam = evt.FireTeam };
                 if (repo.HasComponent<UnitSubordinate>(sub))
                     repo.SetComponent(sub, subComp);
                 else

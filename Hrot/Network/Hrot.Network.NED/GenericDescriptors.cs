@@ -182,6 +182,10 @@ namespace Hrot.NED.Descriptors
         // Logical role of this entity within the commander's unit.
         // Undefined = no designation or no commander.
         public eTacticalDesignation TacticalDesignation;
+
+        // ⭐ CE-2281 / R-3019 — the fire team within the commander's unit (Fdp.Core.CommandHierarchy.FireTeam: 0 none, 1 A … 4 D).
+        //   APPENDED: an older sample reads as no team.
+        public byte FireTeam;
     }
 
     // Optimistic Concurrency Control Sidecar.
