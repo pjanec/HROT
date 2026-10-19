@@ -48,6 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
             public DesignateState DesignateState;        // ⭐ CE-3170
             public LookNodeState LookState;              // ⭐ CE-2297
+            public OccupyState OccupyState;              // ⭐ CE-2275 D-2e — a posted man occupies his post first
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -163,6 +164,14 @@ namespace Hrot.AI.Behaviors.Brains
                     .StatefulAction(bb => bb.Look, bb => bb.LookState, LookNodes.Look)   // ⭐ CE-2297 LD-3 — the eyes, beside the work
                     .Sequence(work => work
                     .ObserverSelector(winner => winner
+                        // ⭐ CE-2275 D-2e (PC-14, DA-45) — the retreat first (options are exclusive, so the order is neutral), then a POSTED
+                        //   man not yet on his post goes there, firing on the way, whatever else the decision chose
+                        .Sequence(fallBack => fallBack
+                            .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
+                            .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))
+                        .Sequence(occupy => occupy
+                            .StatefulCondition(bb => bb.Peek, bb => bb.OccupyState, PostureNodes.OffPost)
+                            .StatefulAction(bb => bb.Advance, bb => bb.AdvanceState, PostureNodes.AdvanceAndAttack))
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(approach => approach
@@ -189,9 +198,6 @@ namespace Hrot.AI.Behaviors.Brains
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
                                 .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
-                        .Sequence(fallBack => fallBack
-                            .StatefulCondition(bb => bb.IsFallBack, bb => bb.Choice, UtilityNodes.IsOption)
-                            .StatefulAction(bb => bb.Fallback, bb => bb.FallBackState, EqsTacticsNodes.FallBack))
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))

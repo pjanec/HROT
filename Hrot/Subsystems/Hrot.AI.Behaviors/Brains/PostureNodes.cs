@@ -90,6 +90,13 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Assault;
     }
 
+    /// <summary>⭐ <c>CE-2275</c> D-2e (PC-14, DA-45) — <see cref="PostureNodes.OffPost"/>'s memory: 1 once he has stood on his post this run.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct OccupyState
+    {
+        public byte Occupied;
+    }
+
     /// <summary>⭐ <c>CE-3170</c> — the target an attack order named (<see cref="PostureNodes.UntilTargetDown"/>).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DesignateParams
@@ -362,6 +369,32 @@ namespace Hrot.AI.Behaviors.Brains
         /// host's finish (an HSM activity's status is discarded, so the posture HSM leaves Advance for its Final state on this
         /// guard). Reads the SAME working state <see cref="AdvanceAndAttack"/> writes. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3c.
         /// </summary>
+        /// <summary>⭐ <c>CE-2275</c> D-2e (PC-14, DA-45) — a POSTED man (<see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0) who is not on his
+        /// post yet goes there first, whatever the fight's decision: true until he first stands within <see cref="OccupiedMetres"/> of it (or
+        /// on his alternate), then only if something carries him beyond the post's radius (his room). Measured live (<c>sq-defend-house</c>):
+        /// the first contact flipped the posture to Suppress while a man was still on the stairs, and he stood there, 5 m off, until the
+        /// squad's next re-issue. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2e.</summary>
+        [SharedAiCondition]
+        public static bool OffPost(ref PeekAndFireParams p, ref OccupyState ws, Entity self, EntityRepository world)
+        {
+            if (p.AnchorRadius <= 0f || !world.HasComponent<SimTransform>(self)) return false;
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            bool onAlternate = p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= p.MatchRadius;
+            float d = Vector3.Distance(at, p.Anchor);
+            if (ws.Occupied == 0)
+            {
+                if (d > OccupiedMetres && !onAlternate) return true;
+                ws.Occupied = 1;
+                return false;
+            }
+            if (d <= p.AnchorRadius || onAlternate) return false;
+            ws.Occupied = 0;   // carried out of his room: back to it
+            return true;
+        }
+
+        /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
+        public const float OccupiedMetres = 1.5f;
+
         [SharedAiCondition]
         public static bool Arrived(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
             => ws.Moving == 1 && world.HasComponent<LocomotionChannel>(self)

@@ -687,6 +687,36 @@ firing spot, inside his room; and with nothing there he still fights (before, a 
 posted man with no move · `CombatPostureBehavior.Post(…, ref CombatPostureBlackboard)` · `SquadDefendPlay.Manned` reads `PostRadius`
 (`MannedMetres` retired). Rail `TacticsTreesTests.CE2275_APostedMansFlank_StaysOnHisPost_AndNothingOnItMeansHeFightsWhereHeStands`.
 
+#### D-2e — he occupies his post first *(PC-14, R-2047; behaviors, 2026-10-19)*
+
+📐 **Measured first, live** (`sq-defend-house`, after D-2d), on the brain (CGF) and the muscle (SimHost) side by side:
+① the move to an upstairs post is pathed (14.75 m, via the stair) and **Following** — ② at the first contact (a Blue seen at ~117 m,
+outside the sector) the posture's winner flipped from the advance to **Suppress**, whose step stops the move (`act=0`) — ③ he then stood
+**5 m off his post on the stairs for 10 s**, until the squad's next re-issue. Every man still off his post at the first contact did the
+same, so PROGRESS `Set` never fired. ⚠ Also measured: the walk itself is slow in the crowded ground floor (≈ 0.4 m/s on a 2 m/s
+order, seven men in one room) — a muscle-side question, not answered here.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Going : posted, not on his post
+  Going --> Occupied : within 1.5 m of it, or on his alternate
+  Occupied --> Occupied : moved inside his room (≤ 4 m) by the fight
+  Occupied --> Going : carried out of his room (> 4 m)
+  note right of Going : the posture's first branch after Flee, the advance to the post, firing as the ROE allows
+  note right of Occupied : the decision fights (D-2a hide, D-2d moves)
+```
+*What the picture shows that prose hid:* the gate is a **latch**, not a distance test — a plain "farther than 1.5 m" would yank him back
+from every D-2d move inside his room, and a plain "farther than 4 m" would let the first contact strand him 3 m short on the stairs.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-45** | when a posted man fights from where he stands | not before he has **stood on his post once**: `CombatPosture` (with a post) runs `PostureNodes.OffPost` first after Flee — true until he is within **1.5 m** of the post (or on his alternate), then only when something carries him beyond the post's **4 m** (his room); while true he runs the advance to the post (firing, ROE-gated). Flee stays free. PROGRESS `Set` (D-2d: within 4 m) follows | anchor Suppress / Hold to the post too: they stand still by design, so the man would still stop wherever the contact found him · a squad-side "Occupy" phase that withholds the fight until Set: a man under fire on the stairs could not return it · lower the posture decision's other options while posted: the decision layer has no "posted" input and a strong enough threat still wins |
+
+*As built (2026-10-19):* `PostureNodes.OffPost` + `OccupyState` (the latch, `OccupiedMetres = 1.5`) · `CombatPosture`'s winner selector: Flee,
+then the occupy branch (shares the advance's state), then the options as before (they are exclusive, so the reorder is neutral). Rails
+`TacticsTreesTests.CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision` · `CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

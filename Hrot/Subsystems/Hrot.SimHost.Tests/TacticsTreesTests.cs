@@ -464,6 +464,54 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w2.Repo.GetComponentRO<WeaponChannel>(w2.Unit).ActiveAction);   // … he fights
         }
 
+        private const string PostedAway = "{\"advance\":{\"Objective\":[10,0,0],\"Speed\":3,\"ArrivalRadius\":1,\"CooldownSeconds\":1},\"stay\":true,"
+                                        + "\"post\":{\"point\":[10,0,0],\"radius\":4,\"window\":false}}";
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2e (PC-14, DA-45) — a POSTED man not yet on his post goes there whatever the fight's decision: here an armed
+        /// enemy he remembers but cannot see makes the decision something other than the advance, and he still walks to his post. 🔴 Red
+        /// before: measured live (<c>sq-defend-house</c>) the first contact flipped the posture to Suppress on the stairs and he stood there.
+        /// </summary>
+        [Fact]
+        public void CE2275_APostedManNotYetOnHisPost_GoesThere_WhateverTheDecision()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero });
+            w.Contact(armed: true);
+            w.Order("CombatPosture", PostedAway);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.NotEqual((byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack, w.Winner("CombatPosture"));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(10f, 0f, 0f), w.Destination());   // ⭐ to his post
+        }
+
+        /// <summary>⭐ D-2e — <see cref="PostureNodes.OffPost"/>'s latch: off ⇒ go; within 1.5 m ⇒ occupied, and inside his room (4 m) the fight
+        /// may move him without being pulled back (D-2d's moves); carried out of the room ⇒ back; his alternate counts as on his post; no post
+        /// ⇒ never.</summary>
+        [Fact]
+        public void CE2275_OffPost_LatchesOnArrival_FreesHisRoom_AndCallsHimBackFromOutsideIt()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero });
+            var p = new PeekAndFireParams { Anchor = new Vector3(10f, 0f, 0f), AnchorRadius = 4f, MatchRadius = 1f,
+                                            AnchorAlternate = new Vector3(0f, 10f, 0f), AnchorHasAlternate = 1 };
+            var ws = default(OccupyState);
+            void At(float x, float y) => w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(x, y, 0f);
+            bool Off() => PostureNodes.OffPost(ref p, ref ws, w.Unit, w.Repo);
+
+            Assert.True(Off(), "not yet on his post");
+            At(7f, 0f);   Assert.True(Off(), "3 m off and never there yet: still going");
+            At(9f, 0f);   Assert.False(Off());
+            At(7f, 0f);   Assert.False(Off(), "inside his room after occupying: the fight may move him");
+            At(4f, 0f);   Assert.True(Off(), "carried out of his room: back");
+            At(9.2f, 0f); Assert.False(Off());
+            var ws2 = default(OccupyState);
+            At(0f, 10.5f); Assert.False(PostureNodes.OffPost(ref p, ref ws2, w.Unit, w.Repo), "his alternate is his post too");
+            var none = new PeekAndFireParams();
+            Assert.False(PostureNodes.OffPost(ref none, ref ws2, w.Unit, w.Repo), "no post: never");
+        }
+
         /// <summary>
         /// ⭐⭐ WL-4 W-12f (DESIGN_Weapon_Layers §5f) — out of sight, a GRENADIER with an equally good flank and throwing spot CLOSES
         /// TO THROW: the approach keeps a throwing-position sensor pointed at the LAST-KNOWN point (L-5 — not the live entity), the
