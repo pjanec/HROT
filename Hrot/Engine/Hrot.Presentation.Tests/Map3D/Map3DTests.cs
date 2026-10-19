@@ -1561,6 +1561,38 @@ public sealed class Map3DTests
             Assert.Equal(kind.ToString(), ((BlockFigure.ArmGesture)(byte)kind).ToString());
     }
 
+    /// <summary>⭐ CE-1195 — a man who has just thrown (a shot from his hands mount) is drawn mid-throw for <c>ThrowSeconds</c>: the
+    /// throwing hand sweeps from behind his shoulder (the wind-up) to in front of him and lower (the follow-through); a rifle shot, an old
+    /// throw or a man carried draws no throw. 🔒 User, live, 2026-10-19: <i>"there is no animation for person throwing stone"</i>.</summary>
+    [Fact]
+    public void CE1195_AThrow_SweepsTheArmFromTheWindUpToTheFollowThrough()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 Hand(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre;   // the right forearm
+        var windUp = Hand(BlockFigure.ThrowArms(plain, false, false, 0f));
+        var through = Hand(BlockFigure.ThrowArms(plain, false, false, 1f));
+        Assert.True(windUp.X < 0f, $"the wind-up: the hand behind him ({windUp})");
+        Assert.True(through.X > 0.05f && through.Z < windUp.Z, $"the follow-through: in front and lower ({through})");
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(db);   // as HrotEnvironment.CreateTkb does: every person has hands
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = Man(world, Vector3.Zero, type: TkbEntityTypes.Infantry_Rifleman);
+            int hands = Fdp.Toolkit.Combat.PersonHands.MountIndex(world, man);
+            Assert.True(hands > 0, "a rifleman has his hands mount after his rifle");
+            var shots = Hrot.UI.Common.Effects.RecentShots.In(world);
+            shots.Record(man, hands, 10.0);
+            var mid = EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 10.3);
+            Assert.NotEqual(plain, mid);
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 10.0 + BlockFigure.ThrowSeconds + 0.1));   // over
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, 10.3));            // his arms are busy
+            shots.Record(man, 0, 20.0);                                                                                                          // his rifle
+            Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 20.2));
+        }
+    }
+
     /// <summary>⭐ CE-1166 (§8.7 U6-a, U6-e) — the replicated gesture reaches the figure: a free man's arms show it; cowering, carrying or
     /// None leave the arms to their owner; the 2-D line says HANDS UP or PROTEST, after any effect.</summary>
     [Fact]

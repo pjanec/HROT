@@ -191,6 +191,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 }
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
+                parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -507,6 +508,23 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var m = Matrix4x4.Identity;
         m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
         return m;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1195</c> — a man who has just THROWN (a shot from his hands mount, <c>PersonHands</c>, within
+    /// <see cref="BlockFigure.ThrowSeconds"/> — the shot the effects spawner keeps in <c>RecentShots</c>) is drawn mid-throw
+    /// (<see cref="BlockFigure.ThrowArms"/>). Standing or crouched, free, alive and not cowering; otherwise the parts as they are.
+    /// 🔒 User, live, 2026-10-19: <i>"there is no animation for person throwing stone"</i>.
+    /// </summary>
+    public static KitPart[] Thrown(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime)
+    {
+        if (carriage.Kind != CarriageKind.Free || Hrot.UI.Common.Effects.RecentShots.Of(world) is not { } shots) return parts;
+        if (!shots.TryGet(e, out int mount, out double at) || simTime < at || simTime - at > BlockFigure.ThrowSeconds) return parts;
+        if (mount != Fdp.Toolkit.Combat.PersonHands.MountIndex(world, e)) return parts;
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return BlockFigure.ThrowArms(parts, stance == StanceId.Crouched, soldier, (float)((simTime - at) / BlockFigure.ThrowSeconds));
     }
 
     /// <summary>

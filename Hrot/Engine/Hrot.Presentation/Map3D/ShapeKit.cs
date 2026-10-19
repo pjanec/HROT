@@ -1152,6 +1152,32 @@ public static partial class BlockFigure
         return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop + bob)] : shaped;
     }
 
+    /// <summary>⭐ <c>CE-1195</c> — how long a throw is drawn after its shot, s.</summary>
+    public const float ThrowSeconds = 0.6f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1195</c> — the overarm THROW at <paramref name="phase"/> 0 … 1: the throwing (right) arm sweeps over the shoulder from the
+    /// wind-up (<see cref="ArmGesture.Throwing"/>'s, the hand back above it) to the follow-through (the hand forward and down), the other
+    /// arm swinging back from pointing at the target; a soldier's rifle slung. No state: the phase is the time since the throw /
+    /// <see cref="ThrowSeconds"/>.
+    /// </summary>
+    public static KitPart[] ThrowArms(KitPart[] parts, bool crouched, bool soldier, float phase)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var shaped = GestureArms(parts, ArmGesture.Throwing, crouched, soldier);   // the wind-up, a slung rifle
+        float p = Math.Clamp(phase, 0f, 1f);
+        float swing = (1f - (1f - p) * (1f - p)) * 170f * MathF.PI / 180f;          // fast, then easing out
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        KitPart[] arms =
+        [
+            .. Arm(l, l + Forward(new Vector3(0.28f, 0.02f, -0.04f), -0.6f * swing), l + Forward(new Vector3(0.56f, -0.02f, 0.02f), -0.6f * swing), PartRole.Hull),
+            .. Arm(r, r + Forward(new Vector3(-0.22f, -0.06f, 0.10f), swing), r + Forward(new Vector3(-0.30f, -0.04f, 0.38f), swing), PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
+        return shaped;
+    }
+
     /// <summary>⭐ CE-1175 — <paramref name="v"/> turned by <paramref name="radians"/> in the figure's side plane (about its forward axis X).</summary>
     private static Vector3 Sideways(Vector3 v, float radians)
     {

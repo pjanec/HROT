@@ -115,6 +115,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         }
 
         ImpactsDrawn = 0;
+        InertLandings = 0;
         if (world.Bus.IsRegistered<RoundImpactNotification>())   // ⭐ CE-1129 (VE §10) — every surface a round marked
             foreach (ref readonly var impact in view.ReadEvents<RoundImpactNotification>())
                 SpawnImpact(cmd, tkb, world, impact, now);
@@ -126,6 +127,13 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             {
                 var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, hit.Damage);
                 var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
+                // ⭐ CE-1194 — a thrown stone or blade LANDS, it does not burst: a little dust, no scorch, no bang
+                if (IsInertHandItem(tkb, hit.Ammo))
+                {
+                    Spawn(cmd, tkb, EffectTkbCatalog.ExplosionSmall, point, null, now);   // the impact puff — dust
+                    InertLandings++;
+                    continue;
+                }
                 Spawn(cmd, tkb, set.Explosion, point, null, now);
                 // ⭐ VE-M — a decal marks the static world only: none when the round hit a vehicle or a person.
                 bool hitABody = hit.Target != Entity.Null && view.IsAlive(hit.Target);
@@ -155,6 +163,20 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         ImpactsDrawn++;
         if (hit.Kind == (byte)ImpactKind.Stop)
             Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, 0f, false));   // the ricochet
+    }
+
+    /// <summary>⭐ <c>CE-1194</c> — landings drawn as dust only in the last tick (the rail's counter).</summary>
+    public int InertLandings { get; private set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-1194</c> — a round a hand THROWS and that carries no explosive: a hand item (<see cref="HandItemDto"/> — the stone, the thrown
+    /// hatchet / spear / star, CE-3247) whose warhead says <c>Kinetic</c> or <c>Blunt</c> (no warhead stated is NOT inert: the M67 states none). Its "detonation" is where it lands: dust, not
+    /// a burst. ⛔ A hand GRENADE is a hand item too, but its warhead bursts — it keeps its explosion.
+    /// </summary>
+    public static bool IsInertHandItem(ITkbDatabase? tkb, long ammo)
+    {
+        if (tkb == null || ammo == 0 || !tkb.TryGetByType(ammo, out var t) || t == null || t.GetDescriptor<HandItemDto>() == null) return false;
+        return t.GetDescriptor<WarheadDto>() is { Kind: WarheadKind.Kinetic or WarheadKind.Blunt };   // ⚠ the M67 states no warhead here, and bursts
     }
 
     /// <summary>

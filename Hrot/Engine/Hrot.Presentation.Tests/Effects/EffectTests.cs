@@ -179,6 +179,36 @@ public sealed class EffectTests
     }
 
     /// <summary>
+    /// ⭐ CE-1194 — a thrown STONE (or a thrown blade) lands as a little dust: no burst, no scorch on the ground, no bang; a hand GRENADE
+    /// still bursts and scorches. 🔒 User, live, 2026-10-19: <i>"stone falling on the ground create explosion effect and decal"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1194_AThrownStoneLandsAsDust_AGrenadeStillBursts()
+    {
+        var (world, tkb) = World();
+        long stone = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, hatchet = Hrot.Core.Tkb.MunitionTkbCatalog.TkbThrowingHatchet;
+        long grenade = Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade, ball = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball;
+        Assert.True(EffectSpawnSystem.IsInertHandItem(tkb, stone));
+        Assert.True(EffectSpawnSystem.IsInertHandItem(tkb, hatchet));
+        Assert.False(EffectSpawnSystem.IsInertHandItem(tkb, grenade));     // a hand item, but its warhead bursts
+        Assert.False(EffectSpawnSystem.IsInertHandItem(tkb, ball));        // not thrown: a rifle round keeps its impact
+        world.Bus.Publish(new DetonationNotification { HitX = 10, HitY = 10, HitZ = 0, Ammo = stone, Damage = 3f });
+        world.Bus.Publish(new DetonationNotification { HitX = 30, HitY = 10, HitZ = 0, Ammo = grenade, Damage = 400f });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        Assert.Equal(1, spawn.InertLandings);
+        var fx = Effects(world);
+        Vector3 At(Entity e) => world.GetComponentRO<SimTransform>(e).Position;
+        var atStone = fx.Where(f => At(f.Entity).X == 10f).Select(f => f.Type).ToList();
+        Assert.Equal(new[] { EffectTkbCatalog.ExplosionSmall }, atStone);  // the dust puff only — no decal
+        var atGrenade = fx.Where(f => At(f.Entity).X == 30f).Select(f => f.Type).ToList();
+        Assert.Contains(atGrenade, t => t == EffectTkbCatalog.DefaultFor(EffectTkbCatalog.ClassOf(400f)).Decal
+                                        || t == EffectTkbCatalog.EffectsFor(tkb, grenade, 400f).Decal);   // the grenade scorches
+        Assert.Equal(2, atGrenade.Count);                                     // its burst and its scorch
+    }
+
+    /// <summary>
     /// ⭐ CE-1199 (VE-D) — a mark is the size of the round that made it: a tank's main-gun round marks a wall as a LARGE crater, a rifle
     /// ball as a small hole — read through the shooter's gun, since the tank's round carries no damage of its own. 🔒 User, live,
     /// 2026-10-19: <i>"decals left by ammo are unified size same for bullets and same for tank cannon shells"</i>.
