@@ -164,6 +164,7 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxSpeedFwd = physicsDef.MaxSpeed,
                 MaxSpeedRev = physicsDef.MaxSpeedRev,
                 MaxAccel    = physicsDef.Acceleration,
+                WalkSpeed   = physicsDef.WalkSpeed,   // ⭐ CE-1208
                 TurnRate    = physicsDef.TurnRate,
                 VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });
@@ -227,6 +228,15 @@ namespace Hrot.Map.Definitions.Tkb
         /// ⭐ <c>CE-2155</c> (R-263 D1 / R-2011) — the type's people get HURT before they die (<c>Gen.Injury</c>): wounded, then incapacitated
         /// and bleeding out. A type without this is ok until dead.
         /// </summary>
+        /// <summary>⭐ CE-3277 — what a person carries in his pockets (binoculars, a phone — HeldItems, CE-3234); none ⇒ nothing.</summary>
+        public NedTkbBuilder WithPocketItems(long tkbId, Fdp.Toolkit.Tkb.Domain.PocketItemsDto pockets)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            if (pockets.Binoculars || pockets.Phone) template.AddDescriptor(pockets);
+            return this;
+        }
+
         public NedTkbBuilder WithInjury(long tkbId, Fdp.Toolkit.Tkb.Domain.InjuryDefDto injury)
         {
             var template = _db.GetByType(tkbId)

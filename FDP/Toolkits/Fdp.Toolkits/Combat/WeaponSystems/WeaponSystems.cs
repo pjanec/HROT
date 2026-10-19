@@ -79,7 +79,9 @@ namespace Fdp.Toolkit.Combat
                 carried = Has<PersonCarrier>(world, host);
                 // ⭐ CE-3233 (B-11, §7.13 ST-5) — a carried weapon on his BACK or in his HIDDEN station is not in his hands: draw it first
                 if (carried && Fdp.Toolkit.Behavior.CarryStations.IsStowed(world, weapon)) { reason = WeaponHold.NotDeployed; return false; }
-                if (!carried && station.NeedsGunner != 0)
+                // ⭐ CE-1206 (Entity Control §8h U-5: "the vehicle fires its station gun; one human drives and shoots, crew abstract") — a
+                //   POSSESSED host's station needs no gunner in its seat; the AI keeps the gate.
+                if (!carried && station.NeedsGunner != 0 && !IsPossessed(world, host))
                 {
                     int seat = station.OperatedBy;
                     if (seat >= 0 && !InTheFight(world, Occupant(world, host, seat))) { reason = WeaponHold.NoGunner; return false; }
@@ -96,6 +98,10 @@ namespace Fdp.Toolkit.Combat
             }
             return true;
         }
+
+        private static bool IsPossessed(EntityRepository world, Entity host)
+            => world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
+               && world.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(host);
 
         /// <inheritdoc cref="CanFire(EntityRepository, Entity, out WeaponHold)"/>
         public static bool CanFire(EntityRepository world, Entity weapon) => CanFire(world, weapon, out _);

@@ -21,7 +21,7 @@ related-designs:
   - DESIGN_Terrain_Height.md — the ground height this seam exposes (GroundHeightAt); §7 there is the library choice.
   - DESIGN_Building_Interiors.md — §3a planned "one query for all, but possibly different solver implementation" and the
     sound solver B-6 (v1 straight per-wall dB, v2 room/portal); this file is that query, generalised to every purpose.
-  - DESIGN_Thermal_And_Acoustic_Sensing.md — owns hearing today (distance only); WQ-E gives it walls and corners.
+  - DESIGN_Thermal_And_Acoustic_Sensing.md — owns hearing today (distance only); WQ-E gives it walls and corners. ⭐ Its §8.2 (R-3023, 2026-10-19): HeavyWeapon / Explosion already carry past the listener's ear range — WQ-E's loudness model generalises it.
   - DESIGN_Stride_Port.md / DESIGN_Stride_Node_Modes.md — Stride's unadopted ray adapters (StrideRaycastLosService,
     StrideRaycastBackend) become implementations of this seam.
   - designs/eqs-2/EQS_Design_v1.3_final.md §19 — EQS sight and cover; ILosService becomes a policy over this seam.

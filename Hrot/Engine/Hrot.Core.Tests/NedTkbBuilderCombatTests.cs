@@ -680,7 +680,8 @@ namespace Hrot.Map.Common.Tests
         /// <summary>
         /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
         /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.
-        /// A type with no platform record (the HMMWV, the transport aircraft) takes it all by the rule (<c>ArmorModel.BlastSusceptibility</c>).
+        /// A type with no platform record (the transport aircraft) takes it all by the rule (<c>ArmorModel.BlastSusceptibility</c>); ⭐ BR-15 the
+        /// HMMWV now states its own.
         /// </summary>
         [Fact]
         public void AE3_EveryVehicle_StatesItsBlastSusceptibility()
@@ -703,7 +704,127 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(0.25f, S(TkbEntityTypes.Sph_M109));
             Assert.Equal(0.3f, S(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc));
             Assert.Equal(0.8f, S(TkbEntityTypes.Heli_AH64));
+            Assert.Equal(0.9f, S(TkbEntityTypes.Truck_HMMWV));   // ⭐ BR-15
             Assert.Equal(-1f, new CombatPlatformDefDto().BlastSusceptibility);   // a TKB file that states none falls back to the side armour
+        }
+
+        /// <summary>
+        /// ⭐⭐ BR-14 (Urban Battle §4 ②; DESIGN_Thermal_And_Acoustic_Sensing §6 B) — every weapon system that FIRES carries its own report (its
+        /// round names the weapon as the shooter, WS-3, so a host's or a man's own firing range never sounds for it): the tubes and guns at a
+        /// doctrinal range, HeavyWeapon, each heavier tube louder and a howitzer more than any mortar; the hand weapons as small arms; the
+        /// charge (it never fires) none. The SP howitzer's gun is its hull's mount, so the hull carries the report — and its tracks.
+        /// </summary>
+        [Fact]
+        public void BR14_EveryWeaponThatFires_CarriesItsReport_AndTheTubesAreHeardFar()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            AcousticSignatureDto? A(long t) => db.GetByType(t)!.GetDescriptor<SignaturesDto>()?.Acoustic;
+            foreach (var t in db.GetAll().Where(t => t.GetDescriptor<WeaponSystemDto>() is { Charge: false }))
+            {
+                var a = A(t.TkbType);
+                Assert.True(a is { FiringAudibleRange: > 0f } && a.FiringClass != SoundSourceClass.Unknown, $"{t.Name} fires unheard");
+            }
+            Assert.Null(A(TkbEntityTypes.WeaponSystem_ExplosiveCharge));
+
+            float R(long t) => A(t)!.FiringAudibleRange;
+            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Mortar60), 1500f, 2000f);                 // "a mortar ≈ 1.5–2 km"
+            Assert.True(R(TkbEntityTypes.WeaponSystem_Mortar81) > R(TkbEntityTypes.WeaponSystem_Mortar60));
+            Assert.True(R(TkbEntityTypes.WeaponSystem_Mortar120) > R(TkbEntityTypes.WeaponSystem_Mortar81));
+            Assert.True(R(TkbEntityTypes.WeaponSystem_Howitzer105) > R(TkbEntityTypes.WeaponSystem_Mortar120));   // "a howitzer more"
+            Assert.True(R(TkbEntityTypes.Sph_M109) > R(TkbEntityTypes.WeaponSystem_Howitzer105));
+            foreach (var t in new[] { TkbEntityTypes.WeaponSystem_Mortar60, TkbEntityTypes.WeaponSystem_Mortar81, TkbEntityTypes.WeaponSystem_Mortar120,
+                                      TkbEntityTypes.WeaponSystem_Howitzer105, TkbEntityTypes.Sph_M109 })
+                Assert.Equal(SoundSourceClass.HeavyWeapon, A(t)!.FiringClass);
+            Assert.Equal(SoundSourceClass.TrackedEngine, A(TkbEntityTypes.Sph_M109)!.MovingClass);
+            Assert.Equal(SoundSourceClass.SmallArms, A(TkbEntityTypes.WeaponSystem_PickUpRifle)!.FiringClass);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3277</c> — the catalogue's INTEGRITY: every type a seat preset (<c>SeatDto.StartWith</c>), a composite's slot
+        /// (<c>TkbCompositionDef</c>) or a child blueprint names EXISTS in the catalogue every host builds. 🔴 Red before: the squad's leader
+        /// slot and the M109's commander seat named <c>Infantry_Officer</c> (201), which had no template — both spawned nothing.
+        /// </summary>
+        [Fact]
+        public void CE3277_EveryTypeAPresetOrASlotNames_Exists()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var missing = new System.Collections.Generic.List<string>();
+            void Check(Fdp.Interfaces.TkbTemplate owner, long named, string where)
+            {
+                if (named != 0 && !db.TryGetByType(named, out _)) missing.Add($"{owner.Name} ({owner.TkbType}) {where} names {named}");
+            }
+            int checkedRefs = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<CarrierDefDto>() is { } carrier)
+                    for (int i = 0; i < carrier.Seats.Count; i++) { Check(t, carrier.Seats[i].StartWith, $"seat {i}"); if (carrier.Seats[i].StartWith != 0) checkedRefs++; }
+                if (t.GetDescriptor<TkbCompositionDef>() is { } comp)
+                    foreach (var slot in comp.Subordinates) { Check(t, slot.TkbType, $"slot {slot.Designation}"); checkedRefs++; }
+                foreach (var child in t.ChildBlueprints) { Check(t, child.ChildTkbType, $"child {child.InstanceId}"); checkedRefs++; }
+            }
+            Assert.True(checkedRefs >= 20, $"only {checkedRefs} references checked");
+            Assert.Empty(missing);
+        }
+
+        /// <summary>⭐ <c>CE-3277</c> — the officer (201) is the rifleman's man with binoculars in his pocket.</summary>
+        [Fact]
+        public void CE3277_TheOfficer_IsARiflemanWithBinoculars()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var officer = db.GetByType(TkbEntityTypes.Infantry_Officer);
+            Assert.NotNull(officer);
+            Assert.Equal(3, officer!.DisType.Kind);
+            Assert.True(officer.GetDescriptor<PocketItemsDto>() is { Binoculars: true });
+            Assert.Null(db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<PocketItemsDto>());   // the rifleman carries none
+            Assert.Equal(db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<VehicleParametersDto>(),
+                         officer.GetDescriptor<VehicleParametersDto>());                                      // the same body
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1208</c> (R-265 A, missed in this catalogue) — every BDC PERSON's top speed is a sprint (6 m/s, 2.5 m/s²), as the urban
+        /// soldiers' and the pedestrian preset's: the operator's Shift runs at it, the AI's moves ask their own speed under it. 🔴 Red before:
+        /// 2.5 m/s "walking", so the run was a walk.
+        /// </summary>
+        [Fact]
+        public void CE1208_EveryBdcPerson_RunsAtASprint()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            int people = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.DisType.Kind != 3 || t.GetDescriptor<VehicleParametersDto>() is not { } v || t.TkbType >= 1000) continue;   // BDC lifeforms
+                people++;
+                Assert.True(v.MaxSpeedFwd >= 5f, $"{t.Name} runs at {v.MaxSpeedFwd} m/s");
+            }
+            Assert.True(people >= 5, $"only {people} BDC people");
+            var rifleman = db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal((6f, 2.5f), (rifleman.MaxSpeedFwd, rifleman.MaxAccel));
+        }
+
+        /// <summary>
+        /// ⭐⭐ BR-15 (Urban Battle §4 ⑧) — the HMMWV can be hit and killed: it declares a light platform; the urban soldier's rifle round
+        /// (the ONE hit rule, <c>ArmorModel.HitDamage</c>) does armour-SCALED damage on its side — some, not all; the insurgent's RPG
+        /// takes it all at once on any face. Its crewed roof gun firing is pinned by SimHost's P1 rail (the HMMWV row).
+        /// </summary>
+        [Fact]
+        public void BR15_TheHmmwv_IsALightPlatform_ARifleScalesAndAnRpgKills()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var hmmwv = db.GetByType(TkbEntityTypes.Truck_HMMWV)!.GetDescriptor<CombatPlatformDefDto>();
+            Assert.NotNull(hmmwv);
+            Assert.True(hmmwv!.MaxHealth > 0f);
+
+            var rifle = db.GetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];
+            float side = Fdp.Toolkit.Combat.ArmorModel.HitDamage(rifle.Penetration, rifle.DamagePerHit,
+                Fdp.Toolkit.Combat.ArmorModel.ArmourFor(hmmwv, Fdp.Toolkit.Combat.Facing.Side));
+            Assert.InRange(side, 0.01f, rifle.DamagePerHit - 0.01f);   // armour-scaled: some, not all
+
+            var rpg = db.GetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent)!.GetDescriptor<WeaponSuiteDto>()!.Mounts
+                .Single(m => m.AmmoGuid == Hrot.Core.Tkb.MunitionTkbCatalog.TkbRpg7Rocket);
+            foreach (var face in new[] { Fdp.Toolkit.Combat.Facing.Front, Fdp.Toolkit.Combat.Facing.Side, Fdp.Toolkit.Combat.Facing.Rear, Fdp.Toolkit.Combat.Facing.Top })
+                Assert.True(Fdp.Toolkit.Combat.ArmorModel.HitDamage(rpg.Penetration, rpg.DamagePerHit,
+                    Fdp.Toolkit.Combat.ArmorModel.ArmourFor(hmmwv, face, Fdp.Toolkit.Combat.Penetrator.ShapedCharge)) >= hmmwv.MaxHealth,
+                    $"one RPG on the {face} kills it");
         }
 
         private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource

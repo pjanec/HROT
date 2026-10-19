@@ -121,6 +121,8 @@ namespace CarKinem.Tkb
                 p.MaxSpeedRev = dto.MaxSpeedRev;
             if (dto.MaxAccel > 0f)
                 p.MaxAccel = dto.MaxAccel;
+            if (dto.WalkSpeed > 0f)
+                p.WalkSpeed = dto.WalkSpeed;   // ⭐ CE-1208
             if (dto.TurnRate > 0f)
                 p.MaxSteerRate = dto.TurnRate * (MathF.PI / 180f);
 

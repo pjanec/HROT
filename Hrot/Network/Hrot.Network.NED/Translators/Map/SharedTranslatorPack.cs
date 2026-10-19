@@ -146,6 +146,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3271 (Q94 D) — a spawn's birth level: the creator's request out, the position owner's "resolved" back.
             yield return new Hrot.Map.Common.Replication.Egress.EntitySpawnLevelEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntitySpawnLevelIngressTranslator(participant, entityMap);
+            // ⭐ CE-1223 (Entity Control §8k S-2) — when a man was last under fire: the Muscle's stamp out, every other node's hit model reads it.
+            yield return new Hrot.Map.Common.Replication.Egress.EntityUnderFireEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityUnderFireIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this

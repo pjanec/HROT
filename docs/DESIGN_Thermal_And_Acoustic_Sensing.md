@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -14,7 +14,7 @@ related-designs:
   - docs/designs/audio/DESIGN_FPS_Audio.md — PLAYS sound to the FPS operator; reuses this file's AcousticSignatureDto ranges and SoundSourceClass as its audible ranges and movement-sound classes (AU-4), so the operator hears what the AI hears
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — the Rotor sound class (7) and an airborne flyer audible at any speed
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds a rotor sound class so a vehicle can hear an FPV drone (M7)
-  - DESIGN_World_Query_Seam.md — hearing through walls and around corners (WQ-E): a loudness model reading the TKB ranges
+  - DESIGN_World_Query_Seam.md — hearing through walls and around corners (WQ-E): a loudness model reading the TKB ranges (⭐ §8.2 R-3023 — loud classes already carry past the ear: the first step of it)
     as threshold distances, then Building Interiors' B-6 behind IWorldQuery.Trace(Sound).
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes that a near miss (§6 G) spoils the target's aim (suppression).
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the sensor form, the memory stage, TargetMemory and G6; this file is its S7 (§9 row, §11.2 G6).
@@ -541,6 +541,10 @@ graph TD
 *What the picture shows that prose hid:* the two implicit sensors are one rule applied twice — a template that lists no sensors
 gets one sensor per sense it authors a range for; a template that lists sensors gets exactly its list.
 
+⭐ **`2026-10-19` (backend, `CE-3273`):** a WEAPON SYSTEM's shot is stamped on the weapon's own emitter (the round's shooter, WS-3), so
+every weapon type now authors its report (mortars 1.5–2.5 km, guns 4–5 km `HeavyWeapon`; HMG 1 km; hand weapons `SmallArms`). ⭐ The
+"heard if within BOTH ranges" rule above now holds for QUIET classes only — a loud one carries past the ear (§8.2, R-3023).
+
 | decision | why | rejected |
 |---|---|---|
 | an implicit acoustic sensor, the twin of `CE-3038`'s implicit visual one | `HearingRange` already says how far each type hears; the rule needs no new authoring | listing explicit sensors on the shipped soldiers (⛔ a listed visual entry reads the TKB, not the live receptor a Brain retunes — it would change how their vision is tuned) |
@@ -563,3 +567,41 @@ unkeyed event topics with depth 1 were not audited here (`NearMiss` is depth 8).
 | `AudioTargetDetectedWireTests.SameFrameBurst_ForTwoListeners_AllReachTheReader_CE2106` | three sounds for two listeners, written in one burst, all arrive | depth 1 ⇒ *"only 1 of 3 heard sounds arrived"* |
 | `EqsModuleTests.CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList` | the implicit-ears rule (built, ears = `HearingRange`; none when deaf or the TKB lists sensors) | implicit acoustic block disabled ⇒ red |
 | `HeardShotScenarioTests.CE2106_ARiflemanHearsAHiddenShooter_AndTakesCoverFromWhereTheShotsCameFrom` | live on `test-town`: the shooter fires, the rifleman gets a HEARD slot, its SOP takes cover with the sensor pointed at a point within 40 m of the shooter, and it moves while staying hidden | red before the QoS fix (never heard) |
+
+### 8.2 `CE-3276` — a LOUD sound carries past the listener's ear range *(backend, `2026-10-19`; R-3023; build-state: BUILT)*
+
+🔒 **User, `2026-10-19`:** *"go with your lean on the hearing cap"* — the lean of [`CE-3276`](blueprints/Blueprint_Issues_Tracker.md).
+
+📐 **The gap:** §8.1's rule hears a sound only *"within BOTH ranges"* (`AcousticPerception.Hear`: `d > carries || d > range`), and the
+ear range is also the broadphase radius ⇒ a soldier (200 m urban, 750 m BDC) never hears an 81 mm launch (2 km, `CE-3273`) at 1.2 km.
+
+| rule | a QUIET class (footsteps, engines, small arms, rotor) | a LOUD class (`HeavyWeapon`, `Explosion`) |
+|---|---|---|
+| heard when | `d ≤ carries` **and** `d ≤ ear range` *(unchanged)* | `d ≤ carries × weather` — the ear range does not cap it |
+| found by | the broadphase within the ear range | ⭐ the broadphase within the ear range **plus** the tick's LOUD list beyond it |
+
+```mermaid
+sequenceDiagram
+  participant G as AcousticSensorGenerator
+  participant L as LoudSounds (per thread, per tick)
+  participant B as Broadphase
+  G->>B: Select(listener, ear range)
+  B-->>G: sources inside the ear range
+  G->>G: Hear each sound (both caps, a loud one by carry only)
+  G->>L: For(view) — rebuilt once per tick
+  L-->>G: emitters with a live LOUD shot or burst
+  G->>G: Hear each one beyond the ear range (carry × weather only)
+```
+
+*What the picture shows that prose hid:* the loud list is built ONCE per tick and per thread (the `BroadphaseCache` pattern), so a
+thousand listeners scan one short list — never a wider broadphase each.
+
+| decision | why | rejected |
+|---|---|---|
+| loud = `HeavyWeapon` and `Explosion` | the two classes a doctrine expects heard kilometres away (a tube, a gun, a burst) | ⛔ every class past the ear — a footstep at 25 m would ignore a deaf listener's range |
+| the weather scales the loud carry | the ear's own weather factor (R-3017) would otherwise drop out for exactly these sounds | ⛔ unscaled — a storm would not mask a distant gun |
+| a per-tick list, not a wider broadphase | cost: one pass over emitters per tick, then O(loud) per listener | ⛔ raise every ear range — the broadphase radius grows for every listener every tick |
+
+⚠ **The step toward [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md) WQ-E** (approved, not built): its loudness model reads every
+TKB range as *"the distance where the sound falls to the hearing threshold"* — the source's carry governs, walls subtract dB. Under it the
+ear range becomes a SENSITIVITY, and this loud-class exception folds into the general rule.

@@ -306,7 +306,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtHitMarks),           // ⭐ CE-3210 (HL-8) — where the rounds struck
                     D(Hrot.NED.Descriptors.EDescriptorType.dtDescent),            // ⭐ airborne insertion B-1 — a body coming down
                     D(Hrot.NED.Descriptors.EDescriptorType.dtLookState),          // ⭐ CE-3252 (LD-E) — where a person looks, the Muscle turns the head
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtSpawnLevel) },       // ⭐ CE-3271 (Q94 D) — the birth level, resolved where the position is owned
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtSpawnLevel),         // ⭐ CE-3271 (Q94 D) — the birth level, resolved where the position is owned
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnderFire) },        // ⭐ CE-1223 — when a man was last under fire (Muscle's stamp)
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

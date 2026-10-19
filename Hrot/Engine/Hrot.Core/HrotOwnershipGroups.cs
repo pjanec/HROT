@@ -127,6 +127,9 @@ public static class HrotOwnershipGroups
         muscle.SetBit(GlobalComponentIds.FlightState);
         // ⭐ CE-3271 (Q94 D, R-3018) — a spawn's birth level travels with the position it sets (dtSpawnLevel).
         muscle.SetBit(GlobalComponentIds.SpawnLevelRequest);
+        // ⭐ CE-1223 (Entity Control §8k S-2, R-1010) — when a man was last under fire: stamped on the Muscle (near miss / hit), read by every node's
+        //   hit model (a remote station's spread ring) — dtUnderFire.
+        muscle.SetBit(GlobalComponentIds.UnderFire);
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

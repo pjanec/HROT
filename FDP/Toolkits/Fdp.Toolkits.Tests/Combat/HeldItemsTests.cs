@@ -82,6 +82,23 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1224</c> (ui note §4) — a LEADER holds binoculars whatever his type (the squad leader, a fire-team leader, a commander);
+        /// the same type as a plain rifleman does not. ✅ Red-proof: drop <c>Leads</c> from <c>HeldItems.Has</c> ⇒ the leader is refused ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader, true)]
+        [InlineData(Fdp.Core.CommandHierarchy.TacticalDesignation.TeamLeader, true)]
+        [InlineData(Fdp.Core.CommandHierarchy.TacticalDesignation.Commander, true)]
+        [InlineData(Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman, false)]
+        public void CE1224_ALeaderHoldsBinoculars_WhateverHisType(Fdp.Core.CommandHierarchy.TacticalDesignation role, bool has)
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) _world.Repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var man = Man(PhoneCivType, Vector3.Zero, civilian: false);   // a type with no binoculars
+            _world.Repo.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Designation = role });
+            Assert.Equal(has, HeldItems.Set(_world.Repo, man, HeldItemKind.Binoculars));
+        }
+
+        /// <summary>
         /// ⭐ HI-4 — binoculars UP: his visual sensor reaches twice as far through a 10° cone; down, his naked eye. And he identifies four times
         /// further: a civilian's pistol at 200 m by day (naked eye 60 m) is identified lethal through them. ✅ Red-proofs: <c>Optics</c>
         /// without the binoculars branch ⇒ 300 m ⇒ red; <c>SeeingConditions.Of</c> with optics 1 ⇒ Unidentified ⇒ red.

@@ -1175,6 +1175,28 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1208</c> (Entity Control §8b; R-265) — the operator's WALK is his type's walk, not half his run: Gait 0 runs at the top
+        /// (the pedestrian preset's 6 m/s sprint), Gait 1 walks at <c>HumanGait.WalkSpeed</c> (1.5) when the type states none, at the
+        /// type's own <c>WalkSpeed</c> when it does, and never above the run. 🔴 Red before: Gait 1 = top × 0.5 (3 m/s here).
+        /// </summary>
+        [Theory]
+        [InlineData(0, 0f, 6.0f)]     // run: the top
+        [InlineData(1, 0f, 1.5f)]     // walk: the engine's default
+        [InlineData(1, 1.2f, 1.2f)]   // walk: the type's own
+        [InlineData(1, 9f, 6.0f)]     // a walk stated above the run is held to the run
+        public void CE1208_TheOperatorsWalk_IsHisTypesWalk_AndHisRunIsHisTop(byte gait, float typeWalk, float expected)
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Yaw = 0f, Gait = gait });
+            var p = repo.GetComponent<VehicleParams>(e);
+            p.WalkSpeed = typeWalk;
+            repo.SetComponent(e, p);
+            Run(repo, 5f);
+            var v = repo.GetComponent<SimVelocity>(e).Linear;
+            Assert.Equal(expected, new Vector2(v.X, v.Y).Length(), 1);
+            repo.Dispose();
+        }
+
         // ── ⭐ CE-2304 (Navigation v2 §3.4a) — seven men inside one house: avoidance across storeys, and through walls ──
 
         /// <summary>A man standing still at <paramref name="at"/>, in the collider hash (as every person is).</summary>

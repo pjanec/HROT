@@ -507,6 +507,16 @@ namespace Hrot.NED.Descriptors
         public byte Resolved;
     }
 
+    // ⭐ CE-1223 (Entity Control §8k S-2) — when a man was last hit or nearly missed (sim seconds), stamped on the Muscle, read by every node's hit model.
+    [DdsTopic("EntityUnderFire")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityUnderFire
+    {
+        [DdsKey] public long EntityId;
+        public double LastTime;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
