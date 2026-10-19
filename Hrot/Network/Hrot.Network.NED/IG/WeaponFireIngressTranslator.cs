@@ -112,6 +112,8 @@ namespace Hrot.Network.NED.IG
                 Velocity    = new System.Numerics.Vector3(msg.VelocityX, msg.VelocityY, msg.VelocityZ),
                 Quantity    = msg.Quantity,
                 FiredAt     = msg.FiredAt,
+                RequestId   = msg.RequestId,                                       // ⭐ Q94 A-1 (R-3018)
+                Refusal     = (Fdp.Toolkit.Combat.FireRefusal)msg.Refusal,
             });
         }
 

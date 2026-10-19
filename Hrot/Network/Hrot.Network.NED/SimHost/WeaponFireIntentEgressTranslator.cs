@@ -120,6 +120,7 @@ namespace Hrot.Network.NED.SimHost
                     RaisedAt        = evt.RaisedAt,   // ⭐ CE-2180 (R-169 appended) — when the brain raised it
                     FuzeSeconds     = evt.FuzeSeconds,   // ⭐ CE-3235 (R-169 appended) — a thrown-back live round's fuze left
                     BurnSeconds     = evt.BurnSeconds,   // ⭐ CE-3236 (R-169 appended) — a thrown-back canister's burn left
+                    RequestId       = evt.RequestId,     // ⭐ Q94 A-1 (R-3018)
                 });
                 SentSampleCount++;
             }

@@ -115,6 +115,7 @@ namespace Hrot.Network.NED.SimHost
                 RaisedAt    = request.RaisedAt,   // ⭐ CE-2180
                 FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
                 BurnSeconds = request.BurnSeconds,   // ⭐ CE-3236
+                RequestId   = request.RequestId,     // ⭐ Q94 A-1 (R-3018)
             });
         }
 

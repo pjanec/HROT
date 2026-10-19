@@ -107,6 +107,8 @@ namespace Hrot.Network.NED.SimHost
                     VelocityX = evt.Velocity.X, VelocityY = evt.Velocity.Y, VelocityZ = evt.Velocity.Z,
                     Quantity        = evt.Quantity,
                     FiredAt         = evt.FiredAt,
+                    RequestId       = evt.RequestId,        // ⭐ Q94 A-1 (R-3018)
+                    Refusal         = (byte)evt.Refusal,
                 });
                 SentSampleCount++;
             }

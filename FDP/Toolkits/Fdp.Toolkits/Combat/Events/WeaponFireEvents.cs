@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Combat.Events
         public float FuzeSeconds;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7) — a thrown-back venting canister's burn left (s); 0 = its own (APPENDED).</summary>
         public float BurnSeconds;
+        /// <summary>⭐ Q94 A-1 (R-3018; Architect Question 94 §4) — the brain's id for this request, echoed by the muscle's
+        /// <see cref="WeaponFireNotification.RequestId"/> (fired or REFUSED) so the brain's ledger matches the answer; 0 = untracked
+        /// (APPENDED).</summary>
+        public uint RequestId;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────
@@ -117,5 +121,15 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>The synced sim time (s) it was fired; a viewer draws a decoy at <c>now − FiredAt</c>.</summary>
         public double FiredAt;
+
+        /// <summary>⭐ Q94 A-1 (R-3018) — the <see cref="WeaponFireIntent.RequestId"/> this answers (APPENDED).</summary>
+        public uint RequestId;
+
+        /// <summary>⭐ Q94 A-1 (R-3018) — why the muscle REFUSED the request (no round flew, <see cref="Quantity"/> 0); <see cref="FireRefusal.None"/>
+        /// = fired (APPENDED: an older sender reads as fired).</summary>
+        public FireRefusal Refusal;
+
+        /// <summary>⭐ Q94 A-2 — did a round fly? Every reader that draws, hears or fears a shot asks this first.</summary>
+        public readonly bool Fired => Refusal == FireRefusal.None;
     }
 }
