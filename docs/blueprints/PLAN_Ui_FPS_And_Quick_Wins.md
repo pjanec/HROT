@@ -65,3 +65,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | date | # | state |
 |---|---|---|
 | `2026-10-19` | — | plan written |
+| `2026-10-19` | #1–#5 | Entity Control §8j designed (INVENTORY, claim table, class / sequence / module diagrams, leans Z-1…H-2); ⏳ the key layout awaits the user |

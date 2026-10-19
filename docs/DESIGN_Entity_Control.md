@@ -1329,6 +1329,140 @@ Filed from the user's live tests (`2026-10-19`). Each item still gets its INVENT
 | **PK-1** *(`CE-1207`)* | ✅ The operator may PICK UP a lying stone or round (`RoundPickUp`, Civilians §7.10) and TAKE a lying weapon into his Hands station — new verbs in the use list (§8h), the target the nearest lying item within reach of the crosshair (a round has no pick box today). ⭐ A lying pick-up weapon is not offered for possession (`CE-1205`): it cannot fire by itself (Weapon Systems W-D) | 🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* |
 | **MW-1** *(`CE-1210`)* | ✅ **SEAT SWITCHING:** a vehicle with several crewed weapons (the UH-60's two door guns) is played by **switching seats**, as in most crew-vehicle games: the driver / pilot seat drives and fires what can be aimed from it (the vehicle's own mounts, a station whose arc holds the crosshair); a **gunner seat** puts the camera at that gun, the look clamped to its arc, keys 1–4 its weapons, while the vehicle's own brain keeps flying / driving its order. ⛔ Rejected: every weapon from the pilot's eye (today) — a side door gun's arc rarely holds the pilot's crosshair | the user's question, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* — 🔒 then: *"Seat switching approved, record it."* |
 
+## 8j. S11 DESIGN — zoom, lean keys, the command wheel, team switch, hit feedback (`CE-1211` … `CE-1215`, `2026-10-19`, ui) — build-state: DESIGN (the keys await the user)
+
+The first five of [PLAN_Ui_FPS_And_Quick_Wins](blueprints/PLAN_Ui_FPS_And_Quick_Wins.md) §1. ⭐ Almost nothing is new: each item joins the
+station to data the sim already has.
+
+### 8j.1 INVENTORY *(2026-10-19 — `search_graph` name `.*(Zoom|Fov|Optic|Magnif|HitMarker|Crosshair|Radial|Wheel.*Menu|PieMenu|TeamSwitch|NextUnit).*` total 337, read: the C# hits; `.*(GroupMember|SquadMember|MemberOf|Subordinat|Hierarchy|Commanded|LeaderOf).*` Class total 36; `.*(OrderCatalog|OrdersFor|OrderMenu|AvailableOrders|OrderOffer).*` total 9; grep for the rest)*
+
+| exists | what it gives | file |
+|---|---|---|
+| `MapCamera3D.FovyDegrees` (45°) | the zoom is one property | `FDP/Engine/Fdp.Presentation/Vis3D/MapCamera3D.cs:39` |
+| `WeaponMountDto.ScopeMagnification` / `ScopeFovDegrees` (CE-3254) | a mount's scope; ⭐ `HeldItems.ScopeUp` — AIMED with it ⇒ the sim sees and identifies × magnification | `WeaponSuiteDto.cs:155`, `HeldItems.cs:84` |
+| `WeaponPostureOf.For(reason)` | an executor reporting `Aiming` makes the posture Aimed — the ONE write path (WL-6) | `WeaponPostureOf.cs` |
+| `Leans.Set` / `Lean` (CE-3257) | the replicated lean; the drawing follows (CE-1193) | `FDP/Toolkits/Fdp.Toolkits/Combat/Lean.cs` |
+| `OperatorControlFrameEvent` → `OperatorInput` → `OperatorControlBehavior` | the frame path; no lean, no aiming bit today | `Possession.cs:65`, `OperatorControlBehavior.cs:85` |
+| `OrderMenu.OfferedFor(dis)` · `OrderMenu.Draft(order, units, context)` · `OrderDraft.Send` (CE-2143, CE-2148) | the order vocabulary a unit fulfils, its pick (None / Point / Entity / Several), the send through `EntityOrders` (R-270) | `Hrot.Common/Orders/OrderMenu.cs` |
+| `UnitSubordinate { Commander, Designation }` (replicated, `UnitSubordinateTranslator`) | a man's leader; a leader's men are those naming him | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitSubordinate.cs` |
+| `EntityOrders.Possess` / `Unpossess`; the station's `Release` | the switch is release + possess | `EntityOrders.cs:180`, `PossessionStation.cs:290` |
+| `DetonationNotification { Shooter, Target, HitX…, Damage, Travel }` (on every node, the DIS detonation) | who hit whom, where from | `FDP/Toolkits/Fdp.Toolkits/Combat/DetonationNotification.cs` |
+| `RecentShots` (a world singleton a presentation system fills, the bodies read) | the pattern for a per-frame event record | `Hrot.Presentation/Effects/RecentShots.cs` |
+| ⛔ none | a radial menu, a hit marker, a damage arc, an FPS zoom | searched as above |
+
+### 8j.2 Claim table
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| aiming through a scope already changes what the sim sees | ✅ `HeldItems.ScopeUp` reads `WeaponPosture.Aimed` + the mount's magnification | ✅ [Defend & Attack §12b](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) BR-9 / DA-13 |
+| the operator's posture is Aimed only while a weapon action reports aiming | ✅ `WeaponPostureOf` (executor reports); operator fire runs `AimAndFireExecutor.OperatorFire` | ✅ WL-6 W-13b (one write path) |
+| a lean is one replicated byte the brain owner writes | ✅ `Leans.Set` (owner of `dtLean`) | ✅ Hit Location §13 LN-2 |
+| a squad leader's men name him as `Commander` | ✅ `scenarios/cc-platoon-bound`: wingmen → their leader, leaders → the platoon leader | ✅ Command Chain (the platoon programme) |
+| an order with one Point / Entity / no pick completes from a gesture | ✅ `OrderMenu.Draft` fills the missing field from `OrderContext` | ✅ CE-2148 F6 |
+| a hit by a small-arms round raises a `DetonationNotification` with its `Target` on the station's node | ⚠ `BallisticsSystem.cs:305` publishes it; ⛔ **not measured on a remote station** — the build's first rail | ✅ R-1002 (the fire event carries the shot, as DIS) |
+| the possessed leader's own command brain does not order his men while he is possessed | ⛔ **assumed** — he runs `OperatorControlBehavior`; ⇒ the wheel orders his MEN directly (no lean depends on his brain) | ⛔ searched §8b / §8h: not stated |
+
+### 8j.3 Diagrams
+
+```mermaid
+classDiagram
+  direction LR
+  class FpsCameraDriver { <<EXISTING, grows>> Zooming · LeanSide · WheelOpen · Tab ⇒ NextUnit }
+  class FpsZoom { <<NEW pure>> FovFor(mount) · SensitivityFor(fov) }
+  class CommandWheel { <<NEW model>> Items(world, leader) · Pick(angle) · Send(choice, context) }
+  class SquadRoster { <<NEW pure>> Next(world, unit, step) }
+  class HitFeedback { <<NEW world singleton>> Markers · Arcs · Record(det, me) }
+  class HitFeedbackSystem { <<NEW presentation system>> reads DetonationNotification }
+  class PossessionStation { <<EXISTING, grows>> DrawOverlay: wheel · marker · arcs · Switch(next) }
+  class OperatorControlFrameEvent { <<EXISTING, grows>> + Lean byte · + Aiming byte }
+  class OperatorInput { <<EXISTING, grows>> + Lean · + Aiming }
+  class OperatorControlBehavior { <<EXISTING, behaviors>> + Leans.Set · + aiming to the weapon action }
+  class AimAndFireExecutor { <<EXISTING, backend>> OperatorFire reports Aiming while Aiming }
+  class MapCamera3D { <<EXISTING>> FovyDegrees }
+  class WeaponMountDto { <<EXISTING>> ScopeMagnification · ScopeFovDegrees }
+  class Leans { <<EXISTING>> Set }
+  class OrderMenu { <<EXISTING>> OfferedFor · Draft }
+  class UnitSubordinate { <<EXISTING, replicated>> Commander }
+  class EntityOrders { <<EXISTING>> Possess · Unpossess }
+  FpsCameraDriver ..> FpsZoom
+  FpsZoom ..> WeaponMountDto
+  FpsCameraDriver --> MapCamera3D : FovyDegrees
+  FpsCameraDriver ..> OperatorControlFrameEvent : sends
+  OperatorControlFrameEvent ..> OperatorInput : Possession ingress
+  OperatorInput ..> OperatorControlBehavior
+  OperatorControlBehavior ..> Leans
+  OperatorControlBehavior ..> AimAndFireExecutor
+  FpsCameraDriver --> CommandWheel
+  CommandWheel ..> OrderMenu
+  CommandWheel ..> UnitSubordinate : his men
+  FpsCameraDriver ..> SquadRoster
+  SquadRoster ..> UnitSubordinate
+  PossessionStation ..> EntityOrders : switch
+  HitFeedbackSystem --> HitFeedback
+  PossessionStation ..> HitFeedback : draws
+```
+*What the picture shows that prose hid:* four of the five items add NO sim concept — zoom is a camera property fed by the TKB's scope,
+the wheel is the existing order vocabulary at the crosshair, the switch is release + possess, the hit feedback reads an event every
+node has. ⭐ Only the LEAN and the AIMING bit cross the wire, and both land on writers that exist (`Leans.Set`, the posture's one path).
+
+```mermaid
+sequenceDiagram
+  participant K as keys / mouse
+  participant D as FpsCameraDriver
+  participant C as MapCamera3D
+  participant B as brain node: OperatorControlBehavior
+  participant X as AimAndFireExecutor
+  participant H as HitFeedbackSystem
+  participant S as PossessionStation
+  K->>D: RMB held · Q / E held
+  D->>C: FovyDegrees = FpsZoom.FovFor(mount)
+  D->>B: frame { Aiming = 1, Lean = Left }
+  B->>B: Leans.Set(unit, LeanLeft)
+  B->>X: operator action, Aiming
+  X->>X: report Aiming ⇒ posture Aimed ⇒ ScopeUp (the sim sees × magnification)
+  Note over H: every frame, on the station's node
+  H->>H: DetonationNotification: Shooter = me ⇒ marker · Target = me ⇒ arc toward −Travel
+  S->>S: DrawOverlay: marker at the crosshair, arcs at the edge
+  K->>D: hold T
+  D->>S: wheel open: CommandWheel.Items(leader)
+  K->>D: release on "Move here"
+  D->>D: OrderMenu.Draft(Move, his men, crosshair point).Send
+  K->>D: Tab
+  D->>S: Switch(SquadRoster.Next(unit))
+  S->>S: EntityOrders.Unpossess(me) · Possess(next)
+```
+*What the picture shows that prose hid:* the zoom and the lean change the camera AT ONCE on the station's node but reach the sim
+through the frame — the drawn lean (CE-1193) and the sim's eye move together because both read the replicated `Lean`, never the key.
+
+```mermaid
+graph TD
+  MAP[MapCanvas: every map host with 3-D] -->|ICameraDriver each frame| DRV[FpsCameraDriver: zoom · keys · wheel input]
+  MAP -->|IMapLayer.DrawOverlay| ST[PossessionStation: HUD · wheel · marker · arcs]
+  PRES[presentation module: EffectSpawnSystem's module, PostSimulation] --> HFS[HitFeedbackSystem]
+  DRV -->|OperatorControlFrameEvent| POS[Possession ingress on the BRAIN node]
+  POS --> OCB[OperatorControlBehavior: behavior tick]
+  OCB --> WD[WeaponDispatcherSystem] --> AAF[AimAndFireExecutor.OperatorFire]
+  OCB --> LN[(Lean · dtLean)]
+  DRV -->|EntityOrders| ORD[AssignTacticalIntentEvent → the men's brains]
+```
+*Caption:* who runs it each frame. The station side runs wherever the operator sits (the drivers and layers every 3-D map host already
+calls); the lean and the aiming run on the BRAIN node through the existing possession path. `HitFeedbackSystem` must be registered
+where `EffectSpawnSystem` is — ⚠ the build checks that this is every host with a station, not just the editor.
+
+### 8j.4 Decisions — leans for the user
+
+| # | item | lean | rejected |
+|---|---|---|---|
+| **Z-1** | zoom (`CE-1211`) | hold RMB: a scoped mount ⇒ its `ScopeFovDegrees` (6° fallback); no scope ⇒ 30° (iron sights, ≈ 1.5×); mouse sensitivity × fov / 45; ⭐ the frame's `Aiming` bit makes the operator AIMED, so the sim's own scope rule (BR-9) sees what he sees | ⛔ a camera-only zoom — the sim would not identify through the scope he is looking through |
+| **Z-2** | the LOCK cancel, today on RMB | moves to **X** | ⛔ keeping RMB — it is the zoom in every shooter |
+| **L-1** | lean (`CE-1212`) | hold **Q** / **E** (as in nearly every shooter): `Lean` = left / right while held; prone ignores it (the sim's rule) | ⛔ toggle — a lean held by mistake exposes him |
+| **L-2** | the keys that move for it | **use: E → F** · **next round: F → R** | ⛔ lean on Alt+A / Alt+D — two hands on one side of the keyboard while moving |
+| **W-1** | command wheel (`CE-1213`) | hold **T**: a ring of the orders his men fulfil whose pick is None, a Point or an Entity (`OrderMenu.OfferedFor` ∩ pick); the mouse picks a sector, release sends `OrderMenu.Draft(order, his men, crosshair point / unit).Send`; an order needing the form is not on the ring; Hold and Move first | ⛔ ordering the leader — he is possessed, his brain is the operator |
+| **W-2** | "follow me" | ⏳ not on the ring until an order for it exists (none in the vocabulary today); the stand-in is Move to his own position | ⛔ inventing a behaviour in the ui |
+| **T-1** | team switch (`CE-1214`) | **Tab** / **Shift+Tab**: the next / previous of his squad — his leader, the men naming the same leader, his own men — in network-id order; the one left goes back to his brain (release) | ⛔ any unit of the side — that is the map's job |
+| **H-1** | hit marker (`CE-1215`) | a `DetonationNotification` with `Shooter` = the possessed unit and a `Target` ⇒ a white cross at the crosshair for 0.3 s (red when the target is destroyed after it) | ⛔ a marker from the impact puff — it cannot tell a body from a wall |
+| **H-2** | damage direction | `Target` = the possessed unit ⇒ a red arc at the screen's edge toward the shot's origin (−`Travel`, else the shooter), fading over 2 s, the thicker the more damage | ⛔ a full-screen flash — it hides where it came from |
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
