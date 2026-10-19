@@ -1147,6 +1147,76 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ BR-14 (Urban Battle §4 ②; DESIGN_Thermal_And_Acoustic_Sensing §6 B) — an 81 mm tube's LAUNCH is heard, from the TUBE: the real
+        /// catalogue's <c>WeaponSystem_Mortar81</c> carries its own report (a crewed weapon's round names the weapon as its shooter, WS-3), so a
+        /// fired tube is a <c>HeavyWeapon</c> shot at its own position — heard by a listener 1.2 km away, not by one 3 km away (the report's
+        /// 2 km). The listeners are acoustic posts whose ears reach 5 km: a SOLDIER's ear range caps what he hears (§8.1) — that cap is the
+        /// open question sent back with BR-14, not this rail's.
+        /// </summary>
+        [Fact]
+        public void BR14_AnEightyOneMillimetreLaunch_IsHeardFromTheTube_At1200m_NotAt3km()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km — the default grid is 1 km
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+                var tube = _world.CreateEntity();
+                var at = new Vector3(100f, 100f, 0f);
+                _world.AddComponent(tube, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+                Assert.True(_world.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube), "the tube carries its own report");
+
+                Entity Listener(float east, long netId)
+                {
+                    var unit = _world.CreateEntity();
+                    _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+                    _world.AddComponent(unit, new NetworkIdentity { Value = netId });
+                    var post = new TkbTemplate("ListeningPost", 1400 + netId);
+                    post.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+                    {
+                        Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 5000f,
+                        Acoustic = new AcousticSensorDto { Range = 5000f, UncertaintyPerMeter = 0.05f },
+                    } } });
+                    new PerceptionTkbTranslator().Inject(_world, unit, post);
+                    return unit;
+                }
+                var near = Listener(1200f, 4301);
+                var far  = Listener(3000f, 4302);
+
+                _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = tube });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+                var one = Assert.Single(heard);                                   // the near post only: 3 km is past the report's 2 km
+                Assert.Equal(near, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(at.X, at.Y)) <= one.Radius + 0.01f,
+                    "the launch is heard at the TUBE (inside the estimate's radius)");
+                Assert.DoesNotContain(heard, h => h.Observer == far);
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        /// <summary>
         /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
         /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot
         /// see gets none. The unit no longer carries a SensorContactList.

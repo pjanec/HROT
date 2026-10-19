@@ -92,6 +92,8 @@ namespace Hrot.Core.Tkb
         internal const float FootstepsRange   = 25f;
         private const float CarEngineRange   = 80f;
         private const float ApcEngineRange   = 300f;
+        /// <summary>⭐ BR-16 — the RWS station's height on the APC (m): the 2.5 m hull's roof; the weapon's own 0.3 m pivot sits above it.</summary>
+        private const float ApcRwsZ = 2.5f;
         private const float RifleShotRange   = 400f;
         private const float RpgShotRange     = 500f;
         private const float RpgBurstRange    = 800f;
@@ -191,7 +193,17 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
                 Master(t, "MilitaryAPC", new DISEntityType { Kind = 1, Domain = 1, Category = 2 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
-                t.AddDescriptor(CarrierDefDto.PassengerSeats(8));   // ⭐ CE-2151 (R-2009) — the APC carries a squad (the convoy ambush boards five)
+                var apc = CarrierDefDto.PassengerSeats(8);   // ⭐ CE-2151 (R-2009) — the APC carries a squad (the convoy ambush boards five)
+                // ⭐ BR-16 (Urban Battle §4 ⑧; R-1001 — a vehicle's weapon is a TKB preset) — a 12.7 mm REMOTE weapon station: a Gunner
+                //   seat (8, enclosed — he works it from inside) that starts with a soldier, and the roof station (9) it operates — a pintle,
+                //   the M2's own all-round limits, NeedsGunner — that starts with an M2. Appended: seats 0–7 stay the indices scenarios name.
+                apc.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbInfantrySoldier, Exposed = false });
+                apc.Seats.Add(new SeatDto
+                {
+                    Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 8, NeedsGunner = true,
+                    Z = ApcRwsZ, StartWith = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg,
+                });
+                t.AddDescriptor(apc);
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f,   // CE-3092 — the APC's mobility kill (PACK-M002)

@@ -541,6 +541,11 @@ graph TD
 *What the picture shows that prose hid:* the two implicit sensors are one rule applied twice — a template that lists no sensors
 gets one sensor per sense it authors a range for; a template that lists sensors gets exactly its list.
 
+⭐ **`2026-10-19` (backend, `CE-3273`):** a WEAPON SYSTEM's shot is stamped on the weapon's own emitter (the round's shooter, WS-3), so
+every weapon type now authors its report (mortars 1.5–2.5 km, guns 4–5 km `HeavyWeapon`; HMG 1 km; hand weapons `SmallArms`). ⏳ The
+"heard if within BOTH ranges" rule above caps a launch at the listener's ear (a soldier 200 / 750 m) — `CE-3276` asks whether a loud
+class carries past it.
+
 | decision | why | rejected |
 |---|---|---|
 | an implicit acoustic sensor, the twin of `CE-3038`'s implicit visual one | `HearingRange` already says how far each type hears; the rule needs no new authoring | listing explicit sensors on the shipped soldiers (⛔ a listed visual entry reads the TKB, not the live receptor a Brain retunes — it would change how their vision is tuned) |
