@@ -37,4 +37,11 @@ related-designs:
 
 **Who re-sends the post move twice a second?** Even with the muscle tolerating it now, a re-send every ~0.5 s costs a DDS sample per man per re-send and hides a behaviour that keeps re-entering its move. 📐 The intent ids above are the evidence; the destination never changed. My guess (not measured): `CombatPosture`'s approach re-enters `MoveTo` each time the utility re-picks Advance (`CooldownSeconds` 0 on the posted men's advance params). If a re-send IS meant (to re-point a moved post), it still works: a different point is a new move as before.
 
+⭐ **Re-measured on the fixed binaries (`f1f4c89ba`) — the churn is worse than "the same point twice":** the ids reach ~100 by 40 s,
+and most re-sends are a **stop then a start** (`Mode None` with id N, then `PathToPoint` id N+1 — an `OnExit` then an `OnEnter` of
+the move executor) or a move to a **different** post point a few seconds later (Rifleman 2: (117, 153.9, 3) → (115.9, 154.55, 3);
+Rifleman 6: three different points in 40 s). Neither is a "re-send" the muscle can keep — a stop stops him, a new point re-plans — so
+the men still spend the posting phase starting and stopping. ⇒ the fix is on your side: one move per post, re-issued only when the
+post itself changes.
+
 **Repro:** `python3 scripts/utility-demo-check.py sq-defend-house --launch`. Probe: `/tmp`-style script that reads `NavigationIntent.IntentId` per man from the `Scenario` perspective every few seconds.
