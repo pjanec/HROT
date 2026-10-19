@@ -1745,8 +1745,8 @@ namespace Hrot.SimHost.Tests
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
-        /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the cover
-        /// ask with the fourth.</summary>
+        /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the roof
+        /// ask (D-2g) with none, the cover ask with the fourth.</summary>
         private static Squad Defending(out Vector3[] posts)
         {
             var s = new Squad(members: 4);
@@ -1760,6 +1760,8 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             posts = new[] { new Vector3(2, 25, 0), new Vector3(2, 25, 3), new Vector3(10, 25, 0), new Vector3(14, 24, 0) };
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), posts[0], posts[1], posts[2]);
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite));
             s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.CoverSite), posts[3]);
             s.Orders.Clear();
@@ -1891,6 +1893,57 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId,
                     block.Peek.HideTemplate);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2g (DA-5, DA-22, DA-47) — the ROOF is the second ask: only after the windows, only for the men they left, aimed
+        /// at the sector's point; a man given a roof post fights it prone behind the parapet (<c>FindRoofPosts</c> as his hide ask, a stance
+        /// peek up to the point's crouch), never the window way; with every man posted the cover ask is not made. ✅ Red-proofs: the roof
+        /// stage skipped ⇒ two men without a post and the cover ask runs; the roof flag not passed ⇒ his hide ask is cover.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_TheRoofIsAskedAfterTheWindows_ForTheMenLeft_AndARoofManHidesBehindTheParapet()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(DefendQuery(s, SquadDefendPlay.RoofSite).IsNull, "the windows are asked first");
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 25, 0), new Vector3(10, 25, 3));
+            s.Tick(); s.Tick();
+            var roofAsk = DefendQuery(s, SquadDefendPlay.RoofSite);
+            Assert.False(roofAsk.IsNull, "two men are left: the roof is asked");
+            ref readonly var sensor = ref s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(roofAsk);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId, sensor.BlueprintId);
+            var roof = new[] { new Vector3(3, 23, 6), new Vector3(9, 23, 6) };
+            AnswerAll(s, roofAsk, roof);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.True(DefendQuery(s, SquadDefendPlay.CoverSite).IsNull, "every man holds a post: no cover ask");
+            var given = s.LastOrders();
+            Assert.Equal(4, given.Count);
+            int onRoof = 0;
+            foreach (var m in s.Members)
+            {
+                var dto = PostureOf(s, m);
+                bool isRoof = roof.Contains(dto.Post.Point);
+                Assert.Equal(isRoof, dto.Post.Roof);
+                Assert.Equal(!isRoof, dto.Post.Window);
+                var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+                CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
+                if (!isRoof) continue;
+                onRoof++;
+                Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId, block.Peek.HideTemplate);
+                Assert.Equal(PeekMode.Stance, block.Peek.Mode);
+                Assert.Equal((byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1), block.Peek.HideStanceOverride);
+                Assert.Equal(dto.Post.Point, block.Peek.Anchor);
+            }
+            Assert.Equal(2, onRoof);
         }
 
         /// <summary>The squad defending at (6, 20) with its sector north, ordered with <paramref name="postsJson"/> (an authored Posts array).</summary>

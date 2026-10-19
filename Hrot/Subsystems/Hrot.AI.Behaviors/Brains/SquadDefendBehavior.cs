@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
-    /// ⭐ <c>CE-2275</c> D-1 (DA-34, DA-38) — the squad defence's memory: the candidate points the terrain gave (windows first, then cover),
+    /// ⭐ <c>CE-2275</c> D-1 (DA-34, DA-38) — the squad defence's memory: the candidate points the terrain gave (authored, windows, roof, cover),
     /// the post each man holds (an index into them, <see cref="None"/> = no post), and per man the hits / near misses counted in the current
     /// 10 s window. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c.
     /// </summary>
@@ -86,6 +86,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Window[Capacity];
         /// <summary>⭐ D-2f (DA-46) — per candidate: 1 = authored, with <see cref="WatchX"/>… the point he faces (0 there = the sector).</summary>
         public fixed byte Authored[Capacity];
+        /// <summary>⭐ D-2g (DA-5, DA-22) — per candidate: 1 = a roof post (from the roof ask), fought prone behind the parapet.</summary>
+        public fixed byte Roof[Capacity];
         public fixed float WatchX[Capacity];
         public fixed float WatchY[Capacity];
         public fixed float WatchZ[Capacity];
@@ -101,7 +103,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Per roster slot: the newest hit / near-miss time already counted.</summary>
         public fixed double LastSense[Capacity];
         /// <summary>0 = not asked · 1 = asked · 2 = done (answered, empty, or timed out).</summary>
-        public byte WindowStage, CoverStage;
+        public byte WindowStage, RoofStage, CoverStage;
         public double StageSince;
         /// <summary>1 = the posts are given (orders carry them).</summary>
         public byte Ready;
@@ -117,11 +119,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
-        public void Add(Vector3 p, bool window = false)
+        public void Add(Vector3 p, bool window = false, bool roof = false)
         {
             if (Count >= Capacity) return;
             X[Count] = p.X; Y[Count] = p.Y; Z[Count] = p.Z;
             Window[Count] = window ? (byte)1 : (byte)0;
+            Roof[Count] = roof ? (byte)1 : (byte)0;
             Count++;
         }
 
@@ -247,9 +250,10 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>⭐ <c>CE-2275</c> D-1 — the defence as a play over <see cref="SquadDefendManeuver"/>: Moving, then Posting (§8c).</summary>
     public struct SquadDefendPlay : ISquadPlay<SquadDefendParams>
     {
-        /// <summary>The commander's post-query sites (the window ask, then the cover ask).</summary>
+        /// <summary>The commander's post-query sites (the window ask, the roof ask, then the cover ask).</summary>
         public const int WindowSite = 0x22750001;
         public const int CoverSite  = 0x22750002;
+        public const int RoofSite   = 0x22750003;   // ⭐ D-2g
 
         /// <summary>Everyone within this of the position ⇒ the posts are asked for (m).</summary>
         public const float ArrivedMetres = 6f;
@@ -335,6 +339,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Set = 1, Window = p.Posts.Window[post], Radius = PostRadius,
                     // ⭐ D-2b — his own hide ask sets back too; ⭐ D-2f — not at an authored post (the author placed him there)
                     SetBack = p.Posts.Window[post] != 0 && p.Posts.Authored[post] == 0 ? p.Posts.SetBack : (byte)0,
+                    Roof = p.Posts.Roof[post],   // ⭐ D-2g — prone behind the parapet, crouched to fire
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
             };
@@ -358,8 +363,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         // ── Posting: plan, manned, displace ─────────────────────────────────────────────────────────────────────────────────────
 
-        /// <summary>The window ask, then — for the men left without a post, and only with an engagement area — the cover ask; then the posts
-        /// are given (a re-issue).</summary>
+        /// <summary>The authored posts, the window ask, then — for the men left without a post, and only with an engagement area — the roof
+        /// ask (D-2g) and the cover ask; then the posts are given (a re-issue).</summary>
         private static void Plan(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             bool hasEa = EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea);
@@ -391,6 +396,16 @@ namespace Hrot.AI.Behaviors.Brains
                 p.Posts.WindowStage = 2;
                 PickAll(ref p, in ctx);
             }
+            if (p.Posts.RoofStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))
+            {
+                // ⭐ D-2g (DA-5, DA-22, DA-47) — the roof, behind its parapet, for the men the windows did not take: points the cover ask
+                //   never gives (📌 measured on OBJ: 22 roof points, none hidden from the sector)
+                if (p.Posts.RoofStage == 0) { p.Posts.RoofStage = 1; p.Posts.StageSince = ctx.Now; }
+                bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindRoofPosts.BlueprintId, RoofSite, p.SearchRadius, from, ea, out var buffer);
+                if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: false, roof: true)) return;
+                p.Posts.RoofStage = 2;
+                PickAll(ref p, in ctx);
+            }
             if (p.Posts.CoverStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))
             {
                 if (p.Posts.CoverStage == 0) { p.Posts.CoverStage = 1; p.Posts.StageSince = ctx.Now; }
@@ -419,7 +434,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>True once the ask is over: its points kept (append), or it timed out (the sensor goes).</summary>
-        private static bool Settle(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, bool answered, in EqsCognitiveBuffer buffer, bool window)
+        private static bool Settle(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, bool answered, in EqsCognitiveBuffer buffer, bool window, bool roof = false)
         {
             if (!answered)
             {
@@ -429,7 +444,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             var points = buffer.GetSpanRO();
             for (int k = 0; k < buffer.Count && k < points.Length; k++)
-                p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ), window);
+                p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ), window, roof);
             return true;
         }
 

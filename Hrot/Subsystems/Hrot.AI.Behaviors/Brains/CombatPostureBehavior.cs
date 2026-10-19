@@ -126,6 +126,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (post.Radius <= 0f) return;
             peek = post.Window ? WindowDuelBehavior.Shape(0) : default;
             if (post.Window && post.SetBack) peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId;   // ⭐ D-2b (DA-6)
+            if (!post.Window && post.Roof)   // ⭐ D-2g (DA-22) — the window's stance peek over the parapet: prone behind it, up at the point's stance
+            {
+                peek = WindowDuelBehavior.Shape(0);
+                peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId;
+            }
             peek.Anchor = post.Point;
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;

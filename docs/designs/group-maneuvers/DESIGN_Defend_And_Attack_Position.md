@@ -755,6 +755,48 @@ the one picker, and skips both asks when no live man is left without a post · `
 replace `WindowCount` · an authored window post is not set back · `ArcOf` turns a man's arc to his post's `watchTowards`. Rail
 `SquadManeuverTests.CE2275_SquadDefend_AuthoredPostsComeFirst_TheTerrainIsAskedOnlyForTheMenLeft_AndAWatchPointTurnsTheArc`.
 
+#### D-2g — the roof, behind its parapet *(DA-5 `FindRoofPosts`, DA-22; behaviors, 2026-10-19)*
+
+📐 **Measured first** *(`cqb-village`, OBJ = `house-3f`, a sector point 45 m south)*: the roof storey (floor 6 m, 1 m parapet) carries
+**22 cover points, all crouched**; `FindCoverFromTarget` keeps **none** of them (it wants a point HIDDEN from the target, and a crouched
+head clears the parapet), and the window asks only read window points ⇒ a roof was never a post. The cover generator has no notion of
+"on a roof"; the terrain does (`TerrainWorld.SurfacesAt` lists the surfaces at a spot, the ground's index among them).
+
+```mermaid
+sequenceDiagram
+  participant P as SquadDefendPlay.Plan
+  participant E as EQS (commander's child sensors)
+  participant K as DefencePostPicker
+  P->>K: authored posts first (D-2f)
+  P->>E: windows (WindowSite) → the EA point
+  E-->>P: window points (Window = 1)
+  P->>K: PickAll
+  alt a live man still without a post, and an EA
+    P->>E: FindRoofPosts (RoofSite) → the EA point
+    E-->>P: roof points that see it (Roof = 1)
+    P->>K: PickAll
+  end
+  alt still a man without a post
+    P->>E: FindCoverFromTarget (CoverSite)
+    P->>K: PickAll
+  end
+  P->>P: Ready · re-issue — a roof man's MemberPost.Roof = 1
+  Note over P: CombatPosture.Post — Roof ⇒ the window's stance peek, its hide ask FindRoofPosts within 4 m of the post
+```
+*What the picture shows that prose hid:* the roof is **one more ask in the same chain**, ranked after the windows and before plain
+cover, gated like the others on "a man still without a post" — no new picker, no new phase; and the man's fight on the roof is the
+window's fight (prone, up at the point's stance) with a different hide ask, so nothing new runs in the posture either.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-47** | how a roof becomes a post, and how it is fought | **`FindRoofPosts`**: the cover generator with `RoofOnly` (the point's own surface is the TOP one at its spot, above the ground's, within 0.5 m; it reads 256 raw points so the ground round the self cannot crowd the roof out of the cap) · the eye sees the EA point · nearer scores more · no path ⇒ dropped (DA-5's *"only if reachable"*, `PathCostScoreTest`). The squad asks it **second**, only with an EA, for the men the windows left; a roof post's man hides **prone** behind the parapet and comes up to the point's stance (crouched) to fire — `MemberPost.Roof` → `CombatPosturePostJsonDto.roof` → the window's stance peek with `FindRoofPosts` as its hide ask | a `CoverKind.Roof` in the cover database: re-pins every terrain's database checksum for what one generator flag answers at query time · roof points through `FindCoverFromTarget`: measured — it keeps none (the head is seen) · the roof before the windows: a roof is the more exposed post (DA-5 ranks the upper storey's windows first) |
+
+*As built (2026-10-19):* `CoverPointsGenerator.RoofOnly` + `OnRoof` · `StarterTemplates.FindRoofPosts` (asset `2b048d56-…`) ·
+`SquadDefendPlay.RoofSite` / `DefencePosts.Roof` / `RoofStage` · `MemberPost.Roof` → `CombatPosturePostJsonDto.roof` →
+`CombatPostureBehavior.Post` (the window shape with `FindRoofPosts`). ⚠ An **authored** post on a roof is not flagged a roof post — it
+is fought as cover; mark it when a scenario needs one. Rails `TerrainEqsTests.CE2275_D2g_FindRoofPosts_OnOBJ_AnswersRoofPointsOnly_ThatSeeTheSector`
+(cqb-village: every answer at 6 m, on the roof, seeing the sector) · `SquadManeuverTests.CE2275_SquadDefend_TheRoofIsAskedAfterTheWindows_ForTheMenLeft_AndARoofManHidesBehindTheParapet`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
