@@ -585,3 +585,88 @@ Rails (the feature's suite): `SquadManeuverTests.CE2301_ANodeWithNoBrain_LogsEve
 `CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain`; IG's walk rail asserts one inbox (`IgNodeBootstrapperTests` CE2150).
 reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
 part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.
+
+## 8c. The request round trip — Casevac first *(`CE-2305`, behaviors, 2026-10-19 — Urban Battle §5 step 4; build-state: BUILDING — leans RQ-1…RQ-6, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep over `FDP/Toolkits/Fdp.Toolkits` and `Hrot.AI.Behaviors` for `RequestKind.` /
+`PendingRequest` / `AnswerRequest`, and reads of `StaffSystems.cs`, `CommandComponents.cs`, `ReportQueue.cs`, `PictureConditions.cs`,
+`PlatoonDefendBehavior.cs`, `CommandNodes.cs`, `CasualtyCareBehavior.cs`):** the inbox already folds a REQUEST into `CommandPicture.Requests`
+and the `PendingRequest(Kind)` guard reads it — ⛔ but **nothing sends a REQUEST and nothing answers one**; a queued report carries no
+subject (`QueuedReport` holds only the `CommandReport`, so the notification's `Subject` is never set); `CommandOrders.Stands` says only
+that the order was recorded in this run, not that the task still runs; and the drill that fetches a man who is NOT in the squad's own
+roster already exists — `SquadRecover {casualty, to, putDown}` (`CE-2173`).
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposerSystem { <<EXTENDED>> + ComposeCasevac: a member down and alive ⇒ REQUEST Casevac, once per man }
+  class ReportOutbox { <<EXTENDED>> + CasevacAsked (one bit per roster slot) }
+  class QueuedReport { <<EXTENDED>> + Subject }
+  class ReportQueue { <<EXTENDED>> Enqueue(…, subject) }
+  class SquadReportNotification { <<existing>> Subject }
+  class StaffInboxSystem { <<EXTENDED>> Fold: a REQUEST keeps its subject }
+  class PendingRequest { <<EXTENDED>> + SubjectNetId }
+  class CommandPictureOps { <<EXTENDED>> + Answered(commander, index) }
+  class PlatoonDefend { <<EXTENDED, control region>> + DAnswer: Casevac ⇒ the free reserve SquadRecover }
+  class SquadRecover { <<existing CE-2173>> the casualty to a point }
+  StaffComposerSystem --> ReportOutbox
+  StaffComposerSystem ..> ReportQueue
+  ReportQueue --> QueuedReport
+  QueuedReport ..> SquadReportNotification : Flush sets Subject
+  SquadReportNotification ..> StaffInboxSystem
+  StaffInboxSystem --> PendingRequest
+  PlatoonDefend ..> PendingRequest : reads
+  PlatoonDefend ..> CommandPictureOps : Answered
+  PlatoonDefend ..> SquadRecover : orders the reserve
+```
+*What the picture shows that prose hid:* the round trip needs ONE new behaviour state and no new behaviour — the sender is the staff
+(where LACE's WIA count already lives), the answer is an order to an existing drill, and the request's only new data is WHO.
+
+```mermaid
+sequenceDiagram
+  participant M as a man of squad A
+  participant SA as squad A's staff
+  participant W as the wire (BR-3)
+  participant PI as the platoon's inbox
+  participant PD as PlatoonDefend (control region)
+  participant R as the reserve squad
+  M->>M: incapacitated (alive)
+  SA->>SA: ComposeCasevac — REQUEST Casevac, Subject = him, At = where he lies
+  SA->>W: after the report delay (3 s)
+  W->>PI: SquadReportNotification
+  PI->>PI: Requests += {from A, Casevac, At, SubjectNetId}
+  PD->>PD: DWatch → DAnswer (a Casevac pending and a reserve free)
+  PD->>R: SquadRecover {casualty, to: the reserve's own point, putDown}
+  PD->>PI: Answered (the request is closed)
+  R-->>PI: PROGRESS Set (the staff, when the task ends)
+  PD->>R: SquadDefend its post again (KeepDefence)
+```
+*What the picture shows that prose hid:* the request closes when it is ANSWERED, not when the casualty arrives — the platoon then
+follows the reserve like any other squad, by its PROGRESS; a second request while the reserve is out waits in the picture.
+
+```mermaid
+graph TD
+  CGF[CGF: the brains] --> SC[StaffComposerSystem — before the brain tick]
+  SC -->|REQUEST| OUT[ReportOutbox → SquadReportNotification]
+  OUT -->|SquadReport topic, every node| IN[StaffInboxSystem]
+  IN --> PIC[(CommandPicture.Requests — the platoon)]
+  PIC --> PD[PlatoonDefend region 1: DAnswer]
+  PD -->|AssignTacticalIntentEvent| RS[the reserve squad's brain: SquadRecover]
+  PLA[PlatoonAttack Answer — CE-2277]:::later -.-> PIC
+  classDef later fill:#eee,stroke:#999,stroke-dasharray: 3 3
+```
+*What the picture shows that prose hid:* nothing new runs per frame; the attack's Answer (dashed) will read the same picture through the
+same ops when `CE-2277` lands.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **RQ-1** | **who asks**: the staff composer, for every unit that reports — a member alive and incapacitated ⇒ REQUEST Casevac, once per man (`ReportOutbox.CasevacAsked`); the squad's own buddy aid (its SOP's casualty care) goes on, the casevac takes him from there. ⚠ **a deviation from CB-47** ("the play sends REQUESTs"): the 9-line is a standing procedure, not a play's choice | each play sends it: a casualty during `SquadMarch` (or any play that forgets) is never asked for |
+| **RQ-2** | **the request names the casualty**: the queued report carries a `Subject`; the flush sets the notification's; the inbox keeps it as `PendingRequest.SubjectNetId` (a network id — the picture is replicated) | by position only: the answering squad would have to find him |
+| **RQ-3** | **who answers (defend)**: `PlatoonDefend`'s control region gains DAnswer — a pending Casevac and a FREE reserve (not committed by Reinforce, not on another casevac) ⇒ `SquadRecover {casualty, to: the reserve's own point, putDown}`; the request is answered at once (`CommandPictureOps.Answered`). No free reserve ⇒ it waits | a line squad nearest the casualty: it leaves its slice of the line |
+| **RQ-4** | **the reserve comes back**: on its PROGRESS Set or TaskFailed after the casevac order, the slot goes dirty and `KeepDefence` orders it to its post (`Stands` is only "recorded this run") | trust `Stands`: the reserve would stand at the collection point for good |
+| **RQ-5** | **once**: a man asked for is not asked for again, even if a second squad's man lies next to him; a man who dies is not asked for (dead is not a casualty to carry) | ask every frame: the platoon's four request slots fill in a second |
+| **RQ-6** | **the attack's Answer** (Platoon §4) uses the same ops with `CE-2277`; FireSupport / Reinforce answers are the headquarters play's (step 6) | build them now: no play to answer them yet |
+
+**Slice.** RQ-1…RQ-5; rails: the composer's request (once per man, its subject, the flush's Subject), the inbox keeping the subject,
+`PlatoonDefend` answering with the reserve and re-ordering it on its Set, a second request waiting while the reserve is out. ⛔ Not in
+it: a live demo (folds into `pc-defend-house`, step 7), the attack's Answer.

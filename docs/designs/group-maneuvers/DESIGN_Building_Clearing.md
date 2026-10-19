@@ -865,7 +865,7 @@ would have been blocked at the door the same frame. `RoomDrill` sets it on both 
 Rails: `SquadManeuverTests.CE2259_BC3_*` — the room order (pure) · a six-man squad clearing hall, back room, side room and upstairs
 through the real brain with men that obey, the front door breached by the first man after the leader and the side door by the man the
 turn brings round, Foothold, BuildingClear, Success · a locked side door: RoomBlocked, the rest cleared, Success · no answer: Failure.
-The four BC-1 rails pass on the extracted drill unchanged. ⛔ Not live (the CQB house, BR-1).
+The four BC-1 rails pass on the extracted drill unchanged. ✅ Red-proved by 8 compiling mutants, all killed (no loop back · the turn · Foothold · the storey order · the reach rule · a blocked door failing the run · the survey timeout · the stair's stack on its own floor). ⛔ Not live (the CQB house, BR-1).
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 

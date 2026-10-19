@@ -3442,6 +3442,9 @@ namespace Hrot.SimHost.Tests
         /// <paramref name="stuck"/>. Runs until the commander's run ends or <paramref name="seconds"/> pass; every door order is recorded
         /// as (key, who).</summary>
         private static (bool Done, Fbt.NodeStatus Result) Obey(Squad s, double seconds, List<(string Door, Entity By)> breaches, params string[] stuck)
+            => Obey(s, seconds, breaches, new List<Vector3>(), stuck);
+
+        private static (bool Done, Fbt.NodeStatus Result) Obey(Squad s, double seconds, List<(string Door, Entity By)> breaches, List<Vector3> posts, params string[] stuck)
         {
             var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
             int handled = 0;
@@ -3463,7 +3466,11 @@ namespace Hrot.SimHost.Tests
                         }
                     }
                     else if (o.IntentId == BehaviorNames.CombatPosture)
-                        s.Teleport(o.Entity, System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, opts).Post.Point);
+                    {
+                        var post = System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, opts).Post.Point;
+                        posts.Add(post);
+                        s.Teleport(o.Entity, post);
+                    }
                 }
             }
             return (false, default);
@@ -3514,14 +3521,15 @@ namespace Hrot.SimHost.Tests
         /// each RoomClear at its room's centre, the hall's with the Foothold, then BuildingClear and the run SUCCEEDS; the teams swap: the
         /// front door is breached by the first man after the leader, the side door (the third room) by the man the turn brings round; the
         /// upstairs room is entered by the stair, its stack on the floor below. ✅ Red-proofs: no loop back from Cleared ⇒ one room only; the
-        /// turn dropped ⇒ the same man breaches both doors; no Foothold ⇒ none in the list.
+        /// turn dropped ⇒ the same man breaches both doors; no Foothold ⇒ none in the list; the stair's stack on the room's own floor ⇒ no post below.
         /// </summary>
         [Fact]
         public void CE2259_BC3_ClearBuilding_RoomByRoom_TheTeamsSwap_UpTheStair_ThenBuildingClear()
         {
             var s = HouseSquad();
             var breaches = new List<(string Door, Entity By)>();
-            var (done, result) = Obey(s, 90, breaches);
+            var posts = new List<Vector3>();
+            var (done, result) = Obey(s, 90, breaches, posts);
             Assert.True(done, "the building is cleared");
             Assert.Equal(Fbt.NodeStatus.Success, result);
             var progress = Progress(s);
@@ -3532,6 +3540,10 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked);
             Assert.Equal(s.Members[1], breaches.First(b => b.Door == "t/H/front").By);   // the leader stays out; the first after him
             Assert.Equal(s.Members[4], breaches.First(b => b.Door == "t/H/side").By);    // the third room: turned by 2 × 4 of 5
+            var upstairs = RoomEntryPlan.PlanFrom(new[] { 0f, 10f, 6f, 10f, 6f, 18f, 0f, 18f }, 3f, new Vector2(5f, 16f), 0f, inFight: 6);
+            Assert.Equal(0f, upstairs.Stack(0).Z);
+            Assert.Contains(posts, q => Vector3.Distance(q, upstairs.Stack(0)) < 0.05f);   // the stair's stack, on the floor below
+            Assert.Contains(posts, q => Vector3.Distance(q, upstairs.Point(0)) < 0.05f);   // then up, to the points upstairs
         }
 
         /// <summary>
