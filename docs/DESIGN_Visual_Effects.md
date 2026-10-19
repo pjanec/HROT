@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). ⭐ §10 impacts on every surface BUILT 2026-10-16 (CE-1128 / CE-1129). Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-16 (§10 impacts on every surface — CE-1128 / CE-1129)
+updated: 2026-10-19 (§10 impact marks sized by their round — CE-1199)
 current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
@@ -986,6 +986,7 @@ rounds' impacts only — a cluster with two muscles would not show the other's. 
 | as-built | why |
 |---|---|
 | ⚠ DEVIATION from IM-5: an exit's puff is the SAME type as the entry's, not smaller | an effect has no per-entity scale (the TKB type IS the look, VE-C); a second puff type for one case was not worth a type |
+| ⭐ `CE-1199` (`2026-10-19`, found live) — 🔴 every impact passed damage 0 to `EffectsFor`, so a round with no `Effect.Set` of its own always got the SMALL puff and mark — a tank shell's mark was a bullet's. Now `EffectSpawnSystem.ImpactDamage`: the shooter's mount that fires that ammo (`CombatTkb.RoundOf` — a tank's 120 mm round carries no damage of its own, its gun does), else the round's own number ⇒ VE-D's small / medium / large by calibre. Rail `EffectTests.CE1199_AnImpactMark_IsTheSizeOfItsRound_ATankShellsIsLarge_ABulletsSmall` | the impact (`RoundImpactNotification`) carries the shooter and the ammo, not the damage |
 | the ground stop (IM-2) applies only WITH a world query, to non-warhead rounds | a world-less test or host behaves as before; a warhead round has its own ground check (W-3), which still bursts it |
 | `RoundImpactNotification` carries the TRAVEL too | the mark's fallback facing (IM-4) when a face is unknown, on any node |
 | `TerrainPenetration.Carry(…, impacts)`: a crossing that starts AT the segment's start (the round was already inside) is not marked again | the segment that entered it marked both faces |

@@ -146,7 +146,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// </summary>
     private void SpawnImpact(IEntityCommandBuffer cmd, ITkbDatabase? tkb, EntityRepository world, in RoundImpactNotification hit, double now)
     {
-        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, 0f);
+        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, ImpactDamage(world, tkb, hit));   // ⭐ CE-1199 — sized by its round
         var point = new Vector3(hit.X, hit.Y, hit.Z);
         var normal = SurfaceOf(hit);
         Spawn(cmd, tkb, set.Explosion, point + normal * 0.05f, null, now);
@@ -154,6 +154,29 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         ImpactsDrawn++;
         if (hit.Kind == (byte)ImpactKind.Stop)
             Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, 0f, false));   // the ricochet
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1199</c> (VE-D) — how hard the round that made <paramref name="hit"/> strikes, so its puff and mark take its calibre class: the
+    /// shooter's mount firing that ammo (its own round or one of its loadout, <see cref="CombatTkb.RoundOf(ITkbDatabase?, WeaponMountDto?, long)"/>
+    /// — a tank's 120 mm round carries no damage of its own, its gun does), else the round's own number, else 0 (the small class).
+    /// 📐 Before: 0 always ⇒ a tank shell's mark was a bullet's.
+    /// </summary>
+    public static float ImpactDamage(EntityRepository world, ITkbDatabase? tkb, in RoundImpactNotification hit)
+    {
+        if (hit.Ammo == 0) return 0f;
+        if (!hit.Shooter.IsNull && world.IsAlive(hit.Shooter) && CombatTkb.TryGetTemplate(world, hit.Shooter, out var t)
+            && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
+            foreach (var mount in suite.Mounts)
+            {
+                bool fires = unchecked((long)mount.AmmoGuid) == hit.Ammo;
+                foreach (var load in mount.Loadout) fires |= unchecked((long)load.AmmoGuid) == hit.Ammo;
+                if (fires) return CombatTkb.RoundOf(tkb, mount, hit.Ammo).Damage;
+            }
+        if (tkb != null && tkb.TryGetByType(hit.Ammo, out var ammo) && ammo != null)
+            foreach (var (type, _, data) in ammo.GetAllDescriptors())
+                if (type == typeof(AmmoWeaponBallisticsDto) && data is AmmoWeaponBallisticsDto b && b.Damage > 0f) return b.Damage;
+        return 0f;
     }
 
     /// <summary>⭐ CE-1129 (IM-4) — the face a mark lies on: the impact's normal, else back along the round's travel, else up.</summary>

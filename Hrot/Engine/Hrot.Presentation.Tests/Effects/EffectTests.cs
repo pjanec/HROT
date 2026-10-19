@@ -179,6 +179,40 @@ public sealed class EffectTests
     }
 
     /// <summary>
+    /// ⭐ CE-1199 (VE-D) — a mark is the size of the round that made it: a tank's main-gun round marks a wall as a LARGE crater, a rifle
+    /// ball as a small hole — read through the shooter's gun, since the tank's round carries no damage of its own. 🔒 User, live,
+    /// 2026-10-19: <i>"decals left by ammo are unified size same for bullets and same for tank cannon shells"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1199_AnImpactMark_IsTheSizeOfItsRound_ATankShellsIsLarge_ABulletsSmall()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<RoundImpactNotification>();
+        if (!world.IsComponentTypeRegistered<TkbIdentity>()) world.RegisterComponent<TkbIdentity>();
+        Entity Shooter(long type)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        var tank = Shooter(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams);
+        var rifleman = Shooter(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman);
+        long gunRound = unchecked((long)Fdp.Toolkit.Combat.CombatTkb.MountOf(world, tank, 0)!.AmmoGuid);
+        long ball = unchecked((long)Fdp.Toolkit.Combat.CombatTkb.MountOf(world, rifleman, 0)!.AmmoGuid);
+        Assert.True(EffectSpawnSystem.ImpactDamage(world, tkb, new RoundImpactNotification { Shooter = tank, Ammo = gunRound })
+                    >= EffectTkbCatalog.LargeDamageFrom, "the tank's round reads its gun's damage");
+        world.Bus.Publish(new RoundImpactNotification { Shooter = tank, X = 10, Y = 19.9f, Z = 1.5f, NormalY = -1f, Ammo = gunRound });
+        world.Bus.Publish(new RoundImpactNotification { Shooter = rifleman, X = 30, Y = 19.9f, Z = 1.5f, NormalY = -1f, Ammo = ball });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        var fx = Effects(world);
+        Vector3 At(Entity e) => world.GetComponentRO<SimTransform>(e).Position;
+        Assert.Equal(10f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalLarge).Entity).X);
+        Assert.Equal(30f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalSmall).Entity).X);
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1129 (docs/DESIGN_Visual_Effects.md §10 IM-5, IM-6) — every surface a round marked gets the round's puff and its mark, the
     /// mark turned onto the face: on a WALL it stands in the wall's plane (its +Z = the wall's normal), on the GROUND it is draped, on a ROOF
     /// it lies on the roof — never dropped to the ground below. 🔒 User, 2026-10-16: <i>"Every surface pierced should get a decal and
