@@ -314,6 +314,10 @@ namespace Hrot.SimHost
                     () => vis.GetScenario()));
             }
 
+            // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window: SimHost runs the staff, so its log is the one that fills today.
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
+                () => vis.GetRepo(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.SimHostReports, "SimHost", SimHostWindowColor.TitleBar));
+
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
             //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle` (20 sites across 4 hosts before
             //    this). ⭐ Also this host's FIRST `UiBundleHost.Compose` call.

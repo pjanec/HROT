@@ -598,6 +598,10 @@ namespace Hrot.ExCon
                 windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), _mock.SpawnController));
                 windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), _mock.MapConfigAdapter));
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
+                // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — ExCon keeps NO world (the map is remote), so this shows the empty
+                //   line until D4 puts the log somewhere ExCon can read it.
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
+                    () => null, Hrot.Presentation.Windows.ScenarioPanelWindowIds.ExConReports, "ExCon", ExConWindowColor.TitleBar));
                 // ⭐⭐⭐ UXI-11 S-4 — THE DER INSPECTOR'S SEAM, WIRED. 📄 §2.7.13.
                 // 🔒 Ruling ① (2026-09-10): "inspector selection changes global entity selection state.
                 //    not just map, not just editor, everywhere, every host, unified behavior."
