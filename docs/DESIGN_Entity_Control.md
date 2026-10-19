@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
+updated: 2026-10-19
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1318,6 +1318,16 @@ Backend's B-8 (`CE-3230`, [Civilians §7.9](DESIGN_Civilians_And_Crowd_Control.m
 station's weapon list (`Hud.Slots`, §8e) already lists every own mount, so a possessed man now has one more slot; `Hud.WeaponLine` names it
 `HANDS` (`Hud.HandsKind`) instead of its category's `GRENADE`. The civilian look's armed rule (`VisualFamilies.IsSoldier`, Civilians §8.6)
 skips a hands mount explicitly — it was already unarmed by its category. Rail `PossessionStationTests.CE1168_…`, red-proved.
+
+## 8i. S10 DECISIONS — the look modes, picking up, a vehicle with several weapons (`CE-1204` · `CE-1207` · `CE-1210`, `2026-10-19`, ui) — 📋 decided, not yet designed in detail
+
+Filed from the user's live tests (`2026-10-19`). Each item still gets its INVENTORY and UML here before it is built.
+
+| # | decision | basis |
+|---|---|---|
+| **LK-1** *(`CE-1204`)* | ✅ A PERSON gets the second view mode vehicles already have (§2.2 M-3, `V`): **mouse look** — W/S move him and A/D turn his body; the mouse looks freely within his body twist plus a neck limit; past that limit the body turns with the look, so the view never jams. The locked mode (today's — the mouse IS his heading, M-2) stays, switchable. The drawn upper body twists toward the look (`HumanGait.MaxAimTwist`, CE-3195) and the head turns; a neck limit joins the TKB; a vehicle's look is clamped to its turret / station arc (`TurretSuiteDto`, `CarrierDefDto.TraverseMinDeg`…) | 🔒 User, `2026-10-19`: *"Accepted lean for the person's mouse-look mode."* |
+| **PK-1** *(`CE-1207`)* | ✅ The operator may PICK UP a lying stone or round (`RoundPickUp`, Civilians §7.10) and TAKE a lying weapon into his Hands station — new verbs in the use list (§8h), the target the nearest lying item within reach of the crosshair (a round has no pick box today). ⭐ A lying pick-up weapon is not offered for possession (`CE-1205`): it cannot fire by itself (Weapon Systems W-D) | 🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* |
+| **MW-1** *(`CE-1210`)* | ⏳ **OPEN — the lean, for the user:** a vehicle with several crewed weapons (the UH-60's two door guns) is played by **switching seats**, as in most crew-vehicle games: the driver / pilot seat drives and fires what can be aimed from it (the vehicle's own mounts, a station whose arc holds the crosshair); a **gunner seat** puts the camera at that gun, the look clamped to its arc, keys 1–4 its weapons, while the vehicle's own brain keeps flying / driving its order. ⛔ Rejected: every weapon from the pilot's eye (today) — a side door gun's arc rarely holds the pilot's crosshair | the user's question, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* |
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
