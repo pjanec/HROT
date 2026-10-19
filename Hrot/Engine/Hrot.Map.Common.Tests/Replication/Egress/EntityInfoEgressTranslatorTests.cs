@@ -82,6 +82,7 @@ public sealed class EntityInfoEgressTranslatorTests
         {
             Commander   = cmdEnt,
             Designation = TacticalDesignation.Wingman,
+            FireTeam    = FireTeam.B,   // ⭐ CE-2281 / R-3019
         });
 
         world.Tick();
@@ -95,6 +96,7 @@ public sealed class EntityInfoEgressTranslatorTests
         var subSample = writer.Publishes[subIdx];
         Assert.Equal(10, subSample.CommanderId);
         Assert.Equal(eTacticalDesignation.Wingman, subSample.TacticalDesignation);
+        Assert.Equal((byte)FireTeam.B, subSample.FireTeam);   // ⭐ CE-2281 / R-3019 — the team rides the wire
     }
 
     // ── CS010 Test 2 ─────────────────────────────────────────────────────────

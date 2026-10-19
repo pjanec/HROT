@@ -59,6 +59,46 @@ public sealed class SharedRegistryCoversTheSharedPackTests
         Assert.True(world.Bus.IsRegistered<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>());
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3268</c> — every component a shared-pack translator TARGETS (<c>TargetComponentIds</c>) is registered by the shared registry:
+    /// an ingress may add it on any node. 📌 Found live (2026-10-19): SimHost crashed on the first sector order — <c>EngagementArea</c> (417,
+    /// replicated since CE-3261) was registered only by the brain's cognitive registry. The walk above could not see it: those ingresses apply
+    /// through their command buffer, not <c>ApplyToEntity</c>. ✅ Red before the fix (EngagementArea).
+    /// </summary>
+    [Fact]
+    public void CE3268_EveryComponentASharedTranslatorTargets_IsRegisteredByTheSharedRegistry()
+    {
+        var world = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(world);
+        var registered = world.GetRegisteredComponentTypes();
+        var byId = new Dictionary<int, List<Type>>();
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type[] types;
+            try { types = asm.GetTypes(); } catch (ReflectionTypeLoadException e) { types = e.Types.Where(t => t != null).ToArray()!; }
+            foreach (var t in types)
+                if (t.GetCustomAttribute<ComponentIdAttribute>() is { } a)
+                    (byId.TryGetValue(a.Id, out var l) ? l : byId[a.Id] = new List<Type>()).Add(t);
+        }
+
+        using var participant = new DdsParticipant(Domain);
+        var entityMap = new NetworkEntityMap();
+        var translators = SharedTranslatorPack.Create(
+            participant, entityMap, localNodeId: 1, world.Bus, new GhostCreationSystem(entityMap),
+            HrotEnvironment.CreateGeoTransform()).ToList();
+        var missing = new List<string>();
+        int checkedIds = 0;
+        foreach (var t in translators.OfType<IDescriptorTranslator>())
+            foreach (int id in t.TargetComponentIds)
+            {
+                checkedIds++;
+                if (!byId.TryGetValue(id, out var candidates) || !candidates.Any(registered.ContainsKey))
+                    missing.Add($"{t.GetType().Name} → {id} ({string.Join("/", candidates?.Select(c => c.Name) ?? new[] { "?" })})");
+            }
+        Assert.True(checkedIds > 10, $"only {checkedIds} target ids were walked — the pack is not being found.");
+        Assert.True(missing.Count == 0, "a shared translator targets a component HrotSharedComponentRegistry does not register: " + string.Join(" | ", missing.Distinct()));
+    }
+
     private static (List<string> Failures, int Applied) ApplyEveryIngress(EntityRepository world)
     {
         using var participant = new DdsParticipant(Domain);

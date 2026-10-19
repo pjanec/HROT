@@ -73,8 +73,12 @@ namespace Fdp.Toolkit.Combat
         public const float FullLight = 0.3f;
 
         /// <summary>The light factor in [<see cref="NightFactor"/>, 1] for a relative light.</summary>
-        public static float LightFactor(float relativeLight)
-            => NightFactor + (1f - NightFactor) * Math.Clamp(relativeLight / FullLight, 0f, 1f);
+        public static float LightFactor(float relativeLight) => LightFactor(relativeLight, NightFactor);
+
+        /// <summary>⭐ <c>CE-3216</c> S2 (R-3017) — the SAME curve with another night floor: 1 at <see cref="FullLight"/> and above,
+        /// <paramref name="nightFactor"/> in full dark. Perception detects with its own floor (<c>PerceptionWeather.DetectNightFactor</c>).</summary>
+        public static float LightFactor(float relativeLight, float nightFactor)
+            => nightFactor + (1f - nightFactor) * Math.Clamp(relativeLight / FullLight, 0f, 1f);
 
         /// <summary>The range, m, at which an item of <paramref name="sizeM"/> is identified under <paramref name="seeing"/>, capped by the
         /// visibility.</summary>

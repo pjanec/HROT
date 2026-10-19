@@ -41,7 +41,7 @@ public sealed class Map3DFrameRail
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Standing, -6f, -9f),
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Crouched, -3f, -9f),
         (TkbEntityTypes.Infantry_Rifleman, StanceId.Prone, 0f, -9f),
-        (UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, 3f, -9f),
+        (CivilianTkbCatalog.TkbCivilianAdultMale, StanceId.Standing, 3f, -9f),
         (TkbEntityTypes.Unit_TankPlatoon, StanceId.Standing, 6f, -9f),   // a unit: no body
     };
 
@@ -556,7 +556,7 @@ public sealed class Map3DFrameRail
         Person(1.5f, -9f, Rifleman, StanceId.Prone, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         var runner = Person(-5f, 1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         var glider = Person(-5f, -1.5f, Rifleman, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);   // ⭐ WL-6c — the glide
-        var walker = Person(-5f, -4.5f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        var walker = Person(-5f, -4.5f, CivilianTkbCatalog.TkbCivilianAdultMale, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -1334,7 +1334,7 @@ public sealed class Map3DFrameRail
         Person(0f, 1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         Person(0f, 0f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         var runner = Person(-4f, -1.5f, Rifleman, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
-        var civilian = Person(-4f, -3f, UrbanCombatTkbCatalog.TkbCivilianPedestrian, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        var civilian = Person(-4f, -3f, CivilianTkbCatalog.TkbCivilianAdultMale, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -1594,7 +1594,7 @@ public sealed class Map3DFrameRail
         Unit(TkbEntityTypes.Infantry_Rifleman, 1.6f);
         Unit(TkbEntityTypes.Infantry_Rifleman, 0.6f, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         Unit(TkbEntityTypes.Infantry_Rifleman, -0.4f, StanceId.Crouched);
-        Unit(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, -1.4f);   // a PERSON (TkbEntityTypes.CivilianPedestrian is drawn as a box)
+        Unit(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, -1.4f);   // a PERSON (TkbEntityTypes.CivilianPedestrian is drawn as a box)
         var dead = Unit(TkbEntityTypes.Infantry_Rifleman, 0f, dx: -2.4f);
         world.SetComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });   // first seen dead: he lies there
 
@@ -2329,7 +2329,7 @@ public sealed class Map3DFrameRail
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = side });
         }
-        long civilian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, child = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianChild;
+        long civilian = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, child = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianChild;
         for (int i = 0; i < 10; i++) Person(civilian, 0f, 4.5f - i * 0.9f);
         Person(child, 1.0f, 2.2f); Person(child, 1.0f, 1.3f); Person(child, 1.0f, 0.4f);
         Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, 2.0f, ForceId.Friend);    // in front of the civilians (the camera is east)
@@ -2524,6 +2524,76 @@ public sealed class Map3DFrameRail
         Assert.All(men, e => Assert.NotNull(bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(e).Value)));
         float? TopOf(int k) => bodies.TopAbove(world.GetComponentRO<NetworkIdentity>(men[k]).Value);
         Assert.True(TopOf(2) > TopOf(1) + 0.3f, "the sign carrier's card does not clear his sign");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1193 (backend's <c>Lean</c>, CE-3257 §13 LN-2) — three soldiers facing the camera: leaning LEFT, upright, leaning RIGHT, and a
+    /// fourth leaning left while crouched. The drawn eye of each leaning man sits <see cref="Fdp.Toolkit.Combat.Leans.Shift"/> beside the
+    /// upright man's (his own left), at the same height, with his feet where they were. Screenshot <c>people-2-lean.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1193_V_TheLeanIsDrawnAsTheSimLeans()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();
+        world.RegisterComponent<StanceIntent>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        var facing = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f);   // facing the camera (south): his left is the picture's right
+
+        Entity Man(float dx, Fdp.Toolkit.Combat.LeanSide side, StanceId stance = StanceId.Standing)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)), Rotation = facing });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, e, side));
+            return e;
+        }
+        var left = Man(-3f, Fdp.Toolkit.Combat.LeanSide.LeanLeft);
+        var none = Man(-1f, Fdp.Toolkit.Combat.LeanSide.LeanNone);
+        var right = Man(1f, Fdp.Toolkit.Combat.LeanSide.LeanRight);
+        var crouched = Man(3f, Fdp.Toolkit.Combat.LeanSide.LeanLeft, StanceId.Crouched);
+        var plain = Man(5f, Fdp.Toolkit.Combat.LeanSide.LeanNone, StanceId.Crouched);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y, ground + 1.2f), 9f, MathF.PI * 1.5f, -0.08f);   // from the south, eye height
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-2-lean.png"));
+
+        Vector3 Eye(Entity e) { Assert.True(bodies.TryGetEyeLocal(e, out var v), "not drawn as a figure"); return v; }
+        float shift = Fdp.Toolkit.Combat.Leans.Shift;
+        var upright = Eye(none);
+        // body frame: +Y is his left — each eye sits 0.4 m · (its height / the stance's eye) beside the upright one, no higher, no lower
+        float k = upright.Z / Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+        Assert.Equal(upright.Y + shift * k, Eye(left).Y, 3);
+        Assert.Equal(upright.Y - shift * k, Eye(right).Y, 3);
+        Assert.Equal(upright.Z, Eye(left).Z, 3);
+        Assert.Equal(upright.X, Eye(left).X, 3);
+        var low = Eye(plain);
+        Assert.Equal(low.Y + shift * low.Z / Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched, Eye(crouched).Y, 3);
     }
 
     /// <summary>

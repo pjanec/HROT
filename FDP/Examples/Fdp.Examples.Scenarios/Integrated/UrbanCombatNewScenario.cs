@@ -160,7 +160,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── TKB type IDs (DEM1-D010 §9.2) ────────────────────────────────────
         // ⭐ DERIVED from the shared catalogue — one source of the type codes (2026-08-31).
-        private const int TkbCivilianPedestrian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian;
+        private const int TkbCivilianPedestrian = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
         private const int TkbCivilianCar        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar;
         private const int TkbMilitaryApc        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc;
         private const int TkbInfantrySoldier    = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier;

@@ -64,5 +64,32 @@ namespace Fdp.Toolkit.Terrain
             if (world == null) throw new ArgumentNullException(nameof(world));
             return () => world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
         }
+
+        // ⭐⭐ CE-2244 — held BESIDE the world (as RecentShots): a load-time fact of this node, never saved, recorded or replicated.
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, object> s_pending = new();
+        private static readonly object s_marker = new();
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2244</c> — marks that a terrain is being loaded into <paramref name="world"/> and is not resident yet (the terrain load
+        /// step, from its frame-thread <c>BeforePrepare</c> to its commit or abort). 📌 A node's commit is not a cluster barrier (CE-2242):
+        /// a faster node's units replicate in while this one still prepares (SimHost bakes its navmesh), and sight judged with NO terrain
+        /// saw through every wall — a man behind a tower was acquired and remembered (measured: ua-threat-ranking, frame 16).
+        /// </summary>
+        public static void MarkPending(EntityRepository world, bool pending)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (pending) s_pending.AddOrUpdate(world, s_marker);
+            else s_pending.Remove(world);
+        }
+
+        /// <summary>⭐ <c>CE-2244</c> — is a terrain still coming into <paramref name="world"/>? (Sight is not judged until it is in.)</summary>
+        public static bool IsPending(EntityRepository world) => world != null && s_pending.TryGetValue(world, out _);
+
+        /// <summary>A reader of <see cref="IsPending"/> for code that runs on a background view (the LOS strategy).</summary>
+        public static Func<bool> Pending(EntityRepository world)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return () => IsPending(world);
+        }
     }
 }

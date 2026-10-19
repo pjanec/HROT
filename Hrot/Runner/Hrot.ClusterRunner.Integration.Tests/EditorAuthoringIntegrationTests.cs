@@ -326,7 +326,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
     [Fact]
     public void BehaviorCatalog_Civilian_ReturnsCivilianBehaviors()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale);
 
         Assert.Contains("WanderCivil", behaviors);
         Assert.DoesNotContain("Ambush",    behaviors);

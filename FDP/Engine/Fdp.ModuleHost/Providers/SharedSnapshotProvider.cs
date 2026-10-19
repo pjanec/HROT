@@ -40,6 +40,7 @@ namespace Fdp.ModuleHost.Providers
                     
                     // Sync using UNION MASK (critical)
                     _currentSnapshot.SyncFrom(_liveWorld, _unionMask);
+                    _currentSnapshot.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the convoy's view carries the frame's clock
                     
                     // Sync events.
                     // FlushToReplica -> InjectIntoCurrent writes into the READ buffer of each

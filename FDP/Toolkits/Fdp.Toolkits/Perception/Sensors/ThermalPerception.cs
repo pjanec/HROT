@@ -45,6 +45,9 @@ namespace Fdp.Toolkit.Perception.Sensors
             {
                 range  = th.Range;
                 fovCos = MathF.Cos(th.FieldOfViewDegrees * 0.5f * MathF.PI / 180f);
+                // ⭐ CE-3216 S2-3 (R-3017) — no light term; fog caps it at twice the visibility
+                if (PerceptionWeather.TrySample(view, unit, out var weather))
+                    range = PerceptionWeather.ThermalRange(range, in weather);
                 return range > 0f;
             }
             range = 0f; fovCos = 1f;
@@ -64,14 +67,22 @@ namespace Fdp.Toolkit.Perception.Sensors
         {
             float min = view.HasManagedComponent<SensorCapability>(observer)
                         && view.GetManagedComponentRO<SensorCapability>(observer).Current.Thermal is { } th ? th.MinSignature : 0f;
+            // ⭐ CE-3216 S2-3 (R-3017) — the crossover dims only the PASSIVE base signature (a cold hull against its background); the heat
+            //   term (an engine, a weapon fired, a body) is unchanged. Sampled once, at the observer's unit; 1 without a clock.
+            var unit = EqsContext.Self(view, observer, sensor);
+            float contrast = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.BaseContrast(in weather) : 1f;
             for (int i = 0; i < candidates.Length; i++)
             {
                 ref var c = ref candidates[i];
                 if (c.EntityId <= 0) continue;
                 var target = new Entity((ulong)c.EntityId);
-                bool hot = view.IsAlive(target) && view.HasComponent<ThermalState>(target)
-                        && view.GetComponentRO<ThermalState>(target).Signature >= min
-                        && view.GetComponentRO<ThermalState>(target).Signature > 0f;
+                bool hot = false;
+                if (view.IsAlive(target) && view.HasComponent<ThermalState>(target))
+                {
+                    ref readonly var ts = ref view.GetComponentRO<ThermalState>(target);
+                    float signature = ts.BaseSignature * contrast + ts.Heat * (1f - ts.BaseSignature);
+                    hot = signature >= min && signature > 0f;
+                }
                 if (!hot) c.EntityId = -1L;
             }
         }

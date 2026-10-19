@@ -250,7 +250,8 @@ namespace Fdp.Toolkit.Perception.Survey
         /// <summary>The <c>SensorConfigPayload.Kind</c> / <c>ConfigKind</c> of a survey request.</summary>
         public const string Kind = "WorldSurvey";
 
-        private static readonly JsonSerializerOptions s_options = new() { WriteIndented = false };
+        // ⭐ CE-3187 (R-2005) — the one shared options instance (OneSharedJsonOptionsTests); both ends of the survey wire use this codec
+        private static readonly JsonSerializerOptions s_options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
         public static string Encode(WorldSurveyRequest request) => JsonSerializer.Serialize(request, s_options);
 

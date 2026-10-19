@@ -59,6 +59,29 @@ namespace Hrot.Core.Tests
         /// roof, a compound's yard hidden from the street.</summary>
         private static readonly Lazy<(JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb)> s_demoCity = new(() => Load("demo-city"));
 
+        /// <summary>⭐ UI-4 (HANDOFF_Behaviors_To_Ui_Platoon_Demos, CE-2290) — cqb-village's premises: the platoon demos' stage
+        /// (DESIGN_Platoon_Attack_Defend_Clear §12.1, PC-12).</summary>
+        private static readonly Lazy<(JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb)> s_cqbVillage = new(() => Load("cqb-village"));
+
+        public static IEnumerable<object[]> CqbVillagePremises()
+        {
+            foreach (var (demo, node) in s_cqbVillage.Value.Demos)
+                foreach (var p in (JsonArray)node!["premises"]!)
+                    yield return new object[] { demo, (string)p!["id"]! };
+        }
+
+        [Fact]
+        public void UI4_CqbVillage_TheTable_HoldsTheStagesSightLines()
+        {
+            Assert.Contains("pc-stage", s_cqbVillage.Value.Demos.Select(d => d.Key));
+            Assert.True(CqbVillagePremises().Count() >= 6, "cqb-village's premise table is near-empty");
+        }
+
+        [Theory]
+        [MemberData(nameof(CqbVillagePremises))]
+        public void UI4_ACqbVillagePremise_Holds_WithAMarginFromEveryThreshold(string demo, string premise)
+            => Check(s_cqbVillage.Value, demo, premise);
+
         public static IEnumerable<object[]> DemoCityPremises()
         {
             foreach (var (demo, node) in s_demoCity.Value.Demos)

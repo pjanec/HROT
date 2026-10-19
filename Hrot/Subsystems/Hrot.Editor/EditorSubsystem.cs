@@ -4996,6 +4996,10 @@ namespace Hrot.Editor
                 new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
 
+            // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
+                () => _world, Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorReports, "Scenario", EditorWindowColor.TitleBar));
+
             if (_previewPanel     != null && _previewController != null)
                 windowManager.RegisterWindow(new EditorPreviewWindow(_previewPanel, _previewController));
 

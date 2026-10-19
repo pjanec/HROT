@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). S2–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
-current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice). §0 is the measured ground.
+build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED and APPROVED 2026-10-19 (§8, R-3017) — READY-TO-BUILD. S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice) · §8 S2 perception design (leans, awaiting the user). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
 related-designs:
+  - docs/DESIGN_Sensors_And_Doctrine.md — §5.7 AQ-2: the acquisition dwell S2 leaves unchanged (§8.3 S2-1)
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.8 A-4 (`SeeingConditions`, the light curve): the one curve S2 reuses
   - docs/designs/tkb-1/DESIGN.md — the "should every entity have a SimTransform?" analysis (2026-09-13): a positionless entity is safe as long as it carries NO SimTransform; this file builds the first one
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — §7d D-13 (how the scenario's wind reaches every node): SUPERSEDED by this file — the World Environment entity replicates; the parachute model reads WeatherField's wind profile
   - docs/DESIGN_Terrain_Zones_And_Assets.md — §2.1: a zone is its OWN type (8804), not a flag on the tactical area — the precedent for the Weather Region type
@@ -377,3 +379,138 @@ both regions outlined, dusk, clear / fog / blended). Each red-proved.
 ⚠ **Not built:** a friendlier weather form (E-3: the inspector edits it today); the 3-D frame screenshots inside each region (the demo
 is ready for them; left for the user's live look).
 
+
+## 8. S2 — weather and night in PERCEPTION *(backend, `CE-3216`; designed `2026-10-19`; ✅ APPROVED `2026-10-19` (R-3017) — build-state: READY-TO-BUILD)*
+
+✅ **RULED `2026-10-19` (R-3017)** — every lean in §8.3 as written. 🔒 User: *"The visual and hearing ranges accepted."* · *"Thermal and nihht vision leans accepted."*
+
+### 8.1 INVENTORY *(codebase-memory CLI `search_graph` + grep, one corpus sweep over `docs/` and `.dev/`; ⚠ `check_index_coverage` is not available through the CLI)*
+
+| what | where | ⭐ what it means for S2 |
+|---|---|---|
+| vision's range and FOV — **one** place | `VisualPerception.Optics` (`Perception/Sensors/VisualPerception.cs:60`), already scaled by binoculars / a scope (CE-3234, CE-3254) | ⭐ the seam for light and visibility; Civilians `:3680` names it the one place |
+| thermal's range | `ThermalPerception.Optics` (`ThermalPerception.cs:41`), passed to the shared `VisualSensorGenerator` | the same seam, its own record |
+| thermal's filter | `SignatureFilterTest`: `ThermalState.Signature = Base + Heat × (1 − Base)` ≥ the sensor's `MinSignature` (`ThermalState.cs:30`) | ⭐ crossover acts on the BASE term; there is no background term today (Thermal design row E/F) |
+| hearing's range | `AcousticPerception.Ears` (`AcousticPerception.cs`): heard within BOTH the listener's range and the source's audible range | ⭐ the seam for wind and rain; no attenuation formula exists (Thermal design `:538`) |
+| acquisition dwell (BR-7, AQ-2) | `Acquisition.DelaySeconds(range, exposure, observer)` (`Acquisition.cs:65`) | no light term; S2 leaves it alone (S2-1 below) |
+| the precedent | `SeeingConditions.Of` + `Identification.LightFactor` (`Combat/Armament.cs:48-80`, CE-3229 A-4): light factor 0.1 at night → 1 at `RelativeLight` ≥ 0.3, capped by the visibility at the man; ClearDay with no World Environment | ⭐ the one built judgement that reads light; S2 reuses it, never a second curve |
+| the weather | `WeatherField.At(world, point, utc, ground)` → `WeatherSample` { `RelativeLight`, `Light`, `VisibilityM`, `ExtinctionPerM`, `Wind`, `WindGustMps`, `TemperatureC`, `GroundTemperatureC`, `PrecipitationMmPerHour`, … } | the pure function (R-3012); no new state |
+| 🔴 **the snapshot** | the EQS module runs `SlowBackground(10)` on a SoD snapshot with the FULL component mask (`ModuleHostKernel.cs:348`, `EqsModule` declares none) ⇒ `ScenarioClock`, `WeatherConditions`, `EditablePolyline` (SnapshotViaClone) and `GlobalTime` (CE-3267) ARE there; ⛔ but `SyncFrom` copies a fixed singleton list (`EntityRepository.Sync.cs:116-123`) WITHOUT `IGeographicTransform` (id 75) | ⛔⛔ `WeatherField.At` then puts the sun at lat 0 / lon 0 (`WeatherField.cs:278-280`): at the default start (06:00 UTC, C-3) that is SUNRISE on the equator — every scenario would see in twilight. ⇒ **S2-0** |
+| where the scenarios stand | every terrain's origin is Berlin 52.52 N 13.405 E (`Recipes/Terrain/*/terrain.json:3`); the default start is 2025-06-21 06:00 UTC (`ScenarioClock.cs:31`) ⇒ ~07:00 local solar time, the sun ~25° up | ⭐ no shipped scenario starts dark: S2 moves no baseline unless a scenario authors night or fog |
+| night devices | none: `HeldItemKind` is None · Weapon · Throwable · Phone · Binoculars; no NVG / intensifier descriptor; "night sight" only named in AW-15 | ⇒ S2-2 |
+
+Design records read — each applies or not: **R-3012** (weather derived on every node, never stored) — applies, S2 adds no state ·
+**Weather §4** (Koschmieder; light bands; crossover "falls out of the temperature model") — applies, gives the inputs, not the
+perception formula · **Civilians §7.8 A-4** (`SeeingConditions`) — applies, the curve S2 reuses · **Sensors AQ-2** — read, S2 does not
+change it (S2-1) · **AQ82** ("lighting, thermal signatures — tests inside a sensing template") — applies: S2 changes no sensor FORM ·
+**AQ94 §116** (the visibility at a man's own floor) — applies to where the sample is taken · **Map 3D WS-2** (the darkest night shown
+as a dusk) — ⛔ display only; perception must not copy that floor · **Thermal & Acoustic row F** ("weather / night — not asked") — the
+gap S2 fills · `.dev/_DONE/demos-1` `EnvironmentStateComponent` — ⛔ superseded by R-3012.
+
+### 8.2 Diagrams
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityRepository { <<existing>> SyncFrom(source, mask) · S2-0 adds IGeographicTransform to the copied singletons }
+  class WeatherField { <<existing>> At(world, point, utc, ground) WeatherSample }
+  class SeeingConditions { <<existing, CE-3229>> RelativeLight VisibilityM Optics · S2 adds AtObserver(world, unit) }
+  class Identification { <<existing, CE-3229>> LightFactor(relativeLight) NightFactor FullLight }
+  class PerceptionWeather { <<NEW, Fdp.Toolkits.Perception>> VisionRange(range, seeing) ThermalRange(range, sample) BaseContrast(sample) HearingFactor(sample) }
+  class VisualPerception { <<existing>> Optics(view, sensor, unit) · range x light, capped by visibility }
+  class ThermalPerception { <<existing>> Optics · range capped by thermal visibility }
+  class SignatureFilterTest { <<existing>> Base x contrast + Heat x (1 - Base) >= MinSignature }
+  class AcousticPerception { <<existing>> Ears(view, sensor) · range x wind and rain }
+  class Acquisition { <<existing, AQ-2>> DelaySeconds UNCHANGED }
+  VisualPerception ..> PerceptionWeather
+  ThermalPerception ..> PerceptionWeather
+  SignatureFilterTest ..> PerceptionWeather
+  AcousticPerception ..> PerceptionWeather
+  PerceptionWeather ..> SeeingConditions
+  PerceptionWeather ..> Identification : one light curve
+  SeeingConditions ..> WeatherField
+  WeatherField ..> EntityRepository : the geo transform, the clock, the regions
+```
+*What the picture shows that prose hid:* every modality goes through ONE new static helper that reads the ONE existing curve
+(`Identification.LightFactor`) — S2 adds no second light curve and no new component; and `Acquisition` is deliberately untouched.
+
+```mermaid
+sequenceDiagram
+  participant K as ModuleHostKernel (frame thread)
+  participant S as SoD snapshot
+  participant E as EqsModule (10 Hz, background)
+  participant G as VisualSensorGenerator
+  participant O as VisualPerception.Optics
+  participant P as PerceptionWeather
+  participant W as WeatherField
+  K->>S: SyncFrom(live, full mask) + CopyClockFrom + IGeographicTransform (S2-0)
+  K->>E: Tick(snapshot)
+  E->>G: Generate(observer sensor)
+  G->>O: Optics(view, sensor, unit)
+  O->>O: receptor range, binoculars or scope
+  O->>P: VisionRange(range, SeeingConditions.AtObserver)
+  P->>W: At(world, unit position, utc, unit Z)
+  W-->>P: RelativeLight, VisibilityM
+  P-->>O: min(range x LightFactor, VisibilityM)
+  O-->>G: range, fovCos
+  G->>G: broadphase within range, then the sight test and AQ-2 as today
+```
+*What the picture shows that prose hid:* the weather is sampled ONCE per sensor per solver tick, at the OBSERVER, on the background
+snapshot — so the geo transform has to be in that snapshot first (S2-0), or the sun is computed for 0° N 0° E.
+
+```mermaid
+graph TD
+  subgraph Every_host_running_EqsModule["SimHost, editor muscle, Stride (EqsModule, 10 Hz SoD)"]
+    SY[ModuleHostKernel SyncFrom] --> SN[snapshot: components + 8 singletons + clock + S2-0 geo]
+    SN --> VG[VisualSensorGenerator: vision, thermal]
+    SN --> AG[AcousticSensorGenerator]
+    VG --> OP[Optics: PerceptionWeather]
+    AG --> EA[Ears: PerceptionWeather]
+    VG --> SF[SignatureFilterTest: contrast]
+  end
+  subgraph CGF_brain["CGF (brain)"]
+    AJ[Armament judge: SeeingConditions.Of, live world, unchanged]
+  end
+  NOGEO[snapshot without S2-0: sun at 0 N 0 E]
+  SY -.->|today| NOGEO
+  style NOGEO fill:#f66,color:#000
+```
+*What the picture shows that prose hid:* the perception sensors run on the muscle hosts' background snapshot, while the CE-3229 judge
+runs on the brain's live world — two readers of one curve on two kinds of world; the red box is what a snapshot gives today.
+
+### 8.3 Decisions — ✅ approved as leaned (R-3017)
+
+| # | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **S2-0** | the snapshot's sun | `SyncFrom` copies `IGeographicTransform` (singleton 75, read-only) with the other eight; rail: the sun on a snapshot equals the sun on the live world | compute light on the frame thread into a new singleton — new state, against R-3012 · leave it — the twilight-at-sunrise bug above |
+| **S2-1** | how light and fog shorten SIGHT | **range**: `min(range × LightFactor(RelativeLight), VisibilityM)` in `VisualPerception.Optics`, after the binoculars / scope; the AQ-2 dwell unchanged | a night multiplier on the dwell too — two knobs for one effect · Johnson criteria per sensor — no optics model exists (A-4's own rejected column) |
+| **S2-1n** | ⏳ **the night number for DETECTION** | ⭐ its own floor `DetectNightFactor = 0.25` on A-4's curve shape (1 at `RelativeLight` ≥ 0.3): a 150 m soldier receptor sees a man at ~38 m on a moonless night, a 300 m one at 75 m. ⚠ A-4's 0.1 is for IDENTIFYING an item (rifle vs stick); seeing that a man is there carries further | reuse 0.1 — a soldier would detect a standing man at 15 m at night · no night effect — night operations mean nothing |
+| **S2-1w** | where the weather is sampled | ONCE per sensor per tick at the OBSERVER (his own Z as the ground, AQ94 §116) — light is uniform over a sensor's few hundred metres; fog is the observer's local fog | per candidate — N samples per sensor per tick, and the target's fog is between them only in part |
+| **S2-2** | night devices (NVG, thermal sights) | ⛔ NOT in S2: a man with an NVG / night sight is a TKB descriptor + a held/worn item — a later slice with its own design (it raises S2-1n's floor for its wearer). Thermal sensors already ignore light (S2-3) | add a soldier-wide "has NVG" flag now — an undesigned equipment model by the back door |
+| **S2-3** | thermal | light: none. Fog: range capped by `VisibilityM × ThermalFogFactor (2.0)` — LWIR sees through haze better than the eye, still not through thick fog. **Crossover**: the BASE signature (a passive object's contrast with its background) × `c = clamp(|GroundTemperatureC − dailyMean| / swing, 0.2, 1)`; the HEAT term (engines, firing, a body) unchanged | crossover on the whole signature — a running engine or a man would vanish at dawn · a full radiometric model — no data for it |
+| **S2-4** | hearing | the listener's range × `HearingFactor = 1 / (1 + wind/8 m/s) × 1 / (1 + rain/10 mm/h)` (floor 0.35): 4 m/s ⇒ ×0.67, 10 m/s ⇒ ×0.44, heavy rain 10 mm/h ⇒ ×0.5 — masking only | upwind/downwind propagation — needs the source's bearing per pair; it belongs with the dB model (World Query WQ-E) · rain ignored — W-7 made it data for S2/S4 |
+| **S2-5** | a world with no World Environment | every factor 1 (`SeeingConditions.ClearDay`) — unit tests and old worlds unchanged | — |
+
+### 8.4 Rails *(each red-proved; in the sensors' own suites)*
+
+| rail | suite |
+|---|---|
+| S2-0: a snapshot's `WeatherField.At` sun elevation equals the live world's (and differs from lat 0 / lon 0) | `Fdp.ModuleHost.Tests` `SnapshotClockTests` (the CE-3267 class) |
+| S2-1: the same observer at noon, at night, in 50 m fog: range = receptor · receptor × 0.25 · 50 m; binoculars still ×2 before the cap | `Fdp.Toolkits.Tests` visual perception |
+| S2-3: a cold vehicle's base signature passes at noon and fails at crossover; a hot engine passes both; fog caps thermal at 2 × visibility | thermal perception |
+| S2-4: a shot heard at 380 m in calm is not heard in 10 m/s wind | acoustic perception |
+| S2-5: no World Environment ⇒ every range as today | each of the above |
+
+### 8.5 AS BUILT `2026-10-19` (`CE-3216` S2, R-3017)
+
+| as built | deviation, and why |
+|---|---|
+| `PerceptionWeather` (`Perception/Sensors/PerceptionWeather.cs`): `TrySample(view, unit)` → `WeatherField.At` once per sensor; `VisionRange`, `ThermalRange`, `BaseContrast`, `HearingFactor`; the constants of §8.3 | ⚠ **sampled at EYE/EAR height** (`SenseHeightM` = 1.7 m above the man's own Z, still his own Z as the ground) — 📐 the wind's log profile is ZERO at the ground (W-3), so a sample at his feet never masked his hearing (the trap `CE-3258` met for a cloud lying on the ground). ⇒ S2-4's "wind" is the wind at his ears: a 10 m/s wind at the 10 m level is ~7 m/s there (× 0.53) |
+| `Identification.LightFactor(relativeLight, nightFactor)` — the one curve, two floors (A-4's 0.1, detection's 0.25) | — |
+| `WeatherSample.DiurnalPhase` (−1…1, appended): the diurnal swing's phase; `BaseContrast = clamp(|phase|, 0.2, 1)` | the sample carried no mean or swing — the phase IS the crossover signal, so no second field |
+| S2-0: `EntityRepository.SyncFrom` borrows `IGeographicTransform` (75) with the other singletons | — |
+| seams: `VisualPerception.Optics` (after binoculars / scope), `ThermalPerception.Optics`, `SignatureFilterTest.ExecuteBatch` (`Base × contrast + Heat × (1 − Base)`), `AcousticSensorGenerator.Generate` (the listener's range × the factor) | ⚠ hearing's factor sits in the GENERATOR, not `AcousticPerception.Ears`: `Ears` takes no unit, and the generator is its one production caller |
+
+Rails (`Fdp.Toolkits.Tests` `PerceptionWeatherTests`): sight at noon / night / in fog / with no clock · thermal ignores the night,
+fog caps it at 2×, the crossover filters a cold hull and passes a running engine · a shot heard in calm, lost in a strong wind and in
+heavy rain · the approved numbers. `Fdp.ModuleHost.Tests` `SnapshotClockTests.CE3216_ASnapshot_BorrowsTheGeoTransform` (S2-0).

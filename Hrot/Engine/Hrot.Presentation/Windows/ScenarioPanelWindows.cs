@@ -63,6 +63,13 @@ public static class ScenarioPanelWindowIds
     public const string CgfWaypoint    = "cgf_waypoint_editor";
     /// <inheritdoc cref="EditorWaypoint"/>
     public const string IgWaypoint     = "ig_waypoint_editor";
+
+    /// <summary>⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window, per host that registers it.</summary>
+    public const string EditorReports  = "editor_reports";
+    /// <inheritdoc cref="EditorReports"/>
+    public const string ExConReports   = "excon_reports";
+    /// <inheritdoc cref="EditorReports"/>
+    public const string SimHostReports = "simhost_reports";
 }
 
 /// <summary>⭐ Entity spawner panel as a perspective-bound managed window. ⛔ One implementation, every host.</summary>

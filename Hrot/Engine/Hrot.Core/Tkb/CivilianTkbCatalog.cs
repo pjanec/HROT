@@ -16,8 +16,9 @@ namespace Hrot.Core.Tkb
     /// <para>⭐ The civilians' <c>DefaultBehaviorHash</c> is <c>CivilianHsm</c> (<c>CE-2235</c>, behaviors): <c>BehaviorTkbTranslator</c>
     /// starts it on the brain owner, so a civilian placed with no behaviour lives his routine. The
     /// security forces carry the non-lethal loadouts of B-5 (<c>CE-3223</c>): stun grenades, a baton-round launcher.</para>
-    /// <para>⛔ The old <c>CivilianPedestrian</c> (1001) and <c>CivilianChild</c> (1003) are retired only after the neutral-target safety
-    /// gate (<c>CE-2233</c>) lands: these civilians have health, and a soldier may otherwise shoot them.</para>
+    /// <para>⛔ <c>CE-3220</c> part 2 — the old <c>CivilianPedestrian</c> (1001) and <c>CivilianChild</c> (1003) are RETIRED, never reused,
+    /// now that the neutral-target safety gate (<c>CE-2233</c>) holds a soldier's fire on these (they have health). A scenario that wants
+    /// the old behaviourless stand-in places one of these with the <c>Idle</c> behaviour (design §7.2b).</para>
     /// </summary>
     public static class CivilianTkbCatalog
     {

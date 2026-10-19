@@ -106,7 +106,7 @@
         "Value": 7132
       },
       "TkbIdentity": {
-        "TkbType": 1001
+        "TkbType": 1101
       },
       "EntityInfo": {
         "Name": "Civilian",
@@ -114,6 +114,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c1030000-0000-4000-8000-000000000003": {

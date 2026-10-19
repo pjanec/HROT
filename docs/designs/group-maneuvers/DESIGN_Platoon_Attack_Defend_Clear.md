@@ -484,6 +484,14 @@ covered route (west) and the open one (centre) differ.
 |---|---|---|---|
 | **PC-12** | where the demos run | ⭐ (`CE-2290`) **a new terrain `cqb-village`** (the picture; local metres, flat ground) with its own `premises.json` rows for the sight lines the demos need (support line ⇒ OBJ's south windows · SNP ⇒ OBJ and ⇒ the support line · the hedge route hidden from OBJ's south face); ⭐ the building templates (`house-2f`, `house-3f` DA-O, the CQB house BR-1) move to the **shared `Recipes/Buildings/`** — `TerrainAssets` already looks there after the terrain's own folder, but no such folder exists yet — so `bt-range` and `cqb-village` use the same files | grow `bt-range`: its premises would have to be re-proven · copy the templates per terrain: two copies of one house drift |
 
+**As built** *(ui, `2026-10-19`, `CE-1189` — UI-4)*: `Recipes/Terrain/cqb-village/` is the picture at 1 m = 2.2 px — OBJ (`house-3f`) x 115..125 ×
+y 153..161 between H1 / H3 (`house-2f`), all fronts north onto Main Street (y 184..196); H6, H4, H5, SNP (`house-3f`) north of it, fronts
+south; the Cross Road x 194..206; CMP x 240..290 × y 60..110 (2 m concrete, the west gate a 4 m gap at y 82..86, sandbag posts 1.2 m at
+its four corners, the shed solid 3 m); the hedge row x 40 (2 m, hedge), the low wall (1 m brick), the berm and the support-line berm
+(1 m earth, y 40, ~112 m south of OBJ), the wreck (a solid 1.5 m car-body). ⚠ The streets are open ground, no road network (the demos
+are on foot); the EA and the AA are scenario areas, not terrain. Premises `cqb-village/premises.json` (DemoPremisesTests); every house
+is entered by its front door and OBJ's roof is reached from the AA (`RecastNavmeshFactoryTests.UI4_CqbVillage_…`).
+
 ### 12.2 The ladder — logic first, then each squad play, then the whole fight
 
 Network ids: attacking platoon **Blue 1** = HQ 9200, squads 9210 / 9220 / 9230 (men +1…+9), weapons squad 9240 (two MG teams),

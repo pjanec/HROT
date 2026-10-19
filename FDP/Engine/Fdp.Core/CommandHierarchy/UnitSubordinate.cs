@@ -22,5 +22,9 @@ namespace Fdp.Core.CommandHierarchy
 
         /// <summary>Logical role of this entity within the commander's unit.  <c>Undefined</c> when unassigned.</summary>
         public TacticalDesignation Designation;
+
+        /// <summary>⭐ <c>CE-2281</c> / R-3019 — his fire team within the unit (<see cref="FireTeam.None"/> when none); fits the
+        /// trailing pad, the size stays 12 bytes.</summary>
+        public FireTeam FireTeam;
     }
 }

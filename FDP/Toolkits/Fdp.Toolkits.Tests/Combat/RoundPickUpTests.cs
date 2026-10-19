@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Tests.Combat
     /// </summary>
     public sealed class RoundPickUpTests : IDisposable
     {
-        private const long CivilianType = 9401, StoneAmmo = 9490, GrenadeAmmo = 9491, BulletAmmo = 9492, CanisterAmmo = 9493;
+        private const long CivilianType = 9401, StoneAmmo = 9490, GrenadeAmmo = 9491, BulletAmmo = 9492, CanisterAmmo = 9493, HatchetAmmo = 9494;
         private const float Dt = 1f / 60f;
 
         private readonly EntityRepository _world = new();
@@ -66,6 +66,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _db.Register(Round("Bullet", BulletAmmo, null, null));
             _db.Register(Round("Gas canister", CanisterAmmo, new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f,
                                                                               CloudSeconds = 90f, Indirect = true }, new HandItemDto()));
+            _db.Register(Round("Hatchet", HatchetAmmo, Hatchet, HatchetLies));   // ⭐ CE-3247 — a thrown blade (the built-in's numbers)
             PersonHands.EnsureOnPersons(_db);
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
@@ -287,6 +288,66 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(41.5f, RoundPickUp.BurnLeft(_world, man, CanisterAmmo));
             RoundPickUp.Thrown(_world, man, CanisterAmmo);
             Assert.False(_world.HasComponent<HeldFuze>(man));
+        }
+
+        // ⭐ CE-3247 — a thrown hatchet as the built-in catalogue declares it (MunitionTkbCatalog.TkbThrowingHatchet): Kinetic, on the arc
+        private static readonly WarheadDto Hatchet = new() { Kind = WarheadKind.Kinetic, Indirect = true };
+        private static readonly HandItemDto HatchetLies = new() { LiesSeconds = 300f };
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3247</c> (civilians B-17, TC-1/TC-2, R-3016; docs/DESIGN_Civilians_And_Crowd_Control.md §7.17b) — a thrown HATCHET is a round
+        /// on the stone's path: it flies the arc and lingers (no burst); a man on its line 8 m off is STRUCK — a direct hit carrying its damage,
+        /// its munition and the thrower — and one thrown past him lies where it landed and is picked up again. ✅ Red-proofs: a Kinetic warhead
+        /// made an Area round ⇒ no direct hit on his line ⇒ red; the hand item's lingering dropped ⇒ it is gone at the grace ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3247_AThrownHatchet_StrikesTheManOnItsLine_AndOneThatMisses_LiesAndIsPickedUpAgain()
+        {
+            byte bits = WarheadRound.BitsOf(Hatchet, HatchetLies, out float lies);
+            Assert.True((bits & WarheadRound.Arc) != 0, "it flies the throw's arc");
+            Assert.True((bits & WarheadRound.Lingers) != 0, "it lies where it lands");
+            Assert.Equal(0, bits & WarheadRound.Area);   // a blade bursts nowhere: a direct hit only
+            Assert.Equal(300f, lies);
+
+            // ① the strike: thrown from (0,0) at a man 8 m off; the raycast of its flight meets him
+            _world.RegisterEvent<RaycastResultEvent>();
+            _world.RegisterEvent<HitEvent>();
+            var thrower = Man(new Vector3(0, 0, 0));
+            var victim = Man(new Vector3(8, 0, 0));
+            var round = _world.CreateEntity();
+            _world.AddComponent(round, new SimTransform { Position = new Vector3(4, 0, 1.6f), Rotation = Quaternion.Identity });
+            _world.AddComponent(round, new SimVelocity { Linear = new Vector3(14f, 0f, 1f) });
+            _world.AddComponent(round, new BallisticProjectile
+            {
+                PreviousPosition = new Vector3(0, 0, 1.5f), Muzzle = new Vector3(0, 0, 1.5f), SpawnTick = 1, TerrainFlags = 1, Ammo = HatchetAmmo,
+                Warhead = bits, FuzeRemaining = lies, Damage = 35f, Penetration = 1.5f,
+            });
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(round), HitEntity = victim, IgnoreEntity = thrower,
+                Start = new Vector3(4, 0, 1.6f), End = new Vector3(9, 0, 1.4f), T = 0.8f,
+            } });
+            _world.Bus.SwapBuffers();
+            new Fdp.Toolkit.Physics.Systems.HitResolutionSystem().Execute(_world, Dt);
+            _world.Bus.SwapBuffers();
+            var hit = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(victim, hit.Target);
+            Assert.Equal(thrower, hit.Shooter);   // the source of the damage that follows (CE-3237)
+            Assert.Equal(35f, hit.Damage);
+            Assert.Equal(HatchetAmmo, hit.Ammo);
+
+            // ② the miss: it stops on the ground past him, lies through the grace, and a man at it picks it up
+            var sys = new BallisticsSystem();
+            var missed = Lying(HatchetAmmo, new Vector3(12, 0, 0), bits, lies);
+            for (int i = 0; i < CombatConstants.StoppedRoundGraceTicks + 2; i++) Ballistics(sys, Dt);
+            Assert.True(_world.IsAlive(missed));
+            Assert.True(RoundPickUp.IsLying(_world, missed));
+            var picker = Man(new Vector3(11, 0, 0));
+            Assert.True(RoundPickUp.Ask(_world, picker, missed));
+            Frame();
+            Frame();
+            Assert.False(_world.IsAlive(missed));
+            Assert.Equal(1, PersonHands.Rounds(_world, picker, HatchetAmmo));
         }
     }
 }

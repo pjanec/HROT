@@ -525,7 +525,7 @@ classDiagram
   class CasualtyCare { <<EXISTING, routed>> the medic pick }
   class SuppressAndManeuverPlay { <<EXISTING, + roles>> the AR / MG join the base of fire }
   class TacticalDesignation { <<EXISTING + BR-8>> AutomaticRifleman · MachineGunner · Grenadier · Marksman · AntiTank }
-  class FireTeam { <<NOT BUILT: no carrier on the wire>> }
+  class FireTeam { <<BUILT, backend R-3019: on UnitSubordinate, CmdAssignSubordinate, the scenario and the wire>> None A B C D }
   class RoleTakeover { <<NOT BUILT: needs a weapon to pick up>> }
   SquadSensing ..> SquadRoles
   CasualtyCare ..> SquadRoles
@@ -540,7 +540,7 @@ blocked for reasons outside this lane.
 |---|---|---|
 | the role reader | ✅ `SquadRoles.Of` (succession and the medic pick routed through it) | — |
 | the AR / MG first into the base of fire | ✅ `SuppressAndManeuverPlay.Start`: after the split by reporters (or halves), every AR / MG goes to the base of fire, if a live man is left to assault | — |
-| ⛔ the element split BY FIRE TEAM | **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
+| ⛔ the element split BY FIRE TEAM | ✅ **carrier BUILT `2026-10-19` (backend, R-3019)**: `Fdp.Core.CommandHierarchy.FireTeam` (byte: None, A…D) on `UnitSubordinate` (in its trailing pad, still 12 B), on `CmdAssignSubordinate` (so an in-place reassignment carries it, CE-3263), `InitialUnitSubordinateIntent`, the scenario key `UnitSubordinate.FireTeam` ("A"…"D", absent = none) and appended to the wire `EntityInfo` (`FireTeam` byte) — ⏳ the plays' split is behaviors'. ⛔ WAS **blocked**: a fire-team index has no carrier — a scenario value would never reach the brain node (it gets `UnitSubordinate` from the wire) | ⭐ a `FireTeam` byte beside the designation, on `UnitSubordinate`, the scenario key and **`EntityInfo`** (one more wire field, backend) — then one helper replaces the plays' halves |
 | ⛔ role takeover on a casualty | **blocked**: the AR's gun is his TYPE's mount, nothing can pick it up; re-labelling a rifleman would send a man with no MG to the base of fire as one | ⭐ wait for a weapon pick-up design (a held item from a body, `ItemSources`); and make succession's designation change reach the wire first (mark it dirty, and fix the duplicate append) — both backend |
 
 ⚠ Neither blocked part is decided by this lane alone: the user rules on the fire-team carrier and on weapon pick-up.
@@ -755,7 +755,7 @@ slices (`CE-2275` SquadDefend, `CE-2257` the clearing, the march), so no demo sh
 | ② a commander's sector on his men's brain nodes | ⭐ **replicated**, not copied into each man: `EngagementArea` is Brain group, `dtEngagementArea` (151), field for field (the four NoFire ids flattened). `EngagementAreas` already walks the man's chain, so a commander's NoFire reaches every man's node with no reader change | `BodyPartReplicationTests.CE3261_*`, both descriptor-map rails |
 | ③ the round's origin (DA-14) | `NearMissEvent.Origin{X,Y,Z}` + `HasOrigin` — the round's MUZZLE (R-217 keeps it on the round); on the wire (`NearMiss`, appended). ⛔ still no shooter identity: a man under fire knows where it came from, not who. DA-28's self-defence can now ask "a contact near the origin" | `BallisticsSystemTests…CE3064` (extended), `NearMissTranslatorTests.CE3262_*` |
 | ⑤ succession on the wire | `SquadSensing.Succession` marks the successor's `EntityInfo` dirty; ⭐ `UnitHierarchySystem` updates a re-assign to the SAME commander IN PLACE (the roster entry + the man's designation) — ⛔ it used to append him a second time | `SquadCoordinationSystemTests.CE2125_*` (extended), `UnitHierarchySystemTests.CE3263_*` |
-| ④ a fire-team index on the wire | ⏳ not built — your lean awaits the user. ⭐ Backend's view: the wire can take it — one byte appended to `EntityInfo`'s descriptor, the `TacticalDesignation` road | — |
+| ④ a fire-team index on the wire | ✅ APPROVED `2026-10-19` (R-3019; 🔒 user, on the Q94 + fire-team summary: *"Approved. Move fire check to muscle. Anyway brain should be sending just fire requeat and can update ammo based on fire notification (and we would need to add  refused flag to the notification)."*) — a `FireTeam` byte appended to `EntityInfo`'s descriptor + the scenario key; backend builds it. ⛔ WAS: not built — your lean awaits the user. ⭐ Backend's view: the wire can take it — one byte appended to `EntityInfo`'s descriptor, the `TacticalDesignation` road | — |
 
 ### 13b. Where the planner runs — the brain ASKS the muscle, then decides *(✅ rule R-2037; DA-25 the survey sensor, amended by the user 2026-10-18 — R-2038)*
 

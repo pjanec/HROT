@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-19 (§14: a partial path ends at the goal's height — completeness is PathExists', ui CE-1189) · 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §5.2b (CE-3029 — a vehicle's corners rounded for its turn radius, R-3006); §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -1548,6 +1548,14 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 |---|---|---|---|
 | **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** judges by the state at query time — ⭐ the CALLER's `DoorStates`, built from the view it runs on (R-219: a background solver sees its own snapshot's doors) — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c + 5b′) |
 | **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles + cache ✅ (`2026-10-08`) |
+
+⚠ **Measured `2026-10-19` (ui, `CE-1189` red-proof): a PARTIAL `PlanPath` ends AT THE GOAL'S x / y AND HEIGHT when the goal lies straight
+above (or below) the last polygon the search reached** — DotRecast's `FindStraightPath` clamps the end onto that polygon and keeps the
+goal's own height. 📌 With `house-3f`'s roof flight removed, a path "to the roof" climbed to storey 1 and its last waypoint read (123, 157,
+**6**). ⇒ ⛔ a caller (or a rail) may NOT judge "reached" from the last waypoint; ⭐ completeness is the poly path's — `PathExists` /
+`PathCost` (5c already made them refuse a partial path), or `PlanPathCore`'s `complete`. The ui rails that walk into buildings
+(`RecastNavmeshFactoryTests.UI2_` / `UI4_` / `UI9_` / `UI10_`) check `PathExists` for this reason, and so does the older `Stage2_*` rail now (it judged by the end point alone — its goal
+on storey 2 lies above the ground route, so a partial path passed it).
 
 ```mermaid
 classDiagram

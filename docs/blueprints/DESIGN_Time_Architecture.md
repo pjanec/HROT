@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -425,7 +425,7 @@ did — ⚠ **silently, and precisely in the suspend window where nobody would l
 
 | # | 📐 measured | ⇒ |
 |---|---|---|
-| **①** | ⛔⛔ **`GlobalTime` is NOT per-view.** `EntityRepository.SyncFrom` copies **five named singletons** *(`SpatialGridData` · `EqsResultPool` · `IEqsTemplateRegistry` · `ICoverProvider` · `INavmeshProvider`)* — ⛔ **`GlobalTime` is not among them.** Snapshots and leased views carry **none** | ⭐ **there IS exactly one time per node** ⇒ ⚠ **hiding the storage behind an API is viable in principle** — my earlier "time is per-view" reasoning was wrong |
+| **①** | ⛔⛔ **`GlobalTime` is NOT per-view.** `EntityRepository.SyncFrom` copies **five named singletons** *(`SpatialGridData` · `EqsResultPool` · `IEqsTemplateRegistry` · `ICoverProvider` · `INavmeshProvider`)* — ⛔ **`GlobalTime` is not among them.** Snapshots and leased views carry **none** ⭐ *(⚠ SUPERSEDED `2026-10-19`, `CE-3267`: a MODULE'S snapshot now carries the frame's `GlobalTime` as a VALUE — `EntityRepository.CopyClockFrom`, called by the three snapshot providers after `SyncFrom`; ⛔ `SyncFrom` itself still copies none, so a preview's rewind never rewinds the clock. 📌 The gap had a casualty: the EQS memory stage read time 0 — `DESIGN_Sensors_And_Doctrine.md` §5.7a)* | ⭐ **there IS exactly one time per node** ⇒ ⚠ **hiding the storage behind an API is viable in principle** — my earlier "time is per-view" reasoning was wrong |
 | **②** | ⭐ **modules never read it anyway** — `Tick(view, moduleDelta)` and `Execute(view, deltaTime)` **pass the delta as a PARAMETER** | ⇒ the singleton serves **main-thread readers against the live world**, not module code |
 
 ### ⭐⭐ So why not the controller? — **three reasons, none of them "it is stale"**

@@ -49,8 +49,25 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     /// nothing was placed under the old origin. Any other load keeps the origin change inside <see cref="Commit"/>.</remarks>
     public void BeforePrepare(LoadPhaseContext context, EntityRepository? world)
     {
+        // ⭐⭐ CE-2244 — a terrain that is not resident yet is COMING: sight is not judged until it is in (the commit, or the abort,
+        //   clears the mark). Faster nodes' units replicate in meanwhile (CE-2242), and with no terrain every wall was transparent.
+        string? requested = RequestedName(context);
+        if (world != null && !string.IsNullOrWhiteSpace(requested) && requested != _residency.ResidentTerrainName)
+        {
+            Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(world, true);
+            _pendingWorld = world;
+        }
         if (!context.IsWorldBoundary && !context.IsCatchUp) return;
-        _residency.ApplyOriginAhead(world, RequestedName(context));
+        _residency.ApplyOriginAhead(world, requested);
+    }
+
+    // ⭐ CE-2244 — the world marked at BeforePrepare (Abort carries no world)
+    private EntityRepository? _pendingWorld;
+
+    private void ClearPending()
+    {
+        if (_pendingWorld != null) Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(_pendingWorld, false);
+        _pendingWorld = null;
     }
 
     private string? RequestedName(LoadPhaseContext context)
@@ -75,11 +92,17 @@ public sealed class TerrainLoadStep : ILoadPartProvider
 
     /// <inheritdoc/>
     public void Commit(LoadPhaseContext context, EntityRepository? world)
-        => _residency.Commit(world, Take(context.TransactionId));
+    {
+        _residency.Commit(world, Take(context.TransactionId));
+        ClearPending();   // ⭐ CE-2244 — the terrain is in: sight is judged again
+    }
 
     /// <inheritdoc/>
     public void Abort(LoadPhaseContext context)
-        => _residency.AbortStaged(Take(context.TransactionId));
+    {
+        _residency.AbortStaged(Take(context.TransactionId));
+        ClearPending();
+    }
 
     /// <inheritdoc/>
     /// <remarks>⭐ Terrain finishes inside <see cref="Commit"/>; there is nothing that drains over frames.</remarks>

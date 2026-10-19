@@ -157,5 +157,65 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.NotEqual(SensorContactState.Acquired, StateOf(far));
             w.Dispose();
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3267</c> — the memory stage as the EQS solver runs it: on a MODULE SNAPSHOT of the world, re-taken each tick, its answers
+        /// played back into the live world. A fully exposed man at 113 m (a dwell of ≈ 0.07 s) is acquired within two ticks. 📌 Found live by
+        /// behaviors (ld-sentry-surprise, NOTE_Behaviors_To_Backend_Sight_Beyond_100m): a snapshot carried no clock, the stage read time 0,
+        /// and every dwell above 0 — every man beyond 100 m — waited for ever. ✅ Red-proof: <c>CopyClockFrom</c> emptied ⇒ never ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3267_OnAModuleSnapshot_AnExposedManBeyond100m_IsAcquiredAfterHisDwell()
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<SensorTag>();
+            w.RegisterComponent<PartMetadata>();
+            w.RegisterComponent<SensorContactList>();
+            w.RegisterComponent<EqsSensor>();
+            w.RegisterComponent<NetworkIdentity>();
+            w.RegisterEvent<SensorTrackStateEvent>();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var sensor = w.CreateEntity();
+            w.AddComponent(sensor, new SensorTag { Kind = SensorModality.Visual });
+            w.AddComponent(sensor, new PartMetadata { ParentEntity = unit });
+            w.AddComponent(sensor, new EqsSensor());
+            var man = w.CreateEntity();
+            w.AddComponent(man, new SimTransform { Position = new Vector3(0f, 113f, 0f), Rotation = Quaternion.Identity });
+            var stage = new SensorMemoryStage();
+            var snap = new EntityRepository();
+            uint tick = 0;
+            double t = 100.0;
+
+            SensorContactState State()
+            {
+                var list = w.GetComponentRO<SensorContactList>(sensor);
+                unsafe { for (int i = 0; i < list.Count; i++) if (list.EntityIds[i] == (long)man.PackedValue) return (SensorContactState)list.State[i]; }
+                return SensorContactState.Pending;
+            }
+            void Solve()
+            {
+                tick++; t += 0.1;
+                w.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.1f });
+                snap.SyncFrom(w);            // the provider's two steps
+                snap.CopyClockFrom(w);
+                var results = new[] { new EqsResult { EntityId = (long)man.PackedValue } };
+                Acquisition.Encode(ref results[0], 3, 3);   // fully exposed
+                stage.Begin(snap);
+                stage.Observe(snap, sensor, tick, results);
+                using var cmd = new EntityCommandBuffer();
+                stage.Flush(snap, cmd);
+                cmd.Playback(w);
+            }
+
+            Solve();
+            Assert.NotEqual(SensorContactState.Acquired, State());   // a dwell above 0: not the tick he is first seen
+            Solve();
+            Solve();
+            Assert.Equal(SensorContactState.Acquired, State());
+            snap.Dispose();
+            w.Dispose();
+        }
     }
 }

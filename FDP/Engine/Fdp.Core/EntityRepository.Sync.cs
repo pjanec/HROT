@@ -109,6 +109,8 @@ namespace Fdp.Core
             //     EqsResultEvent is valid when the main-thread consumer reads from it.
             //   - GlobalComponentIds.IEqsTemplateRegistry (210): query template lookup.
             //   - GlobalComponentIds.ICoverProvider (211): cover database for positional EQS queries.
+            //   - GlobalComponentIds.IGeographicTransform (75): ⭐ CE-3216 S2-0 — the perception sensors read the weather
+            //     (WeatherField), whose sun needs the point's latitude / longitude; without it the sun stood at 0° N 0° E.
             // Syncing all singletons would expose live-world state to unrelated SoD modules and
             // could alter their behaviour (e.g. slow code paths) causing unrelated tests to fail.
             // Background readers treat these as immutable for the duration of the task; the SoD
@@ -121,6 +123,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.RaycastBatchData); // AccurateLineOfSightTest ring-buffer reads
             SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
             SyncSingletonById(source, GlobalComponentIds.TerrainWorld); // ⭐ EQS §19 — terrain sight + ground placement
+            SyncSingletonById(source, GlobalComponentIds.IGeographicTransform); // ⭐ CE-3216 S2-0 (R-3017) — the sun's lat/lon (WeatherField), read-only
 
             // 4. Sync BOTH version clocks.
             //
@@ -146,6 +149,20 @@ namespace Fdp.Core
             //    tick"; it only ever synced the version.
             _globalVersion  = source._globalVersion;
             _simulationTick = source._simulationTick;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3267</c> — gives a MODULE'S SNAPSHOT the frame's clock: the source's <see cref="GlobalTime"/> as a VALUE (the main thread
+        /// rewrites the live singleton every frame, so the table is never shared). A background module's view then reads the time of the
+        /// frame it was taken at, as it reads that frame's positions. Called by the snapshot providers right after <see cref="SyncFrom"/>;
+        /// ⛔ deliberately NOT part of <see cref="SyncFrom"/> itself, which also restores the LIVE world from a snapshot (a preview's rewind)
+        /// and must never rewind the clock there (docs/blueprints/DESIGN_Time_Architecture.md §12a: one time discontinuity).
+        /// <para>📌 Before (measured 2026-10-19): a snapshot carried no clock, so the EQS memory stage read 0 for ever and a sighting's
+        /// acquisition dwell (CE-3260) never passed — a fully exposed man beyond 100 m was never acquired on SimHost.</para>
+        /// </summary>
+        public void CopyClockFrom(EntityRepository source)
+        {
+            if (source.HasSingleton<GlobalTime>()) SetSingletonUnmanaged(source.GetSingleton<GlobalTime>());
         }
 
         /// <summary>

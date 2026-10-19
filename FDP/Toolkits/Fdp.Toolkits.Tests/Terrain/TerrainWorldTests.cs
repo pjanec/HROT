@@ -838,6 +838,52 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ UI-4 (HANDOFF_Behaviors_To_Ui_Platoon_Demos, <c>CE-2290</c>) — <c>cqb-village</c> is DESIGN_Platoon_Attack_Defend_Clear §12.1's map
+        /// (<c>img/cqb-village.svg</c>, 1 m = 2.2 px): OBJ (house-3f) between H1 and H3 south of Main Street, fronts north; H6, H4, H5 (the ambush
+        /// house) and SNP (house-3f, the sniper hide) north of it, fronts south; CMP's 2 m concrete walls with a west gate, four 1.2 m sandbag posts
+        /// and a solid shed; the 2 m hedge row, the 1 m low wall, the two 1 m berms (one the support line, 112 m south of OBJ) and the wreck.
+        /// </summary>
+        [Fact]
+        public void UI4_CqbVillage_IsTheDesignsMap()
+        {
+            var folder = ShippedTerrain("cqb-village");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "cqb-village.world.geojson")), "cqb-village",
+                TerrainAssets.ForFolder(folder));
+            var expected = new (string Label, string Template, float X0, float Y0, float X1, float Y1)[]
+            {
+                ("H1", "house-2f", 75, 152, 85, 160), ("OBJ", "house-3f", 115, 153, 125, 161), ("H3", "house-2f", 155, 152, 165, 160),
+                ("H6", "house-2f", 40, 204, 50, 212), ("H4", "house-2f", 100, 204, 110, 212), ("H5", "house-2f", 230, 204, 240, 212),
+                ("SNP", "house-3f", 300, 204, 310, 212),
+            };
+            Assert.Equal(expected.Select(e => e.Label).OrderBy(l => l), w.Buildings.Where(b => !b.Solid).Select(b => b.Label).OrderBy(l => l));
+            foreach (var e in expected)
+            {
+                var b = w.Buildings.Single(x => x.Label == e.Label);
+                Assert.Equal(e.Template, b.Template);
+                Assert.Equal((e.X0, e.Y0, e.X1, e.Y1), (MathF.Round(b.Footprint.Min(p => p.X), 2), MathF.Round(b.Footprint.Min(p => p.Y), 2),
+                    MathF.Round(b.Footprint.Max(p => p.X), 2), MathF.Round(b.Footprint.Max(p => p.Y), 2)));
+            }
+            // fronts face Main Street (y 184..196): the front door is on the street side of each house
+            foreach (var e in expected)
+            {
+                var front = w.Doors.Single(d => d.Key == $"cqb-village/{e.Label}/front");
+                Assert.True(e.Y0 > 196 ? MathF.Abs(front.Center.Y - e.Y0) < 0.01f : MathF.Abs(front.Center.Y - e.Y1) < 0.01f, $"{e.Label}'s front door at {front.Center}");
+            }
+            TerrainWallPanel Panel(string label) => w.Panels.Single(p => p.Label == label);
+            foreach (var side in new[] { "south", "east", "north", "west" })
+                Assert.Equal((2f, "concrete"), (Panel($"CMP {side} wall").TopZ - Panel($"CMP {side} wall").BaseZ, Panel($"CMP {side} wall").Material.Name));
+            var gate = Assert.Single(Panel("CMP west wall").Openings);
+            Assert.Equal((TerrainOpeningKind.Gap, 4f), (gate.Kind, gate.Width));
+            Assert.Equal(4, w.Panels.Count(p => p.Label!.StartsWith("CMP sandbag post") && MathF.Abs(p.TopZ - p.BaseZ - 1.2f) < 1e-3f && p.Material.Name == "sandbags"));
+            Assert.Equal((2f, "hedge"), (Panel("hedge row").TopZ, Panel("hedge row").Material.Name));
+            Assert.Equal(1f, Panel("low wall").TopZ);
+            Assert.All(new[] { "berm", "SBF berm" }, l => Assert.Equal((1f, "earth-berm"), (Panel(l).TopZ, Panel(l).Material.Name)));
+            Assert.Equal(40f, Panel("SBF berm").A.Y);   // the support line: ~112 m south of OBJ's south wall (y 153), as the picture
+            Assert.Contains(w.Prisms, p => p.Label == "CMP shed" && p.Panel == -1 && p.TopZ == 3f);
+            Assert.Contains(w.Prisms, p => p.Label == "wreck" && p.Panel == -1 && p.Material!.Name == "car-body");
+        }
+
+        /// <summary>
         /// ⭐ UI-11 (HANDOFF_Behaviors_To_Ui_Demo_City_Quarters) — demo-city's LANDING SQUARE (565..615 × 295..345, behind the battle
         /// street's west row) is clear: no building, wall or slab stands in it, and a helicopter coming in from the open south edge at
         /// 60 m and settling onto it — the rotor disc's centre and both tips (±8 m) — passes nothing. 🔴 Red-proof: a lot moved into

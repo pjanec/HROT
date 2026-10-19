@@ -1,0 +1,490 @@
+{
+ "type": "FeatureCollection",
+ "hrot": {
+  "schemaVersion": 1,
+  "bounds": [
+   0,
+   0,
+   330,
+   232
+  ],
+  "groundZ": 0,
+  "description": "UI-4 (HANDOFF_Behaviors_To_Ui_Platoon_Demos, CE-2290) \u2014 cqb-village, the platoon demos' stage: exactly DESIGN_Platoon_Attack_Defend_Clear \u00a712.1's map (img/cqb-village.svg, 1 m = 2.2 px). Main Street y 184..196 and the Cross Road x 194..206 are open ground (no road network: the demos are on foot). South of Main Street, fronts north: H1 (house-2f), OBJ (house-3f), H3 (house-2f); north of it, fronts south: H6, H4, H5 the ambush house (house-2f), SNP the sniper hide (house-3f). CMP the walled compound (2 m concrete, a 4 m west gate, four 1.2 m sandbag posts, a solid shed); the hedge row (the covered west route), the 1 m low wall, a 1 m berm, the wreck, the support-line berm 112 m south of OBJ. Local metres, X east, Y north, Z up; flat ground."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "H1",
+    "baseZ": 0,
+    "rotation": 180
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     85,
+     160
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-3f",
+    "label": "OBJ",
+    "baseZ": 0,
+    "rotation": 180
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     125,
+     161
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "H3",
+    "baseZ": 0,
+    "rotation": 180
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     165,
+     160
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "H6",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     40,
+     204
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "H4",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     100,
+     204
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "H5",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     230,
+     204
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-3f",
+    "label": "SNP",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     300,
+     204
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP south wall",
+    "height": 2.0,
+    "material": "concrete",
+    "thickness": 0.3
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      240,
+      60
+     ],
+     [
+      290,
+      60
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP east wall",
+    "height": 2.0,
+    "material": "concrete",
+    "thickness": 0.3
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      290,
+      60
+     ],
+     [
+      290,
+      110
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP north wall",
+    "height": 2.0,
+    "material": "concrete",
+    "thickness": 0.3
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      290,
+      110
+     ],
+     [
+      240,
+      110
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP west wall",
+    "height": 2.0,
+    "material": "concrete",
+    "thickness": 0.3,
+    "openings": [
+     {
+      "kind": "gap",
+      "at": 22.0,
+      "width": 4.0
+     }
+    ]
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      240,
+      60
+     ],
+     [
+      240,
+      110
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP sandbag post SW",
+    "height": 1.2,
+    "material": "sandbags",
+    "thickness": 1.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      245,
+      65
+     ],
+     [
+      253,
+      65
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP sandbag post SE",
+    "height": 1.2,
+    "material": "sandbags",
+    "thickness": 1.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      282,
+      65
+     ],
+     [
+      288,
+      65
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP sandbag post NW",
+    "height": 1.2,
+    "material": "sandbags",
+    "thickness": 1.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      245,
+      105
+     ],
+     [
+      253,
+      105
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "CMP sandbag post NE",
+    "height": 1.2,
+    "material": "sandbags",
+    "thickness": 1.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      282,
+      105
+     ],
+     [
+      288,
+      105
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "label": "CMP shed",
+    "height": 3.0,
+    "material": "concrete"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       258,
+       80
+      ],
+      [
+       270,
+       80
+      ],
+      [
+       270,
+       88
+      ],
+      [
+       258,
+       88
+      ],
+      [
+       258,
+       80
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "hedge row",
+    "height": 2.0,
+    "material": "hedge",
+    "thickness": 0.8
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      40,
+      20
+     ],
+     [
+      40,
+      150
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "low wall",
+    "height": 1.0,
+    "material": "brick",
+    "thickness": 0.3
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      40,
+      110
+     ],
+     [
+      90,
+      110
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "berm",
+    "height": 1.0,
+    "material": "earth-berm",
+    "thickness": 2.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      150,
+      80
+     ],
+     [
+      185,
+      80
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "label": "wreck",
+    "height": 1.5,
+    "material": "car-body"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       108,
+       99
+      ],
+      [
+       113,
+       99
+      ],
+      [
+       113,
+       101
+      ],
+      [
+       108,
+       101
+      ],
+      [
+       108,
+       99
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "label": "SBF berm",
+    "height": 1.0,
+    "material": "earth-berm",
+    "thickness": 2.0
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      90,
+      40
+     ],
+     [
+      150,
+      40
+     ]
+    ]
+   }
+  }
+ ]
+}

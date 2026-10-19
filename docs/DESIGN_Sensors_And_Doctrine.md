@@ -486,6 +486,31 @@ sequenceDiagram
 | **AQ-5** | the run resets when the man is unseen longer than the lost threshold (`TrackLostThresholdTicks`) — "the delay resets when he hides" | the one existing notion of "gone"; a one-tick flicker at a window edge does not restart it | resetting on any unseen tick (the 10 Hz solver would never let a long dwell finish behind a flickering edge) |
 | **AQ-6** | ⭐ ONLY a sight-tested result waits (it carries the exposure: vision, and thermal, which shares `StrategySightTest`); any other sensor's contact (a radar, a host's own template) is acquired the tick it is seen, as before (`Acquisition.DwellOf`) | the frame names SIGHT; a radar's range term would be a behaviour change no one asked for | the range term for every sensor (the first draft: a 300 m radar contact would wait 1 s) |
 
+#### 5.7a AS-BUILT correction — the dwell's clock on a module snapshot *(backend, `CE-3267`, `2026-10-19`)*
+
+📌 **Found live by behaviors** ([note](blueprints/batches/NOTE_Behaviors_To_Backend_Sight_Beyond_100m.md)): a fully exposed man at 113 m was never
+acquired; at 70 m at once. ⛔ **Cause:** the memory stage runs inside the EQS module on a SoD SNAPSHOT, and a snapshot carried no `GlobalTime`
+(Time Architecture P8 ①) ⇒ `now` read 0 for ever ⇒ AQ-1's `now − VisibleSince` never grew ⇒ every dwell above 0 — everything beyond
+`ExposedRangeM` — waited for ever. The §5.7 rails drove the stage directly with the clock set, so they could not see it.
+
+```mermaid
+sequenceDiagram
+  participant K as ModuleHostKernel (main thread)
+  participant P as snapshot provider (DoubleBuffer / OnDemand / Shared)
+  participant S as EQS module on the snapshot
+  K->>K: push GlobalTime into the live world
+  P->>P: SyncFrom(live, mask) - components, eight named singletons, the ticks
+  P->>P: CopyClockFrom(live) - NEW: the frame's GlobalTime, by value
+  S->>S: SensorMemoryStage.Begin reads that clock - the dwell advances
+```
+*What the picture shows that prose hid:* the clock is the provider's explicit second step, not part of `SyncFrom` — because `SyncFrom` also
+restores the LIVE world from a snapshot (a preview's rewind), and the clock must never be rewound there (Time Architecture §12a).
+
+| | as built | rejected — one line |
+|---|---|---|
+| where the clock comes from | `EntityRepository.CopyClockFrom` (a value copy), in all three providers | inside `SyncFrom` (a rewind would rewind the clock) · sharing the singleton table (the main thread rewrites it every frame) · a solver-owned accumulator of `deltaTime` (a second clock: `HeardTraces` stamps would disagree with the world's time) |
+| the rail that would have caught it | `AcquisitionTests.CE3267_…` runs the stage on a snapshot re-taken each tick | — |
+
 ## 6. Doctrine and origin — classes
 
 ```mermaid

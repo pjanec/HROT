@@ -229,6 +229,49 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-2244</c> — a terrain that is not resident yet marks the world PENDING from the step's frame-thread <c>BeforePrepare</c> until
+    /// its commit (sight is not judged meanwhile — faster nodes' units replicate in during the prepare, CE-2242); an abort clears it too;
+    /// a scenario naming no terrain never marks it. ✅ Red-proof: the mark not set in BeforePrepare ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2244_ATerrainComing_MarksTheWorldPending_UntilItsCommitOrAbort()
+    {
+        string folder = Path.Combine(_terrainDir, "kandahar");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+            """{"schemaVersion":2,"name":"kandahar","world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","features":[]}""", new UTF8Encoding(false));
+
+        var (handler, holder) = NewHandler();
+        using var world = NewWorld();
+        using (holder)
+        {
+            var intent = Intent("kandahar");
+            handler.BeforePrepare(intent, world);
+            Assert.True(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(world), "the terrain is coming");
+            Prepare(handler, intent);
+            Assert.True(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(world), "still coming during the prepare");
+            handler.Commit(intent, world);
+            Assert.False(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(world), "in: sight is judged again");
+
+            var (other, otherHolder) = NewHandler();
+            using (otherHolder)
+            {
+                using var second = NewWorld();
+                var again = Intent("kandahar");
+                other.BeforePrepare(again, second);
+                Assert.True(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(second));
+                other.Abort(again);
+                Assert.False(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(second), "an abort clears it");
+
+                using var none = NewWorld();
+                other.BeforePrepare(Intent(null), none);   // no staged header either: a scenario naming no terrain
+                Assert.False(Fdp.Toolkit.Terrain.TerrainWorldSource.IsPending(none));
+            }
+        }
+    }
+
     private sealed class CountingNavmeshFactory : Fdp.Toolkit.Navigation.INavmeshFactory
     {
         public int Calls;

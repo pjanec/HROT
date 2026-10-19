@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (backend: §7.18 G1/G2/G3 speech, mood, the blow on the wire — CE-3264…CE-3266) · 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-19 (backend: §7.2b CE-3220 part 2 — 1001/1003 retired, shipped scenarios migrated) · 2026-10-19 (backend: §7.18 G1/G2/G3 speech, mood, the blow on the wire — CE-3264…CE-3266) · 2026-10-18 (backend: §7.17 B-17 thrown cold weapons APPROVED, R-3016 — no throwing knife; CE-3247/CE-3248) · 2026-10-17 (backend: §7.13a B-11a stations + pick-up weapons BUILT, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -2555,7 +2555,7 @@ behaviour lookup (R-280) silently disagree.
 | as built | deviation, and why |
 |---|---|
 | `CivilianTkbCatalog` (`Hrot.Core/Tkb/CivilianTkbCatalog.cs`), registered by `HrotEnvironment.RegisterBuiltInTkb`: 1101 adult male, 1102 adult female, 1103 child (1.25 m ⇒ drawn as a child), 1104 elderly; 1201 shield, 1202 baton, 1203 launcher; `EntityClassTable` rows `Civilian` 3.1.*.2 and `SecurityForce` 3.1.*.3 | — |
-| ⛔ **1001 / 1003 NOT retired yet, the 4 scenarios NOT migrated** (B2-c deferred) | ⚠ the new civilians have health; until the neutral-target safety gate (`CE-2233`, CIV-0) lands, a soldier at FireAtWill may shoot them and the 4 scenarios' baselines would move. §3 already orders CIV-0 first. ⇒ **part 2** (retire + migrate ~25 sites incl. Stride tests with literal `1001L`, map key 501) follows CE-2233 |
+| ⛔ SUPERSEDED by §7.2b (2026-10-19, done): **1001 / 1003 NOT retired yet, the 4 scenarios NOT migrated** (B2-c deferred) | ⚠ the new civilians have health; until the neutral-target safety gate (`CE-2233`, CIV-0) lands, a soldier at FireAtWill may shoot them and the 4 scenarios' baselines would move. §3 already orders CIV-0 first. ⇒ **part 2** (retire + migrate ~25 sites incl. Stride tests with literal `1001L`, map key 501) follows CE-2233 |
 | the child type is named `CivilianMinor` | 📐 its rail threw: a TKB template name is unique and the old `CivilianChild` (1003) is still registered until part 2 — the same name would have thrown at every host's start-up |
 | `DefaultBehaviorHash` left empty | `CivilianHsm` does not exist until `CE-2235`; a brain tier with no default runs nothing (`BehaviorTkbTranslator` publishes no start) — the behaviors lane sets the hash when it registers the HSM |
 | CV-2's "Low priority band, 1 Hz" not in the type | `SensorCapabilitiesDto` has no band/refresh field — it is a perception-budget setting (Sensors §9.4), the behaviors lane's `CE-2235` |
@@ -2563,6 +2563,44 @@ behaviour lookup (R-280) silently disagree.
 
 Rails: `EntityClassTableTests.CE3220_TheCivilianFamily_AndTheSecurityForces_HaveTheirOwnClasses`; the type catalogue golden
 (`EntityTypeCatalogTests`) gains the seven rows under `Life Form/Land/Civilian (HROT)` and `…/Security Force (HROT)`.
+
+#### 7.2b AS-BUILT `CE-3220` part 2 *(backend, 2026-10-19)* — 1001 / 1003 retired, the shipped scenarios migrated
+
+```mermaid
+classDiagram
+  direction LR
+  class UrbanCombatTkbCatalog { <<existing>> 1002 car, 1050-1053 traffic, 2001-2007 KEPT · 1001 1003 REMOVED · NEW 2008 UnarmedFighter }
+  class CivilianTkbCatalog { <<existing, §7.2a>> 1101 1102 1103 1104 · 1201-1203 }
+  class BehaviorCatalog { <<existing>> 1101-1104 => civilian people list · map key 501 REMOVED }
+  class ShippedScenario { <<5 files>> neutral civilians => 1101 + Idle · hostiles and decoy => 2008 }
+  class BehaviorTkbTranslator { <<existing>> DefaultBehaviorHash CivilianHsm at origin Sop }
+  class RetiredCivilianTypesTests { <<NEW rail>> no 1001 1003 · every shipped TkbType resolves }
+  ShippedScenario ..> CivilianTkbCatalog : places 1101
+  ShippedScenario ..> UrbanCombatTkbCatalog : places 2008
+  class Armament { <<existing, AW-21>> IsCombatant: Civilian class judged on CONDUCT }
+  ShippedScenario ..> Armament : 2008 is a combatant by status
+  ShippedScenario ..> BehaviorTkbTranslator : Idle at Superior outranks the default
+  BehaviorCatalog ..> CivilianTkbCatalog
+  RetiredCivilianTypesTests ..> ShippedScenario
+  RetiredCivilianTypesTests ..> UrbanCombatTkbCatalog
+```
+*What the picture shows that prose hid:* the replacement is not a renumber, and it splits the old 1001's two jobs in two.
+① **As a neutral civilian:** a 1101 carries `DefaultBehaviorHash = CivilianHsm` (§5d), which the old behaviourless 1001 did not, so
+he would now wander, take fright and shelter (§5e). The `Idle` placement at origin `Superior` outranks the `Sop` default (CE-3034), so
+he stands still as before, the same shape behaviors' own `ua-civ-melee` uses. ② **As an unarmed hostile or decoy:** a 1101 is NO
+TARGET. 📐 Measured: three scenario twins went red (no round fired). AW-21 (`Armament.IsCombatant`, `Armament.cs:204`) judges a
+Civilian-class person on CONDUCT, whatever his side, while the old 1001 (an unclassed LandPerson, `3.1.0.0`) was a combatant by
+status. ⇒ a new **UnarmedFighter (2008)**: the 1001's body under the Infantry class (`3.1.*.1`).
+
+| as built | why |
+|---|---|
+| `UrbanCombatTkbCatalog`: the 1001 and 1003 templates and constants deleted; 1002 (the car, with the boot) kept | B2-a: retired, never reused |
+| 5 shipped scenarios: the two NEUTRAL civilians (`ua-civ-neutral-gate` "Civilian", `ua-threat-ranking` "Civilian Near") ⇒ 1101 + `Behavior: Idle / Superior`; the three combatant stand-ins (`tt-posture` "Unarmed Hostile", `ua-attack-approach` "Hidden Hostile", `tt-heard-shot` "Decoy", side Friend) ⇒ **2008** | ⚠ **deviation from B2-c**, which assumed all were civilians: three were never civilians but behaviourless unarmed combatants, and AW-21 makes a civilian of any side no target until he acts. Letting the two civilians live their routine is the owning lane's call (behaviors) |
+| ⭐ NEW `UrbanCombatTkbCatalog.TkbUnarmedFighter` = **2008**: Infantry class, no weapon, BrainTier 0, a civilian's 30 m / 100 m senses and footsteps, health from the scenario — the 1001's descriptors exactly, so the twins keep their baselines | ⛔ not a 1001 alias: a different class, and a real concept (an unarmed hostile, a prisoner, a decoy). Rejected: the Pilot (206) — he carries an M4 |
+| `BehaviorCatalog`: map key 501 (`TkbEntityTypes.CivilianPedestrian`, no template) removed; 1101–1104 get their own list: `CivilianHsm`, `MoveToLocation`, `FollowRoute`, `Idle`, `WanderCivil`, `PanicFlee` | B2-c "map keys re-pointed". ⚠ Only 501 was a person; 502–505 (car, APC, soldier, insurgent) are not B-2's and stay |
+| tests: ~15 files re-pointed to `CivilianTkbCatalog` (Map3D, catalog rails, BDC visual, the Editor and Stride tests, the debug API smoke); the editor's type-list golden loses its two rows; the debug API's route examples name 1101 | the compiler found every named site; literal `1001`s that build their own TKB, or are network ids, were left alone |
+| ⛔ NOT touched: `FDP/Examples/Fdp.Examples.UrbanCombat`'s own demo TKB (`DemoTkbSetup` registers its own 1001 in its own database) | it is the FDP example's private id space, not the built-in catalogue |
+| rail `RetiredCivilianTypesTests`: the built-in TKB holds no 1001/1003 (by id or name); ⭐ round-out: every `TkbType` any shipped scenario places resolves in the built-in TKB | B2-c's rail, widened: an unregistered id loads as an entity with no template on every node |
 
 ### 7.3 B-1 — non-lethal effects *(CV-6)*
 
@@ -3906,7 +3944,7 @@ bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.
 Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
 and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
-### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule; ⭐ TC-6 BUILT `2026-10-19` — §7.17a)*
+### 7.17 B-17 — THROWN COLD WEAPONS: knife, axe, spear, throwing star *(AW-19 extension; `CE-3247`, `CE-3248`; backend, `2026-10-18`; build-state: READY-TO-BUILD — TC-1…TC-6 APPROVED `2026-10-18` (R-3016) with the knife taken out of TC-2; TC-7 is behaviors' to rule; ⭐ TC-6 BUILT `2026-10-19` — §7.17a; ⭐ TC-1…TC-5 BUILT `2026-10-19` — §7.17b)*
 
 🔒 **Approved, user, `2026-10-18`:** *"Approved. Lethality depends also on what the man is holding in hands i guess.
 Knife is usually not thrown unless by a circus artist."* ⇒ ⭐ TC-2 carries **no throwing knife** (a knife is the MELEE item of AW-19, never thrown by the AI — TC-4); ⭐ TC-7's
@@ -4035,6 +4073,24 @@ the fire event itself is untouched — the egress still sends it, so `RecentShot
 
 Rails, one per reader, each red with `Threw` dropped from that reader: `PersonHandsTests.CE3248_…` (report + heat),
 `EffectTests.CE3248_…`, `EventToEffectSystemTests.CE3248_…`, `PedestriansPanicIntoCiviliansTests.CE3248_…`.
+
+#### 7.17b AS-BUILT — TC-1…TC-5, the thrown blades *(backend, `CE-3247`, `2026-10-19`; build-state: BUILT)*
+
+As drawn in §7.17's class, sequence and module diagrams — every box existed but the three rows of data and the three appended shapes;
+⭐ no new path. Measured before building: a `Kinetic` + `Indirect` warhead with a `HandItemDto` gives `WarheadRound.Arc | Lingers` and no
+`Area` (`WarheadRound.BitsOf`), so the round flies the throw's arc, strikes the first body on its line as a DIRECT hit
+(`HitResolutionSystem` → `DetonationNotification { Target, Shooter, Damage, Ammo }`, the shooter carried on as the hit's source by `CE-3237`),
+and, missing, lies where it lands for its lying time and is picked up (`RoundPickUp`, §7.10).
+
+| | as built | rejected — one line |
+|---|---|---|
+| the munitions | `MunitionTkbCatalog` 6044 hatchet · 6045 spear · 6046 star — `Kinetic`, `Indirect`, 1.5 mm (≤ the 9 mm's 2 mm: a vest stops them), damage 35 / 45 / 8, cost 1 / 1 / 0.5 | a `WarheadKind.Edged` (TC-2's own rejection: no reader tells it from `Kinetic`) |
+| lying | `HandItemDto { LiesSeconds = 300 }` — five minutes (a stone lies one) | the stone's minute: a blade is worth walking back for |
+| the look | `MunitionShape` **Axe 6 · Spear 7 · Star 8** (appended) | the `Grenade` lump (TC-3) — ⚠ ui's `ProjectileLayer` has no case for them yet, so they draw NOTHING until ui adds one ([note](blueprints/batches/NOTE_Backend_To_Ui_Thrown_Blade_Shapes.md)) |
+| a knife | ⛔ none (R-3016) — a rail pins that no built-in munition is a knife | — |
+
+Rails: `RoundPickUpTests.CE3247_…` (a hatchet strikes the man on its line, 8 m off, with its damage and thrower; one that misses lies and is
+picked up), `ThrownColdWeaponTests` (the three on the built-in catalogue: kind, arc, lingering, damage, armour, shape, lethal; no knife).
 
 ### 7.18 G1 / G2 / G3 — speech, mood and the blow on the wire *(backend halves of ui's [people-display gaps](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md); `CE-3264` `CE-3265` `CE-3266`; backend, `2026-10-19`; leans under the overnight mandate; build-state: BUILT)*
 

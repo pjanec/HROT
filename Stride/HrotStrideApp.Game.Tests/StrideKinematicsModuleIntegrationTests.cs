@@ -140,7 +140,7 @@ public sealed class StrideKinematicsModuleIntegrationTests : IDisposable
     public void SpawnedOwnedEntity_WithNonZeroVelocity_PositionIsUnchanged_AfterPump()
     {
         var spawnPos = new Vector3(100f, 200f, 5f);
-        SpawnAndPump(1001L,  // CivilianPedestrian
+        SpawnAndPump(1101L,  // CivilianAdultMale (⭐ CE-3220 part 2: 1001 retired)
             new SimTransform { Position = spawnPos },
             new SimVelocity  { Linear   = new Vector3(10f, 0f, 0f) });
 

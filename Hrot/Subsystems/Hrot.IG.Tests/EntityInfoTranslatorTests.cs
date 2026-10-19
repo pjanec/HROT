@@ -168,6 +168,7 @@ namespace Hrot.IG.Tests
                 EntityId        = 20,
                 CommanderId     = 10,
                 TacticalDesignation = eTacticalDesignation.Wingman,
+                FireTeam        = (byte)FireTeam.A,   // ⭐ CE-2281 / R-3019
                 ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
             };
 
@@ -180,6 +181,7 @@ namespace Hrot.IG.Tests
             Assert.Equal(subEntity, assigns[0].Subordinate);
             Assert.Equal(cmdEntity, assigns[0].Commander);
             Assert.Equal(TacticalDesignation.Wingman, assigns[0].Designation);
+            Assert.Equal(FireTeam.A, assigns[0].FireTeam);
         }
 
         /// <summary>
@@ -227,6 +229,7 @@ namespace Hrot.IG.Tests
                 EntityId        = 20,
                 CommanderId     = 10,
                 TacticalDesignation = eTacticalDesignation.Support,
+                FireTeam        = (byte)FireTeam.B,   // ⭐ CE-2281 / R-3019 — through the deferred queue
                 ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
             };
 
@@ -246,6 +249,7 @@ namespace Hrot.IG.Tests
             Assert.Equal(subEntity, assigns[0].Subordinate);
             Assert.Equal(cmdEntity, assigns[0].Commander);
             Assert.Equal(TacticalDesignation.Support, assigns[0].Designation);
+            Assert.Equal(FireTeam.B, assigns[0].FireTeam);
         }
 
         /// <summary>

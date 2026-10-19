@@ -23,6 +23,15 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ P2 (§8 PR-F) — a small-arms bullet: no body worth drawing — only its <see cref="MunitionVisualDto.Tracer"/>, if it has one.</summary>
         Bullet = 5,
+
+        /// <summary>⭐ <c>CE-3247</c> (civilians B-17, TC-3 — APPENDED) — a thrown hatchet: a short haft with a head, tumbling end over end.</summary>
+        Axe = 6,
+
+        /// <summary>⭐ <c>CE-3247</c> — a thrown spear (a javelin): a long thin shaft, point along the flight.</summary>
+        Spear = 7,
+
+        /// <summary>⭐ <c>CE-3247</c> — a throwing star: a small flat star, spinning flat.</summary>
+        Star = 8,
     }
 
     /// <summary>

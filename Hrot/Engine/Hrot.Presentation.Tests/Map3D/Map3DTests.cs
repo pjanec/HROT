@@ -369,7 +369,7 @@ public sealed class Map3DTests
     [InlineData(TkbEntityTypes.Truck_HMMWV, VisualFamily.WheeledUtility)]
     [InlineData(UrbanCombatTkbCatalog.TkbCivilianCar, VisualFamily.WheeledCar)]
     [InlineData(TkbEntityTypes.Infantry_Rifleman, VisualFamily.Person)]
-    [InlineData(UrbanCombatTkbCatalog.TkbCivilianPedestrian, VisualFamily.Person)]
+    [InlineData(CivilianTkbCatalog.TkbCivilianAdultMale, VisualFamily.Person)]
     [InlineData(TkbEntityTypes.Unit_TankPlatoon, VisualFamily.Unit)]
     public void S1_BuiltInTypes_MapToTheirKit(long type, VisualFamily expected)
         => Assert.Equal(expected, VisualFamilies.Of(BuiltIn().GetByType(type)));
@@ -379,7 +379,7 @@ public sealed class Map3DTests
     {
         var db = BuiltIn();
         Assert.True(EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Infantry_Rifleman)).Soldier);
-        Assert.False(EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian)).Soldier);
+        Assert.False(EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale)).Soldier);
         Assert.Equal(BlockFigure.Parts(StanceId.Standing, false).Length + 1, BlockFigure.Parts(StanceId.Standing, true).Length);
     }
 
@@ -1378,12 +1378,12 @@ public sealed class Map3DTests
     public void CE1099_TheChildType_IsASmallPerson_DrawnAsAChild()
     {
         var db = BuiltIn();
-        var child = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianChild));
+        var child = EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianChild));
         Assert.Equal(VisualFamily.Person, child.Family);
         Assert.True(child.Child);
         Assert.False(child.Soldier);
         Assert.InRange(child.Size.Z, 1.2f, 1.3f);
-        var grown = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian));
+        var grown = EntityBodyLayer3D.Resolve(db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale));
         Assert.False(grown.Child);
         Assert.False(grown.TypeColoured);   // ⇒ his clothes come from the everyday palette, not the family green
     }
@@ -1549,6 +1549,39 @@ public sealed class Map3DTests
             Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));   // cowering owns the arms
             Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
             Assert.Equal("COWERING · PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+        }
+    }
+
+    /// <summary>⭐ CE-1193 (backend's <c>Lean</c>, CE-3257 §13 LN-2) — the drawn lean IS the sim's: a shear about his feet across his left
+    /// axis that moves a point at his eye height exactly <see cref="Fdp.Toolkit.Combat.Leans.Shift"/> (left +, right −), leaves the feet
+    /// where they are, scales for a crouched eye, and does nothing to a man who does not lean or lies prone.</summary>
+    [Fact]
+    public void CE1193_TheDrawnLean_IsTheSimsShear()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var man = Man(world, Vector3.Zero);
+            Assert.Equal(Matrix4x4.Identity, EntityBodyLayer3D.LeanShear(world, man));
+            float stand = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+            float crouch = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;
+
+            Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, man, Fdp.Toolkit.Combat.LeanSide.LeanLeft));
+            var left = EntityBodyLayer3D.LeanShear(world, man);
+            Assert.Equal(Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, stand), left).Y, 4);   // his eye: 0.4 m to his left
+            Assert.Equal(stand, Vector3.Transform(new Vector3(0f, 0f, stand), left).Z, 4);                             // not lowered
+            Assert.Equal(Vector3.Zero, Vector3.Transform(Vector3.Zero, left));                                          // his feet stay at the corner
+            Assert.Equal(0.1f, Vector3.Transform(new Vector3(0.1f, 0f, 1f), left).X, 4);                                // no forward pitch
+
+            Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, man, Fdp.Toolkit.Combat.LeanSide.LeanRight));
+            Assert.Equal(-Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, stand), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+
+            world.AddComponent(man, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Crouched });
+            Assert.Equal(-Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, crouch), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+            world.GetComponentRW<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(man).TargetStance = StanceId.Prone;
+            Assert.Equal(Matrix4x4.Identity, EntityBodyLayer3D.LeanShear(world, man));   // a prone man does not lean (the sim ignores it too)
         }
     }
 
