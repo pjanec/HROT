@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§2: steps 1–2 done, step 3 BC-1 done)
+updated: 2026-10-19 (§2: steps 1–4 done, step 5 next)
 current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
 stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -50,7 +50,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ step 2 — done 2026-10-19 | battle positions over an area, Defend & Attack §8d **E-4** (DA-85…DA-92; the obstacle rule per the user) — built, rails red-proved, as-built folded; ⚠ not run live |
 | 🟡 step 3 — BC-1 done 2026-10-19 | one room, one squad (`CE-2257`, [Building Clearing §7.1a](../designs/group-maneuvers/DESIGN_Building_Clearing.md)) — built, rails red-proved (11/11 mutants killed); ⚠ not live (no CQB house yet) |
 | ✅ step 3 — BC-3 done 2026-10-19 | `ClearBuilding` `CE-2259` — [Building Clearing §7.2a](../designs/group-maneuvers/DESIGN_Building_Clearing.md): room by room, one drill (`RoomDrill`), stairs, the teams turning, a blocked room skipped; ⚠ not live |
-| ▶ **step 4 — NOW** | the request round trip, Casevac first — Platoon §4 Answer / §5 DAnswer |
+| ✅ step 4 — done 2026-10-19 | the request round trip, Casevac first (`CE-2305`, [Command Chain §8c-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md)): the staff asks once per man down, `PlatoonDefend` `DAnswer` sends the free reserve to `SquadRecover` him; ⚠ not live |
+| ▶ **step 5 — NOW** | the scene's reactions: ④ trigger man + ambush, ⑤ convoy halt, ⑥ insurgent spotter (Urban Battle §5) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 

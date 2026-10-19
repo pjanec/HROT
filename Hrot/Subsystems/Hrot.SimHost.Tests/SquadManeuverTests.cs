@@ -2588,11 +2588,14 @@ namespace Hrot.SimHost.Tests
             public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); Reporting.Execute(S.Repo, 0.016f); }
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
 
-            public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f)
+            public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f, Entity subject = default)
             {
                 float now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(S.Repo);
                 r.ObservedAt = now - observedAgo;
-                S.Repo.Bus.PublishManaged(new Fdp.Toolkit.Squad.Command.SquadReportNotification { FromUnit = from, ToUnit = S.Commander, Report = r, SentAt = now });
+                S.Repo.Bus.PublishManaged(new Fdp.Toolkit.Squad.Command.SquadReportNotification
+                {
+                    FromUnit = from, ToUnit = S.Commander, Subject = subject, Report = r, SentAt = now,
+                });
             }
 
             public void ReportSet(Entity from, float observedAgo = 0f)
@@ -2883,6 +2886,137 @@ namespace Hrot.SimHost.Tests
 
         private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
 
+        // ── CE-2305 — the request round trip, Casevac first (Command Chain §8c) ──────────────────────────────────────────────
+
+        private static void Down(Squad s, Entity man, float health)
+        {
+            if (!s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>(man))
+                s.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(man))
+                s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(man).Current = health;
+            else s.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+        }
+
+        /// <summary>A Casevac REQUEST from <paramref name="from"/> about <paramref name="man"/>.</summary>
+        private static void AskCasevac(Platoon p, Entity from, Entity man)
+            => p.Report(from, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Request, Subtype = (byte)Fdp.Toolkit.Squad.Command.RequestKind.Casevac, Count = 1,
+            }, subject: man);
+
+        private static int RecoverOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadRecover);
+
+        private static SquadRecoverParamsJsonDto RecoverOrderTo(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<SquadRecoverParamsJsonDto>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.SquadRecover).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static int Requests(Platoon p)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(p.S.Commander)
+                ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.CommandPicture>(p.S.Commander).Requests.Count : 0;
+
+        /// <summary>⭐⭐ <c>CE-2305</c> RQ-1, RQ-2, RQ-5 — a man DOWN and alive is asked for ONCE: after the report delay the platoon's picture
+        /// holds one Casevac from the squad, naming him (his network id) at where he lies; a DEAD man is never asked for; frames later there is
+        /// still one; the man back in the fight and down again is asked for again. ✅ Red-proofs: the asked bit ignored ⇒ a request every
+        /// frame · the dead not excluded ⇒ two requests · the flush dropping the subject ⇒ SubjectNetId 0.</summary>
+        [Fact]
+        public void CE2305_RQ1_AManDown_IsAskedForOnce_NamingHim_TheDeadAreNot()
+        {
+            var c = new Chain(members: 4);
+            var man = c.S.Members[1];
+            Down(c.S, man, 25f);
+            Down(c.S, c.S.Members[2], 0f);   // dead
+            c.Ticks(3);
+            Assert.Equal(0, c.Picture.Requests.Count);                                   // held for the delay
+            c.S.Pause(3.1); c.Ticks(3);
+            Assert.Equal(1, c.Picture.Requests.Count);
+            var r = c.Picture.Requests.Items[0];
+            Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.Casevac, r.Kind);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, man), r.SubjectNetId);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, c.S.Commander), r.FromNetId);
+            Assert.Equal(c.S.Repo.GetComponentRO<SimTransform>(man).Position, r.At);
+            c.Ticks(20); c.S.Pause(3.1); c.Ticks(3);
+            Assert.Equal(1, c.Picture.Requests.Count);                                   // once
+            Down(c.S, man, 90f); c.Ticks(2);                                             // back in the fight
+            Down(c.S, man, 20f); c.Ticks(2); c.S.Pause(3.1); c.Ticks(3);
+            Assert.Equal(2, c.Picture.Requests.Count);                                   // down again: asked again
+        }
+
+        /// <summary>⭐⭐ <c>CE-2305</c> RQ-3, RQ-4 — a Casevac reaches a defending platoon: the free reserve (Charlie) is ordered
+        /// <c>SquadRecover</c> — the named man, to its own point, put down — and the request leaves the picture; while Charlie is out
+        /// <c>KeepDefence</c> leaves it alone; its PROGRESS Set brings it back to its post. ✅ Red-proofs: the casevac mark not checked ⇒
+        /// <c>KeepDefence</c> re-orders Charlie to defend at once · the progress test dropped ⇒ Charlie never comes back · Answered not
+        /// called ⇒ the request stays.</summary>
+        [Fact]
+        public void CE2305_RQ3_PlatoonDefend_AnswersACasevacWithTheReserve_ThenBringsItBackOnItsSet()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            var man = p.S.Repo.CreateEntity();
+            AskCasevac(p, p.Alpha, man);
+            p.Ticks(4);
+            Assert.Equal((1, 0, 0), (RecoverOrders(p, p.Charlie), RecoverOrders(p, p.Alpha), RecoverOrders(p, p.Bravo)));
+            var order = RecoverOrderTo(p, p.Charlie);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(p.S.Repo, man), order.Casualty.NetworkId);
+            Assert.True(Vector3.Distance(order.To, new Vector3(0f, -40f, 0f)) < 0.01f, $"to {order.To}");
+            Assert.True(order.PutDown);
+            Assert.Equal(0, Requests(p));
+            p.Ticks(10);
+            Assert.Equal((1, 1), (DefendOrders(p, p.Charlie), RecoverOrders(p, p.Charlie)));   // left alone while out
+            p.ReportSet(p.Charlie);
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            Assert.True(Vector3.Distance(DefendOrderTo(p, p.Charlie).Position, new Vector3(0f, -40f, 0f)) < 0.01f);
+            p.Ticks(10);
+            Assert.Equal((2, 1), (DefendOrders(p, p.Charlie), RecoverOrders(p, p.Charlie)));
+        }
+
+        /// <summary>⭐ <c>CE-2305</c> RQ-3 — a second Casevac while the reserve is out WAITS in the picture, and is answered once it is back;
+        /// with two reserves, one committed to the line by <c>Reinforce</c>, the OTHER answers; a reserve spent on the stair answers nothing.
+        /// ✅ Red-proofs: the casevac mark not excluded from the free reserve ⇒ the second request is answered at once · a platoon-wide
+        /// "committed" test ⇒ the second reserve never answers · the stair's Spent mark dropped ⇒ the stair reserve leaves the stair.</summary>
+        [Fact]
+        public void CE2305_RQ3_ASecondCasevacWaits_WhileTheReserveIsOut_AndOnlyAFreeReserveAnswers()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            AskCasevac(p, p.Alpha, p.S.Repo.CreateEntity());
+            AskCasevac(p, p.Bravo, p.S.Repo.CreateEntity());
+            p.Ticks(6);
+            Assert.Equal((1, 1), (RecoverOrders(p, p.Charlie), Requests(p)));
+            p.ReportSet(p.Charlie);
+            p.Ticks(6);
+            Assert.Equal((2, 0), (RecoverOrders(p, p.Charlie), Requests(p)));
+
+            var q = new Platoon(squads: 4);   // two reserves; Reinforce commits Charlie (the first) behind Bravo
+            q.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
+                    + "{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]},{\"Squad\":4,\"Reserve\":true,\"Point\":[10,-50,0]}]}",
+                      BehaviorNames.PlatoonDefend);
+            q.Ticks(6);
+            var delta = q.S.Members[3];
+            q.ReportSpot(q.Alpha, new Vector3(30f, 100f, 0f), 2);   // Bravo's slice
+            Sitrep(q, q.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            q.Ticks(6);
+            Assert.Equal(2, DefendOrders(q, q.Charlie));            // committed behind Bravo
+            AskCasevac(q, q.Alpha, q.S.Repo.CreateEntity());
+            q.Ticks(6);
+            Assert.Equal((0, 1, 0), (RecoverOrders(q, q.Charlie), RecoverOrders(q, delta), Requests(q)));
+            Assert.True(Vector3.Distance(RecoverOrderTo(q, delta).To, new Vector3(10f, -50f, 0f)) < 0.01f);
+
+            var r = new Platoon(squads: 3);   // the only reserve blocks the stair
+            Defend(r);
+            r.Ticks(6);
+            AnswerBuilding(r);
+            r.ReportSpot(r.Bravo, new Vector3(2f, 2f, 0.5f), 2);    // inside: Charlie to the stair
+            r.Ticks(12);
+            Assert.Equal(2, DefendOrders(r, r.Charlie));
+            AskCasevac(r, r.Alpha, r.S.Repo.CreateEntity());
+            r.Ticks(6);
+            Assert.Equal((0, 1), (RecoverOrders(r, r.Charlie), Requests(r)));
+        }
+
         /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-59) — an OP forward at (0, 250): a SPOT 350 m from it changes nothing; one 250 m from it brings
         /// it back to its <c>Back</c> point (0, −30), where it is a reserve (no sector) and is ordered once. ✅ Red-proof: the OP's 300 m
         /// ignored ⇒ the far SPOT brings it back.</summary>
@@ -3020,8 +3154,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐⭐ <c>CE-2276</c> E-3a (DA-66…DA-70) — three line squads and a reserve, engaged: one line squad Red is not half ⇒ nothing;
         /// a second ⇒ FALL BACK: every line squad <c>BreakContact</c>s to the default point 100 m behind (0, −100), the reserve
-        /// <c>SquadDefend</c>s there and fires at will; every line squad's Set on that order ends the run in Success. ✅ Red-proofs: "half"
-        /// read as "any" ⇒ the first Red falls back · the end guard dropped ⇒ the run never finishes.</summary>
+        /// <c>SquadDefend</c>s there and fires at will — and answers no casevac (CE-2305); every line squad's Set on that order ends the run in
+        /// Success. ✅ Red-proofs: "half" read as "any" ⇒ the first Red falls back · the end guard dropped ⇒ the run never finishes · the
+        /// casevac's falling-back gate dropped ⇒ the reserve leaves to fetch.</summary>
         [Fact]
         public void CE2276_E3a_HalfTheLineRed_FallsBack_BehindTheReserve_AndEndsWhenTheLineIsBack()
         {
@@ -3040,8 +3175,10 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(Vector3.Distance(new Vector3(0f, -100f, 0f), DefendOrderTo(p, delta).Position), 0f, 0.01f);
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, delta));
             Assert.Equal(0, SectorOf(p, p.Alpha).ArcSet);   // no slice while falling back
+            AskCasevac(p, p.Alpha, p.S.Repo.CreateEntity());   // ⭐ CE-2305 — falling back, the reserve covers: no casevac
             p.Ticks(20);
             Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));   // kept, not re-sent
+            Assert.Equal(0, RecoverOrders(p, delta));
             Assert.False(p.S.Finished(out _));
             p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
             p.Ticks(4);

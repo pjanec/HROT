@@ -1456,6 +1456,82 @@ Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's pla
 `ClearBuilding` exists, Veteran). **E-3** (rest): the Veteran counterattack (⛔ waits for `ClearBuilding`, `CE-2259`), DAnswer, battle positions from a `BuildingSurvey`
 (DA-51's deferred half; the survey is built, `CE-3249`); `pc-defend-house`.
 
+### 8e. The ambush — the trigger man and the initiation *(`CE-2306`, behaviors, 2026-10-19 — Urban Battle §4 ④, §5 step 5; build-state: BUILDING — leans DA-93…DA-97, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `Charges\.Ask|InitiatedBy|TriggerIed|KillZone` over `Hrot/` and `FDP/` outside tests ⇒
+ONE caller, `DetonateChargeBehavior.Set` (his own worn charge); reads of `Charges.cs`, `HeldItems.cs`, `DetonateChargeBehavior.cs`,
+`SquadDefendBehavior.LiftOwnHold`, `DroneTargets.Pick`, `VehicleCover.IsVehicle`; the corpus: Civilians AW-12 / HI-6 / §5l, the catalogue's
+ASY-3/ASY-4/SQD-10 rows, Squad Tactics §5 "a static ambusher has no library form today"):** a placed charge set off by a man with a phone
+is BUILT in the engine (`Charges.Ask` — HI-6, `CE-3234`), ⛔ but **no behaviour sets off a charge it does not wear**; and the ambush's
+"hold fire until the enemy is in the kill zone" is ALREADY `SquadDefend`'s own-hold lift (DA-35: an operator's `HoldFire` on the squad
+goes at the first pooled contact inside its sector, or a round at a man) — ⛔ but that lifts on the FIRST man seen in the zone, not on
+the initiation, so the cell opens fire before the IED goes.
+
+```mermaid
+classDiagram
+  direction LR
+  class TriggerIedBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> TriggerIed(Charge, KillZoneMetres, AnyTarget, TimeoutSeconds) · Watch(p, ws, self, world) }
+  class TriggerIedParamsJsonDto { <<NEW, Hrot.Core MapDefinitions>> Charge · KillZoneMetres · AnyTarget · TimeoutSeconds }
+  class KillZone { <<NEW static>> Entered(world, watcher, at, metres, vehiclesOnly) }
+  class Charges { <<existing HI-6>> IsCharge · Ask(charge, by) — a phone in hand }
+  class HeldItems { <<existing>> Set(man, Phone) }
+  class TargetMemory { <<existing>> what he saw }
+  class VehicleCover { <<existing>> IsVehicle }
+  class SquadDefend { <<EXTENDED>> + InitiatedBy (the charge) }
+  class LiftOwnHold { <<EXTENDED, DA-35>> an initiated ambush lifts on the burst or a round, not on contact }
+  TriggerIedBehavior ..> HeldItems : the phone in hand
+  TriggerIedBehavior ..> KillZone
+  KillZone ..> TargetMemory
+  KillZone ..> VehicleCover
+  TriggerIedBehavior ..> Charges : Ask(charge, self)
+  SquadDefend --> LiftOwnHold
+  LiftOwnHold ..> Charges : IsCharge(InitiatedBy) — gone = initiated
+```
+*What the picture shows that prose hid:* the ambush needs no ambush play — the trigger man is one small behaviour over the built charge
+pipeline, and the cell is the existing `SquadDefend` with one more way its hold is lifted.
+
+```mermaid
+sequenceDiagram
+  participant T as trigger man (TriggerIed)
+  participant V as the convoy
+  participant C as ChargeSystem (the charge's position owner)
+  participant A as the ambush cell (SquadDefend, operator HoldFire)
+  T->>T: phone in hand, still, watching
+  V->>V: drives into the kill zone (within KillZoneMetres of the charge)
+  A->>A: sees it inside its sector — holds (InitiatedBy set)
+  T->>T: his memory: a hostile vehicle there
+  T->>C: Charges.Ask(charge, by him)
+  C->>C: the burst, the charge is gone
+  A->>A: InitiatedBy no longer a charge ⇒ FireAtWill (Self, once)
+  A->>V: the cell opens fire
+```
+*What the picture shows that prose hid:* the cell never needs to hear the blast or know the trigger man — the charge's own end is the
+signal, and it holds on every node because the teardown replicates (`Charges.End`).
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> TI[TriggerIed — the trigger man's task]
+  TI --> ASK[Charges.Ask — DetonateChargeEvent]
+  ASK --> CS[ChargeSystem — Interactions capability, the charge's position owner]
+  BT --> SD[SquadDefend — the cell's task]
+  SD --> LH[LiftOwnHold — reads the charge's life]
+  CS -.->|the charge ends, every node| LH
+```
+*Caption:* nothing new is scheduled; the two halves meet only through the charge entity.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **DA-93** | **the trigger man**: a library behaviour `TriggerIed {Charge, KillZoneMetres = 10, AnyTarget = false, TimeoutSeconds = 0}` — takes his phone in hand, stands still, and when HIS memory holds a hostile (not neutral, alive, identified) VEHICLE within `KillZoneMetres` of the charge (flat), asks it with `by` = himself; Success once asked; Failure with no phone, no charge, or the timeout | a squad play: a lone watcher with a phone is the usual trigger man · `DetonateCharge` with a target: it is the wearer's own charge, no watching |
+| **DA-94** | **what triggers it**: vehicles only by default (an IED is laid for the convoy); `AnyTarget` takes people too (a foot patrol) | every contact: a passer-by on foot would waste the IED on the first soldier |
+| **DA-95** | **he sees it himself** — his own `TargetMemory`, never ground truth | the charge's own proximity: a fuse, not a trigger man — the training point is that killing or blinding him stops the IED |
+| **DA-96** | **the cell waits for the initiation**: `SquadDefend.InitiatedBy` (the charge): with it, the own-hold lifts when the charge is gone (spent, or destroyed) or a round lands at a man — NOT on a contact in the sector | a new ambush play: SquadDefend already owns posts, sector and the hold · lift on the blast's sound: the cell may not hear it, and a heard blast elsewhere would set it off |
+| **DA-97** | **after**: the trigger man's task ends (Success); what he does next is his plan's (a mission phase: fight, flee, blend back — built) | an HSM that also fights: `CombatPosture` and the blend-back already exist as orders |
+
+**Slice.** DA-93…DA-96; rails: the trigger man asks only when a hostile vehicle he remembers is in the zone (a person, a neutral, one
+outside the zone do not), with the phone in hand; no phone / no charge ⇒ Failure; the cell with `InitiatedBy` holds through a contact in
+its sector and lifts when the charge is gone. ⛔ Not in it: the convoy's reaction (⑤), placing the IED (an author's charge on the ground),
+a live demo (the ladder's "convoy hit and dismount" rung).
+
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
 | demo | cast | must end with |

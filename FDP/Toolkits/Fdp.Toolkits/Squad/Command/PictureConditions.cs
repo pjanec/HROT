@@ -75,6 +75,28 @@ namespace Fdp.Toolkit.Squad.Command
             return row < 0 ? ProgressKind.NoProgress : picture.Subordinates.Items[row].Progress;
         }
 
+        /// <summary>⭐ <c>CE-2305</c> RQ-3 — the commander ANSWERED the request at <paramref name="index"/>: it leaves the picture (the
+        /// answer is an order, followed by the subordinate's PROGRESS like any other). <c>false</c> when there is no such request.</summary>
+        public static bool Answered(EntityRepository world, Entity commander, int index)
+        {
+            if (!world.HasComponent<CommandPicture>(commander)) return false;
+            ref var requests = ref world.GetComponentRW<CommandPicture>(commander).Requests;
+            if (index < 0 || index >= requests.Count) return false;
+            for (int i = index + 1; i < requests.Count; i++) requests.Items[i - 1] = requests.Items[i];
+            requests.Count--;
+            return true;
+        }
+
+        /// <summary>The index of the oldest open request of <paramref name="kind"/> (NoRequest = any), or -1.</summary>
+        public static int FirstRequest(ISimulationView view, Entity commander, RequestKind kind)
+        {
+            if (!view.HasComponent<CommandPicture>(commander)) return -1;
+            ref readonly var requests = ref view.GetComponentRO<CommandPicture>(commander).Requests;
+            for (int i = 0; i < requests.Count; i++)
+                if (kind == RequestKind.NoRequest || requests.Items[i].Kind == kind) return i;
+            return -1;
+        }
+
         /// <summary>Sim seconds now (the world clock), 0 when none.</summary>
         public static float Now(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (float)repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0f;

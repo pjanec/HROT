@@ -37,5 +37,11 @@ node, `EntityInfoIngressTranslator.cs:216-249`).
 behaviors builds part ① meanwhile (the log on every node, the fold gated on authority); ui is asked to show "not on this node
 yet" while a node has no copy.
 
+## Addendum — `CE-2305` (2026-10-19, behaviors)
+
+`PendingRequest` gained **`long SubjectNetId`** (what a REQUEST is about — a Casevac's casualty, as a network id because the picture is
+replicated). It is a new field at the END of the struct (after `Seq`); a codec that writes the struct by layout carries it, one that writes
+named fields needs one more. 📄 [Command Chain §8c-a](../../designs/group-maneuvers/DESIGN_Command_Chain_Example.md).
+
 ---
 _behaviors lane, 2026-10-19_

@@ -586,7 +586,7 @@ Rails (the feature's suite): `SquadManeuverTests.CE2301_ANodeWithNoBrain_LogsEve
 reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
 part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.
 
-## 8c. The request round trip — Casevac first *(`CE-2305`, behaviors, 2026-10-19 — Urban Battle §5 step 4; build-state: BUILDING — leans RQ-1…RQ-6, built under the user's "go ahead autonomously")*
+## 8c. The request round trip — Casevac first *(`CE-2305`, behaviors, 2026-10-19 — Urban Battle §5 step 4; build-state: BUILT — §8c-a; leans RQ-1…RQ-6, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — grep over `FDP/Toolkits/Fdp.Toolkits` and `Hrot.AI.Behaviors` for `RequestKind.` /
 `PendingRequest` / `AnswerRequest`, and reads of `StaffSystems.cs`, `CommandComponents.cs`, `ReportQueue.cs`, `PictureConditions.cs`,
@@ -670,3 +670,26 @@ same ops when `CE-2277` lands.
 **Slice.** RQ-1…RQ-5; rails: the composer's request (once per man, its subject, the flush's Subject), the inbox keeping the subject,
 `PlatoonDefend` answering with the reserve and re-ordering it on its Set, a second request waiting while the reserve is out. ⛔ Not in
 it: a live demo (folds into `pc-defend-house`, step 7), the attack's Answer.
+
+### 8c-a. As built *(2026-10-19 — RQ-1…RQ-5; the diagrams above hold)*
+
+| piece | where | as built |
+|---|---|---|
+| the ask | `StaffComposerSystem.ComposeCasevac` | each roster slot: alive and incapacitated, bit unset ⇒ REQUEST Casevac {At = where he lies, Count 1}, subject him; the bit set (`ReportOutbox.CasevacAsked`) |
+| the subject | `QueuedReport.Subject` → `SquadReportNotification.Subject` (Flush) → `PendingRequest.SubjectNetId` (`Fold(…, subject)`) | `ReportQueue.Enqueue` gained an optional `subject`; the wire already carried `Subject` (`CE-3250`) |
+| the close | `CommandPictureOps.Answered` · `FirstRequest` | the request leaves the picture when ANSWERED |
+| the answer | `PlatoonDefend` region 1: `DWatch → DAnswer` (`CasevacPending`) → `AnswerCasevac` → `DWatch` (`Handled`) | the free reserve gets `SquadRecover {casualty, to: its own point, putDown}`; `Casevac[slot] = 1` |
+| the return | `KeepDefence` | a slot out on a casevac is skipped until its PROGRESS is Set or TaskFailed, then goes dirty and is ordered to its post |
+
+⚠ **Choices the leans did not settle — measured or argued:**
+
+| choice | why |
+|---|---|
+| a man **back in the fight** clears his bit | so the same man down a second time is asked for again (RQ-5 says once per *casualty*); a dead man keeps it |
+| the answer is **not** tier-gated (`p.Controls`) | DA-65 gates the *tactical* control states; fetching a casualty is a standing duty, so a Militia platoon answers too |
+| not while **falling back**; **per reserve**, not per platoon: a reserve on the line (`Reinforce` makes it Line) or at the stair (`BlockStair` marks it `Spent`) is not free, a second reserve still is | the fall-back gives the reserve its covering order. 📌 a first build tested the platoon-wide `Committed` latch; a mutant (dropping it) survived and showed why it was wrong — with two reserves, the free one never answered |
+| a request **naming nobody** is answered with no order | an HTTP-injected request (`ReportInjection`) may carry no subject; there is no one to fetch, and leaving it would fill the four slots |
+| a reserve **out on a casevac is not free** for `BlockStair` either | `FreeReserve` excludes it — one reserve, one job |
+| ⚠ two requests back to back: the reserve is re-ordered to its post, then at once to the second casevac | the return and the answer are separate states; the churn is one extra order per request, accepted |
+
+Rails `SquadManeuverTests.CE2305_RQ1_*`, `CE2305_RQ3_*` ×2 — mutants: see the tracker row. ⛔ Not live yet (`pc-defend-house`, step 7).

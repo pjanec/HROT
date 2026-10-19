@@ -66,6 +66,11 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float BackX[Capacity];
         public fixed float BackY[Capacity];
         public fixed float BackZ[Capacity];
+        /// <summary>⭐ <c>CE-2305</c> RQ-3, RQ-4 — 1 = this reserve is out on a casevac (<c>SquadRecover</c>): <c>KeepDefence</c> leaves it
+        /// alone until its PROGRESS Set or TaskFailed, then orders it back to its post.</summary>
+        public fixed byte Casevac[Capacity];
+        /// <summary>⭐ <c>CE-2305</c> — 1 = this reserve is spent: it blocks the stair (E-3b) and is no longer free for anything else.</summary>
+        public fixed byte Spent[Capacity];
 
         public Vector3 Point(int slot) => new(X[slot], Y[slot], Z[slot]);
 
@@ -215,6 +220,8 @@ namespace Hrot.AI.Behaviors.Brains
             root.Child("Reinforce", c => reinforce = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Reinforce));
             StateBuilder block = null!;
             root.Child("BlockStair", c => block = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, BlockTheStair));
+            StateBuilder answer = null!;   // ⭐ CE-2305 RQ-3 — a subordinate's Casevac answered with the free reserve
+            root.Child("DAnswer", c => answer = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, AnswerCasevac));
             plan.On(0).GoTo("Occupy").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Planned).Polled();
             occupy.On(0).GoTo("Ready").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LineSet).Polled();
             ready.On(0).GoTo("Engage").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, EnemyInArea).Polled();
@@ -229,6 +236,8 @@ namespace Hrot.AI.Behaviors.Brains
             reinforce.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             watch.On(0).GoTo("BlockStair").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, EnemyInside).Polled();
             block.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
+            watch.On(0).GoTo("DAnswer").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, CasevacPending).Polled();
+            answer.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             return builder.Build();
         }
 
@@ -367,6 +376,13 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Role[slot] == PlatoonDefencePlan.NoRole) continue;
                 var squad = CommandPictureOps.Subordinate(world, self, slot);
                 if (squad.IsNull || !world.IsAlive(squad)) continue;
+                if (p.Casevac[slot] != 0)   // ⭐ CE-2305 RQ-4 — out on a casevac: back to its post once that task ended (Stands is only "recorded")
+                {
+                    var progress = CommandPictureOps.ProgressOf(world, self, slot);
+                    if (progress != ProgressKind.Set && progress != ProgressKind.TaskFailed) continue;
+                    p.Casevac[slot] = 0;
+                    p.Dirty[slot] = 1;
+                }
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;   // ⭐ E-2 (DA-62) — a dirty slot goes again
                 p.Dirty[slot] = 0;
                 var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
@@ -558,6 +574,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (reserve < 0 || !Stair(ref p, self, world, out var stair, out _)) return NodeStatus.Success;
             p.Set(reserve, PlatoonDefencePlan.Reserve, stair, StairRadius);
             p.Dirty[reserve] = 1;
+            p.Spent[reserve] = 1;
             p.Committed = 1;
             var unit = CommandPictureOps.Subordinate(world, self, reserve);
             if (!unit.IsNull && world.Bus.IsRegistered<SetRoeEvent>())
@@ -565,12 +582,44 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
+        /// <summary>A live reserve not out on a casevac and not spent on the stair (CE-2305), or -1. ⭐ A reserve committed by
+        /// <c>Reinforce</c> is on the line (its role is Line), so it is no reserve here.</summary>
         private static unsafe int FreeReserve(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
             int n = Math.Min(RosterCount(world, self), PlatoonDefencePlan.Capacity);
             for (int s = 0; s < n; s++)
-                if (p.Role[s] == PlatoonDefencePlan.Reserve && Alive(world, self, s)) return s;
+                if (p.Role[s] == PlatoonDefencePlan.Reserve && p.Casevac[s] == 0 && p.Spent[s] == 0 && Alive(world, self, s)) return s;
             return -1;
+        }
+
+        // ── the request round trip (CE-2305: RQ-3, RQ-4) ─────────────────────────────────────────────────────────────
+
+        /// <summary>DWatch → DAnswer (RQ-3): a subordinate's Casevac waits and a reserve is FREE (<see cref="FreeReserve"/>: not on the
+        /// line, not at the stair, not on another casevac — PER RESERVE, so a second reserve still answers); not while falling back. No free
+        /// reserve ⇒ the request waits in the picture.</summary>
+        [SharedAiCondition]
+        public static bool CasevacPending(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+            => p.Made != 0 && p.Falling == 0
+               && CommandPictureOps.FirstRequest(world, self, RequestKind.Casevac) >= 0 && FreeReserve(ref p, self, world) >= 0;
+
+        /// <summary>DAnswer's entry (RQ-3): the free reserve is ordered <c>SquadRecover</c> — fetch the request's casualty to the reserve's
+        /// own point and put him down — and the request is answered (it leaves the picture). A request naming nobody is answered with no
+        /// order: there is no one to fetch.</summary>
+        [SharedAiAction]
+        public static unsafe NodeStatus AnswerCasevac(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            int index = CommandPictureOps.FirstRequest(world, self, RequestKind.Casevac);
+            int reserve = FreeReserve(ref p, self, world);
+            if (index < 0 || reserve < 0) return NodeStatus.Success;
+            long casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
+            CommandPictureOps.Answered(world, self, index);
+            if (casualty == 0) return NodeStatus.Success;
+            var unit = CommandPictureOps.Subordinate(world, self, reserve);
+            var order = new SquadRecoverParamsJsonDto { Casualty = new Fdp.Toolkit.Replication.EntityRef(casualty), To = p.Point(reserve), PutDown = true, Speed = p.Speed };
+            CommandOrders.Assign(world, self, unit, BehaviorNames.SquadRecover,
+                                 JsonSerializer.Serialize(order, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
+            p.Casevac[reserve] = 1;
+            return NodeStatus.Success;
         }
 
         /// <summary>DA-72, DA-74 — the defended building (the surveyed one nearest the position) and its lowest stair, from a ready and

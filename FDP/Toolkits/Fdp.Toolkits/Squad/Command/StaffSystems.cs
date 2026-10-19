@@ -77,6 +77,7 @@ namespace Fdp.Toolkit.Squad.Command
                 if (!repo.HasComponent<ReportOutbox>(unit)) repo.AddComponent(unit, new ReportOutbox());
                 ComposeSpot(repo, unit, now);
                 ComposeSitrep(repo, unit, now);
+                ComposeCasevac(repo, unit, now);
                 Flush(repo, unit, now);
             }
         }
@@ -166,6 +167,30 @@ namespace Fdp.Toolkit.Squad.Command
             }, now + ReportDelaySeconds);
         }
 
+        /// <summary>⭐ <c>CE-2305</c> RQ-1, RQ-5 — the 9-line as a standing procedure: a member down and ALIVE (incapacitated) is asked for
+        /// once — REQUEST Casevac at where he lies, the man as its subject. A man back in the fight frees his slot's bit; a dead man is not
+        /// asked for (and keeps it). The squad's own buddy aid goes on regardless; the answer takes him from there.</summary>
+        private static void ComposeCasevac(EntityRepository repo, Entity unit, float now)
+        {
+            ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(unit);
+            int n = Math.Min(roster.Count, 16);
+            ushort asked = repo.GetComponentRO<ReportOutbox>(unit).CasevacAsked;
+            for (int i = 0; i < n; i++)
+            {
+                var man = roster.SubordinateEntities[i];
+                ushort bit = (ushort)(1 << i);
+                if (man.IsNull || !repo.IsAlive(man)) continue;
+                if (Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, man)) { asked &= (ushort)~bit; continue; }
+                if ((asked & bit) != 0 || !Fdp.Toolkit.Combat.Injury.IsIncapacitated(repo, man)) continue;
+                asked |= bit;
+                ReportQueue.Enqueue(repo, unit, new CommandReport
+                {
+                    Kind = ReportKind.Request, Subtype = (byte)RequestKind.Casevac, At = PositionOf(repo, man), Count = 1, ObservedAt = now,
+                }, now + ReportDelaySeconds, man);
+            }
+            repo.GetComponentRW<ReportOutbox>(unit).CasevacAsked = asked;
+        }
+
         /// <summary>A unit's strength as a colour: GREEN ≥ 90 % of its members fighting, AMBER ≥ 70 %, RED while still combat
         /// effective, BLACK once it is not (CB-37).</summary>
         public static StatusColour StrengthOf(ISimulationView view, Entity unit)
@@ -191,7 +216,7 @@ namespace Fdp.Toolkit.Squad.Command
                 bool goes = q.DueAt <= now && !muted
                          && (outbox.Posture != ReportingPosture.Silent || q.Report.Kind == ReportKind.Contact);
                 if (!goes) { outbox.Queued.Items[keep++] = q; continue; }
-                repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = unit, ToUnit = superior, Report = q.Report, SentAt = now });
+                repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = unit, ToUnit = superior, Subject = q.Subject, Report = q.Report, SentAt = now });
                 SentCount++;
             }
             outbox.Queued.Count = keep;
@@ -257,13 +282,14 @@ namespace Fdp.Toolkit.Squad.Command
                 if (!canFold || n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
                 if (_requireOwnedBrain && !(brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && repo.HasAuthority<BehaviorState>(n.ToUnit))) continue;
                 if (_gateOnAuthority && brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
-                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now)) { FoldedCount++; entry.Verdict = "folded"; }
+                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now, n.Subject)) { FoldedCount++; entry.Verdict = "folded"; }
                 else { DroppedCount++; entry.Verdict = "stale"; }
             }
         }
 
-        /// <summary>What a report does to the addressee's picture, NOW (the inbox and the HTTP fake share it). <c>false</c> = dropped.</summary>
-        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now)
+        /// <summary>What a report does to the addressee's picture, NOW (the inbox and the HTTP fake share it). <c>false</c> = dropped.
+        /// ⭐ <c>CE-2305</c> RQ-2 — a REQUEST keeps <paramref name="subject"/> (the notification's) as its network id.</summary>
+        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now, Entity subject = default)
         {
             long from = CommandPictureOps.NetIdOf(repo, fromUnit);
             int row = CommandPictureOps.EnsureRow(repo, toUnit, from);
@@ -295,6 +321,7 @@ namespace Fdp.Toolkit.Squad.Command
                     picture.Requests.Items[picture.Requests.Count++] = new PendingRequest
                     {
                         FromNetId = from, Kind = (RequestKind)r.Subtype, At = r.At, ReceivedAt = now, Seq = r.Seq,
+                        SubjectNetId = subject.IsNull ? 0 : CommandPictureOps.NetIdOf(repo, subject),
                     };
                     break;
             }
