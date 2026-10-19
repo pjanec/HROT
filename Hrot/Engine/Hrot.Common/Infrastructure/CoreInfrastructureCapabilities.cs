@@ -171,4 +171,35 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_custody);
         }
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2301</c> ① (R-2058; 🔒 user, 2026-10-19: <i>"Have the report inbox fill the log on every node."</i>) — the squad report
+    /// inbox for the plans with NO brain (SimHost, IG): it logs every <c>SquadReportNotification</c> this node sees (the ingress is in
+    /// the shared translator pack, so every node sees them) and never folds a picture here — a commander's picture is folded only where
+    /// his brain is owned. 📄 DESIGN_Command_Chain_Example.md §8b.
+    /// </summary>
+    /// <remarks>⛔ <b>Not the <c>CE-221</c> move.</b> A brain plan keeps <c>CgfLogicPack</c>'s own inbox, placed BEFORE the brain tick on
+    /// purpose (<i>"this frame's guards see it"</i>) — at the tail the brain would read every report a frame late. ⇒ declare this ONLY in
+    /// a plan without a brain: one inbox per node, never two. Order inside the phase is free (it only logs).</remarks>
+    public sealed class ReportInbox : INodeCapability
+    {
+        private readonly Fdp.Toolkit.Squad.Command.StaffInboxSystem _inbox = Fdp.Toolkit.Squad.Command.StaffInboxSystem.ForNodeWithoutBrain();
+
+        public string Key => CapabilityKeys.ReportInbox;
+
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+
+        /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _inbox };
+
+        public void PopulateSystems(
+            HrotNodeContext context,
+            List<IEcsModuleSystem> input,
+            List<IEcsModuleSystem> simulation,
+            List<IEcsModuleSystem> postSimulation)
+        {
+            if (simulation is null) throw new ArgumentNullException(nameof(simulation));
+            simulation.Add(_inbox);
+        }
+    }
 }

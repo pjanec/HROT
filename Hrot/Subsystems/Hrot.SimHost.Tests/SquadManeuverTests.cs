@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Modules.Geographic;
@@ -1644,6 +1646,80 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Fdp.Toolkit.Squad.Command.ReportInjection.Mute(c.S.Repo, c.S.Commander, 0f));
             c.Ticks(3);
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
+        }
+
+        // ── CE-2301 ① (R-2058) — the report log on every node (Command Chain §8b) ──────────────────────────────────────────────
+
+        /// <summary>A brainless node's world: the report event (the shared ingress registers it), one SPOT from a squad to its commander,
+        /// readable this frame; <paramref name="withPicture"/> = the picture's type is here too (a replica's, once CE-2301 ② lands).</summary>
+        private static (EntityRepository World, Entity To) BrainlessNodeWithOneReport(bool withPicture)
+        {
+            var world = new EntityRepository();
+            world.Bus.RegisterManaged<Fdp.Toolkit.Squad.Command.SquadReportNotification>();
+            if (withPicture) world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();
+            Entity from = world.CreateEntity(), to = world.CreateEntity();
+            world.Bus.PublishManaged(new Fdp.Toolkit.Squad.Command.SquadReportNotification
+            {
+                FromUnit = from, ToUnit = to,
+                Report = new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = new Vector3(0f, 300f, 0f), Count = 2 },
+            });
+            world.Bus.SwapBuffers();
+            return (world, to);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2301</c> ① (R-2058; 🔒 user, 2026-10-19: <i>"Have the report inbox fill the log on every node."</i>) — a node with
+        /// no brain (SimHost, IG) LOGS every report it sees, though it has no <c>CommandPicture</c>; and where the picture's type IS
+        /// present it still never folds one (the commander's brain is not here), while the brain pack's inbox would — so a replicated
+        /// picture keeps its one writer. ✅ Red-proof: the old picture guard first ⇒ no log; the owned-brain gate removed ⇒ a picture
+        /// appears on the brainless node.</summary>
+        [Fact]
+        public void CE2301_ANodeWithNoBrain_LogsEveryReport_AndNeverFoldsAPicture()
+        {
+            var (bare, _) = BrainlessNodeWithOneReport(withPicture: false);
+            using (bare)
+            {
+                var inbox = Fdp.Toolkit.Squad.Command.StaffInboxSystem.ForNodeWithoutBrain();
+                inbox.Execute(bare, 0.016f);
+                var logged = Fdp.Toolkit.Squad.Command.SquadReportLog.Peek(bare);
+                Assert.NotNull(logged);
+                var entry = Assert.Single(logged!.Recent(10));
+                Assert.Equal((Fdp.Toolkit.Squad.Command.ReportKind.Spot, "not-owned-here"), (entry.Report.Kind, entry.Verdict));
+                Assert.Equal(0, inbox.FoldedCount);
+            }
+
+            var (replica, to) = BrainlessNodeWithOneReport(withPicture: true);
+            using (replica)
+            {
+                Fdp.Toolkit.Squad.Command.StaffInboxSystem.ForNodeWithoutBrain().Execute(replica, 0.016f);
+                Assert.False(replica.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(to));
+                Assert.Equal("not-owned-here", Assert.Single(Fdp.Toolkit.Squad.Command.SquadReportLog.Peek(replica)!.Recent(10)).Verdict);
+            }
+
+            var (brainPack, to2) = BrainlessNodeWithOneReport(withPicture: true);   // the contrast: the brain pack's inbox folds it
+            using (brainPack)
+            {
+                new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority: true).Execute(brainPack, 0.016f);
+                Assert.True(brainPack.HasComponent<Fdp.Toolkit.Squad.Command.CommandPicture>(to2));
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2301</c> ① — ONE inbox per node: the report-inbox capability is declared by the plans with no brain (SimHost,
+        /// IG) and by no brain plan (CGF, the editor's two arms, Stride — whose plan is fused into the editor's in mode 1), which keep
+        /// <c>CgfLogicPack</c>'s own, placed before the brain tick. A source rail, like the other plan rails (the plans are built inline).</summary>
+        [Fact]
+        public void CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain()
+        {
+            string? root = AppContext.BaseDirectory;
+            while (root is not null && !File.Exists(Path.Combine(root, "HROT.sln"))) root = Directory.GetParent(root)?.FullName;
+            Assert.NotNull(root);
+            int Declarations(string rel) => Regex.Matches(File.ReadAllText(Path.Combine(root!, rel)), @"CoreInfrastructureCapabilities\.ReportInbox\s*\(").Count;
+
+            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"));
+            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"));
+            foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorCapabilities.cs",
+                                                 "Stride/HrotStrideApp.Game/StrideCapabilities.cs" })
+                Assert.Equal(0, Declarations(brainPlan));
+            Assert.Contains("StaffInboxSystem(", File.ReadAllText(Path.Combine(root!, "Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs")));
         }
 
         // ── CE-2294 CC-D — the first chain: a platoon's task and SOP over its squads' reports (Command Chain §1, §6, §8) ─────────

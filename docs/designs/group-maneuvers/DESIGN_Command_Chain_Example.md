@@ -534,7 +534,7 @@ hosted `MoveToLocation` named by the child and decoded at its block offset, dest
 `DebugApiRouteDocs` (rail `EveryRouteIsDocumentedTests`). Red-proofs: the catalog naming no candidates · the hosted arm decoding at
 offset 0 — each reddens its rail.
 
-## 8b. The picture and the log on every node *(✅ approved 2026-10-19, `CE-2301` — not built; ui's D4)*
+## 8b. The picture and the log on every node *(✅ approved 2026-10-19, `CE-2301` — ① BUILT 2026-10-19, ② backend's; ui's D4)*
 
 🔒 User, `2026-10-19`: *"Have the report inbox fill the log on every node. Accepted."* · *"Replicate the commander's picture read-only. Accepted."* — ui's two leans
 ([DESIGN_Command_Display §6 D4](../../DESIGN_Command_Display.md), [the ui note](../../blueprints/batches/NOTE_Ui_To_Behaviors_Command_Display_Data.md)).
@@ -572,5 +572,16 @@ graph TD
   SIS -->|owner only| CP["CommandPicture (fold)"]
 ```
 *What the picture shows that prose hid:* the notification already reaches every node (the ingress lives in the shared translator pack), but its only
+
+**As built (2026-10-19, `CE-2301` ①).** Three things differ from the detail above; the table stands otherwise.
+
+| | as built | why |
+|---|---|---|
+| the gate | `StaffInboxSystem.ForNodeWithoutBrain()` — log always; fold only for a commander whose `BehaviorState` is here AND owned here (so on a brainless node: never). The brain pack's `StaffInboxSystem(gateOnAuthority)` is unchanged | ⚠ the brain pack's gate skips only an UNOWNED `BehaviorState`; a commander replica with no `BehaviorState` would pass it, and `CommandPictureOps.EnsureRow` (`PictureConditions.cs:48`) then ADDS a local picture — a second writer the day part ② replicates the picture there |
+| the guard | the inbox returns early only when the report event is unregistered; the fold alone needs `CommandPicture` registered | the old first-line guard on `CommandPicture` was what kept SimHost / IG logless |
+| the plans | `CoreInfrastructureCapabilities.ReportInbox` (key `cap:infra:report-inbox`) in SimHost and IG only | ⛔ **Stride**: its plan is fused into the editor's brain plan in mode 1 (`EditorCapabilities.BuildWithInjectedMuscle`), and the pack's inbox is not keyed, so declaring it there would give the editor two — ⇒ a standalone Stride (mode 2) has no log yet. ⛔ **Traffic node**: a headless SUMO server; nothing reads a log there |
+
+Rails (the feature's suite): `SquadManeuverTests.CE2301_ANodeWithNoBrain_LogsEveryReport_AndNeverFoldsAPicture`,
+`CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain`; IG's walk rail asserts one inbox (`IgNodeBootstrapperTests` CE2150).
 reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
 part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.

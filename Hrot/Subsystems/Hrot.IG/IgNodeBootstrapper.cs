@@ -243,6 +243,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: the Reports window has a log to read.
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.ReportInbox())
             // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored for the map (the road layer and the car layer read its frame); idle without a net.
             .Capability(NodeRole.Map2D, Hrot.Traffic.TrafficPack.Mirroring());
 
