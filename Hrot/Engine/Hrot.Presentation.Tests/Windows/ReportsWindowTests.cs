@@ -152,9 +152,8 @@ public sealed class ReportsWindowTests : IDisposable
     [Fact]
     public void TheEmptyLineIsTheOneTheDesignGives()
     {
-        Assert.Equal(
-            "No report has reached this node yet — reports are logged where the commander's staff runs (brain nodes); see DESIGN_Command_Display §6 D4.",
-            ReportsWindowModel.EmptyText);
+        // ⭐ D4 (behaviors' answer, R-2058) — the inbox fills the log on every node, so the line no longer sends you to a brain node
+        Assert.Equal("No report on this node yet.", ReportsWindowModel.EmptyText);
     }
 
     // ── the window: what it builds and dumps ────────────────────────────────────────────────────────────────────────
