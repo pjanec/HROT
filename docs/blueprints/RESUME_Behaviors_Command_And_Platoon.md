@@ -48,7 +48,7 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ done before the plan | `CE-2276` E-1, E-2, E-3a (FallBack), E-3b (block the stair) — §8d, rails red-proved; `pc-defend-dry` live (region 0) |
 | ✅ step 1 — done 2026-10-19 | the frame lean, [Defend & Attack §8c D-2l](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DA-77…DA-84, R-2059) — built, rails red-proved, as-built folded; ⚠ not run live yet (no demo exercises a Regular squad at windows with a real survey — `sq-defend-house` is the one to watch) |
 | ✅ step 2 — done 2026-10-19 | battle positions over an area, Defend & Attack §8d **E-4** (DA-85…DA-92; the obstacle rule per the user) — built, rails red-proved, as-built folded; ⚠ not run live |
-| 🟡 step 3 — BC-1 done 2026-10-19 | one room, one squad (`CE-2257`, [Building Clearing §7.1a](../designs/group-maneuvers/DESIGN_Building_Clearing.md)) — built, rails green (mutant red-proofs running); ⚠ not live (no CQB house yet) |
+| 🟡 step 3 — BC-1 done 2026-10-19 | one room, one squad (`CE-2257`, [Building Clearing §7.1a](../designs/group-maneuvers/DESIGN_Building_Clearing.md)) — built, rails red-proved (11/11 mutants killed); ⚠ not live (no CQB house yet) |
 | ▶ **step 3 — NOW** | `ClearBuilding` `CE-2259` (BC-3, room by room on top of `ClearRoom`) — Building Clearing §7: INVENTORY, UML in §7.2, build |
 | next | step 4 the request round trip (Casevac first) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
@@ -97,6 +97,7 @@ feature's own rails first, then new rails in the feature's suite; builds and tes
 |---|---|
 | ✅ fixed 2026-10-19: `CombatPosture` ended on arrival with nothing to hunt — now only without `stay` (an operator's posture, an advance) | a squad's Hold / Watch member sends `stay` |
 | ⛔ adding a shipped `*.btree.json` asset needs the AI generator goldens: `AI_REGENERATE_SNAPSHOTS=1 dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests --filter Golden` + bump the corpus count in `BTreeGoldenCorpusTests` | CE-2294 shipped `BasicPlatoonSop` without them; fixed at CE-2297 |
+| ⛔ `SquadManeuverTests` has `Ticks(Squad, int n)` = n FRAMES; an integer literal there is frames, not seconds (BC-1's seconds helper is `TickFor`) | BC-1's hostile-in-the-room window was 4 frames ⇒ its mutant survived (2026-10-19) |
 | ⛔ `HoldOrder` has THREE fulfillers (`PersonHold`, `InfantrySquadHold`, `WeaponSystemHold`) and `SopParamsRoundTripTests.CE2079` requires each to read every field it is sent | a `Towards` field on it was reverted |
 | ⛔ the CycloneDDS IDL generator emits a file's enums into one scope — member names must be unique across enums in one file | `OccurrenceSlotCatalog` (`OwnerUnknown` / `RoleUnknown`) |
 | ⛔ `GET /entities/{id}/memory` returns `modalities` as a BITMASK (Visual = 1), not text | the sentry check's first runs |

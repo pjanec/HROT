@@ -3232,7 +3232,8 @@ namespace Hrot.SimHost.Tests
 
         private static void ClearRoom(Squad s) => s.Order("{\"Room\":[3,13,0]}", BehaviorNames.ClearRoom);
 
-        private static void Ticks(Squad s, double seconds) { for (int i = 0; i < (int)(seconds / 0.016) + 1; i++) s.Tick(); }
+        /// <summary>Time passes: <paramref name="seconds"/> of 16 ms frames (⚠ not <c>Ticks(s, n)</c>, which counts FRAMES).</summary>
+        private static void TickFor(Squad s, double seconds) { for (int i = 0; i < (int)(seconds / 0.016) + 1; i++) s.Tick(); }
 
         /// <summary>
         /// ⭐ <c>CE-2257</c> BC-1 (CB-50, CB-51, CB-52) — the plan, pure: the stack stands outside the wall on the side with LESS room (the
@@ -3302,9 +3303,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 goes first");
             Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
-            Ticks(s, 0.6);
+            TickFor(s, 0.6);
             Near(plan.Point(1), PostureOf(s, s.Members[1]).Post.Point, "#2 0.6 s after");
-            Ticks(s, 1.3);
+            TickFor(s, 1.3);
             for (int k = 0; k < 4; k++)
             {
                 Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
@@ -3317,11 +3318,11 @@ namespace Hrot.SimHost.Tests
 
             for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Point(k));
             s.PoolMany(1, new Vector3(4f, 15f, 0f));   // an enemy still in the far corner
-            Ticks(s, 4);
+            TickFor(s, 4);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             s.ClearPool();
-            Ticks(s, ClearRoomPlay.ClearSeconds + 0.5);
+            TickFor(s, ClearRoomPlay.ClearSeconds + 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             Assert.False(s.Finished(out _), "the squad holds the cleared room");
@@ -3345,7 +3346,7 @@ namespace Hrot.SimHost.Tests
             Near(plan.Stack(0), PostureOf(s, s.Members[1]).Post.Point, "the first after the leader is #1");
             Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader last");
             for (int k = 0; k < 6; k++) s.Teleport(s.Members[k], plan.Stack((k + 5) % 6));
-            Ticks(s, 1.5);
+            TickFor(s, 1.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
             Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");

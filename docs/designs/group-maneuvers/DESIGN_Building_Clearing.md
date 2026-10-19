@@ -757,7 +757,7 @@ live demo (`bc-room-clear` follows the slice).
 Rails: `SquadManeuverTests.CE2257_BC1_*` (the pure plan · the drill through the brain: the stack on the door, not the nearer window,
 the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an enemy in the room, RoomClear and holding · a small
 room: two go in, the leader stays out · RoomBlocked on no answer or a door that stays shut) · `WorldSurveySolveTests.CE2257_BC1_*`
-(the key). ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
+(the key). ✅ Red-proved by 11 compiling mutants, all killed (stack side · two-man rule · portal kind · flow · hostile check · leader last · both timeouts · succeeding when cleared · the key · the breach order). ⚠ The hostile mutant first SURVIVED: the rail's `Ticks(s, 4)` bound to the suite's `Ticks(Squad, int frames)` — four FRAMES, not four seconds — so the enemy was pooled for 64 ms; the seconds helper is now `TickFor`. ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
 
 ### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILDING — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
 
