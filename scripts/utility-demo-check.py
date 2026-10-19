@@ -4005,6 +4005,120 @@ def run_pc_defend_dry(c, timeout):
     c.ok(all(task_name(s) == "SquadDefend" for s in sq.values()), f"④ …no squad was pulled off to hold ({ {k: task_name(s) for k, s in sq.items()} })")
 
 
+
+# ── CE-2277 DA-F — pc-attack-dry (Platoon §12.2 stage A; Defend & Attack §8f): PlatoonAttack's decisions on FAKED reports ──────
+def _order(nid):
+    return ((data(call("GET", f"/entities/{nid}/order")) or {}).get("task") or {})
+
+
+def run_pc_attack_dry(c, timeout):
+    """⭐ CE-2277 — pc-attack-dry (DESIGN_Platoon_Attack_Defend_Clear §12.2 A; DESIGN_Defend_And_Attack_Position §8f, AT-1…AT-12).
+    A Blue platoon south of OBJ attacks the area round OBJ (radius 20 — OBJ is its only building, so the sweep finds it). No enemy:
+    the squads move for real, the phase reports are faked. ① the base of fire goes up first, the others wait · ② its Set ⇒ the
+    assault and the reserve bound · ③ the assault's Set ⇒ the lift (ReturnFire) and ClearBuilding on OBJ · ④ BuildingClear ⇒ every
+    squad consolidates (SquadDefend) · ⑤ all Set ⇒ the run ends."""
+    ids = ids_by_name()
+    pl = ids.get("Blue Platoon")
+    sq = [ids.get(f"Blue Squad {i}") for i in (1, 2, 3)]
+    if not c.ok(pl and None not in sq, f"the platoon and its three squads are loaded (platoon {pl}, squads {sq})"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(pl) == "PlatoonAttack", 15), f"the platoon runs PlatoonAttack (task: {task_name(pl)})")
+    support = wait_for(lambda: next((s for s in sq if task_name(s) == "SquadDefend"), None), 20)
+    if not c.ok(support is not None, f"① one squad is ordered to SquadDefend — the base of fire ({ {s: task_name(s) for s in sq} })"):
+        return
+    o = _order(support)
+    print(f"    support order: {json.dumps(o)[:400]}")
+    others = [s for s in sq if s != support]
+    wait_for(lambda: False, 3, every=1.0)
+    c.ok(all(task_name(s) in (None, "", "None") for s in others),
+         f"① …the assault and the reserve wait for it ({ {s: task_name(s) for s in others} })")
+    c.ok(wait_for(lambda: _roe(support) == "FireAtWill", 10), f"① …and the base of fire fires at will (ROE {_roe(support)})")
+
+    call("POST", f"/entities/{support}/reports", {"kind": "Progress", "subtype": "Set"})
+    bound = wait_for(lambda: all(task_name(s) == "BoundingOverwatch" for s in others), 15)
+    c.ok(bound, f"② its Set ⇒ the assault and the reserve bound ({ {s: task_name(s) for s in others} })")
+    assault = wait_for(lambda: next((s for s in others if (_order(s).get("params") or {})), None), 5) or others[0]
+    print(f"    bound orders: { {s: json.dumps(_order(s).get('params'))[:200] for s in others} }")
+    # the assault is the one whose bound point is nearer OBJ (40 m vs the reserve's 100 m)
+    def dist(s):
+        prm = _order(s).get("params") or {}
+        pt = prm.get("objective") or prm.get("Objective") or [0, 0, 0]
+        return math.hypot(pt[0] - 125, pt[1] - 161)
+    assault = min(others, key=dist)
+    reserve = next(s for s in others if s != assault)
+    c.ok(dist(assault) < 60 < dist(reserve), f"② …the assault to the flank point 40 m off, the reserve behind ({dist(assault):.0f} m, {dist(reserve):.0f} m)")
+
+    call("POST", f"/entities/{assault}/reports", {"kind": "Progress", "subtype": "Set"})
+    cleared = wait_for(lambda: task_name(assault) == "ClearBuilding", 15)
+    c.ok(cleared, f"③ the assault's Set ⇒ it clears OBJ (task {task_name(assault)}, params {json.dumps(_order(assault).get('params'))[:200]})")
+    c.ok(wait_for(lambda: _roe(support) == "ReturnFire", 10), f"③ …the fire lifts: the base of fire only returns fire (ROE {_roe(support)})")
+
+    call("POST", f"/entities/{assault}/reports", {"kind": "Progress", "subtype": "BuildingClear"})
+    held = wait_for(lambda: all(task_name(s) == "SquadDefend" for s in sq), 20)
+    c.ok(held, f"④ BuildingClear ⇒ every squad consolidates round OBJ ({ {s: task_name(s) for s in sq} })")
+    for s in sq:
+        call("POST", f"/entities/{s}/reports", {"kind": "Progress", "subtype": "Set"})
+    ended = wait_for(lambda: task_name(pl) != "PlatoonAttack", 15)
+    c.ok(ended, f"⑤ every squad Set ⇒ the attack is won and ends (platoon task {task_name(pl)})")
+
+
+
+# ── CE-2277 + CE-2276 — pc-defend-house (Platoon §12.2 stage C): a real attack on a real defence, AI on both sides ───────────────
+def run_pc_defend_house(c, timeout):
+    """⭐ CE-2277 / CE-2276 — pc-defend-house (DESIGN_Platoon_Attack_Defend_Clear §12.2 C; DESIGN_Defend_And_Attack_Position §8d, §8f).
+    Red (pc-defend-dry's cast) defends OBJ, H1 and H4; Blue (pc-attack-dry's cast) attacks the area round OBJ (radius 35: OBJ, H1, H3).
+    Nothing is faked. ⛔ The winner is NOT asserted: ① both plays run · ② Blue's base of fire goes up and Red opens fire on what it
+    spots inside its EA · ③ both sides fire · ④ Blue reaches its assault (ClearBuilding) or breaks off (BreakContact) — the log says
+    which, with every phase change on both sides."""
+    ids = ids_by_name()
+    rpl, bpl = ids.get("Red Platoon"), ids.get("Blue Platoon")
+    red = {n: ids.get(n) for n in ("Red Squad 1", "Red Squad 2", "Red Reserve")}
+    blue = {n: ids.get(f"Blue Squad {i}") for i, n in enumerate(("B1", "B2", "B3"), 1)}
+    if not c.ok(rpl and bpl and None not in list(red.values()) + list(blue.values()),
+                f"both platoons and their squads are loaded (red {red}, blue {blue})"):
+        return
+    call("POST", "/sim/timescale", {"scale": 4})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(rpl) == "PlatoonDefend" and task_name(bpl) == "PlatoonAttack", 15),
+         f"① Red runs PlatoonDefend, Blue PlatoonAttack ({task_name(rpl)}, {task_name(bpl)})")
+    log, last = [], {}
+    seen = {"support": False, "redFire": False, "assault": False, "broke": False}
+    end = time.time() + min(timeout, 600)
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for name, nid in list(red.items()) + list(blue.items()) + [("Red Platoon", rpl), ("Blue Platoon", bpl)]:
+            now = (task_name(nid), _roe(nid))
+            if last.get(name) != now:
+                last[name] = now
+                log.append(f"{t:7.1f}  {name:12s} {now[0]} · {now[1]}")
+        tasks = [last[n][0] for n in blue]
+        seen["support"] |= "SquadDefend" in tasks
+        seen["assault"] |= "ClearBuilding" in tasks or "FireAndMovement" in tasks
+        seen["broke"] |= "BreakContact" in tasks
+        seen["redFire"] |= any(last[n][1] == "FireAtWill" for n in ("Red Squad 1", "Red Squad 2"))
+        if seen["assault"] or seen["broke"] or task_name(bpl) != "PlatoonAttack":
+            break
+        time.sleep(1.0)
+    print("    timeline (sim s, squad, task · ROE):")
+    for line in log:
+        print("      " + line)
+    call("POST", "/perspective", {"name": "SimHost"})   # the shots are recorded where the rounds fly
+    try:
+        shots = (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    sides = {}
+    for sh in shots:
+        who = sh.get("shooter") or 0
+        side = "Red" if 9300 <= int(who) < 9400 else "Blue" if 9400 <= int(who) < 9500 else "?"
+        sides[side] = sides.get(side, 0) + 1
+    c.ok(seen["support"], "② Blue's base of fire goes up (a Blue squad SquadDefends)")
+    c.ok(seen["redFire"], "② Red's line opens fire (FireAtWill) on what it spots inside its EA")
+    c.ok(len(shots) > 0, f"③ shots are fired (by side {sides}, {len(shots)} in the last 256)")
+    c.ok(seen["assault"] or seen["broke"], f"④ Blue reaches its assault ({seen['assault']}) or breaks off ({seen['broke']}) — the winner is not asserted")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4089,7 +4203,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
