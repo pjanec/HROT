@@ -20,7 +20,8 @@ namespace Fdp.Toolkit.Combat.Components
 
     /// <summary>
     /// ⭐ <c>AQ85</c> E (R-216) — when the unit was last hit or nearly missed (sim seconds). For <see cref="HitModel.UnderFireSeconds"/>
-    /// after it, its own aim is spoiled (σ × 2): suppression. Stamped on the Muscle by the near-miss and hit producers.
+    /// after it, its own aim is spoiled (σ × 2): suppression. Stamped on the Muscle by the near-miss and hit producers; replicated
+    /// (<c>dtUnderFire</c>, Muscle group → every node, <c>CE-1223</c>) so a remote station's spread ring sees it.
     /// </summary>
     [ComponentId(GlobalComponentIds.UnderFire)]
     [DataPolicy(DataPolicy.NoScenario)]

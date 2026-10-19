@@ -52,7 +52,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtHitMarks),   // ⭐ CE-3210 (HL-8) — where the rounds struck, written by the muscle
         D(EDescriptorType.dtDescent),   // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
         D(EDescriptorType.dtLookState),
-        D(EDescriptorType.dtSpawnLevel) };   // ⭐ CE-3271 (Q94 D) — the birth level travels with the position  // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
+        D(EDescriptorType.dtSpawnLevel),   // ⭐ CE-3271 (Q94 D) — the birth level travels with the position
+        D(EDescriptorType.dtUnderFire) };  // ⭐ CE-1223 — when a man was last under fire, stamped on the Muscle
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 
     private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)

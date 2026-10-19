@@ -430,8 +430,8 @@ namespace Fdp.Toolkit.Utility
 
             // ⭐⭐ AQ85 F (R-216) — × the chance the round HITS, from the SAME HitModel the shot uses (σ of this unit firing this
             //   mount; the target's collider circle; the range). σ = 0 (no DispersionMils) ⇒ 1, so every type that has not opted in
-            //   scores exactly as before. ⚠ On the Brain the shooter carries no UnderFire (Muscle-local), so the estimate omits
-            //   suppression — the moving and stance factors apply.
+            //   scores exactly as before. ⭐ CE-1223 — UnderFire is replicated (dtUnderFire, Muscle → every node), so the Brain's
+            //   copy of the shooter carries the Muscle's stamp and the estimate includes suppression, one wire hop late.
             var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, ctx.Self);
             float sigma = Fdp.Toolkit.Combat.HitModel.Sigma(repo, owner, mount, Fdp.Toolkit.Combat.HitModel.Now(repo));
             if (sigma > 0f && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
