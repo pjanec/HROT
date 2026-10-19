@@ -940,6 +940,12 @@ the one order helper (`CommandOrders`), keyed on what the record already holds p
 (Hold, Move) · `DefencePosts.MovedAt` · `SquadDefendPlay.DisplacedGraceSeconds`. Rails `SquadManeuverTests.CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_*`,
 `…CE2304_ADisplacedMan_IsNotSentStraightBack_*`.
 
+*Live after it (`sq-defend-house`, 4 runs):* 6 squad issues in 18 s instead of 26, every man keeping one order instance through the
+others' moves; every live man reaches his post (closest frame: all within 0.2 m) — yet `Set` came in 1 run of 4. 📐 **Cause, measured:**
+the squad has no superior, so the staff never empties its outbox (`StaffComposerSystem` sends only for a unit with a live superior);
+the 8-slot outbox filled with `Displacing` reports and **refused the ninth** — `Set` — while `ReportedSet` was already 1, so it never
+came again. ⇒ ⭐ a full outbox drops its oldest report instead (`ReportQueue.Enqueue`; [Command Chain §8a `ReportOutbox`](DESIGN_Command_Chain_Example.md)).
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the

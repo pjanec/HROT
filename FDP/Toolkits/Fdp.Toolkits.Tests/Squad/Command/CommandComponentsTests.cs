@@ -196,17 +196,19 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             world.Dispose();
         }
 
-        /// <summary>⭐ CC-B — the outbox numbers each report per sender (CB-32) and refuses a ninth.</summary>
+        /// <summary>⭐ CC-B — the outbox numbers each report per sender (CB-32); ⭐ <c>CE-2304</c> — full, it drops its OLDEST for the new
+        /// one (newest wins): the ninth is kept and the first is gone. ✅ Red-proof: refusing the ninth (the old rule) ⇒ the newest is lost.</summary>
         [Fact]
-        public void CE2292_TheOutbox_NumbersEachReport_AndRefusesWhenFull()
+        public void CE2292_TheOutbox_NumbersEachReport_AndWhenFullDropsTheOldest()
         {
             var (world, platoon, _, _) = Platoon();
             for (int i = 0; i < ReportOutbox.MaxQueued; i++)
                 Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, 3f));
-            Assert.False(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, 3f));
+            Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, 3f));
             var outbox = world.GetComponentRO<ReportOutbox>(platoon);
-            Assert.Equal(((uint)ReportOutbox.MaxQueued, 1u, (uint)ReportOutbox.MaxQueued),
-                         (outbox.NextSeq, outbox.Queued.Items[0].Report.Seq, outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Seq));
+            Assert.Equal((ReportOutbox.MaxQueued, (uint)ReportOutbox.MaxQueued + 1, 2u, (uint)ReportOutbox.MaxQueued + 1, (byte)ProgressKind.Set),
+                         (outbox.Queued.Count, outbox.NextSeq, outbox.Queued.Items[0].Report.Seq,
+                          outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Seq, outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Subtype));
             world.Dispose();
         }
 }
