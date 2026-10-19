@@ -3892,6 +3892,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(s, 120));                          // 1 s at 16 ms a tick
         }
 
+        /// <summary>⭐ <c>CE-1056</c> — under fire while mounted the squad gets out, then reacts to contact. ⭐ <c>CE-2307</c> (CH-3, Squad Tactics
+        /// §5b): only once its carrier STANDS — a carrier that drives on carries it out of the kill zone. ✅ Red-proof (CE-2307): the standing
+        /// test dropped ⇒ the squad bails out of the moving carrier.</summary>
         [Fact]
         public void CE1056_BasicSquadSop_UnderFireWhileMounted_Dismounts_ThenReactsToContactOnceOut()
         {
@@ -3899,7 +3902,13 @@ namespace Hrot.SimHost.Tests
             s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
             s.StartSop("BasicSquadSop");
             Ticks(s, 20);
-            Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = new Vector3(8f, 0f, 0f) });          // ⭐ CE-2307 (CH-3) — it drives on
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 4);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // nobody gets out of a moving carrier: it rides
+            s.Repo.GetComponentRW<SimVelocity>(apc).Linear = Vector3.Zero;                           // it stops
 
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
             Ticks(s, 4);

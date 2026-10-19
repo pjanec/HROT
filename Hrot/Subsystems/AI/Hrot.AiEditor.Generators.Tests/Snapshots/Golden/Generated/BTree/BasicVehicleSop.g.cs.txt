@@ -39,6 +39,16 @@ public static class BasicVehicleSop
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@8",
+                        visualId: new Guid("c2165000-0000-0000-0000-000000000051"));
+                    seq.Condition("Hrot.AI.Behaviors.Brains.ConvoyConditions.CanPushThrough",
+                        visualId: new Guid("c2165000-0000-0000-0000-000000000052"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:PushThrough:Hit@-1",
+                        visualId: new Guid("c2165000-0000-0000-0000-000000000053"));
+                },
+                    visualId: new Guid("c2165000-0000-0000-0000-000000000050"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@8",
                         visualId: new Guid("c2165000-0000-0000-0000-000000000021"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:VehicleFightFromCover:Hit@-1",
                         visualId: new Guid("c2165000-0000-0000-0000-000000000022"));

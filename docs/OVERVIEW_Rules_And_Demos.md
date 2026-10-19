@@ -145,6 +145,7 @@ related-designs:
 | BM-1 / BM-2 | the bomber stands still `Seconds`, then sets off his worn charge; it stays hidden till then | `DetonateChargeBehavior` → `Charges.Ask` | §5l |
 | DA-93…DA-95 | the trigger man sets off a PLACED charge by phone when a hostile vehicle HE sees is in its kill zone (`AnyTarget`: people too) | `TriggerIedBehavior`, `KillZone.Entered` → `Charges.Ask` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 | DA-96 | an ambush (`SquadDefend.InitiatedBy`) holds through the enemy in its sector and opens fire once its charge is gone | `SquadDefendBehavior.LiftOwnHold` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
+| CH-1…CH-4 | a carrier hit while it drives with troops aboard pushes through (150 m on, then its route); the squad gets out only of a STANDING carrier | `PushThroughBehavior`, `ConvoyConditions.CanPushThrough`, `BasicVehicleSop` row, `SquadSopConditions` | [Squad Tactics §5b](designs/group-maneuvers/DESIGN_Squad_Tactics.md) |
 
 **Demos**
 

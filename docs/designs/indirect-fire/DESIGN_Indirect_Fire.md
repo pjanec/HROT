@@ -382,6 +382,56 @@ Rails: `AimAndFireExecutorTests.P2_AMortar_IsLaid_OnTheSolutionsElevation_Before
 before `FireAt`, nothing before it) · `P2_ASelfPropelledGun_TurnsItsTurret_BeforeItFires` · `EntityTurretPoseTranslatorTests.WL2b_…`
 (the arc crosses) · `NedTkbBuilderCombatTests.IF1_…` (the laying turrets).
 
+### 3.11 The spotter — an observer who picks his own target *(`CE-2308`, behaviors, 2026-10-19 — Urban Battle §4 ⑥, §5 step 5; build-state: BUILDING — leans SP-1…SP-5, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `ObserveFire|Spotter|SpotFor` over `Hrot/Subsystems/Hrot.AI.Behaviors` ⇒ `PersonObserveFire`
+and its order only; reads of `PersonObserveFireBehavior.Observe` (§3.8), `DroneTargets.Pick`, `KillZone.Entered` (CE-2306); backend's note
+`NOTE_Backend_To_Behaviors_Urban_Battle_Data` (BR-14: mortars carry a report)):** the observer loop is built and needs a TARGET handed to
+it (`ObserveFireOrder.Target` / `Location`) — ⛔ **nothing picks one from what a man sees**, so an insurgent mortar fires only where a
+scenario aims it.
+
+```mermaid
+classDiagram
+  direction LR
+  class SpotForFireBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> SpotForFire(Battery, MaxMetres, Rounds, RestSeconds) · Spot(p, ws, self, world) }
+  class SpotForFireParams { <<NEW>> Observe (ObserveFireParams) · MaxMetres · RestSeconds · Watching · RestUntil }
+  class FireTargets { <<NEW static>> Pick(world, observer, maxMetres) — from HIS memory }
+  class PersonObserveFireBehavior { <<existing IF-3>> Observe(ref ObserveFireParams) — call, watch, correct }
+  class TargetMemory { <<existing>> what he saw }
+  SpotForFireBehavior --> SpotForFireParams
+  SpotForFireBehavior ..> FireTargets : a target
+  FireTargets ..> TargetMemory
+  SpotForFireBehavior ..> PersonObserveFireBehavior : the mission, unchanged
+```
+*What the picture shows that prose hid:* the spotter is the observer with a target picker in front of it — the adjust loop is called as it
+is, so every IF-3 rule (seen bursts only, the bracket, observer lost) holds for the insurgent too.
+
+```mermaid
+sequenceDiagram
+  participant S as the spotter (SpotForFire)
+  participant M as his memory
+  participant O as Observe (IF-3, unchanged)
+  participant B as the mortar (battery)
+  S->>M: a hostile he identified, within MaxMetres — the biggest group, vehicles first
+  S->>O: Target = where it is
+  O->>B: Strike Adjust … then fire for effect
+  O-->>S: Success (end of mission) or Failure (lost)
+  S->>S: rest RestSeconds, then watch again
+```
+*What the picture shows that prose hid:* the spotter never ends on its own — it is a standing job, one mission after another.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **SP-1** | ⭐ a library behaviour `SpotForFire {Battery, MaxMetres 1500, Rounds, RestSeconds 30}` — watches, picks, runs the IF-3 `Observe` on the pick, rests, repeats; Running for good | a reaction in his SOP: a reaction ends, and the spotter's job is the task itself |
+| **SP-2** | ⭐ **what he picks** — from HIS memory only: an identified (not anonymous), live, hostile (another force, not neutral) contact within `MaxMetres`; the one with the most such contacts within 30 m of it, a vehicle counting double | the nearest: a lone rifleman beats a halted convoy · ground truth: the spotter is the thing to kill or blind |
+| **SP-3** | ⭐ **the target is where it was SEEN when picked** (a fixed point); Observe's own "I cannot see the target" check refuses one out of his sight | a moving aim: the adjust loop brackets a point, not a mover |
+| **SP-4** | ⭐ **after a mission (either end) he rests `RestSeconds`**, then watches again — the cell's tempo, and time for the target to move | at once: a mortar that fires on the same men for ever |
+| **SP-5** | ⭐ danger close stays the battery's (FM-5, `DangerClose`); the spotter adds nothing | a second friend check: two owners for one rule |
+
+**Slice.** SP-1…SP-4; rails: the pick (a group beats a lone man, a vehicle doubles, a neutral / an unidentified / one beyond `MaxMetres`
+are never picked); the spotter calls an adjusting Strike on the pick, then rests after the mission and calls again. ⛔ Not in it: the
+insurgents' own battery unit (an author's mortar team — the demo), counter-battery (IF-6).
+
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 
 | # | decision | rejected (one line each) |

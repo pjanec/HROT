@@ -1695,6 +1695,90 @@ authoring, not the drill):
 | a hostile given `FireAtTarget {targetNetworkId}` from the scenario also ran nothing (`run = 0`) although it saw the APC with its round loaded | not used. ⭐ **Cause found and fixed (`CE-1057`, 2026-10-12):** the load re-allocates network ids and the saved AI's params JSON was not remapped — [`DESIGN_Entity_Reference.md`](../../blueprints/DESIGN_Entity_Reference.md) §5 "CE-1057" |
 | a unit Hit edge needs a `TargetMemory` on the hit unit (`ThreatEvaluationSystem.cs:76`); the APC type gets none by default | authored in the scenario; a vehicle type with no sensors never feels hits |
 
+## 5b. The convoy halt — push through, or get out of a halted carrier *(`CE-2307`, behaviors, 2026-10-19 — Urban Battle §4 ⑤, §5 step 5; build-state: BUILT — §5b.1; leans CH-1…CH-4, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `PushThrough|ConvoyHalt|Convoy` over `Hrot/Subsystems/Hrot.AI.Behaviors` ⇒ only the
+`ConvoyEscort` NAME (`ExampleBehaviorDeclarations.cs`, `NoParams`, no body); reads of `BasicVehicleSop.btree.json`, `BasicSquadSop.btree.json`,
+`SquadDismountBehavior.cs` (`SquadSopConditions`), `Embarkation.Disembark`, `VehicleCover.IsStanding`, `CombatLife` (`MobilityKill`),
+`LocomotionMoveTo`; the corpus: §5a, the catalogue's VEH-2 "convoy react to ambush / IED"):** a carrier hit while it DRIVES does two things
+today — its SOP's "Hit → fight from cover" row stops it and sends it to a hide, and the squad's first row ("under fire while mounted")
+puts every passenger out at once, ⛔ **from a moving vehicle**: `Embarkation.Disembark` has no speed gate, only an airborne one. ⇒ a
+convoy hit in the kill zone stops IN it, which is the one thing the drill forbids.
+
+```mermaid
+classDiagram
+  direction LR
+  class PushThroughBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> PushThrough(Metres, Speed, TimeoutSeconds) · Drive(p, ws, self, world) }
+  class PushThroughParamsJsonDto { <<NEW>> Metres · Speed · TimeoutSeconds }
+  class ConvoyConditions { <<NEW SharedAiCondition>> CanPushThrough(self) — carries a live passenger, moving, can move }
+  class BasicVehicleSop { <<EXTENDED recipe>> + row: Hit AND CanPushThrough → React PushThrough, before "Hit → fight from cover" }
+  class SquadSopConditions { <<EXTENDED>> SensedFreshAboard: the carrier on the ground AND STANDING }
+  class LocomotionMoveTo { <<existing>> Issue · Status · Stop }
+  class VehicleCover { <<existing>> IsStanding }
+  class ReplicatedMotion { <<existing>> the velocity this node knows }
+  BasicVehicleSop ..> ConvoyConditions
+  BasicVehicleSop ..> PushThroughBehavior : React
+  PushThroughBehavior ..> ReplicatedMotion : heading
+  PushThroughBehavior ..> LocomotionMoveTo
+  ConvoyConditions ..> VehicleCover
+  SquadSopConditions ..> VehicleCover : standing
+```
+*What the picture shows that prose hid:* the drill is split by WHO decides — the vehicle decides to keep moving (its own SOP), the squad
+decides to get out (its own SOP) — and the only link between them is whether the carrier stands; no convoy entity is needed.
+
+```mermaid
+sequenceDiagram
+  participant E as the ambush
+  participant V as a carrier (its SOP)
+  participant S as the squad aboard (its SOP)
+  E->>V: hit while it drives
+  V->>V: row: Hit AND CanPushThrough ⇒ React PushThrough
+  S->>S: under fire while mounted — the carrier moves ⇒ ride on
+  V->>V: drives Metres on along its heading, then Success
+  V->>V: the reaction ends ⇒ its task (the route) resumes
+  E->>V: a second carrier: mobility kill (CanMove gone) ⇒ it stops
+  V->>V: CanPushThrough false ⇒ "Hit → fight from cover" (it cannot move: it fights where it stands)
+  S->>S: under fire AND the carrier standing ⇒ SquadDismount ⇒ then the battle drill
+```
+*What the picture shows that prose hid:* the same squad row both rides on and gets out — the carrier's speed picks which — so a
+carrier that is stopped by the hit, or was already stopped, unloads as before.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> VS[the vehicle's SOP: BasicVehicleSop + the PushThrough row]
+  VS --> PT[PushThrough — LocomotionMoveTo to a point ahead]
+  BT --> SS[the squad's SOP: BasicSquadSop row 'under fire while mounted' — standing carriers only]
+  SS --> SD[SquadDismount — existing]
+```
+*Caption:* nothing new is scheduled; both changes are SOP rows on the brains that already run.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **CH-1** | **a carrier with a live passenger, hit while it DRIVES and still able to move, pushes through**: the vehicle SOP gains a row before "Hit → fight from cover" — `CanPushThrough` (a live passenger aboard, not standing, `CanMove`) ⇒ React `PushThrough {Metres 150, Speed 0 = as fast as it goes, TimeoutSeconds 30}` | stop and fight (today): it stops IN the kill zone · a convoy entity ordering every vehicle: no convoy entity exists, and each vehicle knows its own state |
+| **CH-2** | **PushThrough drives on along its heading** (its velocity as this node knows it) to the point `Metres` ahead, then Success; the reaction ends and its task (the route) resumes — the convoy carries on out of the kill zone | "the next point of its route": the reaction cannot read the paused task's route · halt after pushing through: the convoy would stop just outside the kill zone, inside the ambush's reach |
+| **CH-3** | **the squad gets out only of a STANDING carrier**: `SensedFreshAboard` adds "the carrier stands" (`VehicleCover.IsStanding`) — a carrier stopped by the hit, or already stopped, unloads as before; a pushing one carries them out | a speed gate in `Embarkation.Disembark`: the engine rule would then also refuse a deliberate hot drop |
+| **CH-4** | **an empty carrier, or one that cannot move, keeps today's row** (fight from cover) | push through every vehicle: an empty gun truck's job in an ambush is to fight |
+
+**Slice.** CH-1…CH-4; rails: `PushThrough` drives to the point ahead along its velocity and succeeds; `CanPushThrough` is true only with
+a live passenger, moving, mobile; the squad row holds while the carrier moves and dismounts once it stands; the vehicle SOP golden
+regenerated (one row). ⛔ Not in it: vehicles not yet in the kill zone halting short and supporting (a convoy commander — later), the
+crew's own dismount, a blocked road.
+
+### 5b.1 As built *(2026-10-19 — the diagrams above hold)*
+
+| piece | where | as built |
+|---|---|---|
+| the drive | `Brains/PushThroughBehavior.cs` · `PushThroughParamsJsonDto` · `BehaviorNames.PushThrough` | a StatefulAction: on its first tick the point `Metres` ahead (`Ahead`: along `ReplicatedMotion` velocity when it moves, else its facing) and one `LocomotionMoveTo.Issue` (gait `Keep`, on the surface); Success within 8 m or when the move succeeds; Failure on the timeout or with no `CanMove` |
+| the test | `ConvoyConditions.CanPushThrough` (same file) | `CanMove` (alive, not destroyed, `CanMove` capability) AND not `VehicleCover.IsStanding` AND `CarriesPassenger` — a live, in-the-fight rider in a PASSENGER seat (`CarrierSeats.Roles`; a seat beyond the declared ones counts as a passenger seat) |
+| the row | `BasicVehicleSop.btree.json` row `…050` (SensedFresh hit · CanPushThrough · React PushThrough, urgency Hit), before "Hit → fight from cover" | goldens regenerated: `BasicVehicleSop.g.cs` / `.Registrar.g.cs` (+23 lines, additive) and its persistence hash; the call-shape table gained its two bindings |
+| the squad's gate | `SquadSopConditions` `AboardWhere.OnTheGround` (`SquadDismountBehavior.cs`) | + `VehicleCover.IsStanding(carrier)` — so the squad's "under fire while mounted" row waits, and a moving carrier's squad keeps riding (`SquadRide`) |
+
+⚠ **Choices the leans did not settle:** the gunner of BR-16's armed APC (seat 8, a Gunner seat) is crew, so an APC with only its gunner
+fights from cover like an empty one; an aircraft is also gated by "standing" — a landed one stands, so the air rows are unchanged.
+
+Rails `BasicVehicleSopTests.CE2307_*` (the vehicle's own suite) and a CE-2307 assertion folded into
+`SquadManeuverTests.CE1056_BasicSquadSop_UnderFireWhileMounted_*` (the dismount row's rail) — mutants 6/6 killed. ⛔ Not live yet.
+
 ## 6. Formations — as measured *(2026-10-11)*
 
 ```mermaid

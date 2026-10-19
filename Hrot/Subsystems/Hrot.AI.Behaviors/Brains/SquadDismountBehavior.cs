@@ -218,7 +218,9 @@ namespace Hrot.AI.Behaviors.Brains
                 // OnTheGround: standing, and not the stop that is picking the squad UP — under fire there, the aircraft is the way out
                 return where switch
                 {
-                    AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier),
+                    // ⭐ CE-2307 (CH-3, §5b) — and STANDING: a carrier that drives on (PushThrough) carries its squad out of the kill zone
+                    AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
+                                               && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier),
                     AboardWhere.Roping      => phase == Fdp.Toolkit.Navigation.NavigationPhase.Roping,     // ⭐ CE-1118 H-1
                     AboardWhere.Dropping    => phase == Fdp.Toolkit.Navigation.NavigationPhase.Dropping,   // ⭐ CE-1118 H-1
                     _                       => phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading,

@@ -105,7 +105,9 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        private static bool Hostile(EntityRepository world, Entity a, Entity b)
+        /// <summary>Another force, not a neutral one; false when either side is unknown (no <see cref="EntityInfo"/>). ⭐ <c>CE-2308</c> — the
+        /// spotter's pick shares it. ⚠ <c>DroneTargets</c> keeps its own copy on purpose: there an unknown side counts as hostile.</summary>
+        public static bool Hostile(EntityRepository world, Entity a, Entity b)
         {
             if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(a) || !world.HasComponent<EntityInfo>(b)) return false;
             var mine = world.GetComponentRO<EntityInfo>(a).ForceId;

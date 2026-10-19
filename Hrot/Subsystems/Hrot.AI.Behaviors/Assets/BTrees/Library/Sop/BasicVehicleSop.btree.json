@@ -30,6 +30,7 @@
       "ChildVisualIds": [
         "c2165000-0000-0000-0000-0000000000a1",
         "c2165000-0000-0000-0000-000000000010",
+        "c2165000-0000-0000-0000-000000000050",
         "c2165000-0000-0000-0000-000000000020",
         "c2165000-0000-0000-0000-000000000030",
         "c2165000-0000-0000-0000-000000000040"
@@ -157,6 +158,74 @@
       "DisplayLabel": "React: ShelterFromAir",
       "EditorMetadata": {
         "X": 220,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2165000-0000-0000-0000-000000000050",
+      "ChildVisualIds": [
+        "c2165000-0000-0000-0000-000000000051",
+        "c2165000-0000-0000-0000-000000000052",
+        "c2165000-0000-0000-0000-000000000053"
+      ],
+      "DisplayLabel": "Hit while driving with troops → push through",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "CE-2307 (Squad Tactics §5b CH-1): a carrier never stops in the kill zone with its squad aboard; a standing, empty or immobile one fights from cover below.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "hitSense"
+      },
+      "VisualId": "c2165000-0000-0000-0000-000000000051",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hit (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 220,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.ConvoyConditions.CanPushThrough"
+      },
+      "VisualId": "c2165000-0000-0000-0000-000000000052",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Driving, mobile, troops aboard",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "PushThrough",
+        "Urgency": "Hit"
+      },
+      "VisualId": "c2165000-0000-0000-0000-000000000053",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: PushThrough",
+      "EditorMetadata": {
+        "X": 380,
         "Y": 400,
         "Comment": null,
         "Collapsed": false,

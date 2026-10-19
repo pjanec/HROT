@@ -228,5 +228,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2306</c> (DA-93, Defend &amp; Attack §8e) — the trigger man sets off a placed charge by phone when a hostile vehicle he
         /// sees is in its kill zone.</summary>
         public const string TriggerIed = "TriggerIed";
+        /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
+        /// kill zone.</summary>
+        public const string PushThrough = "PushThrough";
     }
 }
