@@ -49,6 +49,34 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2275</c> D-1 (DA-39) — a unit with men under it (a squad commander, no TKB type needed) defends with its SQUAD:
+        /// <c>SquadDefend</c> at the area's centre, the radius its posts' search radius. ✅ Red-proof: the roster arm removed ⇒ no mapping.
+        /// </summary>
+        [Fact]
+        public void TryMap_AUnitWithMen_DefendsWithSquadDefend_AtTheAreaCentre()
+        {
+            using var repo = CreateTestWorld();
+            repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            geo.SetOrigin(50.0, 14.0, 0.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var centre = geo.ToCartesian(50.001, 14.001, 0.0);
+            var commander = repo.CreateEntity();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, repo.CreateEntity());
+            repo.AddComponent(commander, roster);
+
+            Assert.True(new DefendAreaMapper().TryMap(commander, repo,
+                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment));
+            Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadDefend, assignment.BehaviorName);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto>(
+                assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(centre.X, dto.Position.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Y, 2);
+            Assert.Equal(25f, dto.SearchRadius);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3160</c> (L4, R-266) — an infantry soldier (and an insurgent) defends an area with the LIBRARY's
         /// <c>CombatPosture</c>, advancing to the area's centre and holding within its radius. ⛔ It mapped to <c>InfantryCombat</c>,
         /// the UrbanCombat example's tree registered on the editor only, so the order was silently dropped on CGF.

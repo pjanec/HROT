@@ -56,6 +56,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2123</c> S2 — the squad holds where it stands and fights.</summary>
         public const string SquadHold = "SquadHold";
 
+        /// <summary>⭐ <c>CE-2275</c> D-1 — the squad defends a position: posts per man, his arc toward the squad's sector, displacing under fire.</summary>
+        public const string SquadDefend = "SquadDefend";
+
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";
 

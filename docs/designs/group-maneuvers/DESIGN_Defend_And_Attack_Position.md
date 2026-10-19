@@ -494,6 +494,17 @@ brains share a node (the CGF norm); ⛔ not measured for a squad split across no
 | **DA-38** | displace | the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
 | **DA-39** | the order | a new library behaviour **`SquadDefend`** {Position, SearchRadius 30 m, Speed}; `DefendArea` on a unit with a roster ⇒ `SquadDefend` at the area's centre (radius ⇒ `SearchRadius`); runs until the next order; Failure when no man is alive | a `Defend` preset of `SquadHold`: the hold has no posts and no memory |
 
+**As built (D-1, 2026-10-19)** — as drawn, with these names: `SquadDefendBehavior` / `SquadDefendPlay` / `DefencePosts` / `DefencePostPicker`
+(`Hrot.AI.Behaviors/Brains/SquadDefendBehavior.cs`) · `SquadDefendManeuver` kind 18, phases Moving → Posting
+(`Fdp.Toolkits/Squad/Maneuvers/SquadDefendManeuver.cs`, named in `SquadDrillNames`) · `FindDefensiveWindowPosts` and its no-EA twin
+`FindWindowPostsAllRound` (`StarterTemplates.cs`) · `EngagementAreas.TryAllowPoint` (the EA's point: an area's outline mean, else the arc's
+middle at the middle of its range, 100 m with none) · `DefendAreaMapper`'s roster arm. Details the diagrams leave open: the move ends when every
+live man is within 6 m of the position (or after 90 s); a post ask unanswered for 5 s is given up and the men left over hold where they are; a
+man with no post holds with an arc toward the EA; only rounds after the posts are given count. ⚠ The window answer's STANCE is not passed to
+the man (CombatPosture picks his stance) — D-2, with the set-back. Rails (the play's suite, `SquadManeuverTests`):
+`CE2275_DefencePostPicker_SpacesPostsIn3D_AndGivesTheNearestFreeAlternate` · `CE2275_SquadDefend_MovesThenMansWindowAndCoverPosts_WithArcsTowardItsSector_AndReportsSet`
+· `CE2275_SquadDefend_AManUnderFire_MovesToHisAlternatePost_AndReportsDisplacing`; the mapper's suite: `TryMap_AUnitWithMen_DefendsWithSquadDefend_AtTheAreaCentre`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
