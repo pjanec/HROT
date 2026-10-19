@@ -1552,6 +1552,39 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>⭐ CE-1193 (backend's <c>Lean</c>, CE-3257 §13 LN-2) — the drawn lean IS the sim's: a shear about his feet across his left
+    /// axis that moves a point at his eye height exactly <see cref="Fdp.Toolkit.Combat.Leans.Shift"/> (left +, right −), leaves the feet
+    /// where they are, scales for a crouched eye, and does nothing to a man who does not lean or lies prone.</summary>
+    [Fact]
+    public void CE1193_TheDrawnLean_IsTheSimsShear()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var man = Man(world, Vector3.Zero);
+            Assert.Equal(Matrix4x4.Identity, EntityBodyLayer3D.LeanShear(world, man));
+            float stand = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+            float crouch = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;
+
+            Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, man, Fdp.Toolkit.Combat.LeanSide.LeanLeft));
+            var left = EntityBodyLayer3D.LeanShear(world, man);
+            Assert.Equal(Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, stand), left).Y, 4);   // his eye: 0.4 m to his left
+            Assert.Equal(stand, Vector3.Transform(new Vector3(0f, 0f, stand), left).Z, 4);                             // not lowered
+            Assert.Equal(Vector3.Zero, Vector3.Transform(Vector3.Zero, left));                                          // his feet stay at the corner
+            Assert.Equal(0.1f, Vector3.Transform(new Vector3(0.1f, 0f, 1f), left).X, 4);                                // no forward pitch
+
+            Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, man, Fdp.Toolkit.Combat.LeanSide.LeanRight));
+            Assert.Equal(-Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, stand), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+
+            world.AddComponent(man, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Crouched });
+            Assert.Equal(-Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, crouch), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+            world.GetComponentRW<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(man).TargetStance = StanceId.Prone;
+            Assert.Equal(Matrix4x4.Identity, EntityBodyLayer3D.LeanShear(world, man));   // a prone man does not lean (the sim ignores it too)
+        }
+    }
+
     /// <summary>⭐ CE-1178 (docs/DESIGN_People_Display.md §5 U17) — the effect / gesture line is a ROW OF HIS CARD, keyed by his network id,
     /// so it sits above his head in 3-D (the card's anchor is the body top, S5b) and above the symbol in 2-D; ⛔ not loose ground text, which
     /// 3-D drew at his feet. A man with no network id (no card) keeps the loose line.</summary>

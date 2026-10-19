@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
+updated: 2026-10-19
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
 current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
@@ -202,6 +202,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 | `CE-1177` | U16 — mood on the face and the tiny dot | pain today (`Injury`); fear / anger / alarm G2 | ✅ partly READY |
 | `CE-1178` | U17 — the overhead text line above the head in 3-D | ui only | ✅ BUILT `2026-10-18` (§7a) |
 | `CE-1179` | U18 — items on the ground (pick-up weapons, laid-down weapon, placed charge) | on the wire today | ✅ READY |
+| `CE-1193` | the LEAN round a corner (backend's `Lean`, `CE-3257`; behaviors' poses note CB-21) | on the wire today | ✅ BUILT `2026-10-19` (§7a) |
 
 ### 7a. As built *(`2026-10-18`)*
 
@@ -209,6 +210,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 |---|---|---|
 | `CE-1178` (U17) | `EffectStateGizmo` writes its line as **row 50 of the entity card** (`EffectStateGizmo.Row`) — the card sits above the body top in 3-D and above the symbol in 2-D (Map 3-D §3.6: *"extra lines — any gizmo, rows 30+"*); a man with no network id (no card) keeps the loose line; ⭐ a person's card point is the top of what is DRAWN (`EntityBodyLayer3D.LabelTop` — the protest sign's board, raised hands), found by the frame rail: the card covered the sign. Rail `CE1178_TheOverheadLine_IsARowOfHisCard_NotTextAtHisFeet` | ⭐ the card, not a new anchored text: the user's U20 (Map 3-D) asked for ONE mechanism for per-entity text in 2-D and 3-D, and the card is it. ⚠ 2-D moves too — the line is now in the card above the symbol, no longer loose under it |
 | `CE-1175` (U14) | `BlockFigure.GestureArms(…, t)` animates on `t` with no state (fist ±25° about the elbow 1.4 Hz · sign ±6 cm 0.8 Hz · hands-up ±8° about the shoulders 0.5 Hz · wave ±30° 1.8 Hz · warning and wind-up still); `t = 0` is the static pose. `EntityBodyLayer3D.GestureClock` = sim time + up to 10 s from his seed (network id, so the same on every node). Rail `CE1175_TheGestures_Move_OnEachMansOwnClock_AndStillReadAsTheGesture` | ⭐ no `GestureMotion` class: a clock function and a parameter carry it (§2 box updated) |
+| `CE-1193` (lean) | `EntityBodyLayer3D.LeanShear(world, e)` = the sim's shear (`Leans`, Hit Location §13 LN-2): body-frame `y' = y + sign · 0.4 · z / eye` (eye 1.7 standing, 1.1 crouched — `EngineFallbacks`), multiplied into `kitToBody` for a FREE figure (not held, on a rope or jumping); identity when he does not lean or lies prone. ⭐ The eye and the muzzle tip read `kitToBody`, so the first-person view of a possessed leaning man and his muzzle flash move with him — backend's `PossessionStation.EyeOf` suggestion needs nothing more. Rails `CE1193_TheDrawnLean_IsTheSimsShear`, frame `CE1193_V_TheLeanIsDrawnAsTheSimLeans` ([`people-2-lean.png`](assets/map-3d/people-2-lean.png)) | ⚠ a shear, not behaviors' "upper body tilted, weapon leading" roll: the shear is what sight and the round use, so the head is drawn where he is seen and hit; a roll about the hip would put it elsewhere. ⚠ the eye height is the engine fallback, not the type's TKB eye (the sim's `EyeOf` resolves the type's); the same for the built-in figures |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 
