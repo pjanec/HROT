@@ -323,6 +323,50 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1218 (docs/DESIGN_Entity_Control.md §8k M-1) — M in first person: one still frame (he stops), the 2-D map centred on him, the
+    /// cursor free, the unit still held; M on the map brings the operator back to his eyes (that same press does not reopen the map).
+    /// </summary>
+    [Fact]
+    public void CE1218_M_OpensTheMapCentredOnHim_HeHoldsStill_AndMBringsTheOperatorBack()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            Assert.True(sw.Is3D);
+            var input = new Input();
+            input.Keys.Add((int)Raylib_cs.KeyboardKey.W);                                       // walking …
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            Assert.Equal(1f, Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()).Forward);
+
+            input.Pressed.Add((int)Raylib_cs.KeyboardKey.M);                                    // … M
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            var still = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            Assert.Equal((0f, 0f, (byte)0), (still.Forward, still.Lateral, still.Trigger));   // he holds still
+            Assert.True(station.MapPeek);
+            Assert.False(sw.Is3D);
+            Assert.False(input.Locked);                                                         // the cursor is free to pan
+            Assert.InRange(Vector2.Distance(new Vector2(sw.CurrentPose.LookAt.X, sw.CurrentPose.LookAt.Y), new Vector2(100f, 50f)), 0f, 1f);
+            input.Pressed.Clear(); input.Keys.Clear();
+            station.Update(0.016f);
+            Assert.True(station.InFps);                                                         // still held
+            input.Pressed.Add((int)Raylib_cs.KeyboardKey.M);                                    // M on the map
+            station.Update(0.016f);
+            Assert.False(station.MapPeek);
+            Assert.True(sw.Is3D);
+            Assert.True(input.Locked);
+            sw.Camera3D.HandleInput(input);                                                     // the same frame's M: not the map again
+            Assert.False(station.MapPeek);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1217 (docs/DESIGN_Entity_Control.md §8k C-1, C-2) — the compass reads the view's heading (0 north, clockwise) and shows ±60°
     /// with the eight points named; the names over heads are his side's, within 50 m, named, alive — nearest first, his own men marked.
     /// </summary>

@@ -95,3 +95,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 16–20 | Entity Control §8k designed (INVENTORY, claim table, class / sequence / module diagrams, leans S-1…K-1, keys **M** map and **B** binoculars, **K** kill cam) — ⏸ waiting for the user's nod |
 | `2026-10-19` | 16 | ✅ the spread ring (the sim's own σ), the edges darkening on a near miss (the audio's pass rule, extracted as `RoundPasses`), the recoil kick; filed `CE-1223` (replicate `UnderFire`) and `CE-1224` (binoculars for leaders) for backend; Presentation 788 / 0 |
 | `2026-10-19` | 17 | ✅ the compass strip (every scheme) and his side's names within 50 m over their heads, his own men brighter; Presentation 789 / 0 |
+| `2026-10-19` | 18 | ✅ M: the 2-D map centred on him (he holds still, still possessed), M again back to his eyes; Presentation 790 / 0 |

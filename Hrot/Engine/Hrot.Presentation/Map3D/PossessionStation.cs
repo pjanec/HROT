@@ -97,6 +97,8 @@ namespace Hrot.UI.Common.Map3D
                 Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
+            if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
+            if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();   // ⭐ CE-1218
             if (_driver != null && (held.IsNull || held != _driver.Unit)) Leave(restore: !handing);
             if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
             if (_driver == null && _softLeft && !handing) RestoreView();   // a hand-over that came to nothing
@@ -270,6 +272,7 @@ namespace Hrot.UI.Common.Map3D
         /// <param name="restore">False during a hand-over: the view stays in first person while possession moves to the other unit.</param>
         private void Leave(bool restore = true)
         {
+            MapPeek = false;                // ⭐ CE-1218 — a peek ends with the possession
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
             if (Bodies != null) Bodies.FirstPerson = Entity.Null;
@@ -316,6 +319,7 @@ namespace Hrot.UI.Common.Map3D
         public void DrawOverlay(RenderContext ctx)
         {
             if (_driver == null || _world() is not { } w) return;
+            if (MapPeek) { DrawPeekHint(); return; }   // ⭐ CE-1218 (§8k M-1) — the 2-D map, not his view
             var camera = _view.Camera3D;
             var size = camera.Viewport;
             int cx = (int)(size.X / 2), cy = (int)(size.Y / 2);
@@ -396,6 +400,48 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
                                 new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
             }
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — how far the 2-D map's camera stands off him when it opens (m): a few hundred metres across.</summary>
+        public const float PeekDistance = 400f;
+        private float _peekEndedAt = -1f;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — is the operator looking at the 2-D map (M) while still holding his unit?</summary>
+        public bool MapPeek { get; private set; }
+
+        /// <summary>⭐ <c>CE-1218</c> — the clock of the frame the peek ended (the driver ignores that frame's M, the same press).</summary>
+        internal float PeekEndedAt => _peekEndedAt;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — the 2-D map, centred on him; possession kept (the driver stays, so the map's own shortcuts stay
+        /// silent and nothing re-enters first person); the cursor freed to pan.</summary>
+        internal void BeginMapPeek(FpsCameraDriver driver)
+        {
+            if (_world() is not { } w || !w.IsAlive(driver.Unit) || !w.HasComponent<SimTransform>(driver.Unit)) return;
+            var at = w.GetComponentRO<SimTransform>(driver.Unit).Position;
+            MapPeek = true;
+            driver.Input?.SetCursorLocked(false);
+            _view.ShowPose(new CameraPose(at, PeekDistance, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> — back to his eyes (M on the map): the 3-D view again, the driver places it next frame; the cursor locked.</summary>
+        internal void EndMapPeek()
+        {
+            MapPeek = false;
+            _peekEndedAt = Clock;
+            if (_driver == null) return;
+            _driver.Input?.SetCursorLocked(true);
+            _view.ShowPose(_view.Camera3D.Pose with { Pitch = 0f });   // any non-overhead pose is the 3-D view; the driver places it
+        }
+
+        /// <summary>⭐ <c>CE-1218</c> — the one line on the map while he is held: how to come back.</summary>
+        private void DrawPeekHint()
+        {
+            var font = HudText.Font();
+            const string hint = "M - back to first person (he is holding still)";
+            var size = _view.Camera3D.Viewport;
+            int w = (int)HudText.Measure(font, hint);
+            Raylib.DrawRectangle((int)size.X / 2 - w / 2 - 8, 8, w + 16, HudLineHeight + 4, new Color(0, 0, 0, 160));
+            HudText.Draw(font, hint, (int)size.X / 2 - w / 2, 10, Color.Gold);
         }
 
         /// <summary>⭐ <c>CE-1217</c> (§8k C-1) — the compass strip at the top: ±60° of heading, a tick every 15°, the eight points named, the
@@ -614,7 +660,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -977,6 +1023,25 @@ namespace Hrot.UI.Common.Map3D
         public const KeyboardKey CommandWheelKey = KeyboardKey.T;
         /// <summary>⭐ <c>CE-1214</c> (§8j T-1; key approved, R-1009) — the next man of his squad (Shift: the previous).</summary>
         public const KeyboardKey TeamSwitchKey = KeyboardKey.Tab;
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1; key approved, R-1010) — the 2-D map and back.</summary>
+        public const KeyboardKey MapKey = KeyboardKey.M;
+
+        /// <summary>⭐ <c>CE-1218</c> — the input this driver reads (its cursor lock), for the station to watch M while the 2-D map is up.</summary>
+        internal IInputProvider? Input => _locked;
+
+        /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — one frame with every axis at rest, the trigger up and no lean (the counters unchanged, so no
+        /// press is repeated): the brain keeps the newest frame, so he stands still while the map is up.</summary>
+        private void SendStill()
+        {
+            Leaning = Fdp.Toolkit.Combat.LeanSide.LeanNone;
+            _station.Send(_netId, new OperatorControlFrameEvent
+            {
+                Seq = ++_seq, Yaw = _yaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
+                Stance = !IsVehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,
+                ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,
+                UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,
+            });
+        }
         /// <summary>⭐ <c>CE-1213</c> — how long the wheel's verdict stays under the crosshair (s).</summary>
         public const float WheelVerdictSeconds = 2.5f;
 
@@ -1042,6 +1107,13 @@ namespace Hrot.UI.Common.Map3D
                 return true;
             }
 
+            // ⭐ CE-1218 (§8k M-1) — M: the 2-D map centred on him; he holds still (one still frame) until M brings the operator back
+            if (input.IsKeyPressed((MapKeyboardKey)MapKey) && _station.PeekEndedAt != _station.Clock)
+            {
+                SendStill();
+                _station.BeginMapPeek(this);
+                return true;
+            }
             // ⭐ CE-1214 (§8j T-1) — Tab / Shift+Tab: the next / previous man of his squad (SquadRoster); the one he leaves goes back
             //   to his brain (the possess releases him)
             if (input.IsKeyPressed((MapKeyboardKey)TeamSwitchKey) && _world() is { } tw
