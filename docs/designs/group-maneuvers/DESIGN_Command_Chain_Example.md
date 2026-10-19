@@ -533,3 +533,22 @@ a reaction pauses the task, the paused task's slots under their own owner) · `B
 hosted `MoveToLocation` named by the child and decoded at its block offset, destination x = 100) · route doc in
 `DebugApiRouteDocs` (rail `EveryRouteIsDocumentedTests`). Red-proofs: the catalog naming no candidates · the hosted arm decoding at
 offset 0 — each reddens its rail.
+
+## 8b. The picture and the log on every node *(✅ approved 2026-10-19, `CE-2301` — not built; ui's D4)*
+
+🔒 User, `2026-10-19`: *"Have the report inbox fill the log on every node. Accepted."* · *"Replicate the commander's picture read-only. Accepted."* — ui's two leans
+([DESIGN_Command_Display §6 D4](../../DESIGN_Command_Display.md), [the ui note](../../blueprints/batches/NOTE_Ui_To_Behaviors_Command_Display_Data.md)).
+
+```mermaid
+graph TD
+  W["SquadReportNotification (every node's bus — BR-3)"] --> IN["StaffInboxSystem — registered wherever the notification is"]
+  IN --> LOG["SquadReportLog — appended BEFORE the CommandPicture guard (every node)"]
+  IN -->|"only where the commander's brain is"| CP["CommandPicture — folded (owner)"]
+  CP -->|"replicated read-only, Brain group"| CPR["CommandPicture replica (editor · CGF · ExCon)"]
+  LOG --> RW["Reports window (UI-6)"]
+  CPR --> GZ["CommandPictureGizmo (UI-5)"]
+```
+*What the picture shows that prose hid:* ONE writer of each — the log is filled by the same inbox on every node (a node that owns no
+commander logs the report with verdict `not-owned-here`); the picture is folded only on the owner and every other node gets a copy, so
+no node folds its own (the brain-only `OrderGiven` reset would make copies disagree — ui's rejected ⓑ). The design detail (the
+picture's descriptor and translator, which node registers the inbox) is written when the slice starts.
