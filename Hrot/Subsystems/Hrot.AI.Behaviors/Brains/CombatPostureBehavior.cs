@@ -36,6 +36,7 @@ namespace Hrot.AI.Behaviors.Brains
             public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
             public DesignateParams Designate;      // ⭐ CE-3170 — an attack order's target (C-5)
             public LookParams Look;                // ⭐ CE-2297 LD-3 — where his eyes go (threat → sector → the order's bearing)
+            public StayParams Stay;                // ⭐ CE-2297 slice 2a (R-2055) — a finished branch does not end a staying posture
 
             // ⭐ one working memory per node, as the JSON tree's auto slots were
             public PostureSensorsState SensorsState;
@@ -90,6 +91,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (a.ArrivalRadius > 0f) block.Advance.ArrivalRadius = a.ArrivalRadius;
             if (a.CooldownSeconds > 0f) block.Advance.CooldownSeconds = a.CooldownSeconds;
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
+            block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -115,19 +117,25 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>📄 §3.3b: decide, sense and act in one Parallel (RequireOne — the posture ends when its winner ends); the winner runs
-        /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run).</summary>
+        /// under an ObserverSelector so a changed decision switches branch at once (the old branch's deactivators run). ⭐ CE-2297 slice
+        /// 2a (R-2055): the winner and the attack's target each sit in a Sequence with <see cref="PostureNodes.Stay"/> after them — a
+        /// staying posture's finished branch reads Running there, and under the Parallel the Sequence starts again from the branch
+        /// every tick, so the decision still switches; a failed branch ends the posture as before.</summary>
         [Behavior(BehaviorNames.CombatPosture, Params = typeof(global::Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
         [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBlackboard, BTreeContext> BuildCombatPostureTree()
         {
             return new BTreeBuilder<CombatPostureBlackboard, BTreeContext>()
                 .Parallel(1, decide => decide
-                    .StatefulAction(bb => bb.Designate, bb => bb.DesignateState, PostureNodes.UntilTargetDown)   // ⭐ CE-3170
+                    .Sequence(attack => attack
+                        .StatefulAction(bb => bb.Designate, bb => bb.DesignateState, PostureNodes.UntilTargetDown)   // ⭐ CE-3170
+                        .Action(bb => bb.Stay, PostureNodes.Stay))
                     .StatefulAction(bb => bb.Choose, bb => bb.Choice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.Sensors, bb => bb.SensorsState, PostureNodes.PostureSensors)
                     .StatefulAction(bb => bb.Approach, bb => bb.ApproachChoice, UtilityNodes.ChooseOption)
                     .StatefulAction(bb => bb.ApproachSensors, bb => bb.ApproachSensorsState, PostureNodes.ApproachSensors)
                     .StatefulAction(bb => bb.Look, bb => bb.LookState, LookNodes.Look)   // ⭐ CE-2297 LD-3 — the eyes, beside the work
+                    .Sequence(work => work
                     .ObserverSelector(winner => winner
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
@@ -161,7 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))
-                        .Action(PostureNodes.Hold)));   // Hold (option 5) and anything unscored
+                        .Action(PostureNodes.Hold))   // Hold (option 5) and anything unscored
+                    .Action(bb => bb.Stay, PostureNodes.Stay)));   // ⭐ CE-2297 slice 2a
         }
     }
 }

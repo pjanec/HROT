@@ -794,6 +794,9 @@ namespace Hrot.SimHost.Tests
             var hold = s.LastOrders();
             Assert.Equal(4, hold.Count);
             foreach (var m in s.Members) Assert.Equal((BehaviorNames.CombatPosture, s.At(m)), hold[m]);
+            // ⭐ CE-2297 slice 2a (R-2055) — a holder STAYS: arriving at his own spot does not end his posture
+            Assert.All(s.Orders.Where(o => o.IntentId == BehaviorNames.CombatPosture), o => Assert.True(
+                System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Stay));
 
             for (int i = 0; i < 10; i++) s.Tick();                                   // past DecideAfterSeconds
             Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);

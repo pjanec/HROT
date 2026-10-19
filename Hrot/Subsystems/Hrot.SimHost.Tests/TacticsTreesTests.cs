@@ -242,6 +242,41 @@ namespace Hrot.SimHost.Tests
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
         }
 
+        private const string StayObjective = "{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1},\"stay\":true}";
+
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — a STAYING posture: the same advance against a weak enemy does not end on
+        /// arrival — he is still on the task and still firing (the twin of the rail above, which ends there).</summary>
+        [Fact]
+        public void CE2297_Staying_ArrivalDoesNotEndThePosture_AndHeKeepsFiring()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);                                   // a weak enemy ⇒ AdvanceAndAttack
+            w.Order("CombatPosture", StayObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);                 // he stays
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run and its sensors go on");
+        }
+
+        /// <summary>⭐ <c>CE-2297</c> slice 2a — with nothing to fight a staying posture arrives and holds there (the squad's Hold /
+        /// Watch man: before, the posture ended on arrival and he idled with no eyes — Look Direction §3.3a known-rot).</summary>
+        [Fact]
+        public void CE2297_Staying_WithNothingToFight_HeHoldsAtThePoint()
+        {
+            var w = new World();
+            w.Arm();
+            w.Order("CombatPosture", StayObjective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+        }
+
         [Fact]
         /// <summary>⭐ <c>CE-2105</c> (R-208, 🔒 user: "advance without enemy") — with nothing to fight a healthy, armed unit ADVANCES
         /// on to its objective, firing at nothing. ⛔ SUPERSEDED (CE-2073): it held, and an advance whose enemy fell short of the

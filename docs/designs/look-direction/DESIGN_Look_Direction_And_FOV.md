@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-19
-build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 slice 1 BUILT (behaviors CE-2297, 2026-10-19 — §3.3a: the Look node in CombatPosture and PersonHold; slice 2 waits on MemberArc) · LD-3 rest / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
+build-state: BUILT (LD-1 / LD-2, backend CE-3252, 2026-10-19 — as-built §3.2b) · LD-3 slice 1 BUILT (behaviors CE-2297, 2026-10-19 — §3.3a: the Look node in CombatPosture and PersonHold) · slice 2a BUILT (a squad's Hold / Watch man stays, `stay` on CombatPosture, §3.3a) · slice 2 waits on MemberArc · LD-3 rest / LD-5 behaviors, LD-4 last — the lean ✅ APPROVED 2026-10-18 (R-2048); LD-A…LD-D ✅ (R-2049, LD-B / LD-C as amended by the user) and brought into the platoon programme (§3); LD-1 / LD-2 backend (its step 1: confirm §3.2's reuse of the look-at channel), LD-3 / LD-5 behaviors (CE-2297, CE-2298), LD-4 last
 current-answer: §3.2b (LD-1 / LD-2 AS BUILT — the classes, the wire, the rails) · §3.3a (LD-3 slice 1 — who points the eyes, as built) · §3 (in the platoon programme: inventory, the diagrams, who points the eyes, the demos) · §2 (the programme) — §1 is the measured ground it stands on, so nobody re-derives it.
 stale-below: §3.2a's class names `LookRequests`, `LookOf.EyeYaw`, `LookState.Since` / `BodyYaw` — the plan; §3.2b names what was built.
-known-rot: §3.3a's "every holding man has eyes" — a squad's Hold / Watch member's CombatPosture ends on arrival (measured 2026-10-19; lean for slice 2 in §3.3a).
+known-rot: none — §3.3a's Hold / Watch known-rot (the posture ended on arrival) is fixed by slice 2a (CE-2297, 2026-10-19, R-2055).
 known-conflict: none.
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the programme LD now belongs to (§6b PC-16 watch the last window, §12 demos, §13 the lane split)
@@ -441,12 +441,31 @@ planning `ld-sentry-surprise` (LD-5 ④): `TopThreat` ranks entities only, so a 
 turned the sentry (A, the top threat, kept his eyes) — a hit or near miss within 2 s (`UnderFire`) now puts the sound of the shot
 first (rail `CE2297_ShotAt_*`).
 
-⛔ **KNOWN-ROT in the claim above, measured 2026-10-19** (`PostureNodes.cs:269`): a squad's Hold / Watch member runs `CombatPosture`
-toward his point (`SquadManeuverRunner.Hold`), and with nothing to hunt the advance returns **Success on arrival** — the posture ENDS
-and he idles with no eyes. So "every holding man has eyes" holds for an operator's `PersonHold` and for a man FIGHTING, not for a
-squad's watcher once he has arrived. ✅ **APPROVED 2026-10-19 (R-2055; recorded twice — backend's R-3021 is the same decision) — not built yet, slice 2:** 🔒 User: *"Pls also record there i am approving your leans. Backend might have already actend on those."* · to backend: *"The hold stay flag approved."* — the runner's Hold / Watch asks `CombatPosture` with
-`hold: true` — arriving does not end it, his eyes and his fight stay until the squad's next order (Squad Tactics' own words for Hold:
-"stays"). ⚠ Measure first: which drills advance a phase on a member's task ENDING rather than on his position — those would stall.
+✅ **BUILT 2026-10-19 — slice 2a, a squad's Hold / Watch man STAYS** (R-2055; recorded twice — backend's R-3021 is the same decision: 🔒 User: *"Pls also record there i am approving your leans. Backend might have already actend on those."* · to backend: *"The hold stay flag approved."*; the flag for the WHOLE behaviour accepted by the user the same day). `CombatPostureParamsJsonDto.stay` (default false);
+`SquadManeuverRunner.Hold` sends `stay: true` (every Hold and Watch member order). A staying posture never ends by FINISHING:
+
+```mermaid
+graph TD
+  P["Parallel(RequireOne) — CombatPosture"] --> A["Sequence"]
+  A --> UTD["UntilTargetDown (Success = target down)"]
+  A --> S1["Stay (Running when stay, else Success)"]
+  P --> D["ChooseOption · PostureSensors · Approach · Look"]
+  P --> W["Sequence"]
+  W --> OS["ObserverSelector — the winner (advance · cover · suppress · fall back · prone · hold)"]
+  W --> S2["Stay"]
+  OS --> ADV["AdvanceAndAttack — AdvanceParams.Stay: arrived ⇒ Running, still firing"]
+```
+*What the picture shows that prose hid:* one leaf after each branch that can finish catches every Success exit (arrival, a target or
+threat down, PeekAndFire's "nothing left") without touching the shared EQS / peek nodes; under the Parallel the Sequence starts again
+from its branch every tick (the interpreter's resume skip never fires there), so the decision still switches. A FAILED branch never
+reaches `Stay` — the posture still ends on failure. The advance carries its own copy of the flag because its Success comes after it
+stops firing; with the flag it returns Running and keeps firing at a weak enemy. 📐 Measured before building: no drill advances a
+phase on a member's task ending — phases read positions (`SquadManeuverRunner.ElementArrived`); the staff's PROGRESS is sent only
+by a UNIT (`StaffSystems.Sends` needs a `UnitRoster`), so a man's posture never made one; `SquadVetoDetectionSystem` reads a
+mismatched active behaviour as a VETO, which a holder whose posture ended used to look like. Rails `TacticsTreesTests.CE2297_Staying_*`,
+`SquadManeuverTests.CE2123_ReactToContact_HoldsAndReturnsFire_*` (the orders carry `stay`).
+⛔ SUPERSEDED (known-rot, measured 2026-10-19, `PostureNodes.cs:269`): with nothing to hunt the advance returned Success on arrival —
+the posture ENDED and the holder idled with no eyes.
 
 ⚠ **Not in this slice** (LD-3 slice 2, waits on `MemberArc` in the member order — DA-24, and on backend's kind 4 for a sector to cross
 nodes): the march's file-place glances, the crossing's security sides, `ClearBuilding` room sectors, PC-16's last window,
