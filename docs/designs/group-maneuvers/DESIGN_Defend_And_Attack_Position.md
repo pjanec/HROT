@@ -1135,10 +1135,76 @@ classDiagram
 reinforce · the reserve committed once with two reserves · Militia does nothing; 12 mutants red) and `DefendAreaMapperTests.TryMap_AUnitOfUnits_*`; the platoon harness runs
 `ReportingRequirementsSystem` so the DA-63 SITREP request lands. ⛔ Not yet live: `pc-defend-dry` exercises region 0 only.
 
+#### E-3a — FallBack *(`CE-2276` E-3a; behaviors, 2026-10-19 — Platoon §5's last phase state)*
+
+📐 **Measured first:** a `Final` leaf in **any** region sets `InstanceFlags.Terminated` (`HsmKernelCore.cs:367`, `:906`) and
+`HsmRunner` reads that as `Success` (`HsmRunner.cs:208`) ⇒ a Final state in region 0 ends the whole parallel run, control region
+included. `BreakContactPlay` finds its own retreat point (`FindSafeRetreatPoint`) and **fails with no top contact**
+(`SquadContactBehaviors.cs:178`); it has no authored destination. No system reports `ProgressKind.FallingBack` (grep: the enum member
+only); the staff reports **Set** when a squad's task succeeds (`StaffSystems.cs:66`) — that is what "FallingBack, done" can read.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "region 0 — phase" as R0 {
+    Engage --> FallBack : HalfTheLineFailing
+    FallBack --> FellBack : LineFellBack
+    FellBack --> [*]
+  }
+```
+*What the picture shows that prose hid:* `FellBack` is a Final leaf of region 0, so reaching it ends the run — the control region
+does not need its own exit; its guards only need to stop acting while the platoon falls back.
+
+```mermaid
+sequenceDiagram
+  participant G as HalfTheLineFailing
+  participant PL as PlatoonDefencePlan
+  participant K as KeepDefence (FallBack's activity)
+  participant L as line squads
+  participant R as reserve
+  G->>PL: ≥ half the live line squads SITREP Red+
+  Note over PL: FallBack entry: Falling = 1, every slot Dirty, all FireAtWill
+  K->>R: SquadDefend {FallBackTo} (covers)
+  K->>L: BreakContact {To = FallBackTo}
+  L-->>PL: PROGRESS Set (the BreakContact order succeeded)
+  PL->>PL: LineFellBack ⇒ FellBack (Final) ⇒ the run's Success
+```
+*What the picture shows that prose hid:* the same one writer (DA-62) gives the fall-back orders — `KeepDefence` reads `Falling` and
+picks the behaviour; no second order path appears for the last phase.
+
+```mermaid
+classDiagram
+  class PlatoonDefencePlan { <<EXTENDED>> Falling · FallBackX/Y/Z }
+  class PlatoonDefendParamsJsonDto { <<EXTENDED>> FallBackTo }
+  class PlatoonDefendBehavior { <<EXTENDED>> HalfTheLineFailing · LineFellBack · FallBackOrders }
+  class KeepDefence { <<EXTENDED>> Falling ⇒ BreakContact for a line squad, SquadDefend at FallBackTo for the reserve }
+  class BreakContactParamsJsonDto { <<EXTENDED>> To }
+  class BreakContactPlay { <<EXTENDED>> To set ⇒ that is the answer: no terrain query, no contact needed }
+  PlatoonDefendBehavior --> PlatoonDefencePlan
+  KeepDefence --> BreakContactParamsJsonDto
+  BreakContactPlay --> BreakContactParamsJsonDto
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-66** | where to | the order's **`FallBackTo`** point; none ⇒ **100 m behind the position** (away from the EA's middle, the reserve's rule) | a multi-bound route: one bound is the doctrine's minimum and every squad already bounds inside `BreakContact` · the squads' own retreat queries: each finds a different point, the platoon scatters |
+| **DA-67** | when | **Engage → FallBack** when **half or more of the live line squads** have SITREP **Red or worse** (Platoon §5) | any one squad Red: that is Reinforce's case (DA-61) · a timer: the colours are the measure the design names |
+| **DA-68** | the line's order | `BreakContact {To = FallBackTo}` — with `To` set the play takes it as its answer, asks no terrain and needs no contact; the two elements still bound one covering the other | `SquadMarch`: no covering element under fire · a new play: `BreakContact` is the bounding withdrawal already |
+| **DA-69** | the reserve | `SquadDefend` at `FallBackTo` (it covers the line coming in), fire at will; the line fires at will too | the reserve breaking contact as well: nobody covers the last bound |
+| **DA-70** | the end | **FallBack → FellBack (Final)** when every live line squad reported **Set** for its BreakContact order ⇒ the run's `Success` (the reserve's Set is not waited for — it is already there) | `FallingBack` PROGRESS: nothing reports it; Set on the current order already means "done" (CC-5) |
+| **DA-71** | the control region while falling back | every control guard also needs **`Falling == 0`** — no OpBack, flank turn or reinforce during the withdrawal | a third region: one flag on the plan is enough |
+
+✅ **As built (2026-10-19):** as drawn — `FallBack` (entry `FallBackOrders`, activity `KeepDefence`) and `FellBack` (Final) in region 0;
+the end guard is E-1's own **`LineSet`** (every live line squad's latest PROGRESS for its current order is Set), so no second guard
+was needed. A finished `BreakContact` is not re-sent: `CommandOrders.Stands` reads the run's order record, not whether the squad still
+runs it. While falling back a line squad's slice is withdrawn (it fires at will at whatever it sees). The default point has no arc to
+be "behind" ⇒ the position (an order with no arc should author `FallBackTo`). Rails: `SquadManeuverTests.CE2276_E3a_*` (3).
+
 **Slices.** **E-1** (built): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
 ①② (Platoon §12.2). **E-2** (built): the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
-Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3**: FallBack, Counterattack
-(Veteran) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey` (DA-51's deferred half); `pc-defend-house`.
+Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3a** (built): FallBack. **E-3** (rest): Counterattack
+(Veteran — ⛔ waits for `ClearBuilding`, `CE-2259`) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey`
+(DA-51's deferred half; the survey is built, `CE-3249`); `pc-defend-house`.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

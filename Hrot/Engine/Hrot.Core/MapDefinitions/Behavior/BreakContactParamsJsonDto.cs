@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 
@@ -26,5 +27,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>A bound is complete after this long even if a mover never arrives (s); 0 = 60.</summary>
         [JsonPropertyName("BoundTimeoutSeconds")]
         public float BoundTimeoutSeconds;
+
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — where to fall back to (sim metres); zero = ask the terrain for a point the enemy cannot see.
+        /// Set, it is the answer: no terrain query and no contact needed (a platoon's fall-back point).</summary>
+        [JsonPropertyName("To")]
+        public Vector3 To;
     }
 }

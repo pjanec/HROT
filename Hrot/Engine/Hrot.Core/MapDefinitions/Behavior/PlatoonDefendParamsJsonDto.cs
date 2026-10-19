@@ -40,6 +40,11 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("MaxRange")]
         public float MaxRange;
 
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-66) — where the platoon falls back to when half its line is failing (sim metres); zero = 100 m
+        /// behind the position, away from the area's middle.</summary>
+        [JsonPropertyName("FallBackTo")]
+        public Vector3 FallBackTo;
+
         /// <summary>⭐ DA-51 — each squad's role and point; none ⇒ every squad on the line at <see cref="Position"/>, and with three or
         /// more the last is the reserve, behind.</summary>
         [JsonPropertyName("Squads")]

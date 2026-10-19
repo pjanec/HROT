@@ -249,7 +249,8 @@ stateDiagram-v2
 [Defend & Attack §8d](DESIGN_Defend_And_Attack_Position.md) (DA-51…DA-55): `ElementsAt(EA)` is `PlatoonDefendBehavior.EnemyInArea` over
 the plan's EA, and the squad sector is an arc slice on the squad's `EngagementArea` (DA-52). ⭐ **E-2 (2026-10-19):** the control
 region's OpBack · Supplementary · Reinforce are built as region 1 of the same HSM (DA-59…DA-65, §8d E-2 there); Counterattack and
-DAnswer are E-3.
+DAnswer are E-3. ⭐ **E-3a (2026-10-19):** FallBack → FellBack (Final, the run's Success) is built (DA-66…DA-71): the line
+`BreakContact {To}`s to the fall-back point, the reserve covers there; "FallingBack, done" is read as each line squad's Set on that order.
 
 *What the picture shows that prose hid:* the trigger line is not a timer or a sensor of its own — it is `ElementsAt(EA)` over the SPOTs
 the line squads and the OP send because the EA is their PIR. The same report that starts the fire also feeds the control region's

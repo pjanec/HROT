@@ -867,6 +867,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
+        /// element 0 goes there while element 1 covers, then element 1; both there ⇒ Success. ✅ Red-proof: the <c>To</c> arm dropped ⇒
+        /// no contact, so the play fails at once.</summary>
+        [Fact]
+        public void CE2276_E3a_BreakContactTo_GoesThere_ElementByElement_WithNoContactAndNoTerrainQuery()
+        {
+            var s = new Squad(members: 2);
+            var to = new Vector3(20f, -60f, 0f);
+            s.Order("{\"To\":[20,-60,0]}", BehaviorNames.BreakContact);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(s.RetreatQuery().IsNull, "no terrain asked");
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, to), first[s.Members[0]]);
+            Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);
+            s.Teleport(s.Members[0], to);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, to), s.LastOrders()[s.Members[1]]);
+            s.Teleport(s.Members[1], to);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         /// <summary>⭐ S2-F — no hidden point anywhere ⇒ break contact fails and the reaction HOLDS until the squad knows no contact.</summary>
         [Fact]
         public void CE2123_ReactToContact_NoRetreatPoint_HoldsUntilClear()
@@ -2782,6 +2807,77 @@ namespace Hrot.SimHost.Tests
             Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
             p.Ticks(6);
             Assert.Equal((1, 1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        // ── CE-2276 E-3a — FallBack (Defend & Attack §8d E-3a, DA-66…DA-71) ───────────────────────────────────────────────────
+
+        private static Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto BreakOrderTo(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.BreakContact).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static void EngagedThreeLines(Platoon p)
+        {
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo); p.ReportSet(p.Charlie);
+            p.ReportSpot(p.Charlie, new Vector3(30f, 100f, 0f), 3);   // ~17°: inside the area, Charlie's slice only
+            p.Ticks(8);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-3a (DA-66…DA-70) — three line squads and a reserve, engaged: one line squad Red is not half ⇒ nothing;
+        /// a second ⇒ FALL BACK: every line squad <c>BreakContact</c>s to the default point 100 m behind (0, −100), the reserve
+        /// <c>SquadDefend</c>s there and fires at will; every line squad's Set on that order ends the run in Success. ✅ Red-proofs: "half"
+        /// read as "any" ⇒ the first Red falls back · the end guard dropped ⇒ the run never finishes.</summary>
+        [Fact]
+        public void CE2276_E3a_HalfTheLineRed_FallsBack_BehindTheReserve_AndEndsWhenTheLineIsBack()
+        {
+            var p = new Platoon(squads: 4);
+            var delta = p.S.Members[3];
+            EngagedThreeLines(p);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));   // engaged
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(8);
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(8);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact),
+                                     p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+            Assert.InRange(Vector3.Distance(new Vector3(0f, -100f, 0f), BreakOrderTo(p, p.Alpha).To), 0f, 0.01f);
+            Assert.InRange(Vector3.Distance(new Vector3(0f, -100f, 0f), DefendOrderTo(p, delta).Position), 0f, 0.01f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, delta));
+            Assert.Equal(0, SectorOf(p, p.Alpha).ArcSet);   // no slice while falling back
+            p.Ticks(20);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));   // kept, not re-sent
+            Assert.False(p.S.Finished(out _));
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.Equal(BehaviorNames.PlatoonDefend, p.S.TaskName);   // Charlie is not back yet
+            p.ReportSet(p.Charlie);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 8 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-66, DA-71) — an authored <c>FallBackTo</c> is where the line goes; while falling back the
+        /// control region rests: a flank SPOT turns nobody. ✅ Red-proof: the <c>Falling</c> test dropped from <c>Flanked</c> ⇒ a line squad
+        /// is ordered to <c>SquadDefend</c> again mid-withdrawal.</summary>
+        [Fact]
+        public void CE2276_E3a_AnAuthoredFallBackPoint_AndTheControlRegionRestsWhileFallingBack()
+        {
+            var p = new Platoon(squads: 2);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"FallBackTo\":[50,-80,0]}", BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 100f, 0f), 3);
+            p.Ticks(8);
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // one of two is half
+            p.Ticks(8);
+            Assert.Equal(new Vector3(50f, -80f, 0f), BreakOrderTo(p, p.Bravo).To);
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);   // a flank
+            p.Ticks(12);
+            Assert.Equal((1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
         }
 
         /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie
