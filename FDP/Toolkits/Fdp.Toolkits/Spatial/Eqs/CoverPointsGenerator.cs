@@ -26,6 +26,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>The shorter set-back tried when <see cref="SetBackMetres"/> does not fit (DA-6's 1.5 m).</summary>
         public const float MinSetBackMetres = 1.5f;
 
+        /// <summary>⭐ <c>CE-2275</c> D-2g (DA-5, DA-22, DA-47) — only points ON A ROOF: the point's own surface is the top one at its (x, y)
+        /// and above the ground's (a roof storey, not a floor with another above it; under a stair house's lid is not on the roof).</summary>
+        public bool RoofOnly { get; set; }
+
+        /// <summary>⭐ D-2g — a roof pass reads this many raw points before filtering, so ground points round the self cannot crowd the
+        /// roof out of the candidate cap.</summary>
+        public const int RoofRawPoints = 256;
+
+        /// <summary>⭐ <c>CE-2275</c> D-2j (DA-16, DA-50) — §4.2 bit 8 <c>IsSetBack</c>: a window point a set-back pass really moved back from
+        /// the sill (meaningful on every point of a set-back pass; unset = the room was too shallow and the point stayed at the sill).</summary>
+        public const short FlagSetBack = 1 << 8;
+
         [ThreadStatic] private static System.Collections.Generic.List<CoverPoint>? _vehicleScratch;
 
         /// <inheritdoc/>
@@ -41,8 +53,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var center = new Vector2(selfPos.X, selfPos.Y);
 
             // Intermediate stackalloc buffer for raw cover points.
-            Span<CoverPoint> rawPoints = stackalloc CoverPoint[candidates.Length];
+            Span<CoverPoint> rawPoints = stackalloc CoverPoint[RoofOnly ? Math.Max(candidates.Length, RoofRawPoints) : candidates.Length];
             int found = provider.GetCoverPointsInRadius(center, sensor.SearchRadius, rawPoints, Kind);
+            var roofWorld = RoofOnly ? EqsTerrainSight.World(repo) : null;   // ⭐ D-2g
 
             // ⭐ CE-2165 V3 — a vehicle's hide point is sized by its hull (DESIGN_Vehicle_Exposure_Cycle §3).
             var self = VehicleFootprint ? EqsContext.Self(repo, observer, sensor) : Entity.Null;
@@ -52,11 +65,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var terrain = Kind == CoverKind.WindowFiring && SetBackMetres > 0f ? EqsTerrainSight.World(repo) : null;   // ⭐ D-2b
 
             int rawCount = 0;
-            for (int i = 0; i < found; i++)
+            for (int i = 0; i < found && rawCount < candidates.Length; i++)
             {
                 var at = new Vector3(rawPoints[i].PositionX, rawPoints[i].PositionY, rawPoints[i].PositionZ);
+                if (RoofOnly && (roofWorld == null || !OnRoof(roofWorld, at))) continue;   // ⭐ D-2g
                 if (hull && !Sized(world, ref at, new Vector2(rawPoints[i].DirectionX, rawPoints[i].DirectionY), hullLength, hullWidth, hullHeight)) continue;
-                if (terrain != null) at = TerrainCoverProvider.SetBack(terrain, in rawPoints[i], SetBackMetres, MinSetBackMetres);   // ⭐ D-2b
+                short flags = 0, meaningful = 0;
+                if (terrain != null)
+                {
+                    var sill = at;
+                    at = TerrainCoverProvider.SetBack(terrain, in rawPoints[i], SetBackMetres, MinSetBackMetres);   // ⭐ D-2b
+                    meaningful = FlagSetBack;   // ⭐ D-2j — whether it moved is part of the answer
+                    if (Vector3.Distance(sill, at) > 0.1f) flags = FlagSetBack;
+                }
                 // EntityId = 0 marks a positional candidate (no entity attached).
                 candidates[rawCount++] = new EqsResult
                 {
@@ -70,6 +91,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     Stance    = EqsResult.EncodeStance(StanceOf(rawPoints[i].StanceHeight)),
                     // ⭐ CE-3158 G1 — and what the point IS (a cover, a window to fire from): the peek is chosen from the point
                     Kind      = EqsResult.EncodeKind(rawPoints[i].Kind),
+                    Flags     = flags,
+                    FlagsMeaningful = meaningful,
                     // ⛔ SUPERSEDED (§19): Flags = StanceHeight — it wrote stance into the §4.2 flag bits 0–1 (HasLOSToContext).
                 };
             }
@@ -77,7 +100,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             // ⭐ CE-3142 (P-7a O5) — a STANDING vehicle's sides are cover too, read live from this view (never baked: a car that drives
             //   away is gone from the next query). Same rule as a terrain piece (TerrainCoverProvider.PointsAround); the tests after this
             //   generator see the vehicle as opaque (EqsTerrainSight.Sight), so only the side away from the threat survives.
-            if (Kind == CoverKind.Cover && rawCount < candidates.Length)
+            if (Kind == CoverKind.Cover && !RoofOnly && rawCount < candidates.Length)
             {
                 var around = _vehicleScratch ??= new System.Collections.Generic.List<CoverPoint>();   // R-220 — per thread, reused
                 around.Clear();
@@ -110,6 +133,17 @@ namespace Fdp.Toolkit.Spatial.Eqs
         }
 
         /// <summary>Pushes a man's cover point out to the hull's stand-off along its protection direction and checks the box is clear.</summary>
+        /// <summary>⭐ D-2g — <paramref name="at"/> stands on the TOP surface at its (x, y), and that surface is above the ground's.</summary>
+        internal static bool OnRoof(Fdp.Toolkit.Terrain.TerrainWorld world, Vector3 at)
+        {
+            var surfaces = world.SurfacesAt(at.X, at.Y, out int ground);
+            if (surfaces.Length == 0) return false;
+            int best = 0;
+            for (int k = 1; k < surfaces.Length; k++)
+                if (MathF.Abs(surfaces[k] - at.Z) < MathF.Abs(surfaces[best] - at.Z)) best = k;
+            return best > ground && best == surfaces.Length - 1 && MathF.Abs(surfaces[best] - at.Z) <= 0.5f;
+        }
+
         private static bool Sized(Fdp.Toolkit.Terrain.TerrainWorld? world, ref Vector3 at, Vector2 towardCover, float hullLength, float hullWidth, float hullHeight)
         {
             if (towardCover.LengthSquared() > 1e-6f)

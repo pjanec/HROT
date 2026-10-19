@@ -97,6 +97,14 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Occupied;
     }
 
+    /// <summary>⭐ <c>CE-2275</c> D-2l — <see cref="PostureNodes.HoldWatch"/>'s memory: 1 while its move to the frame point runs · 1 once that
+    /// move failed (he holds where he is) · 1 while he leans.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FrameWatchState
+    {
+        public byte Moving, Failed, Leaned;
+    }
+
     /// <summary>⭐ <c>CE-3170</c> — the target an attack order named (<see cref="PostureNodes.UntilTargetDown"/>).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DesignateParams
@@ -305,6 +313,60 @@ namespace Hrot.AI.Behaviors.Brains
         {
             StopMoving(world, self);
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2l (DA-80, R-2059; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) — HOLD at a FRAME post: with nothing to
+        /// fight he stands at his frame point (<see cref="PeekAndFireParams.Anchor"/>) beside the window and LEANS out toward the opening to
+        /// watch — the same lean he fires from. Anything else (no frame post, his move there failed) holds as <see cref="Hold"/>. Running.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus HoldWatch(ref PeekAndFireParams p, ref FrameWatchState ws, Entity self, EntityRepository world)
+        {
+            if (p.Frame == 0 || p.AnchorRadius <= 0f || ws.Failed == 1 || !world.HasComponent<SimTransform>(self))
+            {
+                Straighten(ref ws, self, world);
+                if (ws.Moving == 0) StopMoving(world, self);
+                return NodeStatus.Running;
+            }
+            if (ws.Moving == 1)
+            {
+                var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Running) return NodeStatus.Running;
+                ws.Moving = 0;
+                if (status != NodeStatus.Success) { ws.Failed = 1; return NodeStatus.Running; }
+            }
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            if (Vector3.Distance(at, p.Anchor) > FrameWatchMetres)
+            {
+                Straighten(ref ws, self, world);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, p.Anchor, FrameWatchSpeed, PeekAndFireNodes.ArrivalRadius) ? 1 : 0);
+                if (ws.Moving == 0) ws.Failed = 1;
+                return NodeStatus.Running;
+            }
+            StanceRequest.Set(world, self, StanceId.Standing, PeekAndFireNodes.StanceBlendSeconds);
+            Leans.Set(world, self, PeekAndFireNodes.LeanToward(world, self, in p, at));
+            ws.Leaned = 1;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the watch: he straightens and his move stops.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldWatch")]
+        public static void Deactivate_HoldWatch(ref PeekAndFireParams p, ref FrameWatchState ws, Entity self, EntityRepository world)
+        {
+            Straighten(ref ws, self, world);
+            if (ws.Moving == 1) StopMoving(world, self);
+            ws = default;
+        }
+
+        /// <summary>⭐ D-2l — farther than this from his frame point he walks to it before he leans (m) · at this pace (m/s).</summary>
+        public const float FrameWatchMetres = 0.75f, FrameWatchSpeed = 1.5f;
+
+        private static void Straighten(ref FrameWatchState ws, Entity self, EntityRepository world)
+        {
+            if (ws.Leaned == 0) return;
+            Leans.Set(world, self, LeanSide.LeanNone);
+            ws.Leaned = 0;
         }
 
         /// <summary>

@@ -72,6 +72,26 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ D-2b (DA-6) — a SET-BACK window post: he hides among set-back points (1.5–2.5 m inside), never at the sill.</summary>
         [JsonPropertyName("setBack")]
         public bool SetBack;
+
+        /// <summary>⭐ D-2g (DA-5, DA-22) — a ROOF post: prone behind the parapet, up to the point's stance (crouched) to fire over it.</summary>
+        [JsonPropertyName("roof")]
+        public bool Roof;
+
+        /// <summary>⭐ D-2l (DA-77…DA-84, R-2059) — a FRAME post: he stands beside the window frame behind the wall at
+        /// <see cref="Point"/> (one of <see cref="FrameA"/> / <see cref="FrameB"/>) and leans out toward <see cref="Opening"/> to watch
+        /// and to fire.</summary>
+        [JsonPropertyName("frame")]
+        public bool Frame;
+
+        /// <summary>The window's two frame points (beside each edge, inside the wall) and the opening's centre (sim metres).</summary>
+        [JsonPropertyName("frameA")]
+        public Vector3 FrameA;
+
+        [JsonPropertyName("frameB")]
+        public Vector3 FrameB;
+
+        [JsonPropertyName("opening")]
+        public Vector3 Opening;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>

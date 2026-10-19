@@ -191,7 +191,8 @@ public readonly struct EqsPositionResult
 | 5 | `IsExposedFromKnownThreat` | ThreatExposure > threshold |
 | 6 | `IsPreferredSide` | DotProduct from forward |
 | 7 | `WasFreshThisRefresh` | Solver lifecycle |
-| 8-15 | Reserved | — |
+| 8 | `IsSetBack` *(CE-2275 D-2j, 2026-10-19)* | `CoverPointsGenerator` set-back pass: meaningful on every window point it set back; set when the point really moved back from the sill (`FlagSetBack`) |
+| 9-15 | Reserved | — |
 
 Context slots are query-template-defined runtime references (typically self, target, leader/squad-mate). Up to 3 LOS contexts simultaneously.
 

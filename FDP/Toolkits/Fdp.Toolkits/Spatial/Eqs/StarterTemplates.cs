@@ -141,6 +141,27 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>⭐ <c>CE-2275</c> D-2g (DA-5, DA-22, DA-47) — ROOF posts: cover points on a roof (behind its parapet, beside its stair house,
+    /// <see cref="CoverPointsGenerator.RoofOnly"/>) whose eye sees the engagement area's point (context slot 1); nearer scores more, an
+    /// unreachable roof drops out on its path cost (DA-5: "only if the roof is reachable"). The squad's second post ask, after the windows.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2g.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindRoofPosts
+    {
+        public const string AssetId = "2b048d56-9b77-4b09-9fc3-18efebd5e034";
+        public const uint BlueprintId = 0xF7D70244u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator { RoofOnly = true },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
     /// <summary>⭐ A flank on the target: ring points around the TARGET that see it, scored by bearing — side-on to the
     /// target→self line scores most — then exposure and path cost.</summary>
     [EqsTemplate(AssetId)]

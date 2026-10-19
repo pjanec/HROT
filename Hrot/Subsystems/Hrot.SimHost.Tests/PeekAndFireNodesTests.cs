@@ -209,6 +209,152 @@ namespace Hrot.SimHost.Tests
             HideTemplate = FindCoverFromTarget.BlueprintId, HideSecondsMin = 2f, HideSecondsMax = 2f,
         };
 
+        // ── ⭐ CE-2275 D-2l — the frame lean (DA-77…DA-84, R-2059; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) ─────────────────
+
+        /// <summary>A window in a wall along x = 1 (outward +X, toward the enemy at (20, 0)), its opening at (1, 2): the frame points 0.5 m
+        /// inside — A on the left of a man looking out (+Y), B on his right. The enemy lies to the −Y side of the opening.</summary>
+        private static readonly Vector3 FrameA = new(0.5f, 2.75f, 0f), FrameB = new(0.5f, 1.25f, 0f), Opening = new(1f, 2f, 0f);
+
+        private static PeekAndFireParams Framed(int exposuresPerPosition = 3) => Window(exposuresPerPosition) with
+        {
+            Frame = 1, FrameA = FrameA, FrameB = FrameB, Opening = Opening, Anchor = FrameA, AnchorRadius = 4f,
+        };
+
+        private static Fdp.Toolkit.Combat.LeanSide LeanOf(Duel d) => Fdp.Toolkit.Combat.Leans.Of(d.Repo, d.Self);
+
+        /// <summary>
+        /// ⭐⭐ <c>D2l_R1</c> — AT A FRAME POST (DA-79, DA-80, DA-83): he goes to the frame point AWAY from the enemy (A — the enemy is on B's
+        /// side), hides there STANDING and straight, exposes by LEANING toward the opening (his right, from A looking out), fires only once
+        /// the lean has come out, and straightens again — never prone, never off the spot, no cover answer needed. ✅ Red-proofs: Choose
+        /// skipping the frame ⇒ no move (waits for the cover sensor); the lean delay removed ⇒ a round in the lean's first 0.4 s; the
+        /// straighten dropped ⇒ still leaning when hidden.
+        /// </summary>
+        [Fact]
+        public void D2l_R1_AtAFramePost_HidesStandingBesideTheFrame_LeansOutToFire_AndStraightens()
+        {
+            var d = new Duel(Framed());
+            d.Step();
+            Assert.Equal(FrameA, Assert.Single(d.Moves));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(StanceId.Standing, d.Stance);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, LeanOf(d));
+            double leanAt = d.Ws.LeanAt;
+            while (d.Time < leanAt + PeekAndFireNodes.LeanSeconds - 0.05) { d.Step(); Assert.Empty(d.Fires); }
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed, 1.0));
+            Assert.Equal(StanceId.Standing, d.Stance);
+            Assert.Equal(1, d.Ws.Exposures);
+
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+            Assert.Equal(3, d.AimedRounds);
+            Assert.Single(d.Moves);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2l_R2</c> — a MASKED shot (the frame stops it) burns this side: he crosses to the OTHER frame point; and an exposure count
+        /// spent does the same (DA-79's relocate). ✅ Red-proof: the crossing dropped ⇒ he stays at A (the sill fallback never runs: the cover
+        /// sensor has no answer).
+        /// </summary>
+        [Fact]
+        public void D2l_R2_AMaskedShot_OrUsedUpExposures_CrossesToTheOtherFramePoint()
+        {
+            var d = new Duel(Framed());
+            d.Repo.AddComponent(d.Self, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            d.Step();
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            ref var status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
+            status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
+            status.Weapon.At = d.Time;
+            Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide, 5));
+            Assert.Equal(FrameB, d.Moves[^1]);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+
+            var e = new Duel(Framed(exposuresPerPosition: 2) with { BurnHeat = 99f, ReuseHeat = 98f });
+            e.Step();
+            for (int exposure = 0; exposure < 2; exposure++)
+            {
+                Assert.Equal(PeekPhase.Aimed, e.RunUntil(PeekPhase.Aimed));
+                Assert.Equal(PeekPhase.Hidden, e.RunUntil(PeekPhase.Hidden));
+            }
+            Assert.Equal(PeekPhase.MoveToHide, e.RunUntil(PeekPhase.MoveToHide));
+            Assert.Equal(FrameB, e.Moves[^1]);
+            Assert.Equal(PeekPhase.Expose, e.RunUntil(PeekPhase.Expose));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, LeanOf(e));   // from B, looking out, the opening is on his left
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2l_R3</c> — the frame point cannot be reached (DA-84): he fights the post the SILL way from then on — the cover sensor's
+        /// window point, prone under it. ✅ Red-proof: the failure not latched ⇒ he walks to the frame again.
+        /// </summary>
+        [Fact]
+        public void D2l_R3_AnUnreachableFrame_FallsBackToTheSill()
+        {
+            var d = new Duel(Framed());
+            d.Unreachable.Add(FrameA);
+            d.Step();
+            d.Step(); d.Step();
+            Assert.Equal((byte)1, d.Ws.FrameOff);
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (1f, 0.5f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Equal(new Vector3(1f, 0.5f, 0f), d.Moves[^1]);
+            Assert.Equal(StanceId.Prone, d.Stance);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2l_R4</c> — HOLD FIRE at a frame post: he leans out to WATCH and never fires (DA-6's observation); under fire he goes prone
+        /// and straight. ✅ Red-proof: the HoldFire branch returning before the lean ⇒ he never leans.
+        /// </summary>
+        [Fact]
+        public void D2l_R4_HoldFire_LeansOutToWatch_NeverFires_ProneUnderFire()
+        {
+            var d = new Duel(Framed());
+            SetRoe(d, RoeFire.HoldFire);
+            d.Step();
+            d.Run(6);
+            Assert.Equal(PeekPhase.Hidden, d.Ws.Phase);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, LeanOf(d));
+            Assert.Equal(StanceId.Standing, d.Stance);
+            Assert.Empty(d.Fires);
+            d.Sense(SensorChange.NearMiss);
+            d.Step();
+            Assert.Equal(StanceId.Prone, d.Stance);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2l_R5</c> — <c>HoldWatch</c> (DA-80): with nothing to fight a man at a frame post walks to his frame point and leans out
+        /// toward the opening by his body's facing — the same lean he fires from; the node's exit straightens him; a man with no frame post
+        /// holds still and never leans. ✅ Red-proofs: no move ⇒ he leans from where he stands; the deactivator dropped ⇒ still leaning.
+        /// </summary>
+        [Fact]
+        public void D2l_R5_HoldWatch_WalksToTheFramePoint_LeansToWatch_StraightensOnExit()
+        {
+            var d = new Duel(Framed(), seen: false);
+            d.Repo.AddComponent(d.Self, new SimTransform { Position = new Vector3(-1f, 2.75f, 0f), Rotation = Quaternion.Identity });   // facing +X (east, out)
+            var p = d.P;
+            var ws = default(FrameWatchState);
+            Assert.Equal(NodeStatus.Running, PostureNodes.HoldWatch(ref p, ref ws, d.Self, d.Repo));
+            Assert.Equal((byte)1, ws.Moving);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+            d.Repo.GetComponentRW<SimTransform>(d.Self).Position = FrameA;
+            d.Repo.GetComponentRW<LocomotionChannel>(d.Self).Status = NodeStatus.Success;
+            PostureNodes.HoldWatch(ref p, ref ws, d.Self, d.Repo);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, LeanOf(d));   // facing east at A, the opening (south-east) is on his right
+            Assert.Equal(StanceId.Standing, d.Stance);
+            PostureNodes.Deactivate_HoldWatch(ref p, ref ws, d.Self, d.Repo);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+
+            var plain = Window();
+            var ws2 = default(FrameWatchState);
+            PostureNodes.HoldWatch(ref plain, ref ws2, d.Self, d.Repo);
+            Assert.Equal((byte)0, ws2.Moving);
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+        }
+
         /// <summary>
         /// ⭐⭐ <c>P6_R1</c> — THE STANCE PEEK (A at a window): to the window, PRONE under the sill, up to the window's stance (crouched),
         /// three aimed rounds at the seen enemy, back down; the exposure counts one use and B2's heat on the window.
@@ -1025,6 +1171,49 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(d.Moves);
             Assert.Equal(2, d.Ws.Waiting);
             Assert.True(d.AimedRounds > 0, "fights from where he stands, never silent");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2i (PC-14's <c>Allow</c> half, DA-49) — a POSTED man whose threat lies outside his sector looks for his
+        /// hide points toward his SECTOR: his cover sensor is aimed at his sector's point, not at the threat (a window that sees the threat
+        /// would face away from his arc). A threat inside his arc, a man with no post, or a close threat that just fired at him (self-defence)
+        /// keep the aim on the threat. ✅ Red-proofs: the re-aim removed ⇒ the sensor looks east at the threat; the Allow test skipped ⇒
+        /// the sector even for a threat inside it.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2i_APostedMansHideSearch_LooksAtHisSector_WhenTheThreatIsOutsideIt()
+        {
+            var d = new Duel(Rifleman() with { Anchor = Vector3.Zero, AnchorRadius = 4f });
+            if (!d.Repo.IsComponentTypeRegistered<EngagementArea>()) d.Repo.RegisterComponent<EngagementArea>();
+            d.Repo.AddComponent(d.Self, new EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = Vector3.Zero, LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            d.Repo.AddComponent(d.Enemy, new SimTransform { Position = new Vector3(80f, 0f, 0f), Rotation = Quaternion.Identity });   // east, beyond 50 m
+            var threat = new ThreatAim(d.Enemy, 0, default);
+
+            var aim = PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat);
+            Assert.Equal(PeekAndFireNodes.SectorAimId, aim.HeardId);
+            Assert.True(aim.IsPoint);
+            Assert.Equal(0f, aim.Point.X, 1);
+            Assert.Equal(100f, aim.Point.Y, 1);   // the arc's middle bearing (north) at 100 m (no range band)
+
+            d.Step();   // the node itself: its cover sensor looks at the sector
+            ref readonly var cover = ref d.Repo.GetComponentRO<EqsSensor>(d.Sensor(PeekAndFireNodes.CoverSite));
+            Assert.True(cover.ContextSlot1.IsNull);
+            Assert.NotEqual(0, cover.ContextPointMask & EqsSensor.Point1Bit);
+            Assert.Equal(100f, cover.ContextPoint1.Y, 1);
+
+            var unposted = d.P with { AnchorRadius = 0f };
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in unposted, in threat));   // no post: as before
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(0f, 80f, 0f);           // north, inside his arc
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
+
+            d.Repo.GetComponentRW<SimTransform>(d.Enemy).Position = new Vector3(20f, 0f, 0f);           // close, east, and firing at him
+            if (!d.Repo.HasComponent<SimTransform>(d.Self)) d.Repo.AddComponent(d.Self, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            d.Repo.GetComponentRW<RecentSenses>(d.Self).Record(SensorChange.NearMiss, d.Time);
+            Assert.Equal(threat, PeekAndFireNodes.PostedAim(d.Repo, d.Self, in d.P, in threat));
         }
 
         /// <summary>⭐⭐ <c>G5_R2</c> — a claim that LAPSED (its brain stopped refreshing it) frees the point: no cleanup system needed.</summary>

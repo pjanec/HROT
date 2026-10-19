@@ -245,6 +245,15 @@ stateDiagram-v2
     }
   }
 ```
+⭐ **As built — E-1 (`CE-2276`, 2026-10-19):** the phase region DPlan → Occupy → Ready ⇄ Engage, its plan and fire control, are in
+[Defend & Attack §8d](DESIGN_Defend_And_Attack_Position.md) (DA-51…DA-55): `ElementsAt(EA)` is `PlatoonDefendBehavior.EnemyInArea` over
+the plan's EA, and the squad sector is an arc slice on the squad's `EngagementArea` (DA-52). ⭐ **E-2 (2026-10-19):** the control
+region's OpBack · Supplementary · Reinforce are built as region 1 of the same HSM (DA-59…DA-65, §8d E-2 there); Counterattack and
+DAnswer are E-3. ⭐ **E-3a (2026-10-19):** FallBack → FellBack (Final, the run's Success) is built (DA-66…DA-71): the line
+`BreakContact {To}`s to the fall-back point, the reserve covers there; "FallingBack, done" is read as each line squad's Set on that order. ⭐ **E-3b:** Counterattack's Regular half is built — an element inside an indoor room of the defended building (one standing
+`BuildingSurvey`, not a PointSurvey per element, DA-73) sends the reserve to `SquadDefend` the building's lowest stair; the Veteran
+`ClearBuilding` waits for `CE-2259`, a Veteran blocks meanwhile (DA-75).
+
 *What the picture shows that prose hid:* the trigger line is not a timer or a sensor of its own — it is `ElementsAt(EA)` over the SPOTs
 the line squads and the OP send because the EA is their PIR. The same report that starts the fire also feeds the control region's
 flank and reinforcement checks.
@@ -268,6 +277,16 @@ flank and reinforcement checks.
 **Below Regular (the repertoire, DA-16):** Untrained and Militia run the **same asset** with the control region's Supplementary,
 Reinforce and Counterattack disabled by the tier, no OP, no `HoldFire` — so they fire at first sight and never re-plan, which is how
 irregulars differ (Defend §4.2).
+
+## 5a. Attack and defend an AREA, not one building *(✅ user, 2026-10-19 — R-2060; a requirement on §4 and §5, design per slice)*
+
+🔒 User, `2026-10-19`: *"Btw the  attack/defend  should work also for given area not just single building."*
+
+| | what it binds | where it lands |
+|---|---|---|
+| defend | `PlatoonDefend` given an AREA (a centre and a radius — the `DefendArea` intent, DA-64) places its squads across the area's buildings AND its open ground (walls, berms, hedges), not all in one house | ⭐ the **battle-positions planner** (DA-51's deferred half — the next platoon slice after D-2l): a `BuildingSurvey` of the area (≤ 4 buildings per ask) + the cover answers for open ground; one line squad per position, mutual support, the reserve behind, today's single point when the area has nothing |
+| attack | `PlatoonAttack` / `AttackPosition` (`CE-2277`) takes an objective AREA: several buildings and open positions held by the enemy, cleared one after another (the support moving between them), not only `ObjectiveBuilding` | `CE-2277`'s design: the objective is a list of positions in the area, each attacked by §4's phases; the clearing of a building is `ClearBuilding` (`CE-2259`) |
+| both | a single building stays the one-position case of the area | — |
 
 ## 6. The squad plays that serve them, and what each role does
 

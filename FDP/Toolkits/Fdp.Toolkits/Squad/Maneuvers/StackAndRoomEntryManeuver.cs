@@ -10,7 +10,8 @@ namespace Fdp.Toolkit.Squad.Maneuvers
     /// Configuration and role logic for the stack-and-room-entry maneuver (§8.6a).
     ///
     /// Phases:
-    ///   0 Stacking  - Stack at door; BoundComplete -> Entering
+    ///   0 Stacking  - Stack at door; BoundComplete -> Breaching
+    ///   4 Breaching - ⭐ CE-2257 BC-1 (CB-53): #1 opens or breaches the door; BoundComplete -> Entering
     ///   1 Entering  - Enter in sequence; FarSideReached -> Cleared
     ///   2 Cleared   - Terminal: room secure
     ///   3 Aborted   - Terminal
@@ -29,6 +30,7 @@ namespace Fdp.Toolkit.Squad.Maneuvers
         public const ushort PhaseEntering  = 1;
         public const ushort PhaseCleared   = 2;
         public const ushort PhaseAborted   = 3;
+        public const ushort PhaseBreaching = 4;
 
         public const byte RoleUnassigned  = 0;
         public const byte RolePointMan    = 1;
@@ -39,8 +41,10 @@ namespace Fdp.Toolkit.Squad.Maneuvers
         public static PhaseTransitionEntry[] BuildTransitionTable() =>
             new PhaseTransitionEntry[]
             {
-                new PhaseTransitionEntry { FromPhaseId = PhaseStacking, EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseEntering },
-                new PhaseTransitionEntry { FromPhaseId = PhaseStacking, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
+                new PhaseTransitionEntry { FromPhaseId = PhaseStacking,  EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseBreaching },
+                new PhaseTransitionEntry { FromPhaseId = PhaseStacking,  EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
+                new PhaseTransitionEntry { FromPhaseId = PhaseBreaching, EventKind = PhaseEventKind.BoundComplete,  ToPhaseId = PhaseEntering },
+                new PhaseTransitionEntry { FromPhaseId = PhaseBreaching, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
                 new PhaseTransitionEntry { FromPhaseId = PhaseEntering, EventKind = PhaseEventKind.FarSideReached, ToPhaseId = PhaseCleared  },
                 new PhaseTransitionEntry { FromPhaseId = PhaseEntering, EventKind = PhaseEventKind.Abort,          ToPhaseId = PhaseAborted  },
             };

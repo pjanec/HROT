@@ -132,6 +132,10 @@ namespace Hrot.Editor.DebugApi
             float ago = (float)Num(body?["observedAgoSeconds"], 0);
             var error = ReportInjection.Inject(_world, unit, r, ago);
             if (error != null) return (null, 409, error);
+            // ⭐ CE-2276 — echo the report AS SENT: Inject stamps its own copy (measured live: the echo said observedAt 0, synthetic
+            //   false, while the picture held the real time and the synthetic mark)
+            r.ObservedAt = CommandPictureOps.Now(_world) - Math.Max(0f, ago);
+            r.Synthetic = 1;
             return (new JsonObject { ["networkId"] = networkId, ["sent"] = true, ["synthetic"] = true, ["report"] = ReportNode(r, CommandPictureOps.Now(_world), null) }, 200, null);
         }
 

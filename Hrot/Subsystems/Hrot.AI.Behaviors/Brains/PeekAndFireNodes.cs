@@ -110,6 +110,12 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 Anchor, AnchorAlternate;
         public float AnchorRadius;
         public byte AnchorHasAlternate;
+        /// <summary>⭐ <c>CE-2275</c> D-2l (DA-77…DA-84, R-2059) — 1 = a FRAME post: he hides STANDING beside the window frame at
+        /// <see cref="FrameA"/> or <see cref="FrameB"/> (the one away from the target) and exposes by LEANING out toward
+        /// <see cref="Opening"/> (<see cref="Leans"/>); a failed move there drops him to the shape above (DA-84).
+        /// 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l.</summary>
+        public byte Frame;
+        public Vector3 FrameA, FrameB, Opening;
     }
 
     /// <summary>
@@ -155,6 +161,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2274</c> DA-C — the target he has already shot at · the new one he is still reacting to, since when (sim s).</summary>
         public Entity Engaged, Reacting;
         public double ReactingSince;
+        /// <summary>⭐ <c>CE-2275</c> D-2l — 1 while he fights from a frame point · 1 once the frame failed him this run (DA-84: the sill
+        /// shape from then on) · 1 while the lean is still coming out (<see cref="PeekAndFireNodes.LeanSeconds"/>, since <see cref="LeanAt"/>).</summary>
+        public byte Framed, FrameOff, Leaning;
+        public double LeanAt;
     }
 
     /// <summary>
@@ -305,6 +315,7 @@ namespace Hrot.AI.Behaviors.Brains
             switch (ws.Phase)
             {
                 case PeekPhase.Choose:
+                    if (ChooseFrame(ref ws, in p, ref mem, self, world, now, in threat)) break;   // ⭐ CE-2275 D-2l — beside the frame
                     // ⭐ CE-3158 G2 — no cover for NoCoverSeconds: say so, the posture picks something else
                     if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now, in threat))
                     {
@@ -450,6 +461,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status == NodeStatus.Success) { EnterHidden(ref ws, in p, self, world, now); return; }
+            if (ws.Framed == 1)
+            {
+                // ⭐ CE-2275 D-2l (DA-84) — he cannot reach the frame: he fights this post the sill way from now on
+                ws.Framed = 0;
+                ws.FrameOff = 1;
+                ws.Phase = PeekPhase.Choose;
+                return;
+            }
             // ⭐ CE-3158 G2 — the move failed: the point is (maybe) unreachable — heat it by UnreachableHeat × BurnHeat, so a second
             //   failure burns it and it is never picked again while it stays hot (one failure may be a path not ready yet)
             Unreachable(ref mem, ws.HidePoint, in p, now);
@@ -465,6 +484,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Hidden(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, in ThreatAim threat)
         {
+            if (ws.Framed == 1) { FrameHidden(ref ws, in p, ref mem, self, world, now); return; }   // ⭐ CE-2275 D-2l
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
 
             // B4/D8 — a used-up position: move on if there is somewhere else (a burned one with nowhere to go waits to cool)
@@ -533,6 +553,13 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Expose(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                    EntityRepository world, double now, in ThreatAim threat)
         {
+            if (ws.Leaning == 1)
+            {
+                // ⭐ CE-2275 D-2l (DA-83) — the lean is instant in the model; the exposure starts once it would have come out
+                if (now - ws.LeanAt < LeanSeconds) return;
+                ws.Leaning = 0;
+                BeginExposure(ref ws, in p, ref mem, now);
+            }
             if (ws.Stepping == 1)
             {
                 var status = LocomotionMoveTo.Status(world, self);
@@ -686,6 +713,81 @@ namespace Hrot.AI.Behaviors.Brains
             else ws.Phase = PeekPhase.Choose;
         }
 
+        // ── ⭐ CE-2275 D-2l — the frame (DA-77…DA-84, R-2059; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) ──────────────────
+
+        /// <summary>DA-83 — how long the lean takes before the exposure counts and the first round may leave (s).</summary>
+        public const float LeanSeconds = 0.4f;
+
+        /// <summary>A frame post that has not failed him: Choose takes the frame point AWAY from the target's bearing (DA-79) — the other
+        /// one when that is burned — and walks there. False = no frame (none, failed, both burned, or no spot known): the cycle as before.</summary>
+        private static bool ChooseFrame(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                        EntityRepository world, double now, in ThreatAim threat)
+        {
+            if (p.Frame == 0 || ws.FrameOff == 1 || !EqsTacticsNodes.ThreatPosition(world, self, in threat, out var at)) return false;
+            var point = WindowFrame.Facing(p.FrameA, p.FrameB, p.Opening, at);
+            var rules = Rules(in p);
+            if (PositionHeat.IsBurnedAt(ref mem, point, now, rules)) point = WindowFrame.Other(p.FrameA, p.FrameB, point);
+            if (PositionHeat.IsBurnedAt(ref mem, point, now, rules)) return false;
+            if (ws.Waiting == 2) PostureNodes.StopFiring(world, self, ref ws.Fire);
+            GoToFrame(ref ws, in p, self, world, point);
+            return true;
+        }
+
+        private static void GoToFrame(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, Vector3 point)
+        {
+            Leans.Set(world, self, LeanSide.LeanNone);
+            ws.Framed = 1;
+            ws.PeekIsStep = 0;
+            ws.HideStance = ws.PeekStance = StanceId.Standing;   // DA-80 — upright beside the frame, hidden by the wall
+            ws.Waiting = 0;
+            ws.HidePoint = ws.PeekPoint = point;
+            ws.ExposuresHere = 0;
+            ws.Bounding = 0;
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
+            ws.Phase = PeekPhase.MoveToHide;
+        }
+
+        /// <summary>
+        /// Hidden at a frame point (DA-80): standing behind the wall — prone while suppressed; a used-up side (burned — a masked shot
+        /// burns it — or its exposures spent) ⇒ he crosses to the other frame point (DA-79); under <see cref="RoeFire.HoldFire"/> he leans
+        /// out to WATCH and never fires (DA-6's observation); else, when the wait is over, he leans out (<see cref="LeanSeconds"/>).
+        /// </summary>
+        private static void FrameHidden(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                        EntityRepository world, double now)
+        {
+            bool suppressed = Suppressed(world, self, in p);
+            StanceRequest.Set(world, self, suppressed ? StanceId.Prone : StanceId.Standing, StanceBlendSeconds);
+            var rules = Rules(in p);
+            bool burned = PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, rules);
+            if (burned || ws.ExposuresHere >= p.ExposuresPerPosition)
+            {
+                var other = WindowFrame.Other(p.FrameA, p.FrameB, ws.HidePoint);
+                if (!PositionHeat.IsBurnedAt(ref mem, other, now, rules)) { GoToFrame(ref ws, in p, self, world, other); return; }
+                if (burned) { Leans.Set(world, self, LeanSide.LeanNone); return; }   // both sides used up: he waits for one to cool
+            }
+            bool reloading = ReloadingOrEmpty(world, self);
+            if (!AimAndFireExecutor.RoePermitsFire(world, self))
+            {
+                Leans.Set(world, self, suppressed ? LeanSide.LeanNone : LeanToward(world, self, in p, ws.HidePoint));
+                return;
+            }
+            bool returning = world.IsComponentTypeRegistered<Roe>() && RoeOf.Fire(world, self) == RoeFire.ReturnFire;
+            if (reloading || suppressed || (!returning && now < ws.PhaseUntil)) { Leans.Set(world, self, LeanSide.LeanNone); return; }
+            Leans.Set(world, self, LeanToward(world, self, in p, ws.HidePoint));
+            ws.PeekPoint = ws.HidePoint;
+            ws.Leaning = 1;
+            ws.LeanAt = now;
+            ws.Phase = PeekPhase.Expose;
+        }
+
+        /// <summary>DA-79 (refined) — the side he leans toward the opening: by his body's facing, or by the frame's own geometry when he has
+        /// no transform.</summary>
+        internal static LeanSide LeanToward(EntityRepository world, Entity self, in PeekAndFireParams p, Vector3 at)
+        {
+            var side = WindowFrame.SideToward(world, self, p.Opening);
+            return side != LeanSide.LeanNone ? side : WindowFrame.SideFromFrame(p.FrameA, p.FrameB, p.Opening, at);
+        }
+
         // ── the steps ───────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The exposure counts once it is real (up at the window, or arrived at the peek point): a use and B2's heat.</summary>
@@ -726,6 +828,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static void EnterHidden(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, double now)
         {
+            if (ws.Framed == 1) Leans.Set(world, self, LeanSide.LeanNone);   // ⭐ CE-2275 D-2l — straighten, behind the wall
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
             var rng = SimRng.FromSim(self.Index, CoverSite ^ (ws.Exposures * 7919), (float)now);
             ws.PhaseUntil = now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
@@ -802,7 +905,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3144 (P-8 D14) — the sensors look from and for where the enemy is REMEMBERED (the freshest evidence, D13), never
             //   where he is now: a hidden enemy's true position is seen from nowhere, so both soldiers' searches answered nothing and
             //   the duel stood still (measured live). Re-pointed when that spot moves by RepointMetres or another slot becomes freshest.
-            var aim = SensorAim(world, self, in threat);
+            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat));
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var cover = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in aim, retarget);
@@ -826,6 +929,26 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
             => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+
+        /// <summary>⭐ <c>CE-2275</c> D-2i — the heard id the sensors carry when they look at the man's SECTOR, not at a threat.</summary>
+        internal const long SectorAimId = -2275;
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2i (PC-14's <c>Allow</c> half, DA-49) — a POSTED man (<c>AnchorRadius</c> &gt; 0) whose threat his sector does not
+        /// allow (<see cref="EngagementAreas"/>.<c>Allows</c> — self-defence
+        /// included, so a close one still counts) looks for his hide and peek points toward his SECTOR's point instead: a window or a step
+        /// that sees the threat outside his arc would take him off his sector (DA-27: the threat he hides from may lie outside it). No
+        /// post, no sector, or an allowed threat ⇒ the aim as it was. 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2i.
+        /// </summary>
+        internal static ThreatAim PostedAim(EntityRepository world, Entity self, in PeekAndFireParams p, in ThreatAim aim)
+        {
+            if (p.AnchorRadius <= 0f) return aim;
+            bool allowed = aim.IsPoint ? EngagementAreas.Allows(world, self, aim.Point)
+                         : aim.Entity.IsNull || !world.IsAlive(aim.Entity) || EngagementAreas.Allows(world, self, aim.Entity);
+            if (allowed) return aim;
+            return EngagementAreas.TryAllowPoint(world, self, out var sector)
+                ? new ThreatAim(Entity.Null, SectorAimId, sector) : aim;
+        }
 
         /// <summary>⭐ <c>CE-3158</c> G5 — publishes (and refreshes) the unit's claim on the point it holds or is going to: written when
         /// it COMMITS (the move is issued), so nobody races it there.</summary>
@@ -921,6 +1044,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static void Release(ref PeekAndFireState ws, Entity self, EntityRepository world)
         {
+            if (ws.Framed == 1) Leans.Set(world, self, LeanSide.LeanNone);   // ⭐ CE-2275 D-2l — never left leaning
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             StopBlind(ref ws, self, world);
             PostureNodes.Drop(world, ws.CoverSensor);

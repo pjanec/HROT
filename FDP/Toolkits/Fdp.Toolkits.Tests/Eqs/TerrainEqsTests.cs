@@ -454,6 +454,36 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2j (DA-16, DA-50) — a set-back pass MARKS what it did: House A's east window, moved 2 m back, carries §4.2 bit 8
+        /// <c>IsSetBack</c>; a window 1 m in front of the west wall (no room behind it at either depth) stays at the sill with the bit
+        /// meaningful and UNSET; a plain window pass marks nothing. What lets a Veteran squad keep only real set-back posts.
+        /// ✅ Red-proof: the flag written for every point ⇒ the shallow window reads as set back.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2j_ASetBackPass_MarksTheWindowsItMovedBack_AndLeavesTheShallowOneUnmarked()
+        {
+            var (w, pts) = HouseA();
+            var east = Assert.Single(pts, p => p.Kind == CoverKind.WindowFiring
+                && MathF.Abs(p.PositionY - 103.6f) < 0.05f && MathF.Abs(p.PositionZ) < 0.05f);
+            var shallow = east with { PositionX = 101f, DirectionX = 1f, DirectionY = 0f };   // backs onto the west wall at x 100
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(new ManualCoverProvider(new[] { east, shallow }));
+            var sensor = new EqsSensor { SearchRadius = 20f, ContextSlot0 = At(105f, 104f) };
+            var c = new EqsResult[8];
+
+            int n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring, SetBackMetres = 2f }.Generate(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(2, n);
+            var moved = c[..n].Single(r => MathF.Abs(r.PositionX - (east.PositionX - 2f)) < 0.05f);   // 📐 109.1 → 107.1, 2 m back
+            var stayed = c[..n].Single(r => MathF.Abs(r.PositionX - 101f) < 0.05f);
+            Assert.NotEqual(0, moved.Flags & CoverPointsGenerator.FlagSetBack);
+            Assert.NotEqual(0, stayed.FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+            Assert.Equal(0, stayed.Flags & CoverPointsGenerator.FlagSetBack);
+
+            n = new CoverPointsGenerator { Kind = CoverKind.WindowFiring }.Generate(Entity.Null, ref sensor, _repo, c);
+            for (int i = 0; i < n; i++) Assert.Equal(0, c[i].FlagsMeaningful & CoverPointsGenerator.FlagSetBack);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2275</c> D-2b — <c>FindWindowSetBackPosition</c> upstairs in House A (the acceptance of
         /// <see cref="CE3134_FindWindowFiringPosition_UpstairsInHouseA_AnswersASouthWindowOnHisStorey"/>, set back): every answer is a
         /// window position ≥ 1.5 m back from every sill point, on his storey, and still sees the target from its stance's eye.
@@ -521,6 +551,44 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             var setBack = Run(FindDefensiveWindowSetBackPosts.Build(new EqsTemplateBuilder()), sensor);
             Assert.True(atSill.Length > 0, $"the sill ask answers ({windows.Count} window points: {report})");
             Assert.True(setBack.Length > 0, $"the set-back ask answers ({windows.Count} window points: {report})");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2g (Defend DA-5 / DA-22 / DA-47) — <c>FindRoofPosts</c> on <c>cqb-village</c>: OBJ (house-3f) has a roof
+        /// storey at 6 m with a 1 m parapet, so it carries crouched cover points; toward a south sector the roof ask answers ONLY roof
+        /// points (the top surface under them, within half a metre) and every one SEES the sector point. 📌 Measured first: OBJ's roof has
+        /// 22 cover points and <c>FindCoverFromTarget</c> keeps none of them (it wants points HIDDEN from the target) — hence its own ask.
+        /// The generator alone, asked about the same house, yields no ground or upper-floor point.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2g_FindRoofPosts_OnOBJ_AnswersRoofPointsOnly_ThatSeeTheSector()
+        {
+            var w = Recipe("cqb-village");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var ea = new Vector3(120.9f, 112.2f, 0f);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            Assert.True(cover.Points.Count(p => p.PositionZ > 5f
+                && Vector2.Distance(new Vector2(p.PositionX, p.PositionY), new Vector2(120.9f, 157f)) <= 14f) > 0, "OBJ's roof has cover points");
+            var sensor = new EqsSensor { SearchRadius = 14f, ContextSlot0 = At(120.9f, 157f, 0f), ContextSlot1 = At(ea.X, ea.Y) };
+
+            var answer = Run(FindRoofPosts.Build(new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(answer);
+            Assert.All(answer, r =>
+            {
+                var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
+                Assert.Equal(6f, r.PositionZ, 1);
+                Assert.True(CoverPointsGenerator.OnRoof(w, at), $"({at.X:F1},{at.Y:F1},{at.Z:F1}) is on the roof");
+                Assert.False(w.SegmentBlocked(at + new Vector3(0, 0, r.TryGetStance(out var s) ? mount.For(s) : mount.Standing),
+                    ea + new Vector3(0, 0, 0.85f)), $"({at.X:F1},{at.Y:F1}) sees the sector");
+            });
+
+            var generated = new EqsResult[64];
+            int n = new CoverPointsGenerator { RoofOnly = true }.Generate(Entity.Null, ref sensor, _repo, generated);
+            Assert.True(n > 0);
+            for (int i = 0; i < n; i++) Assert.Equal(6f, generated[i].PositionZ, 1);
         }
 
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
@@ -1114,6 +1182,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [InlineData(typeof(FindSafeRetreatPoint))]
         [InlineData(typeof(FindThreatsInView))]
         [InlineData(typeof(FindWindowFiringPosition))]
+        [InlineData(typeof(FindRoofPosts))]
         public void StarterTemplate_BlueprintIdIsTheHashOfItsAssetId(Type template)
         {
             string assetId = (string)template.GetField("AssetId")!.GetValue(null)!;

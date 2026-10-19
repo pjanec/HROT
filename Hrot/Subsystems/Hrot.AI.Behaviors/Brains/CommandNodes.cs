@@ -51,12 +51,28 @@ namespace Hrot.AI.Behaviors.Brains
         /// names the behaviour.</summary>
         public static void Assign(EntityRepository world, Entity commander, Entity member, string behaviour, string json, bool newOrder = false)
         {
-            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior);
+            SubordinateOrders.Record(world, commander, member, behaviour, BehaviorOrigin.Superior, json);
             if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
             world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
             });
+        }
+
+        /// <summary>⭐ <c>CE-2304</c> — the commander's ticking run already gave <paramref name="member"/> exactly this order
+        /// (<paramref name="behaviour"/> with <paramref name="json"/>) and he still runs it from his superior: sending it again would only
+        /// restart him — measured live, every re-send stopped a posted defender and started him again. False whenever anything differs, or
+        /// he no longer runs it (finished, or a reaction / another order took him), so a needed re-send still goes.</summary>
+        public static bool StillRunning(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
+            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(member);
+            if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash != BehaviorHash.FromName(behaviour)) return false;
+            foreach (var e in held.Orders)
+                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
+            return false;
         }
     }
 

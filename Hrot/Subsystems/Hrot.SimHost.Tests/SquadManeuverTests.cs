@@ -103,8 +103,32 @@ namespace Hrot.SimHost.Tests
                 _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
                 _ingress.Execute(Repo, 0.016f);
+                AnswerFrameSurvey();
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
+            }
+
+            /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
+            /// default (no windows found ⇒ no frame posts, DA-84); null = never answered (the 5 s fallback).</summary>
+            public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? FrameSurvey = new();
+            /// <summary>⭐ <c>CE-2257</c> BC-1 — the answers other plays' building surveys get at once, by site (absent = never answered).</summary>
+            public readonly Dictionary<int, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload> Surveys = new();
+
+            private void AnswerFrameSurvey()
+            {
+                foreach (var (site, payload) in Surveys) AnswerSurvey(site, payload);
+                AnswerSurvey(SquadDefendPlay.FrameSite, FrameSurvey);
+            }
+
+            private void AnswerSurvey(int site, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? payload)
+            {
+                if (payload == null) return;
+                var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, site);
+                if (child.IsNull || !Repo.IsAlive(child)) return;
+                if (Repo.HasComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child)
+                    && Repo.GetComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyStatus>(child).Version != 0) return;
+                Repo.SetComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)_time, Version = 1 });
+                Repo.SetManagedComponent(child, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = payload });
             }
 
             public void Order(string json, string behaviour = BehaviorNames.BoundingOverwatch)
@@ -861,6 +885,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((BehaviorNames.AdvanceTo, hidden), s.LastOrders()[s.Members[1]]);
 
             s.Teleport(s.Members[1], hidden);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
+        /// element 0 goes there while element 1 covers, then element 1; both there ⇒ Success. ✅ Red-proof: the <c>To</c> arm dropped ⇒
+        /// no contact, so the play fails at once.</summary>
+        [Fact]
+        public void CE2276_E3a_BreakContactTo_GoesThere_ElementByElement_WithNoContactAndNoTerrainQuery()
+        {
+            var s = new Squad(members: 2);
+            var to = new Vector3(20f, -60f, 0f);
+            s.Order("{\"To\":[20,-60,0]}", BehaviorNames.BreakContact);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(s.RetreatQuery().IsNull, "no terrain asked");
+            var first = s.LastOrders();
+            Assert.Equal((BehaviorNames.AdvanceTo, to), first[s.Members[0]]);
+            Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);
+            s.Teleport(s.Members[0], to);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal((BehaviorNames.AdvanceTo, to), s.LastOrders()[s.Members[1]]);
+            s.Teleport(s.Members[1], to);
             bool done = false; Fbt.NodeStatus result = default;
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done);
@@ -1745,8 +1794,8 @@ namespace Hrot.SimHost.Tests
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
-        /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the cover
-        /// ask with the fourth.</summary>
+        /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the roof
+        /// ask (D-2g) with none, the cover ask with the fourth.</summary>
         private static Squad Defending(out Vector3[] posts)
         {
             var s = new Squad(members: 4);
@@ -1760,6 +1809,8 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             posts = new[] { new Vector3(2, 25, 0), new Vector3(2, 25, 3), new Vector3(10, 25, 0), new Vector3(14, 24, 0) };
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), posts[0], posts[1], posts[2]);
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite));
             s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.CoverSite), posts[3]);
             s.Orders.Clear();
@@ -1835,8 +1886,10 @@ namespace Hrot.SimHost.Tests
                 CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
                 Assert.Equal(post, block.Peek.Anchor);
                 Assert.Equal(SquadDefendPlay.PostRadius, block.Peek.AnchorRadius);
-                Assert.Equal(window, dto.Post.SetBack);   // ⭐ D-2b — no proficiency ⇒ Regular ⇒ the windows are set back
-                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : 0u, block.Peek.HideTemplate);
+                // ⭐ D-2l (DA-77) — no proficiency ⇒ Regular ⇒ the frame lean, not the set-back; the survey found no window ⇒ the sill (DA-84)
+                Assert.False(dto.Post.SetBack);
+                Assert.False(dto.Post.Frame);
+                Assert.Equal(window ? Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId : 0u, block.Peek.HideTemplate);
                 Assert.Equal(window ? (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1) : (byte)0, block.Peek.HideStanceOverride);
             }
 
@@ -1856,16 +1909,18 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-16, DA-42) — the squad's MEDIAN man decides where its windows are held: a Regular squad asks for
+        /// ⭐⭐ <c>CE-2275</c> D-2b (DA-6, DA-16, DA-42) — the squad's MEDIAN man decides where its windows are held: a Veteran squad asks for
         /// SET-BACK window posts and each window man hides set back; a Militia squad asks for the sill and its men hide there; one Elite
-        /// among two militia does not move the median. ✅ Red-proofs: the tier read from the commander (no component ⇒ Regular) ⇒ the
-        /// militia set back; the set-back flag not passed to the man ⇒ he hides at the sill.
+        /// among two militia does not move the median. ⭐ D-2l (DA-77, R-2059) — a REGULAR squad no longer sets back (it stands at the frame,
+        /// asked from the survey; none here) and only a Regular-or-better squad asks that survey. ✅ Red-proofs: the tier read from the
+        /// commander (no component ⇒ Regular) ⇒ the militia ask the survey; the set-back flag not passed to the man ⇒ he hides at the sill.
         /// </summary>
         [Theory]
-        [InlineData(ProficiencyOf.Regular, ProficiencyOf.Regular, true)]
-        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Militia, false)]
-        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Elite, false)]   // two militia and one elite: the median is militia
-        public void CE2275_SquadDefend_TheMedianManDecides_ARegularSquadSetsBack_AMilitiaSquadHoldsTheSill(float most, float first, bool setBack)
+        [InlineData(ProficiencyOf.Veteran, ProficiencyOf.Veteran, true, true)]
+        [InlineData(ProficiencyOf.Regular, ProficiencyOf.Regular, false, true)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Militia, false, false)]
+        [InlineData(ProficiencyOf.Militia, ProficiencyOf.Elite, false, false)]   // two militia and one elite: the median is militia
+        public void CE2275_SquadDefend_TheMedianManDecides_AVeteranSquadSetsBack_AMilitiaSquadHoldsTheSill(float most, float first, bool setBack, bool frames)
         {
             var s = new Squad(members: 3);
             if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
@@ -1875,6 +1930,9 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
             Assert.False(ask.IsNull);
+            s.FrameSurvey = null;   // the survey stays where the play made it
+            Assert.Equal(frames, !DefendQuery(s, SquadDefendPlay.FrameSite).IsNull);
+            s.FrameSurvey = new();
             Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPostsAllRound.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowPostsAllRound.BlueprintId,
                 s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
 
@@ -1891,6 +1949,156 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(setBack ? Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId : Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId,
                     block.Peek.HideTemplate);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2g (DA-5, DA-22, DA-47) — the ROOF is the second ask: only after the windows, only for the men they left, aimed
+        /// at the sector's point; a man given a roof post fights it prone behind the parapet (<c>FindRoofPosts</c> as his hide ask, a stance
+        /// peek up to the point's crouch), never the window way; with every man posted the cover ask is not made. ✅ Red-proofs: the roof
+        /// stage skipped ⇒ two men without a post and the cover ask runs; the roof flag not passed ⇒ his hide ask is cover.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_TheRoofIsAskedAfterTheWindows_ForTheMenLeft_AndARoofManHidesBehindTheParapet()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(DefendQuery(s, SquadDefendPlay.RoofSite).IsNull, "the windows are asked first");
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 25, 0), new Vector3(10, 25, 3));
+            s.Tick(); s.Tick();
+            var roofAsk = DefendQuery(s, SquadDefendPlay.RoofSite);
+            Assert.False(roofAsk.IsNull, "two men are left: the roof is asked");
+            ref readonly var sensor = ref s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(roofAsk);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId, sensor.BlueprintId);
+            var roof = new[] { new Vector3(3, 23, 6), new Vector3(9, 23, 6) };
+            AnswerAll(s, roofAsk, roof);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.True(DefendQuery(s, SquadDefendPlay.CoverSite).IsNull, "every man holds a post: no cover ask");
+            var given = s.LastOrders();
+            Assert.Equal(4, given.Count);
+            int onRoof = 0;
+            foreach (var m in s.Members)
+            {
+                var dto = PostureOf(s, m);
+                bool isRoof = roof.Contains(dto.Post.Point);
+                Assert.Equal(isRoof, dto.Post.Roof);
+                Assert.Equal(!isRoof, dto.Post.Window);
+                var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+                CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
+                if (!isRoof) continue;
+                onRoof++;
+                Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId, block.Peek.HideTemplate);
+                Assert.Equal(PeekMode.Stance, block.Peek.Mode);
+                Assert.Equal((byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1), block.Peek.HideStanceOverride);
+                Assert.Equal(dto.Post.Point, block.Peek.Anchor);
+            }
+            Assert.Equal(2, onRoof);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2h (DA-19, DA-25, DA-48) — the squad's MACHINE GUNNER gets the post with the longest view down the sector:
+        /// once the posts are picked, ONE visibility fan is asked (an origin per held post, each looking at the sector's point), and the
+        /// gun swaps posts with the holder of the longest mean view; then the posts are given. A squad with no automatic weapon asks
+        /// no fan. ✅ Red-proofs: the swap skipped ⇒ the gun keeps the nearest post; the role read skipped ⇒ no fan.
+        /// </summary>
+        [Fact]
+        public void CE2275_SquadDefend_TheMachineGunnerTakesThePostWithTheLongestView()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.GetComponentRW<UnitSubordinate>(s.Members[1]).Designation = TacticalDesignation.MachineGunner;
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            var posts = new[] { new Vector3(2, 25, 0), new Vector3(5, 25, 0), new Vector3(8, 25, 0), new Vector3(11, 25, 0) };
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), posts);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);   // the fan comes before the posts are given
+
+            var fan = DefendQuery(s, SquadDefendPlay.FanSite);
+            Assert.False(fan.IsNull, "the squad has a gun: the fan is asked");
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(fan);
+            Assert.Equal(Fdp.Toolkit.Perception.Survey.WorldSurveyKind.VisibilityFan, request.Kind);
+            Assert.Equal(4, request.Origins.Count);
+            var far = new Vector3(11, 25, 0);
+            var payload = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.VisibilityFan };
+            for (int o = 0; o < request.Origins.Count; o++)
+            {
+                var origin = request.Origins[o];
+                Assert.InRange(origin.Bearing, MathF.PI / 2f - 0.3f, MathF.PI / 2f + 0.3f);   // toward the sector's point, north (+Y)
+                bool longest = new Vector3(origin.X, origin.Y, origin.Z) == far;
+                for (int r = 0; r < request.Rays; r++)
+                    payload.Rays.Add(new Fdp.Toolkit.Perception.Survey.SurveyRay { Origin = o, Free = longest ? 120f : 20f });
+            }
+            var now = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            s.Repo.SetComponent(fan, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            s.Repo.SetManagedComponent(fan, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = payload });
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            Assert.Equal(4, given.Count);
+            Assert.Equal(far, given[s.Members[1]].Objective);   // the gun on the longest view
+            Assert.Equal(posts.OrderBy(p => p.X), given.Values.Select(v => v.Objective).OrderBy(p => p.X));   // the same posts, one each
+
+            var plain = Defending(out _);
+            Assert.True(DefendQuery(plain, SquadDefendPlay.FanSite).IsNull, "no automatic weapon: no fan");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2j (DA-16 "Veteran: set-back posts everywhere", DA-50) — a VETERAN squad keeps only the window points its
+        /// set-back pass really moved back (§4.2 bit 8 <c>IsSetBack</c>): a window whose room was too shallow is no post, and the man left
+        /// without one takes a cover post; a Regular squad keeps both kinds. ✅ Red-proofs: the filter dropped ⇒ the Veteran squad mans the
+        /// shallow windows; the tier read as Regular+ instead of Veteran+ ⇒ the Regular squad drops them too.
+        /// </summary>
+        [Theory]
+        [InlineData(ProficiencyOf.Veteran, 2)]
+        [InlineData(ProficiencyOf.Regular, 4)]
+        public void CE2275_D2j_AVeteranSquad_TakesOnlyRealSetBackWindows(float tier, int windowPosts)
+        {
+            var s = new Squad(members: 4);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new CombatProficiency { Authored = tier, Set = CombatProficiency.AuthoredSet });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            s.Tick(); s.Tick(); s.Tick();
+            var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
+            Assert.Equal(tier >= ProficiencyOf.Veteran ? Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowSetBackPosts.BlueprintId   // ⭐ D-2l — Regular: the sill ask
+                                                       : Fdp.Toolkit.Spatial.Eqs.FindDefensiveWindowPosts.BlueprintId,
+                s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(ask).BlueprintId);
+            const short bit = Fdp.Toolkit.Spatial.Eqs.CoverPointsGenerator.FlagSetBack;
+            var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = 4, LastUpdateTick = 7 };
+            var span = buf.GetSpanRW();
+            span[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 2, PositionY = 25, Score = 1.0f, Flags = bit, FlagsMeaningful = bit };
+            span[1] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 6, PositionY = 25, Score = 0.9f, Flags = 0, FlagsMeaningful = bit };    // shallow: at the sill
+            span[2] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 10, PositionY = 25, Score = 0.8f, Flags = bit, FlagsMeaningful = bit };
+            span[3] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 14, PositionY = 25, Score = 0.7f, Flags = 0, FlagsMeaningful = bit };   // shallow
+            s.Orders.Clear();   // with every man on a window the posts go out on the next ticks
+            s.Repo.SetComponent(ask, buf);
+            s.Tick(); s.Tick();
+            if (windowPosts < 4) { AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite)); s.Tick(); s.Tick(); }   // men are left: the roof is asked (empty)
+            var cover = DefendQuery(s, SquadDefendPlay.CoverSite);
+            if (windowPosts < 4) AnswerAll(s, cover, new Vector3(4, 30, 0), new Vector3(12, 30, 0));
+            else Assert.True(cover.IsNull, "every man holds a window post: no cover ask");
+            s.Tick(); s.Tick();
+            var windows = s.Members.Select(m => PostureOf(s, m)).Where(d => d.Post.Window).Select(d => d.Post.Point.X).OrderBy(x => x).ToArray();
+            Assert.Equal(windowPosts, windows.Length);
+            if (windowPosts == 2) Assert.Equal(new[] { 2f, 10f }, windows);   // only the windows really set back
         }
 
         /// <summary>The squad defending at (6, 20) with its sector north, ordered with <paramref name="postsJson"/> (an authored Posts array).</summary>
@@ -1948,12 +2156,172 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(new Vector3(12, 22, 0), points);
             Assert.Contains(new Vector3(6, 25, 0), points);
             Assert.Contains(new Vector3(8, 25, 3), points);
-            foreach (var m in s2.Members)   // a Regular squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
+            foreach (var m in s2.Members)   // a Veteran squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
             {
                 var dto = PostureOf(s2, m);
-                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the authored window: where he was put");
-                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && dto.Post.SetBack, "the terrain's window: set back");
+                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack && !dto.Post.Frame, "the authored window: where he was put");
+                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the terrain's window: a Regular squad's sill (no frame found)");
             }
+        }
+
+        // ── ⭐ CE-2275 D-2l — the frame lean (DA-77…DA-84, R-2059; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) ─────────────────
+
+        /// <summary>One building whose north face runs along y = 25 (outward +Y) with windows at <paramref name="windows"/> (x, width).</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload NorthFace(params (float X, float Width)[] windows)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = 3, AX = -5, AY = 25, BX = 20, BY = 25, OutX = 0, OutY = 1 });
+            foreach (var w in windows)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 3, Kind = 1, X = w.X, Y = 25, Z = 1f, Width = w.Width, SillZ = 0.9f, HeadZ = 2f, Face = 0 });
+            return a;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>WindowFrame</c> (pure, D-2l DA-78/DA-79/DA-82) — a window's frame from the survey: two points 0.25 m past each edge along the
+        /// wall and 0.5 m inside it, the opening at the post's height; the frame point AWAY from the target; the side a man there leans to
+        /// reach the opening, by his facing and by the frame alone; no window within 2.5 m ⇒ no frame. ✅ Red-proofs: the face's outward
+        /// ignored (post→portal) — same here, so the inside offset is checked on a post off the centre line; Facing returning the nearer point
+        /// ⇒ the target side.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_WindowFrame_FromTheSurvey_TheSideAwayFromTheTarget_AndTheLeanSide()
+        {
+            var answer = NorthFace((2f, 1f));
+            Assert.True(WindowFrame.FromSurvey(answer, new Vector3(2.4f, 23.8f, 3f), out var a, out var b, out var opening));
+            Assert.Equal(new Vector3(2f, 25f, 3f), opening);
+            Assert.InRange(Vector3.Distance(a, new Vector3(1.25f, 24.5f, 3f)), 0f, 1e-4f);   // left of a man looking out (north) is west
+            Assert.InRange(Vector3.Distance(b, new Vector3(2.75f, 24.5f, 3f)), 0f, 1e-4f);
+            Assert.False(WindowFrame.FromSurvey(answer, new Vector3(6f, 24f, 0f), out _, out _, out _), "no window within 2.5 m");
+            Assert.False(WindowFrame.FromSurvey(null, new Vector3(2f, 24f, 0f), out _, out _, out _));
+
+            // a target to the north-west ⇒ the EAST frame point (he sees west through the opening from beside its east edge)
+            Assert.Equal(b, WindowFrame.Facing(a, b, opening, new Vector3(-40f, 120f, 0f)));
+            Assert.Equal(a, WindowFrame.Facing(a, b, opening, new Vector3(40f, 120f, 0f)));
+            Assert.Equal(a, WindowFrame.Other(a, b, b));
+
+            // looking north from the east point the opening is on his LEFT; from the west point on his right
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, WindowFrame.SideToward(b, 0f, opening));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideToward(a, 0f, opening));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanLeft, WindowFrame.SideFromFrame(a, b, opening, b));
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideFromFrame(a, b, opening, a));
+            // facing north-east from the west point, the opening (east-north-east of him) is still to his right
+            Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, WindowFrame.SideToward(a, 30f, opening));
+        }
+
+        /// <summary>The squad of three Regulars at (6, 20), sector north (its point (0, 120)), at the position; window ask still open.</summary>
+        private static Squad DefendingThree(float tier = ProficiencyOf.Regular)
+        {
+            var s = new Squad(members: 3);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            foreach (var m in s.Members) s.Repo.AddComponent(m, new CombatProficiency { Authored = tier, Set = CombatProficiency.AuthoredSet });
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick();
+            for (int i = 0; i < 3; i++) s.Teleport(s.Members[i], new Vector3(4f + i, 20f, 0f));
+            return s;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2l (DA-77, DA-78, DA-79, R-2059) — a REGULAR squad asks ONE building survey of its position with its window ask;
+        /// each window point with a window in the survey becomes a FRAME post at the frame point away from the sector, its order carrying both
+        /// frame points and the opening, and his posture flies the frame mode (the sill shape as the fallback); a window the survey does not
+        /// know stays a sill post (DA-84). ✅ Red-proofs: the frame pass skipped ⇒ every post at the sill point; <c>Frame</c> not passed to the
+        /// posture ⇒ <c>Peek.Frame</c> 0; Facing toward the target ⇒ the west frame points.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_ARegularSquad_FightsItsWindowsFromBesideTheFrame_AwayFromTheSector()
+        {
+            var s = DefendingThree();
+            s.FrameSurvey = NorthFace((2f, 1f), (10f, 1.2f));
+            s.Tick(); s.Tick(); s.Tick();
+            var survey = DefendQuery(s, SquadDefendPlay.FrameSite);
+            Assert.Equal(Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey,
+                ((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey).Kind);
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(10, 24.5f, 0), new Vector3(14, 24.5f, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            Assert.Equal(3, given.Count);
+            var east1 = new Vector3(2.75f, 24.5f, 0f);    // the sector's point is north-west of both windows ⇒ their EAST frame points
+            var east2 = new Vector3(10.85f, 24.5f, 0f);
+            var first = given.Single(d => Vector3.Distance(d.Post.Point, east1) < 1e-3f);
+            var second = given.Single(d => Vector3.Distance(d.Post.Point, east2) < 1e-3f);
+            var sill = given.Single(d => d.Post.Point == new Vector3(14, 24.5f, 0));
+            Assert.True(first.Post.Frame && second.Post.Frame && first.Post.Window && !first.Post.SetBack);
+            Assert.Equal(new Vector3(2f, 25f, 0f), first.Post.Opening);
+            Assert.InRange(Vector3.Distance(first.Post.FrameA, new Vector3(1.25f, 24.5f, 0f)), 0f, 1e-3f);
+            Assert.InRange(Vector3.Distance(first.Post.FrameB, east1), 0f, 1e-3f);
+            Assert.True(sill.Post.Window && !sill.Post.Frame, "a window the survey does not know: the sill (DA-84)");
+            Assert.True(DefendQuery(s, SquadDefendPlay.FrameSite).IsNull, "the survey goes once its answer is read");
+
+            var m0 = s.Members.First(m => PostureOf(s, m).Post.Frame);
+            var dto = PostureOf(s, m0);
+            var block = default(CombatPostureBehavior.CombatPostureBlackboard);
+            CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m0);
+            Assert.Equal((byte)1, block.Peek.Frame);
+            Assert.Equal(dto.Post.FrameA, block.Peek.FrameA);
+            Assert.Equal(dto.Post.FrameB, block.Peek.FrameB);
+            Assert.Equal(dto.Post.Opening, block.Peek.Opening);
+            Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId, block.Peek.HideTemplate);   // the fallback: the sill
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2275</c> D-2l (DA-77, DA-84 + D-2j) — a VETERAN squad keeps its set-back post where the room is deep enough (never a frame
+        /// there, though a window lies within reach), stands at the frame of a shallow window that has one, and drops a shallow window with
+        /// none — the man left takes a cover post. ✅ Red-proofs: shallow windows dropped before the frame pass ⇒ two men on cover; the frame
+        /// pass over set-back points ⇒ the deep post moves to the frame.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_AVeteranSquad_KeepsItsSetBackPost_StandsAtAShallowWindowsFrame_AndDropsOneWithoutAFrame()
+        {
+            var s = DefendingThree(ProficiencyOf.Veteran);
+            s.FrameSurvey = NorthFace((2f, 1f), (10f, 1.2f));
+            s.Tick(); s.Tick(); s.Tick();
+            var ask = DefendQuery(s, SquadDefendPlay.WindowSite);
+            const short bit = Fdp.Toolkit.Spatial.Eqs.CoverPointsGenerator.FlagSetBack;
+            var buf = new Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer { Count = 3, LastUpdateTick = 7 };
+            var span = buf.GetSpanRW();
+            span[0] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 2, PositionY = 23, Score = 1.0f, Flags = bit, FlagsMeaningful = bit };      // deep: set back 2 m
+            span[1] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 10, PositionY = 24.5f, Score = 0.9f, Flags = 0, FlagsMeaningful = bit };   // shallow, a frame
+            span[2] = new Fdp.Toolkit.Spatial.Eqs.EqsResult { PositionX = 14, PositionY = 24.5f, Score = 0.8f, Flags = 0, FlagsMeaningful = bit };   // shallow, no frame
+            s.Repo.SetComponent(ask, buf);
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.RoofSite));
+            s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.CoverSite), new Vector3(16, 30, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            var deep = given.Single(d => d.Post.Point == new Vector3(2, 23, 0));
+            Assert.True(deep.Post.SetBack && !deep.Post.Frame, "deep enough: the set-back post");
+            var framed = given.Single(d => d.Post.Frame);
+            Assert.InRange(Vector3.Distance(framed.Post.Point, new Vector3(10.85f, 24.5f, 0f)), 0f, 1e-3f);
+            Assert.False(framed.Post.SetBack);
+            Assert.Contains(given, d => d.Post.Point == new Vector3(16, 30, 0) && !d.Post.Window);
+            Assert.DoesNotContain(given, d => d.Post.Point.X == 14f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> D-2l (DA-84) — the survey never answers: after <see cref="SquadDefendPlay.AskTimeoutSeconds"/> the posts go out as
+        /// sill posts (a squad never waits forever for a frame). ✅ Red-proof: no timeout ⇒ no orders.
+        /// </summary>
+        [Fact]
+        public void CE2275_D2l_TheSurveyNeverAnswers_ThePostsGoOutAtTheSill()
+        {
+            var s = DefendingThree();
+            s.FrameSurvey = null;
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(10, 24.5f, 0), new Vector3(14, 24.5f, 0));
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Empty(s.Orders);   // waiting for the frames
+            for (int i = 0; i < (int)(SquadDefendPlay.AskTimeoutSeconds / 0.016f) + 5; i++) s.Tick();
+            var given = s.Members.Select(m => PostureOf(s, m)).ToList();
+            Assert.Equal(3, given.Count);
+            Assert.All(given, d => Assert.True(d.Post.Window && !d.Post.Frame));
         }
 
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
@@ -1989,6 +2357,108 @@ namespace Hrot.SimHost.Tests
             RoundAt(first);
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Displacing));
+        }
+
+        /// <summary>A squad of three defending at (4, 0) whose window ask gave (0,5) (4,5) (8,5) and a spare behind each — (0,9), and the
+        /// nearer (4,8) and (8,8), so one man's move changes nobody else's alternate; every man on his post and running his order (as
+        /// SimHost would have him). Returns the man on (0,5).</summary>
+        private static Entity PostedAndRunning(Squad s)
+        {
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0), new Vector3(4, 8, 0), new Vector3(8, 8, 0));
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            foreach (var m in s.Members)
+            {
+                s.Teleport(m, given[m].Objective);
+                s.Repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), Origin = BehaviorOrigin.Superior });
+            }
+            s.Tick();
+            return s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+        }
+
+        private static void RoundAt(Squad s, Entity m)
+        {
+            s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            s.Tick(); s.Tick();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> — a re-issue re-sends only the orders that CHANGED: one man displaced gets his new post, the two still running
+        /// theirs get nothing (an unchanged re-send stopped each of them and started him again — measured live, every posted man's move
+        /// restarting in step). A man no longer running his order (a reaction took him) gets it again on the next re-issue.
+        /// ✅ Red-proof: <c>Keep</c> publishing regardless ⇒ all three get an order.
+        /// </summary>
+        [Fact]
+        public void CE2304_AReissue_ResendsOnlyTheMenWhoseOrderChanged_AndAManWhoStoppedRunningHisGetsItAgain()
+        {
+            var s = new Squad(members: 3);
+            var first = PostedAndRunning(s);
+            s.Orders.Clear();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
+            Assert.Equal(new[] { first }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+
+            var other = s.Members.First(m => !m.Equals(first));
+            s.Repo.GetComponentRW<BehaviorState>(other).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            s.Repo.GetComponentRW<BehaviorState>(first).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture);
+            s.Orders.Clear();
+            s.Pause(1.0);   // back from a pause: the runner re-issues every order (S1-G)
+            s.Tick(); s.Tick();
+            Assert.Equal(new[] { other }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> (DA-58) — PROGRESS Set once every man has REACHED his post, not once all stand on them in one frame: the
+        /// first man gets there and then fights 6 m out (a hide point, a peek); the others arrive later ⇒ Set. Not before the last arrives.
+        /// 📌 Live, without it: every man at his post, and no frame in 4½ minutes with all seven within 4 m. ✅ Red-proof: "within
+        /// <see cref="SquadDefendPlay.PostRadius"/> now" instead of the latch ⇒ no Set.
+        /// </summary>
+        [Fact]
+        public void CE2304_Set_CountsAManWhoReachedHisPost_EvenWhenHeFightsFromBesideIt()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Position\":[4,0,0],\"SearchRadius\":25}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
+                new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
+            s.Tick(); s.Tick();
+            var given = s.LastOrders();
+            var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+            s.Teleport(first, given[first].Objective);
+            s.Tick();
+            s.Teleport(first, given[first].Objective + new Vector3(-6, 0, 0));   // he fights from beside his post
+            s.Tick(); s.Tick();
+            Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "the others are not there yet");
+            foreach (var m in s.Members.Where(m => !m.Equals(first))) s.Teleport(m, given[m].Objective);
+            s.Tick(); s.Tick();
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2304</c> (DA-56) — a displaced man is not sent straight back by the rounds of the fire he moves through: for
+        /// <see cref="SquadDefendPlay.DisplacedGraceSeconds"/> after the move his rounds do not count; after it, three more move him again.
+        /// 📌 Live, without it: 43 displacements in 14 s, every man ping-ponging between two posts. ✅ Red-proof: the grace check dropped ⇒
+        /// three rounds right after the move send him back.
+        /// </summary>
+        [Fact]
+        public void CE2304_ADisplacedMan_IsNotSentStraightBack_TheRoundsWhileHeMovesDoNotCount()
+        {
+            var s = new Squad(members: 3);
+            var first = PostedAndRunning(s);
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
+            s.Teleport(first, new Vector3(0, 9, 0));
+
+            s.Orders.Clear();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(first));   // still inside the grace: he stays
+
+            for (int i = 0; i < (int)(SquadDefendPlay.DisplacedGraceSeconds / 0.016f) + 5; i++) s.Tick();
+            RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
+            Assert.Equal(new Vector3(0, 5, 0), s.LastOrders()[first].Objective);   // untenable again: the free point is his old post
         }
 
         /// <summary>
@@ -2104,12 +2574,18 @@ namespace Hrot.SimHost.Tests
         /// squads are stand-ins whose reports the test publishes, folded by the platoon's inbox each frame.</summary>
         private sealed class Platoon
         {
-            public readonly Squad S = new(members: 2);
+            public readonly Squad S;
             public readonly Fdp.Toolkit.Squad.Command.StaffInboxSystem Inbox = new();
             public Entity Alpha => S.Members[0];
             public Entity Bravo => S.Members[1];
+            public Entity Charlie => S.Members[2];
 
-            public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); }
+            public Platoon(int squads = 2) => S = new Squad(members: squads);
+
+            /// <summary>⭐ CE-2276 E-2 (DA-63) — the SITREP the platoon asks for lands.</summary>
+            public readonly Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem Reporting = new();
+
+            public void Tick() { S.Tick(); Inbox.Execute(S.Repo, 0.016f); Reporting.Execute(S.Repo, 0.016f); }
             public void Ticks(int n) { for (int i = 0; i < n; i++) Tick(); }
 
             public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f)
@@ -2278,6 +2754,731 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(sent + 1, c.Composer.SentCount);
             Assert.Equal(1, c.Picture.Elements.Count);
             Assert.True(c.Picture.Elements.Items[0].ObservedAt > first + 14f);
+        }
+
+        // ── CE-2276 E-1 — PlatoonDefend: the platoon holds a position over its squads (Defend & Attack §8d) ─────────────────────
+
+        /// <summary>The order: defend the origin, the engagement area north (330°…30°, out to 150 m), no squads named (DA-51 defaults).</summary>
+        private static void Defend(Platoon p)
+            => p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150}", BehaviorNames.PlatoonDefend);
+
+        private static Fdp.Toolkit.Behavior.Components.RoeFire FireOf(Platoon p, Entity squad)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.Roe>(squad)
+                ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Roe>(squad).Fire : Fdp.Toolkit.Behavior.Components.RoeFire.FireUnset;
+
+        private static Fdp.Toolkit.Behavior.Components.EngagementArea SectorOf(Platoon p, Entity squad)
+            => p.S.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>(squad)
+                ? p.S.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(squad) : default;
+
+        private static SquadDefendParamsJsonDto DefendOrderTo(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.SquadDefend).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-51, DA-52, DA-54) — three squads, none named: the first two hold the line at the position and
+        /// each gets one half of the area (30° each, 10 % wider: 328.5°…1.5° and 358.5°…31.5°), the third is the reserve 40 m behind with no
+        /// sector; the line holds fire, the reserve returns fire; each order is given once and kept. ✅ Red-proofs: no overlap ⇒ the slices
+        /// meet edge to edge · every squad on the line ⇒ the reserve gets a sector · the order re-sent every tick ⇒ more than one order.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_OrdersEverySquad_SplitsTheAreaAmongTheLine_AndHoldsItsFire()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend), p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend),
+                                     p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend)));
+            var a = SectorOf(p, p.Alpha);
+            var b = SectorOf(p, p.Bravo);
+            Assert.Equal((1, 328.5f, 1.5f, 150f), (a.ArcSet, MathF.Round(a.LeftBearing, 2), MathF.Round(a.RightBearing, 2), a.MaxRange));
+            Assert.Equal((1, 358.5f, 31.5f), (b.ArcSet, MathF.Round(b.LeftBearing, 2), MathF.Round(b.RightBearing, 2)));
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
+            var reserve = DefendOrderTo(p, p.Charlie).Position;
+            Assert.True(Vector3.Distance(reserve, new Vector3(0f, -40f, 0f)) < 0.01f, $"the reserve's point {reserve}");
+            Assert.Equal(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire,
+                          Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
+            p.Ticks(10);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-53) — once the line is set, a SPOT OUTSIDE the area changes nothing; one INSIDE opens the line's
+        /// fire (the reserve keeps returning fire only); 120 s with nothing inside and the line holds again. ✅ Red-proofs: the area ignored
+        /// ⇒ the outside SPOT opens fire · the quiet guard never true ⇒ the line keeps firing at will.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_AnEnemyInsideTheArea_OpensTheLinesFire_OutsideItDoesNot_AndQuietClosesItAgain()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            p.ReportSpot(p.Alpha, new Vector3(0f, -100f, 0f), 2);   // south: behind the position
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+            p.ReportSpot(p.Bravo, new Vector3(20f, 100f, 0f), 2);   // ~11°, 102 m: inside
+            p.Ticks(3);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill,
+                          Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
+            p.S.Pause(PlatoonDefendBehavior.QuietSeconds + 1f);
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-53, Platoon §5 Occupy) — the line opens fire only once EVERY line squad is set: an enemy inside
+        /// while one is still moving changes nothing; that squad's Set then opens it at once (the SPOT is still fresh). ✅ Red-proof: the
+        /// Set guard always true ⇒ fire opens while Bravo is still moving.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_TheLineOpensFireOnlyOnceEveryLineSquadIsSet()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha);
+            p.ReportSpot(p.Charlie, new Vector3(0f, 120f, 0f), 3);
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));
+            p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-54, Platoon §5 "below Regular") — a Militia platoon never holds its fire: every squad fires at
+        /// will from the start, the reserve too. ✅ Red-proof: the tier ignored ⇒ the militia line holds fire.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_AMilitiaPlatoon_FiresAtWillFromTheStart()
+        {
+            var p = new Platoon(squads: 3);
+            if (!p.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) p.S.Repo.RegisterComponent<CombatProficiency>();
+            p.S.Repo.AddComponent(p.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill),
+                         (FireOf(p, p.Alpha), FireOf(p, p.Charlie)));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-1 (DA-55) — a defending platoon WITH its SOP (<c>BasicPlatoonSop</c>): an enemy reported inside the
+        /// area does not pause the defence for <c>PlatoonHold</c> (no squad is ordered off its post to hold) — the task stays on and opens
+        /// the line's fire. ✅ Red-proof: the guard always true ⇒ the hold reaction pauses the defence and orders every squad Hold.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_WithItsSop_AReportedEnemy_DoesNotPauseTheDefence()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.StartSop("BasicPlatoonSop");
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            p.ReportSpot(p.Bravo, new Vector3(20f, 100f, 0f), 3);
+            p.Ticks(6);
+            Assert.Equal(BehaviorNames.PlatoonDefend, p.S.TaskName);
+            Assert.False(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Hold"));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
+        }
+
+        // ── CE-2276 E-2 — the control region (Defend & Attack §8d E-2, DA-59…DA-65) ─────────────────────────────────────────────
+
+        private static void Sitrep(Platoon p, Entity from, Fdp.Toolkit.Squad.Command.StatusColour strength)
+            => p.Report(from, new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Sitrep, Strength = strength });
+
+        private static int DefendOrders(Platoon p, Entity squad) => p.OrdersTo(squad, BehaviorNames.SquadDefend);
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-59) — an OP forward at (0, 250): a SPOT 350 m from it changes nothing; one 250 m from it brings
+        /// it back to its <c>Back</c> point (0, −30), where it is a reserve (no sector) and is ordered once. ✅ Red-proof: the OP's 300 m
+        /// ignored ⇒ the far SPOT brings it back.</summary>
+        [Fact]
+        public void CE2276_E2_AnEnemyNearTheOp_BringsItBack_AsAReserve()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":400,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
+                    + "{\"Squad\":3,\"Op\":true,\"Point\":[0,250,0],\"Back\":[0,-30,0]}]}", BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            Assert.Equal(new Vector3(0, 250, 0), DefendOrderTo(p, p.Charlie).Position);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 600f, 0f), 2);
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            p.ReportSpot(p.Alpha, new Vector3(0f, 500f, 0f), 2);
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            Assert.Equal(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
+            p.Ticks(10);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));   // once
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-60) — a SPOT 100 m east of a north-facing position is a flank: the nearest line squad (Alpha)
+        /// is ordered again with a slice centred on it; a second one west turns Bravo; a third turns nobody (both turned), and an enemy in
+        /// front turns nobody. ✅ Red-proofs: the area's bearings ignored ⇒ the front SPOT turns a squad · the once-per-squad mark dropped ⇒
+        /// Alpha turned twice · the faced test dropped ⇒ the east SPOT turns Bravo too.</summary>
+        [Fact]
+        public void CE2276_E2_AFlankEnemy_TurnsTheNearestLineSquadToFaceIt_OncePerSquad()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSpot(p.Alpha, new Vector3(10f, 100f, 0f), 2);   // in front: inside the area's bearings
+            p.Ticks(4);
+            Assert.Equal((1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m
+            p.Ticks(12);
+            Assert.Equal((2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));   // Alpha faces it; Bravo is not turned too
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
+                SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "Alpha's slice faces the flank");
+            p.ReportSpot(p.Alpha, new Vector3(-100f, 0f, 0f), 2);   // west
+            p.Ticks(12);
+            Assert.Equal((2, 2), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            p.ReportSpot(p.Bravo, new Vector3(0f, -100f, 0f), 2);   // south: nobody left to turn
+            p.Ticks(12);
+            Assert.Equal((2, 2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-61, DA-63) — every squad is asked for a 15 s SITREP; Bravo reports RED but the enemy is not in its
+        /// slice ⇒ nothing; an enemy in its slice ⇒ the reserve (Charlie) goes 15 m behind Bravo with Bravo's slice and fires at will; once.
+        /// ✅ Red-proofs: the colour ignored ⇒ the reserve commits on the first SPOT · the slice test dropped ⇒ it commits at once.</summary>
+        [Fact]
+        public void CE2276_E2_ALineSquadReportingRed_WithTheEnemyInItsSlice_GetsTheReserveBehindIt()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            Assert.Equal(PlatoonDefendBehavior.SitrepSeconds,
+                p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(p.Bravo).SitrepEverySeconds);
+            p.ReportSpot(p.Alpha, new Vector3(30f, 100f, 0f), 2);   // ~17°: inside Bravo's slice (358.5°…31.5°), not Alpha's
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // Alpha is red, but nothing in ITS slice
+            p.Ticks(4);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            var at = DefendOrderTo(p, p.Charlie).Position;
+            Assert.InRange(Vector3.Distance(at, Vector3.Zero), 14.9f, 15.1f);
+            Assert.True(at.Y < 0f, "behind the squad, away from its slice");
+            Assert.Equal((SectorOf(p, p.Bravo).LeftBearing, SectorOf(p, p.Bravo).RightBearing),
+                         (SectorOf(p, p.Charlie).LeftBearing, SectorOf(p, p.Charlie).RightBearing));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.ReportSpot(p.Alpha, new Vector3(-20f, 100f, 0f), 2);   // Alpha's slice too: no second reserve
+            p.Ticks(4);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-2 (DA-61 "once") — with TWO reserves, a second failing line squad gets no second reserve: the
+        /// platoon commits its reserve once. ✅ Red-proof: the <c>Committed</c> latch dropped ⇒ the second reserve goes behind Alpha.</summary>
+        [Fact]
+        public void CE2276_E2_TwoReserves_TheReserveIsCommittedOnce()
+        {
+            var p = new Platoon(squads: 4);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
+                    + "{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]},{\"Squad\":4,\"Reserve\":true,\"Point\":[10,-50,0]}]}",
+                      BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            var delta = p.S.Members[3];
+            p.ReportSpot(p.Alpha, new Vector3(30f, 100f, 0f), 2);    // Bravo's slice
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Charlie) + DefendOrders(p, delta));   // one reserve re-ordered
+            p.ReportSpot(p.Bravo, new Vector3(-20f, 100f, 0f), 2);   // Alpha's slice
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Charlie) + DefendOrders(p, delta));   // and no second
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-2 (DA-65) — a Militia platoon's control region does nothing: a flank SPOT turns nobody, a red squad
+        /// with the enemy in its slice gets no reserve. ✅ Red-proof: the tier ignored ⇒ the flank turns Alpha.</summary>
+        [Fact]
+        public void CE2276_E2_AMilitiaPlatoon_NeverSupplementsOrReinforces()
+        {
+            var p = new Platoon(squads: 3);
+            if (!p.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) p.S.Repo.RegisterComponent<CombatProficiency>();
+            p.S.Repo.AddComponent(p.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSpot(p.Alpha, new Vector3(100f, 0f, 0f), 2);
+            p.ReportSpot(p.Bravo, new Vector3(30f, 100f, 0f), 2);
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(6);
+            Assert.Equal((1, 1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        // ── CE-2276 E-3a — FallBack (Defend & Attack §8d E-3a, DA-66…DA-71) ───────────────────────────────────────────────────
+
+        private static Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto BreakOrderTo(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto>(
+                   p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.BreakContact).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static void EngagedThreeLines(Platoon p)
+        {
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo); p.ReportSet(p.Charlie);
+            p.ReportSpot(p.Charlie, new Vector3(30f, 100f, 0f), 3);   // ~17°: inside the area, Charlie's slice only
+            p.Ticks(8);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-3a (DA-66…DA-70) — three line squads and a reserve, engaged: one line squad Red is not half ⇒ nothing;
+        /// a second ⇒ FALL BACK: every line squad <c>BreakContact</c>s to the default point 100 m behind (0, −100), the reserve
+        /// <c>SquadDefend</c>s there and fires at will; every line squad's Set on that order ends the run in Success. ✅ Red-proofs: "half"
+        /// read as "any" ⇒ the first Red falls back · the end guard dropped ⇒ the run never finishes.</summary>
+        [Fact]
+        public void CE2276_E3a_HalfTheLineRed_FallsBack_BehindTheReserve_AndEndsWhenTheLineIsBack()
+        {
+            var p = new Platoon(squads: 4);
+            var delta = p.S.Members[3];
+            EngagedThreeLines(p);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));   // engaged
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(8);
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(8);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact),
+                                     p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+            Assert.InRange(Vector3.Distance(new Vector3(0f, -100f, 0f), BreakOrderTo(p, p.Alpha).To), 0f, 0.01f);
+            Assert.InRange(Vector3.Distance(new Vector3(0f, -100f, 0f), DefendOrderTo(p, delta).Position), 0f, 0.01f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, delta));
+            Assert.Equal(0, SectorOf(p, p.Alpha).ArcSet);   // no slice while falling back
+            p.Ticks(20);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));   // kept, not re-sent
+            Assert.False(p.S.Finished(out _));
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.Equal(BehaviorNames.PlatoonDefend, p.S.TaskName);   // Charlie is not back yet
+            p.ReportSet(p.Charlie);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 8 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-3a (DA-66, DA-71) — an authored <c>FallBackTo</c> is where the line goes; while falling back the
+        /// control region rests: a flank SPOT turns nobody. ✅ Red-proof: the <c>Falling</c> test dropped from <c>Flanked</c> ⇒ a line squad
+        /// is ordered to <c>SquadDefend</c> again mid-withdrawal.</summary>
+        [Fact]
+        public void CE2276_E3a_AnAuthoredFallBackPoint_AndTheControlRegionRestsWhileFallingBack()
+        {
+            var p = new Platoon(squads: 2);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"FallBackTo\":[50,-80,0]}", BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha); p.ReportSet(p.Bravo);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 100f, 0f), 3);
+            p.Ticks(8);
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // one of two is half
+            p.Ticks(8);
+            Assert.Equal(new Vector3(50f, -80f, 0f), BreakOrderTo(p, p.Bravo).To);
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);   // a flank
+            p.Ticks(12);
+            Assert.Equal((1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
+        }
+
+        // ── ⭐ CE-2276 E-4 — battle positions over an AREA (Defend & Attack §8d E-4, DA-85…DA-92, R-2060) ─────────────────────────
+
+        private static void DefendArea(Platoon p, float radius = 80f)
+            => p.S.Order("{\"Position\":[0,0,0],\"SearchRadius\":" + radius.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                         + ",\"Left\":330,\"Right\":30,\"MaxRange\":150}", BehaviorNames.PlatoonDefend);
+
+        /// <summary>A building of the area: enterable or solid, its footprint a square of <paramref name="side"/> round (x, y), and windows on
+        /// its north face (outward +Y) and its south face (outward −Y).</summary>
+        private static void AddBuilding(Fdp.Toolkit.Perception.Survey.WorldSurveyPayload a, int id, float x, float y, bool solid = false,
+                                        int northWindows = 0, int southWindows = 0, float side = 14f)
+        {
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = id, Solid = solid, CentreX = x, CentreY = y, Levels = { 0f, 3f } });
+            if (solid) return;   // a solid building's layout has no faces (BuildingLayout.Derive)
+            float h = side * 0.5f;
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = id, AX = x - h, AY = y + h, BX = x + h, BY = y + h, OutX = 0, OutY = 1 });
+            a.Faces.Add(new Fdp.Toolkit.Perception.Survey.SurveyFace { Building = id, AX = x + h, AY = y - h, BX = x - h, BY = y - h, OutX = 0, OutY = -1 });
+            for (int i = 0; i < northWindows; i++)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = id, Kind = 1, X = x - h + 2f + 3f * i, Y = y + h, Width = 1f, Face = 0 });
+            for (int i = 0; i < southWindows; i++)
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = id, Kind = 1, X = x - h + 2f + 3f * i, Y = y - h, Width = 1f, Face = 1 });
+        }
+
+        private static void AnswerPositions(Platoon p, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload answer)
+        {
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.PositionsSite);
+            Assert.False(survey.IsNull, "the platoon surveys its area");
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)p.S.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey);
+            Assert.Equal((Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey, 80f), (request.Kind, request.AreaRadius));
+            var now = p.S.Repo.GetSingleton<GlobalTime>().TotalTime;
+            p.S.Repo.SetComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            p.S.Repo.SetManagedComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = answer });
+        }
+
+        private static void Near(Vector3 expected, Vector3 actual, string what)
+            => Assert.True(Vector3.Distance(expected, actual) < 0.05f, $"{what}: expected {expected}, was {actual}");
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2276</c> E-4 (DA-85, DA-86, DA-87) — a platoon given an AREA (80 m) surveys it and sends each line squad to its own house:
+        /// the house whose windows look at the area first (2 north windows beat 3 facing away), each squad's radius its house's size (half
+        /// its 14 m face + 3 = 10 m), the solid shed nobody's house; the reserve 40 m behind with an open-ground radius; nothing is ordered
+        /// before the answer. ✅ Red-proofs: the facing count ignored ⇒ the house with more windows first; the survey not read ⇒ both at
+        /// the centre; the solid filter dropped ⇒ the shed (nearest) taken.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_AnArea_EachLineSquadHoldsItsOwnHouse_TheOneFacingTheAreaFirst()
+        {
+            var p = new Platoon(squads: 3);
+            DefendArea(p);
+            p.Ticks(3);
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));   // waiting for the survey
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            AddBuilding(answer, 1, -30f, 10f, southWindows: 3);    // its windows look away from the area (north)
+            AddBuilding(answer, 2, 30f, 20f, northWindows: 2);
+            AddBuilding(answer, 3, 0f, 5f, solid: true);           // a shed — nearest, but no house
+            AnswerPositions(p, answer);
+            p.Ticks(4);
+            var alpha = DefendOrderTo(p, p.Alpha);
+            var bravo = DefendOrderTo(p, p.Bravo);
+            Near(new Vector3(30f, 20f, 0f), alpha.Position, "Alpha holds the house facing the area");
+            Near(new Vector3(-30f, 10f, 0f), bravo.Position, "Bravo the other house");
+            Assert.Equal((10f, 10f), (alpha.SearchRadius, bravo.SearchRadius));
+            var reserve = DefendOrderTo(p, p.Charlie);
+            Near(new Vector3(0f, -40f, 0f), reserve.Position, "the reserve behind");
+            Assert.Equal(BattlePositions.OpenRadius, reserve.SearchRadius);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
+                "the survey goes once read");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2276</c> E-4 (DA-88, 🔒 "the area … can contain various obstacles and buildings") — three line squads, one house, one
+        /// solid obstacle: the first squad takes the house, the second the obstacle's LEE (away from the area: 4 + 2 m south of the shed,
+        /// which carries no faces), the third open ground 40 m to the right of the centre across the area's bearing — the open-ground
+        /// squads with radius 25 m for their own cover asks. ✅ Red-proofs: the obstacle pass skipped ⇒ Bravo on the open line; the lee
+        /// toward the area ⇒ Bravo north of the shed.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_SquadsLeftOver_TakeTheObstaclesLee_ThenOpenGroundAcrossTheArea()
+        {
+            var p = new Platoon(squads: 4);
+            DefendArea(p);
+            p.Ticks(3);
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            AddBuilding(answer, 1, -30f, 10f, northWindows: 1);
+            AddBuilding(answer, 3, 0f, 30f, solid: true);
+            AnswerPositions(p, answer);
+            p.Ticks(4);
+            var delta = p.S.Members[3];
+            Near(new Vector3(-30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position, "Alpha in the house");
+            Near(new Vector3(0f, 24f, 0f), DefendOrderTo(p, p.Bravo).Position, "Bravo in the shed's lee");
+            Near(new Vector3(40f, 0f, 0f), DefendOrderTo(p, p.Charlie).Position, "Charlie on open ground, right of the centre");
+            Assert.Equal((BattlePositions.OpenRadius, BattlePositions.OpenRadius), (DefendOrderTo(p, p.Bravo).SearchRadius, DefendOrderTo(p, p.Charlie).SearchRadius));
+            Near(new Vector3(0f, -40f, 0f), DefendOrderTo(p, delta).Position, "Delta the reserve");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2276</c> E-4 (DA-90, DA-85) — the survey never answers: after 5 s the line spreads across the area (the centre, then 40 m
+        /// right) rather than crowding one spot; an order narrower than 40 m is one position and asks nothing (E-1). ✅ Red-proofs: no timeout
+        /// ⇒ no orders; the area threshold dropped ⇒ the narrow order asks the survey.
+        /// </summary>
+        [Fact]
+        public void CE2276_E4_NoAnswer_TheLineSpreadsAcrossTheArea_ANarrowOrderIsOnePosition()
+        {
+            var p = new Platoon(squads: 2);
+            DefendArea(p);
+            p.Ticks(3);
+            p.S.Pause(PlatoonDefendBehavior.PositionsTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Near(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position, "Alpha at the centre");
+            Near(new Vector3(40f, 0f, 0f), DefendOrderTo(p, p.Bravo).Position, "Bravo 40 m to the right");
+
+            var q = new Platoon(squads: 2);
+            DefendArea(q, radius: 30f);
+            q.Ticks(4);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(q.S.Repo, q.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
+                "30 m is one position: no survey");
+            Assert.Equal((Vector3.Zero, Vector3.Zero), (DefendOrderTo(q, q.Alpha).Position, DefendOrderTo(q, q.Bravo).Position));
+        }
+
+        // ── ⭐ CE-2257 BC-1 — clear ONE room (Building Clearing §7.1, CB-48…CB-56) ──────────────────────────────────────────────
+
+        /// <summary>A 6 × 6 m room (x 0…6, y 10…16, floor 0) of building 4, entered by a door on its south wall at (1.5, 10) — 1 m wide, key
+        /// "t/H/front" — with a window on the same wall NEARER the squad (no way in) and a gap in the far wall; or a 3 × 3 m room entered by a
+        /// gap only.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload RoomAnswer(bool small = false)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 4, CentreX = 3f, CentreY = 13f });
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom { Building = 4, Index = 0, Indoors = true, Corners = new[] { 20f, 10f, 26f, 10f, 26f, 16f, 20f, 16f } });   // another room
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+            {
+                Building = 4, Index = 1, Indoors = true, FloorZ = 0f,
+                Corners = small ? new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f } : new[] { 0f, 10f, 6f, 10f, 6f, 16f, 0f, 16f },
+            });
+            if (small)
+            {
+                a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f });
+                return a;
+            }
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 1, RoomA = 1, RoomB = -1, X = 5f, Y = 10f, Width = 1f });   // a window
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 0, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f, IsDoor = true, DoorKey = "t/H/front" });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = 0, X = 3f, Y = 16f, Width = 1f });
+            return a;
+        }
+
+        private static readonly float[] BigRoom = { 0f, 10f, 6f, 10f, 6f, 16f, 0f, 16f };
+
+        /// <summary>The terrain door "t/H/front" in <paramref name="state"/>, as SimHost's terrain-object entities carry it.</summary>
+        private static Entity RoomDoor(Squad s, Fdp.Toolkit.Terrain.TerrainDoorState state)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.DoorState>()) s.Repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            s.Repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            var door = s.Repo.CreateEntity();
+            s.Repo.AddComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            s.Repo.SetManagedComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "t/H/front" });
+            return door;
+        }
+
+        private static void ClearRoom(Squad s) => s.Order("{\"Room\":[3,13,0]}", BehaviorNames.ClearRoom);
+
+        private static void Ticks(Squad s, double seconds) { for (int i = 0; i < (int)(seconds / 0.016) + 1; i++) s.Tick(); }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-50, CB-51, CB-52) — the plan, pure: the stack stands outside the wall on the side with LESS room (the
+        /// door is 1.5 m from the west wall, 4.5 m from the east), #1 nearest the door; #1 goes to the open (east) side, #2 to the stack's side,
+        /// #3 / #4 half as far, all inside the room; each sector looks into the room; a small room — or a squad of two — is a two-man entry.
+        /// ✅ Red-proofs: the stack side flipped ⇒ the stack east of the door; the two-man rule dropped ⇒ four into the 9 m² room.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_RoomEntryPlan_StacksOnTheShortSide_EachManToHisPoint_TwoManForASmallRoom()
+        {
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            Assert.Equal(4, plan.Entry);
+            for (int k = 0; k < 4; k++)
+            {
+                var st = plan.Stack(k);
+                Assert.True(st.Y < 10f && st.X < 1.5f - 0.5f, $"stack {k} outside, west of the door: {st}");
+                Assert.True(RoomEntryPlan.Inside(BigRoom, new Vector2(plan.Point(k).X, plan.Point(k).Y)), $"point {k} inside: {plan.Point(k)}");
+                float b = plan.Facing(k) * MathF.PI / 180f;
+                Assert.True(MathF.Cos(b) > 0f, $"sector {k} looks into the room (north): {plan.Facing(k)}");
+            }
+            Near(new Vector3(0.4f, 9.4f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.6 m off the wall");
+            Assert.Equal(0.8f, plan.Stack(0).X - plan.Stack(1).X, 3);
+            Assert.True(plan.Point0.X > 1.5f && plan.Point1.X < 1.5f, "#1 to the open side, #2 to the stack's side");
+            Assert.Equal(12f, plan.Point0.Y, 3);   // a third in
+            Assert.Equal(13f, plan.Point2.Y, 3);   // halfway
+            Assert.Equal((50f, 45f), (RoomEntryPlan.Result.HalfWidth(0), RoomEntryPlan.Result.HalfWidth(2)));
+
+            Assert.Equal(2, RoomEntryPlan.Plan(new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4).Entry);
+            Assert.Equal(2, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 2).Entry);
+            Assert.Equal(3, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 3).Entry);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2257</c> BC-1 (CB-48…CB-55) — the drill through the real brain: one survey of the room's point; the squad stacks on the
+        /// DOOR (not the nearer window); stacked, #1 is sent to open it (<c>BreachDoor</c> with its key) while the rest hold the stack; the door
+        /// open, the entry men go one after another 0.6 s apart, each to his point with his sector; with every man there and a hostile in the
+        /// room it is not clear; with none for 3 s PROGRESS RoomClear — and the squad HOLDS the room (the play stays running, CB-55). ✅
+        /// Red-proofs: the portal-kind filter dropped ⇒ the stack on the window; the flow released at once ⇒ #2 in with #1; the hostile check
+        /// dropped ⇒ RoomClear with an enemy in the room.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_ClearRoom_StacksOnTheDoor_OpensIt_FlowsInOneByOne_AndReportsTheRoomClear()
+        {
+            var s = new Squad(members: 4);
+            var door = RoomDoor(s, Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(s);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.ManeuverKind, s.Kind);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseStacking, s.Phase);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, ClearRoomPlay.RoomSite).IsNull, "the survey goes once read");
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) Near(plan.Stack(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} on the door's stack");
+
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseBreaching, s.Phase);
+            var breach = s.Orders.Last(o => o.Entity.Equals(s.Members[0]));
+            Assert.Equal(BehaviorNames.BreachDoor, breach.IntentId);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<BreachDoorParamsJsonDto>(breach.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal("t/H/front", dto.Door.ToString());
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 holds the stack");
+
+            s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 goes first");
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
+            Ticks(s, 0.6);
+            Near(plan.Point(1), PostureOf(s, s.Members[1]).Post.Point, "#2 0.6 s after");
+            Ticks(s, 1.3);
+            for (int k = 0; k < 4; k++)
+            {
+                Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
+                var arc = Sector(s, s.Members[k]);
+                Assert.Equal(1, arc.ArcSet);
+                float half = RoomEntryPlan.Result.HalfWidth(k);
+                Assert.Equal(2f * half, (arc.RightBearing - arc.LeftBearing + 360f) % 360f, 2);
+                Assert.Equal(plan.Facing(k), (arc.LeftBearing + half) % 360f, 2);
+            }
+
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Point(k));
+            s.PoolMany(1, new Vector3(4f, 15f, 0f));   // an enemy still in the far corner
+            Ticks(s, 4);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
+            s.ClearPool();
+            Ticks(s, ClearRoomPlay.ClearSeconds + 0.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
+            Assert.False(s.Finished(out _), "the squad holds the cleared room");
+            Assert.Equal(BehaviorNames.ClearRoom, s.TaskName);
+            for (int k = 0; k < 4; k++) Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} holds his point");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-51, CB-50) — six men at a 3 × 3 m room entered by a gap: a two-man entry; the leader stays out (last in the
+        /// stack, directing), so the first two after him go in; a gap needs no breach. ✅ Red-proof: the leader not moved last ⇒ he is #1.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_ASmallRoom_TwoGoIn_TheLeaderStaysOutside()
+        {
+            var s = new Squad(members: 6);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer(small: true);
+            s.Order("{\"Room\":[1.5,11.5,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 6);
+            Assert.Equal(2, plan.Entry);
+            Near(plan.Stack(0), PostureOf(s, s.Members[1]).Post.Point, "the first after the leader is #1");
+            Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader last");
+            for (int k = 0; k < 6; k++) s.Teleport(s.Members[k], plan.Stack((k + 5) % 6));
+            Ticks(s, 1.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
+            Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
+            for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");
+            Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader stays out");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2257</c> BC-1 (CB-49, CB-53) — the room cannot be cleared: the survey never answers (5 s), or the door stays shut (12 s after
+        /// the breach began) — either way PROGRESS RoomBlocked and the drill fails. ✅ Red-proofs: no survey timeout ⇒ it waits for ever; no
+        /// breach timeout ⇒ it waits at the door for ever.
+        /// </summary>
+        [Fact]
+        public void CE2257_BC1_NoAnswer_OrADoorThatWillNotOpen_ReportsTheRoomBlocked_AndFails()
+        {
+            var s = new Squad(members: 4);
+            ClearRoom(s);
+            for (int i = 0; i < 3; i++) s.Tick();
+            s.Pause(ClearRoomPlay.AskTimeoutSeconds + 0.5);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 6 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done && result == Fbt.NodeStatus.Failure, "no answer ⇒ the drill fails");
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+
+            var q = new Squad(members: 4);
+            RoomDoor(q, Fdp.Toolkit.Terrain.TerrainDoorState.Locked);
+            q.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(q);
+            for (int i = 0; i < 4; i++) q.Tick();
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) q.Teleport(q.Members[k], plan.Stack(k));
+            for (int i = 0; i < 4; i++) q.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseBreaching, q.Phase);
+            Assert.False(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+            q.Pause(ClearRoomPlay.BreachTimeoutSeconds + 0.5);
+            done = false;
+            for (int i = 0; i < 6 && !done; i++) { q.Tick(); done = q.Finished(out result); }
+            Assert.True(done && result == Fbt.NodeStatus.Failure, "the door stays shut ⇒ the drill fails");
+            Assert.True(HasProgress(q, Fdp.Toolkit.Squad.Command.ProgressKind.RoomBlocked));
+        }
+
+        // ── CE-2276 E-3b — block the stair (Defend & Attack §8d E-3b, DA-72…DA-76) ────────────────────────────────────────────
+
+        /// <summary>The defended building as a survey answer: building 7 round the position, two storeys of one 10 m room (floors 0 and 3),
+        /// a stair from the ground floor at (4, 4, 1.5) and one higher at (4, −4, 4.5) — or no stair at all.</summary>
+        private static void AnswerBuilding(Platoon p, bool stairs = true)
+        {
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);
+            Assert.False(survey.IsNull, "the platoon surveys its building");
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            answer.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 7, CentreX = 0f, CentreY = 0f });
+            foreach (float floor in new[] { 0f, 3f })
+                answer.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                {
+                    Building = 7, FloorZ = floor, Indoors = true, Corners = new[] { -5f, -5f, 5f, -5f, 5f, 5f, -5f, 5f },
+                });
+            if (stairs)
+            {
+                answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 3, X = 4f, Y = -4f, Z = 4.5f });
+                answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 3, X = 4f, Y = 4f, Z = 1.5f });
+            }
+            answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 0, X = 0f, Y = -5f, Z = 1f });   // a door
+            var now = p.S.Repo.GetSingleton<GlobalTime>().TotalTime;
+            p.S.Repo.SetComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            p.S.Repo.SetManagedComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = answer });
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-3b (DA-72…DA-74) — the platoon surveys the building round its position (an area ask, 5 m); an enemy
+        /// outside it changes nothing; one reported INSIDE (a room, at its storey) sends the reserve to <c>SquadDefend</c> the LOWEST stair,
+        /// radius 6 m, firing at will; a second one inside changes nothing (once). ✅ Red-proofs: the inside test dropped ⇒ the outside SPOT
+        /// blocks · the lowest-stair choice dropped ⇒ the upper stair · the Committed test dropped ⇒ a second order.</summary>
+        [Fact]
+        public void CE2276_E3b_AnEnemyInsideTheBuilding_SendsTheReserveToBlockTheLowestStair_Once()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)p.S.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey);
+            Assert.Equal((Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey, 5f), (request.Kind, request.AreaRadius));
+            AnswerBuilding(p);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 100f, 0f), 3);    // in the area, outside the building
+            p.Ticks(12);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            p.ReportSpot(p.Bravo, new Vector3(2f, 2f, 0.5f), 2);    // inside, the ground floor
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            var order = DefendOrderTo(p, p.Charlie);
+            Assert.Equal((new Vector3(4f, 4f, 1.5f), PlatoonDefendBehavior.StairRadius), (order.Position, order.SearchRadius));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
+            p.ReportSpot(p.Alpha, new Vector3(-2f, 2f, 3.5f), 2);   // inside, upstairs
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-3b (DA-76) — a building with no stair: an enemy inside sends nobody; and a Militia platoon never asks
+        /// for the survey at all. ✅ Red-proofs: the stair required no more ⇒ the reserve is sent somewhere · the tier gate dropped from the
+        /// survey ⇒ the militia asks.</summary>
+        [Fact]
+        public void CE2276_E3b_NoStair_SendsNobody_AndAMilitiaPlatoonNeverSurveys()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            AnswerBuilding(p, stairs: false);
+            p.ReportSpot(p.Bravo, new Vector3(2f, 2f, 0.5f), 2);
+            p.Ticks(12);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+
+            var militia = new Platoon(squads: 3);
+            if (!militia.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) militia.S.Repo.RegisterComponent<CombatProficiency>();
+            militia.S.Repo.AddComponent(militia.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(militia);
+            militia.Ticks(6);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(militia.S.Repo, militia.S.Commander, PlatoonDefendBehavior.BuildingSite).IsNull);
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie
+        /// the reserve; the slices follow the squads' bearings from the position, not their roster order (Bravo, further left, gets the
+        /// left half). ✅ Red-proof: slices in roster order ⇒ Alpha gets the left half.</summary>
+        [Fact]
+        public void CE2276_PlatoonDefend_NamedSquads_TakeTheirPoints_AndTheSlicesFollowTheirBearings()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":150,\"Squads\":["
+                    + "{\"Squad\":1,\"Point\":[30,10,0]},{\"Squad\":2,\"Point\":[-30,10,0]},{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]}]}",
+                      BehaviorNames.PlatoonDefend);
+            p.Ticks(6);
+            Assert.Equal(new Vector3(30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal(new Vector3(0f, -50f, 0f), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal(328.5f, MathF.Round(SectorOf(p, p.Bravo).LeftBearing, 2));
+            Assert.Equal(358.5f, MathF.Round(SectorOf(p, p.Alpha).LeftBearing, 2));
+            Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
         }
 
         // ── CE-1056 I-2d — the squad Dismount drill (Squad Tactics §5a) ──────────────────────────────────────────────────────

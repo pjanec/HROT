@@ -49,6 +49,7 @@ namespace Hrot.AI.Behaviors.Brains
             public DesignateState DesignateState;        // ⭐ CE-3170
             public LookNodeState LookState;              // ⭐ CE-2297
             public OccupyState OccupyState;              // ⭐ CE-2275 D-2e — a posted man occupies his post first
+            public FrameWatchState FrameWatchState;      // ⭐ CE-2275 D-2l — a frame post's watch, leaning out
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
@@ -126,10 +127,22 @@ namespace Hrot.AI.Behaviors.Brains
             if (post.Radius <= 0f) return;
             peek = post.Window ? WindowDuelBehavior.Shape(0) : default;
             if (post.Window && post.SetBack) peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindWindowSetBackPosition.BlueprintId;   // ⭐ D-2b (DA-6)
+            if (!post.Window && post.Roof)   // ⭐ D-2g (DA-22) — the window's stance peek over the parapet: prone behind it, up at the point's stance
+            {
+                peek = WindowDuelBehavior.Shape(0);
+                peek.HideTemplate = Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId;
+            }
             peek.Anchor = post.Point;
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;
             peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
+            if (post.Window && post.Frame)   // ⭐ D-2l (DA-80, R-2059) — beside the frame, leaning out; the sill shape above is his fallback (DA-84)
+            {
+                peek.Frame = 1;
+                peek.FrameA = post.FrameA;
+                peek.FrameB = post.FrameB;
+                peek.Opening = post.Opening;
+            }
         }
 
         /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a posted man's approach moves (flank, firing position, close to throw) stay on his post
@@ -201,7 +214,8 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))
-                        .Action(PostureNodes.Hold))   // Hold (option 5) and anything unscored
+                        // Hold (option 5) and anything unscored — ⭐ CE-2275 D-2l: at a frame post he leans out to watch
+                        .StatefulAction(bb => bb.Peek, bb => bb.FrameWatchState, PostureNodes.HoldWatch))
                     .Action(bb => bb.Stay, PostureNodes.Stay)));   // ⭐ CE-2297 slice 2a
         }
     }
