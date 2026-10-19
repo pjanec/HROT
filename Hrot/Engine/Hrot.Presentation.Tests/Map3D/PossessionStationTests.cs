@@ -323,6 +323,70 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1219 (docs/DESIGN_Entity_Control.md §8k B-1) — B held asks for the binoculars in the frame; the view narrows to their 10° only
+    /// once the sim has them UP; then LMB designates (his men's MapPoint, or Target under the crosshair) instead of firing; a man who carries
+    /// none is told so.
+    /// </summary>
+    [Fact]
+    public void CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen()
+    {
+        var (w, unit, map) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.RegisterComponent<WeaponPosture>();
+            w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var observer = new Fdp.Interfaces.TkbTemplate("Observer", 4714);
+            observer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = true });
+            db.Register(observer);
+            db.Register(new Fdp.Interfaces.TkbTemplate("Rifleman", 4715));
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4714 });
+            w.AddComponent(unit, new WeaponPosture());
+            var man = w.CreateEntity();
+            w.AddComponent(man, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = unit });
+            map.Register(601, man);
+
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            OperatorControlFrameEvent Frame(Input input)
+            {
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+            var b = new Input();
+            b.Keys.Add((int)Raylib_cs.KeyboardKey.B);
+            Assert.Equal(1, Frame(b).Binoculars);
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);                                       // asked, not yet up: no zoom
+            Assert.False(driver.NoBinoculars);
+            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.Binoculars;          // what his brain does (EmbarkNodesTests.CE1219)
+            Frame(b);
+            Assert.Equal(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees, sw.Camera3D.FovyDegrees);
+
+            var click = new Input { LeftPressed = true, LeftDown = true };
+            click.Keys.Add((int)Raylib_cs.KeyboardKey.B);
+            var f = Frame(click);
+            Assert.Equal((0, (byte)0), (f.ShotSeq, f.Trigger));                                // no shot
+            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
+            Assert.Equal("Point designated for 1 man", driver.WheelVerdict(station.Clock));
+
+            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.None;
+            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4715 });   // a man who carries none
+            Frame(b);
+            Assert.True(driver.NoBinoculars);
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);
+            Assert.Equal(0, Frame(new Input()).Binoculars);                                    // let go
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1218 (docs/DESIGN_Entity_Control.md §8k M-1) — M in first person: one still frame (he stops), the 2-D map centred on him, the
     /// cursor free, the unit still held; M on the map brings the operator back to his eyes (that same press does not reopen the map).
     /// </summary>

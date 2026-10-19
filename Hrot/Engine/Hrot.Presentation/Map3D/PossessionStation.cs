@@ -331,7 +331,8 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
-            DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2)
+            if (!_driver.BinocularsUp) DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through binoculars
+            else DrawBinoculars(camera, cx, cy);                             // ⭐ CE-1219 (§8k B-1)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
             var font = HudText.Font();
             DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
@@ -347,7 +348,7 @@ namespace Hrot.UI.Common.Map3D
             }
             // ⭐ CE-1213 (§8j W-1) — the command wheel round the crosshair while T is held; then what the order did, under it
             if (_driver.WheelOpen) DrawWheel(font, cx, cy);
-            else if (_driver.WheelVerdict(Clock) is { } verdict)
+            else if ((_driver.NoBinoculars ? "no binoculars" : _driver.WheelVerdict(Clock)) is { } verdict)
             {
                 int vw = (int)HudText.Measure(font, verdict);
                 Raylib.DrawRectangle(cx - vw / 2 - 6, uy - 3, vw + 12, HudLineHeight, new Color(0, 0, 0, 130));
@@ -400,6 +401,21 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
                                 new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
             }
+        }
+
+        /// <summary>⭐ <c>CE-1219</c> (§8k B-1) — through the binoculars: the two eyepieces' rims, the range to the point under the crosshair
+        /// (the eye to it, m), and the click's meaning.</summary>
+        private void DrawBinoculars(MapCamera3D camera, int cx, int cy)
+        {
+            float r = camera.Viewport.Y * 0.42f;
+            var rim = new Color(0, 0, 0, 200);
+            Raylib.DrawRing(new Vector2(cx - r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
+            Raylib.DrawRing(new Vector2(cx + r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
+            var font = HudText.Font();
+            string range = $"RANGE {Vector3.Distance(camera.Eye, _driver!.AimAt):0} m   LMB designate";
+            int tw = (int)HudText.Measure(font, range);
+            Raylib.DrawRectangle(cx - tw / 2 - 6, cy + 40, tw + 12, HudLineHeight, new Color(0, 0, 0, 160));
+            HudText.Draw(font, range, cx - tw / 2, cy + 42, Color.Gold);
         }
 
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — how far the 2-D map's camera stands off him when it opens (m): a few hundred metres across.</summary>
@@ -660,7 +676,7 @@ namespace Hrot.UI.Common.Map3D
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -1034,6 +1050,7 @@ namespace Hrot.UI.Common.Map3D
         private void SendStill()
         {
             Leaning = Fdp.Toolkit.Combat.LeanSide.LeanNone;
+            BinocularsHeld = false;   // ⭐ CE-1219 — the binoculars go down with him (Binoculars = 0 below)
             _station.Send(_netId, new OperatorControlFrameEvent
             {
                 Seq = ++_seq, Yaw = _yaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
@@ -1095,7 +1112,44 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1211</c> — the field of view this frame: <see cref="FpsZoom.FovFor"/> the selected weapon while
         /// <see cref="Zooming"/>, else the map's own.</summary>
-        public float ZoomFovDegrees => Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
+        public float ZoomFovDegrees => BinocularsUp ? Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees   // ⭐ CE-1219 — the sim's own 10°
+            : Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
+
+        /// <summary>⭐ <c>CE-1219</c> (§8k B-1; key approved, R-1010) — hold to raise his binoculars.</summary>
+        public const KeyboardKey BinocularsKey = KeyboardKey.B;
+
+        /// <summary>⭐ <c>CE-1219</c> — is B held (the frame asks his brain to raise them)?</summary>
+        public bool BinocularsHeld { get; private set; }
+
+        /// <summary>⭐ <c>CE-1219</c> — are his binoculars UP in the sim (<see cref="Fdp.Toolkit.Combat.HeldItems.BinocularsUp"/>, the
+        /// replicated posture)? The view narrows only then — never on the key alone, so it never shows what the sim does not see.</summary>
+        public bool BinocularsUp => _world() is { } bw && Fdp.Toolkit.Combat.HeldItems.BinocularsUp(bw, Unit);
+
+        /// <summary>⭐ <c>CE-1219</c> — B held by a man who carries none (his type's pockets): the HUD says so.</summary>
+        public bool NoBinoculars => BinocularsHeld && _world() is { } nw
+            && !Fdp.Toolkit.Combat.HeldItems.Has(nw, Unit, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+
+        /// <summary>
+        /// ⭐ <c>CE-1219</c> (§8k B-1) — with his binoculars up, LMB DESIGNATES for his men (<see cref="CommandWheel.MenOf"/>) in the station's
+        /// <see cref="Hrot.Common.Orders.OrderDesignations"/>: the unit under the crosshair as their Target, else the point as their MapPoint —
+        /// so the wheel's Attack / Move (and any order draft) then complete without a pick. Returns how many men got it.
+        /// </summary>
+        public int Designate(Vector3 aimAt, long aimTarget)
+        {
+            if (_world() is not { } w) return 0;
+            var store = Hrot.Common.Orders.OrderDesignations.For(w);
+            var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>()! : null;
+            var kind = aimTarget != 0 ? Hrot.Common.Orders.DesignationKind.Target : Hrot.Common.Orders.DesignationKind.MapPoint;
+            System.Text.Json.Nodes.JsonNode value = aimTarget != 0 ? System.Text.Json.Nodes.JsonValue.Create(aimTarget)
+                : Hrot.ScenarioEditor.Map.RtsCommands.OrderPoint(w, new Vector2(aimAt.X, aimAt.Y));
+            int count = 0;
+            foreach (var man in CommandWheel.MenOf(w, Unit))
+                if (map != null && map.TryGetNetworkId(man, out long id)) { store.Set(id, kind, value); count++; }
+            _wheelVerdict = count == 0 ? "no men to designate for"
+                : $"{(aimTarget != 0 ? "Target" : "Point")} designated for {count} {(count == 1 ? "man" : "men")}";
+            _wheelVerdictAt = _station.Clock;
+            return count;
+        }
 
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
         {
@@ -1177,6 +1231,7 @@ namespace Hrot.UI.Common.Map3D
             bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
                     : leftHeld ? Fdp.Toolkit.Combat.LeanSide.LeanLeft : Fdp.Toolkit.Combat.LeanSide.LeanRight;
+            BinocularsHeld = Scheme == ControlScheme.Person && input.IsKeyDown((MapKeyboardKey)BinocularsKey);   // ⭐ CE-1219 (§8k B-1)
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
@@ -1194,7 +1249,9 @@ namespace Hrot.UI.Common.Map3D
             (var aimAt, long aimTarget) = Aim(camera);
             AimAt = aimAt;
             AimTarget = aimTarget;
-            if (input.IsMouseButtonPressed(MapMouseButton.Left))
+            bool glassing = BinocularsUp;   // ⭐ CE-1219 (§8k B-1) — binoculars up: LMB designates, the trigger stays up
+            if (glassing && input.IsMouseButtonPressed(MapMouseButton.Left)) Designate(aimAt, aimTarget);
+            else if (input.IsMouseButtonPressed(MapMouseButton.Left))
             {
                 unchecked { _shotSeq++; }
                 _shotTarget = aimTarget;
@@ -1219,12 +1276,13 @@ namespace Hrot.UI.Common.Map3D
                 Yaw = _yaw,
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
-                Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
+                Trigger = !glassing && input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
                 AimPoint = aimAt,
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
                 Lean = (byte)Leaning,                                                                     // ⭐ CE-1212
+                Binoculars = BinocularsHeld ? (byte)1 : (byte)0,                                          // ⭐ CE-1219
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
             };
             _station.Send(_netId, frame);
