@@ -26,8 +26,45 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 Position;
         public float SearchRadius;
         public float Speed;
+        /// <summary>⭐ D-2f (DA-5, DA-46) — the order's authored fighting positions, placed before the terrain is asked.</summary>
+        public AuthoredPosts Authored;
         /// <summary>Runtime: the posts and each man's count of rounds at him (the play's own memory).</summary>
         public DefencePosts Posts;
+    }
+
+    /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
+    /// <see cref="SquadDefendPostJsonDto"/>): a point, a point he faces (zero = the sector), a window flag.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct AuthoredPosts
+    {
+        public const int Capacity = SquadDefendPostJsonDto.MaxPosts;
+
+        public fixed float X[Capacity];
+        public fixed float Y[Capacity];
+        public fixed float Z[Capacity];
+        public fixed float WatchX[Capacity];
+        public fixed float WatchY[Capacity];
+        public fixed float WatchZ[Capacity];
+        public fixed byte Window[Capacity];
+        public byte Count;
+
+        public static AuthoredPosts From(SquadDefendPostJsonDto[]? posts)
+        {
+            var a = default(AuthoredPosts);
+            if (posts == null) return a;
+            for (int i = 0; i < posts.Length && a.Count < Capacity; i++)
+            {
+                var post = posts[i];
+                int k = a.Count++;
+                a.X[k] = post.Point.X; a.Y[k] = post.Point.Y; a.Z[k] = post.Point.Z;
+                a.WatchX[k] = post.WatchTowards.X; a.WatchY[k] = post.WatchTowards.Y; a.WatchZ[k] = post.WatchTowards.Z;
+                a.Window[k] = post.Window ? (byte)1 : (byte)0;
+            }
+            return a;
+        }
+
+        public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
+        public Vector3 Watch(int k) => new(WatchX[k], WatchY[k], WatchZ[k]);
     }
 
     /// <summary>
@@ -45,8 +82,15 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float Y[Capacity];
         public fixed float Z[Capacity];
         public byte Count;
-        /// <summary>⭐ D-2a — the first this many candidates came from the window ask (windows), the rest are cover.</summary>
-        public byte WindowCount;
+        /// <summary>⭐ D-2a / D-2f — per candidate: 1 = a window post (fought the window way), from the window ask or authored.</summary>
+        public fixed byte Window[Capacity];
+        /// <summary>⭐ D-2f (DA-46) — per candidate: 1 = authored, with <see cref="WatchX"/>… the point he faces (0 there = the sector).</summary>
+        public fixed byte Authored[Capacity];
+        public fixed float WatchX[Capacity];
+        public fixed float WatchY[Capacity];
+        public fixed float WatchZ[Capacity];
+        /// <summary>⭐ D-2f — 1 once the order's authored posts were placed (first, before any ask).</summary>
+        public byte AuthoredPlaced;
         /// <summary>⭐ D-2b (DA-6, DA-42) — 1 = the window posts are SET BACK in the room (the squad's median man is Regular or better).</summary>
         public byte SetBack;
         /// <summary>Per roster slot: the candidate he holds, or <see cref="None"/>.</summary>
@@ -73,12 +117,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
-        public void Add(Vector3 p)
+        public void Add(Vector3 p, bool window = false)
         {
             if (Count >= Capacity) return;
             X[Count] = p.X; Y[Count] = p.Y; Z[Count] = p.Z;
+            Window[Count] = window ? (byte)1 : (byte)0;
             Count++;
         }
+
+        /// <summary>⭐ D-2f — an authored candidate (<paramref name="watch"/> zero = he faces the sector).</summary>
+        public void AddAuthored(Vector3 p, bool window, Vector3 watch)
+        {
+            if (Count >= Capacity) return;
+            Authored[Count] = 1;
+            WatchX[Count] = watch.X; WatchY[Count] = watch.Y; WatchZ[Count] = watch.Z;
+            Add(p, window);
+        }
+
+        public Vector3 Watch(int k) => new(WatchX[k], WatchY[k], WatchZ[k]);
     }
 
     /// <summary>
@@ -162,6 +218,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in SquadDefendParamsJsonDto authored, ref SquadDefendBlackboard block, EntityRepository world, Entity self)
         {
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
+            block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
             block.State = default;
         }
 
@@ -275,8 +332,9 @@ namespace Hrot.AI.Behaviors.Brains
                 Sector = ArcOf(ref p, in ctx, member, spot),
                 Post = new MemberPost   // ⭐ D-2a (PC-14, DA-40) — he fights from his post: its windows or his alternate, never elsewhere
                 {
-                    Set = 1, Window = post < p.Posts.WindowCount ? (byte)1 : (byte)0, Radius = PostRadius,
-                    SetBack = post < p.Posts.WindowCount ? p.Posts.SetBack : (byte)0,   // ⭐ D-2b — his own hide ask sets back too
+                    Set = 1, Window = p.Posts.Window[post], Radius = PostRadius,
+                    // ⭐ D-2b — his own hide ask sets back too; ⭐ D-2f — not at an authored post (the author placed him there)
+                    SetBack = p.Posts.Window[post] != 0 && p.Posts.Authored[post] == 0 ? p.Posts.SetBack : (byte)0,
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
             };
@@ -289,6 +347,10 @@ namespace Hrot.AI.Behaviors.Brains
         private static unsafe MemberArc ArcOf(ref SquadDefendParams p, in SquadPlayContext ctx, int member, Vector3 spot)
         {
             if (member < DefencePosts.Capacity && p.Posts.Faces[member] != 0) return MemberArc.Around(p.Posts.FaceBearing[member], ArcHalfWidth);
+            // ⭐ D-2f (DA-46) — an authored post the author pointed: his arc faces that point
+            byte post = member < DefencePosts.Capacity ? p.Posts.PostOf[member] : DefencePosts.None;
+            if (post != DefencePosts.None && post < p.Posts.Count && p.Posts.Authored[post] != 0 && p.Posts.Watch(post) != Vector3.Zero)
+                return MemberArc.Around(LookAt.BearingTo(spot, p.Posts.Watch(post)), ArcHalfWidth);
             return EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)
                 ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
                 : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
@@ -303,7 +365,16 @@ namespace Hrot.AI.Behaviors.Brains
             bool hasEa = EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea);
             var from = SquadManeuverRunner.FirstLive(in ctx);
             if (from.IsNull) return;
-            if (p.Posts.WindowStage < 2)
+            if (p.Posts.AuthoredPlaced == 0)
+            {
+                // ⭐ D-2f (DA-5, DA-46) — the authored fighting positions first: the picker hands them out before any terrain point, and
+                //   when every live man holds one the terrain is not asked at all
+                p.Posts.AuthoredPlaced = 1;
+                for (int k = 0; k < p.Authored.Count; k++)
+                    unsafe { p.Posts.AddAuthored(p.Authored.Point(k), p.Authored.Window[k] != 0, p.Authored.Watch(k)); }
+                if (p.Posts.Count > 0) PickAll(ref p, in ctx);   // both asks below run only for the men still without a post
+            }
+            if (p.Posts.WindowStage < 2 && AnyWithoutPost(ref p, in ctx))
             {
                 if (p.Posts.WindowStage == 0)
                 {
@@ -316,16 +387,15 @@ namespace Hrot.AI.Behaviors.Brains
                         WindowSite, p.SearchRadius, from, ea, out var buffer)
                     : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindWindowSetBackPostsAllRound.BlueprintId : FindWindowPostsAllRound.BlueprintId,
                         WindowSite, p.SearchRadius, from, p.Position, out buffer);
-                if (!Settle(ref p, ref ws, in ctx, answered, in buffer)) return;
+                if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: true)) return;
                 p.Posts.WindowStage = 2;
-                p.Posts.WindowCount = p.Posts.Count;
                 PickAll(ref p, in ctx);
             }
             if (p.Posts.CoverStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))
             {
                 if (p.Posts.CoverStage == 0) { p.Posts.CoverStage = 1; p.Posts.StageSince = ctx.Now; }
                 bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, CoverSite, p.SearchRadius, from, ea, out var buffer);
-                if (!Settle(ref p, ref ws, in ctx, answered, in buffer)) return;
+                if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: false)) return;
                 p.Posts.CoverStage = 2;
                 PickAll(ref p, in ctx);
             }
@@ -349,7 +419,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>True once the ask is over: its points kept (append), or it timed out (the sensor goes).</summary>
-        private static bool Settle(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, bool answered, in EqsCognitiveBuffer buffer)
+        private static bool Settle(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, bool answered, in EqsCognitiveBuffer buffer, bool window)
         {
             if (!answered)
             {
@@ -359,7 +429,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             var points = buffer.GetSpanRO();
             for (int k = 0; k < buffer.Count && k < points.Length; k++)
-                p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ));
+                p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ), window);
             return true;
         }
 

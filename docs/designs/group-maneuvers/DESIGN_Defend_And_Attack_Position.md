@@ -749,6 +749,12 @@ a candidate instead of a position in the list.
 |---|---|---|---|
 | **DA-46** | how an authored fighting position reaches the defence | the order's **`Posts`** array (≤ 8 used; each a `point`, an optional `watchTowards`, and whether it is a `window`) are the **first candidates**: the picker hands them out first (nearest man, the 2.5 m spacing), and the terrain asks run only if a live man is still without a post. An authored `watchTowards` points that man's arc (±45°) instead of the EA; a window post fights the window way (D-2a, at the authored point — no set-back). Each candidate carries its own window flag and facing (`DefencePosts.Window` / `Watch`), replacing `WindowCount` | posts as scenario entities (a route-like marker): a new entity kind, its translator and gizmo for what is one field of one order · a fixed-list wrapper in the DTO: the order-form schema would show it as an object of `Count`/`Items` (`DtoJsonSchemaExtractor`'s struct branch) · a facing bearing: needs a "none" the zero bearing cannot be — the posture order already faces by a point |
 
+*As built (2026-10-19):* `SquadDefendParamsJsonDto.Posts` (`SquadDefendPostJsonDto[]`: `point`, `watchTowards`, `window`; the first 8)
+→ the resolver copies them into `SquadDefendParams.Authored` (`AuthoredPosts`) · `Plan` places them once (`DefencePosts.AddAuthored`), runs
+the one picker, and skips both asks when no live man is left without a post · `DefencePosts.Window` / `Authored` / `Watch` per candidate
+replace `WindowCount` · an authored window post is not set back · `ArcOf` turns a man's arc to his post's `watchTowards`. Rail
+`SquadManeuverTests.CE2275_SquadDefend_AuthoredPostsComeFirst_TheTerrainIsAskedOnlyForTheMenLeft_AndAWatchPointTurnsTheArc`.
+
 **Slices.** **D-1** (`CE-2275`, this build): everything above · the rails in `SquadManeuverTests` (the play's suite) · the picker's pure rails.
 **D-2** (later, its own row): DA-6's set-back post (a `WindowSetBack` kind from the generator on the muscle — the answer has no facing) and
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
