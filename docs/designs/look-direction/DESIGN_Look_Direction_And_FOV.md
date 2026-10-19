@@ -444,7 +444,7 @@ first (rail `CE2297_ShotAt_*`).
 ⛔ **KNOWN-ROT in the claim above, measured 2026-10-19** (`PostureNodes.cs:269`): a squad's Hold / Watch member runs `CombatPosture`
 toward his point (`SquadManeuverRunner.Hold`), and with nothing to hunt the advance returns **Success on arrival** — the posture ENDS
 and he idles with no eyes. So "every holding man has eyes" holds for an operator's `PersonHold` and for a man FIGHTING, not for a
-squad's watcher once he has arrived. ⭐ **Lean for slice 2 (not built):** the runner's Hold / Watch asks `CombatPosture` with
+squad's watcher once he has arrived. ✅ **APPROVED 2026-10-19 (R-2055) — not built yet, slice 2:** 🔒 User: *"Pls also record there i am approving your leans. Backend might have already actend on those."* — the runner's Hold / Watch asks `CombatPosture` with
 `hold: true` — arriving does not end it, his eyes and his fight stay until the squad's next order (Squad Tactics' own words for Hold:
 "stays"). ⚠ Measure first: which drills advance a phase on a member's task ENDING rather than on his position — those would stall.
 

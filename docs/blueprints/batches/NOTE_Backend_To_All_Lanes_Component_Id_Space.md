@@ -29,6 +29,8 @@ by id would not be.
 **Why it will get worse:** the component mask is `BitMask512` (`FDP/Engine/Fdp.Core/BitMask512.cs:12` — *"up to 512 component
 types"*). Ids 0–417 and 450–454 are used, so **about 85 ids are left** (418–449, 455–511), and every lane is drawing from the same top.
 
+✅ **APPROVED by the user 2026-10-19 (R-2056, recorded by behaviors — a cross-lane line in backend's note):** 🔒 *"Pls also record there i am approving your leans. Backend might have already actend on those."*
+
 **⭐ Lean — the user decides:** give component ids the same per-lane blocks tracker and ruling ids already have (user, `2026-10-02` /
 `2026-10-12`), carved from what is left:
 
