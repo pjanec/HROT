@@ -1200,10 +1200,69 @@ was needed. A finished `BreakContact` is not re-sent: `CommandOrders.Stands` rea
 runs it. While falling back a line squad's slice is withdrawn (it fires at will at whatever it sees). The default point has no arc to
 be "behind" ⇒ the position (an order with no arc should author `FallBackTo`). Rails: `SquadManeuverTests.CE2276_E3a_*` (3).
 
+#### E-3b — block the stair *(`CE-2276` E-3b; behaviors, 2026-10-19 — Platoon §5's Counterattack row, the Regular half)*
+
+📐 **Measured first:** the `WorldSurvey` sensor is built (`CE-3249`, `WorldSurveyChildSensor`): a `BuildingSurvey` answer carries each
+building's rooms (four corners, `FloorZ`, `Indoors`) and portals (`Kind` 3 = **Stair**, its centre) — `WorldSurveyModel.cs:126-170`;
+SquadDefend's D-2h already reads a survey from a commander the same way (`SquadDefendBehavior.cs:477`), and its rails fake the answer
+(`SquadManeuverTests` D-2h). ⛔ **`ClearBuilding` does not exist** (`CE-2259` / `CE-2264` open) ⇒ the Veteran counterattack cannot be
+built; until it is, a Veteran blocks the stair too.
+
+```mermaid
+sequenceDiagram
+  participant D as DPlan (PlanDefence)
+  participant WS as WorldSurvey (BuildingSurvey of the position)
+  participant G as EnemyInside
+  participant PL as PlatoonDefencePlan
+  participant K as KeepDefence
+  participant R as reserve
+  D->>WS: Ensure OfArea(position, 5 m) — standing, once
+  WS-->>G: rooms + portals of the defended building
+  G->>G: a fresh element inside an indoor room (its corners, its floor ± a storey)
+  Note over PL: BlockTheStair entry: reserve → the lowest Stair portal, radius 6 m · Dirty · Committed
+  K->>R: SquadDefend {the stair} + FireAtWill
+```
+*What the picture shows that prose hid:* the trigger reads the SAME answer the stair comes from — one standing sensor, no PointSurvey
+round trip per element; and blocking spends the reserve (`Committed`), so Reinforce and the block can never both take it.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  state "region 1 — control" as R1 {
+    DWatch --> BlockStair : EnemyInside
+    BlockStair --> DWatch : Handled
+  }
+```
+
+```mermaid
+classDiagram
+  class PlatoonDefencePlan { <<existing>> Committed — blocking spends the reserve, so it happens once }
+  class PlatoonDefendBehavior { <<EXTENDED>> BuildingSite · EnemyInside · BlockTheStair }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure · Read }
+  class SurveyRoom { <<existing>> Corners · FloorZ · Indoors }
+  class SurveyPortal { <<existing>> Kind Stair · X Y Z }
+  PlatoonDefendBehavior --> WorldSurveyChildSensor
+  PlatoonDefendBehavior --> SurveyRoom
+  PlatoonDefendBehavior --> SurveyPortal
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **DA-72** | which building | a standing `BuildingSurvey` **of the area within 5 m of the position**, asked at plan time; the defended building is the answer's building nearest the position | every building in the area: a neighbour's stair is not ours · a building index in the order: the position already names it |
+| **DA-73** | "inside the building" | a fresh element (≤ 30 s) inside an **indoor room's corners** of that building, at that room's storey (`FloorZ − 1 m … FloorZ + 2.8 m`) | a `PointSurvey` per element: a second sensor re-pointed per SPOT, a round trip each time, for what the room outlines already answer · the building's footprint only: a man on the roof or in the yard is not inside |
+| **DA-74** | what is done | the **reserve** (a live one, not yet committed) `SquadDefend`s at the building's **lowest Stair portal** (the one an attacker on the ground floor climbs), search radius 6 m, fire at will; **once**, because it spends the reserve (`Committed` — 📐 a separate "blocked" mark was built and measured redundant: its mutant survived) | the stair nearest the element: an attacker already upstairs is past it · every stair: one reserve, one place |
+| **DA-75** | Veteran | blocks too, until `ClearBuilding` (`CE-2259`) exists — then a Veteran counterattacks the storey (Platoon §5) | holding the counterattack back for a play that does not exist: a Veteran would do less than a Regular |
+| **DA-76** | below Regular, falling back, no answer | nothing: the guard reads `p.Controls`, `Falling == 0`, a ready and fresh answer, and a building with a Stair | blocking from a stale answer: the stair may be rubble now |
+
+✅ **As built (2026-10-19):** as drawn — `BlockStair` in region 1 (entry `BlockTheStair`, guard `EnemyInside`), the survey ensured in
+`PlanDefence` (site `BuildingSite`), only for Regular+ (a Militia platoon never asks). The reserve keeps its `Reserve` role (no
+sector) with the stair as its point. Rails: `SquadManeuverTests.CE2276_E3b_*` (2), the answer faked as D-2h fakes its fan.
+⛔ Not yet live: no scenario puts an enemy inside a defended building (`pc-defend-house`, E-3).
+
 **Slices.** **E-1** (built): the plan, the four phase states, the two guards, fire control; rails in the platoon suite; `pc-defend-dry`
 ①② (Platoon §12.2). **E-2** (built): the control region (the first production use of parallel regions) — OpBack (an OP team forward), Supplementary,
-Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3a** (built): FallBack. **E-3** (rest): Counterattack
-(Veteran — ⛔ waits for `ClearBuilding`, `CE-2259`) / block the stair (Regular), DAnswer, battle positions from a `BuildingSurvey`
+Reinforce (needs the line's SITREP extras) — and the `DefendArea` mapper's platoon arm. **E-3a** (built): FallBack. **E-3b** (built): block the stair (Regular and, until
+`ClearBuilding` exists, Veteran). **E-3** (rest): the Veteran counterattack (⛔ waits for `ClearBuilding`, `CE-2259`), DAnswer, battle positions from a `BuildingSurvey`
 (DA-51's deferred half; the survey is built, `CE-3249`); `pc-defend-house`.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*

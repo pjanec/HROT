@@ -9,6 +9,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Squad.Command;
 using Fhsm.Compiler;
 using Fhsm.Compiler.Graph;
@@ -134,6 +135,13 @@ namespace Hrot.AI.Behaviors.Brains
         public const float ReinforceBehindMetres = 15f;
         /// <summary>⭐ E-3a (DA-66) — with no authored fall-back point, the platoon falls back this far behind the position (m).</summary>
         public const float FallBackMetres = 100f;
+        /// <summary>⭐ E-3b (DA-72) — the defended building: the survey asks for buildings meeting this circle round the position (m).</summary>
+        public const float BuildingAskMetres = 5f;
+        /// <summary>⭐ E-3b (DA-72) — the platoon's building-survey site.</summary>
+        public const int BuildingSite = 0x22760001;
+        /// <summary>⭐ E-3b (DA-74) — the reserve's posts round the stair (m).</summary>
+        public const float StairRadius = 6f;
+        private const byte StairPortal = 3;   // BuildingPortalKind.Stair
 
         [StructLayout(LayoutKind.Sequential)]
         public struct PlatoonDefendBlackboard
@@ -199,6 +207,8 @@ namespace Hrot.AI.Behaviors.Brains
             root.Child("OpBack", c => opBack = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, BringOpBack));
             root.Child("Supplementary", c => supplement = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Supplement));
             root.Child("Reinforce", c => reinforce = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Reinforce));
+            StateBuilder block = null!;
+            root.Child("BlockStair", c => block = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, BlockTheStair));
             plan.On(0).GoTo("Occupy").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Planned).Polled();
             occupy.On(0).GoTo("Ready").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LineSet).Polled();
             ready.On(0).GoTo("Engage").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, EnemyInArea).Polled();
@@ -211,6 +221,8 @@ namespace Hrot.AI.Behaviors.Brains
             opBack.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             supplement.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             reinforce.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
+            watch.On(0).GoTo("BlockStair").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, EnemyInside).Polled();
+            block.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             return builder.Build();
         }
 
@@ -244,6 +256,9 @@ namespace Hrot.AI.Behaviors.Brains
                           n >= 3 && slot == n - 1 ? Behind(world, in p, ReserveBehindMetres) : p.Position, p.SearchRadius);
             if (p.Area.ArcSet != 0) Slice(ref p, n);
             if (p.FallBackTo == Vector3.Zero) p.FallBackTo = Behind(world, in p, FallBackMetres);   // ⭐ E-3a (DA-66)
+            if (p.Controls != 0)   // ⭐ E-3b (DA-72) — the defended building, surveyed once and kept (a standing sensor)
+                WorldSurveyChildSensor.Ensure(world, self, BuildingSite,
+                    WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), BuildingAskMetres));
             p.Made = 1;
             return NodeStatus.Running;
         }
@@ -490,6 +505,91 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < PlatoonDefencePlan.Capacity; s++) if (p.Role[s] != PlatoonDefencePlan.NoRole) p.Dirty[s] = 1;
             SetFire(ref p, self, world, RoeFire.FireAtWill, RoeFire.FireAtWill);
             return NodeStatus.Success;
+        }
+
+        // ── block the stair (E-3b: DA-72…DA-76) ──────────────────────────────────────────────────────────────────────
+
+        /// <summary>DWatch → BlockStair (DA-73, DA-76): a fresh element inside an indoor room of the defended building, a free reserve not
+        /// yet committed, a stair to block (Regular+; not while falling back). Once: blocking commits the reserve.</summary>
+        [SharedAiCondition]
+        public static bool EnemyInside(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+            => p.Controls != 0 && p.Made != 0 && p.Falling == 0 && p.Committed == 0
+               && FreeReserve(ref p, self, world) >= 0 && Stair(ref p, self, world, out _, out var building) && AnyFresh(self, world, at => Inside(building!, at));
+
+        /// <summary>BlockStair's entry (DA-74): the reserve defends the building's lowest stair, firing at will; it is spent.</summary>
+        [SharedAiAction]
+        public static unsafe NodeStatus BlockTheStair(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            int reserve = FreeReserve(ref p, self, world);
+            if (reserve < 0 || !Stair(ref p, self, world, out var stair, out _)) return NodeStatus.Success;
+            p.Set(reserve, PlatoonDefencePlan.Reserve, stair, StairRadius);
+            p.Dirty[reserve] = 1;
+            p.Committed = 1;
+            var unit = CommandPictureOps.Subordinate(world, self, reserve);
+            if (!unit.IsNull && world.Bus.IsRegistered<SetRoeEvent>())
+                world.Bus.Publish(new SetRoeEvent { Entity = unit, Origin = BehaviorOrigin.Superior, Fire = RoeFire.FireAtWill });
+            return NodeStatus.Success;
+        }
+
+        private static unsafe int FreeReserve(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            int n = Math.Min(RosterCount(world, self), PlatoonDefencePlan.Capacity);
+            for (int s = 0; s < n; s++)
+                if (p.Role[s] == PlatoonDefencePlan.Reserve && Alive(world, self, s)) return s;
+            return -1;
+        }
+
+        /// <summary>DA-72, DA-74 — the defended building (the surveyed one nearest the position) and its lowest stair, from a ready and
+        /// fresh answer; false when there is none.</summary>
+        private static bool Stair(ref PlatoonDefencePlan p, Entity self, EntityRepository world, out Vector3 stair, out DefendedBuilding? building)
+        {
+            stair = default; building = null;
+            var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, self, BuildingSite);
+            var read = WorldSurveyChildSensor.Read(world, child, CommandPictureOps.Now(world));
+            if (!read.Ready || read.Stale || read.Payload == null || read.Payload.Buildings.Count == 0) return false;
+            var answer = read.Payload;
+            SurveyBuilding? ours = null;
+            float best = float.MaxValue;
+            foreach (var b in answer.Buildings)
+            {
+                float d = Vector2.Distance(new Vector2(b.CentreX, b.CentreY), new Vector2(p.Position.X, p.Position.Y));
+                if (d < best) { best = d; ours = b; }
+            }
+            bool found = false;
+            foreach (var portal in answer.Portals)
+                if (portal.Building == ours!.Building && portal.Kind == StairPortal && (!found || portal.Z < stair.Z))
+                {
+                    stair = new Vector3(portal.X, portal.Y, portal.Z);
+                    found = true;
+                }
+            if (found) building = new DefendedBuilding(ours!.Building, answer);
+            return found;
+        }
+
+        /// <summary>The defended building of one survey answer.</summary>
+        private sealed record DefendedBuilding(int Building, WorldSurveyPayload Answer);
+
+        /// <summary>DA-73 — inside an indoor room of the building, at that room's storey.</summary>
+        private static bool Inside(DefendedBuilding building, Vector3 at)
+        {
+            foreach (var room in building.Answer.Rooms)
+            {
+                if (room.Building != building.Building || !room.Indoors || room.Corners.Length < 8) continue;
+                if (at.Z < room.FloorZ - 1f || at.Z > room.FloorZ + 2.8f) continue;
+                if (InQuad(room.Corners, at.X, at.Y)) return true;
+            }
+            return false;
+        }
+
+        private static bool InQuad(float[] c, float x, float y)
+        {
+            bool inside = false;
+            for (int i = 0, j = 3; i < 4; j = i++)
+            {
+                float xi = c[i * 2], yi = c[i * 2 + 1], xj = c[j * 2], yj = c[j * 2 + 1];
+                if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
         }
 
         /// <summary>The control states' way back to DWatch: their entry did the work.</summary>

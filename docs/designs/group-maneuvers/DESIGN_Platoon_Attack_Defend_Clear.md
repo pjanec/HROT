@@ -250,7 +250,9 @@ stateDiagram-v2
 the plan's EA, and the squad sector is an arc slice on the squad's `EngagementArea` (DA-52). ⭐ **E-2 (2026-10-19):** the control
 region's OpBack · Supplementary · Reinforce are built as region 1 of the same HSM (DA-59…DA-65, §8d E-2 there); Counterattack and
 DAnswer are E-3. ⭐ **E-3a (2026-10-19):** FallBack → FellBack (Final, the run's Success) is built (DA-66…DA-71): the line
-`BreakContact {To}`s to the fall-back point, the reserve covers there; "FallingBack, done" is read as each line squad's Set on that order.
+`BreakContact {To}`s to the fall-back point, the reserve covers there; "FallingBack, done" is read as each line squad's Set on that order. ⭐ **E-3b:** Counterattack's Regular half is built — an element inside an indoor room of the defended building (one standing
+`BuildingSurvey`, not a PointSurvey per element, DA-73) sends the reserve to `SquadDefend` the building's lowest stair; the Veteran
+`ClearBuilding` waits for `CE-2259`, a Veteran blocks meanwhile (DA-75).
 
 *What the picture shows that prose hid:* the trigger line is not a timer or a sensor of its own — it is `ElementsAt(EA)` over the SPOTs
 the line squads and the OP send because the EA is their PIR. The same report that starts the fire also feeds the control region's

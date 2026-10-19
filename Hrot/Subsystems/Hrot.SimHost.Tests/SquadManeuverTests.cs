@@ -2880,6 +2880,82 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
         }
 
+        // ── CE-2276 E-3b — block the stair (Defend & Attack §8d E-3b, DA-72…DA-76) ────────────────────────────────────────────
+
+        /// <summary>The defended building as a survey answer: building 7 round the position, two storeys of one 10 m room (floors 0 and 3),
+        /// a stair from the ground floor at (4, 4, 1.5) and one higher at (4, −4, 4.5) — or no stair at all.</summary>
+        private static void AnswerBuilding(Platoon p, bool stairs = true)
+        {
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);
+            Assert.False(survey.IsNull, "the platoon surveys its building");
+            var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            answer.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 7, CentreX = 0f, CentreY = 0f });
+            foreach (float floor in new[] { 0f, 3f })
+                answer.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                {
+                    Building = 7, FloorZ = floor, Indoors = true, Corners = new[] { -5f, -5f, 5f, -5f, 5f, 5f, -5f, 5f },
+                });
+            if (stairs)
+            {
+                answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 3, X = 4f, Y = -4f, Z = 4.5f });
+                answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 3, X = 4f, Y = 4f, Z = 1.5f });
+            }
+            answer.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 7, Kind = 0, X = 0f, Y = -5f, Z = 1f });   // a door
+            var now = p.S.Repo.GetSingleton<GlobalTime>().TotalTime;
+            p.S.Repo.SetComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyStatus { LastUpdateTick = 1, LastUpdateTimeSeconds = (float)now, Version = 1 });
+            p.S.Repo.SetManagedComponent(survey, new Fdp.Toolkit.Perception.Survey.WorldSurveyAnswer { Payload = answer });
+        }
+
+        /// <summary>⭐⭐ <c>CE-2276</c> E-3b (DA-72…DA-74) — the platoon surveys the building round its position (an area ask, 5 m); an enemy
+        /// outside it changes nothing; one reported INSIDE (a room, at its storey) sends the reserve to <c>SquadDefend</c> the LOWEST stair,
+        /// radius 6 m, firing at will; a second one inside changes nothing (once). ✅ Red-proofs: the inside test dropped ⇒ the outside SPOT
+        /// blocks · the lowest-stair choice dropped ⇒ the upper stair · the Committed test dropped ⇒ a second order.</summary>
+        [Fact]
+        public void CE2276_E3b_AnEnemyInsideTheBuilding_SendsTheReserveToBlockTheLowestStair_Once()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            var survey = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(p.S.Repo, p.S.Commander, PlatoonDefendBehavior.BuildingSite);
+            var request = ((Fdp.ModuleHost.Abstractions.ISimulationView)p.S.Repo).GetManagedComponentRO<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(survey);
+            Assert.Equal((Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey, 5f), (request.Kind, request.AreaRadius));
+            AnswerBuilding(p);
+            p.ReportSpot(p.Alpha, new Vector3(0f, 100f, 0f), 3);    // in the area, outside the building
+            p.Ticks(12);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+            p.ReportSpot(p.Bravo, new Vector3(2f, 2f, 0.5f), 2);    // inside, the ground floor
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+            var order = DefendOrderTo(p, p.Charlie);
+            Assert.Equal((new Vector3(4f, 4f, 1.5f), PlatoonDefendBehavior.StairRadius), (order.Position, order.SearchRadius));
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
+            p.ReportSpot(p.Alpha, new Vector3(-2f, 2f, 3.5f), 2);   // inside, upstairs
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Charlie));
+        }
+
+        /// <summary>⭐ <c>CE-2276</c> E-3b (DA-76) — a building with no stair: an enemy inside sends nobody; and a Militia platoon never asks
+        /// for the survey at all. ✅ Red-proofs: the stair required no more ⇒ the reserve is sent somewhere · the tier gate dropped from the
+        /// survey ⇒ the militia asks.</summary>
+        [Fact]
+        public void CE2276_E3b_NoStair_SendsNobody_AndAMilitiaPlatoonNeverSurveys()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            AnswerBuilding(p, stairs: false);
+            p.ReportSpot(p.Bravo, new Vector3(2f, 2f, 0.5f), 2);
+            p.Ticks(12);
+            Assert.Equal(1, DefendOrders(p, p.Charlie));
+
+            var militia = new Platoon(squads: 3);
+            if (!militia.S.Repo.IsComponentTypeRegistered<CombatProficiency>()) militia.S.Repo.RegisterComponent<CombatProficiency>();
+            militia.S.Repo.AddComponent(militia.S.Commander, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Defend(militia);
+            militia.Ticks(6);
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(militia.S.Repo, militia.S.Commander, PlatoonDefendBehavior.BuildingSite).IsNull);
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-1 (DA-51, DA-52) — the order NAMES the squads: Bravo on the line west, Alpha on the line east, Charlie
         /// the reserve; the slices follow the squads' bearings from the position, not their roster order (Bravo, further left, gets the
         /// left half). ✅ Red-proof: slices in roster order ⇒ Alpha gets the left half.</summary>
