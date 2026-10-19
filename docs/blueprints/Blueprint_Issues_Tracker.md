@@ -42,7 +42,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > |---|---|---|
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1194` |
 > | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2303` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
-> | `backend` | **`CE-3000` – `CE-3999`** | `CE-3253` |
+> | `backend` | **`CE-3000` – `CE-3999`** | `CE-3270` |
 > | `coordinator` *(added `2026-10-15`)* | **`CE-4000` – `CE-4999`** | `CE-4032` |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
