@@ -1215,7 +1215,7 @@ public sealed class Map3DFrameRail
             return e;
         }
         var me = Man(stand, 100f, 1001L, StanceId.Standing);   // he faces east (+X)
-        Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
+        var down = Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
         Man(stand + new Vector2(6f, -0.4f), 10f, 1003L, StanceId.Prone);   // another, out of reach
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
@@ -1275,6 +1275,14 @@ public sealed class Map3DFrameRail
         Assert.Equal(new[] { "F  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
         File.Delete(Path.Combine(shots, "fps-use-0-pressed.png"));
         File.Delete(Path.Combine(shots, "fps-use-3b-released.png"));
+
+        // ⭐ CE-1215 (docs/DESIGN_Entity_Control.md §8j H-1, H-2) — he has just hit the man at his feet (the marker round the crosshair),
+        //   and a round has hit him from his right-rear (he faces east; it travelled north-east): a red arc at the screen's lower right
+        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        var feedback = Hrot.UI.Common.Effects.HitFeedback.In(world);
+        feedback.Record(me, down, new Vector3(stand.X + 1f, stand.Y, 0f), new Vector3(1f, 0f, 0f), 30f, now);
+        feedback.Record(Entity.Null, me, new Vector3(stand.X, stand.Y, 1.2f), new Vector3(1f, 1f, 0f), 40f, now);
+        Shot("fps-hit-feedback.png", new FrameInput(), 1002L);
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>

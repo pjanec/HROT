@@ -151,6 +151,40 @@ public sealed class EffectTests
         Assert.Empty(Effects(world));   // a blow is no shot: no flash, no blast
     }
 
+    /// <summary>⭐ CE-1215 (docs/DESIGN_Entity_Control.md §8j H-1, H-2) — the spawner keeps every hit that names a target (a round's,
+    /// with its travel and damage; a blow's, at the one struck) and not a burst on the ground; the arc's place on the screen is the bearing
+    /// toward where the hit came from, relative to the camera (ahead −90, right 0, behind 90 — raylib's ring degrees).</summary>
+    [Fact]
+    public void CE1215_AHitOnSomeone_IsKeptForTheHud_AndItsArcPointsWhereItCameFrom()
+    {
+        var (world, _) = World();
+        At(world, 10.0);
+        var shooter = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(0, 0, 0));
+        var victim = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(30, 0, 0));
+        world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = victim, HitX = 30, HitY = 0, HitZ = 1.2f,
+                                                       TravelX = 1f, Damage = 30f });
+        world.Bus.Publish(new DetonationNotification { Shooter = shooter, HitX = 50, HitY = 5, HitZ = 0, Damage = 30f });   // the ground
+        world.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = victim, Target = shooter, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var hits = HitFeedback.Of(world)!.Recent(10.0, HitFeedback.MarkerSeconds).ToArray();
+        Assert.Equal(2, hits.Length);
+        var round = Assert.Single(hits, h => h.Target == victim);
+        Assert.Equal((shooter, new Vector3(1f, 0f, 0f), 30f), (round.Shooter, round.Travel, round.Damage));
+        var blow = Assert.Single(hits, h => h.Target == shooter);
+        Assert.Equal((victim, Vector3.Zero, Vector3.Zero), (blow.Shooter, blow.At, blow.Travel));   // at the one struck; no travel
+
+        Assert.Equal(new Vector3(-1f, 0f, 0f), HitFeedback.FromWhere(round, null));                // back along the travel
+        Assert.Equal(new Vector3(30f, 0f, 0f), HitFeedback.FromWhere(blow, new Vector3(30f, 0f, 0f)));   // toward the striker
+        Assert.Null(HitFeedback.FromWhere(blow, null));                                            // nothing known: no arc
+        var east = new Vector3(1f, 0f, 0f);
+        Assert.Equal(-90f, HitFeedback.ScreenAngle(east, new Vector3(5f, 0f, 0f))!.Value, 3);      // ahead: top
+        Assert.Equal(0f, HitFeedback.ScreenAngle(east, new Vector3(0f, -5f, 0f))!.Value, 3);       // his right (south): right
+        Assert.Equal(90f, HitFeedback.ScreenAngle(east, new Vector3(-5f, 0f, 2f))!.Value, 3);      // behind: bottom
+        Assert.Null(HitFeedback.ScreenAngle(east, new Vector3(0f, 0f, 5f)));                       // straight above: no bearing
+        Assert.Equal((6f, 12f, 18f), (Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(0f),
+            Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(30f), Hrot.UI.Common.Map3D.PossessionStation.HitArcThickness(1000f)));
+    }
+
     [Fact]
     public void E2_AShot_MakesAFlashAttachedToTheWeapon_AndNoDecorativeTracer()
     {

@@ -117,7 +117,13 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         // ⭐ CE-1171 (People Display §5 U10) — a blow struck (backend CE-3266, G3): the striker's swing is drawn by the 3-D bodies
         if (world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>())
             foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
+            {
                 if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
+                // ⭐ CE-1215 (§8j H-1, H-2) — a blow is a hit too: the striker's marker, the arc toward him on the one struck
+                if (strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
+                    HitFeedback.In(world).Record(strike.Striker, strike.Target, view.GetComponentRO<SimTransform>(strike.Target).Position,
+                                                 Vector3.Zero, 0f, now);
+            }
 
         ImpactsDrawn = 0;
         InertLandings = 0;
@@ -132,6 +138,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             {
                 var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, hit.Damage);
                 var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
+                // ⭐ CE-1215 (§8j H-1, H-2) — a round that met someone: the first-person hit marker and damage arc read it
+                if (hit.Target != Entity.Null)
+                    HitFeedback.In(world).Record(hit.Shooter, hit.Target, point, new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ), hit.Damage, now);
                 // ⭐ CE-1194 — a thrown stone or blade LANDS, it does not burst: a little dust, no scorch, no bang
                 if (IsInertHandItem(tkb, hit.Ammo))
                 {

@@ -323,6 +323,7 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+            DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
             var font = HudText.Font();
             // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
@@ -354,6 +355,45 @@ namespace Hrot.UI.Common.Map3D
                 y += HudLineHeight;
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1215</c> (§8j H-1, H-2) — what <see cref="Hrot.UI.Common.Effects.HitFeedback"/> says about the possessed unit: a HIT
+        /// MARKER (a cross round the crosshair, white; red when the one he hit is down) for <see cref="Hrot.UI.Common.Effects.HitFeedback.MarkerSeconds"/>
+        /// after he hit someone; a red DAMAGE ARC at the screen's edge toward where each hit on him came from, fading over
+        /// <see cref="Hrot.UI.Common.Effects.HitFeedback.ArcSeconds"/>, the thicker the more damage. Each read once a frame from sim time.
+        /// </summary>
+        private void DrawHitFeedback(EntityRepository w, MapCamera3D camera, int cx, int cy)
+        {
+            if (Hrot.UI.Common.Effects.HitFeedback.Of(w) is not { } feedback) return;
+            var unit = _driver!.Unit;
+            double now = Fdp.Toolkit.Time.SimClock.Of(w).TotalTime;
+            foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.MarkerSeconds))
+            {
+                if (hit.Shooter != unit) continue;
+                var colour = Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, hit.Target) ? Color.Red : Color.White;
+                for (int sx = -1; sx <= 1; sx += 2)
+                    for (int sy = -1; sy <= 1; sy += 2)
+                        Raylib.DrawLineEx(new Vector2(cx + sx * 7, cy + sy * 7), new Vector2(cx + sx * 14, cy + sy * 14), 2f, colour);
+                break;
+            }
+            float radius = MathF.Min(camera.Viewport.X, camera.Viewport.Y) * 0.38f;
+            foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.ArcSeconds))
+            {
+                if (hit.Target != unit) continue;
+                Vector3? shooterAt = !hit.Shooter.IsNull && w.IsAlive(hit.Shooter) && w.HasComponent<SimTransform>(hit.Shooter)
+                    ? w.GetComponentRO<SimTransform>(hit.Shooter).Position : null;
+                if (Hrot.UI.Common.Effects.HitFeedback.FromWhere(hit, shooterAt) is not { } from
+                    || Hrot.UI.Common.Effects.HitFeedback.ScreenAngle(camera.Forward, from) is not { } angle) continue;
+                float fade = 1f - (float)((now - hit.Time) / Hrot.UI.Common.Effects.HitFeedback.ArcSeconds);
+                float thick = HitArcThickness(hit.Damage);
+                Raylib.DrawRing(new Vector2(cx, cy), radius, radius + thick, angle - 22f, angle + 22f, 24,
+                                new Color(220, 30, 30, (int)(200 * Math.Clamp(fade, 0f, 1f))));
+            }
+        }
+
+        /// <summary>⭐ <c>CE-1215</c> (H-2) — the damage arc's thickness (px): 6 for an unknown damage (a remote hit, a blow), growing with
+        /// the damage up to 18.</summary>
+        public static float HitArcThickness(float damage) => damage <= 0f ? 6f : Math.Clamp(6f + damage * 0.2f, 6f, 18f);
 
         /// <summary>⭐ <c>CE-1213</c> — the wheel's ring radius (px): the labels sit on it.</summary>
         public const int WheelRadius = 130;
