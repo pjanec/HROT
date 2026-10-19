@@ -759,6 +759,94 @@ the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an
 room: two go in, the leader stays out · RoomBlocked on no answer or a door that stays shut) · `WorldSurveySolveTests.CE2257_BC1_*`
 (the key). ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
 
+### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILDING — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — codebase-memory CLI `search_graph` `.*(Clear|Clearance|Room).*` (Class, 20, `has_more:false`: no
+`BuildingClearance`, no building play — only BC-1's) and `.*CommandPicture.*` (3); reads of `WorldSurveySolve` (an AREA ask returns EVERY
+room and portal of each building it meets), `BuildingLayout` (a stair is a portal `Kind 3` from the room at its foot, `RoomA`, to the room at
+its head, `RoomB`, one storey up; a door or gap with `RoomB = −1` leads outside), `WorldSurveyChildSensor.Read` (the answer stays readable
+while the child lives; `Stale` only ages it), `StackAndRoomEntryManeuver` (Cleared is terminal), `StaffInboxSystem.Fold` (PROGRESS only
+sets the subordinate's row — no room record anywhere); `check_index_coverage` not run — CLI only):** the room drill (BC-1) and the room
+graph exist; missing are the sequence over rooms, a way out of Cleared, and a drill that SKIPS a blocked room rather than failing.
+
+```mermaid
+classDiagram
+  direction LR
+  class ClearBuildingPlay { <<NEW ISquadPlay, kind 5>> the next room · one RoomDrill per room · BuildingClear }
+  class ClearBuildingParams { <<NEW>> Point · Speed · per-room state (32) · Current room · Team · RoomDrill }
+  class ClearRoomPlay { <<BC-1, now on RoomDrill>> one room }
+  class RoomDrill { <<NEW, extracted from ClearRoomPlay>> Begin(room, portal) · OrderFor · PhaseComplete · Flow · RoomOutcome }
+  class RoomDrillState { <<NEW, extracted>> corners · door · RoomEntryPlan.Result · OrderOf · clocks · Outcome }
+  class RoomOrder { <<NEW, pure>> Next(rooms, portals, states, squad centre) ⇒ room + its portal }
+  class StackAndRoomEntryManeuver { <<EXTENDED>> + Cleared → Stacking (BoundComplete) }
+  class WorldSurveyChildSensor { <<existing>> OfArea(point, 3 m) — kept for the play's life }
+  class CommandReports { <<existing>> RoomClear · RoomBlocked · Foothold · BuildingClear }
+  ClearBuildingPlay --> ClearBuildingParams
+  ClearBuildingParams --> RoomDrillState
+  ClearRoomPlay ..> RoomDrill
+  ClearBuildingPlay ..> RoomDrill
+  RoomDrill --> RoomDrillState
+  ClearBuildingPlay ..> RoomOrder
+  ClearBuildingPlay ..> WorldSurveyChildSensor
+  ClearBuildingPlay ..> StackAndRoomEntryManeuver : phases + the loop back
+  RoomDrill ..> CommandReports
+```
+*What the picture shows that prose hid:* there is ONE room drill — BC-1's play and the building play both drive it; the building play adds only
+the choice of the next room and the loop back to Stacking. ⛔ No second copy of stack · breach · flow · clear.
+
+```mermaid
+sequenceDiagram
+  participant P as ClearBuildingPlay
+  participant WS as BuildingSurvey (kept)
+  participant RO as RoomOrder
+  participant D as RoomDrill
+  P->>WS: OfArea(point, 3 m)
+  WS-->>P: the building's rooms and portals
+  loop while RoomOrder finds a room
+    P->>RO: Next(states, squad centre)
+    RO-->>P: the lowest storey first · reachable (outside, or by a portal from a Cleared room) · nearest its portal
+    P->>D: Begin(room, portal, the team whose turn it is)
+    D->>D: Stacking · Breaching · Entering · Cleared (BC-1)
+    alt cleared
+      D-->>P: Cleared — PROGRESS RoomClear (the first one also Foothold)
+    else the door would not open
+      D-->>P: Blocked — PROGRESS RoomBlocked, the room skipped
+    end
+    P->>P: the state of that room · Cleared → Stacking
+  end
+  P->>P: PROGRESS BuildingClear · Success
+```
+*What the picture shows that prose hid:* a blocked room is no longer the end — it is a state, and the rooms behind it stay Unknown unless
+another portal reaches them.
+
+```mermaid
+graph TD
+  CGF[CGF: the squad commander's brain] --> CB[ClearBuildingPlay on SquadManeuverRunner]
+  CB -->|EQS child sensor, kept| SH[SimHost: WorldSurveySolve]
+  CB --> RD[RoomDrill]
+  RD -->|member orders| MEN[CombatPosture · BreachDoor]
+  RD -->|SendReport| OUT[ReportOutbox → the platoon's StaffInbox]
+  OUT -.->|PL-1: BuildingClearance from these reports| PLT[platoon]
+  classDef later fill:#eee,stroke:#999,stroke-dasharray: 3 3
+  PLT:::later
+```
+*What the picture shows that prose hid:* nothing new runs per frame — the play is one more `StatefulAction` on the runner; the platoon's
+record (dashed) is built from the reports this slice already sends, in PL-1.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **CB-57** | **the order**: `ClearBuilding {Building: a point on or in it, Speed}` — one squad clears the building it names; ONE survey `OfArea(point, 3 m)`, kept for the play's life (the rooms are re-read when the next is chosen; doors are read live) | a survey per room: a round trip each room · the building by index: an order knows no terrain indices |
+| **CB-58** | **one drill**: BC-1's stack · breach · flow · clear moves into `RoomDrill` over a `RoomDrillState`; `ClearRoomPlay` and `ClearBuildingPlay` both drive it. A door that will not open ends the ROOM (Blocked), not the drill; `ClearRoom` still fails on it | a building play that sends `ClearRoom` to itself: one play per behaviour node · a copy of the drill: two implementations of one concept |
+| **CB-59** | **the next room (CB-10)**: among Indoors rooms neither Cleared nor Blocked, those REACHABLE — by a door or gap from outside (the first room only: the foothold) or by a door, gap or stair from a Cleared room; the lowest storey first, then the one whose portal is nearest the squad's centre | a pre-planned route: stale after the first blocked door · nearest the leader: one man's position decides for ten |
+| **CB-60** | **a stair**: the room at its head is entered without a stack outside — the men gather at the stair (its centre at the lower floor), the entry flows up, and the points of domination are planned with the stair as the way in (`Into` from the stair toward the room) | a stack on the stair: nothing on the survey says which way it climbs · skip upper storeys: CB-10 says stairs are rooms |
+| **CB-61** | **the teams swap (CB-2)**: alone, the squad keeps both fire teams inside — the entry team is the first `Entry` men of the stack, the rest hold the stack (the doorway and the hallway); for the next room the stack order turns by `Entry`, so the team that held goes in | the same team every room: four men do every entry · the second team outside: CB-2 superseded it |
+| **CB-62** | **the reports**: RoomClear / RoomBlocked for each room (At = the room's centre — what the platoon's `BuildingClearance` is built from, CB-9), **Foothold** with the first room cleared, **BuildingClear** when no room is left ⇒ the play SUCCEEDS (the task is over; the staff's PROGRESS Set follows) | hold forever like `ClearRoom`: a building has an end · no Foothold: the platoon's Enter phase waits on it (Platoon §4) |
+| **CB-63** | ⚠ **`BuildingClearance` (CB-9) is NOT in this slice**: alone, the squad's room states live in its play; the platoon's record, folded by the staff inbox from these reports, comes with PL-1 (`CE-2264`), its one reader. Recorded as a deviation from CB-9's "else the squad" | build it now with no reader: a component nobody reads (the silent-default pattern) |
+
+**Slice.** BC-3 v1 = CB-57…CB-63; rails in `SquadManeuverTests.CE2259_*` (the room order, pure; a two-room house cleared room by room with
+the teams swapped; a blocked door skipped; a stair to the upper room; BuildingClear and Success). ⛔ Not in it: civilians (BC-2), contact
+and casualties inside (BC-5), grenades (BC-4), the platoon's record (PL-1), a live demo (`bc-house-clear` — the CQB house, BR-1).
+
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 
 ### Engine and wire *(backend)*
