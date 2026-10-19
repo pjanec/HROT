@@ -489,6 +489,40 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             });
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2275</c> sq-defend-house (Platoon §12.2 B) — on <c>cqb-village</c>, a squad in OBJ (house-3f, front north) whose sector
+        /// looks south (its point 45 m out) gets WINDOW posts from both window asks: the sill one and the set-back one each answer OBJ's
+        /// south windows. 📌 Measured live first: the post ask gave no window posts and the squad fell back to cover points.
+        /// </summary>
+        [Fact]
+        public void CE2275_CqbVillage_OBJsSouthWindows_AnswerBothWindowAsks_TowardASouthSector()
+        {
+            var w = Recipe("cqb-village");
+            var cover = TerrainCoverProvider.Build(w);
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(cover);
+            var ea = new Vector3(120.9f, 112.2f, 0f);
+            var self = At(120.9f, 157f, 0f);
+            var mount = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.DefaultMount;
+            var windows = cover.Points.Where(p => p.Kind == CoverKind.WindowFiring
+                && Vector2.Distance(new Vector2(p.PositionX, p.PositionY), new Vector2(120.9f, 157f)) <= 14f).ToList();
+            string Seen(Vector3 at, byte stance) => w.SegmentBlocked(at + new Vector3(0, 0, mount.For(CoverPointsGenerator.StanceOf(stance))),
+                ea + new Vector3(0, 0, 0.85f)) ? "blocked" : "SEES";
+            var report = string.Join("; ", windows.Select(p =>
+            {
+                var sill = new Vector3(p.PositionX, p.PositionY, p.PositionZ);
+                var back = TerrainCoverProvider.SetBack(w, in p, 2f, 1.5f);
+                return $"({p.PositionX:F1},{p.PositionY:F1},{p.PositionZ:F0}) faces ({p.DirectionX:F1},{p.DirectionY:F1}) st {p.StanceHeight}: sill {Seen(sill, p.StanceHeight)}, back ({back.X:F1},{back.Y:F1}) {Seen(back, p.StanceHeight)}";
+            }));
+            Assert.True(windows.Count > 0, "OBJ has window points");
+
+            var sensor = new EqsSensor { SearchRadius = 14f, ContextSlot0 = self, ContextSlot1 = At(ea.X, ea.Y) };
+            var atSill = Run(FindDefensiveWindowPosts.Build(new EqsTemplateBuilder()), sensor);
+            var setBack = Run(FindDefensiveWindowSetBackPosts.Build(new EqsTemplateBuilder()), sensor);
+            Assert.True(atSill.Length > 0, $"the sill ask answers ({windows.Count} window points: {report})");
+            Assert.True(setBack.Length > 0, $"the set-back ask answers ({windows.Count} window points: {report})");
+        }
+
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
         /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
         /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert

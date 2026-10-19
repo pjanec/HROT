@@ -306,7 +306,7 @@
       "SimTransform": {
         "Position": [
           114,
-          40,
+          46,
           0
         ],
         "Rotation": [
@@ -337,13 +337,19 @@
         "Name": "AdvanceTo",
         "Params": "{\"Objective\": [114, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
         "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
       }
     },
     "c2275d00-0000-4000-8000-000000009212": {
       "SimTransform": {
         "Position": [
           118,
-          40,
+          46,
           0
         ],
         "Rotation": [
@@ -374,13 +380,19 @@
         "Name": "AdvanceTo",
         "Params": "{\"Objective\": [118, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
         "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
       }
     },
     "c2275d00-0000-4000-8000-000000009213": {
       "SimTransform": {
         "Position": [
           122,
-          40,
+          46,
           0
         ],
         "Rotation": [
@@ -411,13 +423,19 @@
         "Name": "AdvanceTo",
         "Params": "{\"Objective\": [122, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
         "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
       }
     },
     "c2275d00-0000-4000-8000-000000009214": {
       "SimTransform": {
         "Position": [
           126,
-          40,
+          46,
           0
         ],
         "Rotation": [
@@ -448,6 +466,12 @@
         "Name": "AdvanceTo",
         "Params": "{\"Objective\": [126, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
         "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
       }
     }
   }

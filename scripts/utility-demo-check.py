@@ -3915,21 +3915,22 @@ def run_sq_defend_house(c, timeout):
     storeys = sorted({round((t[2] or 0.0) / 3.0) for t, _ in posts if t and t[0] is not None})
     c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys}; posts {posts})")
 
-    first_in, red_shots, seen = [None], {}, set()
+    first_in, red_shots, blue_shots, seen = [None], {}, {}, set()
     t0 = sim_time() or 0.0
     while (sim_time() or 0.0) - t0 < 150.0:
         t = sim_time() or 0.0
         if first_in[0] is None and any((p := position(b)) and _dh_in_sector(p) for b in blues):
             first_in[0] = t
-        for x in _if_shots(set(reds)):
+        for x in _if_shots(set(reds) | set(blues)):
             k = x.get("seq")
             if k in seen:
                 continue
             seen.add(k)
-            red_shots.setdefault(x.get("shooter"), []).append(x.get("t") or x.get("time") or t)
+            (red_shots if x.get("shooter") in reds else blue_shots).setdefault(x.get("shooter"), []).append(t)
         wait_for(lambda: False, 1.0, every=1.0)
     early = [(s, ts) for s, ts in red_shots.items() if first_in[0] is None or min(ts) < first_in[0] - 0.5]
-    print(f"    first Blue in the sector at {first_in[0]}; Red shots: { {s: (len(ts), round(min(ts), 1)) for s, ts in red_shots.items()} }")
+    print(f"    first Blue in the sector at {first_in[0]}; Red shots: { {s: (len(ts), round(min(ts), 1)) for s, ts in red_shots.items()} }; "
+          f"Blue shots: { {s: (len(ts), round(min(ts), 1)) for s, ts in blue_shots.items()} }")
     c.ok(first_in[0] is not None, "the Blue fire team walks into the sector")
     c.ok(not early, f"③ no Red round before the first Blue enters the sector ({early})")
     c.ok(len(red_shots) >= 2, f"③ …then Red fires: {len(red_shots)} shooters")
