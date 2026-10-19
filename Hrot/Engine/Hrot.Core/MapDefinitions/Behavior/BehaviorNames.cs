@@ -231,5 +231,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";
+        /// <summary>⭐ <c>CE-2308</c> (SP-1, Indirect Fire §3.11) — an observer who picks his own target and calls fire on it, mission after
+        /// mission.</summary>
+        public const string SpotForFire = "SpotForFire";
     }
 }

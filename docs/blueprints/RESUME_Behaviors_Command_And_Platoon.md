@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§2: steps 1–4 done, step 5 next)
+updated: 2026-10-19 (§2: steps 1–5 done, step 6 next)
 current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
 stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -51,7 +51,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | 🟡 step 3 — BC-1 done 2026-10-19 | one room, one squad (`CE-2257`, [Building Clearing §7.1a](../designs/group-maneuvers/DESIGN_Building_Clearing.md)) — built, rails red-proved (11/11 mutants killed); ⚠ not live (no CQB house yet) |
 | ✅ step 3 — BC-3 done 2026-10-19 | `ClearBuilding` `CE-2259` — [Building Clearing §7.2a](../designs/group-maneuvers/DESIGN_Building_Clearing.md): room by room, one drill (`RoomDrill`), stairs, the teams turning, a blocked room skipped; ⚠ not live |
 | ✅ step 4 — done 2026-10-19 | the request round trip, Casevac first (`CE-2305`, [Command Chain §8c-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md)): the staff asks once per man down, `PlatoonDefend` `DAnswer` sends the free reserve to `SquadRecover` him; ⚠ not live |
-| ▶ **step 5 — NOW** | the scene's reactions (Urban Battle §5): ✅ ④ trigger man + ambush — `CE-2306`, [Defend & Attack §8e.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), not live · ✅ ⑤ convoy halt — `CE-2307`, [Squad Tactics §5b.1](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), not live · ▶ ⑥ insurgent spotter — `CE-2308`, designed in [Indirect Fire §3.11](../designs/indirect-fire/DESIGN_Indirect_Fire.md) |
+| ✅ step 5 — done 2026-10-19 | the scene's reactions (Urban Battle §5): ✅ ④ trigger man + ambush — `CE-2306`, [Defend & Attack §8e.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), not live · ✅ ⑤ convoy halt — `CE-2307`, [Squad Tactics §5b.1](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), not live · ✅ ⑥ insurgent spotter — `CE-2308`, [Indirect Fire §3.11a](../designs/indirect-fire/DESIGN_Indirect_Fire.md), not live |
+| ▶ **step 6 — NOW** | ① the headquarters play · ③ armed search · ② finding the mortar (BR-14 ✅ built by backend) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 

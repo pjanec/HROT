@@ -382,7 +382,7 @@ Rails: `AimAndFireExecutorTests.P2_AMortar_IsLaid_OnTheSolutionsElevation_Before
 before `FireAt`, nothing before it) · `P2_ASelfPropelledGun_TurnsItsTurret_BeforeItFires` · `EntityTurretPoseTranslatorTests.WL2b_…`
 (the arc crosses) · `NedTkbBuilderCombatTests.IF1_…` (the laying turrets).
 
-### 3.11 The spotter — an observer who picks his own target *(`CE-2308`, behaviors, 2026-10-19 — Urban Battle §4 ⑥, §5 step 5; build-state: BUILDING — leans SP-1…SP-5, built under the user's "go ahead autonomously")*
+### 3.11 The spotter — an observer who picks his own target *(`CE-2308`, behaviors, 2026-10-19 — Urban Battle §4 ⑥, §5 step 5; build-state: BUILT — §3.11a; leans SP-1…SP-5, built under the user's "go ahead autonomously")*
 
 📐 **Measured first (INVENTORY, 2026-10-19 — grep `ObserveFire|Spotter|SpotFor` over `Hrot/Subsystems/Hrot.AI.Behaviors` ⇒ `PersonObserveFire`
 and its order only; reads of `PersonObserveFireBehavior.Observe` (§3.8), `DroneTargets.Pick`, `KillZone.Entered` (CE-2306); backend's note
@@ -431,6 +431,20 @@ sequenceDiagram
 **Slice.** SP-1…SP-4; rails: the pick (a group beats a lone man, a vehicle doubles, a neutral / an unidentified / one beyond `MaxMetres`
 are never picked); the spotter calls an adjusting Strike on the pick, then rests after the mission and calls again. ⛔ Not in it: the
 insurgents' own battery unit (an author's mortar team — the demo), counter-battery (IF-6).
+
+#### 3.11a As built *(2026-10-19 — the diagrams above hold)*
+
+| piece | where | as built |
+|---|---|---|
+| the behaviour | `Brains/SpotForFireBehavior.cs` (`SpotForFireBehavior`, `SpotForFireParams`), `BehaviorNames.SpotForFire` | a plain `Action` over `SpotForFireParams` — it embeds the IF-3 `ObserveFireParams` and calls `PersonObserveFireBehavior.Observe` on it unchanged; Running for good (SP-1); Failure only when the battery is gone |
+| the order | `Orders.SpotForFireOrder` (same file; `[ParamsDto]`) | `Battery` · `MaxMetres` (1500) · `RestSeconds` (30) · `Locating` · `Rounds` · `Sheaf` · `SheafWidthM` · `Control` — the IF-3 mission fields minus the target |
+| the pick | `FireTargets.Pick(world, observer, maxMetres, out at)` | his `TargetMemory`: identified, alive, `KillZone.Hostile` (the trigger man's test, shared), within `maxMetres`; score = the weights within 30 m (a vehicle 2, a man 1); `at` = the REMEMBERED position (SP-3) |
+
+⚠ **Choices the leans did not settle:** the hostility test is the trigger man's (`KillZone.Hostile`, one copy, not a third); the
+drone's own (`DroneTargets`) stays separate because there an UNKNOWN side counts as hostile; the first `Observe` runs in the tick
+that picks (so the Adjust call goes at once, not a frame later).
+
+Rails `SquadManeuverTests.CE2308_*` ×2 (in the IF-3 suite, its `Battery` harness) — mutants 6/6 killed. ⛔ Not live yet.
 
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 

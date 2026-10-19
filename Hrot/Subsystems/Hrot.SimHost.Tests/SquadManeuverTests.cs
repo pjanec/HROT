@@ -5257,6 +5257,91 @@ namespace Hrot.SimHost.Tests
             Assert.Single(Calls(s));
         }
 
+        // ── CE-2308 — the spotter: an observer who picks his own target (Indirect Fire §3.11, SP-1…SP-5) ─────────────────────
+
+        /// <summary>A HOSTILE spotter at <paramref name="at"/> told to <c>SpotForFire</c> for <paramref name="s"/>'s battery.</summary>
+        private static Entity Spotter(Squad s, Vector3 at, float maxMetres = 1500f)
+        {
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4242 });
+            var o = s.Repo.CreateEntity();
+            s.Repo.AddComponent(o, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(o, new BehaviorState());
+            s.Repo.AddComponent(o, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            s.Repo.AddComponent(o, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            s.Repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = o, BehaviorName = BehaviorNames.SpotForFire, Origin = BehaviorOrigin.Superior,
+                JsonParams = System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.SpotForFireOrder
+                {
+                    Battery = new Fdp.Toolkit.Replication.EntityRef(4242), MaxMetres = maxMetres,
+                }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
+            });
+            return o;
+        }
+
+        /// <summary>Something the spotter has SEEN at <paramref name="at"/> (identified, in his memory).</summary>
+        private static Entity Seen(Squad s, Entity spotter, Vector3 at, bool vehicle = false, Fdp.Core.ForceId force = Fdp.Core.ForceId.Friend)
+        {
+            if (vehicle && !s.Repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) s.Repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            var e = s.Repo.CreateEntity();
+            s.Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = force });
+            if (vehicle) s.Repo.AddComponent(e, new global::CarKinem.Core.VehicleState());
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(spotter);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, s.Repo.SimulationTick);
+            return e;
+        }
+
+        /// <summary>⭐⭐ <c>CE-2308</c> SP-2 — what the spotter picks, from his memory: three men together beat a lone vehicle, which beats a
+        /// lone man; a NEUTRAL crowd, and anyone beyond his 1500 m, are never picked. ✅ Red-proofs: the group score dropped ⇒ the vehicle ·
+        /// the vehicle weight dropped ⇒ the lone man ties it (the first wins) · the neutral test dropped ⇒ the crowd · the range dropped ⇒ the
+        /// far platoon.</summary>
+        [Fact]
+        public void CE2308_FireTargets_PickTheBiggestGroupHeSees_AVehicleCountsDouble_NeverANeutralOrBeyondRange()
+        {
+            var s = Battery(new Vector3(0f, 0f, 0f));
+            var spotter = Spotter(s, new Vector3(5000f, -1000f, 0f));
+            var man = Seen(s, spotter, new Vector3(4800f, -600f, 0f));
+            var truck = Seen(s, spotter, new Vector3(5300f, -600f, 0f), vehicle: true);
+            Assert.Equal(truck, Hrot.AI.Behaviors.Brains.FireTargets.Pick(s.Repo, spotter, 1500f, out _));
+            for (int i = 0; i < 5; i++) Seen(s, spotter, new Vector3(5000f + i, -400f, 0f), force: Fdp.Core.ForceId.Neutral);   // a crowd
+            for (int i = 0; i < 6; i++) Seen(s, spotter, new Vector3(5000f + i, 900f, 0f));                                     // 1.9 km off
+            Assert.Equal(truck, Hrot.AI.Behaviors.Brains.FireTargets.Pick(s.Repo, spotter, 1500f, out _));
+            var a = Seen(s, spotter, new Vector3(4700f, -300f, 0f));
+            Seen(s, spotter, new Vector3(4710f, -305f, 0f));
+            Seen(s, spotter, new Vector3(4705f, -290f, 0f));
+            var pick = Hrot.AI.Behaviors.Brains.FireTargets.Pick(s.Repo, spotter, 1500f, out var at);
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(4705f, -298f)) < 15f, $"the group, picked at {at}");
+            Assert.NotEqual(man, pick);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2308</c> SP-1, SP-3, SP-4 — the spotter sees a squad and calls an ADJUSTING round on it (the IF-3 mission, within
+        /// the map's 150 m); seeing no round he is lost, rests 30 s — no call in that time — and then calls again. ✅ Red-proofs: the rest
+        /// dropped ⇒ the second call comes at once · the loop dropped (Success/Failure passed up) ⇒ no second call.</summary>
+        [Fact]
+        public void CE2308_TheSpotter_CallsFireOnWhatHeSees_RestsAfterTheMission_AndCallsAgain()
+        {
+            var s = Battery(new Vector3(0f, 0f, 0f));
+            var spotter = Spotter(s, new Vector3(5000f, -1500f, 0f));
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.Empty(Calls(s));                                                                   // nothing seen: nothing called
+            for (int i = 0; i < 3; i++) Seen(s, spotter, new Vector3(5000f + i * 5f, 0f, 0f));
+            for (int i = 0; i < 3; i++) s.Tick();
+            var first = Assert.Single(Calls(s));
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);
+            Assert.InRange(Vector2.Distance(new Vector2(first.At.X, first.At.Y), new Vector2(5005f, 0f)), 0f, 151f);
+
+            s.Pause(Hrot.AI.Behaviors.Brains.PersonObserveFireBehavior.BurstWaitSeconds + 1.0);       // no round seen: lost
+            for (int i = 0; i < 3; i++) s.Tick();
+            s.Pause(10.0);
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.Single(Calls(s));                                                                  // resting
+            s.Pause(Hrot.AI.Behaviors.Brains.SpotForFireBehavior.DefaultRestSeconds);
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.Equal(2, Calls(s).Count);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, Calls(s)[^1].Order.Method);
+        }
+
         /// <summary>⭐ <c>CE-2176</c> IF-3 — <c>DetonationMemorySystem</c> keeps each burst the node sees (where, whose); the bracket reads
         /// them. 🔴 Red-proof: an empty system ⇒ count 0 ⇒ red.</summary>
         [Fact]
