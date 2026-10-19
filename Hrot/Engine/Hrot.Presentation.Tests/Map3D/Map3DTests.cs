@@ -2954,6 +2954,70 @@ public sealed class Map3DTests
         Assert.InRange(Vector2.Distance(two2.ScreenToWorld(Viewport / 2f), new Vector2(-80f, 60f)), 0f, 0.1f);
     }
 
+    /// <summary>
+    /// ⭐ CE-1221 (R-260's open question: a scenario with NO saved camera) — once the load settles, the 2-D map frames every placed
+    /// entity, centred on them; a saved camera wins; a map the user already moved is left alone; SUMO's traffic is not framed. 🔒 User,
+    /// 2026-10-19: <i>"After loading the scenario, please position the 2D map to the center of all the entities in the scenario … Only if
+    /// the camera entity is not saved as part of the scenario."</i>
+    /// </summary>
+    [Fact]
+    public void CE1221_AScenarioWithNoSavedCamera_IsFramedIn2D_OnceItsLoadSettles()
+    {
+        using var w = CameraWorld();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.ReplicationRoute>();
+        Entity Unit(float x, float y)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            return e;
+        }
+        var (canvas, sw, two) = Map(new Vector2(-5000f, -5000f), 1f);
+        sw.Set(true, animate: false);                          // even from 3-D: the framing shows the 2-D map
+        var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
+        layer.Update(0.016f);                                  // an empty world: nothing to frame
+        Unit(1000f, 2000f); Unit(1400f, 2600f); Unit(1800f, 2200f);
+        var traffic = Unit(90000f, 90000f);                    // SUMO's car far away: not framed
+        w.AddComponent(traffic, new Fdp.Toolkit.Replication.Components.ReplicationRoute(Fdp.Toolkit.Replication.Components.ReplicationRoute.SumoSharp));
+        layer.Update(0.5f);
+        Assert.False(layer.Framed, "not before the load has settled");
+        for (int i = 0; i < 3; i++) layer.Update(0.5f);
+
+        Assert.True(layer.Framed);
+        Assert.False(sw.Is3D);
+        Assert.Same(two, canvas.Camera);
+        Assert.InRange(Vector2.Distance(two.ScreenToWorld(Viewport / 2f), new Vector2(1400f, 2300f)), 0f, 1f);
+        foreach (var at in new[] { new Vector2(1000f, 2000f), new Vector2(1400f, 2600f), new Vector2(1800f, 2200f) })
+        {
+            var px = two.WorldToScreen(at);
+            Assert.True(px.X > 0f && px.X < Viewport.X && px.Y > 0f && px.Y < Viewport.Y, $"{at} is off the screen at {px}");
+        }
+        for (int i = 0; i < 40; i++) layer.Update(0.016f);
+        Assert.Null(layer.Camera);                             // framing is not a move: no camera asked for, nothing saved
+
+        // a saved camera wins
+        using var w2 = CameraWorld();
+        SaveCamera(w2, new CameraPose(new Vector3(-80f, 60f, 0f), 400f, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
+        var (_, sw2, two2) = Map(new Vector2(900f, 900f), 3f);
+        var layer2 = new Hrot.UI.Common.Map3D.MapCameraLayer(sw2, () => w2);
+        for (int i = 0; i < 4; i++) layer2.Update(0.5f);
+        Assert.True(layer2.Adopted);
+        Assert.False(layer2.Framed);
+
+        // a map the user moved first is left alone
+        using var w3 = CameraWorld();
+        var (_, sw3, two3) = Map(new Vector2(0f, 0f), 1f);
+        var layer3 = new Hrot.UI.Common.Map3D.MapCameraLayer(sw3, () => w3);
+        layer3.Update(0.016f);
+        two3.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
+        layer3.Update(0.016f);
+        var e3 = w3.CreateEntity();
+        w3.AddComponent(e3, new SimTransform { Position = new Vector3(5000f, 5000f, 0f), Rotation = Quaternion.Identity });
+        w3.AddComponent(e3, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        for (int i = 0; i < 4; i++) layer3.Update(0.5f);
+        Assert.False(layer3.Framed);
+    }
+
     [Fact]
     public void S5_TheFirstMove_RequestsAnUnownedCamera_TheCreatorOwnsIt_AndItsPoseIsKept_AndSaved()
     {

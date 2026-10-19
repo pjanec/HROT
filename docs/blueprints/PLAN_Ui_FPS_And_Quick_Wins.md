@@ -73,3 +73,4 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | #10–#14 | Entity Control §8j designed (INVENTORY, claim table, class / sequence / module diagrams, leans Z-1…H-2); ✅ keys approved (`R-1009`) |
 | `2026-10-19` | — | reordered by the user: the quick wins first |
 | `2026-10-19` | 2 | `CE-1221` added (frame the entities after a load with no camera) |
+| `2026-10-19` | 1, 2 | ✅ `CE-1199` and `CE-1221` built, red-proved; Presentation 773 / 0 (2 skipped, the audio pair) |
