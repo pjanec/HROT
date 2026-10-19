@@ -22,9 +22,15 @@ namespace Fdp.Toolkit.Combat
             w.ReloadSecondsRemaining = 0f;
         }
 
-        /// <summary>May a round leave now (ammunition left, and — with a magazine — a round in it and no reload running)?</summary>
+        /// <summary>May a round be ASKED now (ammunition left, and — with a magazine — a round in it and no reload running)? ⭐ Q94 A-3
+        /// (R-3018) — the rounds already asked and not yet answered are RESERVED (<see cref="ShotLedger.Pending"/>), so a burst never asks
+        /// for more than the weapon holds while the muscle's answers are on their way.</summary>
         public static bool Ready(in WeaponState w)
-            => w.Ammo > 0 && (w.MagazineSize <= 0 || (w.ReloadSecondsRemaining <= 0f && w.MagazineRounds > 0));
+        {
+            int pending = ShotLedger.Pending(w);
+            return pending < ShotLedger.MaxPending && w.Ammo - pending > 0
+                && (w.MagazineSize <= 0 || (w.ReloadSecondsRemaining <= 0f && w.MagazineRounds - pending > 0));
+        }
 
         /// <summary>True while a reload is running.</summary>
         public static bool Reloading(in WeaponState w) => w.ReloadSecondsRemaining > 0f;
@@ -32,6 +38,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>One round leaves: the total and the magazine drop; an emptied magazine with rounds left starts the reload.</summary>
         public static void Spend(ref WeaponState w)
         {
+            if (w.Ammo <= 0) return;
             w.Ammo--;
             if (w.MagazineSize <= 0) return;
             w.MagazineRounds--;

@@ -12,10 +12,11 @@ namespace Fdp.Toolkit.Combat.Tests
         // SC-P0-01-1 (.dev/_DONE/utility-ai/PREREQ_Phase0_Bundle.md:86 — "natural-aligned, no padding regressions"): every field
         // is 4 bytes, so the size is exactly 4 × the field count. ⭐ CE-3136 P-5 added the magazine (4 fields): 8 × 4 = 32 (was 16).
         // WeaponState is never on the wire (DESIGN_Ownership_Groups_And_Grants.md §1: "linked, never sent").
+        // ⭐ Q94 A-3 (R-3018) added the shot ledger: four 4-byte fields and the refusal byte ⇒ 12 × 4 + 1, padded to 52 (the one tail pad).
         [Fact]
-        public unsafe void WeaponState_SizeIs32Bytes_NoPadding()
+        public unsafe void WeaponState_SizeIs52Bytes_OnlyTheTailPad()
         {
-            Assert.Equal(32, sizeof(WeaponState));
+            Assert.Equal(52, sizeof(WeaponState));
         }
 
         // SC-P0-01-2: A spawned WeaponState has MaxAmmo == initialAmmunition

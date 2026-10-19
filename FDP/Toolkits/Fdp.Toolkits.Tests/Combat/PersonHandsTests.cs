@@ -139,6 +139,7 @@ namespace Fdp.Toolkit.Tests.Combat
             var intent = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
             Assert.Equal(StoneAmmo, intent.AmmoGuid);
             Assert.True(intent.AtPoint);
+            Fdp.Toolkit.Combat.Tests.TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the stone
             Assert.Equal(2, PersonHands.Rounds(_world, civ, StoneAmmo));
             Assert.Equal(2, _world.GetComponent<WeaponState>(civ).Ammo);
             Assert.False(Armament.LethalInHand(_world, civ));

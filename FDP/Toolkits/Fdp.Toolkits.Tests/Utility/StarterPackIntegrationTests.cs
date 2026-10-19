@@ -714,6 +714,7 @@ namespace Fdp.Toolkit.Tests
                     var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
                     if (intents.Length == 0) continue;
                     Assert.Equal(1, intents.Length);
+                    global::Fdp.Toolkit.Combat.Tests.TestMuscle.FireAll(repo);   // ⭐ Q94 A-3 — the muscle's answer spends the round
                     return intents[0].WeaponIndex;
                 }
                 Assert.Fail("no round within 2 s");

@@ -1308,6 +1308,31 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>Q94 A-4</c> (R-3018) — a DIRECT round at a POINT is judged the same way: the RPG man's blind round down into his own
+        /// window frame is refused <see cref="FireRefusal.Masked"/> (the brain no longer checks it); the same round at a point across open
+        /// ground flies. 🔴 Red-proof: drop the at-point <c>MuzzleMasked</c> refusal ⇒ a round flies from the window.
+        /// </summary>
+        [Fact]
+        public void Q94_AMaskedRoundAtAPoint_IsRefusedByTheMuscle_AnOpenOne_Flies()
+        {
+            var man = RpgManOnBtRange(new Vector3(107.1f, 100.9f, 3f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, AtPoint = true, TargetPoint = new Vector3(100.03f, 92.85f, 1.49f), RequestId = 11 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0, RoundsFlown());
+            var no = TheAnswer();
+            Assert.Equal(FireRefusal.Masked, no.Refusal);
+            Assert.Equal(11u, no.RequestId);
+
+            _world.SetComponent(man, new SimTransform { Position = new Vector3(149f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = man, AtPoint = true, TargetPoint = new Vector3(149f, 27f, 1f), RequestId = 12 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(1, RoundsFlown());
+            Assert.True(TheAnswer().Fired);
+        }
+
+        /// <summary>
         /// ⭐ <c>Q94 A</c> (R-3018) — a request the muscle cannot honour (no weapon yet, a laid-down mount) is ANSWERED with
         /// <see cref="FireRefusal.CannotFire"/>, so the brain's ledger clears its reservation instead of waiting out the timeout.
         /// 🔴 Red-proof: drop the <c>Refuse</c> on either guard ⇒ no answer.

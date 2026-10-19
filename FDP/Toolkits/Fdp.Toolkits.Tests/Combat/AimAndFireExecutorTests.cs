@@ -96,6 +96,13 @@ namespace Fdp.Toolkit.Combat.Tests
         /// </summary>
         private void Tick(Entity shooter, ref WeaponChannel channel, float dt)
         {
+            Ask(shooter, ref channel, dt);
+            TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle fires what was asked (the ask/answer rails below call Ask alone)
+        }
+
+        /// <summary>⭐ <c>Q94 A-3</c> — one frame with NO muscle: the executor asks, nothing answers (the rounds stay reserved).</summary>
+        private void Ask(Entity shooter, ref WeaponChannel channel, float dt)
+        {
             _executor.Execute(shooter, ref channel, _world, dt);
             if (_world.HasComponent<WeaponState>(shooter))
                 WeaponDispatcherSystem.DrainCooldown(ref _world.GetComponentRW<WeaponState>(shooter), dt);
@@ -636,30 +643,121 @@ namespace Fdp.Toolkit.Combat.Tests
                 "nothing stands in front of the muzzle in the open");
         }
 
+        // ── Q94 A (R-3018) — the brain ASKS, the muscle answers, the answer spends ─────────────────────────────────────────────
+
+        private void Answer(Entity shooter, uint requestId, FireRefusal refusal)
+        {
+            if (!_world.Bus.IsRegistered<WeaponFireNotification>()) _world.RegisterEvent<WeaponFireNotification>();
+            _world.Bus.Publish(new WeaponFireNotification
+            {
+                Shooter = shooter, WeaponIndex = 0, RequestId = requestId, Refusal = refusal, Quantity = refusal == FireRefusal.None ? 1 : 0,
+            });
+            _world.Bus.SwapBuffers();
+        }
+
+        private WeaponFireIntent[] Asked() { _world.Bus.SwapBuffers(); return _world.Bus.Read<WeaponFireIntent>().ToArray(); }
+
         /// <summary>
-        /// ⭐ <c>CE-2218</c> — the executor HOLDS that shot: no <see cref="WeaponFireIntent"/>, nothing spent, the action keeps running and
-        /// says <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked"/> (so a behaviour may move to a better spot).
-        /// 🔴 Red-proof: drop the executor's <c>MuzzleMasked</c> hold ⇒ the rocket is released.
+        /// ⭐⭐ <c>Q94 A-3</c> (R-3018) — the executor ASKS (request 1) and spends NOTHING; the one round left is RESERVED, so it does not
+        /// ask again before the answer (and says it is waiting, not reloading); the muscle's "fired" for request 1 — read by the weapon
+        /// dispatcher, as in production — spends it, ONCE however often it arrives; then the weapon is empty and the action fails.
+        /// 🔴 Red-proof: spend at the ask ⇒ 0 after the first frame; <c>Magazine.Ready</c> without the reservation ⇒ a second ask;
+        /// no <c>ShotLedger.Settle</c> in the dispatcher ⇒ still 1 after the answer; no newer-id guard ⇒ the duplicate spends again.
         /// </summary>
         [Fact]
-        public void CE2218_TheExecutorHoldsTheMaskedShot_Masked_NothingSpent()
+        public void Q94_TheAsk_ReservesTheRound_TheFiredAnswerSpendsIt_Once()
         {
             _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
-            var target = SpawnTarget(new Vector3(100.03f, 92.85f, 0.5f));
-            var (shooter, channel) = SpawnShooter(new Vector3(107.1f, 100.9f, 3f), 5, 0f, target, 0.05f);
-            var man = RpgManOnBtRange(new Vector3(0f, 0f, 0f));
-            _world.DestroyEntity(man);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9218 });
+            _world.RegisterComponent<ActorCapabilityState>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 1, 0f, target, 0f);
             _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
-
             EnterAimed(shooter, ref channel);
-            Tick(shooter, ref channel, 0.016f);
-            _world.Bus.SwapBuffers();
 
-            Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
-            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Ask(shooter, ref channel, 0.016f);
+            var asked = Asked();
+            Assert.Single(asked);
+            Assert.Equal(1u, asked[0].RequestId);
+            Assert.Equal(1, _world.GetComponent<WeaponState>(shooter).Ammo);          // reserved, not spent
+
+            Ask(shooter, ref channel, 0.016f);
+            Assert.Empty(Asked());                                                  // the one round is on its way
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown,
+                _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon.Reason);
+
+            var dispatcher = new WeaponDispatcherSystem();
+            Answer(shooter, 1, FireRefusal.None);
+            dispatcher.Execute(_world, 0f);
+            Assert.Equal(0, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(0, ShotLedger.Pending(_world.GetComponent<WeaponState>(shooter)));
+
+            Answer(shooter, 1, FireRefusal.None);                                   // the same answer again (a duplicate sample)
+            dispatcher.Execute(_world, 0f);
+            Assert.Equal(0, _world.GetComponent<WeaponState>(shooter).Ammo);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            w.Ammo = 3;
+            Answer(shooter, 1, FireRefusal.None);
+            dispatcher.Execute(_world, 0f);
+            Assert.Equal(3, _world.GetComponent<WeaponState>(shooter).Ammo);         // an answered id never spends twice
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>Q94 A-4</c> (R-3018, the live <c>CE-2218</c> case) — the muscle REFUSES the round (masked by the wall at the muzzle): nothing
+        /// is spent, the cooldown the ask set is cancelled, and the executor HOLDS — no new ask, still Running, <c>Masked</c> (so the behaviour
+        /// may move: the window is burned) — until the refusal hold runs out; then it asks again (request 2). The brain read no terrain.
+        /// 🔴 Red-proof: a refusal that does not hold ⇒ the second frame asks again at once; a refusal that spends ⇒ 4.
+        /// </summary>
+        [Fact]
+        public void Q94_AMaskedRefusal_SpendsNothing_HoldsMasked_ThenAsksAgain()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.5f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            EnterAimed(shooter, ref channel);
+
+            Ask(shooter, ref channel, 0.016f);
+            Assert.Equal(1u, Asked()[0].RequestId);
+            Answer(shooter, 1, FireRefusal.Masked);
+            ShotLedger.Settle(_world);
+            var w = _world.GetComponent<WeaponState>(shooter);
+            Assert.Equal(5, w.Ammo);
+            Assert.Equal(0f, w.CooldownSecondsRemaining);
+
+            Ask(shooter, ref channel, 0.016f);
+            Assert.Empty(Asked());
             Assert.Equal(NodeStatus.Running, channel.Status);
-            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked, _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon.Reason);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked,
+                _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon.Reason);
+
+            ShotLedger.Tick(ref _world.GetComponentRW<WeaponState>(shooter), ShotLedger.RefusalHoldSeconds);
+            Ask(shooter, ref channel, 0.016f);
+            var again = Asked();
+            Assert.Single(again);
+            Assert.Equal(2u, again[0].RequestId);
+        }
+
+        /// <summary>
+        /// ⭐ <c>Q94 A-3</c> — an ask nobody answers (a lost request or answer) is DROPPED after <see cref="ShotLedger.TimeoutSeconds"/>: the
+        /// reservation is freed, nothing spent; a late answer to it changes nothing. 🔴 Red-proof: no timeout ⇒ still pending.
+        /// </summary>
+        [Fact]
+        public void Q94_AnUnansweredAsk_TimesOut_NothingSpent_ALateAnswerIgnored()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.5f);
+            EnterAimed(shooter, ref channel);
+            Ask(shooter, ref channel, 0.016f);
+            Assert.Equal(1, ShotLedger.Pending(_world.GetComponent<WeaponState>(shooter)));
+
+            ShotLedger.Tick(ref _world.GetComponentRW<WeaponState>(shooter), ShotLedger.TimeoutSeconds * 0.5f);
+            Assert.Equal(1, ShotLedger.Pending(_world.GetComponent<WeaponState>(shooter)));
+            ShotLedger.Tick(ref _world.GetComponentRW<WeaponState>(shooter), ShotLedger.TimeoutSeconds * 0.5f);
+            Assert.Equal(0, ShotLedger.Pending(_world.GetComponent<WeaponState>(shooter)));
+
+            Answer(shooter, 1, FireRefusal.None);
+            ShotLedger.Settle(_world);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
         /// <summary>⭐ <c>CE-321</c> — a friendly BEHIND the shooter or BEYOND the target is not on the line of fire.</summary>
@@ -1554,6 +1652,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(8f, 5f, 0f);
             Assert.Equal(1, BurstStep(shooter));
+            TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
@@ -1782,6 +1881,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var hit = Run(new Vector3(3000f, 0f, 0f));
             Assert.Equal(1, hit.Released);
             Assert.InRange(hit.At, releaseX - v.X * Dt, releaseX + v.X * Dt);
+            TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(3, _world.GetComponent<WeaponState>(hit.Plane).Ammo);
 
             Assert.Equal(0, Run(new Vector3(3000f, 15f, 0f)).Released);                     // 15 m off the track: never released
@@ -2885,6 +2985,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(shot.AtPoint);
             Assert.Equal((byte)2, shot.Charge);   // 60 m/s reaches ≈ 367 m; 80 m/s ≈ 652 m — the lowest that reaches 500 m
             Assert.Equal((byte)1, shot.HighArc);
+            TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(9, _world.GetComponent<WeaponState>(tube).Ammo);
             Assert.Equal(NodeStatus.Success, channel.Status);
         }
@@ -3023,6 +3124,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(saidSlewing, "the gun never said it was slewing");
             Assert.True(first >= 60 * 8, $"first round at frame {first}: 90° at 10 °/s is 9 s of traverse");
             Assert.InRange(_world.GetComponent<TurretPose>(part).Azimuth * 180f / MathF.PI, 89.5f, 90.5f);
+            TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(9, _world.GetComponent<WeaponState>(gun).Ammo);
         }
 

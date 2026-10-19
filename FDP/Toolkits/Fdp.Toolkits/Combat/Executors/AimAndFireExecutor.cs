@@ -234,7 +234,9 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 Magazine.StartIfEmpty(ref weapon);
                 channel.Status = NodeStatus.Running;
-                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                // ⭐ Q94 A-3 — every round left is ASKED and on its way (the muscle's answer has not come back yet): not a reload
+                if (ShotLedger.Pending(weapon) > 0 && !Magazine.Reloading(weapon)) Say(world, entity, ActionReason.Cooldown, p.Target, 0f);
+                else Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
 
@@ -265,13 +267,13 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            // ⭐ CE-2218 — hold while the round would stop in the wall in front of the muzzle (LineOfFire.MuzzleMasked): the eye's line
-            //   passed the window, the barrel's does not. Running, no round spent — Masked, so the behaviour may move to a better spot.
-            if (!bomb && world.HasComponent<SimTransform>(p.Target)
-                && LineOfFire.MuzzleMasked(world, platform, platformMount, loadedAmmo, AimPoint.Middle(world, p.Target, out _, out _)))
+            // ⭐ CE-2218 → ⭐⭐ Q94 A-4 (R-3018, R-2037) — the round that would stop in the wall in front of the muzzle is now REFUSED by the
+            //   MUSCLE (FireProcessingSystem, live terrain); its refusal holds this weapon a moment (ShotLedger.Held). Running, nothing
+            //   spent — still Masked, so the behaviour may move to a better spot. The brain no longer reads the terrain for it.
+            if (ShotLedger.Held(in weapon, out var refused))
             {
                 channel.Status = NodeStatus.Running;
-                Say(world, entity, ActionReason.Masked, p.Target);
+                Say(world, entity, HoldReasonOf(refused), p.Target);
                 return;
             }
 
@@ -291,13 +293,13 @@ namespace Fdp.Toolkit.Combat.Executors
                 Target      = p.Target,
                 WeaponIndex = platformMount,
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round (0 = the mount's own)
+                RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — ASKED: reserved now, spent when the muscle says it flew
                 // ⭐ CE-2180 — when it was raised; a bomb: the moment its cue says the release IS (the SimHost starts it from there)
                 RaisedAt    = bomb && world.HasComponent<SimTransform>(p.Target)
                               ? ReleaseAt(world, entity, world.GetComponentRO<SimTransform>(p.Target).Position) : HitModel.Now(world),
             });
 
-            Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
-            AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8 — and that type's count
+            // ⭐ CE-3136 P-5 / M8 — the total, the magazine and the loaded type are spent by the muscle's ANSWER (ShotLedger.Answer), not here
             weapon.CooldownSecondsRemaining = CooldownFor(p.CooldownSeconds, mountDto);   // ⭐ CE-2199 — 0 = the mount's own rate
 
             int fired = ++RoundsFired(ref channel);
@@ -311,6 +313,21 @@ namespace Fdp.Toolkit.Combat.Executors
         /// executor knows which mount <c>MountAuto</c> picked: a tank's 120 mm 10 s, its coax 0.1 s). A mount stating no rate keeps 0. 🔴 It
         /// used to take 0 as given: a tank fired 8 main-gun rounds in ~1.3 s against a catalogue 6 per minute (live <c>ua-tank-corner</c>).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>Q94 A</c> (R-3018) — the hold a weapon's last <see cref="FireRefusal"/> reads as on its action (the same words the brain's
+        /// own checks said before the muscle made them): the round masked by the wall in front of the muzzle, too close or out of reach for
+        /// its arc, a bomb whose release cue passed, or a mount that could not fire at all.
+        /// </summary>
+        public static ActionReason HoldReasonOf(FireRefusal refusal) => refusal switch
+        {
+            FireRefusal.Masked => ActionReason.Masked,
+            FireRefusal.TooClose => ActionReason.TooClose,
+            FireRefusal.TooFar => ActionReason.OutOfRange,
+            FireRefusal.Expired => ActionReason.AwaitingRelease,
+            FireRefusal.CannotFire => ActionReason.NotDeployed,
+            _ => ActionReason.Failed,
+        };
+
         public static float CooldownFor(float asked, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount)
             => asked > 0f ? asked : mount is { RateOfFire: > 0f } m ? 60f / m.RateOfFire : 0f;
 
@@ -377,8 +394,7 @@ namespace Fdp.Toolkit.Combat.Executors
                                                           ammo: loadedAmmo);
             if (reason == ActionReason.Firing)
             {
-                RoundsFired(ref channel)++;
-                AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ CE-1079 — the loaded type's count, as the other paths keep it
+                RoundsFired(ref channel)++;   // ⭐ CE-1079 / Q94 A-3 — the loaded type's count is spent by the muscle's answer (ShotLedger)
             }
             SayAt(world, entity, reason, point);
         }
@@ -438,7 +454,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world))))
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
-            if (LineOfFire.MuzzleMasked(world, shooter, mountIndex, loadedAmmo, point)) { Say(world, entity, ActionReason.Masked, p.Target); return; }   // ⭐ CE-2218
+            if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
@@ -451,9 +467,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 TargetPoint = point,
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round
                 RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
+                RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 — asked; the muscle's answer spends it
             });
-            Magazine.Spend(ref weapon);
-            AmmoChoice.SpendLoaded(world, mountEntity);
             weapon.CooldownSecondsRemaining = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
             int fired = ++RoundsFired(ref channel);
             if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
