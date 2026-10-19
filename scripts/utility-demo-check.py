@@ -3874,6 +3874,70 @@ def run_armed_bomber(c, timeout):
     c.ok(near and all(h is not None and h < 100 for _, _, h in near), f"③ everyone within 3 m is hurt ({[(n, round(d, 1), h) for n, d, h in near]})")
     c.ok(far and all(h is not None and h >= 100 for _, _, h in far), f"③ nobody beyond 25 m is ({[(n, round(d, 1), h) for n, d, h in far]})")
 
+
+# ── CE-2275 — sq-defend-house (Platoon §12.2 stage B; Defend & Attack §8c): a Red squad defends OBJ on cqb-village ─────────────
+#   ⭐ the squad's hold is the operator's (Roe HoldFire, SetBy Operator, authored); its sector is set over HTTP while the cluster is
+#   still paused, as an operator would (POST /entities/{id}/sector, arc from where the commander stands); a Blue fire team walks in
+#   from the south. ① the posts land in OBJ on more than one storey · ③ no Red round before the first Blue enters the sector, then
+#   Red fires · ④ a man under fire moves to his alternate (PROGRESS Displacing). ② (the AR's longest view) needs VisibilityFan — not built.
+
+_DH_ORIGIN, _DH_LEFT, _DH_RIGHT, _DH_RANGE = (120.9, 157.0), 150.0, 210.0, 90.0
+
+
+def _dh_in_sector(p):
+    dx, dy = p[0] - _DH_ORIGIN[0], p[1] - _DH_ORIGIN[1]
+    if (dx * dx + dy * dy) ** 0.5 > _DH_RANGE:
+        return False
+    b = math.degrees(math.atan2(dx, dy)) % 360.0
+    return _DH_LEFT <= b <= _DH_RIGHT
+
+
+def run_sq_defend_house(c, timeout):
+    """⭐ CE-2275 — sq-defend-house (DESIGN_Platoon_Attack_Defend_Clear §12.2 B; DESIGN_Defend_And_Attack_Position §8c)."""
+    ids = ids_by_name()
+    reds = [ids.get(n) for n in ["Red Leader"] + [f"Red Rifleman {i}" for i in range(1, 7)]]
+    blues = [ids.get(f"Blue {i}") for i in range(1, 5)]
+    sq = ids.get("Red Squad")
+    if not c.ok(sq is not None and None not in reds + blues, f"the Red squad (seven men) and the Blue fire team are loaded (squad {sq}, reds {reds}, blues {blues})"):
+        return
+    sec = call("POST", f"/entities/{sq}/sector", {"left": _DH_LEFT, "right": _DH_RIGHT, "maxRange": _DH_RANGE})
+    c.ok(isinstance(sec, dict) and data(sec) is not None, f"the operator gives the squad its sector south ({json.dumps(data(sec) or sec)[:200]})")
+    call("POST", "/sim/play", {})
+    posting = wait_for(lambda: (m := maneuver(sq)) and m.get("phaseName") == "Posting" and m, 60)
+    if not c.ok(posting is not None, f"the squad reaches OBJ and starts posting ({json.dumps(maneuver(sq))[:300]})"):
+        return
+    wait_for(lambda: False, 12, every=1.0)   # the two post asks (≤ 5 s each) and the re-issue
+    m = maneuver(sq)
+    print(f"    maneuver: {json.dumps(m)[:1200]}")
+    for nid in reds[:2]:
+        print(f"    order {nid}: {json.dumps(data(call('GET', f'/entities/{nid}/order')))[:700]}")
+    posts = [((x.get("target") or [None, None, None]), x.get("role")) for x in m.get("members", [])]
+    storeys = sorted({round((t[2] or 0.0) / 3.0) for t, _ in posts if t and t[0] is not None})
+    c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys}; posts {posts})")
+
+    first_in, red_shots, seen = [None], {}, set()
+    t0 = sim_time() or 0.0
+    while (sim_time() or 0.0) - t0 < 150.0:
+        t = sim_time() or 0.0
+        if first_in[0] is None and any((p := position(b)) and _dh_in_sector(p) for b in blues):
+            first_in[0] = t
+        for x in _if_shots(set(reds)):
+            k = x.get("seq")
+            if k in seen:
+                continue
+            seen.add(k)
+            red_shots.setdefault(x.get("shooter"), []).append(x.get("t") or x.get("time") or t)
+        wait_for(lambda: False, 1.0, every=1.0)
+    early = [(s, ts) for s, ts in red_shots.items() if first_in[0] is None or min(ts) < first_in[0] - 0.5]
+    print(f"    first Blue in the sector at {first_in[0]}; Red shots: { {s: (len(ts), round(min(ts), 1)) for s, ts in red_shots.items()} }")
+    c.ok(first_in[0] is not None, "the Blue fire team walks into the sector")
+    c.ok(not early, f"③ no Red round before the first Blue enters the sector ({early})")
+    c.ok(len(red_shots) >= 2, f"③ …then Red fires: {len(red_shots)} shooters")
+    reps = squad_reports(sq)
+    print(f"    reports: {[ (r.get('kindName') or r.get('kind'), r.get('subtypeName') or r.get('subtype')) for r in reps][:20]}")
+    c.ok(any("Set" in json.dumps(r) for r in reps), "PROGRESS Set (every man at his post)")
+    c.ok(any("Displacing" in json.dumps(r) for r in reps), "④ a man under fire moves to his alternate (PROGRESS Displacing)")
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3958,7 +4022,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
