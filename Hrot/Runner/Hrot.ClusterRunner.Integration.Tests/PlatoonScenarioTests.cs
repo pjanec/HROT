@@ -106,7 +106,7 @@ public sealed class PlatoonScenarioTests : IDisposable
     /// <summary>⭐ <c>CE-2275</c> — the same run, and every man reaches his post: PROGRESS Set (D-2d, D-2e built). ⛔ Skipped on
     /// <c>CE-2304</c>: measured live, four of seven men stall 4–6 m from their posts inside OBJ with their moves <c>InProgress</c> for
     /// good (backend, docs/blueprints/batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md). Unskip when it lands.</summary>
-    [Fact(Timeout = 420_000, Skip = "CE-2304: men stall inside OBJ, their moves never end (backend)")]
+    [Fact(Timeout = 420_000, Skip = "CE-2304: Set not reached live yet — the failure names the farthest man from his post")]
     public Task CE2275_SqDefendHouse_EveryManReachesHisPost_ProgressSet() => RunSqDefendHouse(requireSet: true);
 
     private async Task RunSqDefendHouse(bool requireSet)
@@ -152,10 +152,26 @@ public sealed class PlatoonScenarioTests : IDisposable
         var ammo0 = reds.ToDictionary(n => n, n => Ammo(cgf, n));   // the brain spends the rounds (FireDistributionScenarioTests reads them there)
         bool set = false, blueIn = false, earlyRound = false;
         var shooters = new HashSet<string>();
+        // ⭐ CE-2304 — the frame the squad came closest to Set (its farthest live man nearest his post), and each man's distance then
+        float bestWorst = float.MaxValue; double bestAt = 0; string bestMen = "";
+        void OffPost()
+        {
+            var tr = Fdp.Toolkit.Squad.SquadDrillTrace.Of(cgf, squad);
+            float worst = 0f; var men = new List<string>();
+            foreach (var o in tr.Orders)
+            {
+                if (o.Kind != 5 || !cgf.IsAlive(o.Member) || !cgf.HasComponent<SimTransform>(o.Member)) continue;
+                float d = Vector3.Distance(cgf.GetComponent<SimTransform>(o.Member).Position, o.Point);
+                worst = MathF.Max(worst, d);
+                men.Add($"{cgf.GetComponent<EntityInfo>(o.Member).Name.ToString().Replace("Red ", "")} {d:F1}");
+            }
+            if (men.Count > 0 && worst < bestWorst) { bestWorst = worst; bestAt = harness.Cgf!.World!.GetSingleton<GlobalTime>().TotalTime; bestMen = string.Join(", ", men); }
+        }
         for (int frame = 0; frame < 9000 && !((set || !requireSet) && blueIn && shooters.Count >= 2); frame++)
         {
             harness.PumpFrames(1);
             set |= Progress(ProgressKind.Set);
+            OffPost();
             bool inNow = blues.Any(n => InSector(sim.GetComponent<SimTransform>(ByName(sim, n)).Position));
             foreach (var n in reds)
                 if (Ammo(cgf, n) < ammo0[n])
@@ -166,13 +182,14 @@ public sealed class PlatoonScenarioTests : IDisposable
             blueIn |= inNow;
         }
         _out.WriteLine($"set={set} blueIn={blueIn} early={earlyRound} shooters={string.Join(",", shooters)}");
+        _out.WriteLine($"closest to Set at {bestAt:F1} s — farthest man {bestWorst:F1} m from his post (PostRadius 4): {bestMen}");
         // ⭐ D-2h (DA-48) — the squad has a machine gunner (Red Rifleman 1), so the post plan asked ONE visibility fan; the real
         //   solver's answer must reach the brain (WorldSurveyApplySystem announces it as SurveyReady on the commander)
         double surveyAt = cgf.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad)
             ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(squad).SurveyReady : 0;
         _out.WriteLine($"fan answered at {surveyAt:F2} s");
 
-        if (requireSet) Assert.True(set, "PROGRESS Set — every man on his post (D-2d, D-2e)");
+        if (requireSet) Assert.True(set, $"PROGRESS Set — every man on his post (D-2d, D-2e); closest at {bestAt:F1} s: {bestMen}");
         Assert.True(blueIn, "the Blue fire team walks into the sector");
         Assert.False(earlyRound, "③ no Red round before the first Blue enters the sector (DA-35)");
         Assert.True(shooters.Count >= 2, $"③ …then Red fires: {shooters.Count} shooters");
