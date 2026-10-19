@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -244,6 +244,18 @@ classDiagram
 ```
 
 ⭐ `CE-2242` (`2026-10-17`): a node's commit is not a cluster barrier — a faster node commits and replicates in while a slower one still prepares (the navmesh bake). `BeforePrepare` is the frame-thread hook for what must be in place before that happens; the terrain step sets the geo origin there on an empty world ([Geo Origin §4 ⑨](DESIGN_Geo_Origin.md)).
+⭐⭐ `CE-2244` (`2026-10-19`, backend): ⛔ the same window let SIGHT see through every wall — SimHost (which bakes the navmesh, so it commits
+last) held CGF's units for ~10 frames with no terrain world, and the sight test with no terrain judges open ground: a man behind a tower
+was acquired and REMEMBERED (measured in-process, ua-threat-ranking: first sighting on frame 16 with the terrain absent; alone the terrain
+was in by frame 7, before anyone was in range). 🛠 The terrain step marks the world PENDING in `BeforePrepare` when a terrain that is not
+resident is coming (`TerrainWorldSource.MarkPending`, held beside the world — no component, never saved or replicated) and clears it at its
+commit or abort; the production sight (`TerrainWorldLosStrategy.ForLiveWorld`) judges nothing visible while it is set. A scenario naming
+no terrain never sets it (open ground, as before). Rails: `TerrainLoadStepTests.CE2244_…`, `LosStrategyTests.CE2244_…`.
+| rejected — one line | |
+|---|---|
+| hold every replicated entity until this node commits (a load barrier) | the bigger change CE-2242 already declined: a node's commit is deliberately not a barrier |
+| treat "no terrain world" as "blocked" | a scenario that names no terrain is legal (§10) and must keep seeing |
+
 
 *What the picture shows that the prose hid: terrain residency is a **service with several callers**, not a
 cluster step. The step is one caller; the future operator-driven preload is another; a standby unload is a

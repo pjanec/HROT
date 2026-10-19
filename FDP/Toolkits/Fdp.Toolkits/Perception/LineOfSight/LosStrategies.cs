@@ -129,8 +129,11 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             // ⭐ R-219 — bound to the BATCH's view (its doors; a background perception batch runs on its snapshot)
             public Fdp.Toolkit.World.IWorldQuery? World;
             public readonly List<Fdp.Toolkit.World.TraceCrossing> ExplainScratch = new();
+            /// <summary>⭐ CE-2244 — a terrain is still loading on this node: nothing is judged visible (its walls are not in yet).</summary>
+            public bool Blind;
         }
         private readonly System.Threading.ThreadLocal<Batch> _batch = new(() => new Batch());
+        private readonly Func<bool>? _terrainPending;
 
         /// <param name="worldSource">The terrain world now resident; null result = no terrain (colliders only).</param>
         /// <param name="colliderRadiusReader">Collider radius (as the planar strategy).</param>
@@ -144,9 +147,11 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
             Func<ISimulationView, Entity, float>? colliderHeightReader = null,
             Func<ISimulationView, Entity, StanceId>? stanceReader = null,
-            Func<ISimulationView, Entity, float>? hullHeightReader = null)
+            Func<ISimulationView, Entity, float>? hullHeightReader = null,
+            Func<bool>? terrainPending = null)
         {
             _worldSource = worldSource ?? throw new ArgumentNullException(nameof(worldSource));
+            _terrainPending = terrainPending;
             _radius = colliderRadiusReader;
             _height = colliderHeightReader;
             _hull = hullHeightReader ?? colliderHeightReader;
@@ -177,12 +182,14 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 PhysicsColliderReaders.Radius,
                 PhysicsColliderReaders.Height,
                 stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of,    // ⭐ Stage 4 — the logical stance (§3f)
-                PhysicsColliderReaders.HullHeight);                                             // ⭐ CE-3116 — a person by posture
+                PhysicsColliderReaders.HullHeight,                                              // ⭐ CE-3116 — a person by posture
+                TerrainWorldSource.Pending(world));                                             // ⭐ CE-2244 — no sight while the terrain loads
 
         public void BeginBatch(ISimulationView view)
         {
             var batch = _batch.Value!;
             batch.World = _worldSource(view);
+            batch.Blind = _terrainPending?.Invoke() == true;   // ⭐ CE-2244 — read once per batch, like the world
             batch.Occlusion.Build(view, _radius, _height);
         }
 
@@ -267,6 +274,11 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 float? transmittance = null;
                 IReadOnlyList<Fdp.Toolkit.World.TraceCrossing>? crossed = null;
                 bool terrainBlocks = false;
+                if (batch.Blind)   // ⭐ CE-2244
+                {
+                    points.Add(new(aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z, aim, false, null, null, null, "not judged: the terrain is still loading on this node"));
+                    continue;
+                }
                 if (world != null)
                 {
                     world.Trace(eye, aim, Fdp.Toolkit.World.TracePurpose.Sight, scratch);
@@ -322,6 +334,11 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var batch = _batch.Value!;
             var world = batch.World;
             var occlusion = batch.Occlusion;
+            if (batch.Blind)   // ⭐⭐ CE-2244 — the terrain is still loading here: its walls are not in, so nothing is judged seen
+            {
+                foreach (float _ in BodyProfile.Fractions(stance, collider > 0f)) total++;
+                return 0;
+            }
             // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen); ⭐ CE-3260 — and HOW MANY
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {

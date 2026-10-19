@@ -56,6 +56,30 @@ namespace Fdp.Toolkit.Perception.Tests
             return (world, obs, tgt);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2244</c> — while a terrain is still loading on this node (<c>TerrainWorldSource.MarkPending</c>, set by the terrain load
+        /// step), the production sight (<see cref="TerrainWorldLosStrategy.ForLiveWorld"/>) judges NOTHING visible — its walls are not in, and
+        /// with no terrain every wall was transparent (measured: a man behind a tower acquired on frame 16 of ua-threat-ranking). Sight returns
+        /// the moment the mark clears. ✅ Red-proof: the blind read dropped from <c>BeginBatch</c> ⇒ seen while pending ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2244_WhileTheTerrainLoads_NothingIsSeen_ThenSightReturns()
+        {
+            var (world, obs, tgt) = ObserverAndTarget100mEast();
+            var sight = TerrainWorldLosStrategy.ForLiveWorld(world);
+            Assert.True(Sees(world, sight, obs, tgt));                     // no terrain named: open ground, as before
+
+            Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(world, true);
+            Assert.False(Sees(world, sight, obs, tgt));
+            Assert.Equal(0, ((ILosStrategy)sight).VisiblePoints(world, obs, tgt, out int total));
+            Assert.True(total > 0);
+            Assert.False(sight.Explain(world, obs, tgt).Visible);
+
+            Fdp.Toolkit.Terrain.TerrainWorldSource.MarkPending(world, false);
+            Assert.True(Sees(world, sight, obs, tgt));
+            world.Dispose();
+        }
+
         [Fact]
         public void PlanarSweep_SeesTheTarget_WhenTheLineIsClear()
         {
