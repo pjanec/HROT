@@ -118,6 +118,16 @@ namespace Hrot.AI.Behaviors.Brains
         public float ArrivalRadius;
         /// <summary>Seconds between shots while advancing.</summary>
         public float CooldownSeconds;
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — 1 = arriving does not end the advance: he stays there, firing at his threat.</summary>
+        public byte Stay;
+    }
+
+    /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — <see cref="PostureNodes.Stay"/>'s one value.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StayParams
+    {
+        /// <summary>1 = a finished branch does not end the posture.</summary>
+        public byte Stay;
     }
 
     /// <summary>⭐ <c>CE-2073</c> — the advance in progress.</summary>
@@ -265,7 +275,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Moving == 1)
             {
                 var status = LocomotionMoveTo.Status(world, self);
-                if (status == NodeStatus.Success && hunting) return NodeStatus.Running;   // there: the fight goes on
+                if (status == NodeStatus.Success && (hunting || p.Stay != 0)) return NodeStatus.Running;   // there: the fight goes on
                 if (status == NodeStatus.Success) { StopFiring(world, self, ref ws.Fire); return NodeStatus.Success; }
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 ws.Moving = 0;   // failed or taken over: issue it again
@@ -275,6 +285,12 @@ namespace Hrot.AI.Behaviors.Brains
             ws.IssuedTo = objective;
             return NodeStatus.Running;
         }
+
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — sits after a branch that can FINISH (the winner, the attack's target): Running when
+        /// he stays, so its Success does not end the posture; else Success, which ends it as before. A failed branch never reaches it.</summary>
+        [SharedAiAction]
+        public static NodeStatus Stay(ref StayParams p, Entity self, EntityRepository world)
+            => p.Stay != 0 ? NodeStatus.Running : NodeStatus.Success;
 
         /// <summary>Stays where it is: stops a move the posture issued. Running.</summary>
         [SharedAiAction]

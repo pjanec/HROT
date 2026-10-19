@@ -475,6 +475,7 @@ namespace Hrot.AI.Behaviors.Brains
             Publish(world, commander, member, BehaviorNames.CombatPosture, JsonSerializer.Serialize(new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = at, Speed = speed, ArrivalRadius = 1f },
+                Stay = true,   // ⭐ CE-2297 slice 2a (R-2055) — he holds there until the squad's next order, eyes and fight with him
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

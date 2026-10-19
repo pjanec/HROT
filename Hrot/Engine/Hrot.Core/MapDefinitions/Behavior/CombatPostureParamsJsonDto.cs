@@ -36,6 +36,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// eyes; scanned ±30°. Zero = none. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
         [JsonPropertyName("watchTowards")]
         public Vector3 WatchTowards;
+        /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — he STAYS: nothing ends the posture by finishing (arriving, his target or his
+        /// threat going down) — his eyes and his fight go on until a new order replaces it. A squad's Hold / Watch man is sent it.
+        /// Default false: the posture ends when its winner does. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
+        [JsonPropertyName("stay")]
+        public bool Stay;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>
