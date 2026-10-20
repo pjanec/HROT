@@ -38,6 +38,7 @@ related-designs:
   - DESIGN_Building_Interiors.md §3j — OWNS the door ENTITY, its state and its leaf geometry; §6k here only draws it (a hinged slab)
   - designs/gizmos-1/DESIGN.md §11.11 — CE-1071: the frame buffer refuses hidden layers at emit and never drops its meta primitives
   - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
+  - DESIGN_Terrain_Combat_Tuning.md §5e — CE-1203 (R-1011, approved, not built): a layer set PER VIEW (2-D / 3-D), remembered per user, and FL-7 — a 2-D symbol of what 3-D draws itself (the round markers) is FlatOnly, extending R-4058
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
     (S3b) and places a muzzle flash on the posed barrel (§3.11).

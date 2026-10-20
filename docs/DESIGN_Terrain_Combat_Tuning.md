@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-20 (rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5e finer layers, one checkbox per kind (CE-1203, DESIGN — leans await the user) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5e finer layers, one checkbox per kind, a set per view, remembered (CE-1203, FL-1…FL-9 APPROVED R-1011, not built) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -28,7 +28,7 @@ related-designs:
   - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
   - GUIDE_Debug_Gizmos.md — the USER guide to §5's layers, families and pins (how to turn each on, how to read its colours); this design owns the why
-  - DESIGN_Map_3D_Mode.md — the 3-D map whose clutter §5d answers (labels on top, rings as spheres); its §3.8 / S3 owns how gizmos draw in 3-D
+  - DESIGN_Map_3D_Mode.md — the 3-D map whose clutter §5d answers (labels on top, rings as spheres); its §3.8 / S3 owns how gizmos draw in 3-D; §7 / R-4058 own PipelineTarget.FlatOnly, which §5e FL-7 extends
   - designs/gizmos-1/DESIGN.md §11.8 — the struct inspector's state machine; §5d D adds "an edit commits at once"
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the per-unit action status (why a unit is not firing) drawn by the Channels gizmo family (proposed; departs from §5a's armed-only precedent, argued there)
 -->
@@ -918,12 +918,15 @@ classDiagram
 - `EntityPlacementGizmoTests.CE1065_TheGhost_IsHalfTheOldSize` and `EntityPickerGizmoTests.CE1065_TheCrosshair_IsHalfTheOldSize`.
 - F: `GizmoPresentationTests.CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops` and `CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable`; `LayerControlGizmoTests.CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt`; `GizmoInteractionTranslatorTests.CE1066_APanelsClose_RoundTripsAsInspectorClosed`.
 
-## 5e. Finer layers — one checkbox per kind of gizmo *(`CE-1203`, ui, `2026-10-20`; build-state: DESIGN — leans below await the user; the Sectors row is `CE-1225`, BUILT, [Command Display §8](DESIGN_Command_Display.md))*
+## 5e. Finer layers — one checkbox per kind of gizmo, a set per view, remembered *(`CE-1203`, ui, `2026-10-20`; build-state: READY-TO-BUILD — FL-1…FL-9 APPROVED `2026-10-20` (R-1011), ⛔ not started on the user's word; the Sectors row is `CE-1225`, BUILT, [Command Display §8](DESIGN_Command_Display.md))*
 
 🔒 **User, `2026-10-19`:** *"lots of gizmos is hidden under 'Entities' layer, i need finer granularity — separate checkboxes. now when i
 click the entity i see many different gizmos and because there is no checkbox i do not even know what they mean … Maybe more
 layers-categories."* · `2026-10-20`: *"many other gizmos now gated by one single Entites checkbox should get their own checkbox, pls check
-the recorded item on that topic and suggest."*
+the recorded item on that topic and suggest."* · on FL-1…FL-6: *"Approved."* · then: *"Do we have separate set of checkboxes for 2d and
+3d so that for example the fire tracer 2d lines are not shown in 3d where a standalone full 3d effect exist and the 2d line on the ground
+under the round is doubling it"* · *"Switching sets depending on current view is ok ui wise, but where these will be stored (is it a stateful
+layer gizmo?) And will both sets be remembeed to user setting?"* · on FL-7…FL-9: *"Approved. Record it, do nkt start building it."*
 
 ### INVENTORY *(graph CLI `query_graph` IMPLEMENTS → `IStatelessGizmo` 38, `IGlobalStatelessGizmo` 15 (`has_more:false`, tests included);
 then per projector file: `Family =` and every `layer:` / `IsLayerActive` / `Card(…, layer)`; `check_index_coverage` is not reachable
@@ -1012,6 +1015,68 @@ sequenceDiagram
 | **FL-4** | groups | ⭐ five nested groups in the panel (Units · Command · AI · Fire · Map), each a collapsible node | one flat list of ~25 rows |
 | **FL-5** | the meaning | ⭐ a `[Description]` on each row, shown on hover (StructEdit `EditNode.Description` + `ImGui.SetItemTooltip`) | a help window — one more panel to find |
 | **FL-6** | the selection ring | stays above every toggle (bit 255, `CE-1225` S-4) | — |
+| **FL-7** | a 2-D symbol of what the 3-D map draws itself | ⭐ **never drawn in 3-D, whatever the checkbox** — the `PipelineTarget.FlatOnly` flag R-4058 made for the SUMO roads, extended: the ROUND markers (`ProjectilePresentationGizmo`, `LightweightRoundGizmo` draw at z = 0 ⇒ draped on the ground UNDER the 3-D round / tracer `ProjectileLayer` and the bursts `FireStreams` draw) and, once a 3-D frame confirms it, Terrain (2-D) (footprints under the real buildings). ⚠ a plain single rifle bullet has no 3-D drawing ⇒ in 3-D nothing shows it in flight (muzzle flash and impact puff still do). Fire traces stay in both (real heights, outcome colours — not a symbol) | two columns 2-D │ 3-D on every row — ~25 rows × 2 ticks |
+| **FL-8** | a set per view | ⭐ `LayerControlGizmo` holds TWO sets (2-D, 3-D); each frame it asks the host's view switch (`Is3D`, wired from `AttachMapLayers` on every map host, with a forwarding rail) and emits THAT set's mask and THAT set's panel, headed "2-D map layers" / "3-D map layers"; the panel itself is unchanged (the generic struct inspector draws whatever set it is handed). The 3-D set starts as a copy of the 2-D defaults | count `ToggleMap3DEvent`s — possession, the M map peek and the death screen switch the view without it · one set for both (today) |
+| **FL-9** | remembered | ⭐ both sets, the per-family "selected only" ticks and the navmesh choice live as settings in the existing `GizmoSettingsRegistry` (scope Global), saved on EVERY change with the registry's own `SaveToDisk` to one per-user file beside `audio.json` (`LayoutPaths.UserDirectory("HROT")`) and loaded at start with `LoadFromDisk` — the save path gizmos-1 built (GZ008, Global = *"a global user preferences file … default visibility toggles"*) and nothing ever called. One file per machine, shared by the editor, SimHost, CGF and IG | a layers.json of its own — a second save format for one concept · save on exit only — a crash loses the setup |
+
+**How it is today** *(measured `2026-10-20`, codebase-memory graph + grep)*:
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the gizmo owns the state; the panel is a generic inspector with none of its own | `LayerControlGizmo._dto` / `_activeLayers`; `OnStructUpdate` applies a click (`StructInspectorProjector<LayerControlDto>`) | §5d |
+| ONE mask for both views | the `LayerControlMask` primitive, read by `DebugPrimitiveRenderer2D` and `DebugPrimitiveTriage3D` alike | §5d diagram |
+| the gizmo and the view switch are built in the same process on every map host | `MapInteractionPack.Build` (the gizmo) · `MapInteractionPack.AttachMapLayers` (`MapViewSwitch`) | — |
+| ⛔ nothing is saved — every start is the defaults | `trace_path` inbound of `GizmoSettingsPersistence.SaveOverrides` / `LoadOverrides` → tests only; grep: `GizmoSettingsRegistry.SaveToDisk` / `LoadFromDisk` have no production caller | `.dev/_DONE/gizmos-1/TASK-DETAIL.md` (settings scopes): Global *"persists to a global user preferences file"* — designed, never wired |
+| the one map preference that is saved | `AudioSettings` → `audio.json` in the per-user HROT folder, saved on change (`AudioPreferences`) | CE-1137 |
+
+```mermaid
+classDiagram
+  class LayerControlGizmo {
+    <<exists, changed by FL-8/FL-9>>
+    sets : 2-D set, 3-D set
+    Is3D : Func of bool, new, from the view switch
+    UpdateAndDraw() emits the current view's mask and panel
+    OnStructUpdate() edits the current set, saves
+  }
+  class LayerControlDto { <<exists>> one set: groups and rows (FL-1, FL-4) }
+  class GizmoSettingsRegistry {
+    <<exists, FDP>>
+    map.layers.2d.Row / map.layers.3d.Row : new keys
+    map.scope.Family : exists
+    SaveToDisk(path, Global) : exists, first production caller
+    LoadFromDisk(path, Global) : exists, first production caller
+  }
+  class MapViewSwitch { <<exists>> Is3D }
+  class MapInteractionPack {
+    <<exists, changed>>
+    Build() the gizmo, loads the file
+    AttachMapLayers() hands Is3D to the gizmo
+  }
+  class PipelineTarget { <<exists>> FlatOnly : 2-D only (R-4058), now also the round markers (FL-7) }
+  LayerControlGizmo "1" --> "2" LayerControlDto
+  LayerControlGizmo --> GizmoSettingsRegistry : reads and writes both sets
+  LayerControlGizmo ..> MapViewSwitch : Is3D
+  MapInteractionPack ..> LayerControlGizmo : builds, wires
+```
+
+```mermaid
+sequenceDiagram
+  participant H as map host start
+  participant R as GizmoSettingsRegistry
+  participant G as LayerControlGizmo
+  participant V as MapViewSwitch
+  participant T as terminal panel
+  H->>R: LoadFromDisk(user file, Global)
+  H->>G: built with the registry, reads both sets
+  H->>G: Is3D = view switch (AttachMapLayers)
+  loop each frame
+    G->>V: Is3D?
+    G->>T: that set's mask + (panel open) that set, headed 2-D or 3-D
+  end
+  T->>G: click (JSON)
+  G->>R: write the row into the current view's set
+  G->>R: SaveToDisk(user file, Global)
+```
 
 ⚠ **Cross-lane:** FL-5 touches StructEdit (FDP); `HillAttackGizmo` is behaviors' (its four draw calls).
 ⚠ **Unmeasured:** whether `TerrainWorldGizmo` also draws over the 3-D terrain (a duplicate there would argue for "Terrain (2-D)" defaulting
