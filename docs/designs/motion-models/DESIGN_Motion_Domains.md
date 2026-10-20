@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5e CE-3286 measured: a hull half inside a building, no way out — decision pending) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
-build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5e (CE-3286 measured, decision pending) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+updated: 2026-10-20 (§5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+build-state: BUILDING (§5f) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
+current-answer: ⭐ §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -287,7 +287,7 @@ speed but whether the move is allowed to END. A radius of 0 already says "there 
 40 m off reaches it within 4 s — the 72 m line from rest — and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off) · ⭐ `CE2213_AStrike_FliesTheLineToItsPoint_NotLevelThenDown` (at 30 m/s and 60 m, a ground point 30 m ahead: over it at 38.5 m — down the line — where CE-2211's rule is still at 52.9 m) — red-proofed (CE-2211's full horizontal). ⚠ Against a FIXED point neither rule overshoots (the one-frame cap stops the horizontal); the overshoot needs a MOVING point, which `AirAttackNodesTests`' evading and fleeing rails (on this model) red-prove. The
 behaviour half: [Air Ops §9i](../air-attack/DESIGN_Air_Operations.md) D-3.
 
-## 5e. MEASURED, not yet decided — a hull half inside a building, with no way out — `CE-2198`'s guard is the centre only (`CE-3286`, `2026-10-20`, backend)
+## 5e. MEASURED — a hull half inside a building, with no way out — `CE-2198`'s guard is the centre only (`CE-3286`, `2026-10-20`, backend)
 
 📐 Measured live `2026-10-20` (`ua-tank-corner`, `ua-technical-scoot`, a 0.5 s trace of each vehicle's pose and move orders; test-town's
 footprints from `test-town.world.geojson`):
@@ -329,5 +329,124 @@ cycle's withdrawal asks for.
 | the firing-point query has no clearance check at all (a donut of points, path cost reachable within the navmesh's 2 m snap) | `VehicleTemplates.FindVehicleFiringPoint`, `DotRecastNavmeshProvider.cs:44` |
 | the watchdog's replan starts from the held spot, forward again | `NavigationExecutionSystem` frustration guard |
 
-⏳ **The decision is the user's** (🔒 their order: ① never drive into the building, preferred; ② reverse a little and re-plan) — the
-options and the lean are in [`CE-3286`](../../blueprints/Blueprint_Issues_Tracker.md).
+✅ **Decided `2026-10-20` — A + B, the recovery made smart (R-3025): designed and built in §5f.**
+
+## 5f. A hull never enters a building, and one held at a wall BACKS OUT until its way on is clear — `CE-3286` (`2026-10-20`, backend; R-3025)
+
+🔒 User, `2026-10-20`: *"just stopping the vehicle is good but not enough, vehicle it needs to recover, so a+b, and the replan must be smart to avoid ending up in similar situation one meter away"*
+
+### INVENTORY — the queries run
+
+| query | total | the set |
+|---|---|---|
+| `search_graph` `.*(Unstick\|Recover\|KTurn\|ThreePoint\|BackUp\|Reverse\|Stuck\|Frustration\|HullClear\|Footprint\|Rollout\|Feasib).*` over `CarKinem`, `Navigation`, `Spatial`, `AI.Behaviors.Brains` | 34 | no motion-side recovery or hull clearance exists. Reused: `FrustrationTicks` (the watchdog's never-sent muscle state), `NavigationExecutionSystem`'s `IsBlocked` skip, `NavState.ReverseAllowed` / V5 reverse, `PathLookahead` + `CapLookaheadByChord`, `TrajectoryPoolManager.SampleTrajectory`. ⛔ Not reused: `VehicleFootprint` (EQS — a box at a candidate POINT, not a moving hull), `PeekAndFireNodes.Recover` (a behaviour's retry, not motion) |
+
+```mermaid
+classDiagram
+  class CarKinematicsSystem {
+    <<existing, grows>>
+    UpdateVehicle()  «a recovering hull drives the recovery, not the path»
+    FinishMove()  «the guard: HullClearance.StepBlocked, refused ⇒ pose AND heading kept»
+  }
+  class HullClearance {
+    <<new static, CarKinem/Controllers>>
+    +StepBlocked(world, from, fromFwd, to, toFwd, z, length, width, moving) bool
+    +WayOnClear(world, pool, nav, params, pos, fwd, z) bool  «the rollout»
+    EnterEpsilon = 1e-3
+    RolloutStepM = 0.5
+  }
+  class HullRecovery {
+    <<new static, CarKinem/Controllers>>
+    +Tick(ref FrustrationTicks, ref NavState, …) RecoveryCommand
+    HoldSeconds = 0.5
+    SpeedMps = 2
+    MaxHullLengths = 2
+    MaxRecoveries = 3
+  }
+  class FrustrationTicks {
+    <<existing, grows — appended, never sent>>
+    WallHeldSeconds : float
+    RecoverMetres : float
+    CheckedTrajectoryId : int
+    RecoverDir : sbyte  «0 · −1 back · +1 forward»
+    RecoverSteer : sbyte
+    Recoveries : byte
+  }
+  class NavigationExecutionSystem {
+    <<existing, grows>>
+    the watchdog skips a recovering hull «as IsBlocked»
+  }
+  class IWorldQuery { <<existing>> Trace(Fire) }
+  class TrajectoryPoolManager { <<existing>> SampleTrajectory }
+  CarKinematicsSystem ..> HullClearance
+  CarKinematicsSystem ..> HullRecovery
+  HullRecovery ..> HullClearance : the exit test
+  HullRecovery --> FrustrationTicks : its state
+  NavigationExecutionSystem ..> FrustrationTicks : RecoverDir
+  HullClearance ..> IWorldQuery
+  HullClearance ..> TrajectoryPoolManager
+```
+
+*Caption:* two small static helpers and six appended fields on the watchdog's own component — no new component, id or wire field. The
+recovery is the watchdog's remedy for a held hull, so it lives beside the watchdog's counts.
+
+```mermaid
+sequenceDiagram
+    participant W as NavigationExecutionSystem (watchdog)
+    participant K as CarKinematicsSystem
+    participant R as HullRecovery
+    participant C as HullClearance
+    K->>C: StepBlocked(this step) — the two LEADING corners and the centre, at 0.5 m
+    C-->>K: a corner ENTERS a closed barrier ⇒ refused: pose and heading kept, speed 0
+    K->>R: held this tick (WallHeldSeconds += dt)
+    alt held ≥ 0.5 s, or a standing start whose way on is not clear
+      R->>R: RecoverDir = against the held motion · RecoverSteer = the nose toward the path's aim point
+      loop each tick while recovering
+        K->>K: drive RecoverDir at 2 m/s on full lock (guarded the same way)
+        K->>C: WayOnClear(pose) — roll the follower out along the path: pure pursuit, 0.5 m steps, the hull traced at each
+        C-->>K: clear for a quarter turn + one hull length, or to the path's end ⇒ recovery ends, the path is driven on
+      end
+      R->>R: blocked behind, or 2 hull lengths backed ⇒ the next try steers the other way (≤ 3 tries a move)
+    end
+    W->>W: no counting while RecoverDir ≠ 0 · after 3 tries the held hull is the watchdog's again: replan, then FailedBlocked
+    K->>K: held FORWARD with the path's end within half a hull + its radius ahead ⇒ ARRIVED (the nose is at the wall)
+```
+
+*Caption:* what the picture shows that the prose would hide — "smart" is the EXIT TEST, not the replan: the hull stops backing only when
+a rollout of the very follower that will drive it (pure pursuit on the same path, the same hull, the same guard) clears the wall, so it
+cannot end "in a similar situation one metre away". The path is kept; it was never wrong — the hull's heading was.
+
+```mermaid
+graph TD
+  GKM["GroundKinematicsModule (SimHost, the MuscleGround owner)"]
+  GKM -->|SimulationSystems, every frame| NES["NavigationExecutionSystem — the watchdog"]
+  GKM -->|PostSimulationSystems, every frame, after it| CKS["CarKinematicsSystem — guard + recovery"]
+  CKS --> HC["HullClearance (static)"]
+  CKS --> HR["HullRecovery (static)"]
+  NES -. reads RecoverDir .-> FT["FrustrationTicks (owned, never sent)"]
+  HR --> FT
+  CGF["CGF brain (VehicleFightFromCover, any MoveTo)"] -. NavigationIntent only — unchanged .-> NES
+```
+
+*Caption:* who runs it each frame — only the owner of the hull's position (MuscleGround, R-3005) runs both systems; a brain sends the same
+`NavigationIntent` as before and never sees the recovery except as a move that arrives.
+
+| rule | why |
+|---|---|
+| ⭐ the guard traces the LEADING corners (front when driving forward, rear when backing) and the centre; a crossing BLOCKS only when it ENTERS (`T > EnterEpsilon`) — a corner already inside may move out | A: the nose stops at the wall. A hull spawned or left half inside can still leave |
+| a refused step keeps the HEADING too | ⛔ the heading creep (~1°/s) swept corners in |
+| recovery starts after **0.5 s** held, or AT ONCE on a standing start (a new path) whose way on is not clear | the second is the "smart" half: a hull parked nose to a wall backs out before it touches it |
+| recovery drives against the held motion at **2 m/s** (capped by `MaxSpeedRev` when it has one) on FULL LOCK, the nose swinging toward the path's aim point | the reverse leg of a three-point turn |
+| it ends when `WayOnClear` holds — a rollout of the path follower (pure pursuit at the path lookahead, 0.5 m steps, horizon a quarter turn at full lock + one hull length, or the path's end) whose every step passes the guard | ⛔ a fixed back-up distance: one metre is the "similar situation one metre away" |
+| blocked behind, or **2 hull lengths** backed, ends a try; the next try steers the other way; **3 tries** a move | bounded — a box with no way out fails the move as before (`FailedBlocked`), and the behaviour chooses again |
+| the watchdog does not count while `RecoverDir ≠ 0` | a recovery is not being stuck |
+| held FORWARD with the path's end ahead within `Length / 2 + ArrivalRadius` ⇒ arrived | a point beside a wall is reached when the nose meets the wall (the hide at 2.25 m off a wall is 1.25 m short of a 7 m hull's centre) |
+| persons are untouched | a walker has CE-2304's rule |
+| ⚠ the system's shared `_crossings` list was used from `ForEachParallel` | made per-thread with the new traces (a latent race since CE-2198) |
+
+| rejected | the one fact |
+|---|---|
+| replan from the held pose (the watchdog's remedy) | the path from the same pose starts forward again — measured live (§5e) |
+| a fixed back-up distance | the room a hull needs is its turn — a tank needs ~6.3 m of radius, a pickup less |
+| a hull-sized navmesh | the navmesh is a disc (1.8 m); a 7 m box's corners are the problem |
+| reverse on every behaviour move | a motion fault fixed in every behaviour |
