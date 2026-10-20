@@ -139,6 +139,18 @@ public sealed class ClearingScenarioTests : IDisposable
         }));
     }
 
+    /// <summary>How SimHost moves him: mode, destination, arrival radius, arrived / held, speed, and the navigation result.</summary>
+    private static string Nav(EntityRepository sim, string name)
+    {
+        var e = ByName(sim, name);
+        if (e.IsNull || !sim.HasComponent<CarKinem.Core.NavState>(e)) return "";
+        var n = sim.GetComponent<CarKinem.Core.NavState>(e);
+        float v = sim.HasComponent<SimVelocity>(e) ? sim.GetComponent<SimVelocity>(e).Linear.Length() : -1f;
+        string r = sim.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(e) ? sim.GetComponent<Fdp.Toolkit.Navigation.NavigationStatus>(e).Result.ToString() : "-";
+        return $"{name.Replace("Blue ", "")}:{n.Mode}/t{n.TrajectoryId}/s{n.ProgressS:F1}→({n.FinalDestination.X:F1},{n.FinalDestination.Y:F1})r{n.ArrivalRadius:F1}"
+             + $"{(n.HasArrived != 0 ? "/ARR" : "")}{(n.IsBlocked != 0 ? "/HELD" : "")}/v{v:F2}/{r}";
+    }
+
     /// <summary>The man's locomotion channel: its action and status (m0 = none).</summary>
     private static string Moving(EntityRepository w, Entity e)
     {
@@ -161,7 +173,7 @@ public sealed class ClearingScenarioTests : IDisposable
     /// (<c>bt-range</c>, SW corner (40,100)) is ordered <c>ClearRoom</c> A; two insurgents (<c>CombatPosture</c>, staying) hold its south
     /// corners. ③ both insurgents down · ④ a <c>RoomClear</c> report for A (its point inside A), after them · no friend lost.
     /// </summary>
-    [Fact(Timeout = 600_000, Skip = "CE-2257: bc-room-clear not passing yet — work in progress (CE-2334 drill fix under test)")]
+    [Fact(Timeout = 600_000, Skip = "CE-2257: bc-room-clear clears room A (RoomClear, both insurgents down) but loses 1–2 entry men against ③ \"no friend hit\" — AQ99 B awaits the user (CE-2336)")]
     public async Task CE2257_BcRoomClear_TheSquadClearsRoomA_BothInsurgentsDown_RoomClearReported()
     {
         using var harness = await Live("bc-room-clear");
@@ -177,6 +189,7 @@ public sealed class ClearingScenarioTests : IDisposable
         string Runs(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<BehaviorState>(e)
             && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var n) ? n + Moving(cgf, e) : "-";
         string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e) + ":" + Runs(e)))}] blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] "
+                        + $"nav [{string.Join(" ", new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4" }.Select(n => Nav(harness.SimHost.World!, n)))}] "
                         + $"squad {Runs(squad)} cgf {Doors(cgf, "north", "a")} sim {Doors(harness.SimHost.World!, "north", "a")} drill {Drill(cgf, squad)} progress [{string.Join(" ", reports.Progress().Select(p => $"{p.Kind}@({p.At.X:F1},{p.At.Y:F1})"))}]";
 
         bool RoomAClear() => reports.Progress().Any(p => p.Kind == ProgressKind.RoomClear && p.At.X is > 40f and < 47f && p.At.Y is > 106f and < 110f);
@@ -213,7 +226,7 @@ public sealed class ClearingScenarioTests : IDisposable
     /// each of hallway, A, B, C, D, E — each ONCE, E after D · ③ both insurgents down, both civilians unhurt · ④ <c>BuildingClear</c> last.
     /// ⏭ "held" (§8.1 ③) is BC-2's; "the teams swap" (②) is read from the drill trace by the live check, not here.
     /// </summary>
-    [Fact(Timeout = 900_000, Skip = "CE-2259: bc-house-clear not passing yet — work in progress (stalls entering room A; CE-2334 under test)")]
+    [Fact(Timeout = 900_000, Skip = "CE-2259: bc-house-clear clears the hallway and room A, then stalls; a civilian dies (unattributed yet) — work in progress, AQ99 A (CE-2336)")]
     public async Task CE2259_BcHouseClear_TheSquadClearsEveryRoomOnce_InsurgentsDown_CiviliansUnhurt_BuildingClearLast()
     {
         using var harness = await Live("bc-house-clear");
@@ -232,13 +245,29 @@ public sealed class ClearingScenarioTests : IDisposable
         string Runs(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<BehaviorState>(e)
             && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var n) ? n + Moving(cgf, e) : "-";
         string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e)))}] civilians [{string.Join(" ", civilians.Select(e => $"{Hp(e):F0}"))}] "
-                        + $"blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] squad {Runs(squad)} cgf {Doors(cgf, "front", "a", "c", "d", "e")} sim {Doors(harness.SimHost.World!, "front")} drill {Drill(cgf, squad)} progress [{Rooms()}]";
+                        + $"blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] nav [{string.Join(" ", new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4" }.Select(n => Nav(harness.SimHost.World!, n)))}] squad {Runs(squad)} cgf {Doors(cgf, "front", "a", "c", "d", "e")} sim {Doors(harness.SimHost.World!, "front")} drill {Drill(cgf, squad)} progress [{Rooms()}]";
 
         bool Done() => reports.Progress().Any(p => p.Kind is ProgressKind.BuildingClear);
+        // ⭐ who hit a civilian (SimHost fires every round: its shot log names the shooter)
+        var sim = harness.SimHost.World!;
+        var civilianHits = new SortedDictionary<long, string>();
+        void CivilianHits()
+        {
+            var log = ShotLog.Peek(sim);
+            if (log == null) return;
+            foreach (var r in log.Recent(ShotLog.Capacity))
+            {
+                if (r.HitEntity.IsNull || !sim.IsAlive(r.HitEntity) || !sim.HasComponent<EntityInfo>(r.HitEntity)) continue;
+                var hit = sim.GetComponent<EntityInfo>(r.HitEntity).Name.ToString();
+                if (!hit.StartsWith("Civilian")) continue;
+                var by = !r.Shooter.IsNull && sim.IsAlive(r.Shooter) && sim.HasComponent<EntityInfo>(r.Shooter) ? sim.GetComponent<EntityInfo>(r.Shooter).Name.ToString() : "?";
+                civilianHits.TryAdd(r.Seq, $"{hit}<-{by}@{r.Tick}({r.ArrivingDamage:F0})");
+            }
+        }
         for (int f = 0; f < 60 * 480 && !Done(); f += 600)
         {
-            Pump(harness, cgf, squad, reports, 600);
-            _out.WriteLine($"f{f}: {State()}");
+            for (int g = 0; g < 600; g += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); CivilianHits(); }
+            _out.WriteLine($"f{f}: {State()} civhits [{string.Join(" ", civilianHits.Values)}]");
         }
         _out.WriteLine("end: " + State());
         var progress = reports.Progress();

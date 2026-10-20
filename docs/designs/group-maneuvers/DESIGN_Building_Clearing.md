@@ -775,6 +775,12 @@ moved men by teleport, so three things only the real house showed:
 | four men released 0.6 s apart onto ONE door-front point and ONE threshold — a jam at the doorway; and a body 0.9 m inside it walled it off | humans move by `CarKinematicsSystem` with RVO avoidance (no navmesh crowd): converging agents block each other, and a downed man was still an obstacle | **one man in the doorway at a time**: the next entry man is released only once every man ahead is across (or down) — and never sooner than CB-54's 0.6 s; ⚠ **cross-lane (FDP `CarKinem`)**: avoidance steps over a PERSON who is not in the fight (`PhysicsColliderReaders.IsPerson` + `Injury.IsInTheFight`) — a vehicle, wreck or not, is still avoided |
 | with the threshold, two men still wedged beside the jamb, their `AdvanceTo` Running for 3 min, at y = 110.1 | 📐 a probe of the bt-range bake: the mesh outside the north wall ends at **y = 110.55**; the stack points stood at 110.6 — ON the edge — and the men were pushed 0.45 m off it; the planner's path from there runs along the wall to the doorway's corridor (x 45.75) and straight through | the stack stands **0.8 m** off the wall (`StackOffWallMetres`, was 0.6), and a released man goes to the **door front** first — 1 m outside, square to the way in (`Result.DoorFront`, `RoomDrillState.AtDoor`) — then straight to the threshold: the path's own line |
 
+| ⭐ **CB-64 (new, behaviors' own, 2026-10-20)** — in the house the unbounded stack for room A's inner door ran west along the hallway and put two men OUTSIDE the front wall, one in the front doorway, where the next entry man could never pass him | CB-50 knew only the TARGET room, not the room the stack stands in | **the stack stands inside the room it stands in** (`RoomEntryPlan.Plan(…, stackRoom)`, the portal's other room from the survey, `RoomDrill.StackRoom`): CB-50's side when it holds the entry men 0.35 m clear of its walls, else the other side; the men who do not fit take the far side of the door — a **split stack** (`Result.Fit`). From outside: unbounded, as before |
+
+⚠ **Still open — yours, [`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md):** a person's
+avoidance shell is 1.6 m (Pedestrian `AvoidanceRadius` 0.8, RVO's hard shell ×2) — most of the stalls' common cause; and two alert posted
+defenders kill the first one or two entry men in most runs, against §8.1 ③ "no friend hit".
+
 ⚠ **Two deviations of the DEMO from §8.1's cast** (recorded, not silent): `bc-room-clear` stacks on room A's **north side door** from
 outside, not at the hallway's front door (that cast needs the hallway cleared first — it is `bc-house-clear`'s first room); and its
 insurgents hold A's **south** corners — the far side from that door.
@@ -786,7 +792,7 @@ drill skipped the breach. CB-53 reads the door live on the brain's node; that re
 Rails: `SquadManeuverTests.CE2257_BC1_*` now assert the threshold leg (#1 `AdvanceTo` 1 m in, #2 0.6 s later, each man's point only once
 across; a small room's entry with the leader NOT stacked); `Obey` follows an `AdvanceTo` too. ✅ Red-proved by 3 compiling mutants, all killed
 (never crossed: 4 rails · no threshold: 2 · the whole stack gating the breach: 1 · no door front: 2 · the flow not gated on the man ahead:
-1). `CarKinematicsSystemTests.CE2334_ADownedPerson_IsSteppedOver_AStandingOneAndAWreckAreAvoided` (judged against the same walk with nothing
+1 · the stack unbounded by its room: 1, `CE2334_CB64_*`). `CarKinematicsSystemTests.CE2334_ADownedPerson_IsSteppedOver_AStandingOneAndAWreckAreAvoided` (judged against the same walk with nothing
 in the way) — ✅ red-proved: the skip removed ⇒ the walker swerves 1.4 m round a dead man.
 
 ⚠ **The demos' own measurements, kept here because they decide the scenarios:** the squad must approach out of the room's WINDOW view

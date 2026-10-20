@@ -12,12 +12,7 @@
   "bc000001-0000-4000-8000-000000000001": {
    "SimTransform": {
     "Position": [53.0, 114.0, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "NetworkIdentity": {
     "Value": 12001
@@ -44,17 +39,13 @@
     "Reactions": "StayOnTask",
     "SetBy": "Operator",
     "ForceLevel": "Lethal"
-   }
+   },
+   "Proficiency": "Veteran"
   },
   "bc000001-0000-4000-8000-000000000002": {
    "SimTransform": {
     "Position": [51.0, 113.6, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -81,12 +72,7 @@
   "bc000001-0000-4000-8000-000000000003": {
    "SimTransform": {
     "Position": [51.8, 114.2, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -113,12 +99,7 @@
   "bc000001-0000-4000-8000-000000000004": {
    "SimTransform": {
     "Position": [52.6, 113.6, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -145,12 +126,7 @@
   "bc000001-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [53.4, 114.2, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -177,12 +153,7 @@
   "bc000001-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [54.2, 113.6, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -209,12 +180,7 @@
   "bc000001-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [55.0, 114.2, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -241,12 +207,7 @@
   "bc000001-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [40.8, 106.8, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -280,17 +241,13 @@
     "Reactions": "StayOnTask",
     "SetBy": "Operator",
     "ForceLevel": "Lethal"
-   }
+   },
+   "Proficiency": "Militia"
   },
   "bc000001-0000-4000-8000-000000000021": {
    "SimTransform": {
     "Position": [46.2, 106.8, 0],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
+    "Rotation": [0, 0, 0, 1]
    },
    "Health": {
     "Current": 100,
@@ -324,14 +281,25 @@
     "Reactions": "StayOnTask",
     "SetBy": "Operator",
     "ForceLevel": "Lethal"
-   }
+   },
+   "Proficiency": "Militia"
   }
  },
  "TerrainObjects": {
-  "bt-range/CQB House/a": {"door": "Locked"},
-  "bt-range/CQB House/front": {"door": "Locked"},
-  "bt-range/CQB House/back": {"door": "Locked"},
-  "bt-range/CQB House/south": {"door": "Locked"},
-  "bt-range/CQB House/north": {"door": "Closed"}
+  "bt-range/CQB House/a": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/front": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/back": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/south": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/north": {
+   "door": "Closed"
+  }
  }
 }

@@ -165,7 +165,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
             if (room == null || door == null) { Fail(ref p, in ctx, child); return; }
 
-            RoomDrill.Begin(ref p.Drill, in ctx, room, door, turn: 0);
+            RoomDrill.Begin(ref p.Drill, in ctx, room, door, turn: 0, RoomDrill.StackRoom(answer, room, door));
             p.Drill.RoomAt = p.Room;   // its reports name the point it was ordered to
             p.Planned = 1;
             WorldSurveyChildSensor.Release(ctx.World, child);

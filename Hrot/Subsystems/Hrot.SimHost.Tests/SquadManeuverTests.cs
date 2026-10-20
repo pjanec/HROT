@@ -3987,6 +3987,44 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2334</c> CB-64 — the stack stands INSIDE the room it stands in. Room A (x 0…7, y 6…10) entered from the hallway by its
+        /// door at (3.5, 6): CB-50 puts the stack west, but 3.15 m of hallway (0.35 m clear of its wall) cannot hold four men, so it stands
+        /// east — all six there in a 14 m hallway; in a 7 m hallway neither side holds them all, so the stack SPLITS: three west, three
+        /// east of the door. Every stack point stays clear of the hallway's walls; from outside nothing changes. 📐 Measured on
+        /// <c>bc-house-clear</c>: the unbounded stack put two men outside the house's front wall, one in its doorway, blocking the next
+        /// entry man for good. ✅ Red-proof: the bound dropped ⇒ stack points past the hallway's end.
+        /// </summary>
+        [Fact]
+        public void CE2334_CB64_TheStackStandsInTheRoomItStandsIn_AndSplitsWhenOneSideCannotHoldIt()
+        {
+            float[] roomA = { 0f, 6f, 7f, 6f, 7f, 10f, 0f, 10f };
+            float[] longHall = { 0f, 4f, 14f, 4f, 14f, 6f, 0f, 6f }, shortHall = { 0f, 4f, 7f, 4f, 7f, 6f, 0f, 6f };
+            var door = new Vector2(3.5f, 6f);
+            bool Clear(float[] hall, Vector3 at) => at.X >= hall[0] + RoomEntryPlan.StackWallClearMetres - 1e-3f
+                && at.X <= hall[2] - RoomEntryPlan.StackWallClearMetres + 1e-3f && at.Y >= 4f + RoomEntryPlan.StackWallClearMetres - 1e-3f
+                && at.Y <= 6f - RoomEntryPlan.StackWallClearMetres + 1e-3f;
+
+            var outside = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6);
+            Assert.Equal(0, outside.Fit);
+            Assert.True(outside.Stack(5).X < 0f, $"from outside the stack is unbounded: {outside.Stack(5)}");
+
+            var east = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6, longHall);
+            for (int k = 0; k < 6; k++)
+            {
+                Assert.True(east.Stack(k).X > door.X, $"man {k} east of the door (the west side cannot hold the entry): {east.Stack(k)}");
+                Assert.True(Clear(longHall, east.Stack(k)), $"man {k} inside the hallway: {east.Stack(k)}");
+            }
+
+            var split = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6, shortHall);
+            Assert.Equal(3, split.Fit);
+            for (int k = 0; k < 6; k++)
+            {
+                Assert.True(Clear(shortHall, split.Stack(k)), $"man {k} inside the short hallway: {split.Stack(k)}");
+                Assert.True((split.Stack(k).X < door.X) == (split.Stack(0).X < door.X) == (k < 3), $"man {k} on {(k < 3 ? "the stack's" : "the far")} side: {split.Stack(k)}");
+            }
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2257</c> BC-1 (CB-48…CB-55) — the drill through the real brain: one survey of the room's point; the squad stacks on the
         /// DOOR (not the nearer window); stacked, #1 is sent to open it (<c>BreachDoor</c> with its key) while the rest hold the stack; the door
         /// open, the entry men go one after another 0.6 s apart, each to his point with his sector; with every man there and a hostile in the

@@ -78,7 +78,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// roster order with the leader last when more are in the fight than go in; <paramref name="turn"/> turns the rest by the entry's
         /// size so the team that held the stack goes in next (CB-61).
         /// </summary>
-        public static unsafe void Begin(ref RoomDrillState d, in SquadPlayContext ctx, SurveyRoom room, SurveyPortal way, int turn)
+        /// <param name="stackRoom">⭐ CE-2334 CB-64 — the room on the stack's side of <paramref name="way"/> (null from outside): the stack
+        /// stands inside it.</param>
+        public static unsafe void Begin(ref RoomDrillState d, in SquadPlayContext ctx, SurveyRoom room, SurveyPortal way, int turn,
+                                        SurveyRoom? stackRoom = null)
         {
             d = default;
             for (int i = 0; i < RoomDrillState.Capacity; i++) d.OrderOf[i] = RoomDrillState.NotInIt;
@@ -92,7 +95,8 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) inFight++;
             d.Plan = way.Kind == (byte)BuildingPortalKind.Stair
                 ? RoomEntryPlan.PlanFrom(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.SillZ, inFight)
-                : RoomEntryPlan.Plan(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.Width, inFight);
+                : RoomEntryPlan.Plan(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.Width, inFight,
+                    stackRoom != null && stackRoom.Corners.Length >= 8 ? stackRoom.Corners : default);
             Places(ref d, in ctx, inFight, turn);
         }
 
@@ -179,6 +183,16 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return atStack;
             }
+        }
+
+        /// <summary>⭐ CE-2334 CB-64 — the room on the other side of <paramref name="way"/> from <paramref name="room"/> in
+        /// <paramref name="answer"/>: where the stack stands; null when the way in leads outside.</summary>
+        public static SurveyRoom? StackRoom(WorldSurveyPayload answer, SurveyRoom room, SurveyPortal way)
+        {
+            int other = way.RoomA == room.Index ? way.RoomB : way.RoomA;
+            if (other < 0 || other == room.Index) return null;
+            var r = RoomOrder.RoomOf(answer, room.Building, other);
+            return r != null && r.Indoors && r.Corners.Length >= 8 ? r : null;
         }
 
         /// <summary>A PROGRESS report from the squad commander, sent after the report delay.</summary>

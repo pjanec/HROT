@@ -13,6 +13,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const int MaxEntry = 4;
         /// <summary>CB-50 — the stack stands this far off the wall (m), #1 this far past the jamb (m), the men this far apart (m).</summary>
         public const float StackOffWallMetres = 0.8f, StackPastJambMetres = 0.6f, StackSpacingMetres = 0.8f;
+        /// <summary>⭐ CE-2334 CB-64 — a stack point stays this far inside the walls of the room it stands in (m): the navmesh's body radius
+        /// (0.3) and a little.</summary>
+        public const float StackWallClearMetres = 0.35f;
         /// <summary>CB-51 — a point is this far off a side wall (m) and stays this far inside the room (m); a room under this (m²), or
         /// fewer than <see cref="FourManFrom"/> men in the fight, is a two-man entry.</summary>
         public const float OffWallMetres = 1f, InsideMetres = 0.8f, TwoManAreaSquareMetres = 12f;
@@ -37,10 +40,17 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>The floor the stack stands on — the room's, or for a stair the floor at its foot (CB-60).</summary>
             public float StackZ;
 
-            /// <summary>The <paramref name="k"/>-th man's stack point (#1 = 0, nearest the door; any number of men).</summary>
+            /// <summary>⭐ CE-2334 CB-64 — how many men the stack's side of the door holds inside the room it stands in; the rest stand on
+            /// the far side of the door (a split stack). 0 = unbounded (the stack stands outside).</summary>
+            public int Fit;
+
+            /// <summary>The <paramref name="k"/>-th man's stack point (#1 = 0, nearest the door; any number of men) — past
+            /// <see cref="Fit"/>, on the far side of the door.</summary>
             public Vector3 Stack(int k)
             {
-                var at = Door - Into * StackOffWallMetres + Along * (Half + StackPastJambMetres + StackSpacingMetres * k);
+                var side = Along;
+                if (Fit > 0 && k >= Fit) { side = -Along; k -= Fit; }
+                var at = Door - Into * StackOffWallMetres + side * (Half + StackPastJambMetres + StackSpacingMetres * k);
                 return new Vector3(at, StackZ);
             }
 
@@ -62,7 +72,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// entered through the portal at <paramref name="door"/> of <paramref name="width"/>, by <paramref name="inFight"/> men. The stack
         /// stands on the side of the door with LESS room behind the wall, so #1 flows to the open side (CB-50).
         /// </summary>
-        public static Result Plan(ReadOnlySpan<float> corners, float floorZ, Vector2 door, float width, int inFight)
+        /// <param name="stackRoom">⭐ CE-2334 CB-64 — the room on the stack's side of the way in (its corners), when the way in is a door
+        /// between rooms: the stack stands inside it — on CB-50's side when the entry men fit there, else on the other; the men who do not
+        /// fit take the far side of the door. Empty = the stack stands outside (unbounded).</param>
+        public static Result Plan(ReadOnlySpan<float> corners, float floorZ, Vector2 door, float width, int inFight,
+                                  ReadOnlySpan<float> stackRoom = default)
         {
             var c = Quad(corners, out var centroid);
 
@@ -78,7 +92,43 @@ namespace Hrot.AI.Behaviors.Brains
             t = t.LengthSquared() > 1e-6f ? Vector2.Normalize(t) : Vector2.UnitX;
             var n = new Vector2(-t.Y, t.X);
             if (Vector2.Dot(centroid - door, n) < 0f) n = -n;   // into the room
-            return Core(c, floorZ, floorZ, door, width, t, n, inFight);
+            var r = Core(c, floorZ, floorZ, door, width, t, n, inFight);
+            if (stackRoom.Length >= 8) Bound(ref r, stackRoom);
+            return r;
+        }
+
+        /// <summary>⭐ CE-2334 CB-64 — the stack inside <paramref name="stackRoom"/>: CB-50's side when it holds the entry men, else the other
+        /// side when that does; <see cref="Result.Fit"/> = how many the chosen side holds (the rest take the far side of the door).</summary>
+        private static void Bound(ref Result r, ReadOnlySpan<float> stackRoom)
+        {
+            float need = r.Half + StackPastJambMetres + StackSpacingMetres * Math.Max(0, r.Entry - 1);
+            float here = Free(in r, r.Along, stackRoom), there = Free(in r, -r.Along, stackRoom);
+            if (here < need && there >= need) { r.Along = -r.Along; (here, there) = (there, here); }
+            r.Fit = Math.Max(1, 1 + (int)MathF.Floor((here - r.Half - StackPastJambMetres) / StackSpacingMetres + 1e-3f));
+        }
+
+        /// <summary>How far along <paramref name="side"/> from the door the stack's line stays inside <paramref name="room"/>, clear of
+        /// its walls (m).</summary>
+        private static float Free(in Result r, Vector2 side, ReadOnlySpan<float> room)
+        {
+            const float step = 0.05f;
+            var start = r.Door - r.Into * StackOffWallMetres;
+            float d = 0f;
+            for (; d < 30f; d += step)
+                if (!Clear(room, start + side * (d + step))) break;
+            return d;
+        }
+
+        private static bool Clear(ReadOnlySpan<float> room, Vector2 at)
+        {
+            if (!Inside(room, at)) return false;
+            for (int i = 0; i < 4; i++)
+            {
+                var a = new Vector2(room[i * 2], room[i * 2 + 1]);
+                var b = new Vector2(room[(i + 1) % 4 * 2], room[(i + 1) % 4 * 2 + 1]);
+                if (DistanceToSegment(at, a, b) < StackWallClearMetres) return false;
+            }
+            return true;
         }
 
         /// <summary>
