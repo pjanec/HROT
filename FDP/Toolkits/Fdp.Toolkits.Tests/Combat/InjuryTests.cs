@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.InRange(AimPoint.Middle(_world, down, out var stance, out _).Z, 0f, 0.3f);
             Assert.Equal(StanceId.Prone, stance);
-            Assert.InRange(AimPoint.Middle(_world, hurt, out _, out _).Z, 0.7f, 1.0f);
+            Assert.InRange(AimPoint.Middle(_world, hurt, out _, out _).Z, 1.2f, 1.45f);   // ⭐ CE-2325 — a hurt man standing: his chest
         }
 
         /// <summary>⭐ I6 — a casualty set down stays down: leaving a carrier gives move and fire back only to someone in the fight.

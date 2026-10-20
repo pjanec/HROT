@@ -511,18 +511,15 @@ namespace Hrot.AI.Behaviors.Brains
             if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return false;
             ws.LastAnswerTick = buffer.LastUpdateTick;
             if (buffer.Count == 0) return false;
-            if (p.AnchorRadius <= 0f)
-            {
-                var top = buffer.GetTop();
-                best = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
-                return true;
-            }
             // ⭐ CE-2275 D-2d (PC-14) — a posted man takes the best-ranked point ON his post, never one off it
+            // ⭐ CE-2327 (R-2064) — and a move made to FIRE never goes to a spot the search marked look-only: "if attacking is desired, then
+            //   the spot must let him shoot" (an unmarked answer — another template, or no terrain — is taken as before)
             var span = buffer.GetSpanRO()[..buffer.Count];
             for (int i = 0; i < span.Length; i++)
             {
+                if (Fdp.Toolkit.Spatial.Eqs.CheapLineOfSightTest.FireMarkOf(in span[i]) == 2) continue;
                 var at = new Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ);
-                if (Vector3.Distance(at, p.Anchor) > p.AnchorRadius) continue;
+                if (p.AnchorRadius > 0f && Vector3.Distance(at, p.Anchor) > p.AnchorRadius) continue;
                 best = at;
                 return true;
             }

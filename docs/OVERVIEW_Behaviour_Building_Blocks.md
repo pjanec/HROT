@@ -342,6 +342,16 @@ is kept by `UnderFireMoveSystem`. ⛔ So do not build a per-play "go prone when 
 
 📄 [AQ96](blueprints/Architect_Question_96_Movement_Under_Fire.md) §6 · demos `uf-alone-under-fire`, `uf-squad-under-fire`.
 
+**Where a round is aimed, and where a man shoots from** *(R-2064, built `2026-10-20`)*
+
+| | what happens | where |
+|---|---|---|
+| the aim at a person | his CHEST, for his pose (the torso box of the boxes his hits are taken on, part way to the head); the chest seen just over a cover that stops a round ⇒ the middle of what shows; hidden behind a weak cover ⇒ still the chest, through it. A vehicle: the middle of its hull | `AimPoint.Middle` / `AimPoint.For` |
+| a masked muzzle | the MUSCLE refuses a round its own line stops within 2 m (R-3018), judged on the line it would fly | `LineOfFire.MuzzleMasked` in `FireProcessingSystem` |
+| look vs shoot | a step-out spot may only SEE (he looks from it); before aimed fire or a burst he steps on to the nearest spot the firing-position search marked "a round clears from here", or goes back down | `CheapLineOfSightTest.MarkFireClear` · `PeekAndFireNodes.StepToShoot` |
+
+📄 [`DESIGN_Peek_And_Fire.md`](DESIGN_Peek_And_Fire.md) §11 · demo `bt-window-duel`.
+
 ## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
 
 | question | ✅ answer | where |

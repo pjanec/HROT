@@ -136,13 +136,6 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)
                     targetPos = AimPoint.Middle(repo, target, out var targetStance, out float hull);
-                    // ⭐⭐ Q94 A-4 (R-3018, R-2037) — the MUSCLE judges the muzzle line with the live terrain: a round that would stop in
-                    //   the wall in front of the barrel (CE-2218) is REFUSED, not flown. The same aim point the brain's hold used.
-                    if (LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
-                    {
-                        Refuse(repo, in evt, FireRefusal.Masked, now);
-                        continue;
-                    }
                     // ⭐ CE-3136 P-2 (D1, revised) — the middle when seen or shot through a weak cover, else the middle of the SEEN
                     //   part of the body (AimPoint). The round's own penetration decides "weak" — the fired mount's, as below.
                     var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q1 — bound to this view's doors (R-219)
@@ -151,6 +144,15 @@ namespace Fdp.Toolkit.Combat.Systems
                         var aimMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
                         float aimPen = aimMount != null && aimMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, aimMount) : 0f;
                         targetPos = AimPoint.For(repo, terrain, shooterPos, targetPos, target, targetStance, hull, aimPen, _bodyPoints);
+                    }
+                    // ⭐⭐ Q94 A-4 (R-3018, R-2037) — the MUSCLE judges the muzzle line with the live terrain: a round that would stop in
+                    //   the wall in front of the barrel (CE-2218) is REFUSED, not flown. ⭐ CE-2329 — judged on the line the round
+                    //   FLIES (the aim just chosen). ⛔ SUPERSEDED: judged on the hidden middle first, so a man at a window whose line to
+                    //   the enemy's middle clipped his own sill was refused though his aim at the part he saw cleared it.
+                    if (LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
+                    {
+                        Refuse(repo, in evt, FireRefusal.Masked, now);
+                        continue;
                     }
                 }
 

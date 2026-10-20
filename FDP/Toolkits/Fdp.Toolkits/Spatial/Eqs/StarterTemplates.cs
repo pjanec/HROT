@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             BlueprintId    = BlueprintId,
             Generator      = new DonutGenerator { AnchorSlot = 0, Rings = 3, PointsPerRing = 16, InnerFraction = 0.2f },
-            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible } },
+            FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { Viewer = EqsLosViewer.Candidate, Require = EqsLosRequire.Visible, MarkFireClear = true } },
             ScoreCheap     = new IEqsTest[] { new DistanceScoreTest(), new HeightScoreTest { Weight = 0.5f } },
             ScoreExpensive = new IEqsTest[] { new ThreatExposureTest(), new PathCostScoreTest() },
             MaxCandidates  = 48,
