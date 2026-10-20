@@ -100,6 +100,11 @@
     "Name": "WindowDuel",
     "Params": "{\"shape\":0,\"exposuresPerPosition\":1}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "a2209d00-0000-4000-8000-000000000003": {

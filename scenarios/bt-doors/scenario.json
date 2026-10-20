@@ -44,6 +44,11 @@
     "Name": "MoveToLocation",
     "Params": "{\"x\":102,\"y\":104,\"speed\":2,\"arrivalRadius\":1}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a960000-0000-4000-8000-000000000002": {
@@ -80,6 +85,11 @@
    "Behavior": {
     "Name": "DoorLocksmith",
     "Params": "{\"door\":\"bt-range/House A/front\",\"x\":102,\"y\":103,\"speed\":1.5}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
     "Origin": "Superior"
    }
   }

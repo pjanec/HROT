@@ -90,8 +90,8 @@ namespace Hrot.SimHost.Tests
             public void Order(string behaviour)
                 => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
 
-            public void StartSop()
-                => Repo.Bus.PublishManaged(new AssignSopEvent { Entity = Unit, BehaviorName = Sop, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            public void StartSop(string name = Sop)
+                => Repo.Bus.PublishManaged(new AssignSopEvent { Entity = Unit, BehaviorName = name, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
         }
 
         [Fact]
@@ -159,6 +159,92 @@ namespace Hrot.SimHost.Tests
             free.Run(0.1);
             Assert.Equal("TakeCover", free.TaskName);                          // row 3
             Assert.Equal(ReactionUrgency.Contact, free.Task.Urgency);
+        }
+    
+        // ── ⭐ CE-2322 (AQ97, R-2062) — every lone soldier reacts by default; "no response" is said explicitly ────────────────────
+
+        /// <summary>⭐ AQ97 B — rounds passing near a lone soldier are reason enough: React(TakeCover, UnderFire). ✅ Red-proof: the
+        /// near-miss row removed from the asset ⇒ he stays idle ⇒ red.</summary>
+        [Fact]
+        public void CE2322_ANearMiss_SendsALoneSoldierToCover()
+        {
+            var w = new World();
+            w.StartSop();
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);
+            w.Remember(true);
+            w.Sense(SensorChange.NearMiss);
+            w.Run(0.1);
+            Assert.Equal("TakeCover", w.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, w.Task.Urgency);
+        }
+
+        /// <summary>⭐ AQ97 A — under a live commander, or aboard a vehicle, his own rows stand aside: a hit orders nothing (his unit or his
+        /// vehicle decides) and he gets no idle choice either. His commander gone, the same hit sends him to cover.
+        /// ✅ Red-proof: the UnderCommand row removed ⇒ the hit sends the squad man to cover ⇒ red.</summary>
+        [Fact]
+        public void CE2322_UnderCommandOrAboard_HisOwnRowsStandAside_HisCommanderGone_TheyAreHis()
+        {
+            var w = new World();
+            var commander = w.Repo.CreateEntity();
+            w.Repo.AddComponent(w.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            w.Order("Idle");
+            w.StartSop();
+            w.Run(0.3);
+            w.Remember(true);
+            w.Sense(SensorChange.Hit);
+            w.Run(0.1);
+            Assert.Equal("Idle", w.TaskName);
+            Assert.Equal(BehaviorOrigin.Superior, w.Task.Origin);
+
+            w.Repo.DestroyEntity(commander);
+            w.Run(3.5);                                                        // the first hit is stale now
+            w.Sense(SensorChange.Hit);
+            w.Run(0.1);
+            Assert.Equal("TakeCover", w.TaskName);
+
+            var crew = new World();
+            crew.Repo.AddComponent(crew.Unit, new IsEmbarkedTag { VehicleEntity = crew.Repo.CreateEntity() });
+            crew.Order("Idle");
+            crew.StartSop();
+            crew.Run(0.3);
+            crew.Remember(true);
+            crew.Sense(SensorChange.Hit);
+            crew.Run(0.1);
+            Assert.Equal("Idle", crew.TaskName);
+            Assert.Equal(BehaviorOrigin.Superior, crew.Task.Origin);
+        }
+
+        /// <summary>⭐ AQ97 C — <c>InertSop</c>, the explicit none: no idle choice and no reaction, whatever he senses.</summary>
+        [Fact]
+        public void CE2322_InertSop_OrdersNothing_NeitherIdleNorAReaction()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId("InertSop", out _));
+            w.StartSop("InertSop");
+            w.Run(0.3);
+            Assert.Null(w.TaskName);
+            w.Remember(true);
+            w.Sense(SensorChange.Hit);
+            w.Sense(SensorChange.NearMiss);
+            w.Run(0.3);
+            Assert.Null(w.TaskName);
+            Assert.Equal(0, w.Repo.GetComponent<SopState>(w.Unit).SopFaulted);
+        }
+
+        /// <summary>⭐ AQ97 A / D2 — the TKB names the defaults: every armed soldier type of the urban catalogue <c>BasicInfantrySop</c>, every
+        /// civilian <c>CivilianSop</c> (beside his routine HSM).</summary>
+        [Fact]
+        public void CE2322_TheTkb_NamesTheDefaults_SoldiersAndCivilians()
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(db);
+            string? SopOf(long type) => db.GetByType(type)?.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>()?.DefaultSop;
+            Assert.Equal("BasicInfantrySop", SopOf(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier));
+            Assert.Equal("BasicInfantrySop", SopOf(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent));
+            foreach (long civ in new long[] { 1101, 1102, 1103, 1104 })
+                Assert.Equal("CivilianSop", SopOf(civ));
         }
     }
 }

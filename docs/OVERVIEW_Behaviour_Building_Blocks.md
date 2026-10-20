@@ -97,6 +97,16 @@ graph LR
 
 *Owner:* [DESIGN_Decision_Layer](DESIGN_Decision_Layer.md) §4 · R-199, R-200, R-203.
 
+### 2a. What a unit does with NO order *(AQ97, R-2062, built 2026-10-20)*
+
+| unit | its TKB default | what it does by itself | to stop it |
+|---|---|---|---|
+| a soldier (rifleman, gunners, snipers, AT, insurgent, paratrooper…) | SOP `BasicInfantrySop` | idles; hit or near-missed ⇒ take cover; a threat seen or heard ⇒ take cover (withdraw under hold-fire). ⛔ Stands aside under a live commander or aboard a vehicle | `Sop: InertSop` |
+| a civilian (1101–1104) | task `CivilianHsm` + SOP `CivilianSop` | his routine with its own fear; on any OTHER task his fear still reacts (`CivilianReact`), then the task restarts | `Sop: InertSop` (+ `Idle` for no routine) |
+| a pilot | SOP `PilotSop` | down on the ground ⇒ evade and signal | `Sop: InertSop` |
+
+⚠ An absent `Sop` key now means the TYPE'S DEFAULT. ⛔ So a scenario that wants a brain-dead unit says `InertSop`.
+
 ## 3. Utility decisions
 
 ```mermaid

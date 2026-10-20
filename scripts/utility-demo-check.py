@@ -4595,6 +4595,66 @@ def run_uf_squad_under_fire(c, timeout):
          f"the squad: ⑤ the bounds go on ({[(h.get('t'), h.get('phaseName')) for h in hs][-6:]})")
 
 
+# ── ⭐ AQ97 (CE-2322) — every lone soldier and civilian reacts by default; InertSop says "no response" ──────────────────────
+def _task_of(nid):
+    cur = (data(call("GET", f"/entities/{nid}/order")) or {}).get("current") or {}
+    return cur.get("behavior"), cur.get("origin")
+
+
+def _watch_tasks(names, ids, seconds, every=0.5):
+    """Each man's (t, task, origin, position, civilian mode, fear) over `seconds` of sim time."""
+    out = {n: [] for n in names}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for n in names:
+            task, origin = _task_of(ids[n])
+            cs = comps(ids[n])
+            civ = cs.get("CivilianState") or {}
+            p = (cs.get("SimTransform") or {}).get("Position")
+            out[n].append((t, task, origin, tuple(p) if p else None, civ.get("Mode"), civ.get("Fear"),
+                           (cs.get("StanceIntent") or {}).get("TargetStance")))
+        time.sleep(every)
+    return out
+
+
+def run_df_lone_soldier_reflex(c, timeout):
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Reflex", "Inert", "Hostile")), "Reflex, Inert and the hostile are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _watch_tasks(["Reflex", "Inert"], ids, 40)
+    reflex, inert = rows["Reflex"], rows["Inert"]
+    reacted = next((r for r in reflex if r[1] in ("TakeCover", "FallBack") and r[2] == "Reaction"), None)
+    print(f"    Reflex tasks: {sorted({(r[1], r[2]) for r in reflex}, key=str)}")
+    print(f"    Inert tasks:  {sorted({(r[1], r[2]) for r in inert}, key=str)}")
+    c.ok(reacted is not None, f"(1) Reflex reacts by himself: a TakeCover reaction ({reacted and round(reacted[0], 1)} s)")
+    moved = max((flat(r[3], reflex[0][3]) for r in reflex if r[3] and reflex[0][3]), default=0.0)
+    c.ok(moved > 2.0, f"(1) and he leaves his spot ({moved:.1f} m)")
+    c.ok(all(r[1] in (None, "None") for r in inert), "(2) Inert never gets a task, whatever comes near him")
+    still = max((flat(r[3], inert[0][3]) for r in inert if r[3] and inert[0][3]), default=0.0)
+    c.ok(still < 1.0, f"(2) and never moves ({still:.1f} m)")
+
+
+def run_df_civilian_ordered(c, timeout):
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Ordered", "Inert civilian", "Target", "Hostile")), "the two civilians, the target and the hostile are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _watch_tasks(["Ordered", "Inert civilian"], ids, 45)
+    o, i = rows["Ordered"], rows["Inert civilian"]
+    print(f"    Ordered: tasks {sorted({(r[1], r[2]) for r in o}, key=str)}, modes {sorted({r[4] for r in o if r[4]}, key=str)}, "
+          f"fear max {max((r[5] or 0) for r in o):.2f}")
+    print(f"    Inert civilian: tasks {sorted({(r[1], r[2]) for r in i}, key=str)}, fear max {max((r[5] or 0) for r in i):.2f}")
+    c.ok(max((r[5] or 0) for r in o) > 0.3 and max((r[5] or 0) for r in i) > 0.3,
+         "(1) the gunfire frightens both (fear above the alarm, though neither runs his routine HSM)")
+    react = [r for r in o if r[1] == "CivilianReact" and r[2] == "Reaction"]
+    c.ok(bool(react), "(2) Ordered reacts on top of his order: CivilianReact")
+    c.ok(any(r[4] in ("Alarmed", "Panic", "Cower", "Shelter", "Inside") for r in react) or any(r[6] in ("Crouched", "Prone") for r in react),
+         f"(2) he stops and gets down, or flees ({sorted({(r[4], r[6]) for r in react}, key=str)})")
+    c.ok(all(r[1] == "Idle" for r in i if r[1]), "(3) Inert civilian keeps standing on his order (Idle) however frightened")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4662,6 +4722,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire, alone and in a squad
              "uf-alone-under-fire": run_uf_alone_under_fire,
              "uf-squad-under-fire": run_uf_squad_under_fire,
+             # ⭐ AQ97 (CE-2322) — default reflexes; InertSop is the explicit none
+             "df-lone-soldier-reflex": run_df_lone_soldier_reflex,
+             "df-civilian-ordered": run_df_civilian_ordered,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

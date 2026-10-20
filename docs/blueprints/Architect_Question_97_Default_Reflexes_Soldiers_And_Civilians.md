@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — ASKED 2026-10-20, a lean per sub-question (§3); waiting on the user
+state: LIVE — APPROVED 2026-10-20 (R-2062): A–F as leaned; BUILDING
 updated: 2026-10-20
-build-state: DESIGN — UML for the leans in §2a–§2c; READY-TO-BUILD once approved
-current-answer: §3 the leans · §4 sequencing · §5 answers (empty until the user replies)
+build-state: BUILT (§6 as built)
+current-answer: §5 the answer · §6 as built · §3 the leans it approved
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -193,4 +193,22 @@ gunfire: he panics, shelters, and the move restarts once he calms; a twin with `
 
 ## 5. Answers
 
-*(empty — the user decides)*
+🔒 **User, 2026-10-20:** *"Approved, go"* — A–F as leaned ✅ **APPROVED** (R-2062).
+
+## 6. As built *(2026-10-20, behaviors)*
+
+As §2a–§2c, with these differences (each measured during the build):
+
+| deviation | why |
+|---|---|
+| ① **no separate "heard gunfire" row** (lean B's second row) | 📐 the existing *first threat* row already fires on a HEARD contact (memory goes from empty to holding one — an anonymous slot counts), and `TakeCover` hides from the heard point (CE-3063 ③). ⛔ The "hold and watch" variant was not buildable as leaned: `CombatPosture "{}"` walks to the origin (the trap of 2026-10-20) and `PersonHold` does not fire. B as built = the near-miss row only |
+| ② **a second gate: `SopConditions.Aboard`** beside `UnderCommand` | 📐 vehicles start with rifleman crews in their seats (`BdcTkbCatalog` seats: driver, gunner, loaders) — no commander, so they read as lone soldiers; a crewman's seat and his vehicle decide |
+| ③ the civilian reaction is ONE machine, **`CivilianReact`** (not `CivilianFlee` + an alarm behaviour), and the SOP has ONE react row (frightened past the alarm, or wounded) | the machine escalates by itself exactly as the HSM does (Alarmed → Panic → Shelter / Cower → Inside; Casualty first), so one row and one urgency are enough; ⭐ a rail holds its fear edges to the HSM's (`CE2322_TheReaction_HasTheHsmsFearEdges`, guards compared by method — their names carry the state's byte offset in each blackboard) |
+| ④ no new "fear defaults table": both machines read `CivilianBehavior.Defaults()` | it already IS the one table (the HSM's resolver starts from it) |
+| ⑤ the civilian conditions are `CivilianBehavior.NotOnHisRoutine` / `FrightenedOrHurt` (no params), not `TaskIs` / `FearAtLeast` | a params variable would repeat the thresholds in the SOP asset; no-params conditions read the one table |
+| ⑥ `CivilianSop` also has **Do-when-idle(CivilianHsm)** | a civilian whose order finished goes back to his own routine instead of standing |
+| ⑦ the stamp: **146 units in 64 scenario files** (`scenarios/` and the recipe scenarios), purely additive | soldier types 200–205, 207–211, 2002–2007 with no commander and no `Sop` key, and the `Idle` civilians |
+
+**Rails:** `BasicInfantrySopTests.CE2322_*` (4: near miss → cover; under command or aboard the rows stand aside, commander gone they are his; `InertSop` orders nothing; the TKB names the defaults) · `CivilianHsmTests.CE2322_*` (3: an ordered civilian reacts and his order restarts when he calms; on his routine the SOP stands aside; the reaction carries the HSM's fear edges) · `CivilianFearSystemTests.CE2322_*` (an ordered civilian is frightened, a soldier is not) · `BTreeCallShapeTests` rows · generator goldens (corpus 37 → 39).
+**Demos:** `df-lone-soldier-reflex`, `df-civilian-ordered` (both with `header.description`). Live results below.
+

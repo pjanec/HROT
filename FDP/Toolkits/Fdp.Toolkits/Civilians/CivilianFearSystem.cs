@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Civilians
             if (repo.Bus.IsRegistered<SoundContactEvent>())
                 foreach (ref readonly var heard in repo.Bus.Read<SoundContactEvent>())
                 {
-                    if (!repo.IsAlive(heard.Observer) || !repo.HasComponent<CivilianState>(heard.Observer)) continue;
+                    if (!IsAfraidKind(repo, heard.Observer)) continue;
                     float distance = 0f;
                     if (repo.HasComponent<SimTransform>(heard.Observer))
                     {
@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Civilians
             if (repo.Bus.IsRegistered<SensorChangedEvent>())
                 foreach (var change in repo.Bus.Read<SensorChangedEvent>())
                 {
-                    if (!repo.IsAlive(change.Unit) || !repo.HasComponent<CivilianState>(change.Unit)) continue;
+                    if (!IsAfraidKind(repo, change.Unit)) continue;
                     if (change.What == SensorChange.NearMiss) Frighten(repo, change.Unit, CivilianFear.NearMissImpulse, now);
                     else if (change.What == SensorChange.Hit) Frighten(repo, change.Unit, CivilianFear.HitImpulse, now);
                 }
@@ -109,6 +109,18 @@ namespace Fdp.Toolkit.Civilians
                 if (mind.LastFrightAt == now) continue;   // ⭐ a fright this frame is not faded in the same frame
                 mind.Fear = MathF.Max(0f, mind.Fear - fade);
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2322</c> (AQ97 D1, R-2062) — a man whose fear this system keeps: one who already has a <see cref="CivilianState"/>, or a
+        /// person of the <c>Civilian</c> class, whose state it CREATES here. ⛔ Before, only the civilian's HSM created it (its first tick), so a
+        /// civilian on any other task — ordered to walk somewhere — heard gunfire and felt nothing.
+        /// </summary>
+        private static bool IsAfraidKind(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsAlive(unit)) return false;
+            if (repo.HasComponent<CivilianState>(unit)) return true;
+            return Fdp.Toolkit.Combat.Armament.IsCivilianClass(repo.GetDisType(unit)) && CivilianMind.Ensure(repo, unit);
         }
 
         private static void Frighten(EntityRepository repo, Entity unit, float impulse, double now)

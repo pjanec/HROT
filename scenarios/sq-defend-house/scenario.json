@@ -343,6 +343,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Operator",
         "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c2275d00-0000-4000-8000-000000009212": {
@@ -386,6 +391,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Operator",
         "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c2275d00-0000-4000-8000-000000009213": {
@@ -429,6 +439,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Operator",
         "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c2275d00-0000-4000-8000-000000009214": {
@@ -472,6 +487,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Operator",
         "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

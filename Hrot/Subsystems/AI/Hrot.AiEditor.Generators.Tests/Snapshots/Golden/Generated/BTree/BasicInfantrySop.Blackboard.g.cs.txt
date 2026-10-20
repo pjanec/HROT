@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 40)]
+[StructLayout(LayoutKind.Explicit, Size = 48)]
 public struct BasicInfantrySop_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
@@ -18,6 +18,8 @@ public struct BasicInfantrySop_FdpToolkitBehaviorComponentsBrainBlackboard
     public global::Fdp.Toolkit.Behavior.SopRoeParams holdFire;
     [FieldOffset(32)]
     public global::Hrot.AI.Behaviors.Brains.EngageAircraftParams airDefence;
+    [FieldOffset(40)]
+    public global::Fdp.Toolkit.Behavior.SopSenseParams nearMissSense;
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>

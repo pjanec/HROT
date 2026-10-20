@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Fbt.Kernel;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
@@ -86,5 +87,27 @@ namespace Fdp.Toolkit.Behavior
         [SharedAiCondition]
         public static bool RoeFireAtMost(ref SopRoeParams p, Entity self, EntityRepository world)
             => RoeOf.Fire(world, self) <= p.Fire;
+
+        /// <summary>
+        /// ⭐ <c>CE-2322</c> (AQ97 A, R-2062) — the unit has a live commander in the fight above it (<see cref="UnitSubordinate"/>): its
+        /// reactions are its unit's (the unit's SOP, the plays), so a soldier's own SOP stands aside — and the moment the commander is
+        /// gone or out of the fight, the man is his own master again. 📄 docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool UnderCommand(Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<UnitSubordinate>() || !world.HasComponent<UnitSubordinate>(self)) return false;
+            var commander = world.GetComponentRO<UnitSubordinate>(self).Commander;
+            if (commander.IsNull || !world.IsAlive(commander)) return false;
+            return Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, commander)
+                ? Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, commander)
+                : Fdp.Toolkit.Combat.Injury.IsInTheFight(world, commander);
+        }
+
+        /// <summary>⭐ <c>CE-2322</c> (AQ97, as built) — he sits aboard a vehicle (a crewman spawned in his seat, a passenger): the vehicle's
+        /// behaviour and his seat decide, so a soldier's own SOP stands aside as under command.</summary>
+        [SharedAiCondition]
+        public static bool Aboard(Entity self, EntityRepository world)
+            => world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>() && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self);
     }
 }

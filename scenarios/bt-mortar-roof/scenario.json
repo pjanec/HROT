@@ -44,6 +44,11 @@
     "Name": "FireAtPoint",
     "Params": "{\"x\":105,\"y\":104,\"z\":6,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a97000c-0000-4000-8000-00000000000c": {
@@ -80,6 +85,11 @@
    "Behavior": {
     "Name": "FireAtPoint",
     "Params": "{\"x\":95,\"y\":92,\"z\":0,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
     "Origin": "Superior"
    }
   },
@@ -118,6 +128,11 @@
     "Name": "HoldStance",
     "Params": "{\"stance\":\"Standing\"}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a97000e-0000-4000-8000-00000000000e": {
@@ -155,6 +170,11 @@
     "Name": "HoldStance",
     "Params": "{\"stance\":\"Standing\"}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a97000f-0000-4000-8000-00000000000f": {
@@ -191,6 +211,11 @@
    "Behavior": {
     "Name": "HoldStance",
     "Params": "{\"stance\":\"Standing\"}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
     "Origin": "Superior"
    }
   }

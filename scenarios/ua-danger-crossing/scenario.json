@@ -58,6 +58,11 @@
             }
           ]
         }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a3079000-0000-4000-8000-000000000002": {
@@ -121,6 +126,11 @@
             }
           ]
         }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

@@ -668,6 +668,15 @@ the walk he was shot out of, CIV-1's ④); it now refuses one whose intent is th
 first answer — a door locked AFTER the answer makes the run fail and he cowers, he does not re-query. ③ `Inside` deletes him from
 `SimulationTime`; a paused sim holds him inside. ④ Upper storeys are not candidates (ground floor only).
 
+### 5e.9 ⭐ As built `CE-2322` (`2026-10-20`, AQ97 D, R-2062) — a civilian's fear on ANY task
+
+📐 Measured: his `CivilianState` (his fear) was created by the HSM's first tick, so a civilian ORDERED somewhere heard gunfire and felt
+nothing. Now: ① `CivilianFearSystem` creates it for any person of the Civilian class it frightens; ② civilian types name a **`CivilianSop`**
+(beside `CivilianHsm`): while his task is NOT his routine, frightened past the alarm or wounded ⇒ React(**`CivilianReact`**) — the HSM's
+own fear states and guards (Alarmed → Panic → Shelter / Cower → Inside; Casualty first), ending when he is calm so his order restarts;
+idle ⇒ his routine again. On his routine the SOP stands aside (the HSM keeps his fear). Rails `CivilianHsmTests.CE2322_*`,
+`CivilianFearSystemTests.CE2322_*`; demo `df-civilian-ordered`. 📄 [AQ97](blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) §6.
+
 ## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: READY-TO-BUILD)*
 
 INVENTORY *(codebase-memory CLI, re-indexed 2026-10-17 after the backend/ui merges; `check_index_coverage` not available through the CLI)*:

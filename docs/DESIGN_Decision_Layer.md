@@ -1584,6 +1584,13 @@ hold fire withdraws instead of taking up a firing position" is expressed, with n
 Rails: `BasicInfantrySopTests` (SimHost, the production registry through the real ingress + brain: idles with no order; a
 hit pauses the task with cover, the task restarts, the same hit does not fire again; HoldFire withdraws, otherwise cover).
 
+⭐ **As-built `CE-2322` (`2026-10-20`, AQ97, R-2062):** `BasicInfantrySop` is now every soldier type's TKB `DefaultSop` (R-188's
+"the TKB names the default", applied). Two gate rows first — `SopConditions.UnderCommand` (a live commander above him: his unit reacts
+for him) and `SopConditions.Aboard` (a crewman or passenger: his vehicle decides) — then the rows above, plus a **near miss → React(TakeCover,
+UnderFire)** row after the hit row. ⭐ **`InertSop`** is the explicit "no response" (no idle choice, no reactions): once a type has a default,
+an absent `Sop` key means that default, so "none" must be written; 146 shipped lone soldiers were stamped with it so no demo changed. 📄
+[AQ97](blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) §6.
+
 ### 4.8 The demo scenario — `CE-2082` *(build-state: BUILT, `2026-10-04`; user: "pls add the demo SOP scenario to the plan")*
 
 `Hrot.AI.Behaviors/Recipes/Scenarios/sop-demo/scenario.json` — a shipped scenario recipe (offered by the editor's New

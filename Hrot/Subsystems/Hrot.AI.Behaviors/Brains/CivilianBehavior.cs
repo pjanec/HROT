@@ -262,6 +262,72 @@ namespace Hrot.AI.Behaviors.Brains
             return builder.Build();
         }
 
+        // ── ⭐ CE-2322 (AQ97 D, R-2062) — the same fear, on any task ─────────────────────────────────────────
+
+        /// <summary>The reaction's blackboard: the civilian defaults (the ONE table, <see cref="Defaults"/>) and the panic's memory.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CivilianReactBlackboard
+        {
+            public CivilianParams Params;
+            public PanicState Panic;
+        }
+
+        [BehaviorResolver(BehaviorNames.CivilianReact)]
+        public static void ResolveReact(in NoParams authored, ref CivilianReactBlackboard block, EntityRepository world, Entity self)
+            => block = new CivilianReactBlackboard { Params = Defaults() };
+
+        /// <summary>
+        /// ⭐ <c>CE-2322</c> (AQ97 D3) — a civilian's fear when his task is NOT <see cref="BehaviorNames.CivilianHsm"/> (he was ordered
+        /// somewhere): the HSM's own fear states and guards — Alarmed ⇒ Panic past panic ⇒ Shelter (a door near) or Cower ⇒ Inside; Cower ⇒
+        /// Alarmed below panic; wounded ⇒ Casualty first — and DONE once he is calm (his task restarts, R-199). ⛔ Not a copy of their logic:
+        /// every activity and guard is the HSM's; only the edges are drawn again, and a rail holds them to the HSM's
+        /// (<c>CE2322_TheReaction_HasTheHsmsFearEdges</c>).
+        /// </summary>
+        [Behavior(BehaviorNames.CivilianReact, Params = typeof(NoParams), Categories = BehaviorCategory.Civilian)]
+        [HsmDefinition(BehaviorNames.CivilianReact, Curated = true, Group = "Library/Civilian", ParamsType = typeof(CivilianReactBlackboard))]
+        public static StateMachineGraph BuildCivilianReact()
+        {
+            var builder = new HsmBuilder("CivilianReact_HSM");
+            var alarmed = builder.State("Alarmed").Initial()
+                .Activity<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Alarmed);
+            var panic = builder.State("Panic")
+                .Activity<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, Panic);
+            var shelter = builder.State("Shelter")
+                .Activity<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, Shelter);
+            builder.State("Inside")
+                .Activity<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, Inside);
+            var cower = builder.State("Cower")
+                .Activity<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Cower);
+            builder.State("Casualty")
+                .Activity<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Casualty);
+            builder.State("Done").Final();
+
+            foreach (var s in new[] { alarmed, panic, shelter, cower })
+                s.On(0).GoTo("Casualty").Guard<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(2);
+            alarmed.On(0).GoTo("Panic").Guard<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
+            alarmed.On(0).GoTo("Done").Guard<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, Calm).Polled();
+            panic.On(0).GoTo("Shelter").Guard<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, ShelterFound).Polled();
+            panic.On(0).GoTo("Cower").Guard<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, NoShelter).Polled();
+            shelter.On(0).GoTo("Inside").Guard<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, InsideNow).Polled();
+            shelter.On(0).GoTo("Cower").Guard<CivilianReactBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, ShelterFailed).Polled();
+            cower.On(0).GoTo("Alarmed").Guard<CivilianReactBlackboard, CivilianParams>(bb => bb.Params, BelowPanic).Polled();
+            return builder.Build();
+        }
+
+        /// <summary>⭐ <c>CE-2322</c> (AQ97 D2) — his task is not his HSM (the HSM keeps his fear itself: the SOP never reacts twice).</summary>
+        [SharedAiCondition]
+        public static bool NotOnHisRoutine(Entity self, EntityRepository world)
+            => !world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(self)
+               || world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(self).ActiveBehaviorHash != BehaviorHash.FromName(BehaviorNames.CivilianHsm);
+
+        /// <summary>⭐ <c>CE-2322</c> (AQ97 D2) — wounded, or frightened past the alarm (the defaults' thresholds — the ONE table).</summary>
+        [SharedAiCondition]
+        public static bool FrightenedOrHurt(Entity self, EntityRepository world)
+        {
+            var p = Defaults();
+            return Wounded(ref p, self, world) || Frightened(ref p, self, world);
+        }
+
         // ── states ───────────────────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>He wanders about his home: walks to a random spot within <see cref="CivilianParams.WanderRadius"/>, lingers a random

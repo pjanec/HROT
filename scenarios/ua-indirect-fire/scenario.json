@@ -363,6 +363,11 @@
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2176400-0000-4000-8000-000000000013": {
@@ -395,6 +400,11 @@
       "Behavior": {
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     },
@@ -429,6 +439,11 @@
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2176400-0000-4000-8000-000000000015": {
@@ -462,6 +477,11 @@
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2176400-0000-4000-8000-000000000016": {
@@ -494,6 +514,11 @@
       "Behavior": {
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     },
@@ -628,6 +653,11 @@
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2176400-0000-4000-8000-000000000022": {
@@ -660,6 +690,11 @@
       "Behavior": {
         "Name": "HoldStance",
         "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     }

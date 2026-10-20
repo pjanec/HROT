@@ -54,6 +54,11 @@
     "Name": "WindowDuel",
     "Params": "{\"shape\":0}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a970102-0000-4000-8000-000000000102": {
@@ -100,6 +105,11 @@
    "Behavior": {
     "Name": "WindowDuel",
     "Params": "{\"shape\":1}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
     "Origin": "Superior"
    }
   },
