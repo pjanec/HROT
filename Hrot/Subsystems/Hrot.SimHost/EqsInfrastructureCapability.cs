@@ -94,6 +94,8 @@ public static class EqsSolverStartup
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticCursor>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282
         if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
             context.World.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         // ⭐ CE-3038 — the module carries vision too (its grid, the visual template, 3-D sight): design §5.5.

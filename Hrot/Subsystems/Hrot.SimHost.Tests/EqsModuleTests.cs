@@ -1344,6 +1344,96 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        // ⭐ CE-3282 — the hearing rig: the 81 mm tube (hostile, real TKB) and a soldier with 200 m ears 1430 m away, a 4 km grid.
+        private (SpatialHashGrid Grid, Entity Tube, Entity Man) HearingRig()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, big);
+            var tube = _world.CreateEntity();
+            _world.AddComponent(tube, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+            new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+            var man = _world.CreateEntity();
+            _world.AddComponent(man, new SimTransform { Position = new Vector3(1530f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(man, new NetworkIdentity { Value = 4331 });
+            var soldier = new TkbTemplate("Soldier", 1533);
+            soldier.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });
+            new PerceptionTkbTranslator().Inject(_world, man, soldier);
+            return (big, tube, man);
+        }
+
+        // ⭐ CE-3282 — the sound side at sim time t: the clock, then whatever was published this frame, through the emission system
+        private void SoundFrame(double t, params Entity[] shooters)
+        {
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.1f });
+            foreach (var s in shooters) _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = s });
+            _world.Bus.SwapBuffers();
+            new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute((ISimulationView)_world, 0.1f);
+            _world.Bus.SwapBuffers();
+        }
+
+        // ⭐ CE-3282 — one solve of every sensor; the sounds it heard this run
+        private Fdp.Toolkit.Perception.Events.SoundContactEvent[] Solve(SpatialHashGrid grid)
+        {
+            var view = (ISimulationView)_world;
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid).Execute(view, 0.1f);
+            new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (Q95 C; Sensing §8.3; the handoff's S1) — a short sound is NEVER MISSED: the tube fires once; the hearing sensor is not
+        /// solved for ten seconds (the EQS circuit's skip, CE-3279) — long after the 0.5 s linger ended — and when it runs it hears the launch
+        /// ONCE; the next solve does not hear it again. ✅ Red-proof: hearing from the linger (before) ⇒ nothing heard ⇒ red; the cursor not
+        /// written ⇒ heard again on the next solve ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_AShot_IsHeardOnce_ThoughTheSensorWasSkippedForTenSeconds()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));                                       // the sensor's first solve plants its cursor
+                SoundFrame(0.1d, tube);                                          // the launch
+                for (int i = 2; i <= 101; i++) SoundFrame(i * 0.1d);             // ten seconds, no solve
+                Assert.Equal(0f, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube).ShotTimeLeft);   // the linger is long gone
+                var heard = Solve(grid);
+                var one = Assert.Single(heard);
+                Assert.Equal(man, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Empty(Solve(grid));                                       // heard once, not again
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (S1) — two shots of ONE gun inside half a second are heard TWICE (one emitter's linger held one). ✅ Red-proof: the linger
+        /// (before) ⇒ one heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_TwoShotsOfOneGun_InsideHalfASecond_AreHeardTwice()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));
+                SoundFrame(0.1d, tube);
+                SoundFrame(0.3d, tube);
+                var heard = Solve(grid);
+                Assert.Equal(2, heard.Length);
+                Assert.All(heard, h => Assert.Equal(man, h.Observer));
+                Assert.All(heard, h => Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, h.Kind));
+            }
+            finally { grid.Dispose(); }
+        }
+
         /// <summary>
         /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
         /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot

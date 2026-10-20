@@ -96,7 +96,8 @@ namespace Fdp.Toolkit.Perception.Sensors
     {
         private readonly SpatialHashGrid _grid;
         private readonly BroadphaseCache _broadphase = new();   // ⭐ CE-1055 — one per calling thread (the solver, the map's gizmo)
-        private readonly LoudSoundCache _loud = new();          // ⭐ CE-3276 (R-3023) — the tick's live loud sounds, one list per thread
+        /// <summary>⭐ CE-3282 — the most ring sounds one solve reads (on the stack); the cursor stops at the last one read, the next solve reads on.</summary>
+        public const int MaxSoundsPerSolve = 256;
 
         public AcousticSensorGenerator(SpatialHashGrid grid) => _grid = grid;
 
@@ -113,38 +114,45 @@ namespace Fdp.Toolkit.Perception.Sensors
             var ear = view.GetComponentRO<SimTransform>(unit).Position;
             var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, view.Tick);
             int n = 0;
+            // MOVEMENT is continuous: the emitters near the unit, through the grid (§5.1)
             foreach (var (_, source) in broadphase.Select(view, unit, range, fovCos: -1f))
             {
                 if (!view.HasComponent<AcousticEmitter>(source)) continue;
                 var a  = view.GetComponentRO<AcousticEmitter>(source);
-                var at = view.GetComponentRO<SimTransform>(source).Position;
-                ulong src = source.PackedValue;
                 if (a.CurrentMovingRange > 0f)
-                    Sound(candidates, ref n, in ears, at, a.CurrentMovingRange, SoundKind.Movement, a.MovingClass, src);
-                if (a.ShotTimeLeft > 0f)
-                    Sound(candidates, ref n, in ears, new Vector3(a.ShotX, a.ShotY, a.ShotZ), a.FiringAudibleRange, SoundKind.Shot, a.FiringClass, src);
-                if (a.DetonationTimeLeft > 0f)
-                    Sound(candidates, ref n, in ears, new Vector3(a.DetonationX, a.DetonationY, a.DetonationZ), a.DetonationAudibleRange, SoundKind.Detonation, a.DetonationClass, src);
+                    Sound(candidates, ref n, in ears, view.GetComponentRO<SimTransform>(source).Position, a.CurrentMovingRange, SoundKind.Movement,
+                          a.MovingClass, source.PackedValue, ears.Tick);
             }
-
-            // ⭐ CE-3276 (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — a LOUD sound carries past the ear: the tick's live loud sounds
-            //   whose source lies beyond the ear range (the broadphase above answered the rest), the same filters as the broadphase (not
-            //   the listener himself, not his own force).
-            var ourForce = view.HasComponent<EntityInfo>(unit) ? view.GetComponentRO<EntityInfo>(unit).ForceId : default;
-            float rangeSq = range * range;
-            foreach (var source in _loud.For(view))
-            {
-                if (source.Index == unit.Index || view.GetComponentRO<EntityInfo>(source).ForceId == ourForce) continue;
-                var at = view.GetComponentRO<SimTransform>(source).Position;
-                if (Vector2.DistanceSquared(new Vector2(at.X, at.Y), new Vector2(ear.X, ear.Y)) <= rangeSq) continue;
-                var a = view.GetComponentRO<AcousticEmitter>(source);
-                ulong src = source.PackedValue;
-                if (a.ShotTimeLeft > 0f && AcousticPerception.IsLoud(a.FiringClass))
-                    Sound(candidates, ref n, in ears, new Vector3(a.ShotX, a.ShotY, a.ShotZ), a.FiringAudibleRange, SoundKind.Shot, a.FiringClass, src);
-                if (a.DetonationTimeLeft > 0f && AcousticPerception.IsLoud(a.DetonationClass))
-                    Sound(candidates, ref n, in ears, new Vector3(a.DetonationX, a.DetonationY, a.DetonationZ), a.DetonationAudibleRange, SoundKind.Detonation, a.DetonationClass, src);
-            }
+            // ⭐⭐ CE-3282 (Q95 C; Sensing §8.3) — SHOTS and BURSTS are short: every one made since this sensor last read, from the lossless ring
+            //   (distance only — on the terrain or off it, Q95 B), whenever this solve runs
+            HearRing(observer, unit, view, candidates, ref n, in ears);
             return n;
+        }
+
+        // ⭐ CE-3282 — the ring after this sensor's cursor; the cursor moves through the solver's command buffer (a discarded solve re-reads).
+        private static void HearRing(Entity sensorEntity, Entity unit, ISimulationView view, Span<EqsResult> candidates, ref int n, in Ears ears)
+        {
+            var ring = SoundEmissionRing.In(view);
+            if (ring == null) return;
+            bool cursors = view is EntityRepository repo && repo.IsComponentTypeRegistered<AcousticCursor>();
+            bool known = cursors && view.HasComponent<AcousticCursor>(sensorEntity);
+            long after = known ? view.GetComponentRO<AcousticCursor>(sensorEntity).LastSerial : 0L;
+            // a sensor with no cursor yet hears only what is still ringing (the old linger), never the minutes before it existed
+            double notBefore = known ? double.MinValue : ring.Now - SoundEmissionSystem.SoundLingerSeconds;
+            Span<SoundEmission> sounds = stackalloc SoundEmission[MaxSoundsPerSolve];
+            int k = ring.ReadAfter(after, sounds, out long last, notBefore);
+            byte ourForce = view.HasComponent<EntityInfo>(unit) ? (byte)view.GetComponentRO<EntityInfo>(unit).ForceId : (byte)0;
+            for (int i = 0; i < k; i++)
+            {
+                ref readonly var e = ref sounds[i];
+                if (n == candidates.Length) { last = e.Serial - 1; break; }   // no room: this one and the rest wait for the next solve
+                if (e.Source == unit.PackedValue || e.Force == ourForce) continue;   // not his own sound, not his own side's (the broadphase's rule)
+                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, (uint)e.Serial);
+            }
+            if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
+            var cmd = view.GetCommandBuffer();                       //   else a sound after a long skip would meet the no-cursor window
+            if (known) cmd.SetComponent(sensorEntity, new AcousticCursor { LastSerial = last });
+            else cmd.AddComponent(sensorEntity, new AcousticCursor { LastSerial = last });
         }
 
         /// <summary>One listener's ears for this tick: where, how far they reach (masked), the weather's masking, the uncertainty.</summary>
@@ -152,13 +160,15 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         // ⭐ CE-3276 (R-3023) — a QUIET sound is heard within its carry AND the ear range; a LOUD one within its carry × the weather's
         //   masking alone, whatever the ear range.
+        //   ⭐ CE-3282 — <paramref name="seed"/> varies the error: the tick for a continuous sound, the ring serial for a short one (two shots
+        //   heard in one solve are misheard apart, deterministically).
         private static void Sound(Span<EqsResult> candidates, ref int n, in Ears ears, Vector3 where, float carries, SoundKind kind,
-                                  byte sourceClass, ulong source)
+                                  byte sourceClass, ulong source, uint seed)
         {
             if (AcousticPerception.IsLoud(sourceClass))
-                Hear(candidates, ref n, ears.At, where, carries * ears.Masking, float.MaxValue, ears.PerMeter, kind, sourceClass, source, ears.Listener, ears.Tick);
+                Hear(candidates, ref n, ears.At, where, carries * ears.Masking, float.MaxValue, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
             else
-                Hear(candidates, ref n, ears.At, where, carries, ears.Range, ears.PerMeter, kind, sourceClass, source, ears.Listener, ears.Tick);
+                Hear(candidates, ref n, ears.At, where, carries, ears.Range, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
         }
 
         // One sound: heard when it carries this far AND the ear reaches this far; answered as an anonymous estimate.
@@ -180,42 +190,6 @@ namespace Fdp.Toolkit.Perception.Sensors
                 Flags           = (short)(((byte)kind << AcousticPerception.KindShift) | ((sourceClass & 0x7) << AcousticPerception.ClassShift)),
                 FlagsMeaningful = (short)(AcousticPerception.KindMask | AcousticPerception.ClassMask),
             };
-        }
-    }
-
-    /// <summary>
-    /// ⭐ <c>CE-3276</c> (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — the sources with a LIVE loud sound this tick (a shot or a
-    /// burst of a <see cref="AcousticPerception.IsLoud"/> class), built once per tick and per calling thread (the
-    /// <see cref="BroadphaseCache"/> pattern) so every listener scans one short list instead of a wider broadphase. Each has an
-    /// <see cref="EntityInfo"/> and a <see cref="SimTransform"/>, as the broadphase demands of its candidates.
-    /// </summary>
-    public sealed class LoudSoundCache
-    {
-        private sealed class Slot
-        {
-            public readonly System.Collections.Generic.List<Entity> Sources = new();
-            public ISimulationView? BuiltFor;
-            public uint BuiltTick;
-        }
-
-        private readonly System.Threading.ThreadLocal<Slot> _slots = new(() => new Slot());
-
-        /// <summary>This thread's list, rebuilt when <paramref name="view"/> or its tick changed since this thread last asked.</summary>
-        public System.Collections.Generic.IReadOnlyList<Entity> For(ISimulationView view)
-        {
-            var slot = _slots.Value!;
-            if (ReferenceEquals(view, slot.BuiltFor) && view.Tick == slot.BuiltTick) return slot.Sources;
-            slot.Sources.Clear();
-            slot.BuiltFor = view;
-            slot.BuiltTick = view.Tick;
-            foreach (var e in view.Query().With<AcousticEmitter>().With<SimTransform>().With<EntityInfo>().Build())
-            {
-                var a = view.GetComponentRO<AcousticEmitter>(e);
-                bool shot  = a.ShotTimeLeft > 0f && a.FiringAudibleRange > 0f && AcousticPerception.IsLoud(a.FiringClass);
-                bool burst = a.DetonationTimeLeft > 0f && a.DetonationAudibleRange > 0f && AcousticPerception.IsLoud(a.DetonationClass);
-                if (shot || burst) slot.Sources.Add(e);
-            }
-            return slot.Sources;
         }
     }
 }

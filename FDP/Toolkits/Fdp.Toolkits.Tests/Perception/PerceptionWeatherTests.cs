@@ -139,7 +139,10 @@ namespace Fdp.Toolkit.Tests.Perception
                 var unit = Man(w, Vector3.Zero, ForceId.Friend);
                 var ear = Sensor(w, new SensorEntryDto { Acoustic = new AcousticSensorDto { Range = 100f } });
                 var shooter = Man(w, new Vector3(80, 0, 0), ForceId.Hostile);
-                w.AddComponent(shooter, new AcousticEmitter { FiringAudibleRange = 400f, ShotTimeLeft = 1f, ShotX = 80f });
+                w.AddComponent(shooter, new AcousticEmitter { FiringAudibleRange = 400f });
+                // ⭐ CE-3282 — a shot is heard from the lossless ring (Sensing §8.3), no longer from the emitter's linger
+                SoundEmissionRing.Of(w).Append(new SoundEmission { Source = shooter.PackedValue, Force = (byte)ForceId.Hostile,
+                    Kind = (byte)SoundKind.Shot, At = new Vector3(80f, 0f, 0f), Carry = 400f });
                 var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
                 try
                 {
