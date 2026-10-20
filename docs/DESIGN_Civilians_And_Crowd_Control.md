@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — ASKED 2026-10-20 (D): fear created by CivilianFearSystem for every civilian; a CivilianSop reacts when his task is not CivilianHsm (measured: an ordered civilian has no fear at all today)
   - docs/DESIGN_People_Display.md — (ui) OWNS how a person is DRAWN — what he holds, his gestures, marks above the head; its §8 gaps G1–G8 are answered by §5o here
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
@@ -666,6 +667,15 @@ the walk he was shot out of, CIV-1's ④); it now refuses one whose intent is th
 ⚠ **Known limits (slice 2):** ① only bt-range's houses are enterable (§6); on test-town every panic ends in Cower. ② The shelter is the
 first answer — a door locked AFTER the answer makes the run fail and he cowers, he does not re-query. ③ `Inside` deletes him from
 `SimulationTime`; a paused sim holds him inside. ④ Upper storeys are not candidates (ground floor only).
+
+### 5e.9 ⭐ As built `CE-2322` (`2026-10-20`, AQ97 D, R-2062) — a civilian's fear on ANY task
+
+📐 Measured: his `CivilianState` (his fear) was created by the HSM's first tick, so a civilian ORDERED somewhere heard gunfire and felt
+nothing. Now: ① `CivilianFearSystem` creates it for any person of the Civilian class it frightens; ② civilian types name a **`CivilianSop`**
+(beside `CivilianHsm`): while his task is NOT his routine, frightened past the alarm or wounded ⇒ React(**`CivilianReact`**) — the HSM's
+own fear states and guards (Alarmed → Panic → Shelter / Cower → Inside; Casualty first), ending when he is calm so his order restarts;
+idle ⇒ his routine again. On his routine the SOP stands aside (the HSM keeps his fear). Rails `CivilianHsmTests.CE2322_*`,
+`CivilianFearSystemTests.CE2322_*`; demo `df-civilian-ordered`. 📄 [AQ97](blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) §6.
 
 ## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: READY-TO-BUILD)*
 

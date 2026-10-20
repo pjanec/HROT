@@ -41,6 +41,29 @@ namespace Fdp.Toolkit.Civilians.Tests
 
         private static float Fear(EntityRepository w, Entity e) => w.GetComponentRO<CivilianState>(e).Fear;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2322</c> (AQ97 D1, R-2062) — the fear of a civilian on ANY task: a person of the Civilian class with no
+        /// <see cref="CivilianState"/> yet (his HSM never ran — he was ordered somewhere) is given one by the first fright, and feels it; a
+        /// soldier is not. 🔴 Red before: only his HSM created the state, so an ordered civilian heard gunfire and felt nothing.
+        /// ✅ Red-proof: the creation removed ⇒ no state ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2322_ACivilianOnAnotherTask_IsFrightened_ASoldierIsNot()
+        {
+            var w = World();
+            var civilian = Person(w, Vector3.Zero, civilian: false);
+            w.SetDisType(civilian, new DISEntityType { Kind = 3, Domain = 1, Category = 2 });   // the Civilian class (3.1.*.2)
+            var soldier = Person(w, Vector3.Zero, civilian: false);
+            w.SetDisType(soldier, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+            w.Bus.Publish(new SoundContactEvent { Observer = civilian, X = 20, Y = 0, SourceClass = (byte)SoundSourceClass.SmallArms });
+            w.Bus.Publish(new SoundContactEvent { Observer = soldier, X = 20, Y = 0, SourceClass = (byte)SoundSourceClass.SmallArms });
+            w.Bus.Publish(new SensorChangedEvent { Unit = civilian, What = SensorChange.NearMiss });
+            Frame(w);
+            Assert.True(w.HasComponent<CivilianState>(civilian));
+            Assert.True(Fear(w, civilian) > 0.3f, $"heard and near-missed, he is frightened: {Fear(w, civilian)}");
+            Assert.False(w.HasComponent<CivilianState>(soldier));
+        }
+
         [Fact]
         public void CE2235_AShotFrightens_ANearOneMoreThanAFarOne_AndFootstepsNot()
         {

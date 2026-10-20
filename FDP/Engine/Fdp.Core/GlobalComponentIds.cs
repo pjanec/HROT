@@ -1044,6 +1044,11 @@ namespace Fdp.Core
         /// ⚠ 417: 416 was taken in parallel by backend's Lean (CE-3257); behaviors merged second and moved (runtime id, NoScenario) — 417 measured free on every lane 2026-10-19.</summary>
         public const int EngagementArea = 417;
 
+        /// <summary>⭐ <c>CE-2319</c> / <c>CE-2320</c> (behaviors, AQ96) — <c>UnderFireMove</c>: a soldier's move under fire, kept honest after it
+        /// is issued (the gait re-picked, the rush speed, the drop and the rise); brain-local, NoScenario. ⭐ The first id of behaviors' block
+        /// 418–433 (R-2056), measured free on backend, ui and coordinator 2026-10-20. 📄 docs/blueprints/Architect_Question_96_Movement_Under_Fire.md.</summary>
+        public const int UnderFireMove = 418;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>

@@ -1,0 +1,140 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: AQ96 (CE-2319/CE-2320) - ONE soldier ordered forward across 115 m of open ground at a walking 2 m/s, into the fire of two hostile riflemen holding the far end and firing (CombatPosture, Stay; all immortal, so the reflex can be watched). He is alone: nobody covers him. Judge: (1) the moment the first rounds pass near him he runs CROUCHED at the rush speed (about 3 m/s), never upright at 2; (2) a near miss in the open drops him PRONE and he stops; (3) while rounds keep passing near him he stays down; (4) once the fire on him stops (the check empties both hostiles' rifles after ~15 s pinned; two immortal riflemen otherwise never pause) he waits ~3 s, crawls ~1.5 m sideways, then rises crouched and rushes on; (5) he does not drop again within 3 s of rising; within 3 m of his objective he no longer drops. Fail: he walks upright under fire, or springs up while still being fired on. Check: python3 scripts/utility-demo-check.py --launch uf-alone-under-fire"
+  },
+  "entities": {
+    "a9600000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          165,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 9601
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Runner",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "AdvanceTo",
+        "Params": "{\"Objective\": [200, 280, 0], \"Speed\": 2, \"ArrivalRadius\": 3}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a9600000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          195,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 9611
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"Advance\": {\"Objective\": [195, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a9600000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          205,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 9612
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"Advance\": {\"Objective\": [205, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

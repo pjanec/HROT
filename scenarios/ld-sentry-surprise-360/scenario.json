@@ -49,6 +49,11 @@
     "HearingRange": 4000,
     "VisionRange": 300,
     "FieldOfViewCos": -1.0
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a980302-0000-4000-8000-000000000302": {
@@ -86,6 +91,11 @@
     "Name": "MoveToLocation",
     "Params": "{\"x\": 198, \"y\": 150, \"speed\": 1.0, \"arrivalRadius\": 1}",
     "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   },
   "2a980303-0000-4000-8000-000000000303": {
@@ -122,6 +132,11 @@
    "Behavior": {
     "Name": "MoveToLocation",
     "Params": "{\"x\": 185, \"y\": 40, \"speed\": 1.5, \"arrivalRadius\": 1}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
     "Origin": "Superior"
    }
   }

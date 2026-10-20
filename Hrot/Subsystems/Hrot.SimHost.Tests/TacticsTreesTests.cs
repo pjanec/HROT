@@ -1123,6 +1123,182 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
         }
 
+        // ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ────
+
+        /// <summary>A soldier on the move, as the dispatcher leaves him: the move issued through the one helper and its intent written.</summary>
+        private static unsafe Fdp.Toolkit.Navigation.MoveToParams Mover(World w, Vector3 to, float speed = 2f, MoveGait gait = MoveGait.Tactical)
+        {
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit))
+                w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            if (!w.Repo.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(w.Unit))
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationIntent());
+            if (!w.Repo.HasComponent<RecentSenses>(w.Unit)) w.Repo.AddComponent(w.Unit, new RecentSenses());
+            Assert.True(LocomotionMoveTo.Issue(w.Repo, w.Unit, to, speed, 1f, gait));
+            ref var ch = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Unit);
+            new Fdp.Toolkit.Navigation.Executors.MoveToExecutor().OnEnter(w.Unit, ref ch, w.Repo);
+            fixed (byte* src = ch.Params) return *(Fdp.Toolkit.Navigation.MoveToParams*)src;
+        }
+
+        private static Fdp.Toolkit.Tkb.Domain.StanceId Stance(World w)
+            => w.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(w.Unit).TargetStance;
+
+        private static Fdp.Toolkit.Navigation.NavigationIntent Intent(World w) => w.Repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(w.Unit);
+
+        private static UnderFireMove Reflex(World w) => w.Repo.GetComponentRO<UnderFireMove>(w.Unit);
+
+        private static void ShotAt(World w, double at) => w.Repo.GetComponentRW<RecentSenses>(w.Unit).Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, at);
+
+        /// <summary>One pass of the reflex at sim time <paramref name="t"/> (the clock every reader of the senses uses, set to it).</summary>
+        private static void StepAt(World w, double t)
+        {
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f });
+            UnderFire.Step(w.Repo, w.Unit, t);
+        }
+
+        /// <summary>
+        /// ⭐⭐ AQ96 A + B — a soldier who set off unthreatened (upright, the order's 2 m/s) crouches and rushes when a threat appears MID-MOVE,
+        /// and the play's move is the same move (its instance unchanged). 🔴 Red before: the gait and the pace were fixed at issue (CE-2319).
+        /// ✅ Red-proof: the threat re-check removed from <c>UnderFire.Step</c> ⇒ he stays upright at 2 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ96_AThreatMidMove_CrouchesHim_AndRushes_TheSameMove()
+        {
+            var w = new World();
+            Mover(w, new Vector3(50f, 0f, 0f));
+            uint instance = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Stance(w));
+            Assert.Equal(2f, Intent(w).TargetSpeed);
+
+            w.Contact(armed: true);
+            StepAt(w, 10.0);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(UnderFire.RushSpeed, Intent(w).TargetSpeed);
+            Assert.Equal(instance, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+            Assert.Equal(Fbt.NodeStatus.Running, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).Status);
+        }
+
+        /// <summary>
+        /// ⭐⭐ AQ96 C + C2 — a near miss in the open DROPS him: prone, the move halted, and the move's executor keeps the play Running even
+        /// when the halted intent reports a result. While rounds keep coming he stays down; 3 s without one ⇒ he side-steps 1.5 m prone
+        /// (never up where he dropped), then rises crouched and rushes on to the play's point. ✅ Red-proof: the executor's hold check
+        /// removed ⇒ the halted intent's "arrived" ends the play's move ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ96_ANearMissInTheOpen_DropsHim_HeStaysDownUnderFire_ThenShiftsAndRises()
+        {
+            var w = new World();
+            var move = Mover(w, new Vector3(50f, 0f, 0f));
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationMode.None, Intent(w).Mode);
+            Assert.Equal(Intent(w).IntentId, Reflex(w).HoldIntentId);
+
+            // the halted intent "arrives" (the muscle reports on it): the play's move does not end
+            if (!w.Repo.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(w.Unit))
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationStatus());
+            w.Repo.SetComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationStatus { IntentId = Intent(w).IntentId, Result = Fdp.Toolkit.Navigation.NavigationResult.Arrived });
+            ref var ch = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Unit);
+            new Fdp.Toolkit.Navigation.Executors.MoveToExecutor().Execute(w.Unit, ref ch, w.Repo, 0.016f);
+            Assert.Equal(Fbt.NodeStatus.Running, ch.Status);
+
+            // still under fire: a round every 2 s keeps him down
+            ShotAt(w, 22.0);
+            StepAt(w, 22.5);
+            ShotAt(w, 24.0);
+            StepAt(w, 25.0);
+            Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+
+            // 3 s without one: the side step, prone, across his line of advance
+            StepAt(w, 27.1);
+            Assert.Equal(UnderFirePhase.Shifting, Reflex(w).Phase);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            var step = Reflex(w).SubTarget;
+            Assert.Equal(UnderFire.ShiftMetres, MathF.Abs(step.Y), 3);
+            Assert.Equal(0f, step.X, 3);
+
+            // there: up, crouched, on to the play's point at the rush speed — the move's own intent again
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = step;
+            StepAt(w, 28.5);
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(move.Destination, Intent(w).FinalDestination);
+            Assert.Equal(UnderFire.RushSpeed, Intent(w).TargetSpeed);
+            Assert.Equal(0u, Reflex(w).HoldIntentId);
+
+            // and not down again straight away: one rush first
+            ShotAt(w, 29.0);
+            StepAt(w, 29.1);
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+        }
+
+        /// <summary>
+        /// ⭐ AQ96 C3 — in a squad, his half COVERED by the other half's fire: he rises even with rounds still coming (that is what covering
+        /// fire is for); alone, the same fire keeps him down. ✅ Red-proof: the covered test removed ⇒ he stays down ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ96_CoveredByHisHalf_HeRisesUnderFire_AloneHeStaysDown()
+        {
+            var w = new World();
+            Mover(w, new Vector3(50f, 0f, 0f));
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            ShotAt(w, 21.0);
+            StepAt(w, 21.1);
+            Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);   // alone: still down
+
+            UnderFire.MarkCovered(w.Repo, w.Unit, 21.2);
+            ShotAt(w, 21.3);
+            StepAt(w, 21.4);
+            Assert.Equal(UnderFirePhase.Shifting, Reflex(w).Phase);
+        }
+
+        /// <summary>AQ96 C — no drop while arriving at his point (within 3 m — he is getting into his cover), and a civilian's upright run
+        /// is never kept by the reflex.</summary>
+        [Fact]
+        public void AQ96_NoDropWhenArriving_AndAnUprightRunIsNotKept()
+        {
+            var w = new World();
+            Mover(w, new Vector3(2f, 0f, 0f));
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+
+            var c = new World();
+            Mover(c, new Vector3(50f, 0f, 0f), gait: MoveGait.Upright);
+            Assert.False(c.Repo.HasComponent<UnderFireMove>(c.Unit));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2318</c> (Injury States I4) — A MAN DOWN IS NO THREAT AND NO TARGET. An enemy who is incapacitated (alive, bleeding,
+        /// below the band) is dropped as the top threat even while he is the CURRENT one and nothing else scores — the case live, where
+        /// soldiers kept firing at a man lying wounded — and a mover no longer crouches for him. Wounded he is still fought.
+        /// ✅ Red-proof: <c>Engageable</c> back to <c>CombatLife.IsAlive</c> ⇒ he stays the threat ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2318_AnIncapacitatedEnemy_IsNoLongerTheThreat_NorAThreatToMoveFrom()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.InjuryThresholds>())
+                w.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            var enemy = w.Contact(armed: true);
+            w.Repo.AddComponent(enemy, new Fdp.Toolkit.Combat.Components.Health { Current = 20f, Max = 100f });   // below 0.3: down
+            w.Repo.AddComponent(enemy, Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator.Thresholds(new Fdp.Toolkit.Tkb.Domain.InjuryDefDto()));
+
+            Assert.True(Fdp.Toolkit.Combat.CombatLife.IsAlive(w.Repo, enemy));                          // alive — he bleeds
+            Assert.False(EqsTacticsNodes.TopThreat(w.Repo, w.Unit, enemy, out _));                        // but not the threat
+            Assert.True(LocomotionMoveTo.Issue(w.Repo, w.Unit, new Vector3(10f, 0f, 0f), 3f, 1f, MoveGait.Tactical));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing,
+                w.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(w.Unit).TargetStance);
+
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 50f;            // wounded: still a fighter
+            Assert.True(EqsTacticsNodes.TopThreat(w.Repo, w.Unit, enemy, out var threat));
+            Assert.Equal(enemy, threat);
+        }
+
         // ── ⭐ CE-2297 LD-3 — who points the eyes (docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a) ─────────────────
 
         private static void CanLook(World w)

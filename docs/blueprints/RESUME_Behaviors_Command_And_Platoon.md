@@ -1,13 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+updated: 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
 current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
 stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
 related-designs:
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — APPROVED 2026-10-20: signatures, hearing by distance, the lossless ring, the Band; behaviors owns E (CE-2315)
-  - docs/DESIGN_Injury_States.md — §6 I4 "units stop shooting him" — broken live (CE-2318), the next build
+  - docs/DESIGN_Injury_States.md — §8a CE-2318 as built: a man down is no target, and he lies
+  - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: movement under fire (CE-2319 / CE-2320)
   - docs/blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the crouched run chosen at issue only (CE-2319 / CE-2320)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the command machinery (CC-A…CC-E), BUILT; §8a as-built, §8d the request chain
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-A…DA-L, §8d PlatoonDefend, §8f.1 PlatoonAttack (as built)
@@ -26,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2322`** · rulings next free **`R-2061`** · component ids **418–433** (R-2056) |
+| ⭐ ids | tracker next free **`CE-2323`** · rulings next free **`R-2063`** · component ids **419–433** (418 = `UnderFireMove`, R-2056) · next architect question **98** (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -43,7 +44,7 @@ related-designs:
 
 | row | lane | what | lean |
 |---|---|---|---|
-| **`CE-2318`** ⭐ next build | behaviors (+ backend aim) | soldiers keep shooting a DOWNED man, and over him | ① targeting uses `Injury.IsInTheFight`, not `CombatLife.IsAlive` (Health > 0) — `TopThreat`'s `Engageable` (`EqsTacticsNodes.cs:359`), `AimAndFireExecutor.cs:77`, `PostureNodes.cs:287,400`, `SquadManeuverRunner.cs:804`, `SquadAssignment.cs:24`, `HiddenTargetThrow.cs:87-119`; ⛔ classify each caller with **Roslyn** find-references (some want HEALTH: carry, medic). ② `LogicalStance.Of` answers Prone for a man down, so aim (0.85 m today) matches his `Downed` hit boxes. No architect question needed — Injury States §6 I4 already says it |
+| ~~`CE-2318`~~ ✅ fixed 2026-10-20 | behaviors (+ backend aim) | soldiers keep shooting a DOWNED man, and over him | ① targeting uses `Injury.IsInTheFight`, not `CombatLife.IsAlive` (Health > 0) — `TopThreat`'s `Engageable` (`EqsTacticsNodes.cs:359`), `AimAndFireExecutor.cs:77`, `PostureNodes.cs:287,400`, `SquadManeuverRunner.cs:804`, `SquadAssignment.cs:24`, `HiddenTargetThrow.cs:87-119`; ⛔ classify each caller with **Roslyn** find-references (some want HEALTH: carry, medic). ② `LogicalStance.Of` answers Prone for a man down, so aim (0.85 m today) matches his `Downed` hit boxes. No architect question needed — Injury States §6 I4 already says it |
 | **`CE-2319`** | behaviors | an attack advances UPRIGHT AT A WALK under heavy fire | ⚠ part is mine: `pc-defend-house` authors `PlatoonAttack Speed 2`, overriding the rush 4. Gait chosen once at issue (`LocomotionMoveTo.cs:93-94`); no go-to-ground. ⇒ **write an architect question first** (touches every play): rush speed under fire · re-pick the gait when `Threatened` changes · one soldier-level reflex (near miss in the open ⇒ down 2–4 s, up, rush). Relates CE-2158, CE-2270/2272 (stress), AQ88 |
 | **`CE-2320`** | behaviors | taking cover across OPEN GROUND upright and slow | same mechanism (`PeekAndFireNodes.cs:407,457-476`, `TakeCover.btree.json:47`); a cover move is always a crouched rush; a light weave only in the open under fire (zig-zag: no design record) — in CE-2319's question |
 | `CE-2321` | backend | a downed/dead man is pushed and turned by avoidance | `CarKinematicsSystem` query `:80-92` has no out-of-the-fight filter; lean: not integrated until carried/dragged |
@@ -51,8 +52,13 @@ related-designs:
 | `CE-2317` | ui + backend | a possessed ZU-23 technical aims, never fires | not located; CE-1206's fix (`51c65bec3`) is not on `ui`; show `CanFire`'s `WeaponHold` on the HUD first |
 | `CE-1172` | ui | no baton in the policeman's hand | existing row, live note added |
 
-⭐ My lean to the user (not yet answered): build `CE-2318` now; write one architect question for `CE-2319`+`CE-2320`; the ui/backend rows
-wait for those lanes unless the user hands them over.
+✅ *2026-10-20, the user: "Lets solve CE-2318 … CE-2319 and CE-2320 would get one architect question."* ⇒ **`CE-2318` FIXED** (Injury
+States §8a: 21 target tests on `Injury.IsInTheFight`, a man down lies Prone for aim / sight / the round) · **[AQ96](Architect_Question_96_Movement_Under_Fire.md) APPROVED (R-2061) and BUILT** (§6: `UnderFireMove` 418 +
+`UnderFireMoveSystem` — rush under fire, crouch mid-move, the drop with its outcomes, cover moves crouched; `CE-2319` / `CE-2320` closed;
+live `uf-alone-under-fire` PASS; `uf-squad-under-fire` — see AQ96 §6) · **scenario `header.description`** handed to backend
+([handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md); behaviors fills its own scenarios once the round-trip lands).
+✅ *2026-10-20, the user: "Approved, go"* ⇒ **[AQ97](Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) (R-2062) BUILT, `CE-2322` closed**: every lone soldier reacts by default (`BasicInfantrySop` on the soldier types, gated off under a live commander or aboard), `InertSop` = the explicit "no response", a civilian's fear is `CivilianFearSystem`'s and `CivilianSop` reacts off his routine; live `df-lone-soldier-reflex` + `df-civilian-ordered` PASS; TakeCover now drops a man fired on with no cover point (Eqs §6 A8).
+⭐ next: Q95's behaviors half (`CE-2315` E2), N.3's ladder. The ui/backend rows wait for those lanes unless the user hands them over.
 
 ### N.3 Still open from the plan
 

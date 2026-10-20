@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Utility
             // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an ATTACK order's target comes first: the operator above the squad
             //   named it. Only while it is still in the fight; a downed one leaves the squad's distribution in charge again.
             if (Fdp.Toolkit.Behavior.Components.DesignatedTarget.Of(repo, self, out var designated)
-                && Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, designated))
+                && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, designated))
             {
                 handle = (long)designated.PackedValue;
                 return true;

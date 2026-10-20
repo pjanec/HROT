@@ -288,6 +288,11 @@
       },
       "WeaponState": {
         "Ammo": 0
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

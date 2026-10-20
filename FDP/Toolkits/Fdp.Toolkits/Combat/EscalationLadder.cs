@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Combat
                 float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
                 if (dx * dx + dy * dy > reach2) continue;
                 var man = new Entity((ulong)mem.EntityIds[i]);
-                if (!Applies(world, unit, man) || !CombatLife.IsAlive(world, man) || WarnedAt(world, unit, man) > 0) continue;
+                if (!Applies(world, unit, man) || !Injury.IsInTheFight(world, man) || WarnedAt(world, unit, man) > 0) continue;
                 if (Armament.Judge(world, unit, man) == ArmedJudgement.IdentifiedLethal) Warn(world, unit, man);
             }
         }

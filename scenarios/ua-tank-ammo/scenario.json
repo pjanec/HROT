@@ -145,6 +145,11 @@
         "Name": "CombatPosture",
         "Params": "{\"target\": 8501, \"assault\": true}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2200d00-0000-4000-8000-000000000005": {
@@ -181,6 +186,11 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": "{\"target\": 8501, \"assault\": true}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     }

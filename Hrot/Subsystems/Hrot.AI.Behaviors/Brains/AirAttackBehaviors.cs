@@ -360,7 +360,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (entity)
             {
                 // ⭐ B14 — the attack on an entity ends the moment it is destroyed; until then the point follows it (B13)
-                if (!CombatLife.IsAlive(world, p.Target)) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+                if (!Injury.IsInTheFight(world, p.Target)) { StopFire(world, self, ref ws); return NodeStatus.Success; }
                 if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var now3, out _)) p.Point = now3;
             }
             var target = p.Point;
@@ -1001,7 +1001,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;   // heard, never identified: nothing to dive on
                 var e = new Entity((ulong)memory.EntityIds[i]);
-                if (!world.IsAlive(e) || !CombatLife.IsAlive(world, e) || !Hostile(world, drone, e)) continue;
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !Hostile(world, drone, e)) continue;
                 if (new Vector2(memory.PositionsX[i] - centre.X, memory.PositionsY[i] - centre.Y).Length() > radius) continue;
                 float score = Score(world, drone, e, memory.Freshness[i]);
                 if (score > bestScore) { bestScore = score; best = e; }

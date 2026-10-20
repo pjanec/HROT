@@ -250,6 +250,9 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Behavior.Systems.ProficiencyFillSystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
+            // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its
+            //   intent when the reflex halts or re-paces it.
+            simList.Add(new Hrot.AI.Behaviors.Brains.UnderFireMoveSystem(gateOnAuthority));
             simList.Add(_routeContextSystem);
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
             // contributed by the infrastructure capabilities (see the field block above).

@@ -54,6 +54,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[149,48,0],\"Speed\":3,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a4120000-0000-4000-8000-000000000002": {
@@ -104,6 +109,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[149,48,0],\"Speed\":3,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a4120000-0000-4000-8000-000000000003": {
@@ -140,6 +150,11 @@
       "Behavior": {
         "Name": "HoldStance",
         "Params": "{\"stance\":\"Crouched\"}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     }

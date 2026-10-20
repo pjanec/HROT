@@ -1,0 +1,146 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2322000-0000-0000-0000-000000000002",
+  "Name": "CivilianSop",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2322002-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2322002-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Selector",
+      "VisualId": "c2322002-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c2322002-0000-0000-0000-000000000010",
+        "c2322002-0000-0000-0000-000000000020"
+      ],
+      "DisplayLabel": "Rows — first true wins",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 120,
+        "Comment": "CE-2322 (AQ97 D2, R-2062): a civilian reacts under ANY task. His routine (CivilianHsm) keeps his fear itself, so the rows stand aside while it runs.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2322002-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "c2322002-0000-0000-0000-000000000011",
+        "c2322002-0000-0000-0000-000000000012",
+        "c2322002-0000-0000-0000-000000000013"
+      ],
+      "DisplayLabel": "On another task, frightened or hurt → react",
+      "EditorMetadata": {
+        "X": 500,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CivilianBehavior.NotOnHisRoutine"
+      },
+      "VisualId": "c2322002-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not on his routine (CivilianHsm)",
+      "EditorMetadata": {
+        "X": 380,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CivilianBehavior.FrightenedOrHurt"
+      },
+      "VisualId": "c2322002-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Frightened past the alarm, or wounded",
+      "EditorMetadata": {
+        "X": 520,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "CivilianReact",
+        "Urgency": "UnderFire"
+      },
+      "VisualId": "c2322002-0000-0000-0000-000000000013",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: CivilianReact",
+      "EditorMetadata": {
+        "X": 660,
+        "Y": 400,
+        "Comment": "Alarmed → panic → shelter / cower → calm: done, and his task restarts (R-199).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "DoWhenIdle",
+        "BehaviorName": "CivilianHsm"
+      },
+      "VisualId": "c2322002-0000-0000-0000-000000000020",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Idle: his routine (CivilianHsm)",
+      "EditorMetadata": {
+        "X": 760,
+        "Y": 260,
+        "Comment": "An order finished: he goes back to his own life.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": []
+  }
+}

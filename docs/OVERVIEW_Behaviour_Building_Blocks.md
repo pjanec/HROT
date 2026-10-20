@@ -97,6 +97,16 @@ graph LR
 
 *Owner:* [DESIGN_Decision_Layer](DESIGN_Decision_Layer.md) §4 · R-199, R-200, R-203.
 
+### 2a. What a unit does with NO order *(AQ97, R-2062, built 2026-10-20)*
+
+| unit | its TKB default | what it does by itself | to stop it |
+|---|---|---|---|
+| a soldier (rifleman, gunners, snipers, AT, insurgent, paratrooper…) | SOP `BasicInfantrySop` | idles; hit or near-missed ⇒ take cover; a threat seen or heard ⇒ take cover (withdraw under hold-fire). ⛔ Stands aside under a live commander or aboard a vehicle | `Sop: InertSop` |
+| a civilian (1101–1104) | task `CivilianHsm` + SOP `CivilianSop` | his routine with its own fear; on any OTHER task his fear still reacts (`CivilianReact`), then the task restarts | `Sop: InertSop` (+ `Idle` for no routine) |
+| a pilot | SOP `PilotSop` | down on the ground ⇒ evade and signal | `Sop: InertSop` |
+
+⚠ An absent `Sop` key now means the TYPE'S DEFAULT. ⛔ So a scenario that wants a brain-dead unit says `InertSop`.
+
 ## 3. Utility decisions
 
 ```mermaid
@@ -318,6 +328,20 @@ graph TD
   classDef missing fill:#f8d7da,stroke:#c00
 ```
 
+## 7a. Moving under fire — what every soldier's move does by itself *(AQ96, R-2061, built 2026-10-20)*
+
+⭐ A behaviour does NOTHING to get this: any move a play issues through `LocomotionMoveTo.Issue` (gait `Tactical` or `Crouched`, a person)
+is kept by `UnderFireMoveSystem`. ⛔ So do not build a per-play "go prone when shot at" — it would fight the reflex.
+
+| | what happens | where |
+|---|---|---|
+| threatened mid-move | the gait re-picks (crouched) and the move rushes (≥ 4 m/s; the crouched cap makes 3) — the asked speed is the pace out of contact | `UnderFire.Step` · `LocomotionMoveTo.Issue` |
+| a near miss / hit in the open | prone, the move halted (the play still sees Running); down while fired on; up after a 3 s lapse, or when his half is covered (`UnderFire.MarkCovered`, stamped by `FireAndMovement`); a 1.5 m side step first; a crawl to cover within 10 m | `UnderFireMove` (component 418) · `MoveToExecutor` ignores the reflex's own intents (`HoldIntentId`) |
+| a move to cover | crouched, at least the rush speed (PeekAndFire's hides, every EQS tactics move) | `PeekAndFireNodes` · `EqsTacticsNodes` |
+| not kept | `Upright` (civilians) and `Keep` moves, vehicles, a man carrying a casualty (no drop) | — |
+
+📄 [AQ96](blueprints/Architect_Question_96_Movement_Under_Fire.md) §6 · demos `uf-alone-under-fire`, `uf-squad-under-fire`.
+
 ## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
 
 | question | ✅ answer | where |
@@ -325,7 +349,7 @@ graph TD
 | the states | ok · wounded · incapacitated · dead, DERIVED from `Health` and the type's `Gen.Injury` band (no stored state, no topic) | `Combat/Injury.cs` — `Injury.StateOf` |
 | who has a band | types that declare `Gen.Injury`: BDC rifleman, the four UrbanCombat soldier types. Everything else: ok until dead | [`DESIGN_Injury_States.md`](DESIGN_Injury_States.md) §8 |
 | what "down" does | no move, no fire (stripped in `CombatLife.ApplyHitCapabilities`, enforced by the weapon / locomotion dispatchers); bleeds to death on the `Health` owner (`BleedOutSystem`) | §8 |
-| is he a threat / a target | no — `ThreatDanger.IsOutOfTheFight` (danger 0; `HaveLiveTarget`, `ThreatInSight`, the squad strength sum) and the EQS `AliveFilterTest` all skip him. A blast still hits him | §8 ① |
+| is he a threat / a target | no — `ThreatDanger.IsOutOfTheFight` (danger 0; `HaveLiveTarget`, `ThreatInSight`, the squad strength sum) and the EQS `AliveFilterTest` all skip him. A blast still hits him. ⭐ *(CE-2318, 2026-10-20)* **any "is this enemy still a target" test asks `Injury.IsInTheFight`, never `CombatLife.IsAlive`** (Health > 0 — that is for health questions: he died, a friend in the burst, own men); and a man down LIES — `LogicalStance.Of` answers Prone, so aim, sight and the round's band follow the lying body | §8 ①, §8a |
 | ⚠ the "wounded" a decision reads today | still the `HealthFraction` input (CE-3090's curves), not the state — the state's speed / aim effects are slice I-b | §6 I5 |
 | ⭐ a wounded LEG / ARM *(CE-3210, built 2026-10-16)* | a round meets a PART (head, torso, a limb); the Health owner keeps a level per part (`PartDamage`), and every node DERIVES the wound: a leg zone over its threshold ⇒ `Injury.SpeedFactor` slows him (the type's wounded factor, else 0.6) whatever his overall state; an arm ⇒ his aim σ × 1.6 (`HitModel.Sigma`). ⚠ No decision input reads them yet — a behaviour sees only the slower move and the worse aim | `Physics/BodyParts/Wounds.cs` · [hit-location design](designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) §8 |
 

@@ -84,6 +84,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (!FireAndMovementManeuver.IsRush(phase) && !SquadCover.IsReady(in p.Cover, e))
                 SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, e, p.Objective, p.RushMetres + 2f,
                                 ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
+            // ⭐ AQ96 C3 — while the base of fire covers the rush, its movers know it: a man down rises under fire then (UnderFire)
+            if (FireAndMovementManeuver.IsRush(phase) && SquadGates.Covering(in ws.Gate, in ctx, SquadGates.Element(in ctx, (byte)(1 - e))))
+            {
+                ushort movers = SquadGates.Element(in ctx, e);
+                for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+                    if ((movers & (1 << i)) != 0 && ctx.Live(i, out var m)) UnderFire.MarkCovered(ctx.World, m, ctx.Now);
+            }
             SquadDrillTrace.Gates(ctx.World, ctx.Commander,
                 SquadGates.Covering(in ws.Gate, in ctx, SquadGates.Element(in ctx, (byte)(1 - e))),
                 SquadGates.Set(in ws, in ctx, SquadGates.Element(in ctx, e), SquadGates.SetMetres));

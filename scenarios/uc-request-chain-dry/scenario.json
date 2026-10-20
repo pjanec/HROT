@@ -643,6 +643,11 @@
         "Name": "CombatPosture",
         "Params": "{}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "d0c70000-0000-4000-8000-000000009760": {
@@ -679,6 +684,11 @@
       "Behavior": {
         "Name": "SpotForFire",
         "Params": "{\"Battery\": 9750, \"Rounds\": 2}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     }

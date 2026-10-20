@@ -22,6 +22,9 @@ namespace Hrot.Core.Tkb
     /// </summary>
     public static class CivilianTkbCatalog
     {
+        /// <summary>⭐ <c>CE-2322</c> (AQ97 D2) — the civilian family's SOP.</summary>
+        public const string CivilianSop = "CivilianSop";
+
         public const int TkbCivilianAdultMale   = 1101;
         public const int TkbCivilianAdultFemale = 1102;
         public const int TkbCivilianChild       = 1103;
@@ -67,7 +70,10 @@ namespace Hrot.Core.Tkb
                                                     //    channel, which the dispatcher fails without CanShoot; it gives him no weapon (H-3 reads the hands)
                                                     CanShoot = true,
                                                     // ⭐ CE-2235 (behaviors, the cross-lane edit backend OK'd; design §5d) — his one behaviour
-                                                    DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CivilianHsm) });
+                                                    DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CivilianHsm),
+                                                    // ⭐ CE-2322 (AQ97 D2, R-2062) — and his SOP: his fear reacts on ANY task (ordered somewhere, he still
+                                                    //   shelters); while his routine runs, the HSM keeps his fear itself and the SOP stands aside
+                                                    DefaultSop = CivilianSop });
             // the class template (bodies.json "Soldier") gives a helmet and a vest; a civilian wears neither
             t.AddDescriptor(new BodyZonesDto { Zones =
             {

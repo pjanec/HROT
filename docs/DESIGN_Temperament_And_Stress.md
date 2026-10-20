@@ -7,6 +7,7 @@ stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with 
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: the short per-move drop under fire that TS-4 would lengthen and TS-6's break replace
   - docs/blueprints/Architect_Question_89_Suppress_And_Close.md — OWNS the existing `CombatTemperament { RiskAcceptance, Obedience }` (R-269 (backend)), `TemperamentOf`, Willingness and the 0.6 closing threshold; this design ADDS Nerve and Resolve to that component and leaves AQ89's readers unchanged
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS the scorer, inputs and curves; this design adds three inputs and damping considerations to the posture decision, nothing to the scorer
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the civilians' own temperament (Attitude, RiotAt, PanicAt) and fear / anger; this design is for COMBATANTS only and does not touch civilians

@@ -1,0 +1,166 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: AQ97 D (CE-2322) - two civilians have been ORDERED to stand where they are (task Idle - not their routine HSM) a few metres from a soldier a hostile rifleman is shooting at (soldiers immortal; civilians are never targeted). 'Ordered' carries no SOP in the file, so he gets the civilian default (CivilianSop); 'Inert civilian' is stamped InertSop. Judge: (1) the gunfire frightens both (their fear rises - the fear system now keeps it for a civilian on any task); (2) Ordered reacts on top of his order - his task becomes CivilianReact: he stops and crouches (Alarmed), and if his fear passes panic he looks for a door or cowers; (3) Inert civilian keeps standing (task Idle) however frightened. Fail: Ordered stands upright through the shooting, or Inert civilian reacts. Check: python3 scripts/utility-demo-check.py --launch df-civilian-ordered"
+  },
+  "entities": {
+    "d2322000-0000-0000-0000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          190,
+          205,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9901
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Ordered",
+        "ForceId": "Neutral"
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d2322000-0000-0000-0000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          210,
+          205,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9902
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Inert civilian",
+        "ForceId": "Neutral"
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d2322000-0000-0000-0000-000000000111": {
+      "SimTransform": {
+        "Position": [
+          200,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 9911
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Target",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d2322000-0000-0000-0000-000000000112": {
+      "SimTransform": {
+        "Position": [
+          200,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 9912
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"Advance\": {\"Objective\": [200, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -81,6 +81,11 @@
         "Name": "CombatPosture",
         "Params": "{\"target\": 8301, \"assault\": true}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2195d00-0000-4000-8000-000000000003": {

@@ -89,7 +89,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 1)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithPocketItems(type, new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = binoculars })
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
@@ -111,7 +111,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -291,7 +291,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, carrier)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -323,7 +323,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
                 .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy, OpenSeconds = openSeconds })
-                .WithBehavior(type, defaultSop)
+                .WithBehavior(type, defaultSop ?? Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A) — a paratrooper is a soldier; the pilot keeps PilotSop
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
 

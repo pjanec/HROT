@@ -44,6 +44,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "2a950000-0000-4000-8000-000000000002": {

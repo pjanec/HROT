@@ -381,6 +381,11 @@
         "Name": "TriggerIed",
         "Params": "{\"Charge\": 9520, \"KillZoneMetres\": 10}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

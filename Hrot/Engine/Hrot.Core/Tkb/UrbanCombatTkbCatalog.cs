@@ -38,6 +38,10 @@ namespace Hrot.Core.Tkb
     /// </summary>
     public static class UrbanCombatTkbCatalog
     {
+        /// <summary>⭐ <c>CE-2322</c> (AQ97 A, R-2062) — every soldier type's own SOP: a lone soldier reacts when shot at or hit (under command or
+        /// aboard a vehicle its rows stand aside). <c>InertSop</c> on a unit says "no response" explicitly.</summary>
+        public const string SoldierSop = "BasicInfantrySop";
+
         // ── TKB type codes — PUBLIC because UrbanCombatNewScenario's spawn calls need them, and
         //    this class is now the single source of them. ─────────────────────────────────────────
         // ⛔ CE-3220 part 2 — 1001 (CivilianPedestrian) and 1003 (CivilianChild) are retired, never reused: see CivilianTkbCatalog.
@@ -221,7 +225,7 @@ namespace Hrot.Core.Tkb
                 Master(t, "InfantrySoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
@@ -253,7 +257,7 @@ namespace Hrot.Core.Tkb
                 Master(t, "Grenadier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
@@ -275,7 +279,7 @@ namespace Hrot.Core.Tkb
                 Master(t, "MortarTeam", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 4.0f, MaxAccel = 2.0f });   // ⭐ AQ88 A (R-265) — a loaded crew runs slower than a rifleman (was 1.5)
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
@@ -302,7 +306,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 (B-12, HI-3/HI-6) — a phone: his charge's remote trigger
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 // ⭐ CE-3210 (hit location HL-12) — the class template (bodies.json "Soldier") gives a helmet and a vest; an insurgent wears
@@ -353,7 +357,7 @@ namespace Hrot.Core.Tkb
             Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
             t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
             t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 5.0f, MaxAccel = 2.0f });   // a loaded man runs a little slower
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+            t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
             t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
             t.AddDescriptor(new InjuryDefDto());
             t.AddDescriptor(CarrierDefDto.PersonCarrier());

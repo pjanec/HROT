@@ -74,7 +74,8 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-466 rule (CombatLife): done when the target is gone OR knocked out (Health ≤ 0) — CE-267's revert keeps the
             //   body in the world, so existence alone never ends the action (CE-321: the squad emptied its rifles into a corpse).
-            if (!CombatLife.IsAlive(world, p.Target))
+            //   ⭐ CE-2318 (Injury States I4) — and done when he is DOWN (incapacitated): a man out of the fight is no target.
+            if (!Injury.IsInTheFight(world, p.Target))
             {
                 ReleaseTurrets(world, entity);   // ⭐ WL-3 — the turret stops following a dead target
                 channel.Status = NodeStatus.Success;

@@ -285,6 +285,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2152d00-0000-4000-8000-000000000022": {
@@ -317,6 +322,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2152d00-0000-4000-8000-000000000023": {
@@ -349,6 +359,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

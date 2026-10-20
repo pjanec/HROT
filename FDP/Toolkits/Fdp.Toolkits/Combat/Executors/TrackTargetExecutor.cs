@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Combat.Executors
         {
             TrackTargetParams p;
             fixed (byte* src = channel.Params) p = *(TrackTargetParams*)src;
-            if (!CombatLife.IsAlive(world, p.Target))
+            if (!Injury.IsInTheFight(world, p.Target))
             {
                 AimAndFireExecutor.ReleaseTurrets(world, entity);
                 channel.Status = NodeStatus.Success;

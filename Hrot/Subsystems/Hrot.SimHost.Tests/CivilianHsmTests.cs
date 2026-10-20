@@ -95,6 +95,89 @@ namespace Hrot.SimHost.Tests
             public ref readonly LocomotionChannel Loco => ref Repo.GetComponentRO<LocomotionChannel>(Unit);
             public StanceId Stance => Repo.GetComponentRO<StanceIntent>(Unit).TargetStance;
             public void Health(float current) => Repo.GetComponentRW<Health>(Unit).Current = current;
+
+            /// <summary>⭐ CE-2322 — what his task slot runs now (a task or a reaction).</summary>
+            public string? TaskName => Registry.TryGetName(Repo.GetComponent<BehaviorState>(Unit).ActiveBehaviorHash, out var n) ? n : null;
+            public BehaviorOrigin TaskOrigin => Repo.GetComponent<BehaviorState>(Unit).Origin;
+            public void Order(string behaviour)
+                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            public void StartSop(string name)
+                => Repo.Bus.PublishManaged(new AssignSopEvent { Entity = Unit, BehaviorName = name, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            public void Run(double seconds) { for (double t = 0; t < seconds; t += 0.016) Tick(); }
+        }
+
+        // ── ⭐ CE-2322 (AQ97 D, R-2062) — a civilian's fear reacts on ANY task ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ AQ97 D2 / D3 — a civilian ORDERED to do something else (here: hold, Idle) still reacts: frightened past the alarm his SOP
+        /// pauses the order with <c>CivilianReact</c> (he stops and crouches — the HSM's own Alarmed); calm again, the reaction is done and his
+        /// order restarts. 🔴 Red before: nothing but his HSM read his fear, so an ordered civilian walked on through gunfire.
+        /// ✅ Red-proof: the SOP's react row removed ⇒ he keeps holding upright ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2322_AnOrderedCivilian_StillReacts_AndHisOrderRestartsWhenHeCalms()
+        {
+            var w = new World();
+            w.Order("Idle");
+            w.StartSop("CivilianSop");
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);
+            CivilianMind.Ensure(w.Repo, w.Unit);
+            w.Fear(0.4f);                                                       // past the alarm (0.3), short of panic (0.6)
+            w.Run(0.2);
+            Assert.Equal(BehaviorNames.CivilianReact, w.TaskName);
+            Assert.Equal(BehaviorOrigin.Reaction, w.TaskOrigin);
+            Assert.Equal(CivilianMode.Alarmed, w.Mode);
+            Assert.Equal(StanceId.Crouched, w.Stance);
+
+            w.Fear(0.05f);                                                      // calm (below 0.1)
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);                                   // the order is back, at its own rank
+            Assert.Equal(BehaviorOrigin.Superior, w.TaskOrigin);
+        }
+
+        /// <summary>⭐ AQ97 D2 — on his routine the HSM keeps his fear itself: the SOP stands aside (no second reaction on top of the HSM's).</summary>
+        [Fact]
+        public void CE2322_OnHisRoutine_HisSopStandsAside_TheHsmReacts()
+        {
+            var w = new World();
+            w.Start();
+            w.StartSop("CivilianSop");
+            w.Run(0.3);
+            w.Fear(0.4f);
+            w.Run(0.3);
+            Assert.Equal(BehaviorNames.CivilianHsm, w.TaskName);
+            Assert.Equal("Alarmed", w.State());
+        }
+
+        /// <summary>⭐ AQ97 D3 — the reaction is the HSM's fear, not a copy: every edge among the fear states of <c>CivilianHsm</c> exists in
+        /// <c>CivilianReact</c> with the same guard (its way back to the routine is the reaction's end, Done), and every state runs the same
+        /// activity. ✅ Red-proof: an edge dropped from the reaction ⇒ red.</summary>
+        [Fact]
+        public void CE2322_TheReaction_HasTheHsmsFearEdges()
+        {
+            var fear = new System.Collections.Generic.HashSet<string> { "Alarmed", "Panic", "Shelter", "Inside", "Cower", "Casualty" };
+            System.Collections.Generic.HashSet<string> Edges(Fhsm.Compiler.Graph.StateMachineGraph g, string home)
+            {
+                var set = new System.Collections.Generic.HashSet<string>();
+                foreach (var st in g.States.Values)
+                {
+                    if (!fear.Contains(st.Name)) continue;
+                    foreach (var t in st.Transitions)
+                    {
+                        string to = t.Target?.Name ?? "?";
+                        if (to == home) to = "Done";
+                        // the guard's METHOD (its name carries the state's byte offset in its own blackboard — "@0@104" vs "@0@72")
+                        string guard = (t.GuardFunction ?? "").Split('@')[0];
+                        if (fear.Contains(to) || to == "Done") set.Add($"{st.Name}->{to}:{guard}");
+                    }
+                }
+                return set;
+            }
+            var hsm = Edges(Hrot.AI.Behaviors.Brains.CivilianBehavior.BuildCivilianMachine(), "Routine");
+            var react = Edges(Hrot.AI.Behaviors.Brains.CivilianBehavior.BuildCivilianReact(), "Done");
+            Assert.NotEmpty(hsm);
+            foreach (var e in hsm) Assert.True(react.Contains(e), $"missing {e}; the reaction has: {string.Join(" | ", react)}");
         }
 
         [Fact]
