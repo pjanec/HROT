@@ -4193,8 +4193,17 @@ def run_uc_convoy_hit(c, timeout):
     elif branch == "dismount":
         out = wait_for(lambda: all("IsEmbarkedTag" not in comps(m) for m in men if comps(m)), 20)
         c.ok(out, "④ the squad is out")
-        fights = wait_for(lambda: task_name(sq) not in (None, "SquadHold", "SquadDismount"), 60)
-        c.ok(fights, f"④ …and fights (squad task {task_name(sq)})")
+        # the squad's own task resumes (SquadHold); each man fights in his own CombatPosture — so "fights" is their rounds
+        def their_shots():
+            call("POST", "/perspective", {"name": "SimHost"})
+            try:
+                return [x for x in (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or [] if x.get("shooter") in men]
+            finally:
+                call("POST", "/perspective", {"name": "Scenario"})
+        fired = wait_for(lambda: their_shots(), 60)
+        c.ok(fired, f"④ …and fights: the dismounted men fire ({len(fired or [])} rounds; men's tasks {[task_name(m) for m in men]})")
+    print(f"    the APC: {hp}, capabilities {(comps(apc).get('ActorCapabilityState') or {}).get('Capabilities')} — the MilitaryApc loses CanMove on any hit "
+          f"(MobilityKillBelowFraction 1, CE-3092), so its branch is the halt")
 
 
 
@@ -4333,7 +4342,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

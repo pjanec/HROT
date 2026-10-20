@@ -1777,7 +1777,9 @@ crew's own dismount, a blocked road.
 fights from cover like an empty one; an aircraft is also gated by "standing" — a landed one stands, so the air rows are unchanged.
 
 Rails `BasicVehicleSopTests.CE2307_*` (the vehicle's own suite) and a CE-2307 assertion folded into
-`SquadManeuverTests.CE1056_BasicSquadSop_UnderFireWhileMounted_*` (the dismount row's rail) — mutants 6/6 killed. ⛔ Not live yet.
+`SquadManeuverTests.CE1056_BasicSquadSop_UnderFireWhileMounted_*` (the dismount row's rail) — mutants 6/6 killed.
+
+📐 **Live, `uc-convoy-hit` (Urban Battle §6 L2, demo-city, 2026-10-20):** the trigger man's 8 kg charge hit the moving `MilitaryApc` (2001) 3.7 m off (500 → 457); the APC sensed the Hit — but ⚠ **this APC loses `CanMove` on ANY hit** (`MobilityKillBelowFraction = 1`, `CE-3092`, user-approved, PACK-M002), so `CanPushThrough` is false, the carrier stands, and the squad's gated row dismounts it — the CH-3 branch, as designed. ⇒ the push-through branch needs a carrier that survives a hit mobile (the Bradley, 0.6) — ⛔ not this APC; changing its data is backend's and the user's call.
 
 ## 6. Formations — as measured *(2026-10-11)*
 
