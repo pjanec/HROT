@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8l CE-1204 BUILT — as-built §8l.5)
+updated: 2026-10-20 (§8m CE-1207 + CE-1205 designed; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1756,6 +1756,106 @@ head drawing + `HeadLimit` and its TKB field; rails in the station's suite (`Pos
 
 📐 **Rails:** `PossessionStationTests.CE1204_VFreesAPersonsLook_…` and `CE1204_DragBody_…` (`PossessionStationTests.MouseLook.cs`),
 `Map3DTests.CE1204_TheDrawnHead_…`, `LookFollowSystemTests.CE1204_HisTypesNeck_StopsTheHead`.
+
+## 8m. S14 DESIGN — the operator picks up stones and rounds, takes lying weapons; a lying weapon is not possessed (`CE-1207` · `CE-1205`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (PK-1 R-1007; the leans below are the build's — overturn any)
+
+🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* (§8i PK-1, `R-1007`) · `2026-10-20`: *"please keep working on the open points autonomously overnight"*
+
+### 8m.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` `.*PickUp.*`, `.*OperatorUse.*`, `.*UseAction.*`, `.*Hands.*`, `.*Possess.*`; `search_code` `RoundPickUp` (limit 100); then grep and the code read; `check_index_coverage` is not reachable through the CLI)*
+
+| piece | where | what it already does |
+|---|---|---|
+| the use rule | `OperatorUse.For` (FDP `Behavior/Possession/OperatorUse.cs:123`) | aboard ⇒ Get out; carrying ⇒ Put down first; a door ⇒ its verbs; a WEAPON SYSTEM with seats ⇒ **only "Man"** (its Gunner seat, :222); a vehicle ⇒ Drive/Board; a man who is down ⇒ Drag/Carry |
+| the carried load | `Embarkation.LoadOf` (`Embarkation.cs:374`) | the FIRST passenger in ANY seat — ⚠ a weapon in his Hands station counts, so `For` would offer "Put down" first and refuse Drag/Carry |
+| taking a portable weapon | `Embarkation.Check` (:137–149) | a portable weapon boards a PERSON into his first open station (Hands, then Back), Carried — ⭐ the path the AI's `CarryWeapon` already drives through `PickUpExecutor` (`CarryExecutors.cs:58`, Casualty = the weapon) |
+| the pick-up of a round | `RoundPickUp` (`Combat/RoundPickUp.cs`) — `CanAsk` / `Ask` / `TryGrant` / `Receive`; `RoundPickUpSystem` on every node | the asker's check (lies, a hand item, within 1.5 m, room in `PersonHands`), one winner granted by the round's owner (Civilians §7.10 PU-1…PU-7) — ⚠ not an interaction executor, so the use path has nothing to start |
+| the crosshair | `FpsCameraDriver.Aim` → `EntityPartPicker` | ⛔ a lying round has no pick box (`EntityBodyLayer3D.TryGetBox`, LR-3) — it can never be the target; a lying weapon has one |
+| the action ids | `BehaviorConstants` | 1–11 taken (11 = Eject); the executors are registered in `CgfLogicPack.cs:176` (behaviors / CGF) |
+| possession | the map menu `ContextMenuProjectorGizmo.cs:99` · `EntityOrders.Possess` · `PossessionSystem` | offered for every unit with a body — a lying rifle too; ⛔ it never fires (`OperatorControlBehavior.cs:73` returns before `OperateWeapon` without a `NavigationIntent`; `WeaponSystems.ControllerOf` is null for an unmanned weapon that needs an operator) |
+
+### 8m.2 Claim table
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a portable weapon boards a man into Hands/Back, Carried | ✅ `Embarkation.cs:137–149` | ✅ Civilians §7.13 ST-1…ST-3 (Hands is seat 1; Hidden only on request) |
+| `PickUpExecutor` boards whatever it is given | ✅ `CarryExecutors.cs:70–84` (`EmbarkEntityCommand{Passenger, Vehicle = self}`) | ✅ Entity Interactions §7.4.10 C6 |
+| a lying round can be asked for from the man's brain node | ✅ `RoundPickUp.CanAsk/Ask`, kinds 9/10 across nodes | ✅ Civilians §7.10 PU-5 (the asker checks room; the owner grants one) |
+| a lying round is never a crosshair target | ✅ `EntityBodyLayer3D.cs:1434` | ✅ Visual Effects LR-3 (viewers draw rounds; the body layer ignores them) |
+| the rule may read only what replicates | `WeaponSystemParams` from the TKB translator on every node that spawns the type (`WeaponSystemComponents.cs:85`); rounds' `LightweightRound` replica | ✅ §8h.6 |
+| a weapon that needs an operator never fires by itself | ✅ `WeaponSystems.cs:53–55` | ✅ Weapon Systems W-D (one controller; its own brain only when automatic and unmanned) |
+| nobody needs `LoadOf` to count a weapon in his hands as "the man he carries" | ⚠ 6 callers (`OperatorUse`, `PutDownExecutor`, `FitAssistant`, `SquadManeuverRunner:660`, `CarryNodes:163/201`) — all read as "the man he carries" | ⛔ searched Entity Interactions §7.4 and Civilians §7.13: no statement either way ⇒ **PK-5 narrows the change to the two use-path callers** |
+
+### 8m.3 Diagrams
+
+```mermaid
+classDiagram
+  class OperatorUse {
+    <<exists FDP, changed>>
+    For(world, actor, target) : + Take for a PORTABLE weapon, + Pick up for a lying round, + Drop for a weapon in his hands
+    CarriedBody(world, actor) : new — the load is a body, never a weapon in a station
+  }
+  class UseVerbKind { <<exists, appended>> Take · PickUpRound · Drop }
+  class PickUpExecutor { <<exists>> action 9 — Casualty = the weapon, Carried }
+  class PutDownExecutor { <<exists, changed>> action 10 — PutDownParams.Load, else the body }
+  class PickUpRoundExecutor { <<new FDP>> action 12 — RoundPickUp.Ask once, Success when his hands hold it }
+  class RoundPickUp { <<exists>> CanAsk · Ask · TryGrant · Receive }
+  class FpsCameraDriver { <<exists ui, changed>> UseTarget : the crosshair's unit, else the lying round nearest the crosshair point (RoundUnder) }
+  class Possessability { <<new FDP>> Refusal(view, e) : a weapon system is manned, never possessed }
+  class ContextMenuProjectorGizmo { <<exists ui, changed>> Possess greyed with the reason }
+  class EntityOrders { <<exists, changed>> Possess refuses with the reason }
+  OperatorUse ..> UseVerbKind
+  OperatorUse ..> PickUpExecutor : Take
+  OperatorUse ..> PutDownExecutor : Drop
+  OperatorUse ..> PickUpRoundExecutor : Pick up
+  PickUpRoundExecutor ..> RoundPickUp
+  FpsCameraDriver ..> OperatorUse
+  ContextMenuProjectorGizmo ..> Possessability
+  EntityOrders ..> Possessability
+```
+*What the picture shows that prose hid:* one new executor and one new rule; Take and Drop ride the carry executors that already exist,
+and a round reaches the use path by the station choosing it, not by giving rounds a pick box.
+
+```mermaid
+sequenceDiagram
+  participant O as operator
+  participant S as FpsCameraDriver (his node)
+  participant B as OperatorControlBehavior (brain node)
+  participant X as PickUpRoundExecutor
+  participant R as RoundPickUpSystem (the round's owner)
+  O->>S: F, the crosshair near a stone at his feet
+  S->>S: no unit under it - the lying round nearest the crosshair point, in his reach
+  S->>B: frame (UseSeq+1, UseVerb 0, UseTarget = the round's id)
+  B->>B: OperatorUse.For(him, the round) - Pick up stone
+  B->>X: start action 12 (Round)
+  X->>R: RoundPickUp.Ask - PickUpRoundEvent
+  R-->>B: PickUpGrantEvent - PersonHands.Give
+  X-->>B: Success (his hands hold one more)
+  B-->>S: OperatorUseStatus Done - the HUD verdict
+```
+*What the picture shows that prose hid:* the round's owner may be another node, so the executor waits for the grant to land in his hands
+rather than finishing on the ask.
+
+```mermaid
+graph TD
+  AML["AttachMapLayers (possessing host)"] -->|each frame| FPS[FpsCameraDriver - use target]
+  BR["brain node (CGF)"] -->|each tick| OCB[OperatorControlBehavior.OperateUse]
+  CGF["CgfLogicPack - interaction dispatcher"] -->|registers 9, 10, 12| EX[PickUp / PutDown / PickUpRound executors]
+  INT["Interactions capability, every node"] -->|each tick| RPS[RoundPickUpSystem - grant / receive]
+  MENU["map menu, every host"] -->|on right-click| CM[ContextMenuProjectorGizmo]
+```
+*What the picture shows that prose hid:* the new executor is registered in the ONE place the others are (CGF's pack) — a brain on a host
+that registers none would refuse the action, as it already would for a door.
+
+### 8m.4 Decisions — the build's leans (PK-1 decided the behaviour; these decide the shape)
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **PK-2** | a lying PORTABLE weapon (one-man or two-man, not Static) | ⭐ **"Take"** — `PickUpExecutor`, Mode Carried, into his first open station (Hands, then Back); refused *"Hands full"* (`SeatTaken`) when none is open; a STATIC weapon (a tripod HMG, a ZU-23) keeps **"Man"** | Man on a lying rifle — a rifle on the ground has no gunner seat to sit in |
+| **PK-3** | the stone / round under the crosshair | ⭐ when the crosshair rests on no unit that offers a verb, the STATION picks the lying hand-item round nearest the crosshair's point, within 1 m of it and within his reach (`RoundPickUp.InReach`); `UseTarget` = its network id | a pick box for every lying round — a box on every stone in the world for one key |
+| **PK-4** | what picks it up | ⭐ a new **`PickUpRoundExecutor`** (action **12**): `RoundPickUp.Ask` once, Success when his hands hold one more of it, Failure on a refused ask or after 2 s (another man was faster) — so the verdict line works as for every verb | `OperateUse` calling `Ask` itself — the only verb with no executor, no Running, no verdict |
+| **PK-5** | a weapon in his hands is not "a load" | ⭐ `OperatorUse.CarriedBody` — the first passenger in a seat that is not a station; `For` and `PutDownExecutor` use it; ⚠ the other four `LoadOf` callers (AI) are left as they are — said to behaviors, not changed under them | changing `LoadOf` for everyone — six callers' meaning in two lanes for one verb |
+| **PK-6** | putting a taken weapon down | ⭐ **"Drop <weapon>"** on the hold list (never the primary), whatever the crosshair rests on, while a weapon sits in his Hands or Back — `PutDownExecutor` with `PutDownParams.Load` = the weapon (an empty param keeps today's body) | no drop — the second weapon would be refused forever; a new key |
+| **PK-7** | `CE-1205` — possessing a weapon | ⭐ a **weapon system is manned, never possessed**: one rule `Possessability.Refusal` — the map menu shows *Possess (FPS)* greyed with *"a weapon is manned — possess a man and use F"*, and `EntityOrders.Possess` refuses with the same words (HTTP / MCP too) | hide the item — the operator would not learn why; refuse only `NeedsOperator` — an automatic one still never fires (`ManualControl` returns before the weapon) |
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
