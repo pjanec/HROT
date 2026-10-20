@@ -1225,6 +1225,45 @@ public sealed class Map3DFrameRail
         Assert.Equal(1, terrain.Builds);
         Assert.True(terrain.StrokesDrawn > 0 && terrain.StrokesDrawn < terrain.Strokes,
             $"close up only what is in view is drawn ({terrain.StrokesDrawn} of {terrain.Strokes})");
+
+        // ④ ⭐ CE-1233 (routes-1 §8.1) — uc-convoy-hit's route "Avenue E north" (652,30)→(652,380) over the city, through the REAL route
+        //   gizmo and the production renderer: a line you can see and a circle at each waypoint. Screenshot: route-1-convoy.png.
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+        var routeEntity = world.CreateEntity();
+        world.AddComponent(routeEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+        var avenue = new Hrot.Map.Common.Components.RoutePlan();
+        avenue.Mutate(w =>
+        {
+            w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 30f, 0f), TargetSpeed = 8f });
+            w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 380f, 0f), TargetSpeed = 8f });
+        });
+        world.SetManagedComponent(routeEntity, avenue);
+        buffer.Clear();
+        new Hrot.ScenarioEditor.Gizmos.RouteGizmo().Draw(world, routeEntity, buffer);
+        Look(new Vector2(652f, 60f), 3f);   // the southern waypoint and 260 m of the avenue
+        frame.StepN(2, canvas.Draw);
+        string routePng = Path.Combine(shots, "route-1-convoy.png");
+        frame.Screenshot(routePng);
+        var shot = Raylib.LoadImage(routePng);
+        try
+        {
+            int blue = 0, dot = 0;
+            var wp = cam.WorldToScreen(new Vector2(652f, 30f));
+            for (int y = 0; y < 800; y++)
+                for (int x = 0; x < 1280; x++)
+                {
+                    var c = Raylib.GetImageColor(shot, x, y);
+                    if (c.R < 110 && c.G is > 100 and < 180 && c.B > 220)
+                    {
+                        blue++;
+                        if (Vector2.Distance(new Vector2(x, y), wp) <= Hrot.ScenarioEditor.Gizmos.RouteGizmo.WaypointPixels + 1f) dot++;
+                    }
+                }
+            Assert.True(blue > 300, $"the route must be visible over the avenue (route-blue pixels {blue})");
+            Assert.True(dot > 20, $"the southern waypoint must carry its circle (route-blue pixels within it {dot})");
+        }
+        finally { Raylib.UnloadImage(shot); }
     }
 
     /// <summary>

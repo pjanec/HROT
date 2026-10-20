@@ -3,7 +3,7 @@ state: LIVE
 build-state: BUILT in substance (verified 2026-09-17) — RoutePlan, PersonalRouteAuthoringSystem,
   RouteTrajectorySyncSystem + RouteTrajectoryCache, MapRouteEgressTranslator and the FollowRoute
   executor all exist in production. ⚠ The header below still says "Status: Design Phase"; that is STALE.
-updated: 2026-10-14
+updated: 2026-10-20 (§8.1 as built — RouteGizmo draws waypoint circles, CE-1233)
 current-answer: §5 (Shared vs Personal Routes) and §5.1 (directing a vehicle to follow one) are the
   route MODEL and are current — a shared route is a root entity multiple vehicles may follow.
   ⭐ §16 is NEW and carries the as-built PERSISTENCE gap, which this design never covered.
@@ -301,6 +301,15 @@ A new `IMapLayer` implementation in `Hrot.IG` — analogous to `MapOverlayRender
 - **Query:** Iterates all entities whose `TkbIdentity.TkbType == TkbEntityTypes.TacGraphic_Route` AND the `road_graphs` layer bit is set.
 - **Render:** For each entity with a `RoutePlan`, draws line segments between consecutive waypoints (converted to screen space via the map canvas transform). Draws a small circle at each waypoint vertex. Uses a distinct colour (e.g. blue) to differentiate from tactical overlay drawings.
 - **Selected highlight:** When the entity is selected (`IInspectorContext.SelectedEntity == routeEntity`), draws the route in a highlighted colour with vertex drag handles visible.
+
+⭐ **AS BUILT `2026-10-20` (`CE-1233`, ui) — the render line above is what the map draws, on every host:** `RouteGizmo`
+(`Hrot.Presentation/ScenarioEditor/Gizmos`, the gizmo that replaced this IG layer — GZ058) draws the segments **2.5 px** and a filled
+**4 px circle at each waypoint**, both constant on screen, blue `#4488FF`; a route whose `SelectionState.IsSelected` is set draws
+in light cyan, 3.5 px / 5.5 px. 🔒 User: *"routes are not rendered as waypoints connect as lines"*. 📐 Before: 1 px segments and no
+waypoint mark — on uc-convoy-hit the route lies on Avenue E's SUMO lanes and was unreadable (and until `CE-1227` it was dropped
+with the rest of the frame). ⚠ Still on layer 0 (Entities); `CE-1203`'s Routes checkbox moves it to its own bit. ⚠ The
+"vertex drag handles" stay `RouteWaypointGizmo`'s (the editing tool). Rails: `PresentationGizmoTests.SC_GZ058_3` (extended),
+`Map3DFrameRail.CE1227_V` step ④ (real window, `route-1-convoy.png`).
 
 ### 8.2 SimHostTrajectoryLayer Extension
 

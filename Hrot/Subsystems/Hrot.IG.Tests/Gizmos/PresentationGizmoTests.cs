@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
@@ -87,6 +88,30 @@ namespace Hrot.IG.Tests.Gizmos
 
             // 3 waypoints, not a loop → 2 line segments.
             Assert.Equal(2, draw.LineCalls.Count);
+
+            // ⭐ CE-1233 (routes-1 §8.1) — a circle at EACH waypoint, and a line thick enough to see over the road lanes; blue.
+            //   🔒 User, 2026-10-20: "routes are not rendered as waypoints connect as lines". (SelectionState is not even
+            //   registered here: an unselected route on a host without selection.)
+            Assert.Equal(3, draw.SphereCalls.Count);
+            Assert.Equal(new[] { 0f, 10f, 20f }, draw.SphereCalls.Select(c => c.Center.X).ToArray());
+            Assert.All(draw.LineCalls, l => { Assert.Equal(RouteGizmo.LinePixels, l.Thickness); Assert.Equal(RouteGizmo.NormalColor, l.Color); });
+            Assert.All(draw.SphereCalls, c => { Assert.Equal(RouteGizmo.WaypointPixels, c.Radius); Assert.Equal(RouteGizmo.NormalColor, c.Color); });
+
+            // the circles are a constant size ON SCREEN and filled (a handle, not a world disc)
+            var buffer = new DebugPrimitiveBuffer();
+            gizmo.Draw(_repo, entity, buffer);
+            var dots = buffer.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Sphere).ToArray();
+            Assert.Equal(3, dots.Length);
+            Assert.All(dots, d => { Assert.Equal(SizeMode.ScreenPixels, d.SizeMode); Assert.True(d.FillColor.A > 0, "a filled circle"); });
+
+            // selected ⇒ the whole route in the selected colour, thicker
+            _repo.RegisterComponent<Hrot.IG.Components.SelectionState>();
+            _repo.AddComponent(entity, new Hrot.IG.Components.SelectionState { IsSelected = true });
+            var picked = new FullCapturingDrawBuilder();
+            gizmo.Draw(_repo, entity, picked);
+            Assert.All(picked.LineCalls, l => { Assert.Equal(RouteGizmo.SelectedColor, l.Color); Assert.Equal(RouteGizmo.SelectedLinePixels, l.Thickness); });
+            Assert.All(picked.SphereCalls, c => { Assert.Equal(RouteGizmo.SelectedColor, c.Color); Assert.Equal(RouteGizmo.SelectedWaypointPixels, c.Radius); });
+            Assert.Equal(3, picked.SphereCalls.Count);
         }
 
         // SC_GZ058_4: DrawSpatialAnchor via DebugPrimitiveBuffer emits correct primitive.
