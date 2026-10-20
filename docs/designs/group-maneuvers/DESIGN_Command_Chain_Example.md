@@ -768,7 +768,7 @@ graph TD
 
 | id | decision (⭐ lean) | rejected — one line each |
 |---|---|---|
-| **HQ-1** | **a heard launch is a SPOT** (② `CE-2309`): the composer reads this frame's `SoundContactEvent`s; a SHOT of class `HeavyWeapon` heard by one of its members from **≥ 1000 m** ⇒ SPOT {the estimate, its radius, Count 1, Equipment `IndirectFire`}, once per 30 s within 150 m of the last one. 📐 Why 1000 m: BR-14 gives the HMG (1 km), the ZU-23 (1.5 km), the launchers and the tubes ONE class, `HeavyWeapon` — beyond 1 km only the ZU-23's cannon and the tubes are heard ⇒ ⚠ a ZU-23 firing 1–1.5 km off reads as a mortar (a distinct `Artillery` class would end it — a backend data question, noted) | the battery's ground truth: the point is that it is HEARD · ≥ 300 m: every HMG in the fight would be a mortar · counter-battery radar (IF-6): later |
+| **HQ-1** | **a heard launch is a SPOT** (② `CE-2309`) — ⭐ **as of `2026-10-20` (Q95 E1, R-3024): a SHOT whose family the listener's ear TOLD as `Mortar` or `Gun`, at ANY range** (a Regular-or-better ear names the family; below Regular it tells none and reports no launch). ⛔ SUPERSEDED, the first rule: the composer reads this frame's `SoundContactEvent`s; a SHOT of class `HeavyWeapon` heard by one of its members from **≥ 1000 m** ⇒ SPOT {the estimate, its radius, Count 1, Equipment `IndirectFire`}, once per 30 s within 150 m of the last one. 📐 Why 1000 m: BR-14 gives the HMG (1 km), the ZU-23 (1.5 km), the launchers and the tubes ONE class, `HeavyWeapon` — beyond 1 km only the ZU-23's cannon and the tubes are heard ⇒ ⚠ a ZU-23 firing 1–1.5 km off reads as a mortar (a distinct `Artillery` class would end it — a backend data question, noted) | the battery's ground truth: the point is that it is HEARD · ≥ 300 m: every HMG in the fight would be a mortar · counter-battery radar (IF-6): later |
 | **HQ-2** | **a SPOT says what it saw** (② `CE-2309`): the element's Equipment ORs, over its IDENTIFIED contacts, `Vehicle` (`VehicleCover.IsVehicle`) and `AirDefence` (`AirDefenceWeapons.CanEngageAir` at 80°, moved to the toolkit from `AirDefenceNodes`, which forwards) | flags read off unidentified sounds: a heard engine is not a ZU-23 |
 | **HQ-3** | **the platoon relays what support needs** (① `CE-2310`): a commander with a superior relays every picture element flagged `IndirectFire` or `AirDefence` as its own SPOT (once per element place, 150 m) — not every element: the HQ needs only these | relay the whole picture: the HQ's eight element slots fill with infantry it does nothing about |
 | **HQ-4** | **FireSupport is asked** (① `CE-2310`): a commander with a superior whose picture holds a fresh (60 s) `IndirectFire` element ⇒ REQUEST FireSupport at it, once per 120 s within 300 m | every element: the HQ would fire on every rifleman |
@@ -782,13 +782,13 @@ graph TD
 
 | piece | where | as built |
 |---|---|---|
-| the launch SPOT (HQ-1) | `StaffComposerSystem.ComposeLaunch` + `IsLaunch` | this frame's `SoundContactEvent`s, grouped by the listener's commander; Shot · `HeavyWeapon` · ≥ `LaunchHeardMetres` (1000) ⇒ SPOT {estimate, radius, Count 1, Individual, `IndirectFire`}; once per 30 s within 150 m (`ReportOutbox.LaunchAt`) |
+| the launch SPOT (HQ-1) | `StaffComposerSystem.ComposeLaunch` + `IsLaunch` | this frame's `SoundContactEvent`s, grouped by the listener's commander; Shot · told family `Mortar` / `Gun` (Q95 E1; `LaunchHeardMetres` is gone) ⇒ SPOT {estimate, radius, Count 1, Individual, `IndirectFire`}; once per 30 s within 150 m (`ReportOutbox.LaunchAt`) |
 | the SPOT's flags (HQ-2) | `StaffComposerSystem.EquipmentOf` · `AirDefenceWeapons` (MOVED to `Fdp.Toolkits/Combat`; `AirDefenceNodes.CanEngageAir` forwards) | ORed over IDENTIFIED pool contacts: `Vehicle`, `AirDefence` (80°); a change of flags is news (`ReportOutbox.SpotEquipment`) |
 | the relay (HQ-3) | `StaffComposerSystem.ComposeSupport` → `Relay` | picture elements flagged `IndirectFire` / `AirDefence`, fresh 60 s, SPOTted up with their OWN `ObservedAt`, once per flag within 150 m (`ReportOutbox.Relayed`, a fixed list of 4) |
 | FireSupport (HQ-4) | same | the first fresh `IndirectFire` element ⇒ REQUEST FireSupport at it; again only after 120 s or 300 m off (`SupportAskedAt`/`Time`) |
 | Reinforce (HQ-5) | same | `StrengthOf` Red / Black AND a fresh (30 s) element within 300 m of `CentreOf` (its position, else its members' middle) ⇒ REQUEST Reinforce at `CentreOf`; once per 180 s |
 
-⚠ **Choices the leans did not settle:** the launch distance is 1000 m (the HQ-1 row, measured on BR-14's figures); the relay keeps the
+⚠ **Choices the leans did not settle:** ~~the launch distance is 1000 m~~ (retired by Q95 E1: the launch is the told family); the relay keeps the
 element's observation time, so a superior ages it as its sender does; the composer runs ComposeSupport for every commander that HAS a picture,
 so a squad (no picture) never asks.
 

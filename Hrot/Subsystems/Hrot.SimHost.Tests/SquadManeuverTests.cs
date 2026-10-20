@@ -1602,35 +1602,42 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>A sound one of <paramref name="c"/>'s men hears, as the acoustic sensor's answer reaches the brain.</summary>
         private static void Hear(Chain c, Vector3 at, Fdp.Toolkit.Tkb.Domain.SoundSourceClass what,
-                                 Fdp.Toolkit.Perception.Signatures.SoundKind kind = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot)
+                                 Fdp.Toolkit.Perception.Signatures.SoundKind kind = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot,
+                                 Fdp.Toolkit.Tkb.Domain.SoundFamily family = Fdp.Toolkit.Tkb.Domain.SoundFamily.Untold)
         {
             if (!c.S.Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
                 c.S.Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
             c.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SoundContactEvent
             {
                 Observer = c.S.Members[0], X = at.X, Y = at.Y, Z = at.Z, Radius = 80f, Kind = (byte)kind, SourceClass = (byte)what,
+                Family = (byte)family,
             });
         }
 
-        /// <summary>⭐⭐ <c>CE-2309</c> (HQ-1, Command Chain §8d) — a heavy weapon's shot heard 1.2 km off is a LAUNCH: after the report delay
-        /// the platoon's picture holds one element there, Count 1, flagged IndirectFire, the estimate's radius; the same launch again (60 m off,
-        /// 5 s later) adds nothing; a heavy weapon heard 600 m off (an HMG), small arms 1.2 km off and a heavy DETONATION are no launch.
-        /// ✅ Red-proofs: the distance test dropped ⇒ the 600 m HMG is a launch · the class test dropped ⇒ the rifles · the kind test dropped ⇒
-        /// the blast · the same-launch memory dropped ⇒ two elements.</summary>
+        /// <summary>⭐⭐ <c>CE-2309</c> (HQ-1, Command Chain §8d) as Q95 E1 left it — a LAUNCH is a mortar's or a gun's shot as the ear TOLD it, at
+        /// any range: after the report delay the platoon's picture holds one element there, Count 1, flagged IndirectFire, the estimate's radius;
+        /// the same launch again (60 m off, 5 s later) adds nothing. No launch: a heavy MG 1.2 km off (once a launch by range alone), a heavy
+        /// shot the ear could not tell (family 0 — an ear below Regular), rifles, a mortar's BURST.
+        /// ✅ Red-proofs: the family test dropped ⇒ the HMG / the untold shot · the kind test dropped ⇒ the burst · the same-launch memory
+        /// dropped ⇒ two elements.</summary>
         [Fact]
-        public void CE2309_AHeavyLaunchHeardFarOff_IsSpottedAsIndirectFire_OnceNotNearOrSmall()
+        public void CE2309_ALaunchToldByTheEar_IsSpottedAsIndirectFire_OnceAtAnyRange_NotAnHmgOrAnUntoldShot()
         {
             var c = new Chain(members: 3);
             var near = c.S.Repo.GetComponentRO<SimTransform>(c.S.Members[0]).Position;
-            Hear(c, near + new Vector3(0f, 600f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);                  // an HMG
-            Hear(c, near + new Vector3(0f, -1200f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms);                  // rifles
-            Hear(c, near + new Vector3(1200f, 0f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon,
-                 Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation);                                                    // a burst
+            var heavy = Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon;
+            var shot = Fdp.Toolkit.Perception.Signatures.SoundKind.Shot;
+            Hear(c, near + new Vector3(0f, 1200f, 0f), heavy, shot, Fdp.Toolkit.Tkb.Domain.SoundFamily.HeavyMg);              // an HMG, far off
+            Hear(c, near + new Vector3(0f, -1300f, 0f), heavy);                                                              // untold
+            Hear(c, near + new Vector3(0f, -1200f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms, shot,
+                 Fdp.Toolkit.Tkb.Domain.SoundFamily.Rifle);                                                                // rifles
+            Hear(c, near + new Vector3(1200f, 0f, 0f), heavy, Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation,
+                 Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar);                                                              // a burst
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(0, c.Picture.Elements.Count);
 
-            var launch = near + new Vector3(-900f, 800f, 0f);
-            Hear(c, launch, Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);
+            var launch = near + new Vector3(-300f, 250f, 0f);   // ⭐ well inside the old 1 km: a told mortar is a launch at any range
+            Hear(c, launch, heavy, shot, Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar);
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             var pic = c.Picture;
             Assert.Equal(1, pic.Elements.Count);
@@ -1638,7 +1645,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((Fdp.Toolkit.Squad.Command.ElementEquipment.IndirectFire, (byte)1, 80f), (e.Equipment, e.Count, e.Radius));
             Assert.True(Vector3.Distance(e.At, launch) < 0.01f);
             c.S.Pause(5.0);
-            Hear(c, launch + new Vector3(60f, 0f, 0f), Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon);
+            Hear(c, launch + new Vector3(60f, 0f, 0f), heavy, shot, Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun);
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(1, c.Picture.Elements.Count);
         }
