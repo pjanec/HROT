@@ -4524,7 +4524,8 @@ def _under_fire_judge(c, name, rows, alone):
                 if v > 0.5 and r[2] == "Standing": upright_moving += 1
             if r[3] == "Down" and prev[3] == "Down" and down_at is not None and r[0] - down_at > 1.0 and v > 0.6:
                 still_when_down = False   # (the first second down is his braking slide)
-        if prev and prev[3] != "Down" and r[3] == "Down" and prev[3] == "Moving": drops += 1; saw_shift = False; down_at = r[0]
+        # a drop is Moving → any down phase: covered, he can go down and start his side step within one sample
+        if prev and prev[3] == "Moving" and r[3] in ("Down", "Shifting", "Crawling"): drops += 1; saw_shift = r[3] == "Shifting"; down_at = r[0]
         if r[3] == "Shifting": saw_shift = True
         if prev and prev[3] in ("Down", "Shifting") and r[3] == "Moving":
             rises += 1
@@ -4535,7 +4536,8 @@ def _under_fire_judge(c, name, rows, alone):
           f"fastest on the move {fastest:.1f} m/s, upright-and-moving samples under fire {upright_moving}")
     c.ok(upright_moving <= 1, f"{name}: ① under fire he never runs upright ({upright_moving} samples)")
     c.ok(fastest >= 2.5, f"{name}: ① under fire he rushes (fastest {fastest:.1f} m/s ≥ 2.5; the order said 2)")
-    c.ok(drops >= 1, f"{name}: ② a near miss in the open drops him (drops {drops})")
+    if alone:   # in a squad not every man is near-missed while he is out in the open; the squad's count is judged instead
+        c.ok(drops >= 1, f"{name}: ② a near miss in the open drops him (drops {drops})")
     c.ok(still_when_down, f"{name}: ② down, he stops")
     c.ok(shifted_before_rise, f"{name}: ④ he never rises where he dropped (a side step before each rise)")
     if alone:
