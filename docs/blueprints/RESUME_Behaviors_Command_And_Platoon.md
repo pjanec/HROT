@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (CE-2318 fixed, AQ96 asked; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+updated: 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
 current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
 stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2322`** · rulings next free **`R-2061`** · component ids **418–433** (R-2056) |
+| ⭐ ids | tracker next free **`CE-2322`** · rulings next free **`R-2062`** · component ids **419–433** (418 = `UnderFireMove`, R-2056) · next architect question **97** |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -53,9 +53,11 @@ related-designs:
 | `CE-1172` | ui | no baton in the policeman's hand | existing row, live note added |
 
 ✅ *2026-10-20, the user: "Lets solve CE-2318 … CE-2319 and CE-2320 would get one architect question."* ⇒ **`CE-2318` FIXED** (Injury
-States §8a: 21 target tests on `Injury.IsInTheFight`, a man down lies Prone for aim / sight / the round) · **[AQ96](Architect_Question_96_Movement_Under_Fire.md)
-ASKED** (leans A–F: rush speed under fire, gait re-picked mid-move, the drop — revised the same day: he stays down while fired on, rises on a 3 s lapse or when his half is covered, never where he dropped, crawls to cover within 10 m, cover moves crouched, no zig-zag yet) — ⭐ next: the
-user's answer, then AQ96 §4's four steps. The ui/backend rows wait for those lanes unless the user hands them over.
+States §8a: 21 target tests on `Injury.IsInTheFight`, a man down lies Prone for aim / sight / the round) · **[AQ96](Architect_Question_96_Movement_Under_Fire.md) APPROVED (R-2061) and BUILT** (§6: `UnderFireMove` 418 +
+`UnderFireMoveSystem` — rush under fire, crouch mid-move, the drop with its outcomes, cover moves crouched; `CE-2319` / `CE-2320` closed;
+live `uf-alone-under-fire` PASS; `uf-squad-under-fire` — see AQ96 §6) · **scenario `header.description`** handed to backend
+([handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md); behaviors fills its own scenarios once the round-trip lands).
+⭐ next: Q95's behaviors half (`CE-2315` E2), N.3's ladder. The ui/backend rows wait for those lanes unless the user hands them over.
 
 ### N.3 Still open from the plan
 
