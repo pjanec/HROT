@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — OPEN: leans A–E await the user's approval
+state: LIVE — ANSWERED 2026-10-20: A–E approved as leaned; B3 (the user's addition, the sound's band) leaned, see §5
 updated: 2026-10-20
-build-state: DESIGN
-current-answer: §3 the sub-questions and their leans
+build-state: DESIGN — approved; dispatched to backend (HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md)
+current-answer: §5 the answers; §3 the leans they approve (B3 added after the approval)
 stale-below: nothing
 known-rot: none
 known-conflict: CE-3280 (backend, asked of the user 2026-10-20) proposes ONE new `Artillery` class — §3 A supersedes it if A is approved
@@ -12,6 +12,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — §6 L7, the rung that measured the problem
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — the guns that stand off the terrain (indirect-fire-range: 2–5 km out)
   - docs/DESIGN_Terrain_World.md — §4.4 the grids fitted to the terrain (CE-3018, `SpatialGridFit`)
+  - docs/DESIGN_World_Query_Seam.md — WQ-E OWNS sound through walls and round corners (`Trace(Sound)`, per-wall dB); B3's band scales its losses
   - docs/designs/audio/DESIGN_FPS_Audio.md — the viewer's sound sets (`SoundSetDto`, AU-5), a different consumer of "what a weapon sounds like"
 -->
 
@@ -108,6 +109,31 @@ and the ear range, found through the grid, which costs nothing because quiet sou
 | a terrain big enough to hold the guns | 🔒 user: *"We do not want to have large terrain just because we place artillery 20 kilometers far away."* |
 | hearing through a grid widened for loud sounds | a grid per sense; the loud list already does it with no grid |
 
+### B3 — a sound's band: bass ignores the terrain, a faint high sound does not *(the user's addition, 2026-10-20)*
+> 🔒 **User, 2026-10-20:** *"The loud explosion sounds full of bass fequencies are easy to hear no matter of the outdoor terrain. Maybe the
+> sound propagation can have 2 branches, as faint ot jihher frequency sounds will be very dependent on the terrain? Tkb parameter of thr sound
+> signature maybe?"*
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| hearing ignores every obstacle today | ✅ distance and weather only (`AcousticSensorGenerator.Generate` / `Hear`, `AcousticPerception.cs:103–175`) | ✅ Sensing *"owns hearing today (distance only)"*; ⛔ the Engine Guide's *"with terrain occlusion"* is known-rot there |
+| the obstacle model is designed, not built | ✅ walls carry `SoundAttenuationDb` (`TerrainMaterials.cs:18`), read by nothing | ✅ World Query Seam WQ-E: carry = the distance where the sound falls to the threshold; a straight `Trace(Sound)` subtracts each crossed wall's dB (Q3), then room/portal paths round corners (Q4) — approved R-253, unbuilt |
+
+**⭐ Lean: one propagation model with a per-signature TKB parameter, `Band` (`Low` · `Mid` · `High`), not two code paths.** WQ-E's trace
+works out the obstacle loss in dB (walls, a ridge between source and ear); the band scales it: `Low` ×0.2 (a blast, a gun's report: bass
+bends round hills and passes walls), `Mid` ×0.6 (a rifle, an engine), `High` ×1.0 (footsteps, voices, a bolt worked). The three
+factors are one data table, tunable.
+- ⇒ the user's two branches are its two ends: a `Low` sound is nearly blind to the terrain; a faint `High` one is stopped by a wall.
+- ⇒ ⭐ B still holds: beyond the high-resolution terrain there is nothing to trace, so an off-terrain gun is heard by distance alone.
+- ⇒ the loud/quiet split of §8.2 (who is heard past the ear range) stays: it is about LOUDNESS; the band is about OBSTACLES. Two axes.
+- **When:** the `Band` field ships with A (each signature authored once); the loss that reads it comes with WQ-E Q3. Until then every band
+  hears as today.
+
+| rejected | why |
+|---|---|
+| two propagation branches in code (loud ignores terrain, quiet traces it) | loudness and frequency are different axes: a loud whistle is high, a distant gun low; one model, one trace |
+| a full spectrum per signature | three bands carry the difference the AI acts on; a spectrum is the viewer's audio (FPS Audio), not perception |
+
 ### C — never miss a short sound
 **⭐ Lean: build §6 B's buffer after all, as a lossless ring:**
 - an **unmanaged** singleton, so the background solver's snapshot copies it, which removes the race that killed the managed list;
@@ -155,13 +181,17 @@ instead of building a new map.
 | 3 | B1 — the carries per signature (data) | backend |
 | 4 | E1, E2, E3 — the readers, the measurement, L7 off the terrain | behaviors |
 | 5 | D — demo-city's bounds; the performance tests | ui / coordinator + backend |
+| 6 | B3 — the `Band` field ships with A (2); its loss reads with World Query Seam WQ-E Q3 | backend |
 
-## 5. Answers *(the user's — empty until given)*
+## 5. Answers
+
+> 🔒 **User, 2026-10-20:** *"Approved."* (then B3, quoted in §3)
 
 | | answer |
 |---|---|
-| A | |
-| B | |
-| C | |
-| D | |
-| E | |
+| A | ✅ approved as leaned — a signature per weapon type; the class stays; the ear's proficiency sets what is identified; CE-3280's `Artillery` class superseded; CE-2309's 1 km rule retired (E1) |
+| B | ✅ approved — hearing bounded by distance, never by the high-resolution terrain; B1 real carries per signature; B2 off-terrain units heard, not seen |
+| B3 | ⭐ the user's addition; leaned: one model, a TKB `Band` per signature scaling WQ-E's obstacle loss — ⚠ the lean itself awaits a nod |
+| C | ✅ approved — the lossless unmanaged ring with a per-sensor serial cursor and an overflow counter; CE-3279 still fixed |
+| D | ✅ approved — demo-city's `hrot.bounds` over the road net for performance tests |
+| E | ✅ approved — behaviors: E1 readers, E2 the measurement, E3 L7 off the terrain |
