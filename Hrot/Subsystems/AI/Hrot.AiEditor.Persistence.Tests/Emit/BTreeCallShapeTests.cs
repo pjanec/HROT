@@ -26,7 +26,13 @@ public sealed class BTreeCallShapeTests
     [Fact]
     public void EveryCorpusBinding_ClassifiesToTheShapeItsFileRecorded()
     {
-        var signatures = BTreeCallShapes.ReflectionSignatures(new[] { typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly });
+        // CE-2322: the toolkit assembly too (SopConditions lives there), as the editor's AppDomain source sees it — an
+        //   unresolved method keeps the default Plain, which hid that every SensedFresh row went unresolved.
+        var signatures = BTreeCallShapes.ReflectionSignatures(new[]
+        {
+            typeof(Fdp.Toolkit.Behavior.SopConditions).Assembly,
+            typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
+        });
         var actual = new List<(string File, string VisualId, BTreeDelegateShapeDto Shape)>();
         foreach (var path in Directory.GetFiles(CorpusDir(), "*.btree.json", SearchOption.AllDirectories)
                                       .OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal))
