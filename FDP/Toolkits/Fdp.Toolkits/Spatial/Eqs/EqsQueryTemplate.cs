@@ -149,14 +149,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (template.FilterCheap != null)
                 foreach (var test in template.FilterCheap)
                 {
-                    cost += candidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
                 }
             if (template.FilterExpensive != null)
                 foreach (var test in template.FilterExpensive)
                 {
-                    cost += candidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
                 }
             if (!before.IsEmpty)
             {

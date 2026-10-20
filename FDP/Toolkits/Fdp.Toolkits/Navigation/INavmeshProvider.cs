@@ -73,11 +73,13 @@ namespace Fdp.Toolkit.Navigation
         /// <paramref name="costs"/> (<see cref="float.MaxValue"/> = no path), for a caller asking ONE origin about many points (an
         /// EQS sensor's candidates). The default asks <see cref="PathCost(Vector3, Vector3, uint, Fdp.Toolkit.Terrain.DoorStates?)"/>
         /// per point; a provider may answer them all from one search that reaches no farther than <paramref name="reach"/> from the
-        /// origin — a point it does not reach within that reads as no path.
+        /// origin — a point it does not reach within that reads as no path. Returns the polygons the search visited (the work the EQS
+        /// budget counts), or −1 when it searched per point (the caller counts a path per point).
         /// </summary>
-        void PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+        int PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
         {
             for (int i = 0; i < to.Length; i++) costs[i] = PathCost(from, to[i], layerMask, doors);
+            return -1;
         }
     }
 }

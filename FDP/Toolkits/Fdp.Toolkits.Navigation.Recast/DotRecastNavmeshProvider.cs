@@ -393,7 +393,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     }
 
     // ⭐ CE-3279 (b) — per-thread scratch for the one-search batch (R-220: no allocation once warm)
-    private const int MaxCirclePolys = 8192;
+    private const int MaxCirclePolys = 65536;
     [ThreadStatic] private static long[]? t_circleRefs;
     [ThreadStatic] private static long[]? t_circleParents;
     [ThreadStatic] private static float[]? t_circleCosts;
@@ -410,11 +410,15 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// A* per point cost 3.3 ms, 0.85 s of an EQS solve. ⚠ The search's corridor can differ from A*'s where two routes cost
     /// nearly the same, and a point reached only by a detour outside
     /// <paramref name="reach"/> reads as no path. When the search outgrows its buffer, the points it left unanswered get a full path.
+    /// Returns the polygons searched (a full path counted as <see cref="FallbackPolygons"/>) — the EQS budget counts it (CE-3279 (c)).
+    /// 📐 <see cref="MaxCirclePolys"/>: a flank 1.1 km away searched 9 587 polygons of demo-city (8 192 overflowed into full paths).
     /// </summary>
-    public void PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, DoorStates? doors)
+    public int PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, DoorStates? doors)
     {
         costs[..to.Length].Fill(float.MaxValue);
-        if (to.IsEmpty) return;
+        if (to.IsEmpty) return 0;
+        int searched = 0;
+
         var refs    = t_circleRefs    ??= new long[MaxCirclePolys];
         var parents = t_circleParents ??= new long[MaxCirclePolys];
         var cost    = t_circleCosts   ??= new float[MaxCirclePolys];
@@ -438,6 +442,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
             var status = query.FindPolysAroundCircle(startRef, start, reach, filter,
                 refs.AsSpan(), parents.AsSpan(), cost.AsSpan(), out int n, MaxCirclePolys);
             if (status.Failed()) continue;
+            searched += n;
             if (n >= MaxCirclePolys) overflow = true;
             index.Clear();
             for (int i = 0; i < n; i++) index[refs[i]] = i;
@@ -469,14 +474,19 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
             }
         }
 
-        if (!overflow || open == 0) return;
+        if (!overflow || open == 0) return searched;
         for (int c = 0; c < to.Length; c++)
         {
             if (costs[c] != float.MaxValue) continue;
             costs[c] = PathCost(from, to[c], layerMask, doors);
             Interlocked.Increment(ref _pathCostFallbacks);
+            searched += FallbackPolygons;
         }
+        return searched;
     }
+
+    /// <summary>⭐ CE-3279 (c) — what a full path in place of the batch is counted as (polygons): 📐 one cost ~37 ms on demo-city.</summary>
+    private const int FallbackPolygons = 8192;
 
     /// <inheritdoc/>
     public uint QueryVersion() => Current.Version;

@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// Rejects candidates where no navmesh path exists (EntityId = -1L).
     /// Runs in ScoreExpensive phase.
     /// </summary>
-    public sealed class PathCostScoreTest : IEqsTest, IEqsCostWeight
+    public sealed class PathCostScoreTest : IEqsTest, IEqsCostWeight, IEqsCountedWork
     {
         /// <inheritdoc/>
         /// <inheritdoc/>
@@ -26,8 +26,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public const float DetourSlack = 25f;
 
         /// <inheritdoc/>
+        // ⭐ CE-3279 (c) — this thread's count for the last batch (the template's tests are shared by every sensor and thread)
+        [ThreadStatic] private static int t_work;
+
+        /// <inheritdoc/>
+        public int TakeCountedWork() { int w = t_work; t_work = 0; return w; }
+
         public void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
+            t_work = 0;
             if (view is not EntityRepository repo) return;
             if (!repo.HasSingletonManaged<INavmeshProvider>()) return;
             if (!EqsContext.SelfPosition(repo, observer, sensor, out var obsPos)) return;   // ⭐ §19 H3
@@ -62,7 +69,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 }
                 if (m == 0) return;
 
-                navmesh.PathCosts(obsPos, points.AsSpan(0, m), costs.AsSpan(0, m), farthest * DetourFactor + DetourSlack, layer, doors);
+                int searched = navmesh.PathCosts(obsPos, points.AsSpan(0, m), costs.AsSpan(0, m), farthest * DetourFactor + DetourSlack, layer, doors);
+                // the polygons one search visited (+ a lookup per point), or a path per point from a provider that cannot batch
+                t_work = searched >= 0 ? searched * EqsCost.PathPolygon + m * EqsCost.Cheap : m * EqsCost.Path;
 
                 for (int j = 0; j < m; j++)
                 {

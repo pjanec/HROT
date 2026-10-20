@@ -25,6 +25,17 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3279</c> (c) — optional on an <see cref="IEqsTest"/> whose work is NOT proportional to its candidates (a navmesh search
+    /// grows with how far it reaches; an exposure check with the threats it knows): it counts what its last batch did, on the calling
+    /// thread, and is charged that INSTEAD of a weight per candidate. Still counted work — the same scenario counts the same.
+    /// </summary>
+    public interface IEqsCountedWork
+    {
+        /// <summary>The units the last <see cref="IEqsTest.ExecuteBatch"/> on THIS thread counted; reading it clears it.</summary>
+        int TakeCountedWork();
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>Counted work, not milliseconds</b> (§5.3). Proportional to what a sensor does AND repeatable — the same scenario
     /// schedules the same sensors on every run. Weights are relative; the budget is in the same units.
     /// </summary>
@@ -43,6 +54,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public const int Sight = 4;
         /// <summary>Per candidate through a path / navmesh query.</summary>
         public const int Path = 16;
+
+        /// <summary>
+        /// Per polygon a navmesh search visits (<c>PathCostScoreTest</c>, <c>INavmeshProvider.PathCosts</c>). 📐 <c>CE-3279</c>, live on
+        /// demo-city: ~3.7 µs a polygon, where the other tests ran ~2.8 µs a unit (sight 7 µs a candidate = Sight; placement 1 µs).
+        /// </summary>
+        public const int PathPolygon = 1;
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (c) — what <paramref name="test"/> is charged for the batch it JUST ran over <paramref name="candidates"/>: its
+        /// own count when it keeps one (<see cref="IEqsCountedWork"/>), else its weight per candidate. Call it after the batch.
+        /// </summary>
+        public static int Charged(IEqsTest test, int candidates)
+            => test is IEqsCountedWork counted ? counted.TakeCountedWork() : candidates * WeightOf(test);
 
         /// <summary>The weight of <paramref name="test"/> per candidate.</summary>
         public static int WeightOf(IEqsTest test)
