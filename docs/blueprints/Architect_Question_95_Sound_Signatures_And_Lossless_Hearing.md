@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ANSWERED 2026-10-20: A–E approved as leaned; B3 (the user's addition, the sound's band) leaned, see §5
+state: LIVE — ANSWERED 2026-10-20: A–E and B3 approved as leaned (§5)
 updated: 2026-10-20
 build-state: DESIGN — approved; dispatched to backend (HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md)
 current-answer: §5 the answers; §3 the leans they approve (B3 added after the approval)
@@ -185,13 +185,13 @@ instead of building a new map.
 
 ## 5. Answers
 
-> 🔒 **User, 2026-10-20:** *"Approved."* (then B3, quoted in §3)
+> 🔒 **User, 2026-10-20:** *"Approved."* (then B3, quoted in §3) · *"B3 in Q95 approved."*
 
 | | answer |
 |---|---|
 | A | ✅ approved as leaned — a signature per weapon type; the class stays; the ear's proficiency sets what is identified; CE-3280's `Artillery` class superseded; CE-2309's 1 km rule retired (E1) |
 | B | ✅ approved — hearing bounded by distance, never by the high-resolution terrain; B1 real carries per signature; B2 off-terrain units heard, not seen |
-| B3 | ⭐ the user's addition; leaned: one model, a TKB `Band` per signature scaling WQ-E's obstacle loss — ⚠ the lean itself awaits a nod |
+| B3 | ✅ approved (🔒 user, 2026-10-20: *"B3 in Q95 approved."*) — one model, a TKB `Band` per signature scaling WQ-E's obstacle loss; the field ships with A (handoff S6), the loss with WQ-E Q3 |
 | C | ✅ approved — the lossless unmanaged ring with a per-sensor serial cursor and an overflow counter; CE-3279 still fixed |
 | D | ✅ approved — demo-city's `hrot.bounds` over the road net for performance tests |
 | E | ✅ approved — behaviors: E1 readers, E2 the measurement, E3 L7 off the terrain |
