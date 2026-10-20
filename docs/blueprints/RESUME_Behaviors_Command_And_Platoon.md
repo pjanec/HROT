@@ -1,22 +1,77 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§2: steps 1–7 done, step 8 next)
-current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
-stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
+updated: 2026-10-20 (rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
+stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the command machinery (CC-A…CC-E), BUILT; §8a as-built, incl. CE-2288's slot route
-  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — wave 0 (DA-A §8a, DA-C §8b, DA-K §12c, DA-L §13c) and the next slices (DA-D §8, the sector levels §13a)
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — APPROVED 2026-10-20: signatures, hearing by distance, the lossless ring, the Band; behaviors owns E (CE-2315)
+  - docs/DESIGN_Injury_States.md — §6 I4 "units stop shooting him" — broken live (CE-2318), the next build
+  - docs/blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the crouched run chosen at issue only (CE-2319 / CE-2320)
+  - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the command machinery (CC-A…CC-E), BUILT; §8a as-built, §8d the request chain
+  - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-A…DA-L, §8d PlatoonDefend, §8f.1 PlatoonAttack (as built)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — LD-3 slice 1 as built (§3.3a, with its known-rot) and the demos (§3.4)
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the attack / defend / clear programme on top of it (§11 slices, §13 waves)
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — the clearing slices (CE-2257…CE-2259) and the report concept
-  - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded urban ambush demo (not scheduled) and the infrastructure it needs (§4)
+  - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the plan (§5, all steps done) and the demo-city ladder + flagship (§6)
 -->
 
-# RESUME — behaviors lane: the command chain is built; now the platoon programme *(rewritten 2026-10-19)*
+# RESUME — behaviors lane: the command chain and the urban battle are built; now the live findings *(top rewritten 2026-10-20)*
 
 **RELEARN** — run the re-learn and open your first reply with the DESIGN BRIEF (`CLAUDE.md`).
+
+## N. ⭐ Now — start here *(written 2026-10-20 at `c12f4e9ac`)*
+
+| | |
+|---|---|
+| ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
+| ⭐ ids | tracker next free **`CE-2322`** · rulings next free **`R-2061`** · component ids **418–433** (R-2056) |
+| ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
+| ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
+
+### N.1 Where it stands
+
+| | |
+|---|---|
+| ✅ **the urban-battle plan (R-2060) — all 8 steps done** | see §2; the flagship `uc-urban-battle` passes live 6/6, nothing faked |
+| ✅ **Q95 approved (A–E + B3)** | [Q95](Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) §5 — a sound signature per weapon (the emitter's TKB type; the ear's proficiency decides how much is named); hearing bounded by DISTANCE, never by the high-resolution terrain (guns stand 2–20 km off it); a lossless emission ring (per-sensor serial cursor, overflow counted); demo-city bounds over its road net for perf tests; a TKB `Band` (Low/Mid/High) scaling WQ-E's future obstacle loss. ⭐ Dispatched to backend: [handoff](batches/HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md) (S1 ring · S2 CE-3279 timeouts · S3 signature · S4 carries · S5 the rule · S6 Band) |
+| 🟡 **behaviors' half of Q95 — `CE-2315`** | E1 after backend's S3: `StaffSystems.IsLaunch` reads the signature, CE-2309's ≥ 1 km rule goes. **E2 (not blocked): measure why backend's run delivered 9 heard contacts to the brain and no SPOT came.** E3: L7 `uc-request-chain` with the guns 2–3 km OFF the terrain |
+| ⭐ **the user's live findings, filed 2026-10-20** | see N.2 — measured, leaned, not built |
+
+### N.2 The user's live findings *(tracker rows, all with file:line and a lean)*
+
+| row | lane | what | lean |
+|---|---|---|---|
+| **`CE-2318`** ⭐ next build | behaviors (+ backend aim) | soldiers keep shooting a DOWNED man, and over him | ① targeting uses `Injury.IsInTheFight`, not `CombatLife.IsAlive` (Health > 0) — `TopThreat`'s `Engageable` (`EqsTacticsNodes.cs:359`), `AimAndFireExecutor.cs:77`, `PostureNodes.cs:287,400`, `SquadManeuverRunner.cs:804`, `SquadAssignment.cs:24`, `HiddenTargetThrow.cs:87-119`; ⛔ classify each caller with **Roslyn** find-references (some want HEALTH: carry, medic). ② `LogicalStance.Of` answers Prone for a man down, so aim (0.85 m today) matches his `Downed` hit boxes. No architect question needed — Injury States §6 I4 already says it |
+| **`CE-2319`** | behaviors | an attack advances UPRIGHT AT A WALK under heavy fire | ⚠ part is mine: `pc-defend-house` authors `PlatoonAttack Speed 2`, overriding the rush 4. Gait chosen once at issue (`LocomotionMoveTo.cs:93-94`); no go-to-ground. ⇒ **write an architect question first** (touches every play): rush speed under fire · re-pick the gait when `Threatened` changes · one soldier-level reflex (near miss in the open ⇒ down 2–4 s, up, rush). Relates CE-2158, CE-2270/2272 (stress), AQ88 |
+| **`CE-2320`** | behaviors | taking cover across OPEN GROUND upright and slow | same mechanism (`PeekAndFireNodes.cs:407,457-476`, `TakeCover.btree.json:47`); a cover move is always a crouched rush; a light weave only in the open under fire (zig-zag: no design record) — in CE-2319's question |
+| `CE-2321` | backend | a downed/dead man is pushed and turned by avoidance | `CarKinematicsSystem` query `:80-92` has no out-of-the-fight filter; lean: not integrated until carried/dragged |
+| `CE-2316` | ui | the map key in first person flashes and returns to 3-D; M should toggle 2-D↔3-D everywhere | the press read twice (`PossessionStation.cs:102` on `ui`) |
+| `CE-2317` | ui + backend | a possessed ZU-23 technical aims, never fires | not located; CE-1206's fix (`51c65bec3`) is not on `ui`; show `CanFire`'s `WeaponHold` on the HUD first |
+| `CE-1172` | ui | no baton in the policeman's hand | existing row, live note added |
+
+⭐ My lean to the user (not yet answered): build `CE-2318` now; write one architect question for `CE-2319`+`CE-2320`; the ui/backend rows
+wait for those lanes unless the user hands them over.
+
+### N.3 Still open from the plan
+
+L1 street panic · L3 tank vs AT teams · L5 FPV on the convoy (ports of passing demos) · L7 full (now: E3, guns off the terrain, after
+Q95's ring lands) · the flagship's air beats (no REQUEST came) · `CE-2304` (men stopping ~6 m short in `sq-defend-house`, unmeasured).
+
+### N.4 Traps learned 2026-10-20 *(add to §5 when touched)*
+
+| trap | |
+|---|---|
+| ⛔ an enum in a scenario's params JSON parses BY NAME — a number drops the whole order silently | `PlatoonAttack Preset` (CE-2277) |
+| ⛔ a BasicPlatoonSop hold-row guard needs the generator goldens + a `BTreeCallShapeTests` row; ⛔ keep the btree JSON's indent (`indent=1` if it starts `{\n "`) or the whole file rewrites | CE-2314 |
+| ⚠ `utility-demo-check.py` WARNS about entities off the terrain's grids — off the grids a unit cannot be seen or collide; loud sounds still reach (Q95 B) | the L7 retraction |
+| ⚠ kill a stray cluster with `ps -eo pid,args \| grep "[H]rot.ClusterRunner/bin" \| awk '{print $1}' \| xargs -r kill` — ⛔ `pkill -f` matches your own shell (exit 144) | live runs |
+| ⚠ demo-city: soldier vision 150 m; staff merges elements within 50 m (`FoldElement`); `CombatPosture "{}"` walks to the origin | the ladder |
+
+---
+
+*⛔ Below: as of 2026-10-19 — §0/§1 superseded by §N; §2 is the plan's record.*
 
 ## 0. Start here
 
@@ -54,7 +109,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ step 5 — done 2026-10-19 | the scene's reactions (Urban Battle §5): ✅ ④ trigger man + ambush — `CE-2306`, [Defend & Attack §8e.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), not live · ✅ ⑤ convoy halt — `CE-2307`, [Squad Tactics §5b.1](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), not live · ✅ ⑥ insurgent spotter — `CE-2308`, [Indirect Fire §3.11a](../designs/indirect-fire/DESIGN_Indirect_Fire.md), not live |
 | ✅ step 6 — done 2026-10-19 | ② finding the mortar — `CE-2309` (a heard launch is a SPOT) + `CE-2310` (the platoon asks FireSupport / Reinforce), [Command Chain §8d](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) · ③ armed search — `CE-2311` · ① the headquarters play `SupportCommand` — `CE-2312`, [Command Chain §8d-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md); ⚠ none live yet; ⚠ the ZU-23 shares the mortar's sound class ([note](batches/NOTE_Behaviors_To_Backend_Launch_Sound_Class.md)) |
 | ✅ step 7 — done 2026-10-20 | `PlatoonAttack` `CE-2277` ([Defend & Attack §8f.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)) · ✅ `pc-attack-dry` live 12/12 · ✅ `pc-defend-house` live — it found AT-13 (the platoon SOP held the attack) and DA-98 (a line hit before it is set never opened fire) |
-| ▶ **step 8 — NOW** | the demo ladder on demo-city ([Urban Battle §5](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md)), then the flagship |
+| ✅ step 8 — done 2026-10-20 | the ladder + the flagship on demo-city ([Urban Battle §6](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md)): ✅ L2 `uc-convoy-hit` (halt + dismount) and `uc-convoy-hit-ifv` (push-through) · 🟡 L7 `uc-request-chain` (9/9 once; a coin-flip on demo-city's size) + ✅ `-dry` 9/9 · ✅ L4 `uc-a10-zu23-dry` · ✅ L6 `uc-reinforce-dry` · ✅ **the flagship `uc-urban-battle` 6/6, nothing faked**. Found live and fixed: `CE-2313` (a brain node read every moving vehicle as standing; a squad got out of a pushing carrier), `CE-2314` (the platoon SOP held the HQ), DA-98, AT-13 |
+| still open | L1 street panic · L3 tank vs AT teams · L5 FPV on the convoy (ports of passing demos, not built) · L7 full on a bigger terrain · the flagship's air beats (no REQUEST came this run: the HQ's assets are wired, the fight did not call them) · a burst is stamped on its SHOOTER whose `DetonationAudibleRange` may be 0 ([note](batches/NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md), backend's) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 

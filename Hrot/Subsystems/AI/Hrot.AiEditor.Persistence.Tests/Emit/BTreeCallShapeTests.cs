@@ -156,6 +156,8 @@ public sealed class BTreeCallShapeTests
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000014", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2277 AT-13 — the same row's second guard: PlatoonAttackBehavior.NotAttacking is (Entity, EntityRepository) ⇒ NoParams.
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000015", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-2314 — and its third: SupportCommandBehavior.NotCommandingSupport is (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),

@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §2/§4 ② said a mortar launch has no sound — half true: the crewed tubes and guns have none, the MortarTeam person type has (500 m, since 97b751b3a); re-measured 2026-10-19, BR-14 filed.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: what L7 needs from hearing — signatures, distance-bounded hearing, lossless short sounds; E3 recasts L7 with off-terrain guns
   - docs/DESIGN_Building_Interiors.md — OWNS the building templates the quarters place (§3g.1: the shared Recipes/Buildings folder, the roof storey)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the request / report machinery route B escalates through (CC-A…CC-E)
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — OWNS the platoon attack / defence plays the infantry fight uses; this scene is its final act
@@ -204,12 +205,24 @@ that already pass on other terrains.
 | rung | cast on demo-city (Avenue E, x ≈ 650, south → north) | must hold | new code it is the first live run of |
 |---|---|---|---|
 | **L2** ✅ `uc-convoy-hit` (live 8/8, 2026-10-20 — the APC is immobilised by any hit, so it halts and the squad dismounts; ✅ the Bradley variant `uc-convoy-hit-ifv` pushes through live — after `CE-2313`: the brain node read every moving vehicle as standing) | an APC (2001) with a squad aboard follows a route north up Avenue E; a placed charge (618) on the road at y 200; a trigger man (2003, phone) at the west row's front, his kill zone 10 m; an RPG man and a rifleman in the east row | ① the charge goes off only with the APC in its kill zone · ② the carrier, hit with troops aboard, pushes through (a mobile carrier) or halts and its squad dismounts (one that cannot move) · ③ the squad fights | `CE-2306` TriggerIed · `CE-2307` PushThrough / dismount from a halt |
-| **L7** 🟡 `uc-request-chain` (2026-10-20: ① live — the spotter's rounds land; ② blocked — no Blue man hears the launch, [note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md); ✅ `uc-request-chain-dry` fakes ② and ③ ④ pass live 8/8) | a Blue platoon in the market quarter; an insurgent mortar 1–1.5 km off with its spotter; a body-less HQ (`SupportCommand`) owning an AH-64 and a battery | ① the spotter's own mission lands rounds · ② a Blue man hears the launch ⇒ SPOT IndirectFire · ③ the platoon asks FireSupport · ④ the HQ sends the free AH-64 on an armed search of the point · nothing sent without a report | `CE-2308`…`CE-2312` |
+| **L7** 🟡 `uc-request-chain` (live 2026-10-20: ✅ 9/9 once — rounds land, the launch heard at 1075 m ⇒ SPOT IndirectFire 16 m off the tubes, FireSupport, the AH-64 sent — and ✗ twice: no SPOT. ⚠ demo-city's grids are fitted to its ~850 m built area (CE-3018), so the separation cannot exceed ~1.1 km, and HQ-1's ≥ 1 km rule is judged on the HEARD ESTIMATE (±15 %): the rung is a coin-flip on this terrain. ✅ `uc-request-chain-dry` (the SPOT faked) 9/9 incl. the attack: the AH-64 found the cell and killed its crew) | a Blue platoon in the market quarter; an insurgent mortar 1–1.5 km off with its spotter; a body-less HQ (`SupportCommand`) owning an AH-64 and a battery | ① the spotter's own mission lands rounds · ② a Blue man hears the launch ⇒ SPOT IndirectFire · ③ the platoon asks FireSupport · ④ the HQ sends the free AH-64 on an armed search of the point · nothing sent without a report | `CE-2308`…`CE-2312` |
 | L1 `uc-street-panic` | civilians on the battle street; shots | they shelter in the houses | — (`ua-civ-shelter` port) |
 | L3 `uc-tank-street` | an M1 up Avenue E; NLAW / Javelin teams in the rows | the hide / fire cycle in a street | — (`ua-tank-corner` port) |
 | L4 ✅ `uc-a10-zu23-dry` (live 7/7, 2026-10-20: two faked SPOTs ⇒ the platoon relays the air defence and asks FireSupport, the HQ sends its orbiting A-10 at the ZU-23 first, the AH-64 waits) | L7 + a ZU-23 technical near the mortar | the HQ sends the A-10 on the ZU-23 first, the AH-64 waits | `CE-2312` HQ-7 |
 | L5 `uc-fpv-convoy` | L2's convoy; an FPV drone near the route | the drone searches, picks the APC, dives | — (`ua-drone-shelter` port) |
 | L6 `uc-reinforce` | L7's platoon losing men | Reinforce ⇒ a free unit sent to defend at the requester | `CE-2310` HQ-5 · `CE-2312` HQ-9 |
+
+**The flagship** `uc-urban-battle` (built 2026-10-20; 44 entities, nothing faked or timed; `scripts/utility-demo-check.py uc-urban-battle`)
+asserts only what must hold: ① the charge goes off only with a vehicle in its kill zone · ② no Blue round aimed at a civilian · ③ nothing sent
+without a REQUEST · ④ both sides fight. **First run (1200 sim s): ①②③ held, ④ did not** — the Bradley saw the fire team on the open sidewalks
+from 230 m at 9 s and destroyed it from cover before it fired (Blue 238 rounds, Red 0); ⚠ the same charge burst THREE times (37, 229, 256 s);
+⚠ the reserve squad SPOTted "an element at (0, 0)" every ~17 s from 547 s. **Measured, all three:** the "three bursts" were the check
+(it indexed a rolling detonation log) · the (0, 0) SPOT was the insurgents WALKING there — `CombatPosture` with `{}` advances to (0,0,0), its
+default objective; a man who holds gets SquadDefend's shape (objective = his spot, `stay`, `post`, `watchTowards`) · and the HQ's platoon SOP
+then held the HQ and every asset (⇒ `CE-2314`). **Recast** round the Street S corner (the IED at the crossing, the fire team 40–50 m down
+Street S east, hidden from the avenue). ✅ **PASS live 6/6** (2026-10-20, 1200 sim s): the IED at 28 s with the APC 9.7 m off; the Bradley
+pushes through and resumes; the immobilised APC's squad SPOTs the team round the corner, dismounts under an RPG and fights it (Blue 34 / Red
+24 rounds); 0 rounds at civilians; no REQUEST was made, so the HQ sent nothing — the story the fight chose this time.
 
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.

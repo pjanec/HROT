@@ -3248,6 +3248,22 @@ namespace Hrot.SimHost.Tests
             return p;
         }
 
+        /// <summary>⭐⭐ <c>CE-2314</c> (as AT-13 / DA-55) — a headquarters WITH the platoon SOP: a subordinate's SPOT does not pause
+        /// <c>SupportCommand</c> for <c>PlatoonHold</c> — its aircraft are not ordered to hold (measured live first, the flagship
+        /// <c>uc-urban-battle</c>). ✅ Red-proof: the guard always true ⇒ the hold reaction pauses the HQ and orders every asset Hold.</summary>
+        [Fact]
+        public void CE2314_AHeadquartersWithItsSop_AReportedEnemy_DoesNotPauseIt()
+        {
+            var p = Headquarters();
+            p.S.StartSop("BasicPlatoonSop");
+            p.Ticks(3);
+            p.ReportSpot(p.S.Members[0], new Vector3(0f, 300f, 0f), 6);
+            p.Ticks(6);
+            Assert.Equal(BehaviorNames.SupportCommand, p.S.TaskName);
+            Assert.False(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
+            Assert.Equal(0, p.OrdersTo(p.S.Members[1], "Order.Hold"));
+        }
+
         private static void Ask(Platoon p, Fdp.Toolkit.Squad.Command.RequestKind kind, Vector3 at)
             => p.Report(p.S.Members[0], new Fdp.Toolkit.Squad.Command.CommandReport
             {

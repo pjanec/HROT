@@ -135,6 +135,15 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        private static readonly int SupportCommandHash = BehaviorHash.FromName(BehaviorNames.SupportCommand);
+
+        /// <summary>⭐ <c>CE-2314</c> (as AT-13 / DA-55) — the unit's task is NOT the headquarters play. <c>BasicPlatoonSop</c>'s hold row asks it:
+        /// an HQ answers reports — holding it on a SPOT ordered its helicopter, its jet and its reserve to hold (measured live, the flagship
+        /// <c>uc-urban-battle</c>: a SPOT from the reserve paused <c>SupportCommand</c> and every asset went <c>PlatformHold</c>).</summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool NotCommandingSupport(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != SupportCommandHash;
+
         /// <summary>HQ-7 — a fresh AirDefence element within <paramref name="metres"/> of <paramref name="point"/>, the nearest.</summary>
         private static bool AirDefenceNear(EntityRepository world, Entity self, Vector3 point, float metres, float freshSeconds, float now, out Vector3 at)
         {

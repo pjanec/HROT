@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: the heard launch HQ-1 composes — per-weapon signature and the 1 km rule it would retire (A), off-terrain guns heard (B)
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea that needs REQUEST answered by a headquarters owning support assets (§4 ①)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attack (`AirAttackNodes.Run`, `FlyTo`) §8d's armed search is built on
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the battery's fire mission §8d's HQ sends, and IF-6 (counter-battery), the later answer to §8d's heard launch
@@ -814,3 +815,11 @@ tracker rows. ⛔ Not live yet (the urban demo ladder, step 8).
 composer's SPOT and REQUESTs), the air suite (the armed search), the platoon suite (the HQ). ⛔ Not in them: an air-assault answer, Casevac by
 air, the live rung (the demo ladder, step 8).
 
+
+#### 8d-b. Found live *(2026-10-20, Urban Battle §6)*
+
+| | measured | as built |
+|---|---|---|
+| ⭐ **HQ-10** *(new, `CE-2314`)* | the HQ (type 305) carries `BasicPlatoonSop`; a subordinate's SPOT paused `SupportCommand` for `PlatoonHold` — its AH-64, A-10 and reserve were ordered to hold (`uc-urban-battle`, 305 s) | the hold row also asks `SupportCommandBehavior.NotCommandingSupport` (as AT-13 / DA-55): an HQ answers reports, it does not hold on them |
+| the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
+| dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |

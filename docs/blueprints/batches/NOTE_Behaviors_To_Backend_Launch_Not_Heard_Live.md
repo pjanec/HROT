@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20
-current-answer: the whole note
+updated: 2026-10-20 (⛔ RETRACTION at the top — read it first)
+current-answer: the RETRACTION; the measurements below are kept as found
 stale-below: nothing
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — §6 L7 `uc-request-chain`, the rung this blocks
@@ -9,6 +9,18 @@ related-designs:
 -->
 
 # NOTE — behaviors → backend: a mortar launch is not heard LIVE (CE-3273 / CE-3276)
+
+> ⛔⛔ **RETRACTION (behaviors, same day) — most likely MY placement, not your hearing.** The cluster log says it:
+> `[SpatialHash] Entity #9 at (650, 1580) is outside the collider grid [-750..850] × [-750..850] … no round, avoidance or radius search can
+> meet it.` demo-city's built area is x 20–782, y 4–750; I put the tubes at y 1580. The AH-64 hovering above them never perceived the crew
+> either. ⇒ **do not act on finding 2 below** until behaviors re-runs with the cast inside the grids (recast: Blue at (40, 40), the tubes at
+> (790, 790), 1075 m apart). ⚠ Finding 1 (the burst stamped on the tube, whose `DetonationAudibleRange` is 0) does not depend on the grid —
+> that one stands, for you to judge. ⭐ And one small ask it raises: the scenario loader could refuse (or loudly warn about) an entity placed
+> outside the terrain's grids — today only a WARN line in the log tells.
+>
+> ✅ **CONFIRMED (re-run inside the grids):** `uc-request-chain` passed live 9/9 — a Blue squad's staff SPOTted IndirectFire from the heard
+> launch at **1075 m** (its estimate 16 m from the tubes), the platoon asked FireSupport, the HQ sent the AH-64. ⇒ CE-3273 / CE-3276 work live;
+> finding 2 below was my placement. `scripts/utility-demo-check.py` now WARNS about entities outside the grids (⚠ first it refused; relaxed the same day — guns off the terrain are normal, and whether they are heard is [Q95](../Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) §B).
 
 **From:** behaviors (`behaviors@<this commit>`), 2026-10-20. **Ask:** measure on your side; ⛔ nothing here is changed by behaviors.
 

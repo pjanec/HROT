@@ -12,8 +12,8 @@
     "d0c70000-0000-4000-8000-000000009700": {
       "SimTransform": {
         "Position": [
-          600,
-          60,
+          40,
+          10,
           0
         ],
         "Rotation": [
@@ -42,8 +42,8 @@
     "d0c70000-0000-4000-8000-000000009701": {
       "SimTransform": {
         "Position": [
-          560,
-          60,
+          20,
+          20,
           60
         ],
         "Rotation": [
@@ -74,8 +74,8 @@
     "d0c70000-0000-4000-8000-000000009710": {
       "SimTransform": {
         "Position": [
-          650,
-          150,
+          8,
+          8,
           0
         ],
         "Rotation": [
@@ -101,15 +101,15 @@
       },
       "Behavior": {
         "Name": "PlatoonDefend",
-        "Params": "{\"Position\": [650, 150, 0], \"Left\": 315, \"Right\": 45, \"MaxRange\": 400, \"Speed\": 2}",
+        "Params": "{\"Position\": [8, 8, 0], \"Left\": 0, \"Right\": 90, \"MaxRange\": 400, \"Speed\": 2}",
         "Origin": "Superior"
       }
     },
     "d0c70000-0000-4000-8000-000000009720": {
       "SimTransform": {
         "Position": [
-          646,
-          150,
+          4,
+          8,
           0
         ],
         "Rotation": [
@@ -137,8 +137,8 @@
     "d0c70000-0000-4000-8000-000000009721": {
       "SimTransform": {
         "Position": [
-          643.6,
-          150,
+          1.6,
+          8,
           0
         ],
         "Rotation": [
@@ -173,8 +173,8 @@
     "d0c70000-0000-4000-8000-000000009722": {
       "SimTransform": {
         "Position": [
-          645.2,
-          150,
+          3.2,
+          8,
           0
         ],
         "Rotation": [
@@ -209,8 +209,8 @@
     "d0c70000-0000-4000-8000-000000009723": {
       "SimTransform": {
         "Position": [
-          646.8000000000001,
-          150,
+          4.800000000000001,
+          8,
           0
         ],
         "Rotation": [
@@ -245,8 +245,8 @@
     "d0c70000-0000-4000-8000-000000009724": {
       "SimTransform": {
         "Position": [
-          648.4,
-          150,
+          6.4,
+          8,
           0
         ],
         "Rotation": [
@@ -281,8 +281,8 @@
     "d0c70000-0000-4000-8000-000000009730": {
       "SimTransform": {
         "Position": [
-          654,
-          150,
+          12,
+          8,
           0
         ],
         "Rotation": [
@@ -310,8 +310,8 @@
     "d0c70000-0000-4000-8000-000000009731": {
       "SimTransform": {
         "Position": [
-          651.6,
-          150,
+          9.6,
+          8,
           0
         ],
         "Rotation": [
@@ -346,8 +346,8 @@
     "d0c70000-0000-4000-8000-000000009732": {
       "SimTransform": {
         "Position": [
-          653.2,
-          150,
+          11.2,
+          8,
           0
         ],
         "Rotation": [
@@ -382,8 +382,8 @@
     "d0c70000-0000-4000-8000-000000009733": {
       "SimTransform": {
         "Position": [
-          654.8000000000001,
-          150,
+          12.8,
+          8,
           0
         ],
         "Rotation": [
@@ -418,8 +418,8 @@
     "d0c70000-0000-4000-8000-000000009734": {
       "SimTransform": {
         "Position": [
-          656.4,
-          150,
+          14.4,
+          8,
           0
         ],
         "Rotation": [
@@ -454,8 +454,8 @@
     "d0c70000-0000-4000-8000-000000009750": {
       "SimTransform": {
         "Position": [
-          655,
-          1580,
+          740,
+          745,
           0
         ],
         "Rotation": [
@@ -479,8 +479,8 @@
     "d0c70000-0000-4000-8000-000000009751": {
       "SimTransform": {
         "Position": [
-          650,
-          1580,
+          735,
+          745,
           0
         ],
         "Rotation": [
@@ -504,8 +504,8 @@
     "d0c70000-0000-4000-8000-000000009753": {
       "SimTransform": {
         "Position": [
-          648,
-          1580,
+          733,
+          745,
           0
         ],
         "Rotation": [
@@ -545,8 +545,8 @@
     "d0c70000-0000-4000-8000-000000009752": {
       "SimTransform": {
         "Position": [
-          660,
-          1580,
+          745,
+          745,
           0
         ],
         "Rotation": [
@@ -570,8 +570,8 @@
     "d0c70000-0000-4000-8000-000000009754": {
       "SimTransform": {
         "Position": [
-          658,
-          1580,
+          743,
+          745,
           0
         ],
         "Rotation": [
@@ -608,48 +608,11 @@
         "Origin": "Superior"
       }
     },
-    "d0c70000-0000-4000-8000-000000009760": {
-      "SimTransform": {
-        "Position": [
-          650,
-          270,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          -0.70710678,
-          0.70710678
-        ]
-      },
-      "NetworkIdentity": {
-        "Value": 9760
-      },
-      "TkbIdentity": {
-        "TkbType": 2003
-      },
-      "EntityInfo": {
-        "Name": "Spotter",
-        "ForceId": "Neutral"
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "Behavior": {
-        "Name": "SpotForFire",
-        "Params": "{\"Battery\": 9750, \"Rounds\": 2}",
-        "Origin": "Superior"
-      }
-    },
     "d0c70000-0000-4000-8000-000000009757": {
       "SimTransform": {
         "Position": [
-          656,
-          1586,
+          739,
+          739,
           0
         ],
         "Rotation": [
@@ -679,6 +642,43 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0c70000-0000-4000-8000-000000009760": {
+      "SimTransform": {
+        "Position": [
+          8,
+          118,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9760
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Spotter",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "SpotForFire",
+        "Params": "{\"Battery\": 9750, \"Rounds\": 2}",
         "Origin": "Superior"
       }
     }
