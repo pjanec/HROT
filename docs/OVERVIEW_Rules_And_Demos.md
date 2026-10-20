@@ -272,6 +272,12 @@ related-designs:
 | `ua-casualty-care-heavy` | the same under heavy fire | nobody goes for 30 s; enemy down → they go at once | C3 | ✅ |
 | `ua-casualty-care-leader` | the leader is the casualty | the next man (not the Medic) takes command; care runs | C7 | ✅ |
 | `ua-squad-danger-crossing-hold` | crossing choice picks Hold | — | S10 | ⏳ no live check yet |
+| `pc-attack-dry` | a platoon attacks the area round OBJ on faked reports | base of fire → bound → lift + ClearBuilding → consolidate → won | AT-1…AT-12 | ✅ 12/12 |
+| `pc-defend-house` | a platoon attack against a platoon defence, AI on both sides | both plays run, the line opens fire, both sides fire, the assault or a break-off — no winner asserted | AT, DA-98, E-3a | ✅ |
+| `uc-convoy-hit` / `-ifv` | demo-city: an IED under a convoy | the charge only in the kill zone; an APC halts and its squad fights / a Bradley pushes through with its squad aboard | CE-2306, CH-1…CH-4, CE-2313 | ✅ 8/8 · 9/9 |
+| `uc-request-chain` (+ `-dry`) | spotter → mortar → heard launch → SPOT → FireSupport → the HQ's AH-64 armed search | nothing sent without a report; the AH-64 attacks the cell | HQ-1…HQ-9 | 🟡 once (terrain size) · ✅ dry 9/9 |
+| `uc-a10-zu23-dry` · `uc-reinforce-dry` | air defence near the point · a Red platoon with the enemy near | the A-10 at the ZU-23 first, the AH-64 waits · the reserve sent, never the requester | HQ-7, HQ-9 | ✅ 7/7 · 6/6 |
+| ⭐ `uc-urban-battle` | the flagship: convoy, IED, ambush round a corner, spotter + mortar, ZU-23, an HQ with air and a reserve, civilians | the charge only in the kill zone · no round at a civilian · nothing sent without a REQUEST · both sides fight | all of the above | ✅ 6/6 |
 
 ## 6. Buildings — [Building interiors](DESIGN_Building_Interiors.md)
 

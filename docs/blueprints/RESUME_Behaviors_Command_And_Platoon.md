@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§2: steps 1–7 done, step 8 next)
+updated: 2026-10-20 (§2: steps 1–8 done — the flagship passes live; what is left: §2 "still open")
 current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
 stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -54,7 +54,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ step 5 — done 2026-10-19 | the scene's reactions (Urban Battle §5): ✅ ④ trigger man + ambush — `CE-2306`, [Defend & Attack §8e.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), not live · ✅ ⑤ convoy halt — `CE-2307`, [Squad Tactics §5b.1](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), not live · ✅ ⑥ insurgent spotter — `CE-2308`, [Indirect Fire §3.11a](../designs/indirect-fire/DESIGN_Indirect_Fire.md), not live |
 | ✅ step 6 — done 2026-10-19 | ② finding the mortar — `CE-2309` (a heard launch is a SPOT) + `CE-2310` (the platoon asks FireSupport / Reinforce), [Command Chain §8d](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) · ③ armed search — `CE-2311` · ① the headquarters play `SupportCommand` — `CE-2312`, [Command Chain §8d-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md); ⚠ none live yet; ⚠ the ZU-23 shares the mortar's sound class ([note](batches/NOTE_Behaviors_To_Backend_Launch_Sound_Class.md)) |
 | ✅ step 7 — done 2026-10-20 | `PlatoonAttack` `CE-2277` ([Defend & Attack §8f.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)) · ✅ `pc-attack-dry` live 12/12 · ✅ `pc-defend-house` live — it found AT-13 (the platoon SOP held the attack) and DA-98 (a line hit before it is set never opened fire) |
-| ▶ **step 8 — NOW** | the demo ladder on demo-city ([Urban Battle §5](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md)), then the flagship |
+| ✅ step 8 — done 2026-10-20 | the ladder + the flagship on demo-city ([Urban Battle §6](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md)): ✅ L2 `uc-convoy-hit` (halt + dismount) and `uc-convoy-hit-ifv` (push-through) · 🟡 L7 `uc-request-chain` (9/9 once; a coin-flip on demo-city's size) + ✅ `-dry` 9/9 · ✅ L4 `uc-a10-zu23-dry` · ✅ L6 `uc-reinforce-dry` · ✅ **the flagship `uc-urban-battle` 6/6, nothing faked**. Found live and fixed: `CE-2313` (a brain node read every moving vehicle as standing; a squad got out of a pushing carrier), `CE-2314` (the platoon SOP held the HQ), DA-98, AT-13 |
+| still open | L1 street panic · L3 tank vs AT teams · L5 FPV on the convoy (ports of passing demos, not built) · L7 full on a bigger terrain · the flagship's air beats (no REQUEST came this run: the HQ's assets are wired, the fight did not call them) · a burst is stamped on its SHOOTER whose `DetonationAudibleRange` may be 0 ([note](batches/NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md), backend's) |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 
