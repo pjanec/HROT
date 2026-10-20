@@ -4260,6 +4260,39 @@ def run_uc_request_chain(c, timeout):
     c.ok("ask" in seen and "heli" in seen and seen["heli"] >= seen["ask"] - 0.5, "④ …and only after the request (nothing sent without a report)")
 
 
+
+def run_uc_request_chain_dry(c, timeout):
+    """⭐ Urban Battle §6 L7 (dry) — uc-request-chain-dry: L7's cast with the one report the live rung cannot get yet FAKED — a SPOT
+    IndirectFire from Blue Squad 1 at the tubes (📄 NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md) — so the rest runs live: ① the
+    platoon asks the HQ for FireSupport (CE-2310) · ② the HQ sends its free AH-64 on an armed search of the point (CE-2312, CE-2311),
+    not before ① · ③ the Apache flies to the point."""
+    ids = ids_by_name()
+    hq, heli, pl, sq1 = ids.get("Blue HQ"), ids.get("Apache"), ids.get("Blue Platoon"), ids.get("Blue Squad 1")
+    tube = ids.get("Mortar Tube 1")
+    if not c.ok(None not in (hq, heli, pl, sq1, tube), "the HQ, its Apache, the platoon and the mortar are loaded"):
+        return
+    at = position(tube)
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend", 30),
+         f"the plays run (HQ {task_name(hq)}, platoon {task_name(pl)}, Apache {task_name(heli)})")
+    c.ok(task_name(heli) in (None, "", "None"), f"the Apache waits: nothing is sent without a report (task {task_name(heli)})")
+    r = call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [at[0], at[1], 0], "count": 2, "size": "Team", "equipment": "IndirectFire"})
+    c.ok(isinstance(r, dict) and (data(r) or {}).get("sent"), f"a faked SPOT IndirectFire from Blue Squad 1 ({json.dumps(data(r) or r)[:200]})")
+    t0 = sim_time() or 0.0
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "FireSupport"
+                                 and x.get("from") == pl), None), 30)
+    c.ok(ask is not None, f"① the platoon asks the HQ for FireSupport ({json.dumps(ask)[:220] if ask else None})")
+    sent = wait_for(lambda: task_name(heli) == "AirArmedSearch", 30)
+    o = _order(heli)
+    print(f"    Apache order: {json.dumps(o)[:400]}")
+    c.ok(sent, f"② the HQ sends the Apache on an armed search ({task_name(heli)}, {(sim_time() or 0) - t0:.1f} s after the SPOT)")
+    p0 = position(heli)
+    d0 = math.hypot(p0[0] - at[0], p0[1] - at[1]) if p0 else 0
+    closer = wait_for(lambda: (p := position(heli)) and math.hypot(p[0] - at[0], p[1] - at[1]) < d0 - 300, min(timeout, 240))
+    p1 = position(heli)
+    c.ok(closer, f"③ the Apache flies to the point ({d0:.0f} m → {math.hypot(p1[0] - at[0], p1[1] - at[1]) if p1 else 0:.0f} m)")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4344,7 +4377,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
