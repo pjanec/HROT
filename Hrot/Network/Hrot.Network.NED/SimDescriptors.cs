@@ -949,6 +949,9 @@ namespace Hrot.NED.Descriptors
         public int            NavLayerMask;
         /// <summary>⭐ CE-3129 — the actor's road use (<c>RoadUse</c>; 0 = Unspecified), R-230.</summary>
         public byte           RoadUse;
+        /// <summary>⭐ CE-3200 — the vehicle's turn radius (m; 0 = do not round the corners), so a solver on another node rounds them
+        /// as the in-process one does (CE-3029, Navigation v2 §5.2b). Appended.</summary>
+        public float          TurnRadius;
     }
 
     /// <summary>Batched path requests published by a Brain node toward the Navigation Solver.</summary>

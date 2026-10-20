@@ -220,6 +220,10 @@ namespace CarKinem.Systems
             // ⭐⭐ CE-3287 (R-3026; Motion Domains §5g) — a WRECK has no driver: no move, no recovery, no push (📐 one man 4 m off pushed a
             //   destroyed M1 ~10 m). Belt and braces with CE-3091, which ends the move on the brain at death.
             bool wreck = _health && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
+            // ⭐⭐ CE-2321 (R-3027; Motion Domains §5h) — a MAN DOWN (incapacitated or dead) lies where he fell: no move, no push, no turn.
+            //   📌 Live: whoever came close pushed and turned a lying body. He moves only carried or dragged (embarked, so not driven here);
+            //   others still walk round him.
+            bool down = _health && @params.Class == VehicleClass.Pedestrian && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, entity);
             bool recoverable = !wreck && _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
                                && repo.HasComponent<FrustrationTicks>(entity);
             FrustrationTicks ft = recoverable ? repo.GetComponent<FrustrationTicks>(entity) : default;
@@ -364,7 +368,7 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
-            if (wreck) targetSpeed = 0f;   // ⭐ CE-3287 — it brakes and stays
+            if (wreck || down) targetSpeed = 0f;   // ⭐ CE-3287 / CE-2321 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
             if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
@@ -375,7 +379,7 @@ namespace CarKinem.Systems
             bool aimedPerson = false;
             Vector2 toAim = default;
             Vector2 movedBefore = new Vector2(vel.Linear.X, vel.Linear.Y);
-            if (@params.Class == VehicleClass.Pedestrian
+            if (@params.Class == VehicleClass.Pedestrian && !down
                 && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(repo, entity, out var aimAt))
             {
                 toAim = new Vector2(aimAt.X - pos2D.X, aimAt.Y - pos2D.Y);
@@ -386,7 +390,7 @@ namespace CarKinem.Systems
             //   ends with the body facing it; the head leads, LookFollowSystem). ⛔ Walking he keeps his way: the head only glances.
             //   The aim wins by construction — this is only reached when he does not aim.
             bool lookingPerson = false;
-            if (!aimedPerson && @params.Class == VehicleClass.Pedestrian && targetSpeed <= 0.01f
+            if (!aimedPerson && !down && @params.Class == VehicleClass.Pedestrian && targetSpeed <= 0.01f
                 && repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>()
                 && repo.HasComponent<Fdp.Toolkit.Perception.Look.LookState>(entity))
             {
@@ -404,7 +408,8 @@ namespace CarKinem.Systems
             // Apply collision avoidance
             // ⭐⭐ CE-3287 (R-3026) — avoidance bends a DRIVING vehicle's own motion round others; a vehicle with no wanted speed (parked,
             //   arrived, held, a wreck) has none, and is not pushed — people walk round it (a person's avoidance is untouched).
-            Vector2 avoidanceVelocity = @params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f
+            //   ⭐ CE-2321 — nor is a man down: avoidance turned him to face away from whoever came close.
+            Vector2 avoidanceVelocity = (@params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f) || down
                 ? desiredVelocity
                 : ApplyCollisionAvoidance(desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
                                           spatialGrid, @params, repo);

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -495,9 +495,47 @@ nothing to bend, and a person walks round it (a person's avoidance is untouched 
 | a destroyed hull (`CombatLife.IsDestroyed`) is driven at speed 0 and takes no recovery try | a wreck has no driver; belt and braces with CE-3091 (a move the brain has not ended yet) |
 | a vehicle whose wanted speed is 0 gets no avoidance push | 🔒 "parked vehicles should not be pushed either" |
 | a driving vehicle avoids as before | `System_AvoidanceMovesVehicle`, the RVO rails |
-| persons unchanged | crowds still part; a person steps round a vehicle |
+| persons unchanged | crowds still part; a person steps round a vehicle — ⚠ except a man DOWN, §5h (CE-2321) |
 
 | rejected | the one fact |
 |---|---|
 | strip the push inside `RVOAvoidance` | it is shared by persons, who must keep parting |
 | read `CanMove` instead of `Health` | `ActorCapabilityState` is the brain's group (`HrotOwnershipGroups.cs:54`); `Health` is the one the presentation already reads for a wreck (`IsDestroyed`) |
+
+## 5h. A man down lies where he fell — `CE-2321` (`2026-10-20`, backend; R-3027)
+
+🔒 User, live, `2026-10-20`: *"Lying incapacitated one should stay on the ground until dragged by someone, and not turning."* · 🔒 *"fix CE-2321 the
+same way"* (as §5g).
+
+📐 The same cause as §5g, on a person: `RVOAvoidance` adds a push to a body with a wanted velocity of zero, and `HumanGait.Integrate` turns him to
+face that push — so a lying body slid and turned away from whoever came close. `Injury.cs` assumed a stripped `CanMove` stops him: it stops his
+BRAIN, not the ground model.
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a person's tick)
+    participant I as Injury
+    participant A as RVOAvoidance
+    K->>I: IsInTheFight(man)? (dead or incapacitated ⇒ no · read where Health is registered)
+    alt down
+      K->>K: wanted speed 0 · no aim or look turn · no avoidance — no push, so no turn
+    else in the fight
+      K->>A: ApplyAvoidance — he steps aside as before
+    end
+    Note over K: carried or dragged he is embarked (IsEmbarkedTag) — not driven here at all
+```
+
+*Caption:* what the picture shows — the man down is skipped as a MOVER only; as a NEIGHBOUR he stays in the grid, so others still walk round him,
+and the only way he moves is the carry (`CE-2152`), which this system never drives.
+
+| rule | rail (`CarKinematicsSystemTests`) |
+|---|---|
+| a man dead or incapacitated (`!Injury.IsInTheFight`) is neither pushed nor turned; the same man fit is (the control) | `CE2321_AManDown_IsNotPushedNorTurned_ByAManBesideHim` |
+| he does not walk a move his brain has not ended yet (CE-3091's belt and braces) | `CE2321_AManDown_DoesNotWalkTheMoveHeStillHas` |
+| a walker still steps round him, and does not push him | `CE2321_AWalker_StillStepsRoundAManDown` |
+
+| rejected | the one fact |
+|---|---|
+| take him out of the spatial grid | then walkers would walk over him |
+| strip the push inside `RVOAvoidance` | shared with every standing person, who must keep parting |
+| ⏭ an operator possessing a man down (`KinematicsMode.Manual`) | not changed here — the possession path reads its own drive; not reported |

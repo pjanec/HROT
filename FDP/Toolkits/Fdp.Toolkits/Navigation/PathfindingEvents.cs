@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Navigation
         public int NavmeshVersionAtRequest;
         /// <summary>⭐ CE-3029 / R-3006 (Navigation v2 §5.2b C2) — the vehicle's turn radius, WheelBase / tan(MaxSteerAngle): the solver
         /// rounds each corner of the path for it (<see cref="CornerRounding"/>). 0 = do not round (a pedestrian, no <c>VehicleParams</c>).
-        /// ⚠ In-process only: the scale-out <c>DdsPathRequest</c> does not carry it (§5.2b's dashed edge).</summary>
+        /// ⭐ CE-3200 — the scale-out <c>DdsPathRequest</c> carries it too (was §5.2b's dashed edge).</summary>
         public float TurnRadius;
     }
 
