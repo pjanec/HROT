@@ -248,6 +248,27 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, ask.Mode);
     }
 
+    /// <summary>⭐ CE-1205 (docs/DESIGN_Entity_Control.md §8m PK-7) — a WEAPON is manned, never possessed: its menu keeps Possess (FPS)
+    /// greyed with the reason, and the possess order (the menu's, HTTP's, MCP's) is refused with the same words — no request goes out.
+    /// ✅ Red-proof: Possessability.Refusal returning null ⇒ the item is live and the request is published.</summary>
+    [Fact]
+    public void CE1205_AWeapon_IsNotPossessed_TheMenuSaysWhy_AndTheOrderIsRefused()
+    {
+        var (mi, _) = Live();
+        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        _w.AddComponent(_unit, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.Contains("Possess (FPS)", menu);
+        Assert.Contains(Fdp.Toolkit.Behavior.Possession.Possessability.WeaponIsManned, menu);
+        var orders = new EntityOrders(_w, _map, geo: null);
+        var refused = orders.Possess(UnitId);
+        Assert.Equal(OrderRefusal.NotPossessable, refused.Refusal);
+        Assert.Contains("manned", refused.Detail);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
+        _ = mi;
+    }
+
     [Fact]
     public void CE3169_AHostWithNoPick_IssuesNothing_SoARelayedMenuActionIsNotOrderedTwice()
     {

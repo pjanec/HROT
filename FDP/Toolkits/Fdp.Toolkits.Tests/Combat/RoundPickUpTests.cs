@@ -177,6 +177,51 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.False(_world.HasComponent<HeldFuze>(man));   // a stone is inert
         }
 
+        /// <summary>
+        /// ⭐ CE-1207 (docs/DESIGN_Entity_Control.md §8m PK-3, PK-4) — the OPERATOR's pick-up: the use rule offers "Pick up" on a lying stone in
+        /// reach (too far ⇒ greyed), and <see cref="Fdp.Toolkit.Behavior.Executors.PickUpRoundExecutor"/> asks once, runs until the grant lands,
+        /// then succeeds with the stone in his hands; a stone another man took first fails after its wait. ✅ Red-proof: Success on the ask
+        /// (not on the hands) ⇒ the lost race succeeds.
+        /// </summary>
+        [Fact]
+        public unsafe void CE1207_TheOperatorPicksUpALyingStone_ThroughTheUseRule_AndItsExecutor()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PersonCarrier>()) _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            var man = Man(new Vector3(0, 0, 0));
+            _world.AddComponent(man, default(Fdp.Toolkit.Behavior.Components.PersonCarrier));
+            var stone = Lying(StoneAmmo, new Vector3(1, 0, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            var far = Lying(StoneAmmo, new Vector3(4, 0, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            var offer = Fdp.Toolkit.Behavior.Possession.OperatorUseActions.For(_world, man, stone);
+            Assert.Equal((Fdp.Toolkit.Behavior.Possession.UseVerbKind.PickUpRound, true, Fdp.Toolkit.Behavior.BehaviorConstants.ActionIdPickUpRound),
+                         (offer[0].Verb, offer[0].Available, offer[0].ActionId));
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseReason.OutOfReach, Fdp.Toolkit.Behavior.Possession.OperatorUseActions.For(_world, man, far)[0].Reason);
+
+            var exec = new Fdp.Toolkit.Behavior.Executors.PickUpRoundExecutor();
+            var channel = new Fdp.Toolkit.Behavior.Components.InteractionChannel();
+            Fdp.Toolkit.Behavior.Possession.OperatorUseActions.WriteParams(offer[0], new Span<byte>(channel.Params, Fdp.Toolkit.Behavior.BehaviorConstants.ActionParamsByteSize));
+            exec.OnEnter(man, ref channel, _world);
+            exec.Execute(man, ref channel, _world, Dt);
+            Assert.Equal(Fbt.NodeStatus.Running, channel.Status);   // asked, not yet held
+            Frame(); Frame();
+            exec.Execute(man, ref channel, _world, Dt);
+            Assert.Equal(Fbt.NodeStatus.Success, channel.Status);
+            Assert.Equal(1, PersonHands.Rounds(_world, man, StoneAmmo));
+
+            // a stone someone else took first: the ask is made, no grant comes, the executor gives up
+            var other = Man(new Vector3(2, 0, 0));
+            var contested = Lying(StoneAmmo, new Vector3(1, 0.5f, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            Assert.True(RoundPickUp.Ask(_world, other, contested));
+            var lost = new Fdp.Toolkit.Behavior.Components.InteractionChannel();
+            var take = Fdp.Toolkit.Behavior.Possession.OperatorUseActions.For(_world, man, contested)[0];
+            Fdp.Toolkit.Behavior.Possession.OperatorUseActions.WriteParams(take, new Span<byte>(lost.Params, Fdp.Toolkit.Behavior.BehaviorConstants.ActionParamsByteSize));
+            exec.OnEnter(man, ref lost, _world);
+            exec.Execute(man, ref lost, _world, Dt);
+            Frame(); Frame();
+            for (int i = 0; i < 200 && lost.Status == Fbt.NodeStatus.Running; i++) exec.Execute(man, ref lost, _world, Dt);
+            Assert.Equal(Fbt.NodeStatus.Failure, lost.Status);
+            Assert.Equal(1, PersonHands.Rounds(_world, man, StoneAmmo));
+        }
+
         /// <summary>⭐ PU-4 — TWO men ask for one stone in the same frame: ONE gets it. ✅ Red-proof: the round not removed on a grant ⇒ two
         /// grants ⇒ red.</summary>
         [Fact]

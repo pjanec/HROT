@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8m CE-1207 + CE-1205 designed; §8l CE-1204 BUILT — as-built §8l.5)
+updated: 2026-10-20 (§8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1757,7 +1757,7 @@ head drawing + `HeadLimit` and its TKB field; rails in the station's suite (`Pos
 📐 **Rails:** `PossessionStationTests.CE1204_VFreesAPersonsLook_…` and `CE1204_DragBody_…` (`PossessionStationTests.MouseLook.cs`),
 `Map3DTests.CE1204_TheDrawnHead_…`, `LookFollowSystemTests.CE1204_HisTypesNeck_StopsTheHead`.
 
-## 8m. S14 DESIGN — the operator picks up stones and rounds, takes lying weapons; a lying weapon is not possessed (`CE-1207` · `CE-1205`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (PK-1 R-1007; the leans below are the build's — overturn any)
+## 8m. S14 DESIGN — the operator picks up stones and rounds, takes lying weapons; a lying weapon is not possessed (`CE-1207` · `CE-1205`, `2026-10-20`, ui) — build-state: BUILT (PK-1 R-1007; the leans below are the build's — overturn any; as-built §8m.5)
 
 🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* (§8i PK-1, `R-1007`) · `2026-10-20`: *"please keep working on the open points autonomously overnight"*
 
@@ -1856,6 +1856,20 @@ that registers none would refuse the action, as it already would for a door.
 | **PK-5** | a weapon in his hands is not "a load" | ⭐ `OperatorUse.CarriedBody` — the first passenger in a seat that is not a station; `For` and `PutDownExecutor` use it; ⚠ the other four `LoadOf` callers (AI) are left as they are — said to behaviors, not changed under them | changing `LoadOf` for everyone — six callers' meaning in two lanes for one verb |
 | **PK-6** | putting a taken weapon down | ⭐ **"Drop <weapon>"** on the hold list (never the primary), whatever the crosshair rests on, while a weapon sits in his Hands or Back — `PutDownExecutor` with `PutDownParams.Load` = the weapon (an empty param keeps today's body) | no drop — the second weapon would be refused forever; a new key |
 | **PK-7** | `CE-1205` — possessing a weapon | ⭐ a **weapon system is manned, never possessed**: one rule `Possessability.Refusal` — the map menu shows *Possess (FPS)* greyed with *"a weapon is manned — possess a man and use F"*, and `EntityOrders.Possess` refuses with the same words (HTTP / MCP too) | hide the item — the operator would not learn why; refuse only `NeedsOperator` — an automatic one still never fires (`ManualControl` returns before the weapon) |
+
+### 8m.5 AS-BUILT (`2026-10-20`, ui) — build-state: BUILT
+
+| design said | built | why / note |
+|---|---|---|
+| PK-2 Take | ✅ `OperatorUseActions.Weapon` → `Take` for a weapon whose `WeaponSystemParams.Portable` is not Static, `PickUpExecutor` (9) Carried; *"hands full"* = `UseReason.Carrying`; a static gun keeps Man. ⭐ The weapon test no longer needs the target to have seats — a portable weapon with health would otherwise have fallen to Drag / Carry | |
+| PK-3 the round under the crosshair | ✅ `FpsCameraDriver.UseTargetFor` / `RoundNear` → `UseAim` (the frame's target): the unit under the crosshair when the rule offers a verb ON it, else the lying hand round ≤ 1 m from the crosshair point and in his reach; `OperatorUseActions.Round` offers "Pick up" (`OutOfReach` / `Carrying` / `Unfit`) | the property is `UseAim` — `UseTarget` was already the last pressed target |
+| PK-4 the executor | ✅ `PickUpRoundExecutor` (action **12**, `BehaviorConstants.ActionIdPickUpRound`), registered in `CgfLogicPack` beside 9 / 10 (cross-lane, CGF) | |
+| PK-5 a weapon is no load | ✅ `OperatorUseActions.CarriedBody`; `For` and `PutDownExecutor` read it | the AI's other `LoadOf` callers unchanged |
+| PK-6 Drop | ✅ one `Drop` per weapon in an open station, `UseAction.HoldOnly` — the station's tap sends nothing when only hold-only verbs are on offer, and the prompt reads *"hold F  Drop …"*; `PutDownParams.Load` names the weapon (empty = the body, as before) | `HoldOnly` is a new `UseAction` field (default false) |
+| PK-7 | ✅ `Possessability.Refusal` (FDP); the menu's Possess (FPS) greyed with the reason (`ContextMenuProjectorGizmo`, a 16 flag in the menu cache); `EntityOrders.Possess` → `OrderRefusal.NotPossessable` (HTTP 409) | refuses EVERY weapon system (§8m.4 PK-7) |
+
+📐 **Rails:** `OperatorUseActionsTests.CE1207_*`, `RoundPickUpTests.CE1207_*`, `PossessionStationTests.CE1207_*` (×2,
+`PossessionStationTests.PickUp.cs`), `MenuOrdersTests.CE1205_*`.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

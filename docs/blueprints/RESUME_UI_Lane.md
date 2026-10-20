@@ -191,11 +191,11 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"* — work on down this list.
 
-✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built).
+✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built) · `CE-1207` + `CE-1205` (Entity Control §8m — the leans PK-2…PK-7 are the build's; the user may overturn any).
 
-1. `CE-1207` + `CE-1205` — pick up stones / rounds, take weapons (`R-1007`) — same: design first.
-4. `CE-1210` — seat switching (`R-1008`) — design first.
-5. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
+1. `CE-1210` — seat switching (`R-1008`) — design first (with the vehicle look clamp, `CE-1204` LK-6).
+2. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
+3. `CE-1230` — the ORBAT tree's menu = the map's entity menu (`R-1015`) — design first.
 
 ### The standing rules of this lane (the user's, still binding)
 

@@ -217,7 +217,7 @@ namespace Hrot.Editor.DebugApi
             int status = r.Refusal switch
             {
                 OrderRefusal.UnknownEntity => 404,
-                OrderRefusal.Dead or OrderRefusal.WrongSide or OrderRefusal.Possessed or OrderRefusal.NotFulfilled => 409,   // ⭐ CE-2143
+                OrderRefusal.Dead or OrderRefusal.WrongSide or OrderRefusal.Possessed or OrderRefusal.NotFulfilled or OrderRefusal.NotPossessable => 409,   // ⭐ CE-2143
                 _ => 400,
             };
             string? hint = r.Refusal switch

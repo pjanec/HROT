@@ -831,7 +831,8 @@ namespace Hrot.UI.Common.Map3D
 
             /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
             public static string Label(EntityRepository w, in UseAction a)
-                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man && TypeName(w, a.Target) is { } name
+                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man
+                         or UseVerbKind.Take or UseVerbKind.Drop or UseVerbKind.PickUpRound && TypeName(w, a.Target) is { } name   // ⭐ CE-1207
                     ? $"{a.Label} {name}" : a.Label;
 
             /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
@@ -1409,7 +1410,8 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1211 (§8j Z-2) — the locked shot's cancel is X now (RMB zooms, as in every shooter)
             if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.X)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
-            UseKey(input, aimTarget);
+            UseAim = _world() is { } uw ? UseTargetFor(uw, aimTarget, aimAt) : aimTarget;   // ⭐ CE-1207 (§8m PK-3)
+            UseKey(input, UseAim);
 
             var frame = new OperatorControlFrameEvent
             {
@@ -1512,6 +1514,8 @@ namespace Hrot.UI.Common.Map3D
             int verb = UseListOpen ? _listIndex : 0;
             _eHolding = false;
             if (_station.TryGetOut(Unit)) return;
+            // ⭐ CE-1207 (§8m PK-6) — a tap never sends a hold-only verb (Drop): with nothing else on offer it does nothing
+            if (!UseListOpen && _world() is { } tw && Actions(tw, _pressTarget) > 0 && _actions[0].HoldOnly) return;
             var action = Press((byte)verb, _pressTarget);
             if (action is { Verb: UseVerbKind.Drive or UseVerbKind.Pilot } drive) _station.ArmDrive(Unit, drive.Target);
         }
@@ -1531,6 +1535,48 @@ namespace Hrot.UI.Common.Map3D
             }
             _lastLabel = action is { } a && _world() is { } lw ? PossessionStation.Hud.Label(lw, a) : "Use";
             return action;
+        }
+
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-3) — what the use key acts on this frame: the unit under the crosshair when it offers a verb, else
+        /// the lying stone / round nearest the crosshair's point (a round has no pick box, LR-3).</summary>
+        public long UseAim { get; private set; }
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — how far from the crosshair's point a lying round may be to be the use target (m).</summary>
+        public const float RoundUnderCrosshairM = 1f;
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — the use target for <paramref name="aimTarget"/> at <paramref name="aimAt"/>: see <see cref="UseAim"/>.</summary>
+        public long UseTargetFor(EntityRepository w, long aimTarget, Vector3 aimAt)
+        {
+            if (aimTarget != 0 && w.HasSingletonManaged<NetworkEntityMap>() && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var under))
+            {
+                int n = OperatorUseActions.For(w, Unit, under, _actions);
+                for (int i = 0; i < n; i++) if (_actions[i].Target == under) return aimTarget;
+            }
+            return RoundNear(w, aimAt) is long round ? round : aimTarget;
+        }
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — the network id of the lying hand-item round within <see cref="RoundUnderCrosshairM"/> of
+        /// <paramref name="point"/> and within his reach, nearest the point; null when none.</summary>
+        public long? RoundNear(EntityRepository w, Vector3 point)
+        {
+            if (!w.HasSingletonManaged<NetworkEntityMap>()) return null;
+            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
+            float best = RoundUnderCrosshairM * RoundUnderCrosshairM;
+            long? found = null;
+            void Consider(Entity e)
+            {
+                var at = w.GetComponentRO<SimTransform>(e).Position;
+                float d2 = (at.X - point.X) * (at.X - point.X) + (at.Y - point.Y) * (at.Y - point.Y);
+                if (d2 > best || !Fdp.Toolkit.Combat.RoundPickUp.IsLying(w, e) || !Fdp.Toolkit.Combat.RoundPickUp.IsHandItem(w, e)
+                    || !Fdp.Toolkit.Combat.RoundPickUp.InReach(w, Unit, e) || !map.TryGetNetworkId(e, out long id)) return;
+                best = d2;
+                found = id;
+            }
+            if (w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>())
+                foreach (var e in w.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build()) Consider(e);
+            if (w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>())
+                foreach (var e in w.Query().With<Fdp.Toolkit.Combat.Components.BallisticProjectile>().With<SimTransform>().Build()) Consider(e);
+            return found;
         }
 
         /// <summary>The actions on <paramref name="target"/> (a network id; 0 = nothing), primary first, into <see cref="_actions"/>.</summary>
@@ -1562,9 +1608,11 @@ namespace Hrot.UI.Common.Map3D
                     lines.Add(new UseLine((i == _listIndex ? "> " : "  ") + (i + 1) + "  " + PossessionStation.Hud.Prompt(w, _actions[i])[3..],
                         i == _listIndex ? PossessionStation.Hud.UsePicked : _actions[i].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
             }
-            else if (Actions(w, _eHolding ? _pressTarget : AimTarget) > 0)
-                lines.Add(new UseLine(PossessionStation.Hud.Prompt(w, _actions[0]),
-                    _actions[0].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
+            else if (Actions(w, _eHolding ? _pressTarget : UseAim) > 0)
+                lines.Add(_actions[0].HoldOnly   // ⭐ CE-1207 (PK-6) — only hold-list verbs (Drop): say so, a tap does nothing
+                    ? new UseLine("hold F  " + PossessionStation.Hud.Label(w, _actions[0]), PossessionStation.Hud.UseGreyed)
+                    : new UseLine(PossessionStation.Hud.Prompt(w, _actions[0]),
+                        _actions[0].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
             if (VerdictLine(w) is { } verdict) lines.Add(verdict);
             return lines;
         }
