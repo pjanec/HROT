@@ -1091,6 +1091,102 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>A man whose Health is <paramref name="health"/> of 100, incapacitated below 30 %, wounded below 60 %.</summary>
+        private static void Hurt(EntityRepository repo, Entity e, float health)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.InjuryThresholds>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2321</c> (R-3027) — a MAN DOWN (dead, or incapacitated) is neither pushed nor turned by a man standing 0.6 m north of
+        /// him; the same man fit (the control) is pushed off and turned away — which proves the encounter is close enough to matter.
+        /// 📌 Live: a lying body was shoved and turned to face away from whoever came close. 🔴 Red-proof: drop the down test ⇒ he moves.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, false)]    // dead
+        [InlineData(20f, false)]   // incapacitated
+        [InlineData(100f, true)]   // fit — the control
+        public void CE2321_AManDown_IsNotPushedNorTurned_ByAManBesideHim(float health, bool moves)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 0f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            var nav = repo.GetComponent<NavState>(e);
+            nav.Mode = KinematicsMode.None;
+            nav.TargetSpeed = 0f;
+            repo.SetComponent(e, nav);
+            Hurt(repo, e, health);
+            Stander(repo, new Vector3(0f, 0.6f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 5 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            float moved = new Vector2(p.X, p.Y).Length(), turned = MathF.Abs(YawOf(repo, e));
+            if (moves)
+                Assert.True(moved > 0.1f && turned > 0.2f, $"the fit man was not pushed ({moved:F2} m, {turned:F2} rad) — this proves nothing");
+            else
+                Assert.True(moved < 0.01f && turned < 0.01f, $"the man down was pushed {moved:F2} m and turned {turned:F2} rad");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2321</c> — an incapacitated man whose move the brain has not ended yet does not walk it. 🔴 Red-proof: drop the down
+        /// test from the target speed ⇒ he walks the path.
+        /// </summary>
+        [Fact]
+        public void CE2321_AManDown_DoesNotWalkTheMoveHeStillHas()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            Hurt(repo, e, 20f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 3 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(p.X, p.Y).Length() < 0.01f, $"the man down walked to ({p.X:F2}, {p.Y:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2321</c> — and a WALKER still steps round a man lying on his path (the man down is an obstacle, not a ghost).
+        /// 🔴 Red-proof: no avoidance at all ⇒ the walker walks over him.
+        /// </summary>
+        [Fact]
+        public void CE2321_AWalker_StillStepsRoundAManDown()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            var lying = Stander(repo, new Vector3(5f, 0.1f, 0f));
+            Hurt(repo, lying, 0f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float closest = float.MaxValue;
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                var q = repo.GetComponent<SimTransform>(lying).Position;
+                closest = MathF.Min(closest, Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(q.X, q.Y)));
+            }
+            var at = repo.GetComponent<SimTransform>(lying).Position;
+            Assert.True(closest > 0.3f, $"the walker came within {closest:F2} m of the man down — over him");
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(5f, 0.1f)) < 0.01f, "the man down was pushed");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3287</c> — and a DRIVING vehicle still steers round a man in its way: a tank on its path past a man 1 m off the line bends
         /// away from him (avoidance kept where it belongs — on a vehicle that drives). 🔴 Red-proof: no avoidance at all ⇒ it runs straight.
