@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20
-current-answer: ⭐⭐⭐⭐⭐⭐ §000000000 (2026-10-20) — Q95 (sound signatures + lossless hearing) BUILT (CE-3282…CE-3285), CE-3279 (EQS timeouts) BUILT, EQS breaker 2 s; NEXT: merge behaviors, then their Scenario Description handoff, then CE-3286 (vehicles stuck in building corners). ⛔ §00000000 below (Q94) is DONE — history. ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-20 (overnight)
+current-answer: ⭐⭐⭐⭐⭐⭐⭐ §0000000000 (2026-10-20 overnight) — the overnight list DONE (CE-2321, audit, CE-1206, CE-3200, CE-3158, CE-3288); next: merge, then the audit's PARTLY rows. ⛔ §000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐ §000000000 (2026-10-20) — Q95 (sound signatures + lossless hearing) BUILT (CE-3282…CE-3285), CE-3279 (EQS timeouts) BUILT, EQS breaker 2 s; NEXT: merge behaviors, then their Scenario Description handoff, then CE-3286 (vehicles stuck in building corners). ⛔ §00000000 below (Q94) is DONE — history. ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,39 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 0000000000. NOW (`2026-10-20`, overnight) — the user's overnight list is DONE *(🔒 user: "yes fix CE-2321 the same way, and audit the stale rows. Jets ok, sumo not heard ok, do 1206, 3200 (if still needed, after fixing the vehicle turning into the walls), 3158, do that autonomously overnight")*
+
+⭐ **Start here.** `backend` is clean and pushed. ⛔ Read `RULINGS.md` first (RULE ZERO). Merged up to: behaviors `8178efe67`, ui at the
+`2026-10-20` evening tip (both have moved since — merge first).
+
+### Done (all on `backend`)
+
+| what | commit | where it is written |
+|---|---|---|
+| **`CE-3286`** a hull never enters a building, backs out of a wall (R-3025) — live in both shoot-and-scoot demos | `18bd6ed48`…`3fc536e33` | [Motion Domains §5f](../designs/motion-models/DESIGN_Motion_Domains.md) |
+| **`CE-3287`** a wreck never moves, a parked vehicle is never pushed (R-3026) | `b526772d9` | §5g |
+| **`CE-3281`** the built-in catalogue is heard; jets as `Rotor` and silent SUMO cars **confirmed by the user** | `f5150575f`, `86dc14dc6` | [Sensing §8.6](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| **`CE-2321`** a man down (dead / incapacitated) is never pushed nor turned (R-3027); 4/4 mutants caught | `ed1195df1` | Motion Domains §5h |
+| **`CE-3200`** the scale-out DDS path request carries `TurnRadius` | `86dc14dc6` | [Navigation v2 §5.2b](../designs/navig-2/Navigation_Design_v2_0.md) |
+| **stale-row audit** — 24 backend rows closed, 18 statuses corrected (each closure cites its commits) | `c16498fef` | the tracker |
+| **`CE-3158`** was already BUILT (G-1…G-8, `2026-10-10`) — closed by the audit | — | Peek and Fire §10.9 |
+| **`CE-1206`** NOT reproduced live: a possessed ZU-23 technical fires on a press (100 → 96). Closed, reopen with the HUD state | `33181a965` | tracker row; [runbook §6.1](../RUNBOOK_Cluster_Debugging_Over_Http.md) (the 3-D station overwrites low-`seq` HTTP frames) |
+| **`CE-3288`** the scenario DESCRIPTION survives load → save → merge (behaviors' handoff) | `5d4041258` | [Distributed Scenario Persistence §4d](../DESIGN_Distributed_Scenario_Persistence.md); note to behaviors |
+
+### ⏭ Next
+
+| # | item | ⚠ |
+|---|---|---|
+| 1 | merge `behaviors` and `ui` | ⚠ restore the test projects after the merge (CLAUDE.md, third stale-binary trap) |
+| 2 | the audit's PARTLY rows, by value: `CE-3105` (replan when the navmesh geometry changes) · `CE-3009` (6 animation translators still gate on entity authority) · `CE-3081` (ChokePoint / CrestLine danger areas) · `CE-3223` (Molotov) · `CE-3109` I-3 (the interaction executor base) | each row carries its audit note |
+
+### ⏳ Waiting on the user
+
+| | lean |
+|---|---|
+| `CE-2185` the A-10 / AH-64 / UH-60 armour faces | — numbers to be given |
+| `CE-3222` the civilian performance budget (ms per frame at 500) | rule a budget; the harness is built |
 
 ## 000000000. NOW (`2026-10-20`) — Q95 and CE-3279 done; next: the scenario description, then the stuck vehicles *(🔒 user: "write resumption doc so i can continue in other session")*
 
