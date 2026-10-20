@@ -5,11 +5,12 @@ build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: §8 counter-drone — the vehicle FIRES at a seen drone, but no round can hit an aircraft (bullet rays mask out layer 2, which is the only layer a flyer has — measured 2026-10-15, Air Operations §7c, CE-2182).
+known-rot: §3 VehicleFootprint's box lies length ALONG the wall (a side-on park) but the follower drives to a hide nose-first — measured live 2026-10-20 (CE-3286, docs/designs/motion-models/DESIGN_Motion_Domains.md §5e): the nose enters the building.
 known-conflict: docs/designs/weapons/DESIGN_Weapon_Systems.md (R-2016) — §6 builds the technicals 104 / 105 as pickup TYPES with a pintle turret; the weapon-systems design turns them into presets (a bare pickup + a weapon in its bed station). §6 stays true until WS-4 lands.
 related-designs:
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon systems that turn the technicals 104 / 105 into presets (a bare pickup host + a weapon in its bed station, R-2016)
-  - docs/designs/motion-models/DESIGN_Motion_Domains.md — V5's reverse fix lives in the ground domain's wheeled / tracked models
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — V5's reverse fix lives in the ground domain's wheeled / tracked models; §5e (CE-3286) measures this cycle's hulls entering buildings
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (V1–V8, M9; decisions D-A…D-L)
   - docs/DESIGN_Peek_And_Fire.md — OWNS the infantry fight-from-cover node; G8 (R-257) keeps vehicles out of it — this node is its vehicle sibling and reuses FiringPositionMemory, PositionHeat, PostureNodes.Keep / Fire
   - docs/designs/hill-attack/DESIGN.md — OWNS HullDownAttackRun (one exposure: creep → fire → reverse); this node makes it repeatable; the hill attack is re-pointed at it later (R-256 d)

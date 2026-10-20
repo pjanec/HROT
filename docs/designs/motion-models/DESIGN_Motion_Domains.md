@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-10-20 (§5e CE-3286 measured: a hull half inside a building, no way out — decision pending) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5e (CE-3286 measured, decision pending) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -286,3 +286,48 @@ speed but whether the move is allowed to END. A radius of 0 already says "there 
 ⭐ Rails: `RotorcraftModelTests.CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive` (a drone at 60 m sent to a ground point
 40 m off reaches it within 4 s — the 72 m line from rest — and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off) · ⭐ `CE2213_AStrike_FliesTheLineToItsPoint_NotLevelThenDown` (at 30 m/s and 60 m, a ground point 30 m ahead: over it at 38.5 m — down the line — where CE-2211's rule is still at 52.9 m) — red-proofed (CE-2211's full horizontal). ⚠ Against a FIXED point neither rule overshoots (the one-frame cap stops the horizontal); the overshoot needs a MOVING point, which `AirAttackNodesTests`' evading and fleeing rails (on this model) red-prove. The
 behaviour half: [Air Ops §9i](../air-attack/DESIGN_Air_Operations.md) D-3.
+
+## 5e. MEASURED, not yet decided — a hull half inside a building, with no way out — `CE-2198`'s guard is the centre only (`CE-3286`, `2026-10-20`, backend)
+
+📐 Measured live `2026-10-20` (`ua-tank-corner`, `ua-technical-scoot`, a 0.5 s trace of each vehicle's pose and move orders; test-town's
+footprints from `test-town.world.geojson`):
+
+```mermaid
+sequenceDiagram
+    participant N as VehicleFightFromCover (CGF)
+    participant E as EQS FindVehicleHide
+    participant K as CarKinematicsSystem (SimHost)
+    N->>E: a hide near me
+    E-->>N: a point width/2 + 0.5 m off the wall (VehicleFootprint: the hull parked SIDE-ON)
+    N->>K: MoveTo(hide), no reverse
+    K->>K: the hull arrives NOSE-FIRST — its front is half a length ahead of the centre
+    K->>K: the wall guard traces the CENTRE line only ⇒ the nose enters the building, the centre stops ON the wall line
+    N->>K: MoveTo(the next point — to the side or behind)
+    loop every tick
+      K->>K: steering turns only while moving forward (BicycleModel) ⇒ the step goes into the wall ⇒ refused, speed 0
+      K->>K: the heading creeps ~1°/s (one tick's accel × dt) — the only motion left
+    end
+    K->>K: the watchdog replans after 2 s ⇒ a path from the same spot, again forward ⇒ held again
+```
+
+*Caption:* what the picture shows that the code hid — three separate rules each look right alone: the hide's clearance box assumes a
+hull parked ALONG the wall, the follower drives to it nose-first, and the wall guard watches only the centre. Together they put the front
+half of the hull inside the building, and a vehicle that can turn only while driving forward has no way out except reverse, which only the
+cycle's withdrawal asks for.
+
+| run | what the trace shows |
+|---|---|
+| `ua-tank-corner` (M1 preset 7.0 × 3.5 m, turn radius ~6.3 m) | hide answered at (251.2, 107.7), **2.25 m** off the L-Block's south wall (y 110); the tank drove north to it, its nose 0.2 m into the block; the next move (west, along the wall) turned it into the wall — **centre ON the wall line (249.8, 110.0), front half inside, held 37 s** (t 17–54) while four more moves were issued and one failed; freed only when the heading creep reached ~180° (parallel to the wall) |
+| `ua-technical-scoot` (HMG technical) | at its hide (281.9, 227.3), 2.7 m off Block C's south face (y 230), facing NE; a scoot to (250.9, 219.9) — behind-left — turned it into the wall: **centre ON the wall (284.3, 230.0), front half inside, held 207 s to the end of the run**; the cycle then took its next hide (283.8, 228.6) as REACHED (inside the 4 m arrival radius) and sat "hidden" half inside the block |
+| both | **no move asked for reverse** (the cycle allows it only on the withdrawal to the same hide, Exposure Cycle §4); the move status stayed `Running` most of the time |
+
+| cause (measured) | where |
+|---|---|
+| the wall guard traces only the hull's centre at 0.5 m ⇒ the hull may stand with its centre on the wall line | `CarKinematicsSystem.cs:533-556` |
+| a stopped hull cannot turn: yaw rate = speed / wheelbase × tan(steer); the guard zeroes the speed each tick | `BicycleModel.cs` |
+| the hide's stand-off is width/2 + 0.5 m and its box lies length ALONG the wall — a side-on park the follower never makes | `VehicleFootprint.StandOff` / `Clear`, Exposure Cycle §3 |
+| the firing-point query has no clearance check at all (a donut of points, path cost reachable within the navmesh's 2 m snap) | `VehicleTemplates.FindVehicleFiringPoint`, `DotRecastNavmeshProvider.cs:44` |
+| the watchdog's replan starts from the held spot, forward again | `NavigationExecutionSystem` frustration guard |
+
+⏳ **The decision is the user's** (🔒 their order: ① never drive into the building, preferred; ② reverse a little and re-plan) — the
+options and the lean are in [`CE-3286`](../../blueprints/Blueprint_Issues_Tracker.md).
