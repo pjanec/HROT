@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-10-20 (§5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -462,3 +462,42 @@ kill (CE-2197), so it never reached the wall. The runs vary; the table's tank ru
 | a fixed back-up distance | the room a hull needs is its turn — a tank needs ~6.3 m of radius, a pickup less |
 | a hull-sized navmesh | the navmesh is a disc (1.8 m); a 7 m box's corners are the problem |
 | reverse on every behaviour move | a motion fault fixed in every behaviour |
+
+## 5g. A wreck never moves, and a vehicle that is not driving is never pushed — `CE-3287` (`2026-10-20`, backend; R-3026)
+
+🔒 User, `2026-10-20`: *"I have seen destroyed vehicle still moving, maybe being pushed by people coming close"* · *"parked vehicles should not be pushed either"*
+
+📐 Measured (rail `CE3287_*`, red before): one man standing 4 m from a destroyed M1 with no move pushed it **~10 m**. `RVOAvoidance.ApplyAvoidance`
+returns the wanted velocity PLUS a push — a separation inside 2 × `AvoidanceRadius` (10 m for the tank) and a repulsion from anyone closing — and
+`CarKinematicsSystem` applied it with a wanted velocity of zero; nothing in the ground model read `Health`. The route is not the cause: a running move
+is ended at death on the brain (CE-3091, `LocomotionDispatcherSystem` ⇒ `OnExit` ⇒ intent `None`).
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a vehicle's tick)
+    participant L as CombatLife
+    participant A as RVOAvoidance
+    K->>L: IsDestroyed(hull)? (Health ≤ 0, read where Health is registered)
+    alt a wreck
+      K->>K: wanted speed 0 · no recovery (§5f) · no avoidance — it brakes and stays
+    else wanted speed 0 (parked, arrived, held)
+      K->>K: no avoidance — it stays where it is
+    else driving
+      K->>A: ApplyAvoidance(wanted velocity, neighbours) — it steers round others, as before
+    end
+```
+
+*Caption:* what the picture shows — avoidance is a DRIVER's act: it bends a vehicle's own motion round others. A vehicle with no motion of its own has
+nothing to bend, and a person walks round it (a person's avoidance is untouched — it sees the vehicle as a neighbour).
+
+| rule | why |
+|---|---|
+| a destroyed hull (`CombatLife.IsDestroyed`) is driven at speed 0 and takes no recovery try | a wreck has no driver; belt and braces with CE-3091 (a move the brain has not ended yet) |
+| a vehicle whose wanted speed is 0 gets no avoidance push | 🔒 "parked vehicles should not be pushed either" |
+| a driving vehicle avoids as before | `System_AvoidanceMovesVehicle`, the RVO rails |
+| persons unchanged | crowds still part; a person steps round a vehicle |
+
+| rejected | the one fact |
+|---|---|
+| strip the push inside `RVOAvoidance` | it is shared by persons, who must keep parting |
+| read `CanMove` instead of `Health` | `ActorCapabilityState` is the brain's group (`HrotOwnershipGroups.cs:54`); `Health` is the one the presentation already reads for a wreck (`IsDestroyed`) |
