@@ -54,7 +54,7 @@ related-designs:
 
 ✅ *2026-10-20, the user: "Lets solve CE-2318 … CE-2319 and CE-2320 would get one architect question."* ⇒ **`CE-2318` FIXED** (Injury
 States §8a: 21 target tests on `Injury.IsInTheFight`, a man down lies Prone for aim / sight / the round) · **[AQ96](Architect_Question_96_Movement_Under_Fire.md)
-ASKED** (leans A–F: rush speed under fire, gait re-picked mid-move, the 2–4 s drop, cover moves crouched, no zig-zag yet) — ⭐ next: the
+ASKED** (leans A–F: rush speed under fire, gait re-picked mid-move, the drop — revised the same day: he stays down while fired on, rises on a 3 s lapse or when his half is covered, never where he dropped, crawls to cover within 10 m, cover moves crouched, no zig-zag yet) — ⭐ next: the
 user's answer, then AQ96 §4's four steps. The ui/backend rows wait for those lanes unless the user hands them over.
 
 ### N.3 Still open from the plan

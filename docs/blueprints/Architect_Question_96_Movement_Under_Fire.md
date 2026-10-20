@@ -1,9 +1,9 @@
 <!--STATUS
-state: LIVE — ASKED 2026-10-20, leans per sub-question (§3); waiting on the user
-updated: 2026-10-20
+state: LIVE — ASKED 2026-10-20, leans per sub-question (§3); C revised the same day on the user's question (§3 C, C3); waiting on the user
+updated: 2026-10-20 (C revised: the drop has outcomes, not a fixed time)
 build-state: DESIGN — the UML (§2a–§2c) is drawn for the leans; READY-TO-BUILD once approved
 current-answer: §3 the leans · §4 sequencing · §5 answers (empty until the user replies)
-stale-below: nothing
+stale-below: §3 C's first form ("prone 2–4 s, then up") is SUPERSEDED by the revised C below — kept only in §⛔ HISTORY
 known-rot: none
 known-conflict: none
 related-designs:
@@ -66,15 +66,20 @@ classDiagram
     +Gait : MoveGait
     +AskedSpeed : float
     +Threatened : byte
-    +DownUntil : double
+    +Phase : Moving Down Shifting Crawling
+    +DownSince : double
     +UpSince : double
+    +CoveredUntil : double
+    +MoveTo : the play's destination, kept while he crawls
   }
   class UnderFireMoveSystem {
     NEW behaviors, brain hosts, each frame
     +gait re-pick on a change of Threatened (B)
     +rush speed while threatened (A)
-    +the drop: near miss or hit in the open, down 2-4 s, up, on (C)
+    +the drop and its outcomes: lull, covered, crawl, stay down (C)
   }
+  class FireAndMovementPlay { existing - evaluates SquadGates.Covering for the moving half }
+  class EqsCoverQuery { existing - FindCoverFromTarget }
   class StanceRequest { existing +Set(stance, blend) }
   class NavigationIntent { existing replicated, IntentId }
   class RecentSenses { existing NearMiss Hit }
@@ -85,6 +90,8 @@ classDiagram
   UnderFireMoveSystem ..> StanceRequest : crouch, prone, up
   UnderFireMoveSystem ..> NavigationIntent : re-write speed, halt, resume (IntentId++)
   LocomotionMoveTo --> MoveGait
+  FireAndMovementPlay ..> UnderFireMove : CoveredUntil while the gate holds (C3)
+  UnderFireMoveSystem ..> EqsCoverQuery : cover within 10 m (C)
 ```
 
 *What the picture shows that prose hid: the 41 callers do not change — the move is stamped where it is ISSUED (the one writer, CE-2092)
@@ -106,10 +113,17 @@ sequenceDiagram
   Note over S: a round passes within 3 m: NearMiss
   S->>B: Prone (the drop)
   S->>N: halt (IntentId++)
-  Note over S: 2-4 s later
-  S->>B: Crouched
-  S->>N: resume to X at the rush speed 4 (IntentId++)
-  Note over B: crouched cap: 3 m/s
+  P->>P: AdvanceAndAttack keeps firing at its target (it fires on the move)
+  alt the fire on him lapses 3 s, or his half is covered (CoveredUntil)
+    S->>N: shift 1.5 m sideways, prone (IntentId++)
+    S->>B: Crouched
+    S->>N: resume to X at the rush speed 4 (IntentId++)
+  else still under fire, a cover point within 10 m
+    S->>N: crawl to it, prone, 1.2 m/s (IntentId++)
+    Note over S: there: down again, the same outcomes
+  else still under fire, nothing near
+    Note over S: stays down (later: stress, TS-4 / TS-6)
+  end
   P->>P: still Running - the channel was never touched
 ```
 
@@ -125,6 +139,8 @@ graph TD
   UFS --> UFM
   UFS --> SI[StanceIntent replicated existing]
   UFS --> NI[NavigationIntent replicated existing]
+  BT --> FM[FireAndMovement play - SquadGates.Covering existing]
+  FM --> UFM
   NI --> BR[NavigationIntentBridgeSystem - muscle host existing]
   SI --> CK[CarKinematicsSystem - stance cap existing]
 ```
@@ -157,21 +173,48 @@ who set off unthreatened drops into the crouched run the moment rounds arrive, a
 **Blast radius:** every Tactical move; the 41 callers are untouched. **What would change it:** none known — this is AQ88 §4 B as written.
 Rejected: **re-issue from every node each frame** — 41 sites, and each re-issue restarts the path.
 
-### C — the drop: "I'm up, he sees me, I'm down"
+### C — the drop, and what he does while he is down *(revised 2026-10-20)*
 
-⭐ **Lean: one soldier reflex for every Tactical / Crouched move: a near miss or hit while he is in the open ⇒ prone, the move halted,
-for 2–4 s (each man his own draw, seeded); then up, crouched, on at the rush speed; not again until he has been up ≥ 3 s (one rush).**
-"In the open" = not within 3 m of where the move ends (he is not arriving at his cover). The plays never see it: the channel stays Running.
+🔒 *User, 2026-10-20: "When he drops under fire and the fire still continues and no cover close enough, what would real soldier do if
+part of a squad (under squad command) and when alone?"* — the answer (general infantry practice — the react-to-contact drill and the
+individual movement techniques; ⛔ not in the corpus, as Squad Tactics §7.6 marks its own rush rule): he does not get up again after a fixed
+time. He stays down and fires back; in a squad he rises when his half is COVERED, alone when the fire on him LAPSES; he never rises where
+he dropped; with no cover he crawls to whatever is near.
+
+⭐ **Lean: a near miss or hit while he is in the open (not within 3 m of where the move ends) ⇒ prone, the move halted. Then, re-checked
+each frame:**
+
+| while he is down | he does | built from (existing) |
+|---|---|---|
+| the fire on him LAPSES — no near miss or hit for 3 s | **shift**: crawls 1.5 m sideways (never rises where he dropped), then crouches and rushes on at the rush speed | `RecentSenses` NearMiss / Hit times |
+| in a squad and his half is **COVERED** (C3) | the same shift-and-rush, even with rounds still coming — that is what covering fire is for | `SquadGates.Covering` (`SquadGates.cs:61`, 2 s window) |
+| still under fire, a cover point within 10 m | **crawls** to it (prone, 1.2 m/s — `StanceSpeed` 0.2 × 6), then down there, the same outcomes | the EQS cover query (⚠ which form a system may ask synchronously: measure at build) |
+| still under fire, nothing near | **stays down**; returns fire where his play already fires on the move (`AdvanceAndAttack` keeps ticking its `Fire` while the move is halted — `PostureNodes.cs:283`) | — |
+| down a long time | nothing more now; the stress model later turns it into the break (TS-6: flee / freeze / surrender) | F |
+
+Not again until he has been up ≥ 3 s (one rush). The plays never see it: the channel stays Running throughout.
 **Blast radius:** every soldier moving under fire; a squad's bound takes longer (Squad Tactics' "set" gate waits for him — as it should).
 **What would change it:** a play that must not stop (a man carrying a casualty — CE-2152's carrier is exempt, as is a vehicle).
-Rejected: **a reaction in the gate that pre-empts the play** — the play loses its state for a 3-second drop and must resume; **wait for
-the stress model** — TS-6 is a BREAK (he stays down), not this short reflex, and it is unbuilt.
+Rejected: **a fixed 2–4 s drop** (this question's first form) — under steady fire he would stand up into it every 3 s; **rise only on a
+lapse, even in a squad** — safer per man, but a squad under steady fire would never move, which is why covering fire exists; **the system
+fires his weapon itself** — a second writer to the weapon channel beside the play's; **a reaction in the gate that pre-empts the play** —
+the play loses its state for a drop and must resume; **wait for the stress model** — TS-6 is the BREAK, not this reflex, and is unbuilt.
+
+### C3 — how a man knows his half is covered
+
+⭐ **Lean: the play that already evaluates the gate tells its movers** — while `FireAndMovement` (and `CasualtyCare`'s carry) holds
+`Covering` for the moving half, it stamps `UnderFireMove.CoveredUntil = now + 2 s` on each mover. The system reads only that one field,
+so it never needs the squad. A man alone, or in a play with no base of fire, simply has no `CoveredUntil` and rises on a lapse.
+⚠ To measure at build: that a squad's commander and its members' brains run on the same node (the stamp is a brain-local write).
+**What would change it:** a split where they do not — then the stamp rides the member order the runner already sends.
 
 ### C2 — how he stops while down
 
 ⭐ **Lean: the system re-writes the move's `NavigationIntent` to halt (Mode None) and back to the same PathToPoint when he rises — two
 intent writes, one re-plan; both through the component the brain already replicates.** ⚠ To measure at build: what `NavigationStatus`
 the muscle reports for a halted intent, so `MoveToExecutor` keeps Running (it does today for any result but Arrived / Failed).
+The shift and the crawl are the same mechanism with another point: the intent is re-written to the side step or the cover point (prone),
+then back to the play's destination when he rises — the play's own order is never lost (`UnderFireMove.MoveTo`).
 Rejected: **prone alone** — the prone cap is a 1.2 m/s crawl, not lying still; **strip `CanMove`** — the capability is the Health owner's
 (injury writes it), a second writer could stand a casualty up.
 
@@ -193,8 +236,8 @@ the same system.
 
 ### F — who shapes the drop later
 
-⭐ **Lean: the stress model (TS-4) scales it when built** — more stress, a longer drop; TS-6's break replaces it (he stays down). Until
-then fixed bounds (2–4 s). Proficiency (DA-A) is left out now: an untrained man staying down longer is TS's job, not a second knob.
+⭐ **Lean: the stress model (TS-4) scales it when built** — more stress, a longer lapse needed before he rises (and a covered rise
+refused when he is breaking); TS-6's break replaces it (he stays down, flees or surrenders). Until then the fixed 3 s lapse. Proficiency (DA-A) is left out now: an untrained man staying down longer is TS's job, not a second knob.
 **What would change it:** wanting the tiers to differ before the stress model lands.
 
 ## 4. Sequencing *(if approved)*
@@ -202,10 +245,19 @@ then fixed bounds (2–4 s). Proficiency (DA-A) is left out now: an untrained ma
 | step | what | rails |
 |---|---|---|
 | 1 | `UnderFireMove` (component id from behaviors' 418–433) + the stamp in `Issue` + `UnderFireMoveSystem` B and A | a move set off unthreatened crouches and speeds up when a near miss lands; straightens 10 s after; an Upright move never changes; the channel's instance never changes |
-| 2 | C + C2 — the drop, the halt, the rise | near miss in the open ⇒ prone and halted, up after 2–4 s at the rush speed; none within 3 m of the end; none again within 3 s of rising; the play stays Running |
+| 2 | C + C2 — the drop, the halt, the lapse, the shift | near miss in the open ⇒ prone and halted; a near miss every 2 s keeps him down; 3 s without one ⇒ he shifts 1.5 m sideways, then rises crouched at the rush speed toward the play's point; none within 3 m of the end; none again within 3 s of rising; the play stays Running |
+| 2b | C3 — covered | his half covered (`CoveredUntil`) ⇒ he shifts and rises under fire; alone ⇒ he waits for the lapse |
+| 2c | C — the crawl to cover | still under fire, a cover point within 10 m ⇒ he crawls to it prone, then the same outcomes there; nothing near ⇒ he stays down and his play keeps firing |
 | 3 | D — the cover moves, the `TakeCover` asset (goldens) | GoToHide is crouched at ≥ 4 m/s from the first step |
 | 4 | `pc-defend-house` without `Speed 2`; a live run | the user's scene: the assault rushes crouched and drops under fire |
 
 ## 5. Answers
 
 *(empty — the user decides)*
+
+## ⛔ HISTORY
+
+- **§3 C, first form (2026-10-20, superseded the same day):** *"a near miss or hit while he is in the open ⇒ prone, the move halted, for
+  2–4 s (each man his own draw, seeded); then up, crouched, on at the rush speed; not again until he has been up ≥ 3 s."* Replaced after
+  the user asked what a real soldier does when the fire continues: under steady fire it would stand him up into it every few seconds.
+
