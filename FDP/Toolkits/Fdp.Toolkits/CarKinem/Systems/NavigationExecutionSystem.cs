@@ -200,7 +200,8 @@ namespace CarKinem.Systems
                 // ── Frustration guard ─────────────────────────────────────────────────────────
                 // ⭐ Buildings 5d-3 — a DELIBERATE hold (NavState.IsBlocked: waiting at a door it is opening) is not being
                 //   stuck: it neither counts toward a replan nor raises MoveBlockedEvent. The count restarts when it ends.
-                if (repo.HasComponent<NavState>(entity) && repo.GetComponent<NavState>(entity).IsBlocked != 0)
+                // ⭐ CE-3286 (R-3025) — nor is a hull BACKING OUT of a wall (HullRecovery): the recovery is this watchdog's remedy, not stuck.
+                if (repo.HasComponent<NavState>(entity) && repo.GetComponent<NavState>(entity).IsBlocked != 0 || frustration.RecoverDir != 0)
                 {
                     if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
                     {

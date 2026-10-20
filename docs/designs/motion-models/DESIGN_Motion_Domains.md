@@ -433,7 +433,7 @@ graph TD
 
 | rule | why |
 |---|---|
-| ⭐ the guard traces the LEADING corners (front when driving forward, rear when backing) and the centre; a crossing BLOCKS only when it ENTERS (`T > EnterEpsilon`) — a corner already inside may move out | A: the nose stops at the wall. A hull spawned or left half inside can still leave |
+| ⭐ the guard traces the FOUR corners and the centre, each with CE-2198's two tests: the surface under the point RISES like a wall, or its line ENTERS a closed barrier (`T > EnterEpsilon`); a point whose surface had already risen, or that started inside, may move | A: the nose stops at the wall. A hull spawned or left half inside can still leave. ⚠ AS-BUILT `2026-10-20` — deviates from the first draft ("the LEADING corners · a closed barrier", ⛔ SUPERSEDED): all four, because a tight turn swings the TAIL into a wall; and the RISE test, because the stand-in's solid block is NOT a closed barrier (`TerrainWorldQuery.IsClosedBarrier` — a blast meaning, W-7′: "a free-standing wall or a solid block is not one"). 📐 Measured: with the barrier test alone the rails' tank stood 3.5 m inside a block — the live centre was only ever stopped by CE-2198's rise test |
 | a refused step keeps the HEADING too | ⛔ the heading creep (~1°/s) swept corners in |
 | recovery starts after **0.5 s** held, or AT ONCE on a standing start (a new path) whose way on is not clear | the second is the "smart" half: a hull parked nose to a wall backs out before it touches it |
 | recovery drives against the held motion at **2 m/s** (capped by `MaxSpeedRev` when it has one) on FULL LOCK, the nose swinging toward the path's aim point | the reverse leg of a three-point turn |
