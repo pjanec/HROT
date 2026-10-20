@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-10-20 (§8l CE-1204 designed, leans for the user)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
+current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -23,6 +23,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — OWNS the one interaction topic (R-221); possession adds three union cases
   - docs/designs/tactical-intent/DESIGN.md — OWNS the intent pipeline (any node publishes, the owner resolves) every order here rides
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261); operator fire enters at the behaviour layer
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a person's eyes point (LookState.HeadYaw, LookFollowSystem, the 70° neck); §8l's free look rides it
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS the ammo loadout, AmmoChoice and the one-reload switch (D-I) that the operator's F key cycles (§8e)
   - docs/DESIGN_Map_3D_Mode.md — OWNS MapCamera3D, Picker3D and the scenario camera entity (R-260) the FPS view drives and must not overwrite
   - docs/UX/UX_Feature_Tool_Model.md — OWNS ToolController / exclusive focus (R-144) the RTS and FPS tools register through
@@ -1325,7 +1326,7 @@ Filed from the user's live tests (`2026-10-19`). Each item still gets its INVENT
 
 | # | decision | basis |
 |---|---|---|
-| **LK-1** *(`CE-1204`)* | ✅ A PERSON gets the second view mode vehicles already have (§2.2 M-3, `V`): **mouse look** — W/S move him and A/D turn his body; the mouse looks freely within his body twist plus a neck limit; past that limit the body turns with the look, so the view never jams. The locked mode (today's — the mouse IS his heading, M-2) stays, switchable. The drawn upper body twists toward the look (`HumanGait.MaxAimTwist`, CE-3195) and the head turns; a neck limit joins the TKB; a vehicle's look is clamped to its turret / station arc (`TurretSuiteDto`, `CarrierDefDto.TraverseMinDeg`…) | 🔒 User, `2026-10-19`: *"Accepted lean for the person's mouse-look mode."* |
+| **LK-1** *(`CE-1204`)* | ✅ A PERSON gets the second view mode vehicles already have (§2.2 M-3, `V`): **mouse look** — W/S move him and A/D turn his body; the mouse looks freely within his body twist plus a neck limit; past that limit the body turns with the look, so the view never jams. The locked mode (today's — the mouse IS his heading, M-2) stays, switchable. The drawn upper body twists toward the look (`HumanGait.MaxAimTwist`, CE-3195) and the head turns; a neck limit joins the TKB; a vehicle's look is clamped to its turret / station arc (`TurretSuiteDto`, `CarrierDefDto.TraverseMinDeg`…) | 🔒 User, `2026-10-19`: *"Accepted lean for the person's mouse-look mode."* · ⭐ designed in **§8l** (`2026-10-20`) — ⚠ its LK-2 narrows the reach to the sim's 70° neck, with the user |
 | **PK-1** *(`CE-1207`)* | ✅ The operator may PICK UP a lying stone or round (`RoundPickUp`, Civilians §7.10) and TAKE a lying weapon into his Hands station — new verbs in the use list (§8h), the target the nearest lying item within reach of the crosshair (a round has no pick box today). ⭐ A lying pick-up weapon is not offered for possession (`CE-1205`): it cannot fire by itself (Weapon Systems W-D) | 🔒 User, `2026-10-19`: *"Agreed with stone pickup and weapon pickup."* |
 | **MW-1** *(`CE-1210`)* | ✅ **SEAT SWITCHING:** a vehicle with several crewed weapons (the UH-60's two door guns) is played by **switching seats**, as in most crew-vehicle games: the driver / pilot seat drives and fires what can be aimed from it (the vehicle's own mounts, a station whose arc holds the crosshair); a **gunner seat** puts the camera at that gun, the look clamped to its arc, keys 1–4 its weapons, while the vehicle's own brain keeps flying / driving its order. ⛔ Rejected: every weapon from the pilot's eye (today) — a side door gun's arc rarely holds the pilot's crosshair | the user's question, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* — 🔒 then: *"Seat switching approved, record it."* |
 
@@ -1619,6 +1620,124 @@ and the station keeps its own instance, so the darkening does not depend on the 
 | **K-1 when he falls** (`CE-1220`) | `PossessionStation.Update`: the held unit gone AND destroyed (`CombatLife.IsDestroyed`) ⇒ `BeginFall`: the first-person driver leaves WITHOUT restoring the view, and `FallScreen` (an `ICameraDriver`) holds the 3-D view where his eyes were; the killer = the last `HitFeedback` shooter on him; the overlay fades dark red over 1 s, *"KILLED - by <name>"* (`EntityInfo.Name`, else "an unseen shooter"), and the choices: **Tab** the first living man of the fallen man's squad (`SquadRoster` — one possession), **K** a 3 s kill cam from the shooter's eye (1.7 m) toward the body, **Esc** the map as it was (`RestoreView`). A release that arrives within 1 s of a hit on him, before his death, waits up to 0.5 s for it (either may replicate first); a plain release leaves at once, as before. Knocked DOWN while held (alive, `Effects.IsKnockedDown`): the view dims, *"DOWN"* | ⭐ no new system: the death is read from what the station already sees (the release, the health, `HitFeedback`) |
 
 Rails `PossessionStationTests.CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles`, `CE1220_KilledWhileHeld_TheViewStays_NamesTheShooter_KShowsHim_TabTakesASquadMate_EscTheMap` (red-proved), `CE1220_APlainRelease_LeavesAtOnce_NoFallScreen`, `CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen`, `EmbarkNodesTests.CE1219_BHeld_RaisesHisBinoculars_LettingGoLowersThem_AManWithNoneIsRefused` (both red-proved), `InteractionTransportTests` (the byte crosses the wire), `CE1218_M_OpensTheMapCentredOnHim_HeHoldsStill_AndMBringsTheOperatorBack` (red-proved), `CE1217_TheCompassReadsTheHeading_AndTheNamesAreHisSidesWithin50m` (red-proved), frame `fps-hit-feedback.png` (now with the compass and two names), `AudioTests.CE1216_ARoundPassingTheEar_CountsOnce_NotHisOwn_NotFarOff_NotBornBesideHim` (both red-proved), and the audio's own crack rail `CE1120_…CracksOnce…` through the extraction.
+
+## 8l. S13 DESIGN — a person's switchable mouse look (`CE-1204`, `2026-10-20`, ui) — build-state: DESIGN (LK-1 approved, R-1006; LK-2…LK-7 below are leans for the user — ⚠ LK-2 narrows LK-1's wording)
+
+🔒 User, `2026-10-19`: *"lock view to forward vs. mouse look and WSAD keys steer … switchable. in mouse look the aim/turret following the
+mouse, which means the character twisting the body and turning his head into the viewing direction. Mouse look limited by physical limits
+(neck/turret — from tkb)"* · *"Accepted lean for the person's mouse-look mode."* (§8i LK-1) · `2026-10-20`: *"yes do CE-1204 design."*
+
+### 8l.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` name `.*(ControlFrame|ManualDrive|FreeLook|HullLock|LookLock|MouseLook|AimTwist|HeadYaw|Neck|LookYaw|ViewMode).*`
+total 78 — mostly UI view-models matching `ViewMode`, read for the C# hits; then grep `HullLocked|MaxAimTwist|HeadYaw|MaxHeadYaw|TryAimPoint`; the look
+design `docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md` read (§1.3, §3.2b); `check_index_coverage` is not reachable through the CLI)*
+
+| piece | where | what it already does |
+|---|---|---|
+| the station's look | `FpsCameraDriver` (`PossessionStation.cs` — `_yaw`, `_pitch`, `HullLocked`, `V` at :1287) | a VEHICLE: free look by default, `V` locks the view to the hull (the mouse steers). A PERSON: the mouse yaw IS his heading (frame `Yaw`, :1377), A/D strafe |
+| the control frame | `OperatorControlFrameEvent` (FDP `Possession.cs`) | carries `Yaw` (the body's heading) and `AimPoint` (the crosshair) SEPARATELY — no new field is needed |
+| the brain | behaviors' `OperatorControlBehavior` (:90 `ManualDrive.Yaw = input.Yaw`; :292 a weapon task every tick: `Operator = 1, Point = AimPoint`) | the body follows the frame's yaw; the weapon task aims at the crosshair |
+| the posture | `AimAndFireExecutor.OperatorFire` → `SayAt` → `WeaponPostureOf.Report(Aiming, point)` (:346–410) | a possessed man is AIMED at the crosshair every tick, trigger or not |
+| the body's turn | `CarKinematicsSystem` Manual branch (:177) → `ManualMotion.Person(…, yawTo = ManualDrive.Yaw)` | in Manual only the frame's yaw turns him — W-14's turn-to-the-aim does not run, so a free look never pulls the body |
+| ⭐ the head | backend's `LookFollowSystem` (CE-3252, LD-1/LD-2) | aiming ⇒ `LookState.HeadYaw` = toward the aim off the BODY, clamped ±`LookOf.MaxHeadYaw` (**70°**, a code constant); replicated (`dtLookState`); vision's cone and the map read `LookOf.EyeForward` = body + head |
+| the drawn torso | `EntityBodyLayer3D.TryAim` (:478) | an aimed figure twists its upper body toward the posture's aim point, ±`MaxAimTwist` (**75°**, `HumanGait`, the same value as the fire arc W-14a) — on every node |
+| ⛔ the drawn head | grep `HeadYaw` in `Hrot.Presentation`: none | the replicated head yaw is NOT drawn — the head turns only as part of the torso twist |
+| the fire arc | `BodyAim.HoldsFire` | an AI's aimed round waits while the aim is > 75° off his body; ⭐ the operator's fire never asks (`obeyArc: false` — "he turns the body himself", M-2) |
+
+### 8l.2 Claim table
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the frame already separates the heading from the aim | ✅ `OperatorControlFrameEvent.Yaw` / `.AimPoint`; `PossessionStation.cs:1377`, :1385 | ✅ §3.2, M-2 |
+| a possessed man's posture is aimed at the crosshair each tick | ✅ `OperatorControlBehavior.cs:292` → `AimAndFireExecutor.cs:394` `SayAt(Aiming, point)` | ✅ Weapon Layers W-13b (the weapon brain writes the posture) |
+| the head follows the aim, clamped to a 70° neck, on every node | ✅ `LookFollowSystem.cs` (`TryAimPoint` ⇒ `Toward`, `LookOf.MaxHeadYaw`); `dtLookState` | ✅ look design §3.2b (LD-1/LD-2) |
+| in Manual nothing but the frame's yaw turns the body | ✅ `CarKinematicsSystem.cs:177–193` | ✅ §6 M-2 |
+| the drawn torso twists to the aim within 75° | ✅ `EntityBodyLayer3D.cs:490` | ✅ W-14a (CE-3195) |
+| the drawn head does not turn on its own | ✅ no reader of `HeadYaw` in `Hrot.Presentation` | ⛔ searched the look design and §8: no plan to draw it (only an unplayed animation `LookAt*` channel, CE-3010) |
+| the neck limit is in the TKB | ⛔ **not**: `LookOf.MaxHeadYaw` is a code constant | ✅ R-1006 / LK-1 ask for it |
+
+### 8l.3 Diagrams
+
+```mermaid
+classDiagram
+  class FpsCameraDriver {
+    <<exists, changed>>
+    LookFree : new, toggled by V for a person
+    BodyYaw : new, the heading sent while the look is free
+    HandleInput() : free look clamps the look to body ± neck, drags the body past it
+  }
+  class OperatorControlFrameEvent { <<exists, FDP>> Yaw : the heading; AimPoint : the crosshair }
+  class OperatorControlBehavior { <<exists, behaviors>> ManualDrive.Yaw = Yaw; AimAndFire Operator at AimPoint }
+  class AimAndFireExecutor { <<exists, FDP>> OperatorFire : posture Aimed at the point }
+  class WeaponPosture { <<exists, replicated>> Aimed, Point }
+  class LookFollowSystem { <<exists, FDP backend>> HeadYaw toward the aim, clamped to the neck }
+  class LookOf { <<exists, FDP backend, changed>> HeadLimit(view, e) : new — the TKB neck or 70° }
+  class LookState { <<exists, replicated>> HeadYaw }
+  class ManualMotion { <<exists>> Person : the body turns to ManualDrive.Yaw }
+  class EntityBodyLayer3D { <<exists, changed>> the head part turns by HeadYaw minus the drawn twist }
+  class Hud { <<exists, changed>> LOOK FREE (V) }
+  FpsCameraDriver ..> OperatorControlFrameEvent : sends
+  FpsCameraDriver ..> LookOf : the neck
+  OperatorControlBehavior ..> ManualMotion : via ManualDrive
+  OperatorControlBehavior ..> AimAndFireExecutor
+  AimAndFireExecutor ..> WeaponPosture
+  LookFollowSystem ..> WeaponPosture : reads the aim
+  LookFollowSystem ..> LookState : writes
+  LookFollowSystem ..> LookOf
+  EntityBodyLayer3D ..> LookState
+  EntityBodyLayer3D ..> WeaponPosture
+  FpsCameraDriver ..> Hud
+```
+*What the picture shows that prose hid:* only the station, the drawn head and one reader of the neck change — the brain, the wire, the
+posture and the head are already there, because a possessed man is aimed at his crosshair every tick.
+
+```mermaid
+sequenceDiagram
+  participant O as operator
+  participant S as FpsCameraDriver (his node)
+  participant B as OperatorControlBehavior (brain node)
+  participant M as muscle (body node)
+  participant L as LookFollowSystem (body node)
+  participant D as EntityBodyLayer3D (every map host)
+  O->>S: V (look free)
+  S->>S: BodyYaw = the look's yaw
+  O->>S: mouse X
+  S->>S: look += dx, clamped to BodyYaw ± neck, past it BodyYaw follows
+  O->>S: A or D
+  S->>S: BodyYaw turns at the key rate
+  S->>B: frame (Yaw = BodyYaw, Lateral 0, AimPoint = crosshair)
+  B->>M: ManualDrive.Yaw = BodyYaw (the body turns to it)
+  B->>M: AimAndFire(Operator, Point = crosshair)
+  M->>M: posture Aimed at the point
+  L->>L: HeadYaw = toward the aim off the body, within the neck
+  L-->>D: LookState + WeaponPosture replicated
+  D->>D: torso twist toward the aim, head by HeadYaw minus the twist
+```
+*What the picture shows that prose hid:* the look never travels as a look — it travels as the AIM, which every node already turns into a
+twist and a head.
+
+```mermaid
+graph TD
+  AML["AttachMapLayers (the possessing host)"] -->|each frame, while possessing| PS[PossessionStation / FpsCameraDriver]
+  BR["brain node (CGF / SimHost)"] -->|each tick| OCB[OperatorControlBehavior]
+  GK["GroundKinematicsModule (body node)"] -->|each tick| CKS[CarKinematicsSystem Manual]
+  GK -->|each tick, after it| LFS[LookFollowSystem]
+  AML2["AttachMapLayers (every map host)"] -->|each 3-D frame| EBL[EntityBodyLayer3D]
+```
+*What the picture shows that prose hid:* nothing new is registered anywhere — every system that runs is one that runs today.
+
+### 8l.4 Decisions — leans for the user
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **LK-2** *(⚠ narrows LK-1)* | how far the free look reaches | ⭐ **±70° off his body — the sim's own neck (`LookOf.MaxHeadYaw`)**; past it the body follows the look. ⭐ It is inside the 75° torso twist, so his rifle always reaches the crosshair (no new fire rule), and the camera never shows what his eyes cannot (vision's cone = body + head) | the twist PLUS the neck (≈145°, LK-1's wording) — the camera would see 75° past his eyes and past his rifle: it needs a turn-before-the-shot rule and backend's head model widened |
+| **LK-3** | the neck limit from the TKB (R-1006) | ⭐ one reader `LookOf.HeadLimit(view, e)` — the type's `Gen.VehicleParameters.HeadYawLimitDeg` (new, 0 = not authored ⇒ 70°), read by `LookFollowSystem` (vision) AND the station, so the two can never disagree. Cross-lane, additive, in backend's FDP file — said in the commit | a ui-side TKB read — two neck values, one for the camera and one for the eyes |
+| **LK-4** | the keys | ⭐ **V** toggles a person's look free / locked — the key a vehicle already uses for the same question ("does the mouse turn the body?"). Default: **locked** (today's). In free look: W/S along the body, **A/D turn the body** (120°/s), no strafe; the HUD reads `LOOK FREE (V)`. The choice is kept by the station for the session (across possessions and Tab) | a new key — one more to learn for the same question · free by default — changes what every operator does today |
+| **LK-5** | the drawn head | ⭐ the head part turns by `HeadYaw` − the drawn torso twist, so every node shows where his eyes point — also for the AI's ordered looks and glances (LD-3), which today turn nothing visible | a head turn only for possessed men — the AI's looks would stay invisible |
+| **LK-6** | a vehicle's look and its weapon's arc | ⭐ not in this item: clamping a look to a turret or station arc IS the gunner seat (`CE-1210`, MW-1) — designed there, one clamp | clamp the driver's free look now — a driver looks round regardless of the gun |
+| **LK-7** | the fire rule in free look | ⭐ none new: the look stays within the twist (LK-2), and the operator's fire keeps `obeyArc: false` | a hold while the body turns — needed only if LK-2 were 145° |
+
+⇒ ⛔ **Not built until the user rules LK-2…LK-7** (LK-2 changes the approved wording). Build size once ruled: the station (~60 lines) + the
+head drawing + `HeadLimit` and its TKB field; rails in the station's suite (`PossessionStationTests`), the figure suite and backend's look suite.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
