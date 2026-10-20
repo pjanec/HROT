@@ -35,6 +35,7 @@ namespace Hrot.UI.Common.Audio
                 SoundSynth.ExplosionSmall => Finish(Explosion(ref r, 1.5f, 0.08f, 0.4f, 55f, 0.3f, debris: 6)),
                 SoundSynth.ExplosionMedium => Finish(Explosion(ref r, 2.5f, 0.12f, 0.8f, 45f, 0.5f, debris: 12)),
                 SoundSynth.ExplosionLarge => Finish(Explosion(ref r, 4.0f, 0.18f, 1.4f, 35f, 0.9f, debris: 20)),
+                SoundSynth.ExplosionHuge => Finish(Explosion(ref r, 6.0f, 0.24f, 2.2f, 28f, 1.2f, debris: 30)),   // ⭐ CE-1231 — longer, lower, more debris
                 SoundSynth.BulletPass => Finish(BulletPass(ref r)),
                 SoundSynth.ImpactSoft => Finish(ImpactSoft(ref r)),
                 SoundSynth.ImpactHard => Finish(Ricochet(ref r)),

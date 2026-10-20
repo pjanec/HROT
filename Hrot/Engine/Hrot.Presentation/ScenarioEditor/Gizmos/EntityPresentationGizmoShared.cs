@@ -33,8 +33,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// 🔒 the user's two reports, <i>"extremely small"</i> zoomed in and <i>"enormous in comparison to entity
         /// symbol"</i> zoomed out, are the two ends of that one mistake.
         /// </param>
+        /// <param name="sizeMode">⭐ CE-1232 — <see cref="SizeMode.ScreenPixels"/> for a symbol drawn at a fixed size on screen (the IED
+        /// marker): the area then matches it at every zoom too.</param>
         public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position,
-                                       float extentMetres, byte layer = 0)
+                                       float extentMetres, byte layer = 0, SizeMode sizeMode = SizeMode.WorldMeters)
         {
             // ⭐⭐⭐ §6.8 — NO ID, NO PICK TARGET. Constraint C2 was enforced by CALLERS checking that a
             //   NetworkIdentity was PRESENT; a component present with Value 0 passed that and produced a
@@ -49,7 +51,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 new Rgba32(0, 0, 0, 0),
                 // ⭐ CE-3147 — WORLD METRES, because the symbol is in world metres: MakeBox2D's sizeMode DEFAULTS
                 //   to ScreenPixels, so this must be passed explicitly or the area stops scaling with zoom.
-                sizeMode: SizeMode.WorldMeters,
+                sizeMode: sizeMode,
                 target: PipelineTarget.Map2D,
                 layer: layer,
                 anchorId: networkId);

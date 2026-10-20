@@ -338,6 +338,23 @@ public sealed class EffectLayer : IMapLayer
     public static Vector3 FlashCentre(in Resolved r, float radius)
         => r.Forward == Vector3.Zero ? r.At : r.At + Vector3.Normalize(r.Forward) * (radius * FlashForwardOfMuzzle);
 
+    /// <summary>⭐ CE-1231 (docs/DESIGN_Visual_Effects.md §11 CH-1) — a burst this big and up (the huge one: an IED, a vest, a car bomb, a
+    /// heavy shell, a bomb) is an orange CORE inside a grey-brown CLOUD of dust and smoke that outlasts it.</summary>
+    public const float DustFromSizeM = 15f;
+
+    /// <summary>The core's share of the burst's size when it raises dust (the cloud is the full size).</summary>
+    public const float CoreShare = 0.6f;
+
+    public static readonly Color DustColour = new(122, 106, 88, 255);
+
+    /// <summary>⭐ CE-1231 — does this explosion look raise a dust cloud?</summary>
+    public static bool RaisesDust(EffectVisualDto look) => look.Kind == EffectKind.Explosion && look.Size >= DustFromSizeM;
+
+    /// <summary>⭐ CE-1231 — the dust cloud of a burst of <paramref name="size"/> at <paramref name="phase"/> (0..1): it is up at once and
+    /// keeps spreading, thick for the first half, fading after. Railable without a GL context.</summary>
+    public static (float Radius, float Alpha) Dust(float size, float phase)
+        => (size / 2f * (0.55f + 0.45f * phase), 0.75f * (phase < 0.5f ? 1f : 1f - (phase - 0.5f) * 2f));
+
     // ---- 2-D --------------------------------------------------------------------------------------------
 
     public void Draw(RenderContext ctx)
@@ -369,6 +386,12 @@ public sealed class EffectLayer : IMapLayer
                     break;
                 case EffectKind.Explosion:
                 {
+                    if (RaisesDust(r.Look))   // ⭐ CE-1231 — the dust cloud first, under the core
+                    {
+                        var (dustRadius, dustAlpha) = Dust(size, r.Phase);
+                        Raylib.DrawCircleV(p, dustRadius, Fade(DustColour, dustAlpha * r.Opacity));
+                        size *= CoreShare;
+                    }
                     float radius = MathF.Max(size / 2f * (0.3f + 0.7f * r.Phase), 2f * px);
                     Raylib.DrawCircleV(p, radius, Fade(c, 1f - 0.6f * r.Phase));
                     Raylib.DrawRing(p, MathF.Max(0f, radius - px), radius, 0f, 360f, 32, Fade(c, 1f - r.Phase));
@@ -437,6 +460,13 @@ public sealed class EffectLayer : IMapLayer
                     else DrawSurfaceDisc(r.At, r.Normal, size / 2f, c);
                     break;
                 case EffectKind.Explosion:
+                    if (RaisesDust(r.Look))   // ⭐ CE-1231 — the grey-brown cloud round the orange core, rising with it
+                    {
+                        var (dustRadius, dustAlpha) = Dust(size, r.Phase);
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(r.At + new Vector3(0, 0, dustRadius * 0.6f)), dustRadius, 8, 12,
+                                            Fade(DustColour, dustAlpha * r.Opacity));
+                        size *= CoreShare;
+                    }
                     Raylib.BeginBlendMode(BlendMode.Additive);
                     Raylib.DrawSphereEx(HrotToRaylib.Position(r.At + new Vector3(0, 0, size * 0.25f * r.Phase)),
                                         MathF.Max(0.05f, size / 2f * (0.3f + 0.7f * r.Phase)), 8, 12, Fade(c, 1f - 0.7f * r.Phase));

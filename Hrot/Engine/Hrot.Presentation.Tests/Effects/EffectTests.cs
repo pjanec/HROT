@@ -113,7 +113,7 @@ public sealed class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(16, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud
+        Assert.Equal(17, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -122,6 +122,48 @@ public sealed class EffectTests
         }
         Assert.Equal(EffectTkbCatalog.ExplosionLarge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb81mmMortarHe, 0f).Explosion);
         Assert.Equal(0, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 0f).MuzzleFlash);   // a thrown grenade: no flash
+    }
+
+    /// <summary>
+    /// ⭐ CE-1231 (docs/DESIGN_Visual_Effects.md §11 CH-1, R-1016) — a burst that comes with NO damage (the charge; every off-target burst and
+    /// every burst from another node carry none) is sized by its warhead's explosive mass: the IED / vest (8 kg), a 155 mm shell (6.6 kg) and
+    /// the Mk-82 (94 kg) burst HUGE and leave the crater; a 120 mm mortar bomb (3 kg) large, a 60 mm one (0.4 kg) medium. Its flash stays its
+    /// damage class's; a round with damage, or with no warhead, is unchanged; a munition that names its set keeps it. 🔒 User: <i>"do we have
+    /// any vsualization of ICD explosion? I ahevnt seen any. Also nothing for suicide bomber explosion."</i> 🔴 Red-proof: all of these drew the
+    /// 0.8 m dust puff and a bullet mark.
+    /// </summary>
+    [Fact]
+    public void CE1231_ABurstWithNoDamage_IsSizedByItsExplosive()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var charge = EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbExplosiveCharge, 0f);
+        Assert.Equal(EffectTkbCatalog.ExplosionHuge, charge.Explosion);
+        Assert.Equal(EffectTkbCatalog.DecalLarge, charge.Decal);   // the crater
+        Assert.Equal(EffectTkbCatalog.MuzzleFlashSmall, charge.MuzzleFlash);   // its flash is untouched (its damage class)
+        Assert.Equal(EffectTkbCatalog.ExplosionHuge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb155mmHowitzerHe, 0f).Explosion);
+        Assert.Equal(EffectTkbCatalog.ExplosionHuge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbMk82Bomb, 0f).Explosion);
+        Assert.Equal(EffectTkbCatalog.ExplosionLarge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb120mmMortarHe, 0f).Explosion);
+        Assert.Equal(EffectTkbCatalog.ExplosionMedium, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb60mmMortarHe, 0f).Explosion);
+        Assert.Equal(EffectTkbCatalog.ExplosionMedium, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 0f).Explosion);   // its own set
+        Assert.Equal(EffectTkbCatalog.ExplosionSmall, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbExplosiveCharge, 25f).Explosion);   // a damage decides
+        Assert.Equal(EffectTkbCatalog.ExplosionSmall, EffectTkbCatalog.EffectsFor(tkb, 0, 0f).Explosion);   // nothing known: the puff
+
+        // the classes agree with the damage classes for a round that hits and the same round that misses
+        Assert.Equal(EffectTkbCatalog.CalibreClass.Medium, EffectTkbCatalog.ClassOfExplosive(0.03f));   // 25 mm HEI — damage 60, medium
+        Assert.Equal(EffectTkbCatalog.CalibreClass.Medium, EffectTkbCatalog.ClassOfExplosive(0.73f));   // PG-7V — damage 400, medium
+        Assert.Equal(EffectTkbCatalog.CalibreClass.Large, EffectTkbCatalog.ClassOfExplosive(1.6f));     // 120 mm HEAT — damage 1200, large
+        Assert.Equal(EffectTkbCatalog.CalibreClass.Huge, EffectTkbCatalog.ClassOfExplosive(8f));
+
+        // how it looks: bigger and longer than the large burst
+        var huge = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ExplosionHuge)!;
+        var large = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ExplosionLarge)!;
+        Assert.Equal(EffectKind.Explosion, huge.Kind);
+        Assert.True(huge.Size > large.Size && huge.Duration > large.Duration, $"huge {huge.Size} m {huge.Duration} s");
+        // an orange core inside a grey-brown cloud (the lean): only the huge burst raises the dust, which outlasts its core's first half
+        Assert.True(EffectLayer.RaisesDust(huge));
+        Assert.False(EffectLayer.RaisesDust(large));
+        Assert.True(EffectLayer.Dust(huge.Size, 0.4f).Alpha > 0f && EffectLayer.Dust(huge.Size, 1f).Alpha == 0f);
+        Assert.True(EffectLayer.Dust(huge.Size, 0.5f).Radius > huge.Size / 2f * EffectLayer.CoreShare, "the cloud is wider than the core");
     }
 
     [Fact]

@@ -140,6 +140,9 @@ public sealed class AudioTests
         Assert.Equal(SoundTkbCatalog.ShotLarge, SoundTkbCatalog.ShotFor(tkb, 0, 1200f).Near);
         Assert.Equal(SoundTkbCatalog.ExplosionLarge, SoundTkbCatalog.DetonationFor(tkb, MunitionTkbCatalog.Tkb81mmMortarHe, 0f));
         Assert.Equal(SoundTkbCatalog.ExplosionMedium, SoundTkbCatalog.DetonationFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 0f));
+        // ⭐ CE-1231 (VE §11 CH-1) — the charge's bang follows its huge burst (8 kg), heard further than a large one
+        Assert.Equal(SoundTkbCatalog.ExplosionHuge, SoundTkbCatalog.DetonationFor(tkb, MunitionTkbCatalog.TkbExplosiveCharge, 0f));
+        Assert.True(SoundSources.BurstRangeHuge > SoundSources.BurstRangeLarge);
         Assert.Equal(SoundTkbCatalog.TrackedEngine, SoundTkbCatalog.MovingFor(tkb, 0, SoundSourceClass.TrackedEngine, fixedWing: false));
         Assert.Equal(SoundTkbCatalog.Jet, SoundTkbCatalog.MovingFor(tkb, 0, SoundSourceClass.Rotor, fixedWing: true));
         Assert.Null(SoundSources.MovingDefault(LocomotionClass.Unknown));

@@ -517,5 +517,38 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Equal(new Rgba32(ResolvedStyleConstants.FriendTintR, ResolvedStyleConstants.FriendTintG, ResolvedStyleConstants.FriendTintB, 255),
                 Hrot.Common.Diagnostics.Gizmos.SidePalette.Friend);
         }
+
+        /// <summary>
+        /// ⭐ CE-1232 (docs/DESIGN_Visual_Effects.md §11 CH-2, R-1016) — a PLACED charge (an IED) is a side-coloured diamond reading "IED", a
+        /// fixed size on screen and 2-D only, with a pick box of that size; a CARRIED one (a worn vest — AW-12) is never the marker.
+        /// 🔒 User: <i>"visualization of the OCD itself - i sam just the entity label"</i>. 🔴 Red-proof: it drew a ground-vehicle outline at its
+        /// 30 cm size — sub-pixel.
+        /// </summary>
+        [Fact]
+        public void CE1232_APlacedCharge_IsTheIedMarker_AWornOneIsNot()
+        {
+            _repo.RegisterComponent<TkbIdentity>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+            var ied = Spawn(4401, new Vector3(50f, 60f, 0f));
+            _repo.AddComponent(ied, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_ExplosiveCharge });
+
+            var draw = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, ied, draw);
+            var frame = draw.GetFrame().ToArray();
+            Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.SemanticShape);
+            var marker = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Box2D && !DebugPrimitiveBuffer.IsPickTarget(in p));
+            Assert.Equal(SizeMode.ScreenPixels, marker.SizeMode);
+            Assert.True((marker.TargetView & PipelineTarget.FlatOnly) != 0, "2-D only: the 3-D map draws the charge itself");
+            Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.Text);
+            var pick = Assert.Single(frame, p => DebugPrimitiveBuffer.IsPickTarget(in p));
+            Assert.Equal(SizeMode.ScreenPixels, pick.SizeMode);   // clickable at every zoom, like the marker
+
+            // worn (carried by a man): not the marker
+            _repo.AddComponent(ied, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 1 });
+            var worn = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, ied, worn);
+            Assert.DoesNotContain(worn.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Text);
+        }
     }
 }
