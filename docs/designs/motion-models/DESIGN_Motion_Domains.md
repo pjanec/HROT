@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-20 (§5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
-build-state: BUILDING (§5f) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
+build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
 current-answer: ⭐ §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
@@ -443,6 +443,18 @@ graph TD
 | held FORWARD with the path's end ahead within `Length / 2 + ArrivalRadius` ⇒ arrived | a point beside a wall is reached when the nose meets the wall (the hide at 2.25 m off a wall is 1.25 m short of a 7 m hull's centre) |
 | persons are untouched | a walker has CE-2304's rule |
 | ⚠ the system's shared `_crossings` list was used from `ForEachParallel` | made per-thread with the new traces (a latent race since CE-2198) |
+
+⭐ **Live `2026-10-20` — both shoot-and-scoot demos, before and after** (a 0.5 s trace of each vehicle's pose; the hull's corners against
+test-town's footprints; hulls from the live `VehicleParams`: M1 7.93 × 3.66 m, the technical 5.3 × 1.9 m):
+
+| demo · vehicle | before (`18bd6ed48`) | after (`3fc536e33`) |
+|---|---|---|
+| `ua-tank-corner` · M1 | front 3.98 m inside the L-Block, stuck 13 s and 10.5 s, never reversed, 70 m driven | 0.00 m inside, never stuck, reversed on 5 samples, 67 m driven over 5 moves |
+| `ua-technical-scoot` · HMG technical | 2.83 m inside Block C, held to the end of the run, 59 m driven | 0.00 m inside, never stuck, reversed on 5 samples, **158 m** driven over 15 moves — it kept shooting and scooting |
+| `ua-technical-scoot` · M1, ATGM technical | — | 0.00 m inside; the ATGM technical killed early in both, as before (the demo's design ending) |
+
+⚠ A first `ua-tank-corner` run after the fix proved nothing: a Javelin hit the tank 7 s in on its first drive (3000 → 1800), a mobility
+kill (CE-2197), so it never reached the wall. The runs vary; the table's tank run is the second.
 
 | rejected | the one fact |
 |---|---|
