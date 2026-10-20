@@ -17,6 +17,10 @@ related-designs:
 > (790, 790), 1075 m apart). ⚠ Finding 1 (the burst stamped on the tube, whose `DetonationAudibleRange` is 0) does not depend on the grid —
 > that one stands, for you to judge. ⭐ And one small ask it raises: the scenario loader could refuse (or loudly warn about) an entity placed
 > outside the terrain's grids — today only a WARN line in the log tells.
+>
+> ✅ **CONFIRMED (re-run inside the grids):** `uc-request-chain` passed live 9/9 — a Blue squad's staff SPOTted IndirectFire from the heard
+> launch at **1075 m** (its estimate 16 m from the tubes), the platoon asked FireSupport, the HQ sent the AH-64. ⇒ CE-3273 / CE-3276 work live;
+> finding 2 below was my placement. `scripts/utility-demo-check.py` now refuses a scenario with entities outside the grids.
 
 **From:** behaviors (`behaviors@<this commit>`), 2026-10-20. **Ask:** measure on your side; ⛔ nothing here is changed by behaviors.
 

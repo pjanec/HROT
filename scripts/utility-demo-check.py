@@ -4380,7 +4380,7 @@ def run_uc_reinforce_dry(c, timeout):
             set_health(ids.get(f"Blue Squad 2 {n}"), 0)
     finally:
         call("POST", "/perspective", {"name": "Scenario"})
-    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [40, 140, 0], "count": 6, "size": "SquadSize"})
+    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [8, 110, 0], "count": 6, "size": "SquadSize"})
     ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "Reinforce"
                                  and x.get("from") == pl), None), 40)
     c.ok(ask is not None, f"① the platoon asks to be reinforced ({json.dumps(ask)[:220] if ask else None})")
