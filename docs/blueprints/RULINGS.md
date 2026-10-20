@@ -104,7 +104,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 
 | lane | block | next free *(update when you allocate)* |
 |---|---|---|
-| `ui` | **`R-1000` – `R-1999`** | `R-1012` |
+| `ui` | **`R-1000` – `R-1999`** | `R-1013` |
 | `behaviors` | **`R-2000` – `R-2999`** | `R-2059` |
 | `backend` | **`R-3000` – `R-3999`** | `R-3023` |
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4059` |
@@ -410,6 +410,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-1007** | ✅ **THE OPERATOR PICKS UP LYING STONES / ROUNDS AND TAKES LYING WEAPONS INTO HIS HANDS WITH THE USE KEY; A LYING WEAPON IS NOT POSSESSED.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8i PK-1 (`CE-1207`, `CE-1205`). |
 | ⭐ **R-1008** | ✅ **A VEHICLE WITH SEVERAL CREWED WEAPONS IS PLAYED BY SWITCHING SEATS: the driver / pilot seat drives and fires what it can aim; a gunner seat puts the camera at its gun, the look clamped to the station arc, while the vehicle's own brain keeps driving its order.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8i MW-1 (`CE-1210`). |
 | ⭐ **R-1011** | ✅ **FINER MAP LAYERS (`CE-1203`): ~10 new checkboxes in five groups (Units · Command · AI · Fire · Map), each row one kind of drawing with a hover meaning, all ON by default (the AI families stay selected-only); a 2-D symbol of what the 3-D map draws itself — the round markers — is never drawn in 3-D (FlatOnly, extends R-4058); a SEPARATE set per view, the panel editing the set of the view you are in; both sets (and the selected-only ticks, the navmesh choice) REMEMBERED per user through the gizmo settings registry's own save/load, saved on every change.** ⛔ Recorded, NOT to be started until the user says so. 🔒 **User, `2026-10-20`:** *"Switching sets depending on current view is ok ui wise"* · *"Approved. Record it, do nkt start building it."* Source: [`DESIGN_Terrain_Combat_Tuning.md`](../DESIGN_Terrain_Combat_Tuning.md) §5e FL-1…FL-9. |
+| ⭐ **R-1012** | ✅ **ADD ENTITY STAYS ENABLED IN PREVIEW.** The editor no longer greys the Add Entity menu while previewing; an entity added in Preview is a live test entity that disappears on Stop (Preview's rewind restores the world and the network-id allocator). 🔒 **User, `2026-10-20`: "When preview, adding new entities is diabled.in the menu, i need it enabled"**. Tracker `CE-1226`. | [`../DESIGN_Add_Entity_Picker.md`](../DESIGN_Add_Entity_Picker.md) §6 menu row |
 | ⭐ **R-1010** | ✅ **FIRST PERSON, PART 2: a spread RING the size of the sim's own σ (no sway); the edges darken on a near miss; a visual recoil kick; a compass strip and friendly names within 50 m; M = the 2-D map and back (possession kept); hold B = binoculars (range, LMB designates for his men); killed ⇒ fade, "KILLED — by", Tab a squad mate / K a kill cam / Esc the map.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8k.4 (`CE-1216`…`CE-1220`). |
 | ⭐ **R-1009** | ✅ **THE FIRST-PERSON KEYS: hold right mouse = zoom (the scope's view, and the man AIMS); X = drop a locked shot; hold Q / E = lean left / right; F = use; R = the next round; hold T = the command wheel; Tab / Shift+Tab = the next / previous man of the squad.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8j.4 (`CE-1211`…`CE-1215`). |
 | ⭐ **R-3001** | ✅ **AN ASSET PICKS ITS PARAMS DTO (C# OR `.params.json`) AND OVERRIDES ITS DEFAULTS PER FIELD** — the editor offers every registered params DTO, hand-written or generated; the asset's `ParamsDefaultJson` holds only the fields it overrides (edited with StructEdit), baked over the DTO's own defaults; blueprints get the same field. 🔒 **User, `2026-10-13`: "the assent must be able to override them (shared DTO for multiple assets might need different defaults per asset)".** Tracker `CE-3194` (backend half) + `HANDOFF_Params_Panels_Ui` U5 (editor half). | [`../DESIGN_Orders_Params_Entity_Classes.md`](../DESIGN_Orders_Params_Entity_Classes.md) §13.10a |
@@ -814,6 +815,7 @@ R-1008 | docs/DESIGN_Entity_Control.md | Seat switching approved, record it.
 R-1009 | docs/DESIGN_Entity_Control.md | Keys approved
 R-1010 | docs/DESIGN_Entity_Control.md | on the leans S-1…K-1 and the keys M, B, K below: *"Approved"*
 R-1011 | docs/DESIGN_Terrain_Combat_Tuning.md | Switching sets depending on current view is ok ui wise
+R-1012 | docs/DESIGN_Add_Entity_Picker.md | enabled in Preview
 R-3001 | docs/DESIGN_Orders_Params_Entity_Classes.md | shared DTO for multiple assets might need different defaults
 R-3002 | docs/DESIGN_Orders_Params_Entity_Classes.md | Param Dto defaults od csharpstruct should be written as initializers, not as attributes
 R-3003 | docs/DESIGN_Weapon_Layers.md | Firing with high angle difference should be possible (like quick fire on suddenly appearing target)
