@@ -114,8 +114,11 @@ def load(name):
     wait_for(lambda: False, 2, every=1.0)
     off = _off_grid(log_at)
     if off:
-        sys.exit(f"the scenario places {len(off)} entit{'y' if len(off) == 1 else 'ies'} outside the terrain's grids — they can be neither "
-                 f"seen nor hit; move them inside:\n  " + "\n  ".join(off[:8]))
+        # ⚠ a WARNING, not a refusal (user, 2026-10-20): off-map artillery is normal (indirect-fire-range's guns stand 2-5 km out). Off the
+        #   grids an entity cannot be SEEN or collide; whether it is HEARD is Architect Question 95 §B. Say so, so a check that relies on
+        #   seeing it is not misread.
+        print(f"   ⚠ {len(off)} entit{'y' if len(off) == 1 else 'ies'} outside the terrain's grids (not seen, no collision there):\n     "
+              + "\n     ".join(off[:8]))
     # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
     #   check could report on the previous scenario's cast. Kept as a guard.
     #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an

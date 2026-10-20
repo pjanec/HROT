@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §2/§4 ② said a mortar launch has no sound — half true: the crewed tubes and guns have none, the MortarTeam person type has (500 m, since 97b751b3a); re-measured 2026-10-19, BR-14 filed.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: what L7 needs from hearing — signatures, distance-bounded hearing, lossless short sounds; E3 recasts L7 with off-terrain guns
   - docs/DESIGN_Building_Interiors.md — OWNS the building templates the quarters place (§3g.1: the shared Recipes/Buildings folder, the roof storey)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS the request / report machinery route B escalates through (CC-A…CC-E)
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — OWNS the platoon attack / defence plays the infantry fight uses; this scene is its final act

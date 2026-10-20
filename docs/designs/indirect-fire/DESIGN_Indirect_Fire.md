@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: how a gun standing off the terrain is HEARD (B) and what it sounds like (A)
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — §8d OWNS the heard launch as a SPOT (HQ-1, `CE-2309` — "finding the mortar", Urban Battle §4 ②) and the headquarters that sends a battery on a FireSupport request (HQ-7)
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): every node receives the bursts; supersedes §3.8's Brain-only ingress branch.

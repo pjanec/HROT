@@ -20,7 +20,7 @@ related-designs:
 >
 > ✅ **CONFIRMED (re-run inside the grids):** `uc-request-chain` passed live 9/9 — a Blue squad's staff SPOTted IndirectFire from the heard
 > launch at **1075 m** (its estimate 16 m from the tubes), the platoon asked FireSupport, the HQ sent the AH-64. ⇒ CE-3273 / CE-3276 work live;
-> finding 2 below was my placement. `scripts/utility-demo-check.py` now refuses a scenario with entities outside the grids.
+> finding 2 below was my placement. `scripts/utility-demo-check.py` now WARNS about entities outside the grids (⚠ first it refused; relaxed the same day — guns off the terrain are normal, and whether they are heard is [Q95](../Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) §B).
 
 **From:** behaviors (`behaviors@<this commit>`), 2026-10-20. **Ask:** measure on your side; ⛔ nothing here is changed by behaviors.
 
