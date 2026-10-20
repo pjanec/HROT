@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
+  - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: D — the move to a hide is crouched at the rush speed
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §6b: the next hide point must lie inside the man's sector and post set (PC-14); who switches windows by proficiency (PC-15); the watcher's counter-play (PC-16)
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the vehicle sibling (VehicleFightFromCover): reuses FiringPositionMemory, PositionHeat, PostureNodes.Keep / Fire, TopAim
