@@ -4438,7 +4438,10 @@ def run_uc_urban_battle(c, timeout):
     while time.time() < end:
         t = sim_time() or 0.0
         dets = _detonations()
-        for d in dets[det_seen:]:
+        for d in dets:
+            if (d.get("tick"), d.get("seq"), d.get("shooter")) in last:
+                continue   # the detonation log is a rolling window: key its entries, never index them
+            last[(d.get("tick"), d.get("seq"), d.get("shooter"))] = True
             who = next((k for k, v in ids.items() if v == d.get("shooter")), d.get("shooter"))
             note(t, f"detonation by {who} at {[round(x) for x in d.get('burst') or []][:2]} ({d.get('warhead')})")
             if d.get("shooter") == ids["Trigger man"] and ied_ok is None:
@@ -4446,7 +4449,6 @@ def run_uc_urban_battle(c, timeout):
                 near = min((math.hypot(p[0] - ied_at[0], p[1] - ied_at[1]) for p in vs if p), default=999)
                 ied_ok = near <= 15
                 note(t, f"  …the IED: nearest vehicle {near:.1f} m from it")
-        det_seen = len(dets)
         for r in squad_reports(last=256):
             key = (r.get("serial"), r.get("from"))
             if key in last or r.get("kind") in ("Sitrep", "Progress"):

@@ -960,7 +960,7 @@
       "SimTransform": {
         "Position": [
           652,
-          200,
+          150,
           0
         ],
         "Rotation": [
@@ -985,7 +985,7 @@
       "SimTransform": {
         "Position": [
           641,
-          170,
+          118,
           0
         ],
         "Rotation": [
@@ -1021,15 +1021,15 @@
     "d0cf0000-0000-4000-8000-000000009862": {
       "SimTransform": {
         "Position": [
-          659,
-          262,
+          690,
+          147,
           0
         ],
         "Rotation": [
           0,
           0,
-          -0.70710678,
-          0.70710678
+          1,
+          0
         ]
       },
       "NetworkIdentity": {
@@ -1058,15 +1058,15 @@
     "d0cf0000-0000-4000-8000-000000009863": {
       "SimTransform": {
         "Position": [
-          659,
-          274,
+          696,
+          153,
           0
         ],
         "Rotation": [
           0,
           0,
-          -0.70710678,
-          0.70710678
+          1,
+          0
         ]
       },
       "NetworkIdentity": {
@@ -1095,15 +1095,15 @@
     "d0cf0000-0000-4000-8000-000000009864": {
       "SimTransform": {
         "Position": [
-          641,
-          286,
+          702,
+          147,
           0
         ],
         "Rotation": [
           0,
           0,
-          -0.70710678,
-          0.70710678
+          1,
+          0
         ]
       },
       "NetworkIdentity": {
@@ -1327,7 +1327,7 @@
       "SimTransform": {
         "Position": [
           641,
-          330,
+          255,
           0
         ],
         "Rotation": [
@@ -1392,7 +1392,7 @@
       "SimTransform": {
         "Position": [
           641,
-          215,
+          172,
           0
         ],
         "Rotation": [
@@ -1429,7 +1429,7 @@
       "SimTransform": {
         "Position": [
           659,
-          222,
+          178,
           0
         ],
         "Rotation": [
@@ -1466,7 +1466,7 @@
       "SimTransform": {
         "Position": [
           641,
-          238,
+          190,
           0
         ],
         "Rotation": [
@@ -1503,7 +1503,7 @@
       "SimTransform": {
         "Position": [
           659,
-          250,
+          198,
           0
         ],
         "Rotation": [
@@ -1540,7 +1540,7 @@
       "SimTransform": {
         "Position": [
           641,
-          300,
+          215,
           0
         ],
         "Rotation": [
@@ -1577,7 +1577,7 @@
       "SimTransform": {
         "Position": [
           659,
-          310,
+          225,
           0
         ],
         "Rotation": [
