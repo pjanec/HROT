@@ -278,6 +278,12 @@ Demos: `uf-alone-under-fire` (one man, nobody covers him) and `uf-squad-under-fi
 carry `header.description` (what they show and how to judge them; the round-trip is backend's, [handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md)).
 `python3 scripts/utility-demo-check.py --launch uf-alone-under-fire` (and `uf-squad-under-fire`); the live results are below.
 
+| live, 2026-10-20 | measured |
+|---|---|
+| ✅ `uf-alone-under-fire` PASS | first round at 2.8 s; never upright under fire; one drop, stopped; pinned by two immortal riflemen (a near miss or hit about every second) he stayed down — measured for 50 s on a probe run; when the check emptied their rifles (15.1 s) he rose 4.5 s later (the 3 s lapse + the side step) and rushed on |
+| ✅ `uf-squad-under-fire` PASS | 19 drops across the six, every rise after a side step, **17 of 19 rises with rounds still coming** (his half covered — C3), never upright under fire, every mover at ≥ 3 m/s, and the bounds went on (Cover → Rush → Cover → Rush) |
+| ⚠ found by the live runs, not by the rails | ① the hostiles of the fire-and-movement cast carry NO order, so they never fire (150 rounds kept, measured) — both demos give them `CombatPosture` (`Stay`); ② two immortal riflemen never pause, so a lone man is pinned for good (right by C) — the lone demo's check stops their fire to judge the rise; ③ a covered mover goes down and starts his side step inside one 0.25 s sample — the check counts a drop as Moving → any down phase |
+
 
 ## ⛔ HISTORY
 
