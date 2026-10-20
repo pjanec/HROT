@@ -173,7 +173,8 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1231` · `CE-1232` | ✅ BUILT (`R-1016`): a burst with no damage sized by its explosive mass — "Explosion huge" + dust cloud + crater + huge bang for the IED / vest / car bomb / 155 mm / Mk-82; and EVERY off-target or remote burst (they carry no damage) now sized right; the placed IED a 2-D "IED" diamond, a two-shell kit in 3-D | [Visual Effects §11.3](../DESIGN_Visual_Effects.md) |
 | `CE-1230` | ⛔ OPEN, recorded only (`R-1015`): the ORBAT tree's right-click menu = the map's entity menu, one shared menu, Embark/Disembark in it — design first | tracker |
 | `CE-1229` | ✅ CLOSED — not a defect: a stale restore (the serializers kept their namespace); `Hrot.SimHost.Tests` builds after `dotnet restore` | tracker |
-| `CE-1228` | ⛔ OPEN — found by CE-1227's parity rail: the gizmo renderer blends every translucent `FilledTriangle` twice (both windings, culling off) | tracker |
+| `CE-1228` | ✅ DONE — one triangle in the winding raylib keeps (`WorldYUp`) | North Up as-built |
+| `CE-1196` | ✅ DONE — one ground depth bias (roads + gizmo fills; fills without depth writes) | Map 3-D §6z CA-4 |
 | `CE-1234` | ✅ the layer panel works in 3-D: the gizmo's own state (the 3-D set) now reaches the map's panel (`LocalGizmoUiStateTransport` polled by `DebugGizmoLayer`; `ReceiveUiState` keyed by the instance id) | Tuning §5e.1 |
 | `CE-1204` | ✅ **BUILT** (`R-1017`, LK-2…LK-7): V frees a person's look (kept by the station), the mouse turns his look within his neck dragging the body past it, A/D turn him at 120°/s; the neck is the TKB's `HeadYawLimitDeg` (0 ⇒ 70°) through `LookOf.HeadLimit` (backend's FDP file, additive); every node draws his head where his eyes point | [Entity Control](../DESIGN_Entity_Control.md) §8l.5 |
 | `CE-1203` | ✅ **BUILT** (`R-1011`, FL-1…FL-9): 10 new rows (bits 16–25) in five groups with display names and hover meanings (`[EditDisplayName]`/`[EditDoc]`), a rail per row (`GizmoLayerProbe`); round markers 2-D only; a set per view picked by the view switch (wired through the shared buffer); both sets + scopes + navmesh choice remembered in `map-layers.json`; registry int save/load bug fixed | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e.1 as built · [GUIDE_Debug_Gizmos](../GUIDE_Debug_Gizmos.md) §1 |
@@ -190,9 +191,9 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"* — work on down this list.
 
-1. `CE-1196` — one depth bias for the SUMO road mesh AND the draped gizmo fills (the near plane stays, `R-1014`).
-2. `CE-1228` — a translucent `FilledTriangle` blended twice.
-3. `CE-1207` + `CE-1205` — pick up stones / rounds, take weapons (`R-1007`) — same: design first.
+✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built).
+
+1. `CE-1207` + `CE-1205` — pick up stones / rounds, take weapons (`R-1007`) — same: design first.
 4. `CE-1210` — seat switching (`R-1008`) — design first.
 5. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
 

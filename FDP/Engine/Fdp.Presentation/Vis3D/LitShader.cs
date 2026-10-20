@@ -17,6 +17,7 @@ in vec4 vertexColor;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
+uniform float depthBias;
 out vec3 fragPos;
 out vec3 fragNormal;
 out vec4 fragColor;
@@ -36,7 +37,32 @@ void main()
     localMetres = vec3(metres.x, -metres.z, metres.y);
     localNormal = vec3(vertexNormal.x, -vertexNormal.z, vertexNormal.y);
     gl_Position = mvp * vec4(vertexPosition, 1.0);
+    gl_Position.z -= depthBias * gl_Position.w;   // CE-1196: a ground layer drawn a few depth steps toward the eye (0 for the rest)
 }";
+
+        /// <summary>
+        /// ⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — the FLAT program: vertex colour × the material / batch colour, unlit and
+        /// unfogged (what Raylib's own shader draws), moved <c>depthBias</c> toward the eye like <see cref="SetDepthBias"/>. The gizmo fills
+        /// lying on the ground draw with it, so they keep their colours and still never fight the ground.
+        /// </summary>
+        private const string FlatVertex = @"#version 330
+in vec3 vertexPosition;
+in vec4 vertexColor;
+uniform mat4 mvp;
+uniform float depthBias;
+out vec4 fragColor;
+void main()
+{
+    fragColor = vertexColor;
+    gl_Position = mvp * vec4(vertexPosition, 1.0);
+    gl_Position.z -= depthBias * gl_Position.w;
+}";
+
+        private const string FlatFragment = @"#version 330
+in vec4 fragColor;
+uniform vec4 colDiffuse;
+out vec4 finalColor;
+void main() { finalColor = fragColor * colDiffuse; }";
 
         /// <summary>The default surface: the colour as it is.</summary>
         public const string PlainSurface = "vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n) { return base; }";
@@ -130,7 +156,11 @@ void main()
         /// <summary>False when the GL driver refused the program — Raylib then falls back to its default shader (unlit).</summary>
         public bool IsValid { get; }
 
-        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _fogStart, _ambient, _sunLight;
+        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _fogStart, _ambient, _sunLight, _depthBias, _flatDepthBias;
+
+        /// <summary>⭐ <c>CE-1196</c> — the flat program (<see cref="FlatVertex"/>); <see cref="FlatIsValid"/> false when the driver refused it.</summary>
+        public Shader Flat { get; }
+        public bool FlatIsValid { get; }
 
         /// <summary>Sky colour the fog fades into (also the sky gradient's horizon, <see cref="MapCamera3D"/>).</summary>
         public static readonly Color SkyHorizon = new(196, 214, 230, 255);
@@ -150,7 +180,14 @@ void main()
             _fogStart = Raylib.GetShaderLocation(shader, "fogStart");
             _ambient = Raylib.GetShaderLocation(shader, "ambient");
             _sunLight = Raylib.GetShaderLocation(shader, "sunLight");
+            _depthBias = Raylib.GetShaderLocation(shader, "depthBias");
             Shader = shader;
+            Raylib.SetShaderValue(shader, _depthBias, 0f, ShaderUniformDataType.Float);
+
+            var flat = Raylib.LoadShaderFromMemory(FlatVertex, FlatFragment);
+            FlatIsValid = Raylib.IsShaderValid(flat);
+            _flatDepthBias = Raylib.GetShaderLocation(flat, "depthBias");
+            Flat = flat;
 
             var material = Raylib.LoadMaterialDefault();
             material.Shader = shader;
@@ -182,6 +219,14 @@ void main()
             Raylib.SetShaderValue(Shader, _fogDensity, fogDensity, ShaderUniformDataType.Float);
             Raylib.SetShaderValue(Shader, _fogStart, fogStart, ShaderUniformDataType.Float);
         }
+
+        /// <summary>⭐ <c>CE-1196</c> (§6z CA-4) — moves what this program draws next <paramref name="ndc"/> toward the eye in clip depth
+        /// (<see cref="MapCamera3D.GroundBiasNdc"/> for a layer lying on the ground; 0 for everything else). ⚠ It holds until set again —
+        /// a layer that sets it puts it back to 0 after its draw.</summary>
+        public void SetDepthBias(float ndc) => Raylib.SetShaderValue(Shader, _depthBias, ndc, ShaderUniformDataType.Float);
+
+        /// <summary>⭐ <c>CE-1196</c> — the same for the <see cref="Flat"/> program.</summary>
+        public void SetFlatDepthBias(float ndc) => Raylib.SetShaderValue(Flat, _flatDepthBias, ndc, ShaderUniformDataType.Float);
 
         /// <summary>The shared material with its diffuse colour set to <paramref name="color"/>. ⚠ The colour lives in the shared
         /// material map, so it holds until the next call — draw with it immediately.</summary>

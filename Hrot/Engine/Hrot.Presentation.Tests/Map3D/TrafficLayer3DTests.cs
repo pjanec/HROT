@@ -42,6 +42,30 @@ public sealed class TrafficLayer3DTests
         Assert.DoesNotContain(TrafficLayer3D.GroundColor, colours);
     }
 
+    /// <summary>⭐ CE-1196 (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — the roads and the ambient ground are two streams (only the roads are
+    /// drawn biased toward the eye), together exactly the whole scene; the bias is four depth steps at every distance — from 2 km about
+    /// half a metre, from 50 m about a centimetre — and the near plane stays where R-1014 put it.</summary>
+    [Fact]
+    public void CE1196_TheRoadsAreBiased_TheAmbientGroundIsNot_AndTheBiasIsFourDepthStepsAtEveryDistance()
+    {
+        TrafficLayer3D.BuildVertexData(Scene(), k => k != SceneKind.AmbientGround, out var roads, out _, out var roadColours);
+        TrafficLayer3D.BuildVertexData(Scene(), k => k == SceneKind.AmbientGround, out var ground, out _, out var groundColours);
+        TrafficLayer3D.BuildVertexData(Scene(), ambientGround: true, out var all, out _, out _);
+        Assert.Equal(all.Length, roads.Length + ground.Length);
+        Assert.DoesNotContain(TrafficLayer3D.GroundColor, roadColours);
+        Assert.All(groundColours, c => Assert.Equal(TrafficLayer3D.GroundColor, c));
+
+        Assert.Equal(0.001f, MapCamera3D.NearClipShare);
+        foreach (float d in new[] { 50f, 200f, 2000f, 5000f })
+        {
+            float near = d * MapCamera3D.NearClipShare;
+            Assert.Equal(MapCamera3D.GroundBiasSteps * MapCamera3D.DepthStepAt(d, near), MapCamera3D.GroundBiasMetresAt(d, near), 5);
+        }
+        Assert.InRange(MapCamera3D.GroundBiasMetresAt(2000f, 2f), 0.4f, 0.6f);
+        Assert.True(MapCamera3D.GroundBiasMetresAt(50f, 0.05f) < 0.02f);
+        Assert.Equal(MapCamera3D.GroundBiasSteps * 2f / 16_777_216f, MapCamera3D.GroundBiasNdc, 12);
+    }
+
     /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's agents that are not entities become bodies the entity layer draws as ours: a pedestrian
     /// typed by his id (the type his replica and his civilian also have), a car by its TKB type (else the generic traffic car) in its
     /// own paint, each keyed by its network id; a replica is left to the entity pass. ⛔ Before: grey and blue boxes (CE-4026).</summary>

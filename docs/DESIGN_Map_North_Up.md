@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT 2026-10-11 (§5).
-updated: 2026-10-11
+updated: 2026-10-20 (CE-1228 — a fill drawn once under the mirror) · 2026-10-11
 current-answer: §2 inventory · §3 the camera seam (diagrams) · §4 decisions · §5 as-built.
 stale-below: nothing.
 known-rot: none.
@@ -91,6 +91,7 @@ sequenceDiagram
 | N2 — the gizmo terminal always gets the live camera's `ScreenToWorld3D` / `ZoomAt`, in 2-D too | `Vis2D/Layers/DebugGizmoLayer.cs` |
 | N3 — `DebugPrimitiveRenderer2D.WorldYUp` (set per frame by the FDP adapter from the camera): world text drawn upright by a local un-flip; the badge's screen point computed with the flip; `BeginWorldMode` re-enters the host camera after a screen-space primitive; the MIL-STD label stays below its symbol and upright | `GizmoMap.Presentation/Rendering/DebugPrimitiveRenderer2D.cs`, `MilStd2525Renderer.cs`, `Vis2D/Gizmos/DebugPrimitiveRenderer2D.cs` |
 | `MapViewSwitch.MatchTwoD` — the Y term flipped; the swap now keeps orientation | `Vis3D/MapViewSwitch.cs` |
+| ⭐ `CE-1228` (`2026-10-20`) — N4 consequence: a `FilledTriangle` is drawn ONCE, in the winding raylib keeps under `WorldYUp` (`KeptWinding`); both windings had blended a translucent fill twice with culling off | `GizmoMap.Presentation/Rendering/DebugPrimitiveRenderer2D.cs` |
 | IG's arrow keys: Up = north | `IgApplication.HandleCameraInput` |
 | N5 — the placement ghost's two lines stay BELOW the cursor (`−` offsets) | `EntityPlacementGizmo.cs` |
 

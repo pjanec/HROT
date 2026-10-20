@@ -1094,6 +1094,48 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1228</c> — on the north-up 2-D map (culling off, CE-1040 N4) a translucent filled triangle is blended ONCE, in both
+    /// windings of its data: a white triangle at alpha 90 over the map's grey reads as one blend, not two. ✅ Red-proof: both windings drawn
+    /// again ⇒ ~182 instead of ~142.
+    /// </summary>
+    [SkippableFact]
+    public void CE1228_ATranslucentFill_IsBlendedOnce_OnTheNorthUpMap()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        const float zoom = 4f;
+        var target = new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = two;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        canvas.AddLayer(new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: two));
+        var glass = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 255, 90);
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeFilledTriangle(new Vector2(-60, 10), new Vector2(-10, 10), new Vector2(-35, 60), glass));   // CCW
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeFilledTriangle(new Vector2(10, 10), new Vector2(35, 60), new Vector2(60, 10), glass));     // CW
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map2d-ce1228-one-blend.png");
+        frame.Screenshot(png);
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            var bg = Raylib.GetImageColor(image, 640, 700);
+            int Expected(int under) => under + (255 - under) * 90 / 255;
+            foreach (var at in new[] { new Vector2(-35f, 25f), new Vector2(35f, 25f) })
+            {
+                var px = Raylib.GetImageColor(image, (int)(640f + at.X * zoom), (int)(400f - at.Y * zoom));
+                Assert.InRange(px.R, Expected(bg.R) - 10, Expected(bg.R) + 10);
+            }
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1227 (V) — demo-city's 2-D terrain through the PRODUCTION attach (<see cref="Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers"/>),
     /// in a real window: the retained <see cref="Hrot.UI.Common.Map2D.TerrainLayer2D"/> sits under the gizmo layer, draws the whole city
     /// (its fills in one mesh, built once), and a red box in the map's 16 384 buffer — the stand-in for a unit symbol — draws over it.
@@ -3348,6 +3390,133 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(world.GetComponent<SimTransform>(a10).Position, 24f, MathF.PI * 1.3f, -0.30f);
         Draw();
         frame.Screenshot(Path.Combine(shots, "ws-6-a10.png"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — demo-city's SUMO roads seen from 2 km, the near plane where <c>R-1014</c> keeps
+    /// it: every sampled asphalt triangle shows asphalt, never our ground through it. 🔒 User, live: <i>"sumo roads (black) z-fight heavily
+    /// with artificial terrain if looked at from distance"</i>. Screenshot <c>map3d-ce1196-roads-from-afar.png</c>.
+    /// ✅ Red-proof: the road pass's <c>SetDepthBias</c> at 0 ⇒ the asphalt share falls (measured in the as-built).
+    /// </summary>
+    [SkippableFact]
+    public void CE1196_V_FromAfar_TheRoadsShowOverTheGround()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        var net = Hrot.Traffic.TrafficNetCache.Of(world)!;
+        var query = WorldQuery.Of(world)!;
+        var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt).ToArray();
+        Assert.NotEmpty(asphalt);
+        var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
+        foreach (var m in asphalt) foreach (var v in m.Vertices) { lo = Vector2.Min(lo, new Vector2(v.X, v.Y)); hi = Vector2.Max(hi, new Vector2(v.X, v.Y)); }
+        var mid = (lo + hi) / 2f;
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var traffic = new TrafficLayer3D(() => world);
+        canvas.AddLayer(traffic);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y)), 2000f, MathF.PI * 0.3f, -1.35f);   // near top-down
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-ce1196-roads-from-afar.png");
+        frame.Screenshot(png);
+        Assert.True(traffic.TriangleCount > 1000, $"road triangles: {traffic.TriangleCount}");
+        Assert.Equal(0.001f, MapCamera3D.NearClipShare);   // R-1014: the near plane is not what fixed it
+
+        var cam = sw.Camera3D;
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int sampled = 0, grey = 0;
+            foreach (var m in asphalt)
+                for (int t = 0; t + 2 < m.Indices.Length; t += 3)
+                {
+                    var a = m.Vertices[m.Indices[t]]; var b = m.Vertices[m.Indices[t + 1]]; var c = m.Vertices[m.Indices[t + 2]];
+                    var centre = (a + b + c) / 3f;
+                    if (Vector2.Distance(new Vector2(a.X, a.Y), new Vector2(b.X, b.Y)) < 3f) continue;   // too small to land on a whole pixel
+                    var s = cam.WorldToScreen(centre);
+                    if (s.X < 2 || s.Y < 2 || s.X > 1277 || s.Y > 797) continue;
+                    var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
+                    int max = Math.Max(px.R, Math.Max(px.G, px.B)), min = Math.Min(px.R, Math.Min(px.G, px.B));
+                    sampled++;
+                    if (max - min < 16 && max < 150) grey++;
+                }
+            Assert.True(sampled > 200, $"anti-vacuity: asphalt samples on screen {sampled}");
+            Assert.True(grey >= sampled * 0.9, $"asphalt shown at {grey} of {sampled} sampled road triangles");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1196</c> (§6z CA-4) — two gizmos' translucent discs overlapping on the ground blend evenly where they overlap (the 2-D map's
+    /// painter's rule), never a speckle of one colour through the other. 🔒 User, <c>2026-10-20</c>: <i>"same flicker is for multiple gizmos
+    /// showing filled circle on the ground in 3d."</i> Screenshot <c>map3d-ce1196-overlapping-fills.png</c>.
+    /// ✅ Red-proof: depth writes left on for the fills ⇒ the overlap's spread grows.
+    /// </summary>
+    [SkippableFact]
+    public void CE1196_V_OverlappingGroundFills_BlendEvenly()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query) + new Vector2(-8f, -4f);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus()) { CurrentCamera = () => canvas.Camera };
+        gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(gizmos);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        // two 7 m squares, 3.7 m apart — their 3 m drape grids do not line up, as two gizmos' discs never do
+        var red = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(230, 40, 40, 140);
+        var blue = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 60, 230, 140);
+        buffer.DrawBox2D(spot, new Vector2(7f, 7f), red, thickness: 0f, sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters, fillColor: red);
+        buffer.DrawBox2D(spot + new Vector2(3.7f, 2.3f), new Vector2(7f, 7f), blue, thickness: 0f, sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters, fillColor: blue);
+        sw.Set(true, animate: false);
+        var at = new Vector3(spot.X + 1.8f, spot.Y + 1.1f, query.GroundHeightAt(spot.X, spot.Y));
+        sw.Camera3D.Pose = new CameraPose(at, 60f, MathF.PI * 0.3f, -0.7f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-ce1196-overlapping-fills.png");
+        frame.Screenshot(png);
+
+        var cam = sw.Camera3D;
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            var reds = new List<int>(); var blues = new List<int>();
+            for (float x = spot.X - 2.5f; x <= spot.X + 6f; x += 0.25f)   // inside both squares (with a margin)
+                for (float y = spot.Y - 3.5f; y <= spot.Y + 6f; y += 0.25f)
+                {
+                    var s = cam.WorldToScreen(new Vector3(x, y, query.GroundHeightAt(x, y)));
+                    if (s.X < 0 || s.Y < 0 || s.X >= 1280 || s.Y >= 800) continue;
+                    var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
+                    reds.Add(px.R); blues.Add(px.B);
+                }
+            Assert.True(reds.Count > 500, $"anti-vacuity: overlap samples {reds.Count}");
+            static int Spread(List<int> v) { v.Sort(); return v[(int)(v.Count * 0.98)] - v[(int)(v.Count * 0.02)]; }
+            Assert.True(Spread(reds) <= 24 && Spread(blues) <= 24, $"the overlap is not even: red spread {Spread(reds)}, blue spread {Spread(blues)}");
+            Assert.True(reds.Average() > 60 && blues.Average() > 60, $"both fills show: red {reds.Average():0}, blue {blues.Average():0}");
+        }
+        finally { Raylib.UnloadImage(image); }
     }
 
     private static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)

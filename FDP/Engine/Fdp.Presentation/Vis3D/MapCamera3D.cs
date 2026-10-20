@@ -544,6 +544,20 @@ namespace Fdp.Toolkit.Vis3D
         /// the eye with the near clip <paramref name="near"/> (m): ≈ d² / (near · 2²⁴) for a far clip much farther than the near.</summary>
         public static float DepthStepAt(float atMetres, float near) => atMetres * atMetres / (near * 16_777_216f);
 
+        /// <summary>⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — how many depth-buffer steps a layer lying ON the ground (SUMO's
+        /// roads, the gizmo fills draped on it) is drawn toward the eye: enough to win over the ground it lies on at every distance, without
+        /// moving the near plane (<c>R-1014</c>).</summary>
+        public const float GroundBiasSteps = 4f;
+
+        /// <summary>⭐ <c>CE-1196</c> — <see cref="GroundBiasSteps"/> in clip depth (NDC −1…1, two units per 2²⁴ steps): a constant there is a
+        /// constant number of depth steps at every distance, so its reach in metres grows with the step itself
+        /// (<see cref="GroundBiasMetresAt"/>).</summary>
+        public static readonly float GroundBiasNdc = GroundBiasSteps * 2f / 16_777_216f;
+
+        /// <summary>⭐ <c>CE-1196</c> — how far toward the eye (m) the ground bias moves something <paramref name="atMetres"/> away, near clip
+        /// <paramref name="near"/>.</summary>
+        public static float GroundBiasMetresAt(float atMetres, float near) => GroundBiasSteps * DepthStepAt(atMetres, near);
+
         /// <summary>⭐ CE-1146 — the fog constant for <paramref name="a"/>: its visibility's, never thinner than one that fades fully by
         /// the far clip (so the world ends in haze, not at an edge); without a visibility, the camera-distance haze it always had.</summary>
         public float FogDensityFor(in SceneAtmosphere a)
