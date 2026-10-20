@@ -4,7 +4,7 @@ updated: 2026-10-13
 build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b wounded SPEED built 2026-10-14 (ui, CE-1082: WoundedSpeedFactor 0.6, DESIGN_Map_3D_Mode §6m); wounded AIM still open
 current-answer: §8 I-a as built · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
-known-rot: none
+known-rot: ⛔ 2026-10-20 (live, user) — §6 I4 "units stop shooting him" does NOT hold: TopThreat / AimAndFire / several posture nodes test CombatLife.IsAlive (Health > 0), not Injury.IsInTheFight, and a downed man's aim height stays standing — CE-2318. And a man down is still moved and turned by collision avoidance — CE-2321. · none
 known-conflict: none
 related-designs:
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
