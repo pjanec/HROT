@@ -1,3 +1,16 @@
+<!--STATUS
+state: SUPERSEDED (in part) 2026-10-20
+updated: 2026-10-20
+current-answer: the banner below. The installer part (scripts/cloud-bootstrap.sh, the Setup script) still holds; everything about the MCP SERVER (.mcp.json entry, enabledMcpjsonServers, connect timing) is history.
+stale-below: every MCP-server statement (TL;DR rows "MCP declaration" and "Auto-approve", the session-start timing).
+-->
+
+> ⛔ **`2026-10-20` — the codebase-memory MCP SERVER IS DISABLED; use the CLI only.** 🔒 User: *"pls disable codebase memory MCP server as
+> its use keep asking for permission blocking your autonomous operations; and update claude.md to always use CLI version only."*
+> ⇒ removed from `.mcp.json`, listed in `.claude/settings.json` `disabledMcpjsonServers`; every query goes through
+> **`scripts/cbm.sh <tool> '<json args>'`** (finds the binary, indexes the repo if needed, adds the project, passes args on stdin).
+> The installer below is still how the binary gets onto a cloud VM; the "connects on the next session" timing no longer applies.
+
 # codebase-memory-mcp in Anthropic-cloud (Claude Code on the web) sessions
 
 Goal: give cloud sessions the same `codebase-memory-mcp` graph tools you use in
