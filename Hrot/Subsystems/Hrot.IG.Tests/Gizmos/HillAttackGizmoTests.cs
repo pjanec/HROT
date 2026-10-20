@@ -96,6 +96,8 @@ namespace Hrot.IG.Tests.Gizmos
             // Expect exactly 2 DrawLine calls: one for fire line, one for baseline.
             Assert.True(draw.LineCalls.Count >= 2,
                 $"Expected at least 2 DrawLine calls, got {draw.LineCalls.Count}.");
+            // ⭐ CE-1203 (§5e FL-3) — the Squad & command row (cross-lane: behaviors' gizmo, its four draw calls)
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_repo, entity, d), DebugTraceLayers.SquadCommand);
         }
 
         [Fact]

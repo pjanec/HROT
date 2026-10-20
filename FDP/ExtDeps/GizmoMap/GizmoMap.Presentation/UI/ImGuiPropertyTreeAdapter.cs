@@ -218,7 +218,7 @@ namespace GizmoMap.Presentation
                     {
                         bool edited = false;
                         foreach (var child in doc!.Root.Children)
-                            edited |= DrawEditNode(child, item.IsReadOnly);
+                            edited |= DrawEditNode(child, item.IsReadOnly, openByDefault: true);
 
                         var stateKey = (item.NetworkId, item.GizmoTypeId);
                         bool isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
@@ -341,14 +341,19 @@ namespace GizmoMap.Presentation
         }
 
         // Recursively renders an EditNode and its children as an ImGui tree. ⭐ CE-1065 — true when a field was edited.
-        private static bool DrawEditNode(EditNode node, bool parentReadOnly)
+        // ⭐ CE-1203 (docs/DESIGN_Terrain_Combat_Tuning.md §5e FL-4/FL-5) — a node shows its [EditDisplayName] when it has one and its
+        //   [EditDoc] line on hover; the window's first-level groups open by default (the layer panel's five groups would otherwise
+        //   hide every row behind a click). Every widget's id is the node id, so two rows may share a label.
+        private static bool DrawEditNode(EditNode node, bool parentReadOnly, bool openByDefault = false)
         {
             bool edited = false;
             bool ro = parentReadOnly || node.IsReadOnly;
+            string label = LabelOf(node);
 
             if (node.Children.Count > 0)
             {
-                bool open = ImGui.TreeNode($"{node.Name}##{node.Id.Value}");
+                bool open = ImGui.TreeNodeEx($"{label}##{node.Id.Value}", openByDefault ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None);
+                Tooltip(node);
                 if (ro) { ImGui.SameLine(); ImGui.TextDisabled("(read-only)"); }
                 if (open)
                 {
@@ -363,12 +368,12 @@ namespace GizmoMap.Presentation
                 string valueText = TryGetBindingText(node) ?? $"<{node.Kind}>";
                 if (ro)
                 {
-                    ImGui.TextDisabled($"{node.Name}: {valueText}");
+                    ImGui.TextDisabled($"{label}: {valueText}");
                 }
                 else if (node.Binding != null && node.Binding.ValueType == typeof(bool))
                 {
                     bool val = node.Binding.GetBoxed() is bool b && b;
-                    if (ImGui.Checkbox(node.Name, ref val))
+                    if (ImGui.Checkbox($"{label}##{node.Id.Value}", ref val))
                     {
                         node.Binding.SetBoxed(val);
                         edited = true;
@@ -376,10 +381,28 @@ namespace GizmoMap.Presentation
                 }
                 else
                 {
-                    ImGui.Text($"{node.Name}: {valueText}");
+                    ImGui.Text($"{label}: {valueText}");
                 }
+                Tooltip(node);
             }
             return edited;
+        }
+
+        /// <summary>⭐ CE-1203 FL-5 — what the panel prints for <paramref name="node"/>: its <c>[EditDisplayName]</c>, else its name.</summary>
+        internal static string LabelOf(EditNode node) => node.Metadata.DisplayName ?? node.Name;
+
+        /// <summary>⭐ CE-1203 FL-5 — the one-line meaning a row shows on hover: its <c>[EditDoc]</c> summary, or null.</summary>
+        internal static string? DocOf(EditNode node)
+        {
+            foreach (var a in node.Metadata.CustomAttributes)
+                if (a is StructEdit.Core.Attributes.EditDocAttribute doc) return doc.Summary;
+            return null;
+        }
+
+        private static void Tooltip(EditNode node)
+        {
+            var doc = DocOf(node);
+            if (doc != null && ImGui.IsItemHovered()) ImGui.SetTooltip(doc);
         }
 
         private static string? TryGetBindingText(EditNode node)

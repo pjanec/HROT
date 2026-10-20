@@ -133,6 +133,8 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         Assert.Contains(texts, t => t.StartsWith("3M 0s"));
         Assert.Contains(texts, t => t.StartsWith("1S 60s"));
         Assert.Contains(texts, t => t.StartsWith("20MA "));
+        // ⭐ CE-1203 (§5e FL-3) — the Squad & command row
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new CommandPictureGizmo().Draw(_w, cmd, d), DebugTraceLayers.SquadCommand);
 
         float HalfAt(Vector3 c) => lines.Where(p => Vector3.Distance((p.LineStart + p.LineEnd) / 2, c) < 10f).Max(p => MathF.Max(MathF.Abs(p.LineStart.X - c.X), MathF.Abs(p.LineStart.Y - c.Y)));
         Assert.True(HalfAt(new Vector3(-60, 0, 0)) > HalfAt(new Vector3(50, 0, 0)) && HalfAt(new Vector3(50, 0, 0)) > HalfAt(new Vector3(0, 80, 0)), "platoon > team > individual");
@@ -173,6 +175,7 @@ public sealed class CommandDisplayGizmoTests : IDisposable
             return _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
         }
         Assert.Equal(new[] { CommandPictureAbsentGizmo.Text }, Texts(leader));
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new CommandPictureAbsentGizmo().Draw(_w, leader, d), DebugTraceLayers.SquadCommand);   // ⭐ CE-1203
         Assert.Empty(Texts(man));                                          // he commands nobody
         _w.AddComponent(leader, new CommandPicture());
         Assert.Empty(Texts(leader));                                       // the picture is here: CommandPictureGizmo draws it
@@ -214,14 +217,14 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         sector.ArcSet = 1; sector.LeftBearing = 0f; sector.RightBearing = 90f;
         _w.SetComponent(unit, sector);
 
-        var mask = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = false }.ToMask();
+        var mask = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Command = { Sectors = false } }.ToMask();
         Assert.True(mask.IsSet(0));
         _draw.SetActiveLayers(mask);
         new SectorAreasGizmo().Draw(_w, _draw);
         new SectorArcGizmo().Draw(_w, unit, _draw);
         Assert.Empty(_draw.GetFrame().ToArray());
 
-        _draw.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = true }.ToMask());
+        _draw.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Command = { Sectors = true } }.ToMask());
         new SectorAreasGizmo().Draw(_w, _draw);
         new SectorArcGizmo().Draw(_w, unit, _draw);
         Assert.NotEmpty(Lines(SectorAreasGizmo.ColourOf(9210)));

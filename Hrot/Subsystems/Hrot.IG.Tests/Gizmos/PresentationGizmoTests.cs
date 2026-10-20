@@ -112,6 +112,8 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.All(picked.LineCalls, l => { Assert.Equal(RouteGizmo.SelectedColor, l.Color); Assert.Equal(RouteGizmo.SelectedLinePixels, l.Thickness); });
             Assert.All(picked.SphereCalls, c => { Assert.Equal(RouteGizmo.SelectedColor, c.Color); Assert.Equal(RouteGizmo.SelectedWaypointPixels, c.Radius); });
             Assert.Equal(3, picked.SphereCalls.Count);
+            // ⭐ CE-1203 (§5e FL-3) — the Routes row
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_repo, entity, d), DebugTraceLayers.Routes);
         }
 
         // SC_GZ058_4: DrawSpatialAnchor via DebugPrimitiveBuffer emits correct primitive.
@@ -167,6 +169,8 @@ namespace Hrot.IG.Tests.Gizmos
 
             // 3 points, not closed → 2 segments.
             Assert.Equal(2, draw.LineCalls.Count);
+            // ⭐ CE-1203 (§5e FL-3) — the Tactical graphics row
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_repo, entity, d), DebugTraceLayers.TacticalGraphics);
         }
 
         // CE-3014: a closed area with a visible fill colour is FILLED (it carried the colour and was never drawn).
@@ -489,6 +493,7 @@ namespace Hrot.IG.Tests.Gizmos
             // 670 + (-53) = 617 ; 473.5 + (-88.5) = 385
             Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
             Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new TacticalAreaGizmo().Draw(_repo, entity, d), DebugTraceLayers.TacticalGraphics);   // ⭐ CE-1203
         }
 
         // SC-GZ058-8c: picking follows the drawing — EmitPickSegments must use the same origin, or a
@@ -504,6 +509,16 @@ namespace Hrot.IG.Tests.Gizmos
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
 
+
+            // ⭐ CE-1203 (CE-1160) — with "Tactical graphics" unticked the outline is gone but the area is still clickable: its pick
+            //   segments stay on layer 0 and are never refused by a toggle.
+            var hidden = new DebugPrimitiveBuffer(64);
+            var mask = new LayerMask256();
+            for (int i = 0; i < 256; i++) if (i != DebugTraceLayers.TacticalGraphics) mask.SetBit(i);
+            hidden.SetActiveLayers(mask);
+            new TacticalAreaGizmo().Draw(_repo, entity, hidden);
+            Assert.DoesNotContain(hidden.GetFrame().ToArray(), Fdp.TestShared.GizmoLayerProbe.IsDrawing);
+            Assert.Equal(777L, GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(hidden.GetFrame(), new Vector2(667f, 385f), zoom: 1f));
             Assert.NotNull(hit);
             Assert.Equal(777L, hit!.Value);
         }
@@ -595,6 +610,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             Assert.Equal(3, draw.LineCalls.Count);
             Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new TerrainZoneGizmo().Draw(_repo, zone, d), DebugTraceLayers.TerrainZones);   // ⭐ CE-1203
         }
 
         /// <summary>⛔ A FAILED load must be loud, not a subtle dash — §8.3 N3, two outcomes only.</summary>

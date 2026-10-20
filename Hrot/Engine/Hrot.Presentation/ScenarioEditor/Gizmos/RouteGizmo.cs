@@ -31,6 +31,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Routes)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             if (!view.HasComponent<TkbIdentity>(entity)) return;
 
             ref readonly var tkb = ref view.GetComponentRO<TkbIdentity>(entity);
@@ -50,9 +51,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             int segCount = plan.IsLoop ? n : n - 1;
 
             for (int i = 0; i < segCount; i++)
-                draw.DrawLine(PointOf(view, plan.Waypoints[i]), PointOf(view, plan.Waypoints[(i + 1) % n]), color, line, SizeMode.ScreenPixels);
+                draw.DrawLine(PointOf(view, plan.Waypoints[i]), PointOf(view, plan.Waypoints[(i + 1) % n]), color, line, SizeMode.ScreenPixels, layer: DebugTraceLayers.Routes);
             for (int i = 0; i < n; i++)
-                draw.DrawSphere(PointOf(view, plan.Waypoints[i]), dot, color, sizeMode: SizeMode.ScreenPixels, fillColor: color);
+                draw.DrawSphere(PointOf(view, plan.Waypoints[i]), dot, color, sizeMode: SizeMode.ScreenPixels, fillColor: color, layer: DebugTraceLayers.Routes);
         }
 
         private static bool IsSelected(ISimulationView view, Entity entity)

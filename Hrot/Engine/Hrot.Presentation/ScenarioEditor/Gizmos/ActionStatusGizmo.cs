@@ -23,6 +23,7 @@ public sealed class ActionStatusGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Actions)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         ref readonly var s = ref view.GetComponentRO<ActionStatus>(entity);
         // sim time for the staleness check; a view that cannot say (not a repository) draws every row
@@ -53,7 +54,7 @@ public sealed class ActionStatusGizmo : IStatelessGizmo
         var text = Text(channel, in row, now);
         if (text == null) return;
         draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32(text), ActionStatusOf.IsHold(row.Reason) ? Hold : Busy,
-            fontSizePx: 11f, lineOffsetPx: -14f - line);
+            fontSizePx: 11f, lineOffsetPx: -14f - line, layer: DebugTraceLayers.Actions);
         line += 13f;
     }
 }

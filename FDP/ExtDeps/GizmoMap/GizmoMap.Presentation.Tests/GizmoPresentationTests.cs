@@ -273,6 +273,27 @@ namespace GizmoMap.Presentation.Tests
         }
     }
 
+    // ⭐ CE-1203 (docs/DESIGN_Terrain_Combat_Tuning.md §5e FL-5) — a row prints its [EditDisplayName] (else its name) and shows its
+    // [EditDoc] line on hover; a row without one shows no tooltip.
+    public class CE1203_RowLabelAndMeaningTests
+    {
+        [Fact]
+        public void ARow_PrintsItsDisplayName_AndHoversItsDoc()
+        {
+            var meta = new StructEdit.Core.EditNodeMetadata
+            {
+                DisplayName = "Vision cones",
+                CustomAttributes = new System.Attribute[] { new StructEdit.Core.Attributes.EditDocAttribute("What each unit can see.") },
+            };
+            var named = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(1), "VisionCones", "$.Ai.VisionCones", default, typeof(bool), metadata: meta);
+            var plain = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(2), "Doors", "$.Map.Doors", default, typeof(bool));
+            Assert.Equal("Vision cones", ImGuiPropertyTreeAdapter.LabelOf(named));
+            Assert.Equal("What each unit can see.", ImGuiPropertyTreeAdapter.DocOf(named));
+            Assert.Equal("Doors", ImGuiPropertyTreeAdapter.LabelOf(plain));
+            Assert.Null(ImGuiPropertyTreeAdapter.DocOf(plain));
+        }
+    }
+
     // ---- GZ068: ImGui window stable ID tests --------------------------------
 
     public class ImGuiWindowStableIdTests

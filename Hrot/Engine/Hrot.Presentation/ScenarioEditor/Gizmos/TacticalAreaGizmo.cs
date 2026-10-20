@@ -51,7 +51,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ E1 — through the SHARED outline helper, so this loop exists once. BP-517 lived in a copy
             //   of it, and TerrainZoneGizmo draws the same geometry with a state-driven stroke.
             EntityPresentationGizmoShared.DrawClosedPolylineOutline(
-                draw, polyline.Points, origin, AreaColor, z: level);
+                draw, polyline.Points, origin, AreaColor, z: level, layer: DebugTraceLayers.TacticalGraphics);
 
             // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
             //   right-click). ⚠ The SAME origin the drawing used, or a click on the drawn outline

@@ -529,7 +529,7 @@ namespace Hrot.ScenarioEditor.Map
             if (registry is null) throw new ArgumentNullException(nameof(registry));
             var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
             using var session = editService.Open(
-                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Units = { Entities = true }, Ai = { VisionCones = true, AiHelpers = true } },
                 typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
             registry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, session.Document);
         }

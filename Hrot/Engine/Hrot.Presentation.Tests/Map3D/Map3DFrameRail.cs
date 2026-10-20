@@ -260,7 +260,7 @@ public sealed class Map3DFrameRail
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();
             world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-            buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = true }.ToMask());
+            buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Command = { Sectors = true } }.ToMask());
             var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(30, buffer, new Fdp.Core.FdpEventBus())   // < 32: the canvas hides higher bits
             {
                 CurrentCamera = () => canvas.Camera,
@@ -1209,7 +1209,7 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
 
         // ② "Terrain (2-D)" unticked: the city goes, the gizmo stays
-        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Terrain2D = false }.ToMask());
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Terrain2D = false } }.ToMask());
         frame.StepN(2, canvas.Draw);
         string off = Path.Combine(shots, "terrain2d-2-off.png");
         frame.Screenshot(off);

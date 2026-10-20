@@ -40,6 +40,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Actions)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             var m = UnitMemory.GetInView<FiringPositionMemory>(view, entity);
             if (m.Count == 0 && m.PhaseAt == 0d) return;   // never ran PeekAndFire
             double now = view is EntityRepository repo && repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : m.PhaseAt;
@@ -49,26 +50,26 @@ namespace Hrot.ScenarioEditor.Gizmos
                 float heat = PositionHeat.HeatNow(ref m, i, now, HeatRules.Default.CoolHalfLifeSeconds);
                 bool burned = m.Burned[i] != 0;
                 var at = new Vector3(m.X[i], m.Y[i], m.Z[i]);
-                draw.DrawSphere(at, 0.6f, burned ? Burned : Mix(heat / HotHeat), thickness: 2f);
-                draw.DrawText(at.X, at.Y, new FixedString32(SlotText(heat, m.Uses[i])), burned ? Burned : Cool, fontSizePx: 10f, lineOffsetPx: 12f);
+                draw.DrawSphere(at, 0.6f, burned ? Burned : Mix(heat / HotHeat), thickness: 2f, layer: DebugTraceLayers.Actions);
+                draw.DrawText(at.X, at.Y, new FixedString32(SlotText(heat, m.Uses[i])), burned ? Burned : Cool, fontSizePx: 10f, lineOffsetPx: 12f, layer: DebugTraceLayers.Actions);
             }
 
             var text = PhaseText(in m, now);
             if (text == null) return;
             var unit = view.GetComponentRO<SimTransform>(entity).Position;
-            draw.DrawText(unit.X, unit.Y, new FixedString32(text), Phase, fontSizePx: 11f, lineOffsetPx: -40f);
-            draw.DrawSphere(m.HidePoint, 0.35f, Hide, thickness: 2f);
+            draw.DrawText(unit.X, unit.Y, new FixedString32(text), Phase, fontSizePx: 11f, lineOffsetPx: -40f, layer: DebugTraceLayers.Actions);
+            draw.DrawSphere(m.HidePoint, 0.35f, Hide, thickness: 2f, layer: DebugTraceLayers.Actions);
             // ⭐ CE-3158 G5 (§10.7 "seen") — the unit's live CoverClaim: an owner line from him to the point he holds, so who keeps
             //   squad-mates off which cover is visible on the map
             if (view is EntityRepository world && world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(entity))
             {
                 ref readonly var claim = ref world.GetComponentRO<CoverClaim>(entity);
-                if (claim.Until > now) draw.DrawLine(unit, claim.Hide, Claim, thickness: 1f);
+                if (claim.Until > now) draw.DrawLine(unit, claim.Hide, Claim, thickness: 1f, layer: DebugTraceLayers.Actions);
             }
             if (Vector3.Distance(m.PeekPoint, m.HidePoint) > 0.25f)
             {
-                draw.DrawSphere(m.PeekPoint, 0.35f, Peek, thickness: 2f);
-                draw.DrawLine(m.HidePoint, m.PeekPoint, Peek, thickness: 1.5f);
+                draw.DrawSphere(m.PeekPoint, 0.35f, Peek, thickness: 2f, layer: DebugTraceLayers.Actions);
+                draw.DrawLine(m.HidePoint, m.PeekPoint, Peek, thickness: 1.5f, layer: DebugTraceLayers.Actions);
             }
         }
 

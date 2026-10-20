@@ -1066,6 +1066,8 @@ public sealed class EffectTests
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, tracer, buffer);
         Assert.Equal(2, buffer.GetFrame().ToArray().Length);                                   // the streak + its glow
+        // ⭐ CE-1203 (§5e FL-3) — the Rounds row
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, tracer, d), Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Rounds);
         buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         new Hrot.ScenarioEditor.Gizmos.LightweightRoundGizmo().Draw(world, muscleRound, buffer);
         Assert.Empty(buffer.GetFrame().ToArray());                                             // the combat projector draws that one
@@ -1092,9 +1094,18 @@ public sealed class EffectTests
         gizmo.Draw(world, lying, buffer);
         var frame = buffer.GetFrame().ToArray();
         Assert.Equal(3, frame.Length);                                           // streak + marker + fuze text
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(world, lying, d), Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Rounds);   // ⭐ CE-1203
         Assert.Contains(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere);
         Assert.Contains(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text);
         Assert.Equal("3 s", Hrot.ScenarioEditor.Gizmos.ProjectilePresentationGizmo.FuzeLabel(2.74f));   // a countdown rounds up
+        // ⭐ CE-1203 (§5e FL-7) — the streak and the marker are 2-D symbols of a round the 3-D map draws itself: never in 3-D (the 3-D
+        //   triage culls FlatOnly); the countdown is no symbol of anything 3-D draws, so it stays in both.
+        //   🔴 Red-proof: before FL-7 the marker targeted All and was draped on the ground under the 3-D grenade.
+        foreach (var p in frame)
+        {
+            bool flat = (p.TargetView & Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.FlatOnly) != 0;
+            Assert.Equal(p.Shape != Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text, flat);
+        }
     }
 
     /// <summary>⭐ W1 (VE-Q) — ONE generic timer: <see cref="Lifespan"/> on sim time; a jump BACK to before an entity was made removes

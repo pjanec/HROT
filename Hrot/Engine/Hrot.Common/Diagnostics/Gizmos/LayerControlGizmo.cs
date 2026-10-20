@@ -8,6 +8,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.UI;
 using Hrot.Common.Constants;
 using StructEdit.Core;
+using StructEdit.Core.Attributes;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
@@ -26,90 +27,56 @@ namespace Hrot.Common.Diagnostics.Gizmos
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
-    //   scene, especially in the 3d map. I would like to turn most of them off by default". OFF by default now: AiHelpers (a nav
-    //   arrow per moving unit, danger areas), FireTraces, Blast, Hearing (a ring per moving unit — a wire sphere in 3-D), and the
-    //   two new layers UnitDetails and SpatialGrid. Each is still one checkbox away.
+    //   scene, especially in the 3d map. I would like to turn most of them off by default". OFF by default: AI helpers, Fire traces,
+    //   Blast, Hearing, Unit details, Spatial grid. Each is still one checkbox away.
+    // ⭐⭐ CE-1203 (§5e, R-1011) — one checkbox per KIND of drawing (FL-1), the new ones ON = what was drawn before (FL-2), in five
+    //   nested groups the panel draws as tree nodes (FL-4), each row with a display name and a hover line (FL-5: [EditDisplayName],
+    //   [EditDoc] — StructEdit's own field documentation). A family's "selected only" tick sits right under its row.
+    //   ⛔ SUPERSEDED: one flat list of rows; "Perception" (bit 1) is now Ai.VisionCones, its contact lines Ai.Contacts (bit 25).
     public class LayerControlDto
     {
-        public bool Entities { get; set; } = true;
-        public bool Perception { get; set; } = true;
-        public bool AiHelpers { get; set; }
-        /// <summary>⭐ Tuning T-5 — the fire traces (FireTraceGizmo, layer 3).</summary>
-        public bool FireTraces { get; set; }
-        /// <summary>⭐ <c>CE-3117</c> — door leaves by state (DoorLeafGizmo, layer 4).</summary>
-        public bool Doors { get; set; } = true;
-        /// <summary>⭐ <c>CE-3117</c> — the selected mover's planned path and look-ahead (PlannedPathGizmo, layer 5).</summary>
-        public bool Paths { get; set; } = true;
-        /// <summary>⭐ <c>CE-3117</c> — bursts: radii and fragment rays (DetonationGizmo, layer 6).</summary>
-        public bool Blast { get; set; }
-        /// <summary>⭐ <c>CE-3117</c> — sound rings and heard estimates (HearingGizmo, layer 7).</summary>
-        public bool Hearing { get; set; }
-        /// <summary>⭐ <c>CE-3124</c> — the loaded terrain's road network (RoadNetworkGizmo, layer 8).</summary>
-        public bool Roads { get; set; } = true;
-        /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — cover points and window firing positions (CoverPointsGizmo, layer 9). Off by
-        /// default: a town holds hundreds of points.</summary>
-        public bool Cover { get; set; }
-        /// <summary>⭐ <c>CE-3133</c> — the baked navmesh (NavmeshGizmo, layer 10). Off by default: it draws the whole layer.</summary>
-        public bool Navmesh { get; set; }
-        /// <summary>⭐ <c>CE-3133</c> — which navmesh the Navmesh layer draws (R-233: Infantry by default). Kept in the settings registry
-        /// (<see cref="NavmeshLayerSetting"/>), read and written with the family scopes.</summary>
-        public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
-        /// <summary>⭐ CE-1033 S5b — the entity cards (frame, name, health bar; layer 11). U19: "switchable on/off (layer for labels)".</summary>
-        public bool Labels { get; set; } = true;
-        /// <summary>⭐ CE-1065 — heading arrows with their degrees and stance labels on every unit (layer 12). Off by default.</summary>
-        public bool UnitDetails { get; set; }
-        /// <summary>⭐ CE-1065 — the spatial hash grid (layer 13). Off by default.</summary>
-        public bool SpatialGrid { get; set; }
-        /// <summary>⭐ <c>CE-1225</c> — every sector: the units' sector areas, the NoFire areas and the commanders' arcs (layer 14;
-        /// docs/DESIGN_Command_Display.md §8). Off by default.</summary>
-        public bool Sectors { get; set; }
-        /// <summary>⭐ <c>CE-1227</c> — the 2-D map's terrain: ground cover, buildings, walls and their labels (layer 15;
-        /// docs/DESIGN_Terrain_World.md §10). On by default.</summary>
-        public bool Terrain2D { get; set; } = true;
+        [EditDisplayName("Units"), EditDoc("The units themselves: symbols, cards, unit details, rounds in flight.")]
+        public UnitLayerGroup Units { get; set; } = new();
+        [EditDisplayName("Command"), EditDoc("Who commands whom, and where units are told to go.")]
+        public CommandLayerGroup Command { get; set; } = new();
+        [EditDisplayName("AI"), EditDoc("What the AI sees, thinks and is doing.")]
+        public AiLayerGroup Ai { get; set; } = new();
+        [EditDisplayName("Fire"), EditDoc("Shots, bursts and sounds.")]
+        public FireLayerGroup Fire { get; set; } = new();
+        [EditDisplayName("Map"), EditDoc("The terrain and what is drawn on it.")]
+        public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 16;
-
-        // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
-        //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
-        //   Defaults are GizmoFamilies.DefaultScope's. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5b.
-        public bool PathSelectedOnly { get; set; } = true;
-        public bool PerceptionSelectedOnly { get; set; } = true;   // ⭐ CE-1065 — vision cones: selected and pinned by default
-        public bool ContactsSelectedOnly { get; set; } = true;     // ⭐ CE-1065 — contact lines: selected and pinned by default
-        public bool EqsSelectedOnly { get; set; } = true;   // ⭐ CE-3143 — EQS draws every candidate's verdict: selected by default
-        public bool UtilitySelectedOnly { get; set; } = true;
-        public bool SquadSelectedOnly { get; set; } = true;
-        /// <summary>⭐ <c>CE-3136</c> — the action status (why a unit is not firing): selected and pinned units by default.</summary>
-        public bool ActionsSelectedOnly { get; set; } = true;
+        public const int FirstUntoggledLayer = 26;
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
         {
             GizmoFamilies.Register(settings);
-            PathSelectedOnly       = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
-            PerceptionSelectedOnly = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception);
-            ContactsSelectedOnly   = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory);
-            EqsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
-            UtilitySelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
-            SquadSelectedOnly      = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
-            ActionsSelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels);
+            Command.PathsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
+            Ai.VisionConesSelectedOnly       = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception);
+            Ai.ContactsSelectedOnly          = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory);
+            Ai.EqsSelectedOnly               = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
+            Ai.UtilitySelectedOnly           = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
+            Command.SquadCommandSelectedOnly = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
+            Ai.ActionsSelectedOnly           = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels);
             NavmeshLayerSetting.Register(settings);
-            NavmeshLayers          = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
+            Map.NavmeshLayers                = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
         }
 
         /// <summary>⭐ <c>CE-3120</c> — writes the families' scopes into <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void WriteScopes(GizmoSettingsRegistry settings)
         {
             GizmoFamilies.Register(settings);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path,            PathSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception,      PerceptionSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory,    ContactsSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             EqsSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, UtilitySelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, SquadSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels,        ActionsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path,            Command.PathsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception,      Ai.VisionConesSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory,    Ai.ContactsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             Ai.EqsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, Ai.UtilitySelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, Command.SquadCommandSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels,        Ai.ActionsSelectedOnly);
             NavmeshLayerSetting.Register(settings);
-            if (NavmeshLayerSetting.Of(settings) != NavmeshLayers) NavmeshLayerSetting.Set(settings, NavmeshLayers);   // ⭐ CE-3133
+            if (NavmeshLayerSetting.Of(settings) != Map.NavmeshLayers) NavmeshLayerSetting.Set(settings, Map.NavmeshLayers);   // ⭐ CE-3133
         }
 
         private static bool Selected(GizmoSettingsRegistry s, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags f) =>
@@ -125,25 +92,133 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public LayerMask256 ToMask()
         {
             var mask = new LayerMask256();
-            if (Entities) mask.SetBit(0);
-            if (Perception) mask.SetBit(1);
-            if (AiHelpers) mask.SetBit(2);
-            if (FireTraces) mask.SetBit(3);
-            if (Doors) mask.SetBit(DebugTraceLayers.Doors);
-            if (Paths) mask.SetBit(DebugTraceLayers.Paths);
-            if (Blast) mask.SetBit(DebugTraceLayers.Blast);
-            if (Hearing) mask.SetBit(DebugTraceLayers.Hearing);
-            if (Roads) mask.SetBit(DebugTraceLayers.Roads);
-            if (Cover) mask.SetBit(DebugTraceLayers.Cover);
-            if (Navmesh) mask.SetBit(DebugTraceLayers.Navmesh);
-            if (Labels) mask.SetBit(DebugTraceLayers.Labels);
-            if (UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
-            if (SpatialGrid) mask.SetBit(DebugTraceLayers.SpatialGrid);
-            if (Sectors) mask.SetBit(DebugTraceLayers.Sectors);
-            if (Terrain2D) mask.SetBit(DebugTraceLayers.Terrain2D);
+            if (Units.Entities) mask.SetBit(0);
+            if (Units.Labels) mask.SetBit(DebugTraceLayers.Labels);
+            if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
+            if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
+            if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
+            if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
+            if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
+            if (Command.Routes) mask.SetBit(DebugTraceLayers.Routes);
+            if (Ai.VisionCones) mask.SetBit(1);
+            if (Ai.Contacts) mask.SetBit(DebugTraceLayers.Contacts);
+            if (Ai.Actions) mask.SetBit(DebugTraceLayers.Actions);
+            if (Ai.Utility) mask.SetBit(DebugTraceLayers.Utility);
+            if (Ai.Eqs) mask.SetBit(DebugTraceLayers.Eqs);
+            if (Ai.AiHelpers) mask.SetBit(2);
+            if (Fire.FireTraces) mask.SetBit(3);
+            if (Fire.Blast) mask.SetBit(DebugTraceLayers.Blast);
+            if (Fire.Hearing) mask.SetBit(DebugTraceLayers.Hearing);
+            if (Map.Terrain2D) mask.SetBit(DebugTraceLayers.Terrain2D);
+            if (Map.TerrainZones) mask.SetBit(DebugTraceLayers.TerrainZones);
+            if (Map.Roads) mask.SetBit(DebugTraceLayers.Roads);
+            if (Map.Traffic) mask.SetBit(DebugTraceLayers.Traffic);
+            if (Map.TacticalGraphics) mask.SetBit(DebugTraceLayers.TacticalGraphics);
+            if (Map.Doors) mask.SetBit(DebugTraceLayers.Doors);
+            if (Map.Cover) mask.SetBit(DebugTraceLayers.Cover);
+            if (Map.Navmesh) mask.SetBit(DebugTraceLayers.Navmesh);
+            if (Map.SpatialGrid) mask.SetBit(DebugTraceLayers.SpatialGrid);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }
+    }
+
+    // ⭐ CE-1203 FL-4 — the five groups. A family's scope ("selected only": draw for the selected and pinned units only, unticked = for
+    //   every unit; CE-3120, written to the registry as map.scope.<Family>) sits under its row. Defaults are GizmoFamilies.DefaultScope's.
+
+    /// <summary>⭐ CE-1203 — the Units group.</summary>
+    public class UnitLayerGroup
+    {
+        [EditDisplayName("Entities"), EditDoc("Unit symbols and silhouettes (and what you click to select them).")]
+        public bool Entities { get; set; } = true;
+        [EditDisplayName("Labels"), EditDoc("The unit cards: frame, name, health bar (CE-1033).")]
+        public bool Labels { get; set; } = true;
+        [EditDisplayName("Unit details"), EditDoc("Heading arrows with their degrees and stance labels on every unit (CE-1065).")]
+        public bool UnitDetails { get; set; }
+        [EditDisplayName("Rounds"), EditDoc("Rounds and grenades in flight or lying on the ground.")]
+        public bool Rounds { get; set; } = true;
+    }
+
+    /// <summary>⭐ CE-1203 — the Command group.</summary>
+    public class CommandLayerGroup
+    {
+        [EditDisplayName("Squad & command"), EditDoc("Leader-to-member lines, the squad's phase and shared contacts; a commander's reported picture.")]
+        public bool SquadCommand { get; set; } = true;
+        [EditDisplayName("Squad & command: selected only"), EditDoc("Squad & command for the selected and pinned units only; unticked = every unit.")]
+        public bool SquadCommandSelectedOnly { get; set; } = true;
+        [EditDisplayName("Sectors"), EditDoc("Units' sector areas, NoFire areas and the commanders' arcs (CE-1225).")]
+        public bool Sectors { get; set; }
+        [EditDisplayName("Paths"), EditDoc("The planned path and look-ahead, and the lines to a unit's mission tasks.")]
+        public bool Paths { get; set; } = true;
+        [EditDisplayName("Paths: selected only"), EditDoc("Paths for the selected and pinned units only; unticked = every unit.")]
+        public bool PathsSelectedOnly { get; set; } = true;
+        [EditDisplayName("Routes"), EditDoc("Route entities: waypoints joined by lines.")]
+        public bool Routes { get; set; } = true;
+    }
+
+    /// <summary>⭐ CE-1203 — the AI group.</summary>
+    public class AiLayerGroup
+    {
+        [EditDisplayName("Vision cones"), EditDoc("What each unit can see: its view cone.")]
+        public bool VisionCones { get; set; } = true;
+        [EditDisplayName("Vision cones: selected only"), EditDoc("Vision cones for the selected and pinned units only; unticked = every unit.")]
+        public bool VisionConesSelectedOnly { get; set; } = true;
+        [EditDisplayName("Contacts"), EditDoc("Lines to the enemies a unit remembers; a heard one is dashed, with its uncertainty ring.")]
+        public bool Contacts { get; set; } = true;
+        [EditDisplayName("Contacts: selected only"), EditDoc("Contacts for the selected and pinned units only; unticked = every unit.")]
+        public bool ContactsSelectedOnly { get; set; } = true;
+        [EditDisplayName("Actions"), EditDoc("What a unit is busy doing (e.g. 'W aiming 0.4/0.8s'), and its peek-and-fire slots and phase.")]
+        public bool Actions { get; set; } = true;
+        [EditDisplayName("Actions: selected only"), EditDoc("Actions for the selected and pinned units only; unticked = every unit.")]
+        public bool ActionsSelectedOnly { get; set; } = true;
+        [EditDisplayName("Utility"), EditDoc("Each utility decision's winner and its margin over the runner-up.")]
+        public bool Utility { get; set; } = true;
+        [EditDisplayName("Utility: selected only"), EditDoc("Utility for the selected and pinned units only; unticked = every unit.")]
+        public bool UtilitySelectedOnly { get; set; } = true;
+        [EditDisplayName("EQS"), EditDoc("Position queries: the search radius, the scored candidates, green kept / red rejected.")]
+        public bool Eqs { get; set; } = true;
+        [EditDisplayName("EQS: selected only"), EditDoc("EQS for the selected and pinned units only; unticked = every unit.")]
+        public bool EqsSelectedOnly { get; set; } = true;
+        [EditDisplayName("AI helpers"), EditDoc("The navigation arrow of each moving unit and the danger areas.")]
+        public bool AiHelpers { get; set; }
+    }
+
+    /// <summary>⭐ CE-1203 — the Fire group.</summary>
+    public class FireLayerGroup
+    {
+        [EditDisplayName("Fire traces"), EditDoc("Each shot from muzzle to impact, coloured by its outcome (Tuning T-5).")]
+        public bool FireTraces { get; set; }
+        [EditDisplayName("Blast"), EditDoc("Bursts: their radii and fragment rays.")]
+        public bool Blast { get; set; }
+        [EditDisplayName("Hearing"), EditDoc("Sound rings and where a unit estimates a heard sound came from.")]
+        public bool Hearing { get; set; }
+    }
+
+    /// <summary>⭐ CE-1203 — the Map group.</summary>
+    public class MapLayerGroup
+    {
+        [EditDisplayName("Terrain (2-D)"), EditDoc("The 2-D map's ground cover, buildings, walls and their labels (CE-1227).")]
+        public bool Terrain2D { get; set; } = true;
+        [EditDisplayName("Terrain zones"), EditDoc("The terrain zones and whether each is loaded.")]
+        public bool TerrainZones { get; set; } = true;
+        [EditDisplayName("Roads"), EditDoc("The loaded terrain's road network.")]
+        public bool Roads { get; set; } = true;
+        [EditDisplayName("Traffic"), EditDoc("SUMO traffic: lanes, lights, pedestrians and cars that are not entities.")]
+        public bool Traffic { get; set; } = true;
+        [EditDisplayName("Tactical graphics"), EditDoc("Tactical-graphic areas and drawn overlay lines.")]
+        public bool TacticalGraphics { get; set; } = true;
+        [EditDisplayName("Doors"), EditDoc("Door leaves, coloured by state.")]
+        public bool Doors { get; set; } = true;
+        [EditDisplayName("Cover"), EditDoc("Cover points and window firing positions (a town holds hundreds).")]
+        public bool Cover { get; set; }
+        [EditDisplayName("Navmesh"), EditDoc("The baked navmesh (the whole layer).")]
+        public bool Navmesh { get; set; }
+        /// <summary>⭐ <c>CE-3133</c> — which navmesh the Navmesh layer draws (R-233: Infantry by default). Kept in the settings registry
+        /// (<see cref="NavmeshLayerSetting"/>), read and written with the family scopes.</summary>
+        [EditDisplayName("Navmesh: which layer"), EditDoc("Which navmesh the Navmesh row draws (Infantry by default).")]
+        public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
+        [EditDisplayName("Spatial grid"), EditDoc("The spatial hash grid.")]
+        public bool SpatialGrid { get; set; }
     }
 
     // Stateful backend gizmo that owns layer visibility state for the tactical map.

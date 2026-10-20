@@ -67,7 +67,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             var (color, style) = ResolveStroke(view, entity, origin3, polyline);
 
             EntityPresentationGizmoShared.DrawClosedPolylineOutline(
-                draw, polyline.Points, origin, color, thickness: 1.5f, style: style);
+                draw, polyline.Points, origin, color, thickness: 1.5f, style: style, layer: DebugTraceLayers.TerrainZones);
 
             // ⭐ The SAME origin the drawing used, or a click on the drawn outline misses by exactly the
             //   transform (the other half of BP-517).

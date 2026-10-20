@@ -794,6 +794,14 @@ namespace Hrot.SimHost.Tests
             Assert.StartsWith("PF hidden 1.", PeekAndFireGizmo.PhaseText(in m, d.Time));
             Assert.Null(PeekAndFireGizmo.PhaseText(in m, d.Time + 5d));
             Assert.Equal("h1.7 x3", PeekAndFireGizmo.SlotText(1.66f, 3));
+            // ⭐ CE-1203 (§5e FL-3) — the Actions row: the peek-and-fire slots and phase are on their own layer (the gizmo is keyed on
+            //   SimTransform, which this duel's unit lacks — give it one where it stands)
+            if (!d.Repo.HasComponent<SimTransform>(d.Self))
+            {
+                if (!d.Repo.IsComponentTypeRegistered<SimTransform>()) d.Repo.RegisterComponent<SimTransform>();
+                d.Repo.AddComponent(d.Self, new SimTransform());
+            }
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(dr => new PeekAndFireGizmo().Draw(d.Repo, d.Self, dr), Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Actions);
         }
             // ── CE-3158 G1 — the peek is chosen from the POINT (📄 docs/DESIGN_Peek_And_Fire.md §10.5) ─────────────────────────────
 

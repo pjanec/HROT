@@ -33,11 +33,12 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<UnitSubordinate>()) return;
         if (repo.IsComponentTypeRegistered<CommandPicture>() && repo.HasComponent<CommandPicture>(entity)) return;
         if (!IsCommander(repo, entity)) return;
         var at = view.GetComponentRO<SimTransform>(entity).Position;
-        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f);
+        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f, layer: DebugTraceLayers.SquadCommand);
     }
 
     /// <summary>True when some unit names <paramref name="unit"/> as its commander.</summary>
@@ -61,6 +62,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         ref readonly var pic = ref view.GetComponentRO<CommandPicture>(entity);
         float now = CommandPictureOps.Now(view);
@@ -72,7 +74,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
             var colour = WithAlpha(ElementColour, Alpha(age));
             Diamond(draw, e.At, HalfSize(e.Size), colour);
             draw.DrawText(e.At.X, e.At.Y, new FixedString32($"{e.Count}{Flags(e.Equipment)} {age:0}s{(e.Synthetic != 0 ? " SYN" : "")}"), colour,
-                fontSizePx: 10f, lineOffsetPx: 14f);
+                fontSizePx: 10f, lineOffsetPx: 14f, layer: DebugTraceLayers.SquadCommand);
         }
 
         if (view is EntityRepository repo)
@@ -82,14 +84,14 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
                 var sub = NetworkIdResolver.ResolveNetworkId(repo, row.UnitNetId);
                 if (sub.IsNull || !repo.IsAlive(sub) || !repo.HasComponent<SimTransform>(sub)) continue;
                 var s = repo.GetComponentRO<SimTransform>(sub).Position;
-                draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed);
-                draw.DrawText(s.X, s.Y, new FixedString32(row.Progress.ToString()), SubordinateColour, fontSizePx: 10f, lineOffsetPx: -14f);
+                draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed, layer: DebugTraceLayers.SquadCommand);
+                draw.DrawText(s.X, s.Y, new FixedString32(row.Progress.ToString()), SubordinateColour, fontSizePx: 10f, lineOffsetPx: -14f, layer: DebugTraceLayers.SquadCommand);
             }
 
         for (int i = 0; i < pic.Requests.Count && i < CommandPicture.MaxRequests; i++)
         {
             ref readonly var r = ref pic.Requests.Items[i];
-            draw.DrawText(r.At.X, r.At.Y, new FixedString32($"? {r.Kind}"), RequestColour, fontSizePx: 12f);
+            draw.DrawText(r.At.X, r.At.Y, new FixedString32($"? {r.Kind}"), RequestColour, fontSizePx: 12f, layer: DebugTraceLayers.SquadCommand);
         }
     }
 
@@ -116,7 +118,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
     private static void Diamond(IDebugDrawBuilder draw, Vector3 c, float h, Rgba32 colour)
     {
         var n = c + new Vector3(0, h, 0); var e = c + new Vector3(h, 0, 0); var s = c + new Vector3(0, -h, 0); var w = c + new Vector3(-h, 0, 0);
-        draw.DrawLine(n, e, colour, 2f); draw.DrawLine(e, s, colour, 2f); draw.DrawLine(s, w, colour, 2f); draw.DrawLine(w, n, colour, 2f);
+        draw.DrawLine(n, e, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(e, s, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(s, w, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(w, n, colour, 2f, layer: DebugTraceLayers.SquadCommand);
     }
 }
 

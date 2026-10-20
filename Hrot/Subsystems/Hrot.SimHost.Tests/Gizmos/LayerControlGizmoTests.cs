@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         [Fact]
         public void CE1160_EveryLayerToggleOff_TheSelectionRing_IsStillEmittedAndKept()
         {
-            var dto = new LayerControlDto { Entities = false, Perception = false, Doors = false, Paths = false, Roads = false, Labels = false };
+            var dto = new LayerControlDto { Units = { Entities = false, Labels = false }, Command = { Paths = false }, Ai = { VisionCones = false }, Map = { Doors = false, Roads = false } };
             var mask = dto.ToMask();
             Assert.False(mask.IsSet(0));
             Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer);
@@ -103,7 +103,7 @@ namespace Hrot.SimHost.Tests.Gizmos
             foreach (var bit in new byte[] { 2, DebugTraceLayers.FireTraces, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
                 Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
 
-            var mask = new LayerControlDto { Doors = false, Hearing = true }.ToMask();
+            var mask = new LayerControlDto { Fire = { Hearing = true }, Map = { Doors = false } }.ToMask();
             Assert.False(mask.IsSet(DebugTraceLayers.Doors));
             Assert.True(mask.IsSet(DebugTraceLayers.Hearing));
             Assert.True(mask.IsSet(DebugTraceLayers.Paths));
@@ -111,16 +111,16 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
             // ⭐ CE-3124 — the road network has its own toggle too
             Assert.True(all.IsSet(DebugTraceLayers.Roads));
-            Assert.False(new LayerControlDto { Roads = false }.ToMask().IsSet(DebugTraceLayers.Roads));
+            Assert.False(new LayerControlDto { Map = { Roads = false } }.ToMask().IsSet(DebugTraceLayers.Roads));
             // ⭐ CE-3134 — the cover layer has its own toggle, OFF by default
             Assert.False(all.IsSet(DebugTraceLayers.Cover));
-            Assert.True(new LayerControlDto { Cover = true }.ToMask().IsSet(DebugTraceLayers.Cover));
+            Assert.True(new LayerControlDto { Map = { Cover = true } }.ToMask().IsSet(DebugTraceLayers.Cover));
             // ⭐ CE-3133 — so has the navmesh layer, OFF by default
             Assert.False(all.IsSet(DebugTraceLayers.Navmesh));
-            Assert.True(new LayerControlDto { Navmesh = true }.ToMask().IsSet(DebugTraceLayers.Navmesh));
+            Assert.True(new LayerControlDto { Map = { Navmesh = true } }.ToMask().IsSet(DebugTraceLayers.Navmesh));
             // ⭐ CE-1033 S5b — the entity cards (Labels) have their own toggle, ON by default (U19: "switchable on/off")
             Assert.True(all.IsSet(DebugTraceLayers.Labels));
-            Assert.False(new LayerControlDto { Labels = false }.ToMask().IsSet(DebugTraceLayers.Labels));
+            Assert.False(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
             foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid })
@@ -128,17 +128,62 @@ namespace Hrot.SimHost.Tests.Gizmos
                 Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
                 Assert.True(bit < LayerControlDto.FirstUntoggledLayer, $"layer {bit} lies below the always-on range");
             }
-            Assert.True(new LayerControlDto { UnitDetails = true }.ToMask().IsSet(DebugTraceLayers.UnitDetails));
-            Assert.True(new LayerControlDto { SpatialGrid = true }.ToMask().IsSet(DebugTraceLayers.SpatialGrid));
+            Assert.True(new LayerControlDto { Units = { UnitDetails = true } }.ToMask().IsSet(DebugTraceLayers.UnitDetails));
+            Assert.True(new LayerControlDto { Map = { SpatialGrid = true } }.ToMask().IsSet(DebugTraceLayers.SpatialGrid));
             // ⭐ CE-1225 — the sectors have their own toggle, OFF by default, inside the toggled range (the selection ring stays above it)
             Assert.False(all.IsSet(DebugTraceLayers.Sectors), "the sectors default off");
-            Assert.True(new LayerControlDto { Sectors = true }.ToMask().IsSet(DebugTraceLayers.Sectors));
+            Assert.True(new LayerControlDto { Command = { Sectors = true } }.ToMask().IsSet(DebugTraceLayers.Sectors));
             Assert.True(DebugTraceLayers.Sectors < LayerControlDto.FirstUntoggledLayer, "the sectors lie below the always-on range");
             // ⭐ CE-1227 — the 2-D terrain has its own toggle (no longer the Entities bit), ON by default, inside the toggled range
             Assert.True(all.IsSet(DebugTraceLayers.Terrain2D), "the 2-D terrain defaults on");
-            Assert.False(new LayerControlDto { Terrain2D = false }.ToMask().IsSet(DebugTraceLayers.Terrain2D));
-            Assert.True(new LayerControlDto { Entities = false }.ToMask().IsSet(DebugTraceLayers.Terrain2D), "unticking Entities keeps the city");
+            Assert.False(new LayerControlDto { Map = { Terrain2D = false } }.ToMask().IsSet(DebugTraceLayers.Terrain2D));
+            Assert.True(new LayerControlDto { Units = { Entities = false } }.ToMask().IsSet(DebugTraceLayers.Terrain2D), "unticking Entities keeps the city");
             Assert.True(DebugTraceLayers.Terrain2D < LayerControlDto.FirstUntoggledLayer, "the terrain lies below the always-on range");
+            // ⭐ CE-1203 (§5e FL-1/FL-2) — the finer rows: each its own bit, ON by default, inside the toggled range, and unticking one
+            //   clears only its own bit. Contacts is split from Perception: hiding the vision cones keeps the contact lines.
+            var rows = new (byte Bit, LayerControlDto Off)[]
+            {
+                (DebugTraceLayers.Rounds,           new LayerControlDto { Units = { Rounds = false } }),
+                (DebugTraceLayers.SquadCommand,     new LayerControlDto { Command = { SquadCommand = false } }),
+                (DebugTraceLayers.Actions,          new LayerControlDto { Ai = { Actions = false } }),
+                (DebugTraceLayers.Utility,          new LayerControlDto { Ai = { Utility = false } }),
+                (DebugTraceLayers.Eqs,              new LayerControlDto { Ai = { Eqs = false } }),
+                (DebugTraceLayers.Routes,           new LayerControlDto { Command = { Routes = false } }),
+                (DebugTraceLayers.TacticalGraphics, new LayerControlDto { Map = { TacticalGraphics = false } }),
+                (DebugTraceLayers.TerrainZones,     new LayerControlDto { Map = { TerrainZones = false } }),
+                (DebugTraceLayers.Traffic,          new LayerControlDto { Map = { Traffic = false } }),
+                (DebugTraceLayers.Contacts,         new LayerControlDto { Ai = { Contacts = false } }),
+            };
+            Assert.Equal(rows.Length, rows.Select(r => r.Bit).Distinct().Count());
+            foreach (var (bit, off) in rows)
+            {
+                Assert.True(all.IsSet(bit), $"layer {bit} defaults on");
+                Assert.True(bit < LayerControlDto.FirstUntoggledLayer, $"layer {bit} lies below the always-on range");
+                var rowMask = off.ToMask();
+                Assert.False(rowMask.IsSet(bit), $"unticking layer {bit} clears it");
+                for (int other = 0; other < LayerControlDto.FirstUntoggledLayer; other++)
+                    if (other != bit) Assert.Equal(all.IsSet(other), rowMask.IsSet(other));
+            }
+            Assert.True(new LayerControlDto { Ai = { VisionCones = false } }.ToMask().IsSet(DebugTraceLayers.Contacts), "hiding the vision cones keeps the contact lines");
+        }
+
+        // ⭐ CE-1203 (§5e FL-4/FL-5) — the panel's document (what the generic inspector draws): five groups in order, and every row a
+        // display name and a hover line ([EditDisplayName], [EditDoc]). 🔴 Red-proof: a row added without them shows its C# name and
+        // no meaning — the user's complaint ("i do not even know what they mean").
+        [Fact]
+        public void CE1203_ThePanel_HasFiveGroups_AndEveryRowANameAndAMeaning()
+        {
+            using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
+            var groups = session.Document.Root.Children;
+            Assert.Equal(new[] { "Units", "Command", "AI", "Fire", "Map" }, groups.Select(g => g.Metadata.DisplayName).ToArray());
+            var rows = groups.SelectMany(g => g.Children).ToList();
+            Assert.True(rows.Count >= 26, $"the five groups hold {rows.Count} rows");
+            foreach (var node in groups.Concat(rows))
+            {
+                Assert.False(string.IsNullOrWhiteSpace(node.Metadata.DisplayName), $"{node.JsonPath} has no display name");
+                Assert.Contains(node.Metadata.CustomAttributes, a => a is StructEdit.Core.Attributes.EditDocAttribute d && d.Summary.Length > 0);
+            }
+            Assert.Equal(rows.Count, rows.Select(r => r.Metadata.DisplayName).Distinct().Count());
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
@@ -146,24 +191,24 @@ namespace Hrot.SimHost.Tests.Gizmos
         [Fact]
         public void CE3133_TheNavmeshLayerChoice_RoundTripsThroughThePanelAndTheRegistry()
         {
-            Assert.Equal(NavmeshDrawLayers.Infantry, new LayerControlDto().NavmeshLayers);
+            Assert.Equal(NavmeshDrawLayers.Infantry, new LayerControlDto().Map.NavmeshLayers);
 
             var settings = new GizmoSettingsRegistry();
-            new LayerControlDto { NavmeshLayers = NavmeshDrawLayers.Vehicle }.WriteScopes(settings);
+            new LayerControlDto { Map = { NavmeshLayers = NavmeshDrawLayers.Vehicle } }.WriteScopes(settings);
             Assert.Equal(NavmeshDrawLayers.Vehicle, NavmeshLayerSetting.Of(settings));
             var read = new LayerControlDto();
             read.ReadScopes(settings);
-            Assert.Equal(NavmeshDrawLayers.Vehicle, read.NavmeshLayers);
+            Assert.Equal(NavmeshDrawLayers.Vehicle, read.Map.NavmeshLayers);
 
             var edit = MakeEditService();
             string json;
-            using (var session = edit.Open(new LayerControlDto { NavmeshLayers = NavmeshDrawLayers.All, Navmesh = true }, typeof(LayerControlDto)))
+            using (var session = edit.Open(new LayerControlDto { Map = { NavmeshLayers = NavmeshDrawLayers.All, Navmesh = true } }, typeof(LayerControlDto)))
                 json = session.ToJson();
             using var back = edit.Open(new LayerControlDto(), typeof(LayerControlDto));
             back.LoadJson(json);
             var dto = (LayerControlDto)back.Commit();
-            Assert.Equal(NavmeshDrawLayers.All, dto.NavmeshLayers);
-            Assert.True(dto.Navmesh);
+            Assert.Equal(NavmeshDrawLayers.All, dto.Map.NavmeshLayers);
+            Assert.True(dto.Map.Navmesh);
         }
 
         // ⭐ CE-3120 — the layer panel shows each family's scope from the settings registry and writes an edit back to it, so the
@@ -179,7 +224,7 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(GizmoScope.SelectedOrPinned,   // ⭐ CE-1065 — every family starts on the selection
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = false };
+            var edited = new LayerControlDto { Command = { PathsSelectedOnly = false }, Ai = { ContactsSelectedOnly = false } };
             string json;
             using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             gizmo.OnStructUpdate(json);
@@ -191,9 +236,9 @@ namespace Hrot.SimHost.Tests.Gizmos
 
             var reread = new LayerControlDto();
             reread.ReadScopes(settings);
-            Assert.False(reread.PathSelectedOnly);
-            Assert.False(reread.ContactsSelectedOnly);
-            Assert.True(reread.SquadSelectedOnly);   // untouched family keeps its default
+            Assert.False(reread.Command.PathsSelectedOnly);
+            Assert.False(reread.Ai.ContactsSelectedOnly);
+            Assert.True(reread.Command.SquadCommandSelectedOnly);   // untouched family keeps its default
         }
 
         // ⭐ CE-3149 — Apply in the layer panel must REACH the gizmo through the arbiter that owns it. 🔒 User, 2026-10-10:
@@ -214,7 +259,7 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Null(manager.Focus.Holder);   // the premise: nothing holds focus
 
             string json;
-            using (var s = edit.Open(new LayerControlDto { FireTraces = false, Doors = false }, typeof(LayerControlDto)))
+            using (var s = edit.Open(new LayerControlDto { Fire = { FireTraces = false }, Map = { Doors = false } }, typeof(LayerControlDto)))
                 json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = id, PayloadJson = json });
             bus.SwapBuffers();
@@ -261,7 +306,7 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(HasPanel(buffer), "the menu entry did not open the panel");
 
             string json;
-            using (var s = edit.Open(new LayerControlDto { Doors = false }, typeof(LayerControlDto)))
+            using (var s = edit.Open(new LayerControlDto { Map = { Doors = false } }, typeof(LayerControlDto)))
                 json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = id, PayloadJson = json });
             bus.SwapBuffers();

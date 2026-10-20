@@ -39,7 +39,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 var tris = Fdp.Toolkit.Terrain.PolygonMath.Triangulate(abs);
                 var fill = new Rgba32(style.FillColor.R, style.FillColor.G, style.FillColor.B, style.FillColor.A);
                 for (int t = 0; t + 2 < tris.Length; t += 3)
-                    draw.DrawFilledTriangle(abs[tris[t]], abs[tris[t + 1]], abs[tris[t + 2]], fill);
+                    draw.DrawFilledTriangle(abs[tris[t]], abs[tris[t + 1]], abs[tris[t + 2]], fill, layer: DebugTraceLayers.TacticalGraphics);
             }
 
             for (int i = 0; i < segCount; i++)
@@ -51,7 +51,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     new Vector3(b.X, b.Y, level),
                     borderColor,
                     style.LineThickness,
-                    SizeMode.WorldMeters);
+                    SizeMode.WorldMeters, layer: DebugTraceLayers.TacticalGraphics);
             }
 
             // ⭐⭐⭐ CE-259ae — make those edges CLICKABLE: left-click selects this entity, right-click
