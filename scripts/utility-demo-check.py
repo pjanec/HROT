@@ -4298,8 +4298,9 @@ def run_uc_request_chain_dry(c, timeout):
         finally:
             call("POST", "/perspective", {"name": "Scenario"})
     fired = wait_for(its_shots, min(timeout, 300), every=2.0)
-    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Ammo Bearer")]
     hurt = [(comps(m).get("Health") or {}).get("Current") for m in crew]
+    print(f"    the Apache's memory: {json.dumps([(s_.get('networkId'), s_.get('anonymous')) for s_ in (data(call('GET', f'/entities/{heli}/memory')) or {}).get('slots', [])])[:300]} (crew {crew})")
     c.ok(fired, f"④ the Apache attacks what it finds there ({len(fired or [])} rounds; targets {sorted({x.get('target') for x in fired or []})}; "
                 f"crew health {hurt}; Apache task {task_name(heli)})")
 
@@ -4336,8 +4337,8 @@ def run_uc_a10_zu23_dry(c, timeout):
 
 
 def run_uc_reinforce_dry(c, timeout):
-    """⭐ Urban Battle §6 L6 (dry) — uc-reinforce-dry: L7's cast + a Blue reserve squad under the HQ. Faked: both Blue squads SITREP Red and an
-    enemy element 100 m off ⇒ ① the platoon asks the HQ to be reinforced (CE-2310 HQ-5) · ② the HQ sends its free ground unit — the
+    """⭐ Urban Battle §6 L6 (dry) — uc-reinforce-dry: L7's cast + a Blue reserve squad under the HQ. Faked: Blue Squad 2's men are killed (the platoon
+    is Red: one squad of two fighting) and an enemy element is SPOTted 100 m off ⇒ ① the platoon asks the HQ to be reinforced (CE-2310 HQ-5) · ② the HQ sends its free ground unit — the
     reserve, never the requester — to defend at the platoon (CE-2312 HQ-9)."""
     ids = ids_by_name()
     hq, pl, res = ids.get("Blue HQ"), ids.get("Blue Platoon"), ids.get("Blue Reserve")
@@ -4347,8 +4348,13 @@ def run_uc_reinforce_dry(c, timeout):
     call("POST", "/sim/play", {})
     c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend", 30), f"the plays run (reserve {task_name(res)})")
     wait_for(lambda: False, 3, every=1.0)
-    for s_ in sq:
-        call("POST", f"/entities/{s_}/reports", {"kind": "Sitrep", "strength": "Red"})
+    # the staff's strength is REAL (StaffComposerSystem.StrengthOf: fighting members / members) — so a squad is taken out of the fight
+    call("POST", "/perspective", {"name": "CGF"})   # Health is the brain group's: CGF owns it
+    try:
+        for n in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3"):
+            set_health(ids.get(f"Blue Squad 2 {n}"), 0)
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
     call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [650, 250, 0], "count": 6, "size": "SquadSize"})
     ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "Reinforce"
                                  and x.get("from") == pl), None), 40)
