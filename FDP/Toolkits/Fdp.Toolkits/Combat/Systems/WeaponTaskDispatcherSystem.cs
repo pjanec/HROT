@@ -108,7 +108,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 TargetPoint = task.Point,
                 AmmoGuid    = unchecked((long)task.AmmoGuid),   // ⭐ M8 — the round the weapon brain loaded
             });
-            clock.CooldownRemaining = task.CooldownSeconds;
+            // ⭐ CE-2323 (R-2063) — the turret's own gap per round (an automatic weapon's cyclic rate too), so two guns never stay in step
+            clock.CooldownRemaining = FirePacing.Gap(task.CooldownSeconds, part, status.RoundsFired, task.Epoch);
             status.RoundsFired++;
             status.State = WeaponTaskState.Firing;
         }

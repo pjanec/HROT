@@ -199,7 +199,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (aim.Ready == 0)
                 {
                     aim.Elapsed += dt;
-                    if (bomb || aim.Elapsed >= AimSecondsFor(world, platform, platformMount)) aim.Ready = 1;
+                    // ⭐ CE-2323 (R-2063) — each man's own aim time at this target, so a volley does not leave on one frame
+                    if (bomb || aim.Elapsed >= PacedAimSecondsFor(world, platform, platformMount, p.Target)) aim.Ready = 1;
                 }
             }
 
@@ -301,7 +302,8 @@ namespace Fdp.Toolkit.Combat.Executors
             });
 
             // ⭐ CE-3136 P-5 / M8 — the total, the magazine and the loaded type are spent by the muscle's ANSWER (ShotLedger.Answer), not here
-            weapon.CooldownSecondsRemaining = CooldownFor(p.CooldownSeconds, mountDto);   // ⭐ CE-2199 — 0 = the mount's own rate
+            // ⭐ CE-2199 — 0 = the mount's own rate · ⭐ CE-2323 (R-2063) — each gap his own, so men do not stay in step
+            weapon.CooldownSecondsRemaining = FirePacing.Gap(CooldownFor(p.CooldownSeconds, mountDto), platform, RoundsFired(ref channel), channel.ActionInstanceId);
 
             int fired = ++RoundsFired(ref channel);
             channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
@@ -471,7 +473,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 — asked; the muscle's answer spends it
             });
-            weapon.CooldownSecondsRemaining = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
+            weapon.CooldownSecondsRemaining = FirePacing.Gap(MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor, shooter,   // ⭐ CE-2323
+                                                             RoundsFired(ref channel), channel.ActionInstanceId);
             int fired = ++RoundsFired(ref channel);
             if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
             Say(world, entity, ActionReason.BlindFire, p.Target, fired, p.Rounds);
@@ -748,7 +751,7 @@ namespace Fdp.Toolkit.Combat.Executors
         private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, Entity shooter, int mountIndex)
         {
             if (!seen) Say(world, unit, ActionReason.HoldNotSeen, target);
-            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, AimSecondsFor(world, shooter, mountIndex));
+            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, PacedAimSecondsFor(world, shooter, mountIndex, target));
         }
 
         /// <summary>
@@ -841,6 +844,11 @@ namespace Fdp.Toolkit.Combat.Executors
                 : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
 
         /// <summary>The fired mount's aim time (TKB, by type), else <c>EngineFallbacks.AimSeconds</c>.</summary>
+        /// <summary>⭐ <c>CE-2323</c> (R-2063) — the aim time THIS man needs at <paramref name="target"/>: the mount's, scaled by his own
+        /// <see cref="FirePacing.AimFactor"/>. The ONE value the gate waits for and the weapon row reports.</summary>
+        public static float PacedAimSecondsFor(EntityRepository world, Entity shooter, int mountIndex, Entity target)
+            => AimSecondsFor(world, shooter, mountIndex) * FirePacing.AimFactor(shooter, target);
+
         public static float AimSecondsFor(EntityRepository world, Entity shooter, int mountIndex)
             => Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.AimSecondsOrFallback(
                    CombatTkb.MountOf(world, shooter, mountIndex)?.AimSeconds ?? 0f);

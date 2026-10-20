@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.Combat.Tests
         /// <summary>⭐ WL-3 — Engage fires only when on target, at most the granted rounds, spaced by the task's cooldown, through
         /// an ordinary <see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> marked remote (never forwarded again); then Done.</summary>
         [Fact]
-        public void WL3_Engage_FiresTheGrantedRounds_OnTarget_SpacedByTheCooldown_ThenDone()
+        public void WL3_Engage_FiresTheGrantedRounds_OnTarget_SpacedByTheCooldown_EachGapItsOwn_ThenDone()
         {
             _world.RegisterComponent<WeaponMuscleState>();
             _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
@@ -229,7 +229,13 @@ namespace Fdp.Toolkit.Combat.Tests
             }
             Assert.Equal(3, frames.Count);
             Assert.True(frames[0] >= 225 - 2, $"first round at frame {frames[0]}: not before the 90° slew at 24°/s ends (3.75 s)");
-            Assert.True(frames[1] - frames[0] >= 30 && frames[2] - frames[1] >= 30, string.Join(",", frames));
+            // ⭐ CE-2323 (R-2063) — each gap is the task's cooldown scaled by this turret's own draw for that round, and the draws differ
+            for (int r = 0; r < 2; r++)
+            {
+                float gap = Fdp.Toolkit.Combat.FirePacing.Gap(0.5f, turret, r, 1);
+                Assert.InRange(frames[r + 1] - frames[r], (int)(gap * 60f) - 1, (int)(gap * 60f) + 2);
+            }
+            Assert.NotEqual(frames[1] - frames[0], frames[2] - frames[1]);
             Assert.Equal(WeaponTaskState.Done, Status(turret).State);
             Assert.Equal(3, Status(turret).RoundsFired);
         }
