@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
-current-answer: ⭐⭐⭐ 2026-10-19 — THE ui LANE'S WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md (§1 the user's order, §4 the progress log); start there.
+updated: 2026-10-20
+current-answer: ⭐⭐⭐ 2026-10-20 — START AT "SESSION 2026-10-20 — RESUME HERE" directly below this STATUS block (state at ui@f40f72ba3,
+  the next items in order, the standing rules of this lane). The work list is still PLAN_Ui_FPS_And_Quick_Wins.md (§3, §4).
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-19 — THE ui LANE'S WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md (§1 the user's order, §4 the progress log); start there.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" (its 2026-10-17 overnight table is the latest) directly below this STATUS block (what is
   built, what is waiting on other lanes, what to do next). The programme is still the 3-D world and combat realism
   (../PLAN_3D_World_And_Realism.md); the live design is ../DESIGN_Map_3D_Mode.md §6n–§6u.
@@ -152,7 +154,51 @@ related-designs:
   Nothing was deleted.
 -->
 
-## ⭐⭐⭐ SESSION `2026-10-15` — RESUME HERE
+## ⭐⭐⭐ SESSION `2026-10-20` — RESUME HERE
+
+**State:** `ui` @ `f40f72ba3`, pushed, tree clean. Other lanes NOT merged into ui this session: `origin/behaviors` +66 and
+`origin/backend` +52 commits ahead of ui (at `96e18de8e` / `8d6e2ed05`), `coordinator` +0. ⇒ ⭐ **merge backend and behaviors
+first** (merge, not rebase), build, run the Presentation suite, name the shas in the started note.
+
+### Done since `2026-10-19`
+
+| id | what | where |
+|---|---|---|
+| plan #1–#20 | every item of [PLAN_Ui_FPS_And_Quick_Wins](PLAN_Ui_FPS_And_Quick_Wins.md) §1 built and pushed (first person parts 1 and 2: zoom, lean, command wheel, team switch, hit feedback, spread ring, compass, M map, B binoculars, the fall screen) | [Entity Control](../DESIGN_Entity_Control.md) §8j, §8k (+ as-built §8j.5, §8k.5) |
+| `CE-1225` | ✅ a **Sectors** checkbox in Tactical Map Layers (off by default): sector areas, NoFire hatching and every COMMANDER's arc for everyone (a platoon's slice on each squad, the support squad's arc — behaviors' DA-52), draped in 3-D; a man's own arc still selection-only; the selection ring moved to layer bit 255 | [Command Display](../DESIGN_Command_Display.md) §8 / §8a; frame `docs/assets/map-3d/map3d-9-sectors.png` |
+| `CE-1203` | ✅ **APPROVED, NOT STARTED** (`R-1011`, user: *"Record it, do nkt start building it."*): ~10 new layer checkboxes in five groups with hover text; a 2-D symbol of what 3-D draws itself (round markers) never drawn in 3-D (FlatOnly, extends R-4058); a layer SET PER VIEW (2-D / 3-D) chosen by the view switch; both REMEMBERED per user through `GizmoSettingsRegistry.SaveToDisk/LoadFromDisk` (built in gizmos-1, never called) | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e FL-1…FL-9 (INVENTORY, today-state claim table, class + sequence diagrams) |
+
+### Waiting on / from other lanes
+
+| item | state |
+|---|---|
+| backend's [NOTE](batches/NOTE_Backend_To_Ui_Walk_Run_Mount_UnderFire_Binoculars.md) (on `origin/backend`) | `CE-1208` walk/run speeds, `CE-1222` the operator's mount, `CE-1223` `UnderFire` replicated, `CE-1224` binoculars for every leader by ROLE — all built there; nothing in ui has to change. ⚠ `CE-1206`: their fix (no gunner gate while possessed) does NOT explain the ZU-23 case — they ask ui to reproduce live: which slot the HUD held, what refusal it showed |
+| `CE-1158` | the live cluster run is still owed |
+| `CE-1197` | sidewalks need a SumoSharp `SceneKind` (cross-lane, coordinator) |
+
+### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
+
+1. `CE-1203` — ⛔ only when the user says go (§5e is buildable as written; check the panel re-syncs when its whole set is swapped — the inspector suppresses echoes).
+2. `CE-1204` — person mouse-look (`R-1006`): write its INVENTORY + UML in Entity Control (new §8l) BEFORE code (§8i: *"still gets its INVENTORY and UML here before it is built"*).
+3. `CE-1207` + `CE-1205` — pick up stones / rounds, take weapons (`R-1007`) — same: design first.
+4. `CE-1210` — seat switching (`R-1008`) — design first.
+5. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
+
+### The standing rules of this lane (the user's, still binding)
+
+- branch `ui`, `git push -u origin ui`; no PRs unless asked; commit trailer as the session's; ⛔ no model ids in commits / docs / code.
+- chat: GitHub links on `ui` for every doc and id; gloss each id on first mention; questions in plain chat, never the question widget.
+- design before code, claim table (code + design columns) under every lean, UML in the owning design, fold the as-built back; `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file>` (⚠ a `;` inside a sequence message breaks the parse).
+- gates: `python3 scripts/design-digest.py --check` · `python3 scripts/tracker-counts.py --check` · `python3 scripts/rulings-check.py`.
+- builds in the BACKGROUND; build the TEST project, then `--no-build`; never poll with sleep loops on harness jobs; check the trx `<Counters>` (executed vs total).
+- red-prove every new rail with compiling mutations (warnings are errors), backups in the scratchpad, restore, confirm 0; a script: `scratchpad/red/red.py` pattern (print the results BEFORE any `git diff --stat`, or a `tail` eats them).
+- Xvfb `:99` for frame rails (`Xvfb :99 -screen 0 1920x1080x24 &`); shots to the scratchpad, copy only new ones to `docs/assets/map-3d/`.
+- ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
+- `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
+- cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
+- ids: ui tracker next free **`CE-1226`**; ui rulings next free **`R-1012`**.
+
+## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 
 **Branch `ui` at `80912eab6` (pushed; updated after a second ui session built CE-1111…CE-1115).** At that point `behaviors` was 6 commits
 ahead (CE-2191 decoys / break, CE-2079) and `backend` 5 (CE-3213 DIS munition types, hit location HL-12) — **merge them first** next session.
