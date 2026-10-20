@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Combat
                 case HeldItemKind.None: return true;
                 case HeldItemKind.Phone:
                 case HeldItemKind.Binoculars:
+                    if (kind == HeldItemKind.Binoculars && Leads(world, man)) return true;   // ⭐ CE-1224
                     if (!CombatTkb.TryGetTemplate(world, man, out var t) || t.GetDescriptor<PocketItemsDto>() is not { } pockets) return false;
                     return kind == HeldItemKind.Phone ? pockets.Phone : pockets.Binoculars;
                 case HeldItemKind.Throwable:
@@ -54,6 +55,20 @@ namespace Fdp.Toolkit.Combat
                 default: return false;
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1224</c> (ui note §4, Entity Control §8k B-1) — a LEADER carries binoculars whatever his type: leaders are not types in
+        /// any catalogue but designations in a unit (the BDC squad's leader, a fire-team leader, a vehicle's commander), so the rule reads his
+        /// <see cref="Fdp.Core.CommandHierarchy.UnitSubordinate.Designation"/>. A type's <see cref="PocketItemsDto.Binoculars"/> still gives
+        /// them to anyone else (the mortar crew).
+        /// </summary>
+        public static bool Leads(EntityRepository world, Entity man)
+            => world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()
+               && world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(man)
+               && world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(man).Designation
+                   is Fdp.Core.CommandHierarchy.TacticalDesignation.Commander
+                   or Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader
+                   or Fdp.Core.CommandHierarchy.TacticalDesignation.TeamLeader;
 
         /// <summary>What <paramref name="man"/> holds on this node (the owner's or the replicated one); None when nothing or no posture.</summary>
         public static HeldItemKind Of(ISimulationView view, Entity man)

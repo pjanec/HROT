@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (SL-0 built, §7.0)
-build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0), the room slices wait on backend BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
-current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
+updated: 2026-10-19 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a)
+build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
+current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none — IsolateAndClear (CB-17/CB-18, PL-1) IS the ClearBuilding preset of AttackPositionPlay (docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §10, R-2035); the clearing stays its own order.
@@ -644,6 +644,228 @@ Rails: `SquadCoordinationSystemTests.CE2262_*` (the rule, an emptied roster, the
 platoon marching three squads orders the two effective ones and not the wiped one) · `NedTkbBuilderCombatTests.CE2262_*` (the type).
 Demo `sl0-platoon-march` (test-town, ids 5001–5022): ① the platoon runs `SquadMarch` · ② Alpha and Bravo fulfil its order their own
 way · ③ Charlie (every man dead) is given nothing · ④ the men reach the objective area · ⑤ the platoon stands with its effective squads.
+
+### 7.1 BC-1 in detail — one room, one squad *(`CE-2257`, behaviors, 2026-10-19 — Urban Battle §5 step 3's first slice; build-state: BUILT (§7.1a) — leans CB-48…CB-56, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — reads of `StackAndRoomEntryManeuver` (the stub: phases Stacking · Entering · Cleared ·
+Aborted, roles PointMan · BreachCover · Secondary, no play; only a role-matrix test uses it), `DoorNodes` (`MoveToDoor`,
+`OperateDoor` keyed by a door's terrain-object key), `OpenDoorExecutor` (a locked door REFUSES Open ⇒ Failure; Breach forces it),
+`SquadManeuverRunner.Issue` (Hold · Watch go to `CombatPosture` with the post and the `MemberArc` sector), the `WorldSurvey`
+BuildingSurvey answer (rooms with corners and storey; portals with `RoomA`/`RoomB`, `DoorState` — ⛔ **no door key**), and
+`ProgressKind.RoomClear` / `RoomBlocked` in the closed report set):** everything the drill needs exists except the play, the plan,
+one member order, and the door's key on the portal.
+
+```mermaid
+classDiagram
+  direction LR
+  class ClearRoomPlay { <<NEW ISquadPlay, kind 5>> Stacking · Breaching · Entering · Cleared · Aborted }
+  class ClearRoomParams { <<NEW>> Room point · Speed · the plan (stack, points, sectors, door) }
+  class RoomEntryPlan { <<NEW, pure>> Plan(room corners, door, men in the fight) ⇒ stack points · points of domination · sectors · two-man }
+  class StackAndRoomEntryManeuver { <<EXTENDED>> + PhaseBreaching }
+  class WorldSurveyChildSensor { <<existing CE-3249>> OfArea(room point, 3 m) }
+  class SurveyPortal { <<EXTENDED — backend's file>> + DoorKey }
+  class BreachDoorBehavior { <<NEW curated BTree>> MoveToDoor · Open else Breach }
+  class DoorNodes { <<existing>> MoveToDoor · OperateDoor }
+  class MemberOrder { <<EXTENDED>> + OperateDoor (9) · Door }
+  class SquadManeuverRunner { <<existing>> Watch + MemberArc sector + post }
+  class CommandReports { <<existing>> PROGRESS RoomClear · RoomBlocked }
+  ClearRoomPlay --> ClearRoomParams
+  ClearRoomPlay ..> WorldSurveyChildSensor
+  WorldSurveyChildSensor ..> SurveyPortal
+  ClearRoomPlay ..> RoomEntryPlan
+  ClearRoomPlay ..> StackAndRoomEntryManeuver : phases, roles
+  ClearRoomPlay ..> MemberOrder : Watch (stack, point + sector) · OperateDoor
+  MemberOrder ..> BreachDoorBehavior : OperateDoor
+  BreachDoorBehavior ..> DoorNodes
+  ClearRoomPlay ..> CommandReports
+```
+*What the picture shows that prose hid:* the entry itself is no new behaviour — a man "enters" by the existing `Watch` order to his
+point of domination with the existing sector road; the only new member behaviour is the door, and it is built from the door nodes.
+
+```mermaid
+sequenceDiagram
+  participant P as ClearRoomPlay (squad commander)
+  participant WS as BuildingSurvey
+  participant M1 as #1 (PointMan)
+  participant Mk as #2…#4
+  participant D as the door's owner
+  P->>WS: OfArea(room point, 3 m)
+  WS-->>P: the room (corners, storey) · its portals (+ DoorKey)
+  P->>P: RoomEntryPlan: the door nearest the squad · stack side · points · sectors · two-man?
+  P->>M1: Watch at stack point 0 (facing the door)
+  P->>Mk: Watch at stack points 1…
+  Note over P: all within 1 m ⇒ Breaching
+  alt the door is closed or locked
+    P->>M1: OperateDoor (BreachDoor)
+    M1->>D: Open — refused if locked ⇒ Breach (3 s)
+    D-->>P: DoorState Open (or destroyed)
+  end
+  P->>M1: Watch at point 1, sector (t = 0)
+  P->>Mk: Watch at point k, sector (t = 0.6 s · k)
+  Note over P: every entry man at his point, no fresh hostile in the room for 3 s
+  P->>P: PROGRESS RoomClear · stays Running (they hold their points)
+```
+*What the picture shows that prose hid:* the door is the only step that waits on another node — everything else is the squad's own
+orders, re-issued as the phase moves.
+
+```mermaid
+graph TD
+  CGF[CGF node: the squad commander's brain] --> CR[ClearRoomPlay]
+  CR -->|EQS child sensor| SH[SimHost: WorldSurveySolve]
+  CR -->|member orders| MEN[the men's brains: CombatPosture · BreachDoor]
+  MEN -->|door command| OWN[the door's owner: OpenDoorExecutor · DoorCommandSystem]
+  CR -->|SendReport PROGRESS| OUT[ReportOutbox → the platoon]
+```
+*What the picture shows that prose hid:* no new system — the survey road, the member-order road, the door-command road and the report
+road all exist.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **CB-48** | **the order**: `ClearRoom {Room: a point inside it, Speed}` — one squad clears ONE room; BC-3's `ClearBuilding` sequences it room by room | a building order now: the room drill must stand first |
+| **CB-49** | **room and door from the survey**: `OfArea(point, 3 m)` ⇒ the room whose quad holds the point at its storey; the door = its portal (door or gap) nearest the squad's centre; none ⇒ PROGRESS RoomBlocked, the play fails | an authored door: the order would need to know the house · the room nearest the point: the wrong storey |
+| **CB-50** | **the stack** (CB-3): on the side of the door with LESS room behind the wall (so #1 flows to the open side), outside the room, 0.6 m off the wall, #1 0.6 m past the jamb, 0.8 m apart | always left: wrong at a corner door · in front of the door: the fatal funnel |
+| **CB-51** | **points of domination**: a third into the room, 1 m off the side walls — #1 the open side, #2 the stack side, #3 / #4 halfway in on the same sides; **two-man** under 12 m² or with fewer than 3 men in the fight (the rest hold the stack, covering the doorway) | every man to the centre: a crossfire · four men into a closet |
+| **CB-52** | **sectors** (CB-4): #1 / #2 the far half of their side (±50°), #3 / #4 the room's middle (±45°) — a Superior `MemberArc`, the existing road | sectors the eyes must turn to: LD-1 is the eyes, this is the target filter |
+| **CB-53** | **the breach** (CB-11): the door entity's live `DoorState` on the brain's node — open ⇒ no breach; closed ⇒ #1 `OperateDoor` = the library `BreachDoor` (walk to it, Open, and when refused — locked — Breach, 3 s); it fails ⇒ RoomBlocked, the play fails | the survey's door state: an answer can be seconds old · a separate breacher: #1 is the breacher (CB-11) |
+| **CB-54** | **the flow**: #k is sent 0.6 s after #k−1 | all at once: four men in the doorway at the same instant |
+| **CB-55** | **room clear**: every entry man within 1.2 m of his point AND no fresh (≤ 3 s) pooled hostile inside the room's quad at its storey, for 3 s ⇒ PROGRESS **RoomClear**; ~~the play succeeds~~ ⚠ **as built the play stays Running in Cleared** (§7.1a), the men hold their points until the next order | clear on arrival: a man in the corner is never looked at · a timer: the hostile still standing |
+| **CB-56** | ⚠ **cross-lane (backend's `WorldSurveySolve` / `SurveyPortal`)**: a door portal carries its door's terrain-object key (`DoorKey`) — the brain commands the door by it | a door found by position on the brain: the brain reads no geometry (R-2037) |
+
+**Slices.** BC-1 is one slice: the plan (pure rails), the play (`SquadManeuverTests.CE2257_*`), `BreachDoor`, the key on the portal
+(`WorldSurveySolveTests`). ⛔ Not in it: grenades (BC-4), civilians (BC-2), contact at the doorway (BC-5), the next room (BC-3), a
+live demo (`bc-room-clear` follows the slice).
+
+#### 7.1a As built *(2026-10-19)*
+
+| piece | as built | where |
+|---|---|---|
+| the order | `ClearRoom {Room, Speed}` (default 2 m/s), a curated Commander behaviour; one `StatefulAction` on the runner | `ClearRoomBehavior.cs`, `ClearRoomParamsJsonDto.cs` |
+| the play | `ClearRoomPlay` on kind 5: Stacking → **Breaching** (new phase 4) → Entering → Cleared; Abort from each ⇒ Aborted | `ClearRoomBehavior.cs`, `StackAndRoomEntryManeuver.cs`, `SquadDrillNames.cs` |
+| the plan | `RoomEntryPlan.Plan(corners, floorZ, door, width, inFight)` as CB-50…CB-52 — "the room's middle" for #3 / #4 is a point on the room's centre line 85 % deep (one at their own depth turned #4 side-on, measured by the plan rail); the stack order = the live men in roster order, the leader (slot 0) moved LAST when more men are in the fight than go in (he stays out and directs) | `RoomEntryPlan.cs` |
+| the door | `MemberOrderKind.OperateDoor` (9) + `MemberOrder.Door` ⇒ the library `BreachDoor` = `Sequence(MoveToDoor, Selector(Open, Breach))`; the play reads the door entity's live `DoorState` (Open or Destroyed = open); a gap needs no breach | `SquadManeuverRunner.cs`, `BreachDoorBehavior.cs` |
+| the key (CB-56) | `SurveyPortal.DoorKey` filled from `world.Doors[p.Door].Key` (⚠ cross-lane, backend's survey files) | `WorldSurveyModel.cs`, `WorldSurveySolve.cs` |
+| the reports | PROGRESS `RoomClear` once in Cleared; `RoomBlocked` on no answer (5 s), no room or portal, or a door shut 12 s after the breach began | `ReportQueue.Enqueue` |
+
+⚠ **Two deviations from the table above, both decided while building:**
+- **CB-55 — the play does NOT succeed when the room is clear; it stays Running in Cleared.** `SquadManeuverRunner.End` releases the
+  play and withdraws every member order when a play returns Success, so a succeeding play would leave the men without their points.
+  Running keeps them on their points with their sectors until the next order (BC-3's `ClearBuilding` will move them on).
+- **CB-55 — no freshness filter of its own.** A hostile counts while the squad's pool holds it (named, alive, not out of the fight,
+  inside the quad at its storey). The pool is rebuilt from the men's target memory, which forgets on its own clock, so a remembered
+  enemy keeps the room uncleared (the safer error).
+
+Rails: `SquadManeuverTests.CE2257_BC1_*` (the pure plan · the drill through the brain: the stack on the door, not the nearer window,
+the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an enemy in the room, RoomClear and holding · a small
+room: two go in, the leader stays out · RoomBlocked on no answer or a door that stays shut) · `WorldSurveySolveTests.CE2257_BC1_*`
+(the key). ✅ Red-proved by 11 compiling mutants, all killed (stack side · two-man rule · portal kind · flow · hostile check · leader last · both timeouts · succeeding when cleared · the key · the breach order). ⚠ The hostile mutant first SURVIVED: the rail's `Ticks(s, 4)` bound to the suite's `Ticks(Squad, int frames)` — four FRAMES, not four seconds — so the enemy was pooled for 64 ms; the seconds helper is now `TickFor`. ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
+
+### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILT (§7.2a) — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — codebase-memory CLI `search_graph` `.*(Clear|Clearance|Room).*` (Class, 20, `has_more:false`: no
+`BuildingClearance`, no building play — only BC-1's) and `.*CommandPicture.*` (3); reads of `WorldSurveySolve` (an AREA ask returns EVERY
+room and portal of each building it meets), `BuildingLayout` (a stair is a portal `Kind 3` from the room at its foot, `RoomA`, to the room at
+its head, `RoomB`, one storey up; a door or gap with `RoomB = −1` leads outside), `WorldSurveyChildSensor.Read` (the answer stays readable
+while the child lives; `Stale` only ages it), `StackAndRoomEntryManeuver` (Cleared is terminal), `StaffInboxSystem.Fold` (PROGRESS only
+sets the subordinate's row — no room record anywhere); `check_index_coverage` not run — CLI only):** the room drill (BC-1) and the room
+graph exist; missing are the sequence over rooms, a way out of Cleared, and a drill that SKIPS a blocked room rather than failing.
+
+```mermaid
+classDiagram
+  direction LR
+  class ClearBuildingPlay { <<NEW ISquadPlay, kind 5>> the next room · one RoomDrill per room · BuildingClear }
+  class ClearBuildingParams { <<NEW>> Point · Speed · per-room state (32) · Current room · Team · RoomDrill }
+  class ClearRoomPlay { <<BC-1, now on RoomDrill>> one room }
+  class RoomDrill { <<NEW, extracted from ClearRoomPlay>> Begin(room, portal) · OrderFor · PhaseComplete · Flow · RoomOutcome }
+  class RoomDrillState { <<NEW, extracted>> corners · door · RoomEntryPlan.Result · OrderOf · clocks · Outcome }
+  class RoomOrder { <<NEW, pure>> Next(rooms, portals, states, squad centre) ⇒ room + its portal }
+  class StackAndRoomEntryManeuver { <<EXTENDED>> + Cleared → Stacking (BoundComplete) }
+  class WorldSurveyChildSensor { <<existing>> OfArea(point, 3 m) — kept for the play's life }
+  class CommandReports { <<existing>> RoomClear · RoomBlocked · Foothold · BuildingClear }
+  ClearBuildingPlay --> ClearBuildingParams
+  ClearBuildingParams --> RoomDrillState
+  ClearRoomPlay ..> RoomDrill
+  ClearBuildingPlay ..> RoomDrill
+  RoomDrill --> RoomDrillState
+  ClearBuildingPlay ..> RoomOrder
+  ClearBuildingPlay ..> WorldSurveyChildSensor
+  ClearBuildingPlay ..> StackAndRoomEntryManeuver : phases + the loop back
+  RoomDrill ..> CommandReports
+```
+*What the picture shows that prose hid:* there is ONE room drill — BC-1's play and the building play both drive it; the building play adds only
+the choice of the next room and the loop back to Stacking. ⛔ No second copy of stack · breach · flow · clear.
+
+```mermaid
+sequenceDiagram
+  participant P as ClearBuildingPlay
+  participant WS as BuildingSurvey (kept)
+  participant RO as RoomOrder
+  participant D as RoomDrill
+  P->>WS: OfArea(point, 3 m)
+  WS-->>P: the building's rooms and portals
+  loop while RoomOrder finds a room
+    P->>RO: Next(states, squad centre)
+    RO-->>P: the lowest storey first · reachable (outside, or by a portal from a Cleared room) · nearest its portal
+    P->>D: Begin(room, portal, the team whose turn it is)
+    D->>D: Stacking · Breaching · Entering · Cleared (BC-1)
+    alt cleared
+      D-->>P: Cleared — PROGRESS RoomClear (the first one also Foothold)
+    else the door would not open
+      D-->>P: Blocked — PROGRESS RoomBlocked, the room skipped
+    end
+    P->>P: the state of that room · Cleared → Stacking
+  end
+  P->>P: PROGRESS BuildingClear · Success
+```
+*What the picture shows that prose hid:* a blocked room is no longer the end — it is a state, and the rooms behind it stay Unknown unless
+another portal reaches them.
+
+```mermaid
+graph TD
+  CGF[CGF: the squad commander's brain] --> CB[ClearBuildingPlay on SquadManeuverRunner]
+  CB -->|EQS child sensor, kept| SH[SimHost: WorldSurveySolve]
+  CB --> RD[RoomDrill]
+  RD -->|member orders| MEN[CombatPosture · BreachDoor]
+  RD -->|SendReport| OUT[ReportOutbox → the platoon's StaffInbox]
+  OUT -.->|PL-1: BuildingClearance from these reports| PLT[platoon]
+  classDef later fill:#eee,stroke:#999,stroke-dasharray: 3 3
+  PLT:::later
+```
+*What the picture shows that prose hid:* nothing new runs per frame — the play is one more `StatefulAction` on the runner; the platoon's
+record (dashed) is built from the reports this slice already sends, in PL-1.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **CB-57** | **the order**: `ClearBuilding {Building: a point on or in it, Speed}` — one squad clears the building it names; ONE survey `OfArea(point, 3 m)`, kept for the play's life (the rooms are re-read when the next is chosen; doors are read live) | a survey per room: a round trip each room · the building by index: an order knows no terrain indices |
+| **CB-58** | **one drill**: BC-1's stack · breach · flow · clear moves into `RoomDrill` over a `RoomDrillState`; `ClearRoomPlay` and `ClearBuildingPlay` both drive it. A door that will not open ends the ROOM (Blocked), not the drill; `ClearRoom` still fails on it | a building play that sends `ClearRoom` to itself: one play per behaviour node · a copy of the drill: two implementations of one concept |
+| **CB-59** | **the next room (CB-10)**: among Indoors rooms neither Cleared nor Blocked, those REACHABLE — by a door or gap from outside (the first room only: the foothold) or by a door, gap or stair from a Cleared room; the lowest storey first, then the one whose portal is nearest the squad's centre | a pre-planned route: stale after the first blocked door · nearest the leader: one man's position decides for ten |
+| **CB-60** | **a stair**: the room at its head is entered without a stack outside — the men gather at the stair (its centre at the lower floor), the entry flows up, and the points of domination are planned with the stair as the way in (`Into` from the stair toward the room) | a stack on the stair: nothing on the survey says which way it climbs · skip upper storeys: CB-10 says stairs are rooms |
+| **CB-61** | **the teams swap (CB-2)**: alone, the squad keeps both fire teams inside — the entry team is the first `Entry` men of the stack, the rest hold the stack (the doorway and the hallway); for the next room the stack order turns by `Entry`, so the team that held goes in | the same team every room: four men do every entry · the second team outside: CB-2 superseded it |
+| **CB-62** | **the reports**: RoomClear / RoomBlocked for each room (At = the room's centre — what the platoon's `BuildingClearance` is built from, CB-9), **Foothold** with the first room cleared, **BuildingClear** when no room is left ⇒ the play SUCCEEDS (the task is over; the staff's PROGRESS Set follows) | hold forever like `ClearRoom`: a building has an end · no Foothold: the platoon's Enter phase waits on it (Platoon §4) |
+| **CB-63** | ⚠ **`BuildingClearance` (CB-9) is NOT in this slice**: alone, the squad's room states live in its play; the platoon's record, folded by the staff inbox from these reports, comes with PL-1 (`CE-2264`), its one reader. Recorded as a deviation from CB-9's "else the squad" | build it now with no reader: a component nobody reads (the silent-default pattern) |
+
+**Slice.** BC-3 v1 = CB-57…CB-63; rails in `SquadManeuverTests.CE2259_*` (the room order, pure; a two-room house cleared room by room with
+the teams swapped; a blocked door skipped; a stair to the upper room; BuildingClear and Success). ⛔ Not in it: civilians (BC-2), contact
+and casualties inside (BC-5), grenades (BC-4), the platoon's record (PL-1), a live demo (`bc-house-clear` — the CQB house, BR-1).
+
+#### 7.2a As built *(2026-10-19)*
+
+| piece | as built | where |
+|---|---|---|
+| the order | `ClearBuilding {Building, Speed}` → `ClearBuildingPlay` on kind 5; the survey `OfArea(point, 3 m)` is kept for the run, re-read for each next room (age ignored — doors are read live); the building = the non-solid one whose centre is nearest the point | `ClearBuildingBehavior.cs`, `ClearRoomParamsJsonDto.cs` |
+| one drill (CB-58) | `RoomDrill` + `RoomDrillState` carry BC-1's stack · breach · flow · clear; `ClearRoomPlay` is now its room survey + "a blocked door fails" | `RoomDrill.cs`, `ClearRoomBehavior.cs` |
+| the loop | kind 5 gains Cleared + BoundComplete → Stacking (the next room) and Breaching + FarSideReached → Stacking (a blocked door, the next room) | `StackAndRoomEntryManeuver.cs` |
+| the next room (CB-59) | `RoomOrder.Next` — pure, as the table | `ClearBuildingBehavior.cs` |
+| a stair (CB-60) | `RoomEntryPlan.PlanFrom(corners, floor, stair, footZ, men)`: `Into` from the stair to the room's middle; the stack beside the stair on the foot floor (`Result.StackZ`) | `RoomEntryPlan.cs` |
+| the teams (CB-61) | `Places` turns the non-leader men by `turn × Entry`; `turn` = rooms finished | `RoomDrill.cs` |
+| the end (CB-62) | BuildingClear when `RoomOrder` finds nothing and a room was cleared ⇒ Success; a blocked door with nothing cleared ⇒ Failure | `ClearBuildingBehavior.cs` |
+
+⚠ **Found while extracting:** BC-1's stack timeout (60 s) never set the breach clock, so a squad that gave up waiting for its stack
+would have been blocked at the door the same frame. `RoomDrill` sets it on both paths.
+
+Rails: `SquadManeuverTests.CE2259_BC3_*` — the room order (pure) · a six-man squad clearing hall, back room, side room and upstairs
+through the real brain with men that obey, the front door breached by the first man after the leader and the side door by the man the
+turn brings round, Foothold, BuildingClear, Success · a locked side door: RoomBlocked, the rest cleared, Success · no answer: Failure.
+The four BC-1 rails pass on the extracted drill unchanged. ✅ Red-proved by 8 compiling mutants, all killed (no loop back · the turn · Foothold · the storey order · the reach rule · a blocked door failing the run · the survey timeout · the stair's stack on its own floor). ⛔ Not live (the CQB house, BR-1).
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 

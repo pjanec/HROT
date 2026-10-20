@@ -507,6 +507,16 @@ namespace Hrot.NED.Descriptors
         public byte Resolved;
     }
 
+    // ⭐ CE-1223 (Entity Control §8k S-2) — when a man was last hit or nearly missed (sim seconds), stamped on the Muscle, read by every node's hit model.
+    [DdsTopic("EntityUnderFire")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityUnderFire
+    {
+        [DdsKey] public long EntityId;
+        public double LastTime;
+    }
+
     [DdsTopic("EntityLookState")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -1035,6 +1045,10 @@ namespace Hrot.NED.Descriptors
         public byte  Kind;
         /// <summary>⭐ CE-3063 (R-207) — what it sounded like (<c>SoundSourceClass</c>), never the source's identity.</summary>
         public byte  SourceClass;
+        /// <summary>⭐ CE-3283 (Q95 A) — the weapon family the ear told (<c>SoundFamily</c>; 0 = not told).</summary>
+        public byte  Family;
+        /// <summary>⭐ CE-3283 — the TKB type that made it (a weapon / a munition), when the ear told it; 0 otherwise. A TYPE, never an entity.</summary>
+        public long  Signature;
     }
 
 }

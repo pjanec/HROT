@@ -272,6 +272,11 @@ may fire; a load adds neither), the type-picker golden (+108, 109).
 hatch at x −0.4, z 0.7 (feet); every `Pickup(...)` gunner (seat 1: 104 / 105 / 108 / 109) KNEELS in the bed at x −2.0, z 0.85. Without a
 place the technicals' gunner was drawn inside the body, and at z 1.2 the HMMWV's showed only his head. Read only by the 3-D drawing; the
 stations, indices, roles and presets are unchanged ([DESIGN_Map_3D_Mode §6n](../../DESIGN_Map_3D_Mode.md), `Map3DTests.CE1108_*`).
+⭐ **`2026-10-19` (backend, BR-15 / BR-16):** the HMMWV is now a light platform (`CE-3274`: 6/5/5/3 mm, 350 hp, blast 0.9), and the urban
+`MilitaryAPC` 2001 has the ring pattern as an enclosed RWS — gunner seat 8 (an `InfantrySoldier`), station 9 (pintle, NeedsGunner, an M2)
+(`CE-3275`; the `P1_APlacedArmedVariant_…` APC row).
+⭐ **`2026-10-19` (backend, BR-14, `CE-3273`) — every weapon type carries its REPORT:** its round names the weapon as the shooter (WS-3),
+so the sound sits on the weapon's own `SignaturesDto.Acoustic` (`WeaponSystemType(…, report:)`), never the host's or the man's.
 
 ### 5b. A weapon is broken by fragments and blast — configured per type (`CE-3203`, `2026-10-15`)
 

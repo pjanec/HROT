@@ -7,6 +7,8 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Perception.Events;
+using Fbt;
+using Hrot.AI.Behaviors.Brains;
 using Hrot.CGF.Configuration;
 using Xunit;
 
@@ -144,6 +146,83 @@ namespace Hrot.SimHost.Tests
             both.Sense(SensorChange.AirThreat);
             both.Run(0.1);
             Assert.Equal("ShelterFromAir", both.TaskName);
+        }
+
+        /// <summary>A carrier: <paramref name="passenger"/> ⇒ a soldier aboard (a passenger seat); <paramref name="speed"/> its velocity
+        /// east (m/s); <paramref name="mobile"/> false ⇒ a mobility kill (no CanMove).</summary>
+        private static World Carrier(bool passenger, float speed, bool mobile = true, bool crewOnly = false, bool brainNode = false)
+        {
+            var w = new World();
+            if (crewOnly)   // its only rider sits in a GUNNER seat — crew, not troops
+            {
+                var seats = new CarrierSeats { SeatCount = 1 };
+                seats.Roles[0] = SeatRole.Gunner;
+                w.Repo.AddComponent(w.Unit, seats);
+            }
+            if (passenger)
+            {
+                var man = w.Repo.CreateEntity();
+                w.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                var buffer = new PassengerBuffer();
+                buffer.Passengers[0] = man;
+                w.Repo.AddComponent(w.Unit, buffer);
+            }
+            if (brainNode)   // ⭐ CE-2313 — as a brain node holds a vehicle SimHost drives: a stale VehicleState, the motion replicated
+            {
+                var r = w.Repo;
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkAuthority>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkTransform>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkVelocity>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+                if (!r.IsComponentTypeRegistered<CarKinem.Core.VehicleState>()) r.RegisterComponent<CarKinem.Core.VehicleState>();
+                r.AddComponent(w.Unit, new CarKinem.Core.VehicleState { Speed = 0f });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = System.Numerics.Vector3.Zero, LastRotation = System.Numerics.Quaternion.Identity });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = new System.Numerics.Vector3(speed, 0f, 0f) });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+                r.SetAuthority<SimTransform>(w.Unit, false);
+                speed = 0f;   // this node's own SimVelocity is the zero it was given
+            }
+            w.Repo.AddComponent(w.Unit, new SimVelocity { Linear = new System.Numerics.Vector3(speed, 0f, 0f) });
+            w.Repo.AddComponent(w.Unit, new ActorCapabilityState { Capabilities = mobile ? ActorCapabilities.CanMove | ActorCapabilities.CanShoot : ActorCapabilities.CanShoot });
+            w.Order("Idle"); w.StartSop(); w.Run(0.3);
+            w.Remember(true);
+            w.Sense(SensorChange.Hit);
+            w.Run(0.1);
+            return w;
+        }
+
+        /// <summary>⭐⭐ <c>CE-2307</c> (CH-1…CH-4, Squad Tactics §5b) — a carrier with a soldier aboard, hit while it DRIVES east at 8 m/s,
+        /// PUSHES THROUGH (urgency Hit): it drives to the point 150 m on along its velocity; standing, empty (its crew is no troops), or with a mobility kill it
+        /// fights from cover as before. ✅ Red-proofs: the row missing / below the hit row ⇒ fight from cover · the standing test dropped ⇒ the
+        /// standing carrier pushes · the passenger test dropped ⇒ the empty one · the crew counted ⇒ the gunner-only one · the CanMove test dropped ⇒ the immobile one
+        /// · the heading from the facing, not the velocity ⇒ the point north.</summary>
+        [Fact]
+        public void CE2307_AHitCarrierThatDrivesWithTroops_PushesThrough_OtherwiseItFightsFromCover()
+        {
+            var push = Carrier(passenger: true, speed: 8f);
+            Assert.Equal("PushThrough", push.TaskName);
+            Assert.Equal(ReactionUrgency.Hit, push.Task.Urgency);
+            var to = PushThroughBehavior.Ahead(push.Repo, push.Unit, 150f);
+            Assert.True(System.Numerics.Vector3.Distance(to, new System.Numerics.Vector3(150f, 0f, 0f)) < 0.01f, $"ahead {to}");
+            Assert.Equal(NodeStatus.Running, LocomotionMoveTo.Status(push.Repo, push.Unit));
+
+            Assert.Equal("VehicleFightFromCover", Carrier(passenger: true, speed: 0f).TaskName);                 // standing
+            Assert.Equal("VehicleFightFromCover", Carrier(passenger: false, speed: 8f).TaskName);                // empty
+            Assert.Equal("VehicleFightFromCover", Carrier(passenger: true, speed: 8f, mobile: false).TaskName);  // a mobility kill
+            Assert.Equal("VehicleFightFromCover", Carrier(passenger: true, speed: 8f, crewOnly: true).TaskName); // only its gunner aboard
+        }
+
+        /// <summary>⭐⭐ <c>CE-2313</c> — the same carrier as a BRAIN node holds it (found live, <c>uc-convoy-hit-ifv</c>): its VehicleState is the
+        /// stale copy (Speed 0) and its own SimVelocity zero, but the motion replicated to the node says 8 m/s and the node does not own its
+        /// transform ⇒ it is DRIVING: hit, it pushes through, along the replicated velocity. ✅ Red-proof: the replica branch dropped (the
+        /// VehicleState first) ⇒ standing ⇒ it fights from cover.</summary>
+        [Fact]
+        public void CE2313_OnABrainNode_ADrivingCarrierReadsAsDriving_AndPushesThrough()
+        {
+            var push = Carrier(passenger: true, speed: 8f, brainNode: true);
+            Assert.False(Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(push.Repo, push.Unit));
+            Assert.Equal("PushThrough", push.TaskName);
+            var to = PushThroughBehavior.Ahead(push.Repo, push.Unit, 150f);
+            Assert.True(System.Numerics.Vector3.Distance(to, new System.Numerics.Vector3(150f, 0f, 0f)) < 0.01f, $"ahead {to}");
         }
     }
 }

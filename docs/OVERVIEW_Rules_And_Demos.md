@@ -143,6 +143,14 @@ related-designs:
 | — | a weapon a person carries is never the target — its carrier is | `HoldTheLineBehavior.Nearest` | §5k.1 |
 | — | `FireAtPoint` with empty hands fires the weapon he carries | `FireAtPointExecutor` | §5k.1 |
 | BM-1 / BM-2 | the bomber stands still `Seconds`, then sets off his worn charge; it stays hidden till then | `DetonateChargeBehavior` → `Charges.Ask` | §5l |
+| DA-93…DA-95 | the trigger man sets off a PLACED charge by phone when a hostile vehicle HE sees is in its kill zone (`AnyTarget`: people too) | `TriggerIedBehavior`, `KillZone.Entered` → `Charges.Ask` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
+| DA-96 | an ambush (`SquadDefend.InitiatedBy`) holds through the enemy in its sector and opens fire once its charge is gone | `SquadDefendBehavior.LiftOwnHold` | [Defend & Attack §8e](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
+| CH-1…CH-4 | a carrier hit while it drives with troops aboard pushes through (150 m on, then its route); the squad gets out only of a STANDING carrier | `PushThroughBehavior`, `ConvoyConditions.CanPushThrough`, `BasicVehicleSop` row, `SquadSopConditions` | [Squad Tactics §5b](designs/group-maneuvers/DESIGN_Squad_Tactics.md) |
+| SP-1…SP-4 | the spotter picks his own target (the biggest hostile group he SEES, a vehicle double, within 1500 m), runs the IF-3 adjust mission on it, rests 30 s, repeats | `SpotForFireBehavior`, `FireTargets.Pick` | [Indirect Fire §3.11](designs/indirect-fire/DESIGN_Indirect_Fire.md) |
+| HQ-1, HQ-2 | a heavy launch heard ≥ 1 km off is SPOTted as IndirectFire; a SPOT carries Vehicle / AirDefence for what was identified | `StaffComposerSystem.ComposeLaunch`, `EquipmentOf`, `AirDefenceWeapons` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| HQ-3…HQ-5 | a platoon relays the mortar and the air defence up, asks FireSupport on the mortar, asks Reinforce when Red with the enemy near | `StaffComposerSystem.ComposeSupport` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| HQ-6…HQ-9 | the HQ answers: air defence near ⇒ the strike plane on it first; else the attack helicopter searches the point (attacks what it finds, ends when quiet), else the battery fires; Reinforce ⇒ a free unit defends at the requester | `SupportCommandBehavior`, `AirArmedSearchBehavior`, `CommandOrders.Busy` | [Command Chain §8d](designs/group-maneuvers/DESIGN_Command_Chain_Example.md) |
+| AT-1…AT-12 | a platoon attacks an AREA, objective by objective (enemy elements by building, nearest first, else the area's buildings): base of fire 120 m off · bound to a flank point 40 m off · lift (support ReturnFire) · clear the building or assault through · consolidate; a Black assault ⇒ the reserve takes over, none left ⇒ break off (the run fails); a Casevac ⇒ the free reserve | `PlatoonAttackBehavior`, `AttackObjectives.Plan`, `CasevacAnswers` | [Defend & Attack §8f](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
 
 **Demos**
 
@@ -264,6 +272,12 @@ related-designs:
 | `ua-casualty-care-heavy` | the same under heavy fire | nobody goes for 30 s; enemy down → they go at once | C3 | ✅ |
 | `ua-casualty-care-leader` | the leader is the casualty | the next man (not the Medic) takes command; care runs | C7 | ✅ |
 | `ua-squad-danger-crossing-hold` | crossing choice picks Hold | — | S10 | ⏳ no live check yet |
+| `pc-attack-dry` | a platoon attacks the area round OBJ on faked reports | base of fire → bound → lift + ClearBuilding → consolidate → won | AT-1…AT-12 | ✅ 12/12 |
+| `pc-defend-house` | a platoon attack against a platoon defence, AI on both sides | both plays run, the line opens fire, both sides fire, the assault or a break-off — no winner asserted | AT, DA-98, E-3a | ✅ |
+| `uc-convoy-hit` / `-ifv` | demo-city: an IED under a convoy | the charge only in the kill zone; an APC halts and its squad fights / a Bradley pushes through with its squad aboard | CE-2306, CH-1…CH-4, CE-2313 | ✅ 8/8 · 9/9 |
+| `uc-request-chain` (+ `-dry`) | spotter → mortar → heard launch → SPOT → FireSupport → the HQ's AH-64 armed search | nothing sent without a report; the AH-64 attacks the cell | HQ-1…HQ-9 | 🟡 once (terrain size) · ✅ dry 9/9 |
+| `uc-a10-zu23-dry` · `uc-reinforce-dry` | air defence near the point · a Red platoon with the enemy near | the A-10 at the ZU-23 first, the AH-64 waits · the reserve sent, never the requester | HQ-7, HQ-9 | ✅ 7/7 · 6/6 |
+| ⭐ `uc-urban-battle` | the flagship: convoy, IED, ambush round a corner, spotter + mortar, ZU-23, an HQ with air and a reserve, civilians | the charge only in the kill zone · no round at a civilian · nothing sent without a REQUEST · both sides fight | all of the above | ✅ 6/6 |
 
 ## 6. Buildings — [Building interiors](DESIGN_Building_Interiors.md)
 

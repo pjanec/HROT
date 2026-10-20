@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     ///   <item>No known threats, or no sight source ⇒ nothing is scored or flagged.</item>
     /// </list>
     /// </summary>
-    public sealed class ThreatExposureTest : IEqsTest
+    public sealed class ThreatExposureTest : IEqsTest, IEqsCountedWork
     {
         private readonly ILosService? _los;
 
@@ -44,8 +44,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public EqsTestPhase Phase => EqsTestPhase.ScoreExpensive;
 
         /// <inheritdoc/>
+        // ⭐ CE-3279 (c) — a sight check per known threat per candidate: this thread's count for the last batch
+        [ThreadStatic] private static int t_work;
+
+        /// <inheritdoc/>
+        public int TakeCountedWork() { int w = t_work; t_work = 0; return w; }
+
         public unsafe void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
+            t_work = candidates.Length * EqsCost.Cheap;   // ⭐ CE-3279 (c) — the pass itself, even when nothing is known
             var los = EqsTerrainSight.Sight(view, _los);
             if (los == null) return;
             var self = EqsContext.Self(view, observer, sensor);
@@ -60,6 +67,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 eyes[t] = view.GetComponentRO<SimTransform>(e).Position + new Vector3(0, 0, EqsTerrainSight.Mount(view, e).Standing);
             }
             if (threats == 0) return;
+            t_work = candidates.Length * threats * EqsCost.Sight;   // 📐 live: ~42 µs a candidate with ~4 threats ≈ 15 units
 
             float crouched = EqsTerrainSight.Mount(view, self).Crouched;
             for (int c = 0; c < candidates.Length; c++)

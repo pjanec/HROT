@@ -32,6 +32,8 @@ namespace Hrot.AI.Behaviors.Brains
         public AuthoredPosts Authored;
         /// <summary>Runtime: the posts and each man's count of rounds at him (the play's own memory).</summary>
         public DefencePosts Posts;
+        /// <summary>⭐ <c>CE-2306</c> (DA-96) — an ambush's initiating charge (its network id; 0 = not an ambush).</summary>
+        public long InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -127,6 +129,20 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float FaceBearing[Capacity];
         /// <summary>⭐ D-2c — per roster slot: the contact he last turned to (its id) — once per contact.</summary>
         public fixed long Flanker[Capacity];
+        /// <summary>⭐ D-2l (DA-77, DA-78, R-2059) — 1 = the squad turns its window points into FRAME posts (its median man is Regular or
+        /// better) · the first candidate the window ask added · 1 once that ask's points are in.</summary>
+        public byte FrameWanted, WindowFrom, WindowSettled;
+        /// <summary>⭐ D-2l — per candidate: 1 = a FRAME post (the point is one of its window's frame points) · 1 = a window the set-back pass
+        /// could not move back (a Veteran's shallow room, D-2j): a frame post when it has a frame, else no post (DA-84).</summary>
+        public fixed byte Frame[Capacity];
+        public fixed byte Shallow[Capacity];
+        /// <summary>⭐ D-2l — per candidate: its window's two frame points and the opening's centre (flat; Z = the post's).</summary>
+        public fixed float FrameAX[Capacity];
+        public fixed float FrameAY[Capacity];
+        public fixed float FrameBX[Capacity];
+        public fixed float FrameBY[Capacity];
+        public fixed float OpeningX[Capacity];
+        public fixed float OpeningY[Capacity];
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
@@ -136,8 +152,13 @@ namespace Hrot.AI.Behaviors.Brains
             X[Count] = p.X; Y[Count] = p.Y; Z[Count] = p.Z;
             Window[Count] = window ? (byte)1 : (byte)0;
             Roof[Count] = roof ? (byte)1 : (byte)0;
+            Frame[Count] = Shallow[Count] = 0;   // ⭐ D-2l — a slot freed by the frame pass may hold an old candidate's flags
             Count++;
         }
+
+        public Vector3 FrameA(int k) => new(FrameAX[k], FrameAY[k], Z[k]);
+        public Vector3 FrameB(int k) => new(FrameBX[k], FrameBY[k], Z[k]);
+        public Vector3 Opening(int k) => new(OpeningX[k], OpeningY[k], Z[k]);
 
         /// <summary>⭐ D-2f — an authored candidate (<paramref name="watch"/> zero = he faces the sector).</summary>
         public void AddAuthored(Vector3 p, bool window, Vector3 watch)
@@ -233,6 +254,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
+            block.Order.InitiatedBy = authored.InitiatedBy.NetworkId;      // ⭐ CE-2306 (DA-96)
             block.State = default;
         }
 
@@ -268,6 +290,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-2h (DA-48) — the visibility fan's site; its rays per post; how much longer a view must be to move the gun (m).</summary>
         public const int FanSite    = 0x22750004;
         public const int FanRays = 9;
+        /// <summary>⭐ D-2l (DA-78) — the BuildingSurvey that gives each window post its window's frame.</summary>
+        public const int FrameSite  = 0x22750005;
         public const float LongerViewMetres = 5f;
 
         /// <summary>Everyone within this of the position ⇒ the posts are asked for (m).</summary>
@@ -356,8 +380,11 @@ namespace Hrot.AI.Behaviors.Brains
                 Post = new MemberPost   // ⭐ D-2a (PC-14, DA-40) — he fights from his post: its windows or his alternate, never elsewhere
                 {
                     Set = 1, Window = p.Posts.Window[post], Radius = PostRadius,
-                    // ⭐ D-2b — his own hide ask sets back too; ⭐ D-2f — not at an authored post (the author placed him there)
-                    SetBack = p.Posts.Window[post] != 0 && p.Posts.Authored[post] == 0 ? p.Posts.SetBack : (byte)0,
+                    // ⭐ D-2b — his own hide ask sets back too; ⭐ D-2f — not at an authored post (the author placed him there);
+                    //   ⭐ D-2l — not at a frame post (he stands beside the frame instead)
+                    SetBack = p.Posts.Window[post] != 0 && p.Posts.Authored[post] == 0 && p.Posts.Frame[post] == 0 ? p.Posts.SetBack : (byte)0,
+                    Frame = p.Posts.Frame[post],   // ⭐ D-2l (DA-78) — beside the frame, leaning out
+                    FrameA = p.Posts.FrameA(post), FrameB = p.Posts.FrameB(post), Opening = p.Posts.Opening(post),
                     Roof = p.Posts.Roof[post],   // ⭐ D-2g — prone behind the parapet, crouched to fire
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
@@ -404,16 +431,28 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     p.Posts.WindowStage = 1; p.Posts.StageSince = ctx.Now;
                     var tier = MedianTier(in ctx);   // ⭐ D-2b (DA-42) — once, by the squad's median man
-                    p.Posts.SetBack = tier >= ProficiencyTier.Regular ? (byte)1 : (byte)0;
+                    // ⭐ D-2l (DA-77, R-2059) — Regular or better fights a window from beside its frame; a Veteran keeps the set-back post
+                    //   where the room is deep enough (D-2b / D-2j) and stands at the frame elsewhere. ⛔ SUPERSEDED: Regular set back (D-2b).
+                    p.Posts.SetBack = tier >= ProficiencyTier.Veteran ? (byte)1 : (byte)0;
                     p.Posts.SetBackOnly = tier >= ProficiencyTier.Veteran ? (byte)1 : (byte)0;   // ⭐ D-2j (DA-16) — "set-back posts everywhere"
+                    p.Posts.FrameWanted = tier >= ProficiencyTier.Regular ? (byte)1 : (byte)0;
+                    p.Posts.WindowFrom = p.Posts.Count;
+                    if (p.Posts.FrameWanted != 0)   // DA-78 — ONE survey of the position's buildings gives every window post its frame
+                        WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, FrameSite,
+                            WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), p.SearchRadius));
                 }
-                bool back = p.Posts.SetBack != 0;
-                bool answered = hasEa
-                    ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindDefensiveWindowSetBackPosts.BlueprintId : FindDefensiveWindowPosts.BlueprintId,
-                        WindowSite, p.SearchRadius, from, ea, out var buffer)
-                    : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindWindowSetBackPostsAllRound.BlueprintId : FindWindowPostsAllRound.BlueprintId,
-                        WindowSite, p.SearchRadius, from, p.Position, out buffer);
-                if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: true)) return;
+                if (p.Posts.WindowSettled == 0)
+                {
+                    bool back = p.Posts.SetBack != 0;
+                    bool answered = hasEa
+                        ? SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindDefensiveWindowSetBackPosts.BlueprintId : FindDefensiveWindowPosts.BlueprintId,
+                            WindowSite, p.SearchRadius, from, ea, out var buffer)
+                        : SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, back ? FindWindowSetBackPostsAllRound.BlueprintId : FindWindowPostsAllRound.BlueprintId,
+                            WindowSite, p.SearchRadius, from, p.Position, out buffer);
+                    if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: true)) return;
+                    p.Posts.WindowSettled = 1;
+                }
+                if (!Frames(ref p, in ctx, hasEa, ea)) return;
                 p.Posts.WindowStage = 2;
                 PickAll(ref p, in ctx);
             }
@@ -530,11 +569,58 @@ namespace Hrot.AI.Behaviors.Brains
             var points = buffer.GetSpanRO();
             for (int k = 0; k < buffer.Count && k < points.Length; k++)
             {
-                // ⭐ D-2j (DA-16, DA-50) — a Veteran squad keeps only the windows its set-back pass really moved back from the sill
-                if (window && p.Posts.SetBackOnly != 0 && (points[k].FlagsMeaningful & CoverPointsGenerator.FlagSetBack) != 0
-                    && (points[k].Flags & CoverPointsGenerator.FlagSetBack) == 0) continue;
+                // ⭐ D-2j (DA-16, DA-50) — a Veteran squad keeps only the windows its set-back pass really moved back from the sill;
+                //   ⭐ D-2l (DA-77) — the others wait for the frame pass, which keeps those that have a frame (Frames)
+                bool shallow = window && p.Posts.SetBackOnly != 0 && (points[k].FlagsMeaningful & CoverPointsGenerator.FlagSetBack) != 0
+                    && (points[k].Flags & CoverPointsGenerator.FlagSetBack) == 0;
+                if (shallow && p.Posts.FrameWanted == 0) continue;
+                int added = p.Posts.Count;
                 p.Posts.Add(new Vector3(points[k].PositionX, points[k].PositionY, points[k].PositionZ), window, roof);
+                if (shallow && p.Posts.Count > added) unsafe { p.Posts.Shallow[added] = 1; }
             }
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ D-2l (DA-78, DA-84; 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l) — the frame pass over the window ask's points: each one
+        /// that is fought from the frame (every one at Regular; a Veteran's shallow ones) and has a window within
+        /// <see cref="WindowFrame.MatchMetres"/> in the survey becomes a FRAME post at the frame point away from the engagement area
+        /// (<see cref="WindowFrame.Facing"/>); a Veteran's shallow window with no frame is no post (D-2j); the rest stay as they were.
+        /// True once the survey answered or timed out (<see cref="AskTimeoutSeconds"/> from the window stage) — then the survey goes.
+        /// </summary>
+        private static unsafe bool Frames(ref SquadDefendParams p, in SquadPlayContext ctx, bool hasEa, Vector3 ea)
+        {
+            if (p.Posts.FrameWanted == 0) return true;
+            var child = EqsChildSensor.Find(ctx.World, ctx.Commander, FrameSite);
+            var read = WorldSurveyChildSensor.Read(ctx.World, child, ctx.Now);
+            bool ready = read.Ready && !read.Stale && read.Payload != null;
+            if (!ready && ctx.Now - p.Posts.StageSince < AskTimeoutSeconds) return false;
+            var answer = ready ? read.Payload : null;
+            int keep = p.Posts.WindowFrom;
+            for (int k = p.Posts.WindowFrom; k < p.Posts.Count; k++)
+            {
+                bool shallow = p.Posts.Shallow[k] != 0;
+                var at = p.Posts.Point(k);
+                Vector3 a = default, b = default, opening = default;
+                bool framed = (p.Posts.SetBack == 0 || shallow) && WindowFrame.FromSurvey(answer, at, out a, out b, out opening);
+                if (shallow && !framed) continue;   // DA-84 / D-2j — a Veteran's shallow window without a frame is no post
+                if (framed)
+                {
+                    var target = hasEa ? ea : opening + (opening - p.Position);   // all-round: straight out
+                    at = WindowFrame.Facing(a, b, opening, target);
+                    p.Posts.FrameAX[keep] = a.X; p.Posts.FrameAY[keep] = a.Y;
+                    p.Posts.FrameBX[keep] = b.X; p.Posts.FrameBY[keep] = b.Y;
+                    p.Posts.OpeningX[keep] = opening.X; p.Posts.OpeningY[keep] = opening.Y;
+                }
+                p.Posts.X[keep] = at.X; p.Posts.Y[keep] = at.Y; p.Posts.Z[keep] = at.Z;
+                p.Posts.Window[keep] = 1;
+                p.Posts.Authored[keep] = p.Posts.Roof[keep] = p.Posts.Shallow[keep] = 0;
+                p.Posts.WatchX[keep] = p.Posts.WatchY[keep] = p.Posts.WatchZ[keep] = 0f;
+                p.Posts.Frame[keep] = framed ? (byte)1 : (byte)0;
+                keep++;
+            }
+            p.Posts.Count = (byte)keep;
+            WorldSurveyChildSensor.Release(ctx.World, child);
             return true;
         }
 
@@ -665,10 +751,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Posts.HoldLifted != 0 || !world.IsComponentTypeRegistered<Roe>() || !world.HasComponent<Roe>(ctx.Commander)) return;
             ref readonly var roe = ref world.GetComponentRO<Roe>(ctx.Commander);
             if (roe.Fire != RoeFire.HoldFire || roe.SetBy == BehaviorOrigin.Superior || roe.SetBy == BehaviorOrigin.Unmarked) return;
-            if (!ContactInSector(in ctx) && !RoundAtAMan(in ctx, ws.StartedAt)) return;
+            // ⭐ CE-2306 (DA-96) — an ambush waits for its initiation (the charge gone), not for the first enemy in the kill zone
+            bool trigger = p.InitiatedBy != 0 ? Initiated(world, p.InitiatedBy) : ContactInSector(in ctx);
+            if (!trigger && !RoundAtAMan(in ctx, ws.StartedAt)) return;
             if (!world.Bus.IsRegistered<SetRoeEvent>()) return;
             world.Bus.Publish(new SetRoeEvent { Entity = ctx.Commander, Fire = RoeFire.FireAtWill, Origin = BehaviorOrigin.Self });
             p.Posts.HoldLifted = 1;
+        }
+
+        /// <summary>⭐ <c>CE-2306</c> (DA-96) — the ambush's charge is gone: set off (spent, then torn down on every node) or destroyed.</summary>
+        private static bool Initiated(EntityRepository world, long charge)
+        {
+            var e = new Fdp.Toolkit.Replication.EntityRef(charge).Resolve(world);
+            return e.IsNull || !Fdp.Toolkit.Combat.Charges.IsCharge(world, e);
         }
 
         /// <summary>Any pooled contact (seen or heard) inside the squad's sector — with no sector, any contact.</summary>

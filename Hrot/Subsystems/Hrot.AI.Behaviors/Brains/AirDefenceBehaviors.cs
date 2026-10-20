@@ -118,39 +118,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool CanEngageAir(ref EngageAircraftParams p, Entity self, EntityRepository world)
             => CanEngageAir(world, self, Effective(in p).MinElevationDeg);
 
-        /// <summary>
-        /// True when <paramref name="unit"/> carries or controls (<see cref="WeaponSystems.Controlled"/>) a weapon able to engage aircraft: a
-        /// <see cref="WeaponCategory.Sam"/> launcher whose missile may be fired at the Air domain (Air or Either), or a gun whose turret
-        /// elevates to <paramref name="minElevationDeg"/>. A dispenser, a rifle, an ATGM, an M2 on its 70° pintle do not count.
-        /// </summary>
+        /// <summary>True when <paramref name="unit"/> can fire at an aircraft — ⭐ <c>CE-2309</c>: the rule lives in the toolkit now
+        /// (<see cref="AirDefenceWeapons.CanEngageAir"/>), so the staff's SPOT reads the same one.</summary>
         public static bool CanEngageAir(EntityRepository world, Entity unit, float minElevationDeg)
-        {
-            if (!world.IsAlive(unit)) return false;
-            for (int i = 0; i < AirAttackProfiles.MaxMounts; i++)
-            {
-                var m = CombatTkb.MountOf(world, unit, i);
-                if (m == null) break;
-                if (AirCapable(world, unit, m, minElevationDeg)) return true;
-            }
-            Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
-            int n = WeaponSystems.Controlled(world, unit, controlled);
-            for (int k = 0; k < n; k++)
-            {
-                if (WeaponSystems.IsBroken(world, controlled[k])) continue;
-                var m = CombatTkb.MountOf(world, controlled[k], 0);
-                if (m != null && AirCapable(world, controlled[k], m, minElevationDeg)) return true;
-            }
-            return false;
-        }
-
-        private static bool AirCapable(EntityRepository world, Entity owner, WeaponMountDto m, float minElevationDeg)
-        {
-            if (m.Category == WeaponCategory.Countermeasure) return false;
-            if (m.Category == WeaponCategory.Sam)
-                return CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is not { } missile || missile.TargetDomain != TargetDomain.Ground;
-            if (m.Category is not (WeaponCategory.MachineGun or WeaponCategory.Autocannon)) return false;
-            return m.TurretIndex >= 0 && CombatTkb.TurretOf(world, owner, m.TurretIndex) is { } turret && turret.ElevationMaxDeg >= minElevationDeg;
-        }
+            => AirDefenceWeapons.CanEngageAir(world, unit, minElevationDeg);
 
         /// <summary>Running while an aircraft is about (Success when the sky has been clear for <c>ClearSeconds</c>).</summary>
         [SharedAiAction]

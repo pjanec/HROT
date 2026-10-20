@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Perception.Signatures
 
         /// <summary>⭐ <c>CE-3063</c> — the <c>SoundSourceClass</c> of its movement, its shots and its detonations (from the TKB).</summary>
         public byte MovingClass, FiringClass, DetonationClass;
+        /// <summary>⭐ <c>CE-3283</c> (Q95 A) — the <c>SoundFamily</c> of its shots and bursts (TKB data), for a trained ear.</summary>
+        public byte Family;
 
         /// <summary>How far its movement carries this tick (0 = still).</summary>
         public float CurrentMovingRange;

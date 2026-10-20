@@ -14,7 +14,7 @@ previous one); the script verifies the loaded cast.
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
 """
-import argparse, json, math, os, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy (RUNBOOK §2)
 BASE = "http://localhost:8111"                                            # the HOSTNAME — 127.0.0.1 404s (RUNBOOK §2)
@@ -60,11 +60,65 @@ def scenario_names(name):
     return sorted(e.get("EntityInfo", {}).get("Name") for e in doc["entities"].values() if e.get("EntityInfo", {}).get("Name"))
 
 
+def _off_grid(since):
+    """⭐ Urban Battle §6 (2026-10-20) — the WARN lines the cluster logged since byte `since` for entities placed outside the terrain's grids
+    (an entity there can be neither seen, nor hit, nor found — measured: a mortar 800 m past demo-city's edge was invisible to everyone)."""
+    path = os.path.join("/tmp", f"utility-demo-cluster-{BASE.rsplit(':', 1)[-1]}.log")
+    try:
+        with open(path, errors="replace") as fh:
+            fh.seek(since)
+            text = fh.read()
+    except OSError:
+        return []
+    lines = [l.strip() for l in text.splitlines() if "is outside the collider grid" in l]
+    # the grid RE-FITS to the resident terrain during the load (SpatialGridFit, CE-3018; 300 cells): judge each position against the last fit
+    fits = re.findall(r"collider grid origin \((-?[\d.]+),(-?[\d.]+)\) cell ([\d.]+) m", text)
+    if not fits:
+        return lines
+    ox, oy, cell = (float(v) for v in fits[-1])
+    lo_x, lo_y, hi_x, hi_y = ox, oy, ox + 300 * cell, oy + 300 * cell
+    out = []
+    for l in lines:
+        m = re.search(r"at \((-?[\d.]+), (-?[\d.]+)\)", l)
+        if not m or not (lo_x <= float(m.group(1)) <= hi_x and lo_y <= float(m.group(2)) <= hi_y):
+            out.append(l)
+    return out
+
+
+def _log_size():
+    try:
+        return os.path.getsize(os.path.join("/tmp", f"utility-demo-cluster-{BASE.rsplit(':', 1)[-1]}.log"))
+    except OSError:
+        return 0
+
+
 def load(name):
+    log_at = _log_size()
     resp = call("POST", "/scenario/load/live", {"name": name, "waitForReady": True})
-    if "http" in resp:
+    if "http" in resp and resp.get("http") == 504 and "did not reach a settled" in str(resp.get("body")):
+        # ⭐ Urban Battle §6 — a big terrain (demo-city: 541 entities, ~29 s to OperatingLive, measured 2026-10-20) can outlast the
+        #   endpoint's fixed 30 s wait. Keep waiting on /status for OperatingLive with a steady entity count — never for ever.
+        prev, steady, end = None, 0, time.time() + 120
+        while time.time() < end and steady < 3:
+            st = data(call("GET", "/status")) or {}
+            count = st.get("entityCount")
+            steady = steady + 1 if st.get("clusterState") == "OperatingLive" and count == prev else 0
+            prev = count
+            time.sleep(1.0)
+        if steady < 3:
+            sys.exit(f"load failed: {resp} — and no settled OperatingLive within 120 s more (last status {st})")
+        print(f"   (the load outlasted the endpoint's 30 s wait; settled at {prev} entities)")
+    elif "http" in resp:
         sys.exit(f"load failed: {resp}")
     call("POST", "/perspective", {"name": "Scenario"})
+    wait_for(lambda: False, 2, every=1.0)
+    off = _off_grid(log_at)
+    if off:
+        # ⚠ a WARNING, not a refusal (user, 2026-10-20): off-map artillery is normal (indirect-fire-range's guns stand 2-5 km out). Off the
+        #   grids an entity cannot be SEEN or collide; whether it is HEARD is Architect Question 95 §B. Say so, so a check that relies on
+        #   seeing it is not misread.
+        print(f"   ⚠ {len(off)} entit{'y' if len(off) == 1 else 'ies'} outside the terrain's grids (not seen, no collision there):\n     "
+              + "\n     ".join(off[:8]))
     # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
     #   check could report on the previous scenario's cast. Kept as a guard.
     #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an
@@ -4005,6 +4059,438 @@ def run_pc_defend_dry(c, timeout):
     c.ok(all(task_name(s) == "SquadDefend" for s in sq.values()), f"④ …no squad was pulled off to hold ({ {k: task_name(s) for k, s in sq.items()} })")
 
 
+
+# ── CE-2277 DA-F — pc-attack-dry (Platoon §12.2 stage A; Defend & Attack §8f): PlatoonAttack's decisions on FAKED reports ──────
+def _order(nid):
+    return ((data(call("GET", f"/entities/{nid}/order")) or {}).get("task") or {})
+
+
+def run_pc_attack_dry(c, timeout):
+    """⭐ CE-2277 — pc-attack-dry (DESIGN_Platoon_Attack_Defend_Clear §12.2 A; DESIGN_Defend_And_Attack_Position §8f, AT-1…AT-12).
+    A Blue platoon south of OBJ attacks the area round OBJ (radius 20 — OBJ is its only building, so the sweep finds it). No enemy:
+    the squads move for real, the phase reports are faked. ① the base of fire goes up first, the others wait · ② its Set ⇒ the
+    assault and the reserve bound · ③ the assault's Set ⇒ the lift (ReturnFire) and ClearBuilding on OBJ · ④ BuildingClear ⇒ every
+    squad consolidates (SquadDefend) · ⑤ all Set ⇒ the run ends."""
+    ids = ids_by_name()
+    pl = ids.get("Blue Platoon")
+    sq = [ids.get(f"Blue Squad {i}") for i in (1, 2, 3)]
+    if not c.ok(pl and None not in sq, f"the platoon and its three squads are loaded (platoon {pl}, squads {sq})"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(pl) == "PlatoonAttack", 15), f"the platoon runs PlatoonAttack (task: {task_name(pl)})")
+    support = wait_for(lambda: next((s for s in sq if task_name(s) == "SquadDefend"), None), 20)
+    if not c.ok(support is not None, f"① one squad is ordered to SquadDefend — the base of fire ({ {s: task_name(s) for s in sq} })"):
+        return
+    o = _order(support)
+    print(f"    support order: {json.dumps(o)[:400]}")
+    others = [s for s in sq if s != support]
+    wait_for(lambda: False, 3, every=1.0)
+    c.ok(all(task_name(s) in (None, "", "None") for s in others),
+         f"① …the assault and the reserve wait for it ({ {s: task_name(s) for s in others} })")
+    c.ok(wait_for(lambda: _roe(support) == "FireAtWill", 10), f"① …and the base of fire fires at will (ROE {_roe(support)})")
+
+    call("POST", f"/entities/{support}/reports", {"kind": "Progress", "subtype": "Set"})
+    bound = wait_for(lambda: all(task_name(s) == "BoundingOverwatch" for s in others), 15)
+    c.ok(bound, f"② its Set ⇒ the assault and the reserve bound ({ {s: task_name(s) for s in others} })")
+    assault = wait_for(lambda: next((s for s in others if (_order(s).get("params") or {})), None), 5) or others[0]
+    print(f"    bound orders: { {s: json.dumps(_order(s).get('params'))[:200] for s in others} }")
+    # the assault is the one whose bound point is nearer OBJ (40 m vs the reserve's 100 m)
+    def dist(s):
+        prm = _order(s).get("params") or {}
+        pt = prm.get("objective") or prm.get("Objective") or [0, 0, 0]
+        return math.hypot(pt[0] - 125, pt[1] - 161)
+    assault = min(others, key=dist)
+    reserve = next(s for s in others if s != assault)
+    c.ok(dist(assault) < 60 < dist(reserve), f"② …the assault to the flank point 40 m off, the reserve behind ({dist(assault):.0f} m, {dist(reserve):.0f} m)")
+
+    call("POST", f"/entities/{assault}/reports", {"kind": "Progress", "subtype": "Set"})
+    cleared = wait_for(lambda: task_name(assault) == "ClearBuilding", 15)
+    c.ok(cleared, f"③ the assault's Set ⇒ it clears OBJ (task {task_name(assault)}, params {json.dumps(_order(assault).get('params'))[:200]})")
+    c.ok(wait_for(lambda: _roe(support) == "ReturnFire", 10), f"③ …the fire lifts: the base of fire only returns fire (ROE {_roe(support)})")
+
+    call("POST", f"/entities/{assault}/reports", {"kind": "Progress", "subtype": "BuildingClear"})
+    held = wait_for(lambda: all(task_name(s) == "SquadDefend" for s in sq), 20)
+    c.ok(held, f"④ BuildingClear ⇒ every squad consolidates round OBJ ({ {s: task_name(s) for s in sq} })")
+    for s in sq:
+        call("POST", f"/entities/{s}/reports", {"kind": "Progress", "subtype": "Set"})
+    ended = wait_for(lambda: task_name(pl) != "PlatoonAttack", 15)
+    c.ok(ended, f"⑤ every squad Set ⇒ the attack is won and ends (platoon task {task_name(pl)})")
+
+
+
+# ── CE-2277 + CE-2276 — pc-defend-house (Platoon §12.2 stage C): a real attack on a real defence, AI on both sides ───────────────
+def run_pc_defend_house(c, timeout):
+    """⭐ CE-2277 / CE-2276 — pc-defend-house (DESIGN_Platoon_Attack_Defend_Clear §12.2 C; DESIGN_Defend_And_Attack_Position §8d, §8f).
+    Red (pc-defend-dry's cast) defends OBJ, H1 and H4; Blue (pc-attack-dry's cast) attacks the area round OBJ (radius 35: OBJ, H1, H3).
+    Nothing is faked. ⛔ The winner is NOT asserted: ① both plays run · ② Blue's base of fire goes up and Red opens fire on what it
+    spots inside its EA · ③ both sides fire · ④ Blue reaches its assault (ClearBuilding) or breaks off (BreakContact) — the log says
+    which, with every phase change on both sides."""
+    ids = ids_by_name()
+    rpl, bpl = ids.get("Red Platoon"), ids.get("Blue Platoon")
+    red = {n: ids.get(n) for n in ("Red Squad 1", "Red Squad 2", "Red Reserve")}
+    blue = {n: ids.get(f"Blue Squad {i}") for i, n in enumerate(("B1", "B2", "B3"), 1)}
+    if not c.ok(rpl and bpl and None not in list(red.values()) + list(blue.values()),
+                f"both platoons and their squads are loaded (red {red}, blue {blue})"):
+        return
+    call("POST", "/sim/timescale", {"scale": 4})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(rpl) == "PlatoonDefend" and task_name(bpl) == "PlatoonAttack", 15),
+         f"① Red runs PlatoonDefend, Blue PlatoonAttack ({task_name(rpl)}, {task_name(bpl)})")
+    red_men = {v for k, v in ids.items() if k.startswith("Red Squad") or k.startswith("Red Reserve")}
+    blue_men = {v for k, v in ids.items() if k.startswith("Blue Squad")}
+    log, last = [], {}
+    seen = {"support": False, "redHeld": False, "redFire": False, "assault": False, "broke": False}
+    end = time.time() + min(timeout, 600)
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for name, nid in list(red.items()) + list(blue.items()) + [("Red Platoon", rpl), ("Blue Platoon", bpl)]:
+            now = (task_name(nid), _roe(nid))
+            if last.get(name) != now:
+                last[name] = now
+                log.append(f"{t:7.1f}  {name:12s} {now[0]} · {now[1]}")
+        tasks = [last[n][0] for n in blue]
+        seen["support"] |= "SquadDefend" in tasks
+        seen["assault"] |= "ClearBuilding" in tasks or "FireAndMovement" in tasks
+        seen["broke"] |= "BreakContact" in tasks
+        seen["redHeld"] |= any(last[n][1] == "HoldFire" for n in ("Red Squad 1", "Red Squad 2"))   # the line holds first (DA-7)…
+        seen["redFire"] |= seen["redHeld"] and any(last[n][1] == "FireAtWill" for n in ("Red Squad 1", "Red Squad 2"))   # …then opens
+        if seen["assault"] or seen["broke"] or task_name(bpl) != "PlatoonAttack":
+            break
+        time.sleep(1.0)
+    print("    timeline (sim s, squad, task · ROE):")
+    for line in log:
+        print("      " + line)
+    call("POST", "/perspective", {"name": "SimHost"})   # the shots are recorded where the rounds fly
+    try:
+        shots = (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    sides = {}
+    for sh in shots:
+        who = sh.get("shooter")
+        side = "Red" if who in red_men else "Blue" if who in blue_men else "?"
+        sides[side] = sides.get(side, 0) + 1
+    c.ok(seen["support"], "② Blue's base of fire goes up (a Blue squad SquadDefends)")
+    c.ok(seen["redFire"], "② Red's line opens fire (FireAtWill) on what it spots inside its EA")
+    c.ok(len(shots) > 0, f"③ shots are fired (by side {sides}, {len(shots)} in the last 256)")
+    c.ok(seen["assault"] or seen["broke"], f"④ Blue reaches its assault ({seen['assault']}) or breaks off ({seen['broke']}) — the winner is not asserted")
+
+
+
+# ── Urban Battle §6 L2 — uc-convoy-hit (demo-city): the trigger man, the IED, the carrier's reaction (CE-2306, CE-2307) ──────────
+def _detonations():
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        return (data(call("GET", "/combat/detonations?last=64")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def run_uc_convoy_hit(c, timeout):
+    """⭐ Urban Battle §6 L2 — uc-convoy-hit (DESIGN_Urban_Battle_Demo.md §6; Defend & Attack §8e.1; Squad Tactics §5b.1). An APC with a
+    squad aboard drives north up Avenue E; a placed charge lies on the road at y 200, its trigger man on the west sidewalk. Nothing is
+    faked. ① the APC drives its route · ② the charge goes off only with the APC in its kill zone · ③ the carrier, hit with troops
+    aboard, pushes through or halts and its squad dismounts — the log says which · ④ the branch completes (the push-through carries it
+    on; a dismounted squad fights)."""
+    ids = ids_by_name()
+    apc, sq, ied, trig = ids.get("Convoy APC"), ids.get("Convoy Squad"), ids.get("IED"), ids.get("Trigger man")
+    men = [ids.get(f"Convoy {n}") for n in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4")]
+    if not c.ok(None not in (apc, sq, ied, trig) and None not in men, f"the convoy, the charge and the trigger man are loaded ({apc}, {sq}, {ied}, {trig})"):
+        return
+    ied_at = position(ied)
+    before = len(_detonations())
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(apc) == "FollowRoute" and (position(apc) or (0, 0))[1] > 35, 30),
+         f"① the APC drives its route north (task {task_name(apc)}, at {position(apc)})")
+    print(f"    trigger man's task: {task_name(trig)}; the charge at {ied_at}")
+    det, at, t_det, track = None, None, None, []
+    end = time.time() + timeout
+    while time.time() < end:
+        pa = position(apc)
+        track.append((sim_time(), pa, task_name(apc)))
+        ds = _detonations()
+        if len(ds) > before:
+            det, at, t_det = ds[-1], pa, sim_time()
+            break
+        if pa and pa[1] > 260:
+            break
+        time.sleep(0.25)
+    if not c.ok(det is not None, f"② the charge goes off ({len(_detonations()) - before} new detonations; the APC reached {track[-1][1] if track else None})"):
+        for t, pa, tk in track[-12:]:
+            print(f"      {t}  {pa}  {tk}")
+        print(f"    trigger man: {json.dumps(data(call('GET', f'/entities/{trig}/state')))[:600]}")
+        return
+    d = math.hypot(at[0] - ied_at[0], at[1] - ied_at[1]) if at and ied_at else 999
+    c.ok(d <= 15, f"② …with the APC in its kill zone ({d:.1f} m from the charge at t {t_det:.1f}; detonation {json.dumps(det)[:200]})")
+    branch = wait_for(lambda: "push" if task_name(apc) == "PushThrough"
+                      else "dismount" if any("IsEmbarkedTag" not in comps(m) for m in men) else None, 15)
+    hp = (comps(apc).get("Health") or {})
+    c.ok(branch is not None, f"③ the carrier reacts: {branch} (APC task {task_name(apc)}, health {hp}, squad {task_name(sq)})")
+    if branch == "push":
+        aboard = all("IsEmbarkedTag" in comps(m) for m in men)
+        c.ok(aboard, f"③ …its squad stays aboard while it pushes (squad task {task_name(sq)}; aboard {[('IsEmbarkedTag' in comps(m)) for m in men]})")
+        far = wait_for(lambda: (position(apc) or (0, 0))[1] > ied_at[1] + 100, 60)
+        c.ok(far, f"④ it pushes through, 100 m past the charge (at {position(apc)})")
+        c.ok(wait_for(lambda: task_name(apc) == "FollowRoute", 60), f"④ …then its route resumes (task {task_name(apc)})")
+    elif branch == "dismount":
+        out = wait_for(lambda: all("IsEmbarkedTag" not in comps(m) for m in men if comps(m)), 20)
+        c.ok(out, "④ the squad is out")
+        # the squad's own task resumes (SquadHold); each man fights in his own CombatPosture — so "fights" is their rounds
+        def their_shots():
+            call("POST", "/perspective", {"name": "SimHost"})
+            try:
+                return [x for x in (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or [] if x.get("shooter") in men]
+            finally:
+                call("POST", "/perspective", {"name": "Scenario"})
+        fired = wait_for(lambda: their_shots(), 60)
+        c.ok(fired, f"④ …and fights: the dismounted men fire ({len(fired or [])} rounds; men's tasks {[task_name(m) for m in men]})")
+    print(f"    the carrier: {hp}, capabilities {(comps(apc).get('ActorCapabilityState') or {}).get('Capabilities')} (the MilitaryApc loses CanMove on any hit, "
+          f"CE-3092 — its branch is the halt; the Bradley keeps it above 60 % — its branch is the push)")
+
+
+
+# ── Urban Battle §6 L7 — uc-request-chain (demo-city): spotter → mortar → heard launch → SPOT → REQUEST → HQ → armed search ────────
+def run_uc_request_chain(c, timeout):
+    """⭐ Urban Battle §6 L7 — uc-request-chain (DESIGN_Urban_Battle_Demo.md §6; Command Chain §8d / §8d-a; Indirect Fire §3.11a;
+    Air Operations). Nothing is faked and nothing is sent by time: ① the insurgent spotter calls his mortar on the platoon he sees
+    (CE-2308) · ② a Blue man hears the launch past 1 km ⇒ his squad's staff SPOTs IndirectFire (CE-2309) · ③ the platoon asks the HQ
+    for FireSupport (CE-2310) · ④ the HQ sends its free AH-64 on an armed search of the point (CE-2312, CE-2311) — and not before ③."""
+    ids = ids_by_name()
+    hq, heli, pl, spot = ids.get("Blue HQ"), ids.get("Apache"), ids.get("Blue Platoon"), ids.get("Spotter")
+    tubes = [ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")]
+    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    squads = [ids.get("Blue Squad 1"), ids.get("Blue Squad 2")]
+    if not c.ok(None not in (hq, heli, pl, spot) and None not in tubes + crew + squads, f"the HQ, its Apache, the platoon and the mortar cell are loaded"):
+        return
+    mortar_at = position(tubes[0])
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend" and task_name(spot) == "SpotForFire", 30),
+         f"the plays run (HQ {task_name(hq)}, platoon {task_name(pl)}, spotter {task_name(spot)}, Apache {task_name(heli)})")
+    shooters = set(tubes + crew)
+    log, seen = [], {}
+    end = time.time() + timeout
+    while time.time() < end:
+        t = sim_time() or 0.0
+        if "rounds" not in seen and any(d.get("shooter") in shooters for d in _detonations()):
+            seen["rounds"] = t; log.append(f"{t:7.1f} mortar rounds land")
+        reps = squad_reports(last=256)
+        if "spot" not in seen:
+            r = next((r for r in reps if r.get("kind") == "Spot" and "IndirectFire" in str(r.get("equipment")) and r.get("from") in squads), None)
+            if r: seen["spot"] = t; seen["spotAt"] = r.get("at"); log.append(f"{t:7.1f} SPOT IndirectFire from {r.get('from')} at {r.get('at')}")
+        if "ask" not in seen:
+            r = next((r for r in reps if r.get("kind") == "Request" and r.get("subtype") == "FireSupport" and r.get("from") == pl), None)
+            if r: seen["ask"] = t; log.append(f"{t:7.1f} REQUEST FireSupport from the platoon at {r.get('at')}")
+        tk = task_name(heli)
+        if tk and "heli" not in seen:
+            seen["heli"] = t; seen["heliTask"] = tk; log.append(f"{t:7.1f} Apache ordered: {tk} {json.dumps(_order(heli).get('params'))[:200]}")
+        if "heli" in seen:
+            break
+        time.sleep(1.0)
+    print("    timeline:")
+    for line in log:
+        print("      " + line)
+    c.ok("rounds" in seen, "① the spotter's mortar fires on the platoon")
+    c.ok("spot" in seen, "② a Blue squad's staff SPOTs IndirectFire (the heard launch)")
+    if "spot" in seen and seen.get("spotAt") and mortar_at:
+        d = math.hypot(seen["spotAt"][0] - mortar_at[0], seen["spotAt"][1] - mortar_at[1])
+        print(f"    the SPOT's estimate is {d:.0f} m from the tubes")
+    c.ok("ask" in seen, "③ the platoon asks the HQ for FireSupport")
+    c.ok(seen.get("heliTask") == "AirArmedSearch", f"④ the HQ sends the Apache on an armed search ({seen.get('heliTask')})")
+    c.ok("ask" in seen and "heli" in seen and seen["heli"] >= seen["ask"] - 0.5, "④ …and only after the request (nothing sent without a report)")
+
+
+
+def run_uc_request_chain_dry(c, timeout):
+    """⭐ Urban Battle §6 L7 (dry) — uc-request-chain-dry: L7's cast with the one report the live rung cannot get yet FAKED — a SPOT
+    IndirectFire from Blue Squad 1 at the tubes (📄 NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md) — so the rest runs live: ① the
+    platoon asks the HQ for FireSupport (CE-2310) · ② the HQ sends its free AH-64 on an armed search of the point (CE-2312, CE-2311),
+    not before ① · ③ the Apache flies to the point."""
+    ids = ids_by_name()
+    hq, heli, pl, sq1 = ids.get("Blue HQ"), ids.get("Apache"), ids.get("Blue Platoon"), ids.get("Blue Squad 1")
+    tube = ids.get("Mortar Tube 1")
+    if not c.ok(None not in (hq, heli, pl, sq1, tube), "the HQ, its Apache, the platoon and the mortar are loaded"):
+        return
+    at = position(tube)
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend", 30),
+         f"the plays run (HQ {task_name(hq)}, platoon {task_name(pl)}, Apache {task_name(heli)})")
+    c.ok(task_name(heli) in (None, "", "None"), f"the Apache waits: nothing is sent without a report (task {task_name(heli)})")
+    r = call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [at[0], at[1], 0], "count": 2, "size": "Team", "equipment": "IndirectFire"})
+    c.ok(isinstance(r, dict) and (data(r) or {}).get("sent"), f"a faked SPOT IndirectFire from Blue Squad 1 ({json.dumps(data(r) or r)[:200]})")
+    t0 = sim_time() or 0.0
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "FireSupport"
+                                 and x.get("from") == pl), None), 30)
+    c.ok(ask is not None, f"① the platoon asks the HQ for FireSupport ({json.dumps(ask)[:220] if ask else None})")
+    sent = wait_for(lambda: task_name(heli) == "AirArmedSearch", 30)
+    o = _order(heli)
+    print(f"    Apache order: {json.dumps(o)[:400]}")
+    c.ok(sent, f"② the HQ sends the Apache on an armed search ({task_name(heli)}, {(sim_time() or 0) - t0:.1f} s after the SPOT)")
+    p0 = position(heli)
+    d0 = math.hypot(p0[0] - at[0], p0[1] - at[1]) if p0 else 0
+    closer = wait_for(lambda: (p := position(heli)) and math.hypot(p[0] - at[0], p[1] - at[1]) < d0 - 300, min(timeout, 240))
+    p1 = position(heli)
+    c.ok(closer, f"③ the Apache flies to the point ({d0:.0f} m → {math.hypot(p1[0] - at[0], p1[1] - at[1]) if p1 else 0:.0f} m)")
+    def its_shots():
+        call("POST", "/perspective", {"name": "SimHost"})
+        try:
+            return [x for x in (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or [] if x.get("shooter") == heli]
+        finally:
+            call("POST", "/perspective", {"name": "Scenario"})
+    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Ammo Bearer")]
+    def health():
+        return [(comps(m).get("Health") or {}).get("Current") for m in crew]
+    # its rockets do not enter the shot log (only gun rounds do) — so an attack is its rounds OR the cell's losses
+    fired = wait_for(lambda: its_shots() or any((h or 100) < 100 for h in health()), min(timeout, 300), every=2.0)
+    hurt = health()
+    print(f"    the Apache's memory: {json.dumps([(s_.get('networkId'), s_.get('anonymous')) for s_ in (data(call('GET', f'/entities/{heli}/memory')) or {}).get('slots', [])])[:300]} (crew {crew})")
+    c.ok(fired, f"④ the Apache attacks what it finds there ({len(fired) if isinstance(fired, list) else 'rockets'}; targets {sorted({x.get('target') for x in fired or []})}; "
+                f"crew health {hurt}; Apache task {task_name(heli)})")
+
+
+
+def run_uc_a10_zu23_dry(c, timeout):
+    """⭐ Urban Battle §6 L4 (dry) — uc-a10-zu23-dry: L7's cast + a ZU-23 beside the tubes and an A-10 on its orbit under the HQ. Two SPOTs
+    faked (AirDefence at the ZU-23, then IndirectFire at the tubes): ① the platoon relays the air defence up and asks FireSupport
+    (CE-2310) · ② the HQ sends the A-10 at the ZU-23 FIRST (HQ-7, CE-2312) · ③ the AH-64 waits while the air defence stays reported."""
+    ids = ids_by_name()
+    hq, heli, jet, pl, sq1 = ids.get("Blue HQ"), ids.get("Apache"), ids.get("A-10"), ids.get("Blue Platoon"), ids.get("Blue Squad 1")
+    tube, zu = ids.get("Mortar Tube 1"), ids.get("ZU-23")
+    if not c.ok(None not in (hq, heli, jet, pl, sq1, tube, zu), "the HQ, its Apache and A-10, the platoon, the mortar and the ZU-23 are loaded"):
+        return
+    at, aa = position(tube), position(zu)
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(jet) == "FollowRoute", 30),
+         f"the plays run (HQ {task_name(hq)}, A-10 {task_name(jet)} on its orbit, Apache {task_name(heli)})")
+    call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [aa[0], aa[1], 0], "count": 1, "size": "Individual", "equipment": "Vehicle, AirDefence"})
+    wait_for(lambda: False, 4, every=1.0)
+    call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [at[0], at[1], 0], "count": 2, "size": "Team", "equipment": "IndirectFire"})
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "FireSupport"
+                                 and x.get("from") == pl), None), 30)
+    c.ok(ask is not None, "① the platoon asks the HQ for FireSupport")
+    relayed = next((x for x in squad_reports(last=128) if x.get("kind") == "Spot" and x.get("from") == pl and "AirDefence" in str(x.get("equipment"))), None)
+    c.ok(relayed is not None, f"① …having relayed the air defence up ({json.dumps(relayed)[:200] if relayed else None})")
+    struck = wait_for(lambda: task_name(jet) not in (None, "", "FollowRoute"), 30)
+    o = _order(jet)
+    print(f"    A-10 order: {json.dumps(o)[:400]}")
+    c.ok(struck, f"② the HQ sends the A-10 at the air defence first (A-10 task {task_name(jet)})")
+    wait_for(lambda: False, 15, every=1.0)
+    c.ok(task_name(heli) in (None, "", "None"), f"③ the Apache waits while the air defence stays reported (task {task_name(heli)})")
+
+
+
+def run_uc_reinforce_dry(c, timeout):
+    """⭐ Urban Battle §6 L6 (dry) — uc-reinforce-dry: L7's cast + a Blue reserve squad under the HQ. Faked: Blue Squad 2's men are killed (the platoon
+    is Red: one squad of two fighting) and an enemy element is SPOTted 100 m off ⇒ ① the platoon asks the HQ to be reinforced (CE-2310 HQ-5) · ② the HQ sends its free ground unit — the
+    reserve, never the requester — to defend at the platoon (CE-2312 HQ-9)."""
+    ids = ids_by_name()
+    hq, pl, res = ids.get("Blue HQ"), ids.get("Blue Platoon"), ids.get("Blue Reserve")
+    sq = [ids.get("Blue Squad 1"), ids.get("Blue Squad 2")]
+    if not c.ok(None not in (hq, pl, res) and None not in sq, "the HQ, the platoon, its squads and the reserve are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend", 30), f"the plays run (reserve {task_name(res)})")
+    wait_for(lambda: False, 3, every=1.0)
+    # the staff's strength is REAL (StaffComposerSystem.StrengthOf: fighting members / members) — so a squad is taken out of the fight
+    call("POST", "/perspective", {"name": "CGF"})   # Health is the brain group's: CGF owns it
+    try:
+        for n in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3"):
+            set_health(ids.get(f"Blue Squad 2 {n}"), 0)
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [8, 110, 0], "count": 6, "size": "SquadSize"})
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "Reinforce"
+                                 and x.get("from") == pl), None), 40)
+    c.ok(ask is not None, f"① the platoon asks to be reinforced ({json.dumps(ask)[:220] if ask else None})")
+    sent = wait_for(lambda: task_name(res) in ("SquadDefend", "PlatoonDefend"), 30)
+    print(f"    reserve order: {json.dumps(_order(res))[:300]}")
+    c.ok(sent, f"② the HQ sends the reserve to defend at the platoon (reserve task {task_name(res)}; platoon {task_name(pl)})")
+    start = position(res)
+    moved = wait_for(lambda: (p := position(res)) and start and math.hypot(p[0] - start[0], p[1] - start[1]) > 10, min(timeout, 120))
+    c.ok(moved, f"② …and it goes (reserve at {position(res)})")
+
+
+
+# ── Urban Battle §1 / §6 — the FLAGSHIP: uc-urban-battle (demo-city), unscripted, judged by what must hold whatever happens ────────
+def run_uc_urban_battle(c, timeout):
+    """⭐ Urban Battle §1 — uc-urban-battle (DESIGN_Urban_Battle_Demo.md §1, §6): a convoy (an APC and a Bradley, a squad in each) up Avenue E on
+    a market day; an IED and its covert trigger man; an insurgent fire team up the street; a covert spotter and his mortar in the north-east; a
+    ZU-23 beside it; the convoy's platoon under an HQ owning an AH-64, an A-10 on its orbit and a reserve squad. NOTHING is faked or timed. The
+    fight decides the story; the check asserts only what must hold whatever happens: ① the charge goes off only with a vehicle in its kill zone ·
+    ② no Blue round is aimed at a civilian · ③ nothing is sent without a report — every HQ order follows a REQUEST · ④ both sides fight. The
+    timeline is printed: what happened, in what order."""
+    ids = ids_by_name()
+    need = ("Blue HQ", "Apache", "A-10", "Blue Reserve", "Blue Platoon", "Convoy APC", "Convoy IFV", "Squad A", "Squad B", "IED", "Trigger man", "Spotter")
+    if not c.ok(all(ids.get(n) for n in need), f"the cast is loaded ({[n for n in need if not ids.get(n)] or 'all'})"):
+        return
+    hq, pl, ied = ids["Blue HQ"], ids["Blue Platoon"], ids["IED"]
+    assets = {n: ids[n] for n in ("Apache", "A-10", "Blue Reserve")}
+    vehicles = [ids["Convoy APC"], ids["Convoy IFV"]]
+    blue = {v for k, v in ids.items() if k.startswith(("Squad A", "Squad B", "Blue Reserve", "Convoy", "Apache", "A-10"))}
+    red = {v for k, v in ids.items() if k.startswith(("Insurgent", "Mortar", "ZU-23"))}
+    civilians = {v for k, v in ids.items() if k.startswith("Civilian")}
+    ied_at = position(ied)
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(vehicles[0]) == "FollowRoute", 30), "the plays run")
+    log, last, det_seen, ied_ok, first_req = [], {}, 0, None, None
+    def note(t, what):
+        log.append(f"{t:7.1f}  {what}")
+    end = time.time() + min(timeout, 900)
+    while time.time() < end:
+        t = sim_time() or 0.0
+        dets = _detonations()
+        for d in dets:
+            if (d.get("tick"), d.get("seq"), d.get("shooter")) in last:
+                continue   # the detonation log is a rolling window: key its entries, never index them
+            last[(d.get("tick"), d.get("seq"), d.get("shooter"))] = True
+            who = next((k for k, v in ids.items() if v == d.get("shooter")), d.get("shooter"))
+            note(t, f"detonation by {who} at {[round(x) for x in d.get('burst') or []][:2]} ({d.get('warhead')})")
+            if d.get("shooter") == ids["Trigger man"] and ied_ok is None:
+                vs = [position(v) for v in vehicles]
+                near = min((math.hypot(p[0] - ied_at[0], p[1] - ied_at[1]) for p in vs if p), default=999)
+                ied_ok = near <= 15
+                note(t, f"  …the IED: nearest vehicle {near:.1f} m from it")
+        for r in squad_reports(last=256):
+            key = (r.get("serial"), r.get("from"))
+            if key in last or r.get("kind") in ("Sitrep", "Progress"):
+                continue
+            last[key] = True
+            who = next((k for k, v in ids.items() if v == r.get("from")), r.get("from"))
+            note(t, f"{r.get('kind')} {r.get('subtype') or ''} from {who} {r.get('equipment') or ''} at {[round(x) for x in (r.get('at') or [])][:2]}")
+            if r.get("kind") == "Request" and r.get("from") == pl and first_req is None:
+                first_req = t
+        for n, a in assets.items():
+            tk = task_name(a)
+            if last.get(("task", n)) != tk:
+                last[("task", n)] = tk
+                note(t, f"{n}: {tk}")
+                if tk not in (None, "", "None", "FollowRoute") and first_req is None:
+                    last["sent-unasked"] = (n, tk, t)
+        for v in vehicles + [ids["Squad A"], ids["Squad B"]]:
+            tk = task_name(v)
+            name = next(k for k, x in ids.items() if x == v)
+            if last.get(("task", name)) != tk:
+                last[("task", name)] = tk
+                note(t, f"{name}: {tk}")
+        time.sleep(1.5)
+    print("    timeline (sim s):")
+    for line in log:
+        print("      " + line)
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        shots = (data(call("GET", "/combat/shots?last=1024")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    by = {"Blue": sum(1 for x in shots if x.get("shooter") in blue), "Red": sum(1 for x in shots if x.get("shooter") in red)}
+    at_civ = [x for x in shots if x.get("shooter") in blue and x.get("target") in civilians]
+    c.ok(ied_ok is not False, f"① the charge went off only with a vehicle in its kill zone ({'it did not go off' if ied_ok is None else 'yes'})")
+    c.ok(not at_civ, f"② no Blue round aimed at a civilian ({len(at_civ)} of {by['Blue']})")
+    c.ok("sent-unasked" not in last, f"③ nothing sent without a report ({last.get('sent-unasked') or 'every HQ order came after a REQUEST'})")
+    c.ok(by["Blue"] > 0 and by["Red"] > 0, f"④ both sides fight (rounds: {by})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4089,7 +4575,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

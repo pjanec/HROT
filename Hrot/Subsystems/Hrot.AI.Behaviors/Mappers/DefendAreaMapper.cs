@@ -42,7 +42,13 @@ namespace Hrot.AI.Behaviors.Mappers
             if (repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>() && repo.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)
                 && repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self).Count > 0)
             {
-                assignment = new AssignBehaviorEvent { Entity = self, BehaviorName = BehaviorNames.SquadDefend, JsonParams = SquadDefendAt(repo, jsonParams) };
+                // ⭐ CE-2276 E-2 (DA-64) — a unit whose members are units (a platoon) defends with its squads: PlatoonDefend at the centre
+                bool platoon = Hrot.AI.Behaviors.Brains.SquadManeuverRunner.IsUnit(repo, repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self).SubordinateEntities[0]);
+                assignment = new AssignBehaviorEvent
+                {
+                    Entity = self, BehaviorName = platoon ? BehaviorNames.PlatoonDefend : BehaviorNames.SquadDefend,
+                    JsonParams = platoon ? PlatoonDefendAt(repo, jsonParams) : SquadDefendAt(repo, jsonParams),
+                };
                 return true;
             }
 
@@ -81,6 +87,19 @@ namespace Hrot.AI.Behaviors.Mappers
             var area = string.IsNullOrWhiteSpace(jsonParams) ? null
                 : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
             return System.Text.Json.JsonSerializer.Serialize(new SquadDefendParamsJsonDto
+            {
+                Position = CentreOf(repo, area), SearchRadius = (float)(area?.RadiusMeters ?? 0f),
+            }, options);
+        }
+
+        /// <summary>⭐ DA-64 — the area as PlatoonDefend's contract: the centre and the radius (the squads' search radius); no engagement
+        /// area, so the platoon takes its own sector, else the trigger is an enemy within 300 m (DA-53).</summary>
+        private static string PlatoonDefendAt(EntityRepository repo, string jsonParams)
+        {
+            var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var area = string.IsNullOrWhiteSpace(jsonParams) ? null
+                : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
+            return System.Text.Json.JsonSerializer.Serialize(new PlatoonDefendParamsJsonDto
             {
                 Position = CentreOf(repo, area), SearchRadius = (float)(area?.RadiusMeters ?? 0f),
             }, options);

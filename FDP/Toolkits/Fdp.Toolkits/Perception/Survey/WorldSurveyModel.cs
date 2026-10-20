@@ -169,6 +169,9 @@ namespace Fdp.Toolkit.Perception.Survey
         public bool IsDoor { get; set; }
         /// <summary>The face it lies on (an index into this answer's faces of that building), −1 inside.</summary>
         public int Face { get; set; } = -1;
+        /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-56; behaviors, cross-lane) — a door's terrain-object key (<c>TerrainObjectRef</c>), the handle a
+        /// brain commands the door by; "" for anything that is not a door.</summary>
+        public string DoorKey { get; set; } = "";
     }
 
     /// <summary>An outside face of a building.</summary>

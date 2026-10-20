@@ -4,7 +4,7 @@ build-state: READY-TO-BUILD
 updated: 2026-10-10
 current-answer: §4 ANSWERED 2026-10-11 (R-265) · §5 the build design (build-state READY-TO-BUILD) — §3 is the question as asked
 stale-below: nothing
-known-rot: none
+known-rot: ⛔ 2026-10-20 (live, user) — §5's crouched run is chosen ONCE, when a move is issued (LocomotionMoveTo.cs:93-94): a man who set off unthreatened walks the leg upright under fire; an authored order Speed overrides the rush speed; nothing goes to ground — CE-2319, CE-2320. · none
 known-conflict: none
 related-designs:
   - DESIGN_Peek_And_Fire.md — OWNS the fight-from-cover node; its relocation speed (4.5 m/s) is one of the clamped asks (§2 row 2)

@@ -7,7 +7,10 @@ stale-below: nothing.
 known-rot: ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: the heard launch HQ-1 composes — per-weapon signature and the 1 km rule it would retire (A), off-terrain guns heard (B)
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — the recorded idea that needs REQUEST answered by a headquarters owning support assets (§4 ①)
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attack (`AirAttackNodes.Run`, `FlyTo`) §8d's armed search is built on
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the battery's fire mission §8d's HQ sends, and IF-6 (counter-battery), the later answer to §8d's heard launch
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the full-size plays on this machinery; asks CommandPicture Subordinates x6, PirArea, PROGRESS FireLifted, TimeInState (PC-3, PC-4, PC-7, PC-8)
   - docs/REFERENCE_Command_Building_Blocks_Measured.md — the measured blocks this example is built from, symbol by symbol
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — §5b–§5d OWN the report concept (kinds, ageing, staff, routes to a decision); this is its first concrete form
@@ -585,3 +588,238 @@ Rails (the feature's suite): `SquadManeuverTests.CE2301_ANodeWithNoBrain_LogsEve
 `CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain`; IG's walk rail asserts one inbox (`IgNodeBootstrapperTests` CE2150).
 reader lived in ONE role's pack — so the log existed only where a brain ran. Giving the brainless plans the same reader is the whole of
 part ① (each node still has exactly one); the fold's authority gate is what keeps a replicated picture one-writer once part ② lands.
+
+## 8c. The request round trip — Casevac first *(`CE-2305`, behaviors, 2026-10-19 — Urban Battle §5 step 4; build-state: BUILT — §8c-a; leans RQ-1…RQ-6, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep over `FDP/Toolkits/Fdp.Toolkits` and `Hrot.AI.Behaviors` for `RequestKind.` /
+`PendingRequest` / `AnswerRequest`, and reads of `StaffSystems.cs`, `CommandComponents.cs`, `ReportQueue.cs`, `PictureConditions.cs`,
+`PlatoonDefendBehavior.cs`, `CommandNodes.cs`, `CasualtyCareBehavior.cs`):** the inbox already folds a REQUEST into `CommandPicture.Requests`
+and the `PendingRequest(Kind)` guard reads it — ⛔ but **nothing sends a REQUEST and nothing answers one**; a queued report carries no
+subject (`QueuedReport` holds only the `CommandReport`, so the notification's `Subject` is never set); `CommandOrders.Stands` says only
+that the order was recorded in this run, not that the task still runs; and the drill that fetches a man who is NOT in the squad's own
+roster already exists — `SquadRecover {casualty, to, putDown}` (`CE-2173`).
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposerSystem { <<EXTENDED>> + ComposeCasevac: a member down and alive ⇒ REQUEST Casevac, once per man }
+  class ReportOutbox { <<EXTENDED>> + CasevacAsked (one bit per roster slot) }
+  class QueuedReport { <<EXTENDED>> + Subject }
+  class ReportQueue { <<EXTENDED>> Enqueue(…, subject) }
+  class SquadReportNotification { <<existing>> Subject }
+  class StaffInboxSystem { <<EXTENDED>> Fold: a REQUEST keeps its subject }
+  class PendingRequest { <<EXTENDED>> + SubjectNetId }
+  class CommandPictureOps { <<EXTENDED>> + Answered(commander, index) }
+  class PlatoonDefend { <<EXTENDED, control region>> + DAnswer: Casevac ⇒ the free reserve SquadRecover }
+  class SquadRecover { <<existing CE-2173>> the casualty to a point }
+  StaffComposerSystem --> ReportOutbox
+  StaffComposerSystem ..> ReportQueue
+  ReportQueue --> QueuedReport
+  QueuedReport ..> SquadReportNotification : Flush sets Subject
+  SquadReportNotification ..> StaffInboxSystem
+  StaffInboxSystem --> PendingRequest
+  PlatoonDefend ..> PendingRequest : reads
+  PlatoonDefend ..> CommandPictureOps : Answered
+  PlatoonDefend ..> SquadRecover : orders the reserve
+```
+*What the picture shows that prose hid:* the round trip needs ONE new behaviour state and no new behaviour — the sender is the staff
+(where LACE's WIA count already lives), the answer is an order to an existing drill, and the request's only new data is WHO.
+
+```mermaid
+sequenceDiagram
+  participant M as a man of squad A
+  participant SA as squad A's staff
+  participant W as the wire (BR-3)
+  participant PI as the platoon's inbox
+  participant PD as PlatoonDefend (control region)
+  participant R as the reserve squad
+  M->>M: incapacitated (alive)
+  SA->>SA: ComposeCasevac — REQUEST Casevac, Subject = him, At = where he lies
+  SA->>W: after the report delay (3 s)
+  W->>PI: SquadReportNotification
+  PI->>PI: Requests += {from A, Casevac, At, SubjectNetId}
+  PD->>PD: DWatch → DAnswer (a Casevac pending and a reserve free)
+  PD->>R: SquadRecover {casualty, to: the reserve's own point, putDown}
+  PD->>PI: Answered (the request is closed)
+  R-->>PI: PROGRESS Set (the staff, when the task ends)
+  PD->>R: SquadDefend its post again (KeepDefence)
+```
+*What the picture shows that prose hid:* the request closes when it is ANSWERED, not when the casualty arrives — the platoon then
+follows the reserve like any other squad, by its PROGRESS; a second request while the reserve is out waits in the picture.
+
+```mermaid
+graph TD
+  CGF[CGF: the brains] --> SC[StaffComposerSystem — before the brain tick]
+  SC -->|REQUEST| OUT[ReportOutbox → SquadReportNotification]
+  OUT -->|SquadReport topic, every node| IN[StaffInboxSystem]
+  IN --> PIC[(CommandPicture.Requests — the platoon)]
+  PIC --> PD[PlatoonDefend region 1: DAnswer]
+  PD -->|AssignTacticalIntentEvent| RS[the reserve squad's brain: SquadRecover]
+  PLA[PlatoonAttack Answer — CE-2277]:::later -.-> PIC
+  classDef later fill:#eee,stroke:#999,stroke-dasharray: 3 3
+```
+*What the picture shows that prose hid:* nothing new runs per frame; the attack's Answer (dashed) will read the same picture through the
+same ops when `CE-2277` lands.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **RQ-1** | **who asks**: the staff composer, for every unit that reports — a member alive and incapacitated ⇒ REQUEST Casevac, once per man (`ReportOutbox.CasevacAsked`); the squad's own buddy aid (its SOP's casualty care) goes on, the casevac takes him from there. ⚠ **a deviation from CB-47** ("the play sends REQUESTs"): the 9-line is a standing procedure, not a play's choice | each play sends it: a casualty during `SquadMarch` (or any play that forgets) is never asked for |
+| **RQ-2** | **the request names the casualty**: the queued report carries a `Subject`; the flush sets the notification's; the inbox keeps it as `PendingRequest.SubjectNetId` (a network id — the picture is replicated) | by position only: the answering squad would have to find him |
+| **RQ-3** | **who answers (defend)**: `PlatoonDefend`'s control region gains DAnswer — a pending Casevac and a FREE reserve (not committed by Reinforce, not on another casevac) ⇒ `SquadRecover {casualty, to: the reserve's own point, putDown}`; the request is answered at once (`CommandPictureOps.Answered`). No free reserve ⇒ it waits | a line squad nearest the casualty: it leaves its slice of the line |
+| **RQ-4** | **the reserve comes back**: on its PROGRESS Set or TaskFailed after the casevac order, the slot goes dirty and `KeepDefence` orders it to its post (`Stands` is only "recorded this run") | trust `Stands`: the reserve would stand at the collection point for good |
+| **RQ-5** | **once**: a man asked for is not asked for again, even if a second squad's man lies next to him; a man who dies is not asked for (dead is not a casualty to carry) | ask every frame: the platoon's four request slots fill in a second |
+| **RQ-6** | **the attack's Answer** (Platoon §4) uses the same ops with `CE-2277`; FireSupport / Reinforce answers are the headquarters play's (step 6) | build them now: no play to answer them yet |
+
+**Slice.** RQ-1…RQ-5; rails: the composer's request (once per man, its subject, the flush's Subject), the inbox keeping the subject,
+`PlatoonDefend` answering with the reserve and re-ordering it on its Set, a second request waiting while the reserve is out. ⛔ Not in
+it: a live demo (folds into `pc-defend-house`, step 7), the attack's Answer.
+
+### 8c-a. As built *(2026-10-19 — RQ-1…RQ-5; the diagrams above hold)*
+
+| piece | where | as built |
+|---|---|---|
+| the ask | `StaffComposerSystem.ComposeCasevac` | each roster slot: alive and incapacitated, bit unset ⇒ REQUEST Casevac {At = where he lies, Count 1}, subject him; the bit set (`ReportOutbox.CasevacAsked`) |
+| the subject | `QueuedReport.Subject` → `SquadReportNotification.Subject` (Flush) → `PendingRequest.SubjectNetId` (`Fold(…, subject)`) | `ReportQueue.Enqueue` gained an optional `subject`; the wire already carried `Subject` (`CE-3250`) |
+| the close | `CommandPictureOps.Answered` · `FirstRequest` | the request leaves the picture when ANSWERED |
+| the answer | `PlatoonDefend` region 1: `DWatch → DAnswer` (`CasevacPending`) → `AnswerCasevac` → `DWatch` (`Handled`) | the free reserve gets `SquadRecover {casualty, to: its own point, putDown}`; `Casevac[slot] = 1` |
+| the return | `KeepDefence` | a slot out on a casevac is skipped until its PROGRESS is Set or TaskFailed, then goes dirty and is ordered to its post |
+
+⚠ **Choices the leans did not settle — measured or argued:**
+
+| choice | why |
+|---|---|
+| a man **back in the fight** clears his bit | so the same man down a second time is asked for again (RQ-5 says once per *casualty*); a dead man keeps it |
+| the answer is **not** tier-gated (`p.Controls`) | DA-65 gates the *tactical* control states; fetching a casualty is a standing duty, so a Militia platoon answers too |
+| not while **falling back**; **per reserve**, not per platoon: a reserve on the line (`Reinforce` makes it Line) or at the stair (`BlockStair` marks it `Spent`) is not free, a second reserve still is | the fall-back gives the reserve its covering order. 📌 a first build tested the platoon-wide `Committed` latch; a mutant (dropping it) survived and showed why it was wrong — with two reserves, the free one never answered |
+| a request **naming nobody** is answered with no order | an HTTP-injected request (`ReportInjection`) may carry no subject; there is no one to fetch, and leaving it would fill the four slots |
+| a reserve **out on a casevac is not free** for `BlockStair` either | `FreeReserve` excludes it — one reserve, one job |
+| ⚠ two requests back to back: the reserve is re-ordered to its post, then at once to the second casevac | the return and the answer are separate states; the churn is one extra order per request, accepted |
+
+Rails `SquadManeuverTests.CE2305_RQ1_*`, `CE2305_RQ3_*` ×2 — mutants: see the tracker row. ⛔ Not live yet (`pc-defend-house`, step 7).
+
+## 8d. The headquarters — FireSupport and Reinforce answered with support assets *(`CE-2309`…`CE-2312`, behaviors, 2026-10-19 — Urban Battle §4 ①②③, §5 step 6; build-state: BUILT — §8d-a; leans HQ-1…HQ-9, built under the user's "go ahead autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-19 — grep `RequestKind\.(FireSupport|Reinforce)` / `Headquarters` / `ArmedSearch` over
+`FDP/Toolkits` and `Hrot.AI.Behaviors` ⇒ only the enum values; reads of `StaffSystems.cs`, `CommandComponents.cs`, `CommandReports.cs`
+(`ElementEquipment` = MG · Sniper · AT · Vehicle, **never set by the composer**), `SoundContactEvent` (it reaches the brain node with its
+`SourceClass`, `AudioTargetDetectedIngressTranslator`), `AirDefenceNodes.CanEngageAir`, `AirOrderNodes.FlyTo`, `AirAttackNodes.Run`
+(an entity attack succeeds when the entity is destroyed), `DroneTargets.Pick`, `CommandOrders.StillRunning`, `Locomotions.Of`; the corpus:
+Urban Battle §1 beats 4–8, §3 route B, §4; backend's `NOTE_Backend_To_Behaviors_Urban_Battle_Data` (BR-14: a mortar's launch carries 1.5–2.5
+km, R-3023: a soldier hears it past his ear range)):** a soldier now HEARS a mortar's launch far off, ⛔ but nothing turns it into a report;
+an element's equipment is never filled in; ⛔ nothing sends FireSupport or Reinforce, and ⛔ nothing answers them; an aircraft strikes a
+named POINT or ENTITY, ⛔ it cannot search an area for targets.
+
+```mermaid
+classDiagram
+  direction LR
+  class StaffComposerSystem { <<EXTENDED>> ComposeSpot: + Equipment (Vehicle, AirDefence) · ComposeLaunch: a heard heavy launch ⇒ SPOT IndirectFire · ComposeSupport: REQUEST FireSupport / Reinforce · relay up }
+  class ElementEquipment { <<EXTENDED>> + IndirectFire = 16 · AirDefence = 32 }
+  class AirDefenceWeapons { <<MOVED to Fdp.Toolkits/Combat>> CanEngageAir(world, unit, minElevation) — AirDefenceNodes forwards }
+  class ReportOutbox { <<EXTENDED>> + the support asks' memory }
+  class SupportCommand { <<NEW library HSM-free BTree, Hrot.AI.Behaviors>> the HQ's task: answer FireSupport, Reinforce }
+  class AssetKinds { <<NEW static>> attack helicopter · strike plane · battery · ground unit, free or busy }
+  class AirArmedSearch { <<NEW library, aircraft>> fly there, pick from its memory, attack, repeat; quiet ⇒ Success }
+  class AirAttackNodes { <<existing>> Run on an ENTITY }
+  class DroneTargets { <<existing>> Pick(centre, radius) }
+  class CommandOrders { <<existing>> Assign · StillRunning }
+  StaffComposerSystem ..> ElementEquipment
+  StaffComposerSystem ..> AirDefenceWeapons
+  StaffComposerSystem --> ReportOutbox
+  SupportCommand ..> AssetKinds
+  SupportCommand ..> CommandOrders : orders · busy
+  SupportCommand ..> AirArmedSearch : the helicopter
+  AirArmedSearch ..> DroneTargets
+  AirArmedSearch ..> AirAttackNodes
+```
+*What the picture shows that prose hid:* route B is three report rules in the SENDER's staff (hear → SPOT, see the flags, ask) and one
+new commander play; the assets run behaviours that exist (strike, battery fire mission) plus one (armed search) built on the aircraft
+attack that exists.
+
+```mermaid
+sequenceDiagram
+  participant M as a soldier
+  participant SQ as his squad's staff
+  participant PL as the platoon (staff + picture)
+  participant HQ as the headquarters (SupportCommand)
+  participant A10 as strike plane
+  participant AH as attack helicopter
+  M->>M: hears a heavy launch 1.2 km off (SoundContactEvent, HeavyWeapon)
+  SQ->>PL: SPOT IndirectFire at the estimate
+  PL->>HQ: SPOT relayed (IndirectFire) · REQUEST FireSupport at it
+  PL->>HQ: (earlier) SPOT relayed: a ZU-23 (AirDefence) near it
+  HQ->>A10: AirPlatformStrike the AirDefence element
+  HQ->>HQ: the request waits while that element is fresh
+  HQ->>AH: AirArmedSearch the request point
+  HQ->>PL: answered (the request leaves the picture)
+  AH->>AH: picks the mortar team it sees, attacks, picks again, quiet ⇒ done
+```
+*What the picture shows that prose hid:* the headquarters never sees the mortar — only a reported point and a flag — and nothing goes to
+it on a clock: every arrow into an asset follows a report.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HQT[HQ task: SupportCommand]
+  STAFF[StaffComposerSystem — before the brain tick] -->|SoundContactEvent, picture| OUT[ReportOutbox → SquadReportNotification]
+  OUT --> IN[StaffInboxSystem] --> PIC[(CommandPicture — platoon, HQ)]
+  PIC --> HQT
+  HQT -->|AssignTacticalIntentEvent| ASSETS[asset brains: AirArmedSearch · AirPlatformStrike · ArtilleryUnitStrike · SquadDefend / PlatoonDefend]
+```
+*Caption:* nothing new is scheduled — one more composer rule set before the brain tick, one more task on the HQ's brain.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **HQ-1** | **a heard launch is a SPOT** (② `CE-2309`): the composer reads this frame's `SoundContactEvent`s; a SHOT of class `HeavyWeapon` heard by one of its members from **≥ 1000 m** ⇒ SPOT {the estimate, its radius, Count 1, Equipment `IndirectFire`}, once per 30 s within 150 m of the last one. 📐 Why 1000 m: BR-14 gives the HMG (1 km), the ZU-23 (1.5 km), the launchers and the tubes ONE class, `HeavyWeapon` — beyond 1 km only the ZU-23's cannon and the tubes are heard ⇒ ⚠ a ZU-23 firing 1–1.5 km off reads as a mortar (a distinct `Artillery` class would end it — a backend data question, noted) | the battery's ground truth: the point is that it is HEARD · ≥ 300 m: every HMG in the fight would be a mortar · counter-battery radar (IF-6): later |
+| **HQ-2** | **a SPOT says what it saw** (② `CE-2309`): the element's Equipment ORs, over its IDENTIFIED contacts, `Vehicle` (`VehicleCover.IsVehicle`) and `AirDefence` (`AirDefenceWeapons.CanEngageAir` at 80°, moved to the toolkit from `AirDefenceNodes`, which forwards) | flags read off unidentified sounds: a heard engine is not a ZU-23 |
+| **HQ-3** | **the platoon relays what support needs** (① `CE-2310`): a commander with a superior relays every picture element flagged `IndirectFire` or `AirDefence` as its own SPOT (once per element place, 150 m) — not every element: the HQ needs only these | relay the whole picture: the HQ's eight element slots fill with infantry it does nothing about |
+| **HQ-4** | **FireSupport is asked** (① `CE-2310`): a commander with a superior whose picture holds a fresh (60 s) `IndirectFire` element ⇒ REQUEST FireSupport at it, once per 120 s within 300 m | every element: the HQ would fire on every rifleman |
+| **HQ-5** | **Reinforce is asked** (① `CE-2310`): its strength (`StrengthOf`) Red or worse while its picture holds a fresh element within 300 m ⇒ REQUEST Reinforce at its own position, once per 180 s | on Black only: too late to help |
+| **HQ-6** | **the headquarters** (① `CE-2312`): a library task `SupportCommand` on a body-less HQ unit whose roster holds the platoons and the ASSETS; an asset is BUSY while it still runs the order the HQ gave it (`CommandOrders.StillRunning`) | a new unit type: any commander may run it · a "busy" bit set and cleared by reports: an aircraft has no staff and sends none |
+| **HQ-7** | **FireSupport's answer**: an `AirDefence` element fresh within 2 km of the point and a free strike PLANE ⇒ the plane `AirPlatformStrike`s that element first, the request waits while it stays fresh; then a free attack HELICOPTER ⇒ `AirArmedSearch` the point; else a free BATTERY ⇒ `ArtilleryUnitStrike` fire for effect on it; else it waits | the battery first: a mortar team moves after its first rounds; the helicopter searches · ignore the air defence: Urban Battle beat 6 |
+| **HQ-8** | **Reinforce's answer**: a free ground unit (not the requester) ⇒ `PlatoonDefend` / `SquadDefend` {the request's point, 60 / 40 m} — it joins the defence there | an air assault: the landing is a mission of its own (built, `ua-air-assault`), for a later rung |
+| **HQ-9** | **armed search** (③ `CE-2311`): library `AirArmedSearch {Location, RadiusM 400, QuietSeconds 60, HeightAgl 150}` — `FlyTo` the point; on the way and over it, `DroneTargets.Pick` its own memory within the radius; a pick ⇒ `AirAttackNodes.Run` on it until destroyed, then pick again; nothing for `QuietSeconds` over the point ⇒ Success; no weapon left ⇒ Failure | a point strike: a reported mortar point is wrong by 100 m and the team moves |
+
+### 8d-a. As built *(2026-10-19 — the diagrams above hold; `CE-2309`…`CE-2312`)*
+
+| piece | where | as built |
+|---|---|---|
+| the launch SPOT (HQ-1) | `StaffComposerSystem.ComposeLaunch` + `IsLaunch` | this frame's `SoundContactEvent`s, grouped by the listener's commander; Shot · `HeavyWeapon` · ≥ `LaunchHeardMetres` (1000) ⇒ SPOT {estimate, radius, Count 1, Individual, `IndirectFire`}; once per 30 s within 150 m (`ReportOutbox.LaunchAt`) |
+| the SPOT's flags (HQ-2) | `StaffComposerSystem.EquipmentOf` · `AirDefenceWeapons` (MOVED to `Fdp.Toolkits/Combat`; `AirDefenceNodes.CanEngageAir` forwards) | ORed over IDENTIFIED pool contacts: `Vehicle`, `AirDefence` (80°); a change of flags is news (`ReportOutbox.SpotEquipment`) |
+| the relay (HQ-3) | `StaffComposerSystem.ComposeSupport` → `Relay` | picture elements flagged `IndirectFire` / `AirDefence`, fresh 60 s, SPOTted up with their OWN `ObservedAt`, once per flag within 150 m (`ReportOutbox.Relayed`, a fixed list of 4) |
+| FireSupport (HQ-4) | same | the first fresh `IndirectFire` element ⇒ REQUEST FireSupport at it; again only after 120 s or 300 m off (`SupportAskedAt`/`Time`) |
+| Reinforce (HQ-5) | same | `StrengthOf` Red / Black AND a fresh (30 s) element within 300 m of `CentreOf` (its position, else its members' middle) ⇒ REQUEST Reinforce at `CentreOf`; once per 180 s |
+
+⚠ **Choices the leans did not settle:** the launch distance is 1000 m (the HQ-1 row, measured on BR-14's figures); the relay keeps the
+element's observation time, so a superior ages it as its sender does; the composer runs ComposeSupport for every commander that HAS a picture,
+so a squad (no picture) never asks.
+
+Rails (the staff suite, `SquadManeuverTests`): `CE2309_AHeavyLaunchHeardFarOff_*`, `CE2309_ASpotOfAVehicle_*`,
+`AirDefenceNodesTests.CE2309_ASpotSaysWhatItSaw_*`, `CE2310_APlatoonRelays*`, `CE2310_APlatoonDownToOneSquad_*` — mutants: see the tracker rows.
+
+**`CE-2311`, `CE-2312` as built:**
+
+| piece | where | as built |
+|---|---|---|
+| the armed search (HQ-9) | `Brains/AirArmedSearchBehavior.cs` · `Orders.AirArmedSearchOrder` · `BehaviorNames.AirArmedSearch` | a StatefulAction: attacking (`AirAttackNodes.Run` on the pick; Success = destroyed ⇒ back over the area, the quiet restarts; Failure ⇒ Failure) · else `DroneTargets.Pick(centre, radius)` ⇒ attack · else `AirOrderNodes.FlyTo` the centre at `HeightAgl`; arrived ⇒ the quiet starts; `QuietSeconds` of it ⇒ Success |
+| busy | `CommandOrders.Busy` (`CommandNodes.cs`) | the commander's ticking run gave the member an order and the member still runs a task from its superior — and, in `SupportCommand`, an order given in the last 2 s (`OrderGraceSeconds`: the brain takes it next frame) |
+| the HQ (HQ-6…HQ-8) | `Brains/SupportCommandBehavior.cs` · `Orders.SupportCommandParamsJsonDto` · `BehaviorNames.SupportCommand` | a StatefulAction each tick: the oldest FireSupport — an AirDefence element fresh (120 s) within 2 km ⇒ a free strike PLANE gets `Order.Strike` on it and the request waits; else a free attack HELICOPTER `AirArmedSearch`es the point, else a free BATTERY gets `Order.Strike` FFE on it; answered when sent. The oldest Reinforce — a free ground unit (not the requester: its `FromNetId`) gets `PlatoonDefend` (a unit of units, 60 m) / `SquadDefend` (40 m) at the request's point |
+| what an asset is | `SupportCommandBehavior.KindOf` | a unit: `Unit_ArtilleryBattery` ⇒ Battery, else GroundUnit; else a mount-0 weapon AND `Locomotions.Of` Rotorcraft ⇒ AttackHelicopter, FixedWing ⇒ StrikePlane |
+
+⚠ **Choices the leans did not settle:** the battery and the plane are given the ORDER `Strike` (their class picks `ArtilleryUnitStrike` /
+`AirPlatformStrike`), the helicopter the behaviour by name (there is no armed-search order kind); an asset a REACTION took (an evading
+helicopter's SOP row) reads free — accepted for v1; the HQ is any commander running the task (no new unit type).
+
+Rails `AirAttackNodesTests.CE2311_*` (the air suite) · `SquadManeuverTests.CE2312_*` ×3 (the platoon harness as the HQ) — mutants: see the
+tracker rows. ⛔ Not live yet (the urban demo ladder, step 8).
+
+**Slices.** `CE-2309` (HQ-1, HQ-2) → `CE-2310` (HQ-3…HQ-5) → `CE-2311` (HQ-9) → `CE-2312` (HQ-6…HQ-8). Rails in the staff suite (the
+composer's SPOT and REQUESTs), the air suite (the armed search), the platoon suite (the HQ). ⛔ Not in them: an air-assault answer, Casevac by
+air, the live rung (the demo ladder, step 8).
+
+
+#### 8d-b. Found live *(2026-10-20, Urban Battle §6)*
+
+| | measured | as built |
+|---|---|---|
+| ⭐ **HQ-10** *(new, `CE-2314`)* | the HQ (type 305) carries `BasicPlatoonSop`; a subordinate's SPOT paused `SupportCommand` for `PlatoonHold` — its AH-64, A-10 and reserve were ordered to hold (`uc-urban-battle`, 305 s) | the hold row also asks `SupportCommandBehavior.NotCommandingSupport` (as AT-13 / DA-55): an HQ answers reports, it does not hold on them |
+| the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
+| dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |

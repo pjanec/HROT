@@ -124,6 +124,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
             SyncSingletonById(source, GlobalComponentIds.TerrainWorld); // ⭐ EQS §19 — terrain sight + ground placement
             SyncSingletonById(source, GlobalComponentIds.IGeographicTransform); // ⭐ CE-3216 S2-0 (R-3017) — the sun's lat/lon (WeatherField), read-only
+            SyncSingletonById(source, GlobalComponentIds.SoundEmissionRing); // ⭐ CE-3282 (Q95 C) — the lossless sound ring; BORROWED live, read by seqlock
 
             // 4. Sync BOTH version clocks.
             //

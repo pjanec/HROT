@@ -86,6 +86,8 @@ namespace Fdp.Toolkit.Squad.Command
         public Vector3 At;
         public float ReceivedAt;
         public uint Seq;
+        /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac): a network id, since the picture is replicated (0 = none).</summary>
+        public long SubjectNetId;
     }
 
     [InlineArray(CommandPicture.MaxRequests)]
@@ -150,6 +152,8 @@ namespace Fdp.Toolkit.Squad.Command
         public CommandReport Report;
         /// <summary>When it may go (sim s) — the send delay (R-2031: 3 s by default).</summary>
         public float DueAt;
+        /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac); the flush puts it on the notification.</summary>
+        public Entity Subject;
     }
 
     /// <summary>The outbox's queue (a fixed-list wrapper).</summary>
@@ -196,5 +200,40 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>⭐ CE-2294 — when the composer last queued a SPOT of the element (sim s): it re-reports a still-held element every
         /// <c>SpotRefreshSeconds</c> (CB-33: a reported contact is forgotten "unless re-reported").</summary>
         public float SpotSentAt;
+        /// <summary>⭐ <c>CE-2305</c> RQ-1, RQ-5 — one bit per roster slot: that man's Casevac has been asked for (once per man).</summary>
+        public ushort CasevacAsked;
+        /// <summary>⭐ CE-2309 (HQ-2) — the equipment of the element it last SPOTted: a change is news.</summary>
+        public ElementEquipment SpotEquipment;
+        /// <summary>⭐ CE-2309 (HQ-1) — the last heard launch it SPOTted, and when (0 = none).</summary>
+        public System.Numerics.Vector3 LaunchAt;
+        public float LaunchSentAt;
+        /// <summary>⭐ CE-2310 (HQ-3) — the support elements it relayed up (where, which flag, when), newest replacing the oldest.</summary>
+        public RelayedElementList Relayed;
+        /// <summary>⭐ CE-2310 (HQ-4) — where and when it last asked for fire support (0 = never).</summary>
+        public System.Numerics.Vector3 SupportAskedAt;
+        public float SupportAskedTime;
+        /// <summary>⭐ CE-2310 (HQ-5) — when it last asked to be reinforced (0 = never).</summary>
+        public float ReinforceAskedTime;
+    }
+
+    /// <summary>⭐ CE-2310 (HQ-3) — one element a commander relayed up.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RelayedElement
+    {
+        public System.Numerics.Vector3 At;
+        public ElementEquipment Flag;
+        public float SentAt;
+    }
+
+    [InlineArray(RelayedElementList.Capacity)]
+    public struct RelayedElementSlots { private RelayedElement _e0; }
+
+    /// <summary>The relayed elements (a fixed-list wrapper).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RelayedElementList
+    {
+        public const int Capacity = 4;
+        public int Count;
+        public RelayedElementSlots Items;
     }
 }

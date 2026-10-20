@@ -38,9 +38,25 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>⭐ CE-2294 (CB-33, CB-34) — a still-held element is SPOTted again this often, so the superior's picture keeps it
         /// fresh while the squad still sees it (and a stale one means it is really gone) — the engaged heartbeat.</summary>
         public const float SpotRefreshSeconds = 15f;
+        /// <summary>⭐ CE-2309 (HQ-1) — a heavy weapon's shot heard from this far is a launch (a mortar, a gun): only the tubes and the 23 mm
+        /// carry past it (BR-14: the HMG's report is 1 km).</summary>
+        public const float LaunchHeardMetres = 1000f;
+        /// <summary>⭐ CE-2309 (HQ-1) — a launch heard within this of the last one SPOTted, this soon, is the same one.</summary>
+        public const float LaunchSameMetres = 150f, LaunchSameSeconds = 30f;
+        /// <summary>⭐ CE-2309 (HQ-2) — a gun that elevates this far is an air-defence gun (the SOPs' air-defence row's figure).</summary>
+        public const float AirDefenceElevationDeg = 80f;
+        /// <summary>⭐ CE-2310 (HQ-3, HQ-4) — an element observed this recently is fresh enough to relay or to ask fire on (s).</summary>
+        public const float SupportFreshSeconds = 60f;
+        /// <summary>⭐ CE-2310 (HQ-3) — an element within this of one already relayed (same flag) is the same one (m).</summary>
+        public const float RelaySameMetres = 150f;
+        /// <summary>⭐ CE-2310 (HQ-4) — fire support is asked again only this much later, or this far from the last ask.</summary>
+        public const float SupportAgainSeconds = 120f, SupportAgainMetres = 300f;
+        /// <summary>⭐ CE-2310 (HQ-5) — reinforcement is asked at most this often (s), with an element this near (m).</summary>
+        public const float ReinforceAgainSeconds = 180f, ReinforceContactMetres = 300f, ReinforceFreshSeconds = 30f;
 
         private readonly bool _gateOnAuthority;
         private EntityQuery? _commanders;
+        private readonly System.Collections.Generic.List<(Entity Commander, SoundContactEvent Heard)> _launches = new();
 
         /// <param name="gateOnAuthority">the pack's execution gate (as <c>SquadCoordinationSystem</c>): only commanders whose brain this
         /// node owns.</param>
@@ -70,13 +86,22 @@ namespace Fdp.Toolkit.Squad.Command
                     }, now + ReportDelaySeconds);
                 }
 
+            // ⭐ CE-2309 (HQ-1) — this frame's heard launches, by the listener's commander
+            _launches.Clear();
+            if (repo.Bus.IsRegistered<SoundContactEvent>())
+                foreach (var heard in repo.Bus.Read<SoundContactEvent>())
+                    if (IsLaunch(repo, in heard, out var commander)) _launches.Add((commander, heard));
+
             _commanders ??= repo.Query().With<UnitRoster>().With<UnitSubordinate>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
             foreach (var unit in _commanders)
             {
                 if (!Sends(repo, unit)) continue;
                 if (!repo.HasComponent<ReportOutbox>(unit)) repo.AddComponent(unit, new ReportOutbox());
                 ComposeSpot(repo, unit, now);
+                ComposeLaunch(repo, unit, now);
+                ComposeSupport(repo, unit, now);
                 ComposeSitrep(repo, unit, now);
+                ComposeCasevac(repo, unit, now);
                 Flush(repo, unit, now);
             }
         }
@@ -118,10 +143,12 @@ namespace Fdp.Toolkit.Squad.Command
                 live[n++] = i;
             }
             var sum = Vector3.Zero;
+            var equipment = ElementEquipment.NoEquipment;
             for (int k = 0; k < n; k++)
             {
                 var c = pool[live[k]];
                 sum += new Vector3(c.PositionX, c.PositionY, c.PositionZ);
+                if (c.EntityId > 0) equipment |= EquipmentOf(repo, new Entity((ulong)c.EntityId));   // ⭐ CE-2309 (HQ-2) — identified only
             }
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
             if (n == 0)
@@ -139,16 +166,147 @@ namespace Fdp.Toolkit.Squad.Command
                 radius = MathF.Max(radius, Vector3.Distance(centre, new Vector3(c.PositionX, c.PositionY, c.PositionZ)));
             }
             var size = SizeOf(n);
-            if (outbox.SpotSent != 0 && outbox.SpotSize == size && Vector3.Distance(outbox.SpotAt, centre) <= SpotMoveMetres
+            if (outbox.SpotSent != 0 && outbox.SpotSize == size && outbox.SpotEquipment == equipment && Vector3.Distance(outbox.SpotAt, centre) <= SpotMoveMetres
                 && now - outbox.SpotSentAt < SpotRefreshSeconds) return;
             outbox.SpotSent = 1;
             outbox.SpotSentAt = now;
             outbox.SpotAt = centre;
             outbox.SpotSize = size;
+            outbox.SpotEquipment = equipment;
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
-                Kind = ReportKind.Spot, At = centre, Radius = radius, Count = (byte)Math.Min(n, 255), Size = size, ObservedAt = now,
+                Kind = ReportKind.Spot, At = centre, Radius = radius, Count = (byte)Math.Min(n, 255), Size = size, Equipment = equipment, ObservedAt = now,
             }, now + ReportDelaySeconds);
+        }
+
+        /// <summary>⭐ CE-2309 (HQ-2) — what an IDENTIFIED contact is, for a SPOT: a vehicle; a weapon that can fire at aircraft.</summary>
+        public static ElementEquipment EquipmentOf(EntityRepository repo, Entity contact)
+        {
+            if (!repo.IsAlive(contact)) return ElementEquipment.NoEquipment;
+            var e = ElementEquipment.NoEquipment;
+            if (Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(repo, contact)) e |= ElementEquipment.Vehicle;
+            if (Fdp.Toolkit.Combat.AirDefenceWeapons.CanEngageAir(repo, contact, AirDefenceElevationDeg)) e |= ElementEquipment.AirDefence;
+            return e;
+        }
+
+        /// <summary>⭐ CE-2309 (HQ-1) — a heard sound is a LAUNCH: a heavy weapon's shot, heard by a man of a commander from at least
+        /// <see cref="LaunchHeardMetres"/>.</summary>
+        private static bool IsLaunch(EntityRepository repo, in SoundContactEvent heard, out Entity commander)
+        {
+            commander = Entity.Null;
+            if (heard.Kind != (byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot
+                || heard.SourceClass != (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon) return false;
+            if (heard.Observer.IsNull || !repo.IsAlive(heard.Observer) || !repo.HasComponent<UnitSubordinate>(heard.Observer)) return false;
+            var ear = PositionOf(repo, heard.Observer);
+            if (Vector2.Distance(new Vector2(ear.X, ear.Y), new Vector2(heard.X, heard.Y)) < LaunchHeardMetres) return false;
+            commander = repo.GetComponentRO<UnitSubordinate>(heard.Observer).Commander;
+            return !commander.IsNull;
+        }
+
+        /// <summary>⭐ CE-2309 (HQ-1) — a launch one of the unit's men heard is SPOTted: Count 1, its estimate and radius, IndirectFire; the
+        /// same launch (within <see cref="LaunchSameMetres"/>, <see cref="LaunchSameSeconds"/>) once.</summary>
+        private void ComposeLaunch(EntityRepository repo, Entity unit, float now)
+        {
+            foreach (var (commander, heard) in _launches)
+            {
+                if (!commander.Equals(unit)) continue;
+                var at = new Vector3(heard.X, heard.Y, heard.Z);
+                ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
+                if (outbox.LaunchSentAt > 0f && now - outbox.LaunchSentAt < LaunchSameSeconds && Vector3.Distance(outbox.LaunchAt, at) <= LaunchSameMetres)
+                    continue;
+                outbox.LaunchAt = at;
+                outbox.LaunchSentAt = MathF.Max(now, 1e-3f);
+                ReportQueue.Enqueue(repo, unit, new CommandReport
+                {
+                    Kind = ReportKind.Spot, At = at, Radius = heard.Radius, Count = 1, Size = ElementSize.Individual,
+                    Equipment = ElementEquipment.IndirectFire, ObservedAt = now,
+                }, now + ReportDelaySeconds);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-2310 (HQ-3…HQ-5) — what a commander with a picture sends up for SUPPORT: it relays the elements its superior acts on
+        /// (IndirectFire, AirDefence — once each, keeping their observation time); asks for FIRE SUPPORT on a fresh IndirectFire element
+        /// (once per <see cref="SupportAgainSeconds"/> within <see cref="SupportAgainMetres"/>); asks to be REINFORCED when its strength is Red
+        /// or worse with an element near (once per <see cref="ReinforceAgainSeconds"/>).
+        /// </summary>
+        private static void ComposeSupport(EntityRepository repo, Entity unit, float now)
+        {
+            if (!repo.IsComponentTypeRegistered<CommandPicture>() || !repo.HasComponent<CommandPicture>(unit)) return;
+            ref readonly var picture = ref repo.GetComponentRO<CommandPicture>(unit);
+            var centre = CentreOf(repo, unit);
+            bool asked = false, near = false;
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                var e = picture.Elements.Items[i];
+                if (e.Count == 0) continue;
+                float age = now - e.ObservedAt;
+                if (age <= ReinforceFreshSeconds && Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(centre.X, centre.Y)) <= ReinforceContactMetres)
+                    near = true;
+                if (age > SupportFreshSeconds) continue;
+                foreach (var flag in s_relayed)
+                    if ((e.Equipment & flag) != 0) Relay(repo, unit, in e, flag, now);
+                if (!asked && (e.Equipment & ElementEquipment.IndirectFire) != 0)
+                {
+                    asked = true;
+                    ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
+                    if (outbox.SupportAskedTime > 0f && now - outbox.SupportAskedTime < SupportAgainSeconds
+                        && Vector3.Distance(outbox.SupportAskedAt, e.At) <= SupportAgainMetres) continue;
+                    outbox.SupportAskedAt = e.At;
+                    outbox.SupportAskedTime = MathF.Max(now, 1e-3f);
+                    ReportQueue.Enqueue(repo, unit, new CommandReport
+                    {
+                        Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = e.At, Count = 1, ObservedAt = e.ObservedAt,
+                    }, now + ReportDelaySeconds);
+                }
+            }
+            var strength = StrengthOf(repo, unit);
+            if (!near || (strength != StatusColour.Red && strength != StatusColour.Black)) return;
+            ref var box = ref repo.GetComponentRW<ReportOutbox>(unit);
+            if (box.ReinforceAskedTime > 0f && now - box.ReinforceAskedTime < ReinforceAgainSeconds) return;
+            box.ReinforceAskedTime = MathF.Max(now, 1e-3f);
+            ReportQueue.Enqueue(repo, unit, new CommandReport
+            {
+                Kind = ReportKind.Request, Subtype = (byte)RequestKind.Reinforce, At = centre, Count = 1, Strength = strength, ObservedAt = now,
+            }, now + ReportDelaySeconds);
+        }
+
+        private static readonly ElementEquipment[] s_relayed = { ElementEquipment.IndirectFire, ElementEquipment.AirDefence };
+
+        /// <summary>⭐ CE-2310 (HQ-3) — SPOT <paramref name="e"/> up, once per element place and flag.</summary>
+        private static void Relay(EntityRepository repo, Entity unit, in ReportedElement e, ElementEquipment flag, float now)
+        {
+            ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
+            ref var list = ref outbox.Relayed;
+            for (int i = 0; i < list.Count; i++)
+                if (list.Items[i].Flag == flag && Vector3.Distance(list.Items[i].At, e.At) <= RelaySameMetres) return;
+            if (list.Count == RelayedElementList.Capacity)
+            {
+                for (int i = 1; i < list.Count; i++) list.Items[i - 1] = list.Items[i];
+                list.Count--;
+            }
+            list.Items[list.Count++] = new RelayedElement { At = e.At, Flag = flag, SentAt = MathF.Max(now, 1e-3f) };
+            ReportQueue.Enqueue(repo, unit, new CommandReport
+            {
+                Kind = ReportKind.Spot, At = e.At, Radius = e.Radius, Count = e.Count, Size = e.Size, Activity = e.Activity,
+                Equipment = e.Equipment, ObservedAt = e.ObservedAt,
+            }, now + ReportDelaySeconds);
+        }
+
+        /// <summary>Where a unit is: its own position, else the middle of its live members'.</summary>
+        public static Vector3 CentreOf(EntityRepository repo, Entity unit)
+        {
+            if (repo.HasComponent<SimTransform>(unit)) return repo.GetComponentRO<SimTransform>(unit).Position;
+            if (!repo.HasComponent<UnitRoster>(unit)) return Vector3.Zero;
+            ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(unit);
+            var sum = Vector3.Zero; int n = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (m.IsNull || !repo.IsAlive(m) || !repo.HasComponent<SimTransform>(m)) continue;
+                sum += repo.GetComponentRO<SimTransform>(m).Position; n++;
+            }
+            return n > 0 ? sum / n : Vector3.Zero;
         }
 
         private static void ComposeSitrep(EntityRepository repo, Entity unit, float now)
@@ -164,6 +322,30 @@ namespace Fdp.Toolkit.Squad.Command
             {
                 Kind = ReportKind.Sitrep, At = PositionOf(repo, unit), Strength = StrengthOf(repo, unit), Phase = phase, ObservedAt = now,
             }, now + ReportDelaySeconds);
+        }
+
+        /// <summary>⭐ <c>CE-2305</c> RQ-1, RQ-5 — the 9-line as a standing procedure: a member down and ALIVE (incapacitated) is asked for
+        /// once — REQUEST Casevac at where he lies, the man as its subject. A man back in the fight frees his slot's bit; a dead man is not
+        /// asked for (and keeps it). The squad's own buddy aid goes on regardless; the answer takes him from there.</summary>
+        private static void ComposeCasevac(EntityRepository repo, Entity unit, float now)
+        {
+            ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(unit);
+            int n = Math.Min(roster.Count, 16);
+            ushort asked = repo.GetComponentRO<ReportOutbox>(unit).CasevacAsked;
+            for (int i = 0; i < n; i++)
+            {
+                var man = roster.SubordinateEntities[i];
+                ushort bit = (ushort)(1 << i);
+                if (man.IsNull || !repo.IsAlive(man)) continue;
+                if (Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, man)) { asked &= (ushort)~bit; continue; }
+                if ((asked & bit) != 0 || !Fdp.Toolkit.Combat.Injury.IsIncapacitated(repo, man)) continue;
+                asked |= bit;
+                ReportQueue.Enqueue(repo, unit, new CommandReport
+                {
+                    Kind = ReportKind.Request, Subtype = (byte)RequestKind.Casevac, At = PositionOf(repo, man), Count = 1, ObservedAt = now,
+                }, now + ReportDelaySeconds, man);
+            }
+            repo.GetComponentRW<ReportOutbox>(unit).CasevacAsked = asked;
         }
 
         /// <summary>A unit's strength as a colour: GREEN ≥ 90 % of its members fighting, AMBER ≥ 70 %, RED while still combat
@@ -191,7 +373,7 @@ namespace Fdp.Toolkit.Squad.Command
                 bool goes = q.DueAt <= now && !muted
                          && (outbox.Posture != ReportingPosture.Silent || q.Report.Kind == ReportKind.Contact);
                 if (!goes) { outbox.Queued.Items[keep++] = q; continue; }
-                repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = unit, ToUnit = superior, Report = q.Report, SentAt = now });
+                repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = unit, ToUnit = superior, Subject = q.Subject, Report = q.Report, SentAt = now });
                 SentCount++;
             }
             outbox.Queued.Count = keep;
@@ -257,13 +439,14 @@ namespace Fdp.Toolkit.Squad.Command
                 if (!canFold || n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
                 if (_requireOwnedBrain && !(brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && repo.HasAuthority<BehaviorState>(n.ToUnit))) continue;
                 if (_gateOnAuthority && brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
-                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now)) { FoldedCount++; entry.Verdict = "folded"; }
+                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now, n.Subject)) { FoldedCount++; entry.Verdict = "folded"; }
                 else { DroppedCount++; entry.Verdict = "stale"; }
             }
         }
 
-        /// <summary>What a report does to the addressee's picture, NOW (the inbox and the HTTP fake share it). <c>false</c> = dropped.</summary>
-        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now)
+        /// <summary>What a report does to the addressee's picture, NOW (the inbox and the HTTP fake share it). <c>false</c> = dropped.
+        /// ⭐ <c>CE-2305</c> RQ-2 — a REQUEST keeps <paramref name="subject"/> (the notification's) as its network id.</summary>
+        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now, Entity subject = default)
         {
             long from = CommandPictureOps.NetIdOf(repo, fromUnit);
             int row = CommandPictureOps.EnsureRow(repo, toUnit, from);
@@ -295,6 +478,7 @@ namespace Fdp.Toolkit.Squad.Command
                     picture.Requests.Items[picture.Requests.Count++] = new PendingRequest
                     {
                         FromNetId = from, Kind = (RequestKind)r.Subtype, At = r.At, ReceivedAt = now, Seq = r.Seq,
+                        SubjectNetId = subject.IsNull ? 0 : CommandPictureOps.NetIdOf(repo, subject),
                     };
                     break;
             }

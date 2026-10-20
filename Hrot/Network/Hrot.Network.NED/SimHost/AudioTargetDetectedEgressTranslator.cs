@@ -63,6 +63,8 @@ namespace Hrot.Network.NED.SimHost
                     Radius           = evt.Radius,
                     Kind             = evt.Kind,
                     SourceClass      = evt.SourceClass,
+                    Family           = evt.Family,      // ⭐ CE-3283
+                    Signature        = evt.Signature,
                 });
                 SentSampleCount++;
             }

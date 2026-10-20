@@ -45,6 +45,12 @@ namespace Hrot.Map.Definitions.Tkb
         public float MaxSpeedRev { get; set; } // m/s
         
         /// <summary>
+        /// ⭐ CE-1208 — a person's WALK in meters per second (the operator's walking gait; <see cref="MaxSpeed"/> is his run). 0 = the
+        /// engine's default walk (<c>HumanGait.WalkSpeed</c>).
+        /// </summary>
+        public float WalkSpeed { get; set; } // m/s
+
+        /// <summary>
         /// Acceleration in meters per second squared.
         /// </summary>
         public float Acceleration { get; set; } // m/s²

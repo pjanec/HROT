@@ -219,4 +219,133 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Failure, w.Finished);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2306</c> (DA-93…DA-95; 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8e) — the SHIPPED <c>TriggerIed</c>
+    /// through the real ingress and brain tick: the trigger man takes his phone in hand and sets off the placed charge when a hostile VEHICLE
+    /// he remembers is inside the kill zone — not a man on foot, not a neutral car, not a vehicle outside it; with <c>AnyTarget</c> the man on
+    /// foot sets it off too; no phone or no charge ⇒ Failure.
+    /// </summary>
+    public sealed class TriggerIedBehaviorTests
+    {
+        private const long TriggerManType = 4360L;
+
+        private sealed class Ambush
+        {
+            public readonly StationWeaponBehaviorTests.World W = new();
+            public readonly Entity Ied;
+
+            public Ambush(bool phone = true)
+            {
+                var repo = W.Repo;
+                foreach (var reg in new System.Action[]
+                {
+                    () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
+                    () => { if (!repo.IsComponentTypeRegistered<WeaponPosture>()) repo.RegisterComponent<WeaponPosture>(); },
+                    () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) repo.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(); },
+                    () => { if (!repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) repo.RegisterComponent<global::CarKinem.Core.VehicleState>(); },
+                    () => { if (!repo.Bus.IsRegistered<DetonateChargeEvent>()) repo.Bus.Register<DetonateChargeEvent>(); },
+                    () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(); },
+                }) reg();
+                var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                var man = new TkbTemplate("Trigger man", TriggerManType);
+                man.AddDescriptor(CarrierDefDto.PersonCarrier());
+                if (phone) man.AddDescriptor(new PocketItemsDto { Phone = true });
+                db.Register(man);
+                repo.SetSingletonManaged<ITkbDatabase>(db);
+                repo.AddComponent(W.Man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TriggerManType });
+                if (!repo.HasComponent<WeaponPosture>(W.Man)) repo.AddComponent(W.Man, new WeaponPosture());
+                repo.GetComponentRW<EntityInfo>(W.Man).ForceId = ForceId.Hostile;
+                repo.AddComponent(W.Man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+
+                Ied = repo.CreateEntity();   // a placed charge, on the road 40 m north of him
+                repo.AddComponent(Ied, new SimTransform { Position = new Vector3(0f, 40f, 0f), Rotation = Quaternion.Identity });
+                repo.AddComponent(Ied, new WeaponState { Ammo = 1 });
+                var t = new TkbTemplate("IED", 4361L);
+                t.AddDescriptor(new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Carried | MountKinds.Cargo, Portable = WeaponPortability.OneMan, Charge = true });
+                new WeaponSystemTkbTranslator().Inject(repo, Ied, t);
+                repo.AddComponent(Ied, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = IedNetId });
+            }
+
+            public const long IedNetId = 5501;
+
+            /// <summary>A thing he SEES at <paramref name="at"/>: a vehicle or a man on foot, of <paramref name="force"/>.</summary>
+            public Entity Sees(Vector3 at, bool vehicle, ForceId force = ForceId.Friend)
+            {
+                var repo = W.Repo;
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new EntityInfo { ForceId = force });
+                if (vehicle) repo.AddComponent(e, new global::CarKinem.Core.VehicleState());
+                ref var mem = ref repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(W.Man);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, repo.SimulationTick);
+                return e;
+            }
+
+            public int Asks()
+            {
+                int n = 0;
+                foreach (var e in W.Repo.Bus.Read<DetonateChargeEvent>()) if (e.Charge == Ied && e.By == W.Man) n++;
+                return n;
+            }
+
+            public int Run(int ticks)
+            {
+                int asked = 0;
+                for (int i = 0; i < ticks; i++) { W.Tick(); asked += Asks(); }
+                return asked;
+            }
+
+            public void Start(bool anyTarget = false)
+                => W.Start(BehaviorNames.TriggerIed, "{\"Charge\":" + IedNetId + ",\"KillZoneMetres\":10" + (anyTarget ? ",\"AnyTarget\":true" : "") + "}");
+        }
+
+        /// <summary>⭐⭐ DA-93/DA-94 — a man on foot in the zone, a NEUTRAL car in the zone and a hostile vehicle 30 m off it change nothing (he
+        /// holds his phone, still Running); the hostile vehicle inside the zone ⇒ ONE ask, by him, Success. ✅ Red-proofs: the vehicle test
+        /// dropped ⇒ the man on foot sets it off · the hostility test dropped ⇒ the neutral car · the zone ignored ⇒ the far vehicle.</summary>
+        [Fact]
+        public void CE2306_TriggerIed_SetsItOffWhenAHostileVehicleHeSeesIsInTheKillZone_NothingElse()
+        {
+            var a = new Ambush();
+            a.Start();
+            a.Sees(new Vector3(2f, 42f, 0f), vehicle: false);                       // a soldier on foot, in the zone
+            a.Sees(new Vector3(-3f, 38f, 0f), vehicle: true, ForceId.Neutral);      // a civilian car, in the zone
+            var far = a.Sees(new Vector3(0f, 75f, 0f), vehicle: true);              // the convoy's lead, 35 m off
+            Assert.Equal(0, a.Run(5));
+            Assert.Null(a.W.Finished);
+            Assert.Equal(HeldItemKind.Phone, HeldItems.Of(a.W.Repo, a.W.Man));
+            ref var mem = ref a.W.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(a.W.Man);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)far.PackedValue, 1f, 44f, 1f, a.W.Repo.SimulationTick);   // it drives in
+            Assert.Equal(1, a.Run(4));
+            Assert.Equal(NodeStatus.Success, a.W.Finished);
+        }
+
+        /// <summary>⭐ DA-94 — with <c>AnyTarget</c> the man on foot sets it off. ✅ Red-proof: the flag not read ⇒ nothing.</summary>
+        [Fact]
+        public void CE2306_TriggerIed_AnyTarget_TakesAManOnFootToo()
+        {
+            var a = new Ambush();
+            a.Start(anyTarget: true);
+            a.Sees(new Vector3(2f, 42f, 0f), vehicle: false);
+            Assert.Equal(1, a.Run(4));
+            Assert.Equal(NodeStatus.Success, a.W.Finished);
+        }
+
+        /// <summary>⭐ DA-93 — no phone ⇒ Failure (he cannot set it off); the charge gone ⇒ Failure. ✅ Red-proof: the phone test dropped ⇒
+        /// he runs on (Running) ⇒ red.</summary>
+        [Fact]
+        public void CE2306_TriggerIed_NoPhone_OrNoCharge_Fails()
+        {
+            var a = new Ambush(phone: false);
+            a.Start();
+            a.Run(3);
+            Assert.Equal(NodeStatus.Failure, a.W.Finished);
+
+            var b = new Ambush();
+            b.W.Repo.DestroyEntity(b.Ied);
+            b.W.Start(BehaviorNames.TriggerIed, "{\"Charge\":987654}");
+            b.Run(3);
+            Assert.Equal(NodeStatus.Failure, b.W.Finished);
+        }
+    }
 }

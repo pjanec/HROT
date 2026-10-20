@@ -113,6 +113,9 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float ArrivalRadius;
         public float BoundTimeoutSeconds;
+        /// <summary>⭐ E-3a (DA-68) — the authored destination; <see cref="HasTo"/> 0 = ask the terrain.</summary>
+        public Vector3 To;
+        public byte HasTo;
     }
 
     /// <summary>
@@ -134,6 +137,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in BreakContactParamsJsonDto authored, ref BreakContactBlackboard block, EntityRepository world, Entity self)
         {
             block.Order = Defaults(authored.RetreatSearchRadius, authored.Speed, authored.ArrivalRadius, authored.BoundTimeoutSeconds);
+            block.Order.To = authored.To;
+            block.Order.HasTo = authored.To != Vector3.Zero ? (byte)1 : (byte)0;
             block.State = default;
         }
 
@@ -178,6 +183,13 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
+            if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
+            {
+                ws.Answer = p.To;
+                ws.HasAnswer = 1;
+                BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+                return PlayStart.Go;
+            }
             if (!SquadManeuverRunner.TopContact(in ctx, 0, out var contact)) return PlayStart.Fail;   // nothing to break contact with
             ws.ThreatId = contact.EntityId;
             ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);

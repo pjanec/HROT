@@ -62,6 +62,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6.5 D-19) — nothing is sent: the member keeps what he is doing (a man waiting aboard
         /// for his turn at the rope or the door, a man coming down one).</summary>
         Stay = 8,
+        /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — open <see cref="MemberOrder.Door"/>, breaching it when it is locked: the library
+        /// <c>BreachDoor</c>. A unit member holds.</summary>
+        OperateDoor = 9,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -96,6 +99,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2302</c> (DA-24, DA-31) — the man's arc of fire from the order's point; the runner sends it as his sector.
         /// Unset ⇒ a sector a Superior gave him is withdrawn. ⚠ Not <see cref="Arc"/> (FireAtPoint's low / high preference).</summary>
         public MemberArc Sector;
+        /// <summary>⭐ <c>CE-2257</c> BC-1 — <see cref="MemberOrderKind.OperateDoor"/>: the door, by its terrain-object key.</summary>
+        public Fdp.Toolkit.Terrain.TerrainObjectRef Door;
         /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14) — <see cref="MemberOrderKind.Watch"/>: his post set (the post is <see cref="Point"/>); he takes
         /// cover only on it. Unset ⇒ anywhere.</summary>
         public MemberPost Post;
@@ -114,6 +119,10 @@ namespace Hrot.AI.Behaviors.Brains
         public byte SetBack;
         /// <summary>⭐ D-2g (DA-5, DA-22) — 1 = a ROOF post: he hides prone behind the parapet and comes up crouched to fire over it.</summary>
         public byte Roof;
+        /// <summary>⭐ D-2l (DA-78, R-2059) — 1 = a FRAME post: the post is a frame point of its window; he leans out from it toward
+        /// <see cref="Opening"/>, crossing to the other frame point (<see cref="FrameA"/> / <see cref="FrameB"/>) when this side is used up.</summary>
+        public byte Frame;
+        public Vector3 FrameA, FrameB, Opening;
     }
 
     /// <summary>⭐ <c>CE-2302</c> (DA-24) — one man's arc, from his post: two compass bearings (0 = north, clockwise from left to right)
@@ -513,6 +522,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed, order.Keep != 0);
                 else if (order.Kind == MemberOrderKind.FireAtPoint) Fire(ctx.World, ctx.Commander, m, in order, at);
+                else if (order.Kind == MemberOrderKind.OperateDoor) OperateDoor(ctx.World, ctx.Commander, m, order.Door, order.Speed, at);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
@@ -536,8 +546,18 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
                     SetBack = post.SetBack != 0, Roof = post.Roof != 0,
+                    Frame = post.Frame != 0, FrameA = post.FrameA, FrameB = post.FrameB, Opening = post.Opening,   // ⭐ D-2l
                 },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — OPEN A DOOR: the library <c>BreachDoor</c> (walk to it, open it, breach it when locked); a
+        /// unit member holds where it is.</summary>
+        public static void OperateDoor(EntityRepository world, Entity commander, Entity member, Fdp.Toolkit.Terrain.TerrainObjectRef door, float speed, Vector3 at)
+        {
+            if (IsUnit(world, member)) { Hold(world, commander, member, at, speed); return; }
+            Keep(world, commander, member, BehaviorNames.BreachDoor, JsonSerializer.Serialize(new BreachDoorParamsJsonDto { Door = door, Speed = speed },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 
         /// <summary>MOVE: the library AdvanceTo — there, firing on the way, whatever the posture decision would say. ⭐ <c>CE-2141</c>

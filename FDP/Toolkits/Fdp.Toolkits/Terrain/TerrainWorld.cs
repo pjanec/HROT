@@ -204,8 +204,12 @@ namespace Fdp.Toolkit.Terrain
             float reach = zHint + StepHeight;
             bool insideSolid = false;
 
-            foreach (var prism in Prisms)
+            using var cand = PointCandidates(x, y);   // ⭐ CE-3279 (a) — every prism, or the index's candidates over (x, y)
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf: the point queries read the prisms only
+                var prism = Prisms[i];
                 if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
                 // ⭐ Buildings 5d-2 (live, bt-doors) — a piece that STARTS above reach (a door's lintel at 2.1 m, a window's head)
                 //   is OVERHEAD: you stand under it, so it does not take the ground away. ⛔ It did, and an agent walking through a
@@ -218,8 +222,9 @@ namespace Fdp.Toolkit.Terrain
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 
-            foreach (var w in Walkables)
+            for (int k = 0; k < cand.WalkableCount; k++)
             {
+                var w = Walkables[cand.Walkable(k)];
                 if (!InBox(p, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -262,11 +267,18 @@ namespace Fdp.Toolkit.Terrain
                 // else: merges into the ground level
             }
 
-            foreach (var prism in Prisms)
-                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) Add(prism.TopZ);
-
-            foreach (var w in Walkables)
+            using var cand = PointCandidates(x, y);   // ⭐ CE-3279 (a)
+            for (int k = 0; k < cand.PieceCount; k++)
             {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) Add(prism.TopZ);
+            }
+
+            for (int k = 0; k < cand.WalkableCount; k++)
+            {
+                var w = Walkables[cand.Walkable(k)];
                 if (!InBox(p, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -314,8 +326,40 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3279</c> (a) — true when (<paramref name="x"/>, <paramref name="y"/>) is inside ANY prism's footprint (a building is
+        /// solid at every height): the stand-in's "nobody stands here" rule (<see cref="TerrainWorldQuery.TryStandAt"/>), narrowed
+        /// through <see cref="SpatialIndex"/> like every point query.
+        /// </summary>
+        public bool InsideFootprint(float x, float y)
+        {
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>How far above and below a point query's vertical segment reaches (m) — past any terrain's height.</summary>
+        private const float PointQueryReach = 1e4f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (a) — the pieces and walkables a POINT query visits: a vertical segment through (x, y) touches every box
+        /// that covers it, so the index's candidates are a superset of the pieces over the point, in ascending order — the same
+        /// construction as the segment queries, so the answers are identical. 📐 Without it a point placement on demo-city scanned
+        /// every prism (0.4 ms a point, 0.7 s of an EQS solve).
+        /// </summary>
+        private CandidateSet PointCandidates(float x, float y)
+            => new(this, new Vector3(x, y, -PointQueryReach), new Vector3(x, y, PointQueryReach),
+                   Prisms.Count + (Doors.Count > 0 ? DoorLeaves.Count : 0));
+
+        /// <summary>
         /// ⭐ CE-1035 Q0 (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-D) — an optional spatial index that narrows the pieces and
-        /// walkables a segment query examines. Null (the default) = every piece, exactly as before. It only ever NARROWS: the
+        /// walkables a segment query (and, since CE-3279, a point query) examines. Null (the default) = every piece, exactly as before. It only ever NARROWS: the
         /// per-piece maths below is unchanged, so an index that returns a superset of the true crossings, in ascending order,
         /// gives identical answers. Set once after the world is built; a derived world (<see cref="StaticObstacles"/>) has none.
         /// </summary>

@@ -143,6 +143,10 @@ public sealed class BTreeCallShapeTests
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-2307 (Squad Tactics §5b CH-1) — the push-through row: SensedFresh (hit) is plain; ConvoyConditions.CanPushThrough is
+        //   (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000051", BTreeDelegateShapeDto.Plain),
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000052", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000061", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2159 X-c — the danger-area row
         // ⭐ CE-2294 CC-D — the platoon's SOP row: SopConditions.SensedFresh and PictureConditions.ElementReported are both
         //   (ref TParams, Entity, EntityRepository) ⇒ the plain three-param shared form.
@@ -150,6 +154,10 @@ public sealed class BTreeCallShapeTests
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2276 DA-55 — the hold row's first guard: PlatoonDefendBehavior.NotDefending is (Entity, EntityRepository) ⇒ NoParams.
         ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000014", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-2277 AT-13 — the same row's second guard: PlatoonAttackBehavior.NotAttacking is (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000015", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-2314 — and its third: SupportCommandBehavior.NotCommandingSupport is (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),

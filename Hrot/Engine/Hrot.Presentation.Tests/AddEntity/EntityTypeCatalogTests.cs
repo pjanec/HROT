@@ -207,6 +207,7 @@ public sealed class EntityTypeCatalogTests
         109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         203 Rifleman (Igla) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         204 Paratrooper | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person

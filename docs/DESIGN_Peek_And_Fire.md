@@ -524,6 +524,9 @@ beside it — inside its collider circle — is hidden; a person is not cover), 
 none when it drives; none for a window generator; none once it is a static obstacle).
 
 
+
+⭐ **`CE-2313` (behaviors, 2026-10-20, cross-lane fold) — `IsStanding` on a node that does not own the vehicle's motion reads the REPLICATED velocity first.** 📐 Measured live (`uc-convoy-hit-ifv`, demo-city): on CGF a driving Bradley's `VehicleState.Speed` stayed 0 (the copy it was created with) while its `NetworkVelocity` said 8 m/s — so the brain node read every moving vehicle as standing (cover points round a moving car there; CE-2307's push-through never; a squad dismounting at speed). The owner still reads `VehicleState.Speed`. Rail `BasicVehicleSopTests.CE2313_*`.
+
 ### 9.8 Seeing cover and the AI's verdict on the map *(`CE-3143`, built `2026-10-09`)*
 
 > 🔒 **User, `2026-10-09`:** *"is there an indication what cover points are seen as safe?"* → the lean (fix the EQS gizmo for child

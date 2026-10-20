@@ -30,6 +30,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// <see cref="SquadDefendPostJsonDto.MaxPosts"/> are used). Each goes to the nearest man; the terrain is asked only for the men left.</summary>
         [JsonPropertyName("Posts")]
         public SquadDefendPostJsonDto[]? Posts;
+
+        /// <summary>⭐ <c>CE-2306</c> (DA-96, §8e) — an AMBUSH: the charge that initiates it. With it, the squad's own hold-fire (an operator's)
+        /// lifts when that charge is gone (set off, or destroyed) or a round lands at a man — not when the enemy is first seen in the sector.</summary>
+        [JsonPropertyName("InitiatedBy")]
+        public Fdp.Toolkit.Replication.EntityRef InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-46) — one authored fighting position of a <c>SquadDefend</c> order.</summary>

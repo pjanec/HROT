@@ -29,5 +29,13 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>⭐ <c>CE-3063</c> (R-207) — what it sounded LIKE (<c>Tkb.Domain.SoundSourceClass</c>): coarse, never an identity.</summary>
         public byte SourceClass;
+
+        /// <summary>⭐ <c>CE-3283</c> (Q95 A) — the weapon family (<c>Tkb.Domain.SoundFamily</c>) the listener's ear told; 0 when it could not (below
+        /// Regular) or the source has none.</summary>
+        public byte Family;
+
+        /// <summary>⭐ <c>CE-3283</c> — the TKB type that made it (the weapon for a shot, the munition for a burst), when the ear could tell (a
+        /// Veteran or better); 0 otherwise. What made it, never who — the anonymity rule holds (§6 D).</summary>
+        public long Signature;
     }
 }

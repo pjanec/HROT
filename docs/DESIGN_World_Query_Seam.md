@@ -12,6 +12,7 @@ known-rot: ⛔ 2026-10-18 R-2037 — §1's "the brain itself never touches it" i
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — B3: a TKB `Band` per sound signature scales WQ-E's obstacle loss (bass nearly ignores terrain and walls); B: off the terrain, hearing is distance only
   - docs/DESIGN_World_Survey_Sensor.md — the brain's geometry questions answered on the muscle (R-2037); WS-6 adds the Obscurant meaning to TraceCrossing; its BuildingLayout is the room/portal graph WQ-E's sound v2 reuses
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b: R-2037 (the brain never reads world geometry) and the WorldSurvey sensor; the inventory of brain-side IWorldQuery callers
   - docs/DESIGN_Visual_Effects.md — §10 IM-4: TraceCrossing gains EntryNormal / ExitNormal (init, zero = unknown) so an impact mark lies on the face it struck (CE-1128)
@@ -21,7 +22,7 @@ related-designs:
   - DESIGN_Terrain_Height.md — the ground height this seam exposes (GroundHeightAt); §7 there is the library choice.
   - DESIGN_Building_Interiors.md — §3a planned "one query for all, but possibly different solver implementation" and the
     sound solver B-6 (v1 straight per-wall dB, v2 room/portal); this file is that query, generalised to every purpose.
-  - DESIGN_Thermal_And_Acoustic_Sensing.md — owns hearing today (distance only); WQ-E gives it walls and corners.
+  - DESIGN_Thermal_And_Acoustic_Sensing.md — owns hearing today (distance only); WQ-E gives it walls and corners. ⭐ Its §8.2 (R-3023, 2026-10-19): HeavyWeapon / Explosion already carry past the listener's ear range — WQ-E's loudness model generalises it.
   - DESIGN_Stride_Port.md / DESIGN_Stride_Node_Modes.md — Stride's unadopted ray adapters (StrideRaycastLosService,
     StrideRaycastBackend) become implementations of this seam.
   - designs/eqs-2/EQS_Design_v1.3_final.md §19 — EQS sight and cover; ILosService becomes a policy over this seam.
@@ -279,6 +280,23 @@ enough and costs no memory. Bepu's simplicity, as found: the API used is small (
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -c Release --filter "FullyQualifiedName~BepuTerrainIndexTests" --logger "console;verbosity=detailed"
 ```
 The `[Q0_…]` lines carry every number above. ⚠ Debug numbers understate both paths; the ratios are the point.
+
+⚠ **Found `2026-10-20` (backend, `CE-3279`) — the index is BUILT and ATTACHED NOWHERE.** `BepuTerrainIndex.AttachTo` has no production
+caller (only `BepuTerrainIndexTests`; no host references `Fdp.Toolkits.Spatial.Bepu`), so every live segment query still scans every
+piece. And the two POINT queries — `TerrainWorld.SurfaceZ` and `TerrainWorldQuery.TryStandAt` — never consult `SpatialIndex` even when
+set: they loop over every prism (and `SurfaceZ` over every walkable). 📐 On demo-city an EQS point placement costs 0.4 ms (0.7 s of a
+1.8 s solver tick). ⏳ Proposed in `CE-3279`: attach in `TerrainResidency` after the parse, and narrow both point queries through
+the index (a degenerate segment; identical answers by the same construction as §5a ①).
+
+✅ **BUILT `2026-10-20` (`CE-3279` (a), user-approved).** `TerrainResidency.Indexed` attaches a `BepuTerrainIndex` to every world it
+publishes — the parsed terrain in `Prepare` and each obstacle bake's derived world (`BakeObstacles`), both off the main thread.
+`TerrainWorld.SurfaceZ`, `SurfacesAt` and the new `InsideFootprint` (behind `TerrainWorldQuery.TryStandAt`) visit `PointCandidates(x, y)` —
+the index's candidates for a vertical segment through the point, door leaves skipped, ascending. The index frees its native pool by
+finalizer (a published world is never disposed: a background snapshot may still read it). ⚠ `Hrot.Core` now references
+`Fdp.Toolkits.Spatial.Bepu` directly — Terrain World §3 keeps only DotRecast out of `Hrot.Core`, and Bepu lives "inside the stand-in"
+whose loader `TerrainResidency` is (the "they LOAD or BUILD the stand-in" row below); ⛔ an injected factory was rejected: a host that forgot it would silently scan every piece again.
+Rail: `BepuTerrainIndexTests.CE3279_PointQueries_GiveIdenticalAnswers_ThroughTheIndex` (test-town, bt-range, demo-city; 4000 points,
+every hint).
 
 ## 5b. Q1 — as built `2026-10-10`
 

@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                     MovingClass            = (byte)ac.MovingClass,
                     FiringClass            = (byte)ac.FiringClass,
                     DetonationClass        = (byte)(ac.DetonationClass == SoundSourceClass.Unknown ? SoundSourceClass.Explosion : ac.DetonationClass),
+                    Family                 = (byte)ac.Family,   // ⭐ CE-3283
                 });
         }
     }

@@ -47,6 +47,21 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        /// <summary>⭐ <c>CE-2312</c> (HQ-6) — <paramref name="member"/> is BUSY with the commander's order: the commander's ticking run gave
+        /// it one and it still runs a task from its superior (not finished, not cleared, not taken by a reaction). A finished asset is free
+        /// again — an aircraft has no staff to report it.</summary>
+        public static bool Busy(EntityRepository world, Entity commander, Entity member)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
+            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(member);
+            if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash == BehaviorIds.None) return false;
+            foreach (var e in held.Orders)
+                if (e.Member.Equals(member)) return e.Run == run;
+            return false;
+        }
+
         /// <summary>A CONCRETE order: <paramref name="member"/> runs <paramref name="behaviour"/> with <paramref name="json"/>. Its release
         /// names the behaviour.</summary>
         public static void Assign(EntityRepository world, Entity commander, Entity member, string behaviour, string json, bool newOrder = false)

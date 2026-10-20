@@ -58,6 +58,12 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-2275</c> D-1 — the squad defends a position: posts per man, his arc toward the squad's sector, displacing under fire.</summary>
         public const string SquadDefend = "SquadDefend";
+        /// <summary>⭐ <c>CE-2257</c> BC-1 — a squad clears one room (Battle Drill 6).</summary>
+        public const string ClearRoom = "ClearRoom";
+        /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — a squad clears a building room by room (Building Clearing §7.2).</summary>
+        public const string ClearBuilding = "ClearBuilding";
+        /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — a man opens a door, and breaches it when it is locked.</summary>
+        public const string BreachDoor = "BreachDoor";
 
         /// <summary>⭐ <c>CE-2123</c> S3 — the squad marches to a point in File / Wedge / Line, falling back to file on the lead's trail.</summary>
         public const string SquadMarch = "SquadMarch";
@@ -219,5 +225,21 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DetonateCharge = "DetonateCharge";
         /// <summary>⭐ <c>CE-2241</c> ② (CV-14, §5m PV-4) — a police order: go at the point and strike the protesters within reach of it.</summary>
         public const string BatonCharge = "BatonCharge";
+        /// <summary>⭐ <c>CE-2306</c> (DA-93, Defend &amp; Attack §8e) — the trigger man sets off a placed charge by phone when a hostile vehicle he
+        /// sees is in its kill zone.</summary>
+        public const string TriggerIed = "TriggerIed";
+        /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
+        /// kill zone.</summary>
+        public const string PushThrough = "PushThrough";
+        /// <summary>⭐ <c>CE-2308</c> (SP-1, Indirect Fire §3.11) — an observer who picks his own target and calls fire on it, mission after
+        /// mission.</summary>
+        public const string SpotForFire = "SpotForFire";
+        /// <summary>⭐ <c>CE-2311</c> (HQ-9, Command Chain §8d) — an aircraft searches an area for targets and attacks what it finds.</summary>
+        public const string AirArmedSearch = "AirArmedSearch";
+        /// <summary>⭐ <c>CE-2312</c> (HQ-6, Command Chain §8d) — the headquarters answers FireSupport and Reinforce with its assets.</summary>
+        public const string SupportCommand = "SupportCommand";
+        /// <summary>⭐ <c>CE-2277</c> DA-F (Defend &amp; Attack §8f) — the platoon attacks an AREA: base of fire, approach, assault, objective by
+        /// objective, then consolidates.</summary>
+        public const string PlatoonAttack = "PlatoonAttack";
     }
 }

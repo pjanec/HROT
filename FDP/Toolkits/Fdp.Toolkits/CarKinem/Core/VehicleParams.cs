@@ -51,5 +51,7 @@ namespace CarKinem.Core
         public float LookaheadTimeMin; // Pure Pursuit lookahead min (seconds)
         public float LookaheadTimeMax; // Pure Pursuit lookahead max (seconds)
         public float AccelGain;        // Speed controller proportional gain
+
+        public float WalkSpeed;        // ⭐ CE-1208 — a person's walk (m/s, the operator's walking gait); 0 = HumanGait.WalkSpeed
     }
 }

@@ -218,12 +218,15 @@ namespace Hrot.SimHost.Tests
         /// PassengerSeats(3) ⇒ one command.)
         /// </summary>
         [Theory]
-        [InlineData(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 3, 4, 3)]
-        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Dshk, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_DshkHmg, 1, 2, 0)]
-        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Minigun, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, 1, 2, 0)]
-        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Zu23, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Zu23, 1, 2, 0)]   // ⭐ CE-2190
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 3, 4, 3, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Dshk, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_DshkHmg, 1, 2, 0, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Minigun, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, 1, 2, 0, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Zu23, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Zu23, 1, 2, 0, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman)]   // ⭐ CE-2190
+        // ⭐ BR-16 — the urban APC's 12.7 mm RWS: an M2 in roof station 9, worked by an enclosed soldier in gunner seat 8; its squad's 8 seats stay free
+        [InlineData((long)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 8, 9, 8,
+                    (long)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier)]
         public void P1_APlacedArmedVariant_HoldsItsWeaponAndGunner_AndALoadAddsNeither(long hostType, long weaponType, int gunnerSeat,
-                                                                                        int stationSeat, int riders)
+                                                                                        int stationSeat, int riders, long gunnerType)
         {
             var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
             SpawnEntityCommand[] Place(object mark)
@@ -246,7 +249,7 @@ namespace Hrot.SimHost.Tests
             var seats = commands.Where(c => c.TkbType != hostType)
                 .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
                 .OrderBy(x => x.Seat).ToArray();
-            Assert.Equal(new[] { (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)gunnerSeat), (weaponType, (byte)stationSeat) }, seats);
+            Assert.Equal(new[] { (gunnerType, (byte)gunnerSeat), (weaponType, (byte)stationSeat) }, seats);
             Assert.Single(Place(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 }));   // the saved vehicle: neither again
 
             using var w = new EntityRepository();

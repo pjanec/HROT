@@ -7,6 +7,7 @@ stale-below: nothing quotable — §7's HISTORY row block records the first-draf
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: hearing must not be bounded by the high-resolution terrain's grids (B); a bigger demo-city bounds for perf tests (D)
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — changes how a ROUND queries the collider grid (a cell walk, HL-2), not the grid
   - designs/air-attack/DESIGN_Air_Operations.md — §9g, the live check that found a unit outside the collider grid is unhittable without a word (CE-2193, behaviors → backend)
   - DESIGN_Terrain_Height.md — plans the removal of the flat ground (R-248): an optional ESRI ASCII height grid
@@ -425,6 +426,9 @@ PERCEPTION grid says so too.** 📐 Measured live on `basic-desert` ([0, 600]²)
 [0, 1000), collider [−750, 750)), so a truck at (−150, 150) was hittable and seen by nobody for 40 s, silently. As built:
 `LocalGridBuilderSystem` places every entity through one `Place`, which logs **one** warning per entity per terrain fit (`Warnings`; the
 fit clears the set) on both the full rebuild and the incremental (moving) path. Same rule as CE-2193: the grid is not widened.
+
+
+⭐ **Off the grids (`2026-10-20`, [Q95](blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) B2, approved):** a unit standing outside the fitted grids — a battery 20 km off the high-resolution terrain — **is HEARD, not seen, and does not collide.** Its loud sounds reach every listener by distance alone (the ring, [Sensing §8.3](DESIGN_Thermal_And_Acoustic_Sensing.md)); vision and collision walk the grids and never find it (`LocalGridBuilderSystem` warns *"outside the perception grid"*). Off-terrain units are guns that do not move; a unit that must be SEEN far away (an aircraft at 6 km) is another question.
 
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 
