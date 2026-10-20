@@ -2935,6 +2935,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Alpha));
         }
 
+        /// <summary>⭐ <c>CE-2276</c> DA-98 — an enemy inside the area while the line is still occupying holds the fire (above) — until a line
+        /// squad is HURT: its SITREP Amber opens every line squad's fire although Bravo never reported Set (measured live first,
+        /// <c>pc-defend-house</c>). ✅ Red-proofs: the guard dropped ⇒ the line holds to the last man · the area test dropped ⇒ a hurt squad
+        /// with no enemy inside opens fire.</summary>
+        [Fact]
+        public void CE2276_DA98_AnEnemyInsideThatHurtsTheLineBeforeItIsSet_OpensItsFire()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            p.ReportSet(p.Alpha);
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Amber);
+            p.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, FireOf(p, p.Alpha));   // hurt, but nobody inside
+            p.ReportSpot(p.Charlie, new Vector3(0f, 120f, 0f), 3);
+            p.Ticks(4);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill),
+                         (FireOf(p, p.Alpha), FireOf(p, p.Bravo)));
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-1 (DA-54, Platoon §5 "below Regular") — a Militia platoon never holds its fire: every squad fires at
         /// will from the start, the reserve too. ✅ Red-proof: the tier ignored ⇒ the militia line holds fire.</summary>
         [Fact]

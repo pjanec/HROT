@@ -41,6 +41,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte HoldsFire;
         /// <summary>⭐ E-2 (DA-65) — 1 = the control region acts (Regular or better): OpBack, Supplementary, Reinforce.</summary>
         public byte Controls;
+        /// <summary>⭐ DA-98 — 1 while the line holds its fire (Occupy / Ready, Regular+); 0 once Engage, the fall-back or the lift opened it.</summary>
+        public byte Holding;
         /// <summary>⭐ E-2 (DA-61) — 1 = a reserve has been committed (once).</summary>
         public byte Committed;
         /// <summary>⭐ E-3a (DA-69, DA-71) — 1 = the platoon is falling back: <c>KeepDefence</c> gives the fall-back orders, the control region rests.</summary>
@@ -221,6 +223,8 @@ namespace Hrot.AI.Behaviors.Brains
             StateBuilder block = null!;
             root.Child("BlockStair", c => block = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, BlockTheStair));
             StateBuilder answer = null!;   // ⭐ CE-2305 RQ-3 — a subordinate's Casevac answered with the free reserve
+            StateBuilder lift = null!;     // ⭐ DA-98 — the hold lifted when the line is hit before it is set
+            root.Child("DLift", c => lift = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LiftTheHold));
             root.Child("DAnswer", c => answer = c.InRegion(1).OnEntry<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, AnswerCasevac));
             plan.On(0).GoTo("Occupy").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Planned).Polled();
             occupy.On(0).GoTo("Ready").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, LineSet).Polled();
@@ -238,6 +242,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             watch.On(0).GoTo("DAnswer").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, CasevacPending).Polled();
             answer.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
+            watch.On(0).GoTo("DLift").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, HitBeforeSet).Polled();
+            lift.On(0).GoTo("DWatch").Guard<PlatoonDefendBlackboard, PlatoonDefencePlan>(bb => bb.Plan, Handled).Polled();
             return builder.Build();
         }
 
@@ -434,6 +440,7 @@ namespace Hrot.AI.Behaviors.Brains
             var line = p.HoldsFire != 0 ? RoeFire.HoldFire : RoeFire.FireAtWill;
             var reserve = p.HoldsFire != 0 ? RoeFire.ReturnFire : RoeFire.FireAtWill;
             SetFire(ref p, self, world, line, reserve);
+            p.Holding = p.HoldsFire;
             return NodeStatus.Success;
         }
 
@@ -441,6 +448,17 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus OpenFire(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
+            p.Holding = 0;
+            SetFire(ref p, self, world, RoeFire.FireAtWill, p.HoldsFire != 0 ? RoeFire.ReturnFire : RoeFire.FireAtWill);
+            return NodeStatus.Success;
+        }
+
+        /// <summary>⭐ DA-98 — DLift's entry: the line fires at will as Engage would, without leaving Occupy — the phases (and E-3a's fall-back,
+        /// which reads Engage) are unchanged; only the hold goes.</summary>
+        [SharedAiAction]
+        public static NodeStatus LiftTheHold(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            p.Holding = 0;
             SetFire(ref p, self, world, RoeFire.FireAtWill, p.HoldsFire != 0 ? RoeFire.ReturnFire : RoeFire.FireAtWill);
             return NodeStatus.Success;
         }
@@ -553,6 +571,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Falling = 1;
             for (int s = 0; s < PlatoonDefencePlan.Capacity; s++) if (p.Role[s] != PlatoonDefencePlan.NoRole) p.Dirty[s] = 1;
             SetFire(ref p, self, world, RoeFire.FireAtWill, RoeFire.FireAtWill);
+            p.Holding = 0;
             return NodeStatus.Success;
         }
 
@@ -780,6 +799,25 @@ namespace Hrot.AI.Behaviors.Brains
                 lines++;
             }
             return lines > 0;
+        }
+
+        /// <summary>⭐ DA-98 — DWatch → DLift: the line holds, an enemy is inside the area AND a line squad is already hurt (its SITREP worse
+        /// than Green). The hold
+        /// is for an ambush; an enemy that is hitting the line before it is set has found it, and holding fire then only loses men (measured
+        /// live, <c>pc-defend-house</c>: the line's squads kept displacing under fire, never reported Set, and held their fire to Black).</summary>
+        [SharedAiCondition]
+        public static unsafe bool HitBeforeSet(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
+        {
+            if (p.Holding == 0) return false;   // only a hold can be lifted
+            if (!ElementInside(in p, self, world, TriggerFreshSeconds)) return false;
+            int n = Math.Min(RosterCount(world, self), PlatoonDefencePlan.Capacity);
+            for (int s = 0; s < n; s++)
+            {
+                if (p.Role[s] != PlatoonDefencePlan.Line) continue;
+                var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Amber };
+                if (PictureConditions.SubordinateColour(ref colour, self, world)) return true;
+            }
+            return false;
         }
 
         /// <summary>Ready → Engage (DA-53): the picture holds an element inside the area, observed within <see cref="TriggerFreshSeconds"/>.</summary>

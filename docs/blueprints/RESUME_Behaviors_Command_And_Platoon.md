@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§2: steps 1–6 done, step 7 next)
+updated: 2026-10-20 (§2: steps 1–7 done, step 8 next)
 current-answer: §0 start here · §1 where it stands · §2 THE PLAN (Urban Battle §5, R-2060) and where it stands · §5 measured traps · §6 the user's rulings on the leans (2026-10-19)
 stale-below: §2b (the old next-steps table) is history; §7 is the record of the 2026-10-19 night run (history, not instructions) — every "open / not built / in flight" line is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -53,7 +53,8 @@ steps live in Urban Battle §5 — ⛔ do not copy them here. Where it stands:
 | ✅ step 4 — done 2026-10-19 | the request round trip, Casevac first (`CE-2305`, [Command Chain §8c-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md)): the staff asks once per man down, `PlatoonDefend` `DAnswer` sends the free reserve to `SquadRecover` him; ⚠ not live |
 | ✅ step 5 — done 2026-10-19 | the scene's reactions (Urban Battle §5): ✅ ④ trigger man + ambush — `CE-2306`, [Defend & Attack §8e.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md), not live · ✅ ⑤ convoy halt — `CE-2307`, [Squad Tactics §5b.1](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), not live · ✅ ⑥ insurgent spotter — `CE-2308`, [Indirect Fire §3.11a](../designs/indirect-fire/DESIGN_Indirect_Fire.md), not live |
 | ✅ step 6 — done 2026-10-19 | ② finding the mortar — `CE-2309` (a heard launch is a SPOT) + `CE-2310` (the platoon asks FireSupport / Reinforce), [Command Chain §8d](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) · ③ armed search — `CE-2311` · ① the headquarters play `SupportCommand` — `CE-2312`, [Command Chain §8d-a](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md); ⚠ none live yet; ⚠ the ZU-23 shares the mortar's sound class ([note](batches/NOTE_Behaviors_To_Backend_Launch_Sound_Class.md)) |
-| ▶ **step 7 — NOW** | `PlatoonAttack` `CE-2277` over an AREA, then live `pc-attack-dry` and `pc-defend-house` |
+| ✅ step 7 — done 2026-10-20 | `PlatoonAttack` `CE-2277` ([Defend & Attack §8f.1](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md)) · ✅ `pc-attack-dry` live 12/12 · ✅ `pc-defend-house` live — it found AT-13 (the platoon SOP held the attack) and DA-98 (a line hit before it is set never opened fire) |
+| ▶ **step 8 — NOW** | the demo ladder on demo-city ([Urban Battle §5](../designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md)), then the flagship |
 | backend, in parallel | BR-14 / BR-15 / BR-16 — [handoff](batches/HANDOFF_Behaviors_To_Backend_Urban_Battle_Data.md) (filed 2026-10-19) |
 | still open, not in the plan | `CE-2304`: the fifth `sq-defend-house` run's men stopping ~6 m short — cause unmeasured |
 

@@ -173,7 +173,7 @@ output). ⚠ Not measured: a live cluster load of demo-city with the quarters (t
 | 4 ✅ | the request round trip, Casevac first (`CE-2305`) — built 2026-10-19 | a squad asks, the platoon answers, the request closes — the seed of ① | Platoon §4 Answer, §5 DAnswer |
 | 5 ✅ | the scene's reactions: ④ trigger man + ambush (`CE-2306`) · ⑤ convoy halt (`CE-2307`) · ⑥ insurgent spotter (`CE-2308`) — built 2026-10-19 | the ladder's convoy rungs | §4 |
 | 6 ✅ | ① the headquarters play (`CE-2312`) · ③ armed search (`CE-2311`) · ② (`CE-2309`, `CE-2310`) — built 2026-10-19 | route B: assets sent only because a report arrived | §3, §4 |
-| 7 🟡 | `AttackPosition` (`CE-2277`) over an AREA ✅ built, ✅ `pc-attack-dry` live 12/12; `pc-defend-house` | attack + defend, platoon against platoon | Platoon §4, §5a, §12 |
+| 7 ✅ | `AttackPosition` (`CE-2277`) over an AREA — built; ✅ `pc-attack-dry` live 12/12, ✅ `pc-defend-house` live (found AT-13 and DA-98) | attack + defend, platoon against platoon | Platoon §4, §5a, §12 |
 | 8 | the demo ladder on demo-city, then the flagship | the urban battle | below |
 
 Backend's BR-14 (a launch heard), BR-15 (the HMMWV killable), BR-16 (the APC armed) run in parallel, filed 2026-10-19.
