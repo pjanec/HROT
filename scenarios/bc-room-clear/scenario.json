@@ -11,11 +11,7 @@
  "entities": {
   "bc000001-0000-4000-8000-000000000001": {
    "SimTransform": {
-    "Position": [
-     45.9,
-     116,
-     0
-    ],
+    "Position": [53.0, 114.0, 0],
     "Rotation": [
      0,
      0,
@@ -52,11 +48,7 @@
   },
   "bc000001-0000-4000-8000-000000000002": {
    "SimTransform": {
-    "Position": [
-     44.4,
-     116.5,
-     0
-    ],
+    "Position": [51.0, 113.6, 0],
     "Rotation": [
      0,
      0,
@@ -88,11 +80,7 @@
   },
   "bc000001-0000-4000-8000-000000000003": {
    "SimTransform": {
-    "Position": [
-     45.199999999999996,
-     116.9,
-     0
-    ],
+    "Position": [51.8, 114.2, 0],
     "Rotation": [
      0,
      0,
@@ -124,11 +112,7 @@
   },
   "bc000001-0000-4000-8000-000000000004": {
    "SimTransform": {
-    "Position": [
-     46.0,
-     116.5,
-     0
-    ],
+    "Position": [52.6, 113.6, 0],
     "Rotation": [
      0,
      0,
@@ -160,11 +144,7 @@
   },
   "bc000001-0000-4000-8000-000000000005": {
    "SimTransform": {
-    "Position": [
-     46.8,
-     116.9,
-     0
-    ],
+    "Position": [53.4, 114.2, 0],
     "Rotation": [
      0,
      0,
@@ -196,11 +176,7 @@
   },
   "bc000001-0000-4000-8000-000000000006": {
    "SimTransform": {
-    "Position": [
-     47.6,
-     116.5,
-     0
-    ],
+    "Position": [54.2, 113.6, 0],
     "Rotation": [
      0,
      0,
@@ -232,11 +208,7 @@
   },
   "bc000001-0000-4000-8000-000000000007": {
    "SimTransform": {
-    "Position": [
-     48.4,
-     116.9,
-     0
-    ],
+    "Position": [55.0, 114.2, 0],
     "Rotation": [
      0,
      0,
@@ -268,11 +240,7 @@
   },
   "bc000001-0000-4000-8000-000000000020": {
    "SimTransform": {
-    "Position": [
-     40.8,
-     106.8,
-     0
-    ],
+    "Position": [40.8, 106.8, 0],
     "Rotation": [
      0,
      0,
@@ -316,11 +284,7 @@
   },
   "bc000001-0000-4000-8000-000000000021": {
    "SimTransform": {
-    "Position": [
-     46.2,
-     106.8,
-     0
-    ],
+    "Position": [46.2, 106.8, 0],
     "Rotation": [
      0,
      0,
@@ -362,5 +326,12 @@
     "ForceLevel": "Lethal"
    }
   }
+ },
+ "TerrainObjects": {
+  "bt-range/CQB House/a": {"door": "Locked"},
+  "bt-range/CQB House/front": {"door": "Locked"},
+  "bt-range/CQB House/back": {"door": "Locked"},
+  "bt-range/CQB House/south": {"door": "Locked"},
+  "bt-range/CQB House/north": {"door": "Closed"}
  }
 }

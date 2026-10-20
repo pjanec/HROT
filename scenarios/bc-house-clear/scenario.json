@@ -430,5 +430,11 @@
     "Origin": "Superior"
    }
   }
+ },
+ "TerrainObjects": {
+  "bt-range/CQB House/front": {"door": "Closed"},
+  "bt-range/CQB House/back": {"door": "Locked"},
+  "bt-range/CQB House/north": {"door": "Locked"},
+  "bt-range/CQB House/south": {"door": "Locked"}
  }
 }

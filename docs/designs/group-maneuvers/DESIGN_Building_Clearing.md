@@ -700,9 +700,9 @@ sequenceDiagram
     M1->>D: Open — refused if locked ⇒ Breach (3 s)
     D-->>P: DoorState Open (or destroyed)
   end
-  P->>M1: AdvanceTo the threshold, 1 m in (t = 0) — CE-2334
-  P->>Mk: AdvanceTo the threshold (t = 0.6 s · k)
-  Note over P: a man 0.5 m past the way in has crossed ⇒ his order turns
+  P->>M1: AdvanceTo the door front, 1 m outside (t = 0) — CE-2334
+  P->>Mk: AdvanceTo the door front (t = 0.6 s · k)
+  Note over P: within 0.6 m of it ⇒ AdvanceTo the threshold, 1 m in · 0.5 m past the way in ⇒ crossed, his order turns
   P->>M1: Watch at point 1, sector
   P->>Mk: Watch at point k, sector
   Note over P: every entry man within 1.5 m of his point, no fresh hostile in the room for 3 s
@@ -772,6 +772,8 @@ moved men by teleport, so three things only the real house showed:
 | the stack never formed: every man's move *Running*, nobody moving, for 60 s; the leader 2 m from his point with the next man standing 0.5 m from it | stack points 0.8 m apart = two body radii (0.4 m) — inside the crowd's push zone; a man whose point lies past another cannot reach it | **stacked = the ENTRY men** at their stack points (the leader and the support need not be — they follow); the timeout 60 s → **30 s** |
 | an entry man stopped 1.26 m from his point for ever; the room never clear | two measures of "there": the drill's 1.2 m against the posture's own 1.5 m (`PostureNodes.OccupiedMetres` — past it he stops moving) | **one measure**: the drill's stacked and at-point tests ARE the posture's `OccupiedMetres` |
 | an entry man stuck at the doorway's mouth, his move *Running* for 2 min, heading for a point off to the side | the navmesh's 0.3 m radius leaves a 1.0 m door a 0.4 m corridor; entering at an angle he slides on the jamb | **the threshold** (Battle Drill 6: through the fatal funnel, then the corner): a released entry man is sent `AdvanceTo` the point 1 m straight in (`RoomEntryPlan.Result.Threshold`), firing on the way; 0.5 m past the way in and inside the room he has crossed (`RoomDrillState.Crossed`, a bit per roster slot) and his order turns to his point with his sector. A stair has none (CB-60: no wall) |
+| four men released 0.6 s apart onto ONE door-front point and ONE threshold — a jam at the doorway; and a body 0.9 m inside it walled it off | humans move by `CarKinematicsSystem` with RVO avoidance (no navmesh crowd): converging agents block each other, and a downed man was still an obstacle | **one man in the doorway at a time**: the next entry man is released only once every man ahead is across (or down) — and never sooner than CB-54's 0.6 s; ⚠ **cross-lane (FDP `CarKinem`)**: avoidance steps over a PERSON who is not in the fight (`PhysicsColliderReaders.IsPerson` + `Injury.IsInTheFight`) — a vehicle, wreck or not, is still avoided |
+| with the threshold, two men still wedged beside the jamb, their `AdvanceTo` Running for 3 min, at y = 110.1 | 📐 a probe of the bt-range bake: the mesh outside the north wall ends at **y = 110.55**; the stack points stood at 110.6 — ON the edge — and the men were pushed 0.45 m off it; the planner's path from there runs along the wall to the doorway's corridor (x 45.75) and straight through | the stack stands **0.8 m** off the wall (`StackOffWallMetres`, was 0.6), and a released man goes to the **door front** first — 1 m outside, square to the way in (`Result.DoorFront`, `RoomDrillState.AtDoor`) — then straight to the threshold: the path's own line |
 
 ⚠ **Two deviations of the DEMO from §8.1's cast** (recorded, not silent): `bc-room-clear` stacks on room A's **north side door** from
 outside, not at the hallway's front door (that cast needs the hallway cleared first — it is `bc-house-clear`'s first room); and its
@@ -783,7 +785,14 @@ drill skipped the breach. CB-53 reads the door live on the brain's node; that re
 
 Rails: `SquadManeuverTests.CE2257_BC1_*` now assert the threshold leg (#1 `AdvanceTo` 1 m in, #2 0.6 s later, each man's point only once
 across; a small room's entry with the leader NOT stacked); `Obey` follows an `AdvanceTo` too. ✅ Red-proved by 3 compiling mutants, all killed
-(never crossed: 4 rails · no threshold: 2 · the whole stack gating the breach: 1).
+(never crossed: 4 rails · no threshold: 2 · the whole stack gating the breach: 1 · no door front: 2 · the flow not gated on the man ahead:
+1). `CarKinematicsSystemTests.CE2334_ADownedPerson_IsSteppedOver_AStandingOneAndAWreckAreAvoided` (judged against the same walk with nothing
+in the way) — ✅ red-proved: the skip removed ⇒ the walker swerves 1.4 m round a dead man.
+
+⚠ **The demos' own measurements, kept here because they decide the scenarios:** the squad must approach out of the room's WINDOW view
+(a spawn in it drew a firefight through the window before the stack formed: four men lost, the drill broken); the house's other doors
+are LOCKED by the scenario (`TerrainObjects`) — a closed door is passable by design (Building Interiors §5c: only locked is a wall), and
+an outnumbered posted insurgent takes the posture's Flee option out of the house.
 
 ### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILT (§7.2a) — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
 

@@ -12,7 +12,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const int MaxEntry = 4;
         /// <summary>CB-50 — the stack stands this far off the wall (m), #1 this far past the jamb (m), the men this far apart (m).</summary>
-        public const float StackOffWallMetres = 0.6f, StackPastJambMetres = 0.6f, StackSpacingMetres = 0.8f;
+        public const float StackOffWallMetres = 0.8f, StackPastJambMetres = 0.6f, StackSpacingMetres = 0.8f;
         /// <summary>CB-51 — a point is this far off a side wall (m) and stays this far inside the room (m); a room under this (m²), or
         /// fewer than <see cref="FourManFrom"/> men in the fight, is a two-man entry.</summary>
         public const float OffWallMetres = 1f, InsideMetres = 0.8f, TwoManAreaSquareMetres = 12f;
@@ -47,6 +47,10 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>⭐ CE-2334 — the THRESHOLD: <see cref="ThresholdMetres"/> into the room straight through the way in, on the room's
             /// floor — where an entry man crosses before he turns to his point (Battle Drill 6: through the fatal funnel, then the corner).</summary>
             public Vector3 Threshold => new(Door + Into * ThresholdMetres, FloorZ);
+
+            /// <summary>⭐ CE-2334 — the DOOR FRONT: <see cref="ThresholdMetres"/> outside the way in, on the stack's floor — where an entry man
+            /// lines up so he goes through square, as the path does (measured: the planner's corridor runs straight through the doorway).</summary>
+            public Vector3 DoorFront => new(Door - Into * ThresholdMetres, StackZ);
 
             public Vector3 Point(int k) => k switch { 0 => Point0, 1 => Point1, 2 => Point2, _ => Point3 };
             public float Facing(int k) => k switch { 0 => Facing0, 1 => Facing1, 2 => Facing2, _ => Facing3 };

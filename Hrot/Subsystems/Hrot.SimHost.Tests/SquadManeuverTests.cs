@@ -3974,7 +3974,7 @@ namespace Hrot.SimHost.Tests
                 float b = plan.Facing(k) * MathF.PI / 180f;
                 Assert.True(MathF.Cos(b) > 0f, $"sector {k} looks into the room (north): {plan.Facing(k)}");
             }
-            Near(new Vector3(0.4f, 9.4f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.6 m off the wall");
+            Near(new Vector3(0.4f, 9.2f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.8 m off the wall (CE-2334: on the mesh, not its edge)");
             Assert.Equal(0.8f, plan.Stack(0).X - plan.Stack(1).X, 3);
             Assert.True(plan.Point0.X > 1.5f && plan.Point1.X < 1.5f, "#1 to the open side, #2 to the stack's side");
             Assert.Equal(12f, plan.Point0.Y, 3);   // a third in
@@ -4021,15 +4021,27 @@ namespace Hrot.SimHost.Tests
             s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
-            Near(plan.Threshold, AdvanceOf(s, s.Members[0]), "#1 goes first — straight through the door (CE-2334)");
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes first — square to the door (CE-2334)");
+            Near(new Vector3(1.5f, 9f, 0f), plan.DoorFront, "the door front: 1 m outside");
             Near(new Vector3(1.5f, 11f, 0f), plan.Threshold, "the threshold: 1 m in through the door");
             Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
-            TickFor(s, 0.6);
-            Near(plan.Threshold, AdvanceOf(s, s.Members[1]), "#2 0.6 s after, through the door");
-            TickFor(s, 1.3);
-            for (int k = 0; k < 4; k++) Near(plan.Threshold, AdvanceOf(s, s.Members[k]), $"man {k} not across yet: still the door");
-            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // across
+            s.Teleport(s.Members[0], plan.DoorFront);
             TickFor(s, 0.1);
+            Near(plan.Threshold, AdvanceOf(s, s.Members[0]), "#1 at the door: straight through");
+            TickFor(s, 1.0);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[1])).IntentId);   // still his stack order
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 waits while #1 is in the doorway (CE-2334: one man in it at a time)");
+            s.Teleport(s.Members[0], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // #1 across
+            TickFor(s, 0.1);
+            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 across: to his point");
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "#2 goes once #1 is through");
+            Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 not yet");
+            for (int k = 1; k < 4; k++)
+            {
+                Near(plan.DoorFront, AdvanceOf(s, s.Members[k]), $"man {k} to the door in his turn");
+                s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // across
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);                                 // and CB-54's 0.6 s still holds
+            }
             for (int k = 0; k < 4; k++)
             {
                 Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
@@ -4072,9 +4084,12 @@ namespace Hrot.SimHost.Tests
             for (int k = 1; k < 3; k++) s.Teleport(s.Members[k], plan.Stack(k - 1));   // ⭐ CE-2334 — only the entry men need be stacked
             TickFor(s, 1.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
-            for (int k = 1; k < 3; k++) Near(plan.Threshold, AdvanceOf(s, s.Members[k]), $"man {k} through the gap first");
-            for (int k = 1; k < 3; k++) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
-            TickFor(s, 0.1);
+            for (int k = 1; k < 3; k++)
+            {
+                Near(plan.DoorFront, AdvanceOf(s, s.Members[k]), $"man {k} square to the gap, in his turn");
+                s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);
+            }
             Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
             Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
             for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");

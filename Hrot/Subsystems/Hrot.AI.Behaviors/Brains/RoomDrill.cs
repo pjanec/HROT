@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ CE-2334 — 1 when the way in is crossed on foot first (a door or a gap; a stair has no threshold) · per roster slot, a
         /// bit once that entry man has crossed it.</summary>
         public byte Threshold;
-        public ushort Crossed;
+        public ushort AtDoor, Crossed;
     }
 
     /// <summary>
@@ -67,8 +67,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlowSeconds = 0.6f;
         /// <summary>CB-55 — at his point: this close (m); the room clear after this long with every man there and no hostile in it (s).</summary>
         public const float AtPointMetres = PostureNodes.OccupiedMetres, ClearSeconds = 3f;
-        /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m).</summary>
-        public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f;
+        /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m) · the door front reached
+        /// within this (m).</summary>
+        public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f, DoorFrontMetres = 0.6f;
         /// <summary>How far round his point a man fights from it (his post, m) · the stack's arc toward the door (half width, °).</summary>
         public const float PointRadius = 1.2f, StackArcHalfWidth = 60f;
 
@@ -162,12 +163,12 @@ namespace Hrot.AI.Behaviors.Brains
                 case StackAndRoomEntryManeuver.PhaseEntering:
                 case StackAndRoomEntryManeuver.PhaseCleared:
                     if (k >= d.Plan.Entry || (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering && k >= d.Released)) return atStack;
-                    // ⭐ CE-2334 — through the way in first, straight, firing on the way; then to his point
+                    // ⭐ CE-2334 — square to the way in, through it straight, firing on the way; then to his point
                     if (d.Threshold != 0 && (d.Crossed & (1 << member)) == 0)
                         return new MemberOrder
                         {
-                            Kind = MemberOrderKind.AdvanceTo, Point = d.Plan.Threshold, Speed = speed * 1.5f, RoleId = role,
-                            ArrivalRadius = ThresholdArrival,
+                            Kind = MemberOrderKind.AdvanceTo, Point = (d.AtDoor & (1 << member)) == 0 ? d.Plan.DoorFront : d.Plan.Threshold,
+                            Speed = speed * 1.5f, RoleId = role, ArrivalRadius = ThresholdArrival,
                         };
                     return new MemberOrder
                     {
@@ -217,17 +218,29 @@ namespace Hrot.AI.Behaviors.Brains
             if (leaderOut && ctx.Live(0, out _)) d.OrderOf[0] = (sbyte)n;
         }
 
-        /// <summary>CB-54 — the next entry man goes <see cref="FlowSeconds"/> after the one before.</summary>
-        private static void Flow(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
+        /// <summary>CB-54 — the next entry man goes <see cref="FlowSeconds"/> after the one before, ⭐ CE-2334 and not before every man
+        /// sent ahead of him is through the way in (or down): one man in the doorway at a time.</summary>
+        private static unsafe void Flow(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             int due = Math.Min(d.Plan.Entry, 1 + (int)((ctx.Now - d.EnterSince) / FlowSeconds));
+            if (d.Threshold != 0)
+            {
+                int through = 0;
+                for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+                {
+                    int k = d.OrderOf[i];
+                    if (k == RoomDrillState.NotInIt || k >= d.Released) continue;
+                    if ((d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out _)) through++;
+                }
+                due = Math.Min(due, Math.Max(1, through + 1));
+            }
             if (due <= d.Released) return;
             d.Released = (byte)due;
             ws.Reissue = 1;
         }
 
-        /// <summary>⭐ CE-2334 — a released entry man who is in the room, <see cref="CrossedMetres"/> past the way in, has crossed the
-        /// threshold: his next order is his point.</summary>
+        /// <summary>⭐ CE-2334 — a released entry man within <see cref="DoorFrontMetres"/> of the door front is at the door: next, the
+        /// threshold; in the room, <see cref="CrossedMetres"/> past the way in, he has crossed it: next, his point.</summary>
         private static unsafe void Cross(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             if (d.Threshold == 0) return;
@@ -239,9 +252,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (k == RoomDrillState.NotInIt || k >= d.Plan.Entry || k >= d.Released || (d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out var m)) continue;
                 var at = ctx.At(m);
                 var flat = new Vector2(at.X, at.Y);
-                if (!RoomEntryPlan.Inside(corners, flat) || Vector2.Dot(flat - d.Plan.Door, d.Plan.Into) < CrossedMetres) continue;
-                d.Crossed |= (ushort)(1 << i);
-                ws.Reissue = 1;
+                bool crossed = RoomEntryPlan.Inside(corners, flat) && Vector2.Dot(flat - d.Plan.Door, d.Plan.Into) >= CrossedMetres;
+                bool atDoor = crossed || Vector2.Distance(flat, new Vector2(d.Plan.DoorFront.X, d.Plan.DoorFront.Y)) <= DoorFrontMetres;
+                if (atDoor && (d.AtDoor & (1 << i)) == 0) { d.AtDoor |= (ushort)(1 << i); ws.Reissue = 1; }
+                if (crossed) { d.Crossed |= (ushort)(1 << i); ws.Reissue = 1; }
             }
         }
 
