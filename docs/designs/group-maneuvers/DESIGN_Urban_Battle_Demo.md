@@ -211,6 +211,12 @@ that already pass on other terrains.
 | L5 `uc-fpv-convoy` | L2's convoy; an FPV drone near the route | the drone searches, picks the APC, dives | — (`ua-drone-shelter` port) |
 | L6 `uc-reinforce` | L7's platoon losing men | Reinforce ⇒ a free unit sent to defend at the requester | `CE-2310` HQ-5 · `CE-2312` HQ-9 |
 
+**The flagship** `uc-urban-battle` (built 2026-10-20; 44 entities, nothing faked or timed; `scripts/utility-demo-check.py uc-urban-battle`)
+asserts only what must hold: ① the charge goes off only with a vehicle in its kill zone · ② no Blue round aimed at a civilian · ③ nothing sent
+without a REQUEST · ④ both sides fight. **First run (1200 sim s): ①②③ held, ④ did not** — the Bradley saw the fire team on the open sidewalks
+from 230 m at 9 s and destroyed it from cover before it fired (Blue 238 rounds, Red 0); ⚠ the same charge burst THREE times (37, 229, 256 s);
+⚠ the reserve squad SPOTted "an element at (0, 0)" every ~17 s from 547 s. Being measured.
+
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.
 
