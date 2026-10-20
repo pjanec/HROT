@@ -87,6 +87,11 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo>
             LayerControlOf = new();
 
+        /// <summary>⭐ CE-1234 — the local UI-state transport <see cref="Build"/> made for each map buffer; <see cref="AttachMapLayers"/> hands it
+        /// to the gizmo render layer, whose panel drains it.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport>
+            UiStatesOf = new();
+
         public static MapInteraction Build(MapInteractionContext ctx)
         {
             if (ctx is null) throw new ArgumentNullException(nameof(ctx));
@@ -303,9 +308,17 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
             var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
             MapLayerPreferences.Load(settings, layerSettingsPath);
+            // ⭐ CE-1234 — the layer panel learns what the gizmo holds: its state goes to the host's publisher (a remote terminal) AND to a
+            //   local transport the map's own panel drains each frame (AttachMapLayers). ⛔ Was: the host's hub only, which no local endpoint
+            //   ever joined — the panel showed only its own clicks, so in 3-D (its own copy still read "2-D map") every click was dropped.
+            var uiStates = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport();
+            var layerUi = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub();
+            layerUi.AddEndpoint(uiStates);
+            if (ctx.GizmoUiPublisher != null) layerUi.AddEndpoint(ctx.GizmoUiPublisher);
+            UiStatesOf.AddOrUpdate(buffer, uiStates);
             var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
                 layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                ctx.GizmoUiPublisher, settings,   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+                layerUi, settings,   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
                 saveSettings: () => MapLayerPreferences.Save(settings, layerSettingsPath));
             globalManager.Register(layerControlId, layerControl);
             LayerControlOf.AddOrUpdate(buffer, layerControl);   // ⭐ CE-1203 FL-8 — AttachMapLayers finds it by the buffer and hands it the view
@@ -476,6 +489,7 @@ namespace Hrot.ScenarioEditor.Map
                 () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
             canvas.AddLayer(terrain2D);
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            if (UiStatesOf.TryGetValue(buffer, out var uiStates)) gizmoLayer.UiStates = uiStates;   // ⭐ CE-1234 — the panel follows its gizmo
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;

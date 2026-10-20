@@ -60,12 +60,28 @@ namespace GizmoMap.Presentation
         public void Schedule(long networkId, uint schemaHash, uint gizmoTypeId, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
         {
             _items.Add(new ScheduledItem(networkId, schemaHash, gizmoTypeId, anchor, offsetX, offsetY, sizeMode, isReadOnly));
+            Remember(networkId, schemaHash);
+        }
+
+        // ⭐ CE-1234 — the gizmo publishes its state under its INSTANCE id (StructInspectorProjector: GizmoInstanceId = the anchor) while
+        //   the registry is keyed by SCHEMA: the panel learns which schema an instance draws when it is scheduled, and a state that
+        //   arrived before that waits for it (parked), so the first state is never lost.
+        private readonly Dictionary<uint, uint> _schemaOfInstance = new();
+        private readonly Dictionary<uint, GizmoUiState> _parked = new();
+
+        private void Remember(long networkId, uint schemaHash)
+        {
+            uint id = unchecked((uint)networkId);
+            if (_schemaOfInstance.TryGetValue(id, out var known) && known == schemaHash) return;
+            _schemaOfInstance[id] = schemaHash;
+            if (_parked.Remove(id, out var parked)) ReceiveUiState(parked);
         }
 
         // Legacy overload without anchor positioning (defaults to TopLeft, ScreenPixels).
         public void Schedule(long networkId, uint schemaHash, uint gizmoTypeId, float screenX, float screenY, bool isReadOnly)
         {
             _items.Add(new ScheduledItem(networkId, schemaHash, gizmoTypeId, ScreenAnchor.TopLeft, screenX, screenY, SizeMode.ScreenPixels, isReadOnly));
+            Remember(networkId, schemaHash);   // ⭐ CE-1234
         }
 
         // Formats the ImGui window title for the given item parameters.
@@ -326,7 +342,12 @@ namespace GizmoMap.Presentation
         public void ReceiveUiState(GizmoUiState state)
         {
             if (_registry == null) return;
-            if (!_registry.TryGet(state.GizmoInstanceId, out var doc) || doc == null) return;
+            if (!_registry.TryGet(state.GizmoInstanceId, out var doc) || doc == null)
+            {
+                // ⭐ CE-1234 — an instance id: its schema, from what was scheduled; not scheduled yet ⇒ kept until it is
+                if (!_schemaOfInstance.TryGetValue(state.GizmoInstanceId, out var schema)) { _parked[state.GizmoInstanceId] = state; return; }
+                if (!_registry.TryGet(schema, out doc) || doc == null) return;
+            }
 
             // Block update if ANY inspector window is currently being edited.
             // _items may be empty when this is called after DrawScheduled; checking

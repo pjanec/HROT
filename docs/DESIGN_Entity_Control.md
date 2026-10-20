@@ -1621,7 +1621,9 @@ and the station keeps its own instance, so the darkening does not depend on the 
 
 Rails `PossessionStationTests.CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles`, `CE1220_KilledWhileHeld_TheViewStays_NamesTheShooter_KShowsHim_TabTakesASquadMate_EscTheMap` (red-proved), `CE1220_APlainRelease_LeavesAtOnce_NoFallScreen`, `CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen`, `EmbarkNodesTests.CE1219_BHeld_RaisesHisBinoculars_LettingGoLowersThem_AManWithNoneIsRefused` (both red-proved), `InteractionTransportTests` (the byte crosses the wire), `CE1218_M_OpensTheMapCentredOnHim_HeHoldsStill_AndMBringsTheOperatorBack` (red-proved), `CE1217_TheCompassReadsTheHeading_AndTheNamesAreHisSidesWithin50m` (red-proved), frame `fps-hit-feedback.png` (now with the compass and two names), `AudioTests.CE1216_ARoundPassingTheEar_CountsOnce_NotHisOwn_NotFarOff_NotBornBesideHim` (both red-proved), and the audio's own crack rail `CE1120_…CracksOnce…` through the extraction.
 
-## 8l. S13 DESIGN — a person's switchable mouse look (`CE-1204`, `2026-10-20`, ui) — build-state: DESIGN (LK-1 approved, R-1006; LK-2…LK-7 below are leans for the user — ⚠ LK-2 narrows LK-1's wording)
+## 8l. S13 DESIGN — a person's switchable mouse look (`CE-1204`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (LK-1 R-1006; ✅ LK-2…LK-7 APPROVED `2026-10-20`, R-1017 — LK-2 narrows LK-1's wording)
+
+🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"*
 
 🔒 User, `2026-10-19`: *"lock view to forward vs. mouse look and WSAD keys steer … switchable. in mouse look the aim/turret following the
 mouse, which means the character twisting the body and turning his head into the viewing direction. Mouse look limited by physical limits
@@ -1736,7 +1738,7 @@ graph TD
 | **LK-6** | a vehicle's look and its weapon's arc | ⭐ not in this item: clamping a look to a turret or station arc IS the gunner seat (`CE-1210`, MW-1) — designed there, one clamp | clamp the driver's free look now — a driver looks round regardless of the gun |
 | **LK-7** | the fire rule in free look | ⭐ none new: the look stays within the twist (LK-2), and the operator's fire keeps `obeyArc: false` | a hold while the body turns — needed only if LK-2 were 145° |
 
-⇒ ⛔ **Not built until the user rules LK-2…LK-7** (LK-2 changes the approved wording). Build size once ruled: the station (~60 lines) + the
+⇒ ✅ **Ruled `2026-10-20` (R-1017)** — LK-2…LK-7 as leaned. Build size once ruled: the station (~60 lines) + the
 head drawing + `HeadLimit` and its TKB field; rails in the station's suite (`PossessionStationTests`), the figure suite and backend's look suite.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
