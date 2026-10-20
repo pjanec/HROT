@@ -169,12 +169,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
             _                   => string.Empty,
         };
 
+        // ⭐ CE-1203 — SaveToDisk writes SettingType.ToString(), i.e. "CsInt32" / "CsFloat32", which this switch did not know: every int
+        //   and float setting came back as default(GizmoSettingValue) (a family scope as 0, the navmesh choice as 0). Never seen because
+        //   nothing called SaveToDisk / LoadFromDisk until the map layers did. The short names stay readable.
         private static GizmoSettingValue ParseValue(string type, string value) => type switch
         {
-            "Bool"    => GizmoSettingValue.From(bool.Parse(value)),
-            "Int32"   => GizmoSettingValue.From(int.Parse(value, CultureInfo.InvariantCulture)),
-            "Float32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
-            _         => default,
+            "Bool"                   => GizmoSettingValue.From(bool.Parse(value)),
+            "CsInt32"   or "Int32"   => GizmoSettingValue.From(int.Parse(value, CultureInfo.InvariantCulture)),
+            "CsFloat32" or "Float32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
+            _                        => default,
         };
 
         private sealed class ScopeRecord

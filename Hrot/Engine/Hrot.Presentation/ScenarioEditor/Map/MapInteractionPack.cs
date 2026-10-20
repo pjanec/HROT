@@ -81,6 +81,12 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>
         /// Constructs the map's gizmo machinery and hands it back for the host to schedule.
         /// </summary>
+        /// <summary>⭐ CE-1203 FL-8 — the layer control <see cref="Build"/> made for each map buffer. Every host hands
+        /// <see cref="AttachMapLayers"/> the buffer Build made (<c>MapInteraction.Buffer</c>), so the view switch reaches the layer control
+        /// with no host wiring to forget (rail <c>CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost</c>).</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo>
+            LayerControlOf = new();
+
         public static MapInteraction Build(MapInteractionContext ctx)
         {
             if (ctx is null) throw new ArgumentNullException(nameof(ctx));
@@ -294,10 +300,15 @@ namespace Hrot.ScenarioEditor.Map
             var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
             var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
             long layerControlId = GlobalGizmoManager.NewId();
+            // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
+            var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
+            MapLayerPreferences.Load(settings, layerSettingsPath);
             var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
                 layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                ctx.GizmoUiPublisher, settings);   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+                ctx.GizmoUiPublisher, settings,   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+                saveSettings: () => MapLayerPreferences.Save(settings, layerSettingsPath));
             globalManager.Register(layerControlId, layerControl);
+            LayerControlOf.AddOrUpdate(buffer, layerControl);   // ⭐ CE-1203 FL-8 — AttachMapLayers finds it by the buffer and hands it the view
             // ⭐ CE-1227 — the gizmo hands the buffer its mask only when it runs, AFTER the projectors: 📐 on demo-city the first frame
             //   therefore stored the hidden Cover (7 891 points) and SpatialGrid layers and dropped 17 943 primitives. Seeded here, the
             //   first frame refuses them like every later one (CE-1071's one authority, applied from the start).
@@ -472,6 +483,8 @@ namespace Hrot.ScenarioEditor.Map
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
             var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+            // ⭐ CE-1203 FL-8 (§5e) — the layer control shows and applies the set of the view on screen
+            if (LayerControlOf.TryGetValue(buffer, out var layerControl)) layerControl.Is3D = () => viewSwitch.Is3D;
             // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>

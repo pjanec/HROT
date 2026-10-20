@@ -297,6 +297,13 @@ namespace Hrot.ScenarioEditor.Map
         /// editor (its replay is an isolated sandbox) and IG (listen-only — it holds no recording, so it keeps making its own).</para>
         /// </summary>
         public Func<bool>? IsReplayActive { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-1203 FL-9 (docs/DESIGN_Terrain_Combat_Tuning.md §5e) — the file the map layers are remembered in. Null (every production
+        /// host) ⇒ the operator's own file, <see cref="MapLayerPreferences.DefaultPath"/> — by construction, nothing to forget. Empty ⇒
+        /// none: nothing is loaded or saved (a rail that must not read or write the user's file).
+        /// </summary>
+        public string? LayerSettingsPath { get; init; }
     }
 
     /// <summary>

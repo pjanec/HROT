@@ -172,9 +172,9 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1233` | ✅ routes draw as waypoints joined by lines (circles per waypoint, 2.5 px, selected highlight) | [routes-1 §8.1](../designs/routes-1/ROUTES1-DESIGN.md) |
 | `CE-1231` · `CE-1232` | ⛔ APPROVED, not built (`R-1016`): the IED / vest burst sized by explosive mass ("Explosion huge"), the placed IED's 2-D marker and 3-D kit — design first | [Visual Effects §11](../DESIGN_Visual_Effects.md) |
 | `CE-1230` | ⛔ OPEN, recorded only (`R-1015`): the ORBAT tree's right-click menu = the map's entity menu, one shared menu, Embark/Disembark in it — design first | tracker |
-| `CE-1229` | ⛔ OPEN — `Hrot.SimHost.Tests` does not compile since CE-4015 moved the serializers (filed, not ui's to fix) | tracker |
+| `CE-1229` | ✅ CLOSED — not a defect: a stale restore (the serializers kept their namespace); `Hrot.SimHost.Tests` builds after `dotnet restore` | tracker |
 | `CE-1228` | ⛔ OPEN — found by CE-1227's parity rail: the gizmo renderer blends every translucent `FilledTriangle` twice (both windings, culling off) | tracker |
-| `CE-1203` | ✅ **APPROVED, NOT STARTED** (`R-1011`, user: *"Record it, do nkt start building it."*): ~10 new layer checkboxes in five groups with hover text; a 2-D symbol of what 3-D draws itself (round markers) never drawn in 3-D (FlatOnly, extends R-4058); a layer SET PER VIEW (2-D / 3-D) chosen by the view switch; both REMEMBERED per user through `GizmoSettingsRegistry.SaveToDisk/LoadFromDisk` (built in gizmos-1, never called) | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e FL-1…FL-9 (INVENTORY, today-state claim table, class + sequence diagrams) |
+| `CE-1203` | ✅ **BUILT** (`R-1011`, FL-1…FL-9): 10 new rows (bits 16–25) in five groups with display names and hover meanings (`[EditDisplayName]`/`[EditDoc]`), a rail per row (`GizmoLayerProbe`); round markers 2-D only; a set per view picked by the view switch (wired through the shared buffer); both sets + scopes + navmesh choice remembered in `map-layers.json`; registry int save/load bug fixed | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e.1 as built · [GUIDE_Debug_Gizmos](../GUIDE_Debug_Gizmos.md) §1 |
 
 ### Waiting on / from other lanes
 

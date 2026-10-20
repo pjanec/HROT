@@ -174,7 +174,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         public void CE1203_ThePanel_HasFiveGroups_AndEveryRowANameAndAMeaning()
         {
             using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
-            var groups = session.Document.Root.Children;
+            var groups = session.Document.Root.Children.Where(n => n.Children.Count > 0).ToList();   // the groups (the first line, "Showing", is a text row)
             Assert.Equal(new[] { "Units", "Command", "AI", "Fire", "Map" }, groups.Select(g => g.Metadata.DisplayName).ToArray());
             var rows = groups.SelectMany(g => g.Children).ToList();
             Assert.True(rows.Count >= 26, $"the five groups hold {rows.Count} rows");
@@ -184,6 +184,79 @@ namespace Hrot.SimHost.Tests.Gizmos
                 Assert.Contains(node.Metadata.CustomAttributes, a => a is StructEdit.Core.Attributes.EditDocAttribute d && d.Summary.Length > 0);
             }
             Assert.Equal(rows.Count, rows.Select(r => r.Metadata.DisplayName).Distinct().Count());
+        }
+
+        private static string JsonOf(LayerControlDto dto)
+        {
+            using var s = MakeEditService().Open(dto, typeof(LayerControlDto));
+            return StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+        }
+
+        // ⭐ CE-1203 FL-8 (§5e) — a set per view: the view switch picks the set the gizmo applies and shows; an edit changes only the
+        // set on screen; an edit of the OTHER view's set (a click in the frame the view switched) is dropped. 🔴 Red-proof: one set for
+        // both views — hiding the 2-D round streaks hid them in 3-D too (where the 3-D round makes them a duplicate anyway).
+        [Fact]
+        public void CE1203_EachViewHasItsOwnSet_AndTheViewPicksIt()
+        {
+            bool is3D = false;
+            var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: new GizmoSettingsRegistry()) { Is3D = () => is3D };
+            var draw = new DebugPrimitiveBuffer();
+
+            var off2D = new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false } };
+            gizmo.OnStructUpdate(JsonOf(off2D));
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "2-D: Rounds unticked");
+            Assert.True(gizmo.SetOf(is3D: true).Units.Rounds, "the 3-D set is untouched");
+
+            is3D = true;
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, draw);
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "3-D: its own set, Rounds on");
+            gizmo.OnStructUpdate(JsonOf(off2D));   // the 2-D panel's click arriving after the switch
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "an edit of the 2-D set is not applied to the 3-D set");
+
+            gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Map = { Doors = false } }));
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Doors));
+            is3D = false;
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, draw);
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Doors), "back in 2-D: the 2-D set (Doors on, Rounds off)");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Rounds));
+        }
+
+        // ⭐ CE-1203 FL-9 (§5e) — remembered: both sets, the family scopes and the navmesh choice go through the shared settings to one
+        // file, saved on every change, and a gizmo built over a registry loaded from that file starts where the last one stopped.
+        // 🔴 Red-proof: nothing was saved — every start was the defaults.
+        [Fact]
+        public void CE1203_BothSetsAndTheScopes_AreRemembered_InTheUsersFile()
+        {
+            string file = System.IO.Path.GetTempFileName();
+            try
+            {
+                var settings = new GizmoSettingsRegistry();
+                int saves = 0;
+                bool is3D = false;
+                var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: settings,
+                    saveSettings: () => { saves++; settings.SaveToDisk(file); }) { Is3D = () => is3D };
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false }, Ai = { ContactsSelectedOnly = false } }));
+                is3D = true;
+                gizmo.UpdateAndDraw(new EntityRepository(), 0f, new DebugPrimitiveBuffer());
+                // the panel sends the WHOLE shown set — the 3-D set, which re-read the scope the 2-D edit wrote
+                Assert.False(gizmo.SetOf(is3D: true).Ai.ContactsSelectedOnly, "the 3-D set shows the scope the 2-D edit wrote");
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Ai = { ContactsSelectedOnly = false }, Map = { Navmesh = true, NavmeshLayers = NavmeshDrawLayers.Vehicle } }));
+                Assert.Equal(2, saves);
+
+                var loaded = new GizmoSettingsRegistry();
+                loaded.LoadFromDisk(file);
+                var next = new LayerControlGizmo(8, new FdpEventBus(), MakeEditService(), settings: loaded);
+                Assert.False(next.SetOf(is3D: false).Units.Rounds);
+                Assert.True(next.SetOf(is3D: false).Map.Doors);
+                Assert.True(next.SetOf(is3D: true).Units.Rounds);
+                Assert.True(next.SetOf(is3D: true).Map.Navmesh);
+                Assert.Equal(NavmeshDrawLayers.Vehicle, next.SetOf(is3D: true).Map.NavmeshLayers);
+                Assert.False(next.SetOf(is3D: false).Ai.ContactsSelectedOnly, "the family scope is one per family, for both views");
+                Assert.False(next.SetOf(is3D: true).Ai.ContactsSelectedOnly);
+                Assert.False(next.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "it starts in 2-D with the remembered 2-D set");
+                Assert.True(LayerControlSets.RowCount >= 26, $"{LayerControlSets.RowCount} rows remembered per set");
+            }
+            finally { System.IO.File.Delete(file); }
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that

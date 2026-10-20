@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-20 (rev 8 — §5e built, §5e.1 as built, CE-1203; rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5e finer layers, one checkbox per kind, a set per view, remembered (CE-1203, FL-1…FL-9 APPROVED R-1011, not built) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5e finer layers, one checkbox per kind, a set per view, remembered (CE-1203, FL-1…FL-9, BUILT 2026-10-20 — §5e.1 as built) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -918,7 +918,7 @@ classDiagram
 - `EntityPlacementGizmoTests.CE1065_TheGhost_IsHalfTheOldSize` and `EntityPickerGizmoTests.CE1065_TheCrosshair_IsHalfTheOldSize`.
 - F: `GizmoPresentationTests.CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops` and `CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable`; `LayerControlGizmoTests.CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt`; `GizmoInteractionTranslatorTests.CE1066_APanelsClose_RoundTripsAsInspectorClosed`.
 
-## 5e. Finer layers — one checkbox per kind of gizmo, a set per view, remembered *(`CE-1203`, ui, `2026-10-20`; build-state: READY-TO-BUILD — FL-1…FL-9 APPROVED `2026-10-20` (R-1011), ⛔ not started on the user's word; the Sectors row is `CE-1225`, BUILT, [Command Display §8](DESIGN_Command_Display.md))*
+## 5e. Finer layers — one checkbox per kind of gizmo, a set per view, remembered *(`CE-1203`, ui, `2026-10-20`; build-state: ✅ BUILT `2026-10-20` — FL-1…FL-9 APPROVED (R-1011); as built: §5e.1 below; the Sectors row is `CE-1225`, BUILT, [Command Display §8](DESIGN_Command_Display.md))*
 
 🔒 **User, `2026-10-19`:** *"lots of gizmos is hidden under 'Entities' layer, i need finer granularity — separate checkboxes. now when i
 click the entity i see many different gizmos and because there is no checkbox i do not even know what they mean … Maybe more
@@ -983,13 +983,13 @@ classDiagram
     passes layer on each draw call
   }
   class EntityPresentationGizmoShared { <<exists>> DrawClosedPolylineOutline(…, layer) (CE-1225) }
-  class EditNode { <<StructEdit, changed>> Description : new, from [Description] }
-  class ImGuiPropertyTreeAdapter { <<exists, changed>> tooltip on hover }
+  class EditNodeMetadata { <<StructEdit, exists>> DisplayName from [EditDisplayName], CustomAttributes holds [EditDoc] }
+  class ImGuiPropertyTreeAdapter { <<exists, changed>> label = DisplayName, EditDoc on hover, groups open }
   LayerControlDto --> DebugTraceLayers
   AGizmo --> DebugTraceLayers
   AGizmo ..> EntityPresentationGizmoShared
-  LayerControlDto ..> EditNode : a row's meaning
-  ImGuiPropertyTreeAdapter ..> EditNode
+  LayerControlDto ..> EditNodeMetadata : a row's name and meaning
+  ImGuiPropertyTreeAdapter ..> EditNodeMetadata
 ```
 
 ```mermaid
@@ -1035,28 +1035,35 @@ classDiagram
     <<exists, changed by FL-8/FL-9>>
     sets : 2-D set, 3-D set
     Is3D : Func of bool, new, from the view switch
+    SetOf(is3D) : new, for the rails
     UpdateAndDraw() emits the current view's mask and panel
-    OnStructUpdate() edits the current set, saves
+    OnStructUpdate() edits the current set, drops an edit of the other view's set, saves
   }
-  class LayerControlDto { <<exists>> one set: groups and rows (FL-1, FL-4) }
+  class LayerControlDto { <<exists>> one set: View line, five groups of rows (FL-1, FL-4) }
+  class LayerControlSets { <<new>> Register / Read / Write one set's rows as settings, rows found by reflection }
+  class MapLayerPreferences { <<new>> DefaultPath map-layers.json, Load, Save }
   class GizmoSettingsRegistry {
-    <<exists, FDP>>
-    map.layers.2d.Row / map.layers.3d.Row : new keys
+    <<exists, FDP, fixed>>
+    map.layers.2d.Group.Row / map.layers.3d.Group.Row : new keys
     map.scope.Family : exists
     SaveToDisk(path, Global) : exists, first production caller
-    LoadFromDisk(path, Global) : exists, first production caller
+    LoadFromDisk(path, Global) : exists, first production caller, int and float reload fixed
   }
   class MapViewSwitch { <<exists>> Is3D }
   class MapInteractionPack {
     <<exists, changed>>
-    Build() the gizmo, loads the file
-    AttachMapLayers() hands Is3D to the gizmo
+    LayerControlOf : buffer to layer control, new
+    Build() loads the file, builds the gizmo, records it by its buffer
+    AttachMapLayers() finds it by the buffer, hands it Is3D
   }
   class PipelineTarget { <<exists>> FlatOnly : 2-D only (R-4058), now also the round markers (FL-7) }
   LayerControlGizmo "1" --> "2" LayerControlDto
-  LayerControlGizmo --> GizmoSettingsRegistry : reads and writes both sets
+  LayerControlGizmo ..> LayerControlSets : reads and writes both sets
+  LayerControlSets --> GizmoSettingsRegistry
   LayerControlGizmo ..> MapViewSwitch : Is3D
   MapInteractionPack ..> LayerControlGizmo : builds, wires
+  MapInteractionPack ..> MapLayerPreferences : load at build, save on change
+  MapLayerPreferences --> GizmoSettingsRegistry
 ```
 
 ```mermaid
@@ -1081,6 +1088,18 @@ sequenceDiagram
 ⚠ **Cross-lane:** FL-5 touches StructEdit (FDP); `HillAttackGizmo` is behaviors' (its four draw calls).
 ✅ **Measured `2026-10-20` (`CE-1227`):** it did — its triangles targeted `All` and the 3-D triage draped them; the retained `TerrainLayer2D` is 2-D only, so FL-7 holds for the terrain. *(Was: ⚠ Unmeasured: whether `TerrainWorldGizmo` also draws over the 3-D terrain (a duplicate there would argue for "Terrain (2-D)" defaulting)*
 off in 3-D) — checked at build, in a frame.
+
+### 5e.1 As built *(`2026-10-20`, ui — where the build deviates from the decisions above, and why)*
+
+| | as built | ⛔ was (above) / why |
+|---|---|---|
+| FL-1 | 10 new bits 16–25 (`DebugTraceLayers`); the Perception row is now **AI ▸ Vision cones** (bit 1), its contact lines **AI ▸ Contacts** (bit 25) | as decided |
+| FL-3 | `layer:` on every draw call + an early `IsLayerActive` return, one rail per row (`FDP/TestShared/GizmoLayerProbe` in each gizmo's own suite). ⚠ `TacticalAreaGizmo`, `MapOverlayGizmo`, `TerrainZoneGizmo` have **no** early return: their pick segments stay on layer 0 (CE-1160), so a hidden graphic is still selectable — rail `SC_GZ058_8c` | the early return everywhere would have made hidden graphics unpickable |
+| FL-4 | `LayerControlDto` = `View` + five group objects (`UnitLayerGroup` … `MapLayerGroup`); a family's *"…: selected only"* row under its row; the window's first-level groups open by default | — |
+| FL-5 | ⭐ the EXISTING StructEdit attributes: `[EditDisplayName]` (the label) and `[EditDoc]` (*"what a field means"*, `DESIGN_Mcp_Authoring` §10.6) on every row and group; the adapter prints the display name, shows the doc on hover (`IsItemHovered` + `SetTooltip`) and keys every widget by node id | ⛔ `[Description]` + a new `EditNode.Description` — a second attribute for what `[EditDoc]` already is (seam law) |
+| FL-7 | the round streak, tracer glow and marker are `Map2D \| FlatOnly` (`ProjectilePresentationGizmo.SymbolTarget`); the fuze countdown stays in both views (nothing in 3-D shows it). Terrain (2-D) is 2-D only by construction (`TerrainLayer2D`, CE-1227) | — |
+| FL-8 | the view reaches the gizmo through the **buffer** both sides already share: `Build` records the layer control by its buffer, `AttachMapLayers` finds it and sets `Is3D` — every host hands the attach the buffer `Build` made (rail `CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost`). The panel's first line *"Showing: 2-D map / 3-D map"* heads it (the window title stays *Layer Control*); an edit whose `View` is not the current view's is dropped (a click in the frame the view switched) | ⛔ a heading in the window title — it is also the window's id source; ⛔ a host parameter — five hosts to wire, one to forget |
+| FL-9 | `LayerControlSets`: each set's rows as `map.layers.{2d\|3d}.<Group>.<Row>` (bool, found by reflection — a new row needs no list); ⚠ the *selected only* ticks are the family scopes `map.scope.*` — **one per family, for both views**, not per set (the visibility policy reads one key). `MapLayerPreferences`: `map-layers.json` beside `audio.json`, loaded in `Build` before the gizmo, saved on every change. `MapInteractionContext.LayerSettingsPath`: null = the user's file, `""` = none. 🔴 **Found and fixed:** `GizmoSettingsRegistry.SaveToDisk` wrote `CsInt32`/`CsFloat32` and `LoadFromDisk` knew only `Int32`/`Float32` ⇒ every int setting (the scopes, the navmesh choice) reloaded as 0 — never seen, as nothing called the pair before | ⚠ like `audio.json`, a rail that calls `Build` without `LayerSettingsPath = ""` reads the user's file (none on CI) |
 
 ## 6. Slices
 

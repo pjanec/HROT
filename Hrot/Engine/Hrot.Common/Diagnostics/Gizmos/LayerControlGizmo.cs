@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -35,6 +36,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
     //   ⛔ SUPERSEDED: one flat list of rows; "Perception" (bit 1) is now Ai.VisionCones, its contact lines Ai.Contacts (bit 25).
     public class LayerControlDto
     {
+        /// <summary>⭐ CE-1203 FL-8 — which view this set belongs to ("2-D map" / "3-D map"); the panel prints it as its first line (a
+        /// text row, not editable), and <see cref="LayerControlGizmo.OnStructUpdate"/> drops an edit made to the OTHER view's set (a click
+        /// in the frame the view switched).</summary>
+        [EditDisplayName("Showing"), EditDoc("Each view keeps its own set: switch the map to 2-D or 3-D to edit that view's layers.")]
+        public string View { get; set; } = LayerControlSets.View2D;
+
         [EditDisplayName("Units"), EditDoc("The units themselves: symbols, cards, unit details, rounds in flight.")]
         public UnitLayerGroup Units { get; set; } = new();
         [EditDisplayName("Command"), EditDoc("Who commands whom, and where units are told to go.")]
@@ -221,6 +228,59 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool SpatialGrid { get; set; }
     }
 
+    /// <summary>
+    /// ⭐ CE-1203 FL-8/FL-9 (docs/DESIGN_Terrain_Combat_Tuning.md §5e) — the two sets' rows as settings in the shared
+    /// <see cref="GizmoSettingsRegistry"/> (<c>map.layers.2d.&lt;Group&gt;.&lt;Row&gt;</c>, <c>map.layers.3d.…</c>, bool), so the registry's own
+    /// SaveToDisk / LoadFromDisk carry them (with the family scopes <c>map.scope.*</c> and the navmesh choice <c>map.navmesh.layers</c>,
+    /// already settings) to the user's file. The rows are found by reflection over the groups — a new row is remembered with no list to
+    /// update. The "selected only" ticks are NOT rows: they are the family scopes, one per family for both views.
+    /// </summary>
+    public static class LayerControlSets
+    {
+        public const string View2D = "2-D map", View3D = "3-D map";
+
+        private static readonly (System.Reflection.PropertyInfo Group, System.Reflection.PropertyInfo Row)[] Rows =
+            typeof(LayerControlDto).GetProperties()
+                .Where(g => g.PropertyType.IsClass && g.PropertyType != typeof(string))
+                .SelectMany(g => g.PropertyType.GetProperties()
+                    .Where(r => r.PropertyType == typeof(bool) && !r.Name.EndsWith("SelectedOnly", StringComparison.Ordinal))
+                    .Select(r => (g, r)))
+                .ToArray();
+
+        /// <summary>The setting key of one row in one view's set.</summary>
+        public static string Key(bool is3D, string group, string row) => $"map.layers.{(is3D ? "3d" : "2d")}.{group}.{row}";
+
+        /// <summary>The number of rows a set remembers (the rail reads it).</summary>
+        public static int RowCount => Rows.Length;
+
+        /// <summary>Registers both sets' rows with the DTO's defaults (idempotent; the 3-D set starts as a copy of the 2-D defaults).</summary>
+        public static void Register(GizmoSettingsRegistry settings)
+        {
+            var defaults = new LayerControlDto();
+            foreach (var (g, r) in Rows)
+                for (int v = 0; v < 2; v++)
+                    settings.RegisterSetting(Key(v == 1, g.Name, r.Name), GizmoSettingValue.From((bool)r.GetValue(g.GetValue(defaults))!));
+        }
+
+        /// <summary>One view's rows from the registry into <paramref name="dto"/>.</summary>
+        public static void Read(GizmoSettingsRegistry settings, LayerControlDto dto, bool is3D)
+        {
+            foreach (var (g, r) in Rows)
+                r.SetValue(g.GetValue(dto), settings.Read(GizmoSettingsRegistry.ComputeHash(Key(is3D, g.Name, r.Name))).BoolValue);
+        }
+
+        /// <summary><paramref name="dto"/>'s rows into the registry as one view's set (only the rows that changed are written).</summary>
+        public static void Write(GizmoSettingsRegistry settings, LayerControlDto dto, bool is3D)
+        {
+            foreach (var (g, r) in Rows)
+            {
+                uint hash = GizmoSettingsRegistry.ComputeHash(Key(is3D, g.Name, r.Name));
+                bool value = (bool)r.GetValue(g.GetValue(dto))!;
+                if (settings.Read(hash).BoolValue != value) settings.Write(hash, GizmoSettingValue.From(value));
+            }
+        }
+    }
+
     // Stateful backend gizmo that owns layer visibility state for the tactical map.
     //
     // Each frame it emits:
@@ -266,8 +326,20 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private readonly FdpEventBus _interactionBus;
         private readonly StructInspectorProjector<LayerControlDto> _projector;
 
-        private LayerControlDto _dto = new();
+        // ⭐⭐ CE-1203 FL-8 (§5e) — TWO sets, one per view; each frame the gizmo asks the host's view switch (Is3D, wired by
+        //   MapInteractionPack.AttachMapLayers on every map host) and emits THAT set's mask and THAT set's panel.
+        //   ⛔ SUPERSEDED: one set for both views (private LayerControlDto _dto).
+        private readonly LayerControlDto[] _sets = { new() { View = LayerControlSets.View2D }, new() { View = LayerControlSets.View3D } };
+        private int _view;   // 0 = 2-D, 1 = 3-D
+        private LayerControlDto Current => _sets[_view];
         private LayerMask256 _activeLayers;
+        private readonly Action? _saveSettings;   // ⭐ CE-1203 FL-9 — writes the user's file; called on every change
+
+        /// <summary>⭐ CE-1203 FL-8 — the map shows 3-D. Wired by <c>MapInteractionPack.AttachMapLayers</c> (the view switch); unset = 2-D.</summary>
+        public Func<bool>? Is3D { get; set; }
+
+        /// <summary>⭐ CE-1203 FL-8 — the set of one view (the rails read it).</summary>
+        public LayerControlDto SetOf(bool is3D) => _sets[is3D ? 1 : 0];
 
         /// <summary>⭐ CE-1227 — the mask this gizmo asserts (what <see cref="UpdateAndDraw"/> hands the buffer each frame). The map pack
         /// seeds the buffer with it at build, so the FIRST frame refuses hidden layers too.</summary>
@@ -285,16 +357,27 @@ namespace Hrot.Common.Diagnostics.Gizmos
             FdpEventBus interactionBus,
             IComponentEditService editService,
             IGizmoUiStatePublisher? uiPublisher = null,
-            GizmoSettingsRegistry? settings = null)
+            GizmoSettingsRegistry? settings = null,
+            Action? saveSettings = null)
         {
             _anchorId = anchorId;
             _settings = settings;
-            if (settings != null) _dto.ReadScopes(settings);
+            _saveSettings = saveSettings;
+            if (settings != null)
+            {
+                // ⭐ CE-1203 FL-9 — both sets from the registry (the host loaded the user's file into it before building this gizmo)
+                LayerControlSets.Register(settings);
+                for (int v = 0; v < 2; v++)
+                {
+                    LayerControlSets.Read(settings, _sets[v], is3D: v == 1);
+                    _sets[v].ReadScopes(settings);
+                }
+            }
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
             _projector = new StructInspectorProjector<LayerControlDto>(
                 editService ?? throw new ArgumentNullException(nameof(editService)),
                 uiPublisher);
-            _activeLayers = _dto.ToMask();
+            _activeLayers = Current.ToMask();
         }
 
         // Called once per frame by GlobalGizmoManager regardless of focus state.
@@ -303,6 +386,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
             // Drain OpenLayerEditorEvent to toggle the inspector panel.
             foreach (ref readonly var _ in _interactionBus.Read<OpenLayerEditorEvent>())
                 _isEditing = !_isEditing;
+
+            // ⭐ CE-1203 FL-8 — the view decides the set. The family scopes are one per family (not per view), so a switched-to set
+            //   re-reads them.
+            int shown = Is3D?.Invoke() == true ? 1 : 0;
+            if (shown != _view)
+            {
+                _view = shown;
+                if (_settings != null) Current.ReadScopes(_settings);
+                _activeLayers = Current.ToMask();
+            }
 
             // Emit authoritative layer control mask (consumed by DebugPrimitiveRenderer2D).
             // ⭐ CE-1071 — and hand the same mask to the buffer, which then refuses hidden-layer primitives at emit (one authority,
@@ -318,16 +411,24 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
-                _projector.EmitAndSync(draw, _anchorId, SchemaHash, _dto, ScreenAnchor.Center, SizeMode.ScreenPercent);
+                _projector.EmitAndSync(draw, _anchorId, SchemaHash, Current, ScreenAnchor.Center, SizeMode.ScreenPercent);
         }
 
         // Called by GlobalGizmoManager when a GizmoStructUpdateEvent arrives for _anchorId.
         public void OnStructUpdate(string payloadJson)
         {
             if (string.IsNullOrWhiteSpace(payloadJson)) return;
-            _projector.ApplyUpdate(payloadJson, ref _dto);
-            _activeLayers = _dto.ToMask();
-            if (_settings != null) _dto.WriteScopes(_settings);
+            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(Current))!;   // a copy: the edit applies on top of the shown set
+            _projector.ApplyUpdate(payloadJson, ref edited);
+            if (edited.View != Current.View) return;   // ⭐ CE-1203 FL-8 — an edit of the set the panel showed before the view switched
+            _sets[_view] = edited;
+            _activeLayers = edited.ToMask();
+            if (_settings != null)
+            {
+                edited.WriteScopes(_settings);
+                LayerControlSets.Write(_settings, edited, is3D: _view == 1);   // ⭐ CE-1203 FL-9
+                _saveSettings?.Invoke();
+            }
             // ⭐ CE-1065 — the panel STAYS OPEN: each checkbox now commits as it is clicked (ImGuiPropertyTreeAdapter), so closing
             //   here made every second toggle a trip back through View ▸ Tactical Map Layers…. The menu entry toggles it shut.
         }

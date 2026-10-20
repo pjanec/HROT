@@ -65,7 +65,8 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
-    [InlineData(@"new\s+([\w.]+\.)?TerrainLayer2D\(")]   // ⭐ CE-1227    [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
+    [InlineData(@"new\s+([\w.]+\.)?TerrainLayer2D\(")]   // ⭐ CE-1227
+    [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]
@@ -111,5 +112,31 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.Contains("Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TrafficAmbientBodies")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires SUMO's far bodies itself: " + string.Join(", ", hostMentions));
+    }
+
+    /// <summary>⭐ CE-1203 FL-8 (docs/DESIGN_Terrain_Combat_Tuning.md §5e) — the layer control applies the set of the view on screen: the
+    /// shared attach hands it the view switch, found by the buffer <c>Build</c> made — so ① a host's attach reaches it with no wiring of
+    /// its own, and ② every host hands the attach THAT buffer. 🔴 Red-proof: without the hand-over the layer control stays on the 2-D set
+    /// in 3-D.</summary>
+    [Fact]
+    public void CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        Assert.Null(mi.LayerControl.Is3D);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new Fdp.Toolkit.Vis2D.Components.MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.NotNull(mi.LayerControl.Is3D);
+        Assert.False(mi.LayerControl.Is3D!());
+        layers.ViewSwitch.Set(true, animate: false);
+        Assert.True(mi.LayerControl.Is3D!());
+
+        // ② every attaching host passes the buffer its Build made
+        var files = ProductionFiles().ToList();
+        var attachers = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).Select(f => HostOf(f.Rel)).Distinct().ToList();
+        var re = new Regex(@"=\s*\w*[Mm]apInteraction\w*\.Buffer\s*;");
+        var without = attachers.Where(h => !files.Any(f => HostOf(f.Rel) == h && re.IsMatch(f.Text))).ToList();
+        Assert.True(attachers.Count >= 5, "anti-vacuity: " + string.Join(", ", attachers));
+        Assert.True(without.Count == 0, "hosts whose map buffer is not the one MapInteractionPack.Build made: " + string.Join(", ", without));
     }
 }
