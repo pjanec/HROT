@@ -350,8 +350,12 @@ namespace Fdp.Toolkit.Combat.Tests
             }
 
             Assert.True(shots.Count >= 3, $"shots at {string.Join(", ", shots)}");
+            // ⭐ CE-2323 — each gap is the 10 s scaled by his own draw for that round (8–12.5 s), never the 5 s of the double drain
             for (int k = 1; k < shots.Count; k++)
-                Assert.InRange(shots[k] - shots[k - 1], 9.9f, 10.3f);
+            {
+                float gap = FirePacing.Gap(10f, shooter, k - 1, 1);
+                Assert.InRange(shots[k] - shots[k - 1], gap - 0.05f, gap + 0.25f);
+            }
         }
 
         // ── CE-321 ────────────────────────────────────────────────────────────
@@ -823,6 +827,16 @@ namespace Fdp.Toolkit.Combat.Tests
                 _world.AddComponent(shooter, tracks);
         }
 
+        /// <summary>⭐ <c>CE-2323</c> — the frame (1-based, at <paramref name="dt"/>) on which this shooter's aim at this target is ready:
+        /// its own paced aim time, accumulated exactly as the executor does.</summary>
+        private int AimSteps(Entity shooter, Entity target, float dt = 0.1f)
+        {
+            float need = AimAndFireExecutor.PacedAimSecondsFor(_world, shooter, 0, target), elapsed = 0f;
+            int k = 0;
+            do { elapsed += dt; k++; } while (elapsed < need);
+            return k;
+        }
+
         private int Step(Entity shooter, ref WeaponChannel channel, float dt)
         {
             Tick(shooter, ref channel, dt);
@@ -841,17 +855,57 @@ namespace Fdp.Toolkit.Combat.Tests
             SetSight(shooter, target, visual: true);
             _executor.OnEnter(shooter, ref channel, _world);
 
+            // ⭐ CE-2323 — HIS aim time (the mount's 0.8 s × his own factor), and HIS gap after the round
+            int aimed = AimSteps(shooter, target);
             int fired = 0;
-            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);   // 0.7 s < 0.8 s
+            for (int i = 0; i < aimed - 1; i++) fired += Step(shooter, ref channel, 0.1f);   // short of his aim time
             Assert.Equal(0, fired);
             Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
 
-            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // 0.8 s — aimed
-            Assert.Equal(0, Step(shooter, ref channel, 0.1f));                        // cooldown 0.2 s …
-            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … 0.2 s later the next round, no new aim
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // aimed
+            float gap = FirePacing.Gap(0.2f, shooter, 0, channel.ActionInstanceId);
+            int waits = 0;
+            while (Step(shooter, ref channel, 0.1f) == 0) waits++;                     // the cooldown …
+            Assert.Equal((int)MathF.Ceiling(gap / 0.1f - 1e-4f) - 1, waits);          // … only the cooldown, no new aim
             // ⭐ CE-2166 re-pinned: it was 0.3 s — the rail drove the executor alone, whose own drain lagged the dispatcher's by a frame
             Assert.Equal(3, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-2323</c> (R-2063; Weapon Layers §5j) — four riflemen given the same order on the same frame: each first round
+        /// leaves on HIS predicted frame (his own aim time), those frames differ, and their later rounds do not move in step. The
+        /// prediction reads only (shooter, target, round) — no run state, no clock — so every run of the scenario repeats it.
+        /// 🔴 Red before: all four fired on frame 8, then together every 10 frames.</summary>
+        [Fact]
+        public void CE2323_FourRiflemenOrderedTogether_FireOutOfStep_EachOnHisOwnFrame()
+        {
+            RegisterSight();
+            var target = SpawnTarget(new Vector3(30f, 0f, 0f));
+            var men = new Entity[4];
+            var channels = new WeaponChannel[4];
+            for (int m = 0; m < 4; m++)
+            {
+                (men[m], channels[m]) = SpawnShooter(new Vector3(0f, m * 2f, 0f), 30, 0f, target, cooldownSeconds: 1f);
+                SetSight(men[m], target, visual: true);
+                _executor.OnEnter(men[m], ref channels[m], _world);
+            }
+            var shots = new System.Collections.Generic.List<int>[4];
+            for (int m = 0; m < 4; m++) shots[m] = new System.Collections.Generic.List<int>();
+            for (int frame = 1; frame <= 60; frame++)
+                for (int m = 0; m < 4; m++)
+                    if (Step(men[m], ref channels[m], 0.1f) > 0) shots[m].Add(frame);
+
+            var firsts = new System.Collections.Generic.HashSet<int>();
+            for (int m = 0; m < 4; m++)
+            {
+                Assert.True(shots[m].Count >= 3, $"man {m} fired {shots[m].Count}");
+                Assert.Equal(AimSteps(men[m], target), shots[m][0]);
+                firsts.Add(shots[m][0]);
+            }
+            Assert.True(firsts.Count >= 3, $"first rounds on frames {string.Join(",", firsts)}: a volley on one frame");
+            var thirds = new System.Collections.Generic.HashSet<int>();
+            for (int m = 0; m < 4; m++) thirds.Add(shots[m][2]);
+            Assert.True(thirds.Count >= 3, $"third rounds on frames {string.Join(",", thirds)}: back in step");
         }
 
         /// <summary>⭐ <c>CE-3136</c> P-3 (D3 + D4) — a target out of sight is held (Running, no round spent) and losing sight
@@ -876,7 +930,8 @@ namespace Fdp.Toolkit.Combat.Tests
             SetSight(shooter, target, visual: false);
             fired += Step(shooter, ref channel, 0.1f);                                // a blink
             SetSight(shooter, target, visual: true);
-            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);   // 0.7 s — would have been 1.2 s without the restart
+            int aimed = AimSteps(shooter, target);                                    // ⭐ CE-2323 — his aim time, ≥ 0.56 s
+            for (int i = 0; i < aimed - 1; i++) fired += Step(shooter, ref channel, 0.1f);   // without the restart it would have gone 5 frames sooner
             Assert.Equal(0, fired);
             Assert.Equal(1, Step(shooter, ref channel, 0.1f));
         }
@@ -912,7 +967,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             _executor.OnEnter(shooter, ref channel, _world);
             int fired = 0;
-            for (int i = 0; i < 7; i++) fired += Step(shooter, ref channel, 0.1f);
+            for (int i = 0; i < AimSteps(shooter, target) - 1; i++) fired += Step(shooter, ref channel, 0.1f);   // ⭐ CE-2323 — his aim time
             Assert.Equal(0, fired);
         }
             /// <summary>⭐ <c>CE-3136</c> B7 — <see cref="AimAndFireParams.Rounds"/> = 3 fires three aimed rounds and ends in Success;
@@ -1009,11 +1064,11 @@ namespace Fdp.Toolkit.Combat.Tests
             SetSight(shooter, target, visual: true);
             Step(shooter, ref channel, 0.1f);
             Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Row().Reason);
-            Assert.Equal(0.8f, Row().Needed, 3);
+            Assert.Equal(AimAndFireExecutor.PacedAimSecondsFor(_world, shooter, 0, target), Row().Needed, 3);   // ⭐ CE-2323 — HIS aim time
             Assert.InRange(Row().Progress, 0.09f, 0.11f);
 
             int fired = 0;
-            for (int i = 0; i < 7 && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
+            for (int i = 0; i < AimSteps(shooter, target) && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
             Assert.Equal(1, fired);
             Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, Row().Reason);
 
@@ -1050,7 +1105,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
             Assert.Equal(target, Posture().Target);
             int fired = 0;
-            for (int i = 0; i < 10 && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);
+            for (int i = 0; i < AimSteps(shooter, target) && fired == 0; i++) fired += Step(shooter, ref channel, 0.1f);   // ⭐ CE-2323
             Assert.Equal(1, fired);
             Assert.Equal(WeaponPostureKind.Aimed, Posture().Kind);
 
@@ -1548,7 +1603,8 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Success, channel.Status);
             Assert.Equal(3, shots);
             Assert.True(firstShotFrame >= 60 * 2, $"first shot at frame {firstShotFrame}: 90° at 40°/s is 2.25 s of slewing");
-            Assert.True(minGap >= 29, $"shots {minGap} frames apart: the 0.5 s cooldown is 30");
+            Assert.True(minGap >= (int)(0.5f * FirePacing.GapMin * 60f) - 1,   // ⭐ CE-2323 — each gap ≥ 0.8 × the 0.5 s cooldown
+                $"shots {minGap} frames apart: the 0.5 s cooldown, paced, is at least 24");
             Assert.Equal(2, _world.GetComponent<WeaponState>(shooter).Ammo);   // 5 − 3, spent once each
             Assert.Equal(WeaponTaskMode.Idle, _world.GetComponent<WeaponTask>(turret).Mode);
         }
@@ -2213,7 +2269,9 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(29, _world.GetComponent<WeaponState>(unit).Ammo);
             Assert.Equal(4, _world.GetComponent<WeaponState>(grenade).Ammo);   // nothing thrown
             // set on the shot, then the frame's one drain (⭐ CE-2166 — the dispatcher's) takes the 0.1 s off
-            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor - 0.1f, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
+            // ⭐ CE-2323 — the slower blind gap, scaled by his own draw for the first round
+            Assert.Equal(FirePacing.Gap(0.5f * AimAndFireExecutor.BlindCooldownFactor, unit, 0, channel.ActionInstanceId) - 0.1f,
+                         _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
             Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
             Assert.Equal(NodeStatus.Running, channel.Status);
         }

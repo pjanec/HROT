@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
 current-answer: W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
@@ -1037,6 +1037,49 @@ read the same component — not wired.
 Gates `2026-10-14`: `Fdp.Toolkits.Tests` 3225 / 0 (1 skip) · `Hrot.Presentation.Tests` Map3D 139 / 0 (8 skip) · cluster scenarios (`PostureScenarioTests`, `GrenadeOrRifleScenarioTests`, `SquadTacticsScenarioTests`, `EqsCombatNodesTests`) 31 / 0 — no baseline moved · `Hrot.Stride.Core` builds clean, ⚠ its tests cannot run on Linux (net8.0-windows runtime) and the motor's aimed branch has no rail — verify on the Windows host.
 
 ⚠ Known, not fixed here: blind fire's ROUNDS-in-progress posture still names the hidden target ENTITY (W-13b), so between held rounds the gait turns toward where he really is, not where he was last seen — the gate itself uses the remembered point. Small in practice (the point is where he was a moment ago).
+
+### 5j. Fire pacing — each man's own rhythm, seeded *(behaviors, `2026-10-20`; `CE-2323`, R-2063; build-state: BUILT — as drawn)*
+
+> 🔒 **User, `2026-10-20`:** *"Soldiers when asked to shoot they shoot in sync unisono probably not having any kind of reproducible
+> randomization to desync the phasing — needed"* · *"Yes i want also different gap on automatic weapons"*
+
+```mermaid
+classDiagram
+  class FirePacing {
+    <<static, Fdp.Toolkit.Combat — NEW>>
+    +AimFactor(shooter, target) float
+    +Gap(interval, shooter, round, action) float
+  }
+  class SimRng {
+    <<existing, CE-2188>>
+    +FromSim(index, salt, time)
+  }
+  class AimAndFireExecutor {
+    <<existing — the brain's ONE aimed-shot step>>
+    aim clock: AimSecondsFor x AimFactor
+    per-shot gap and blind gap: Gap
+  }
+  class WeaponTaskDispatcherSystem {
+    <<existing — the muscle's turret clock (WL-3)>>
+    each round's gap: Gap
+  }
+  FirePacing ..> SimRng : seeded draws
+  AimAndFireExecutor ..> FirePacing
+  WeaponTaskDispatcherSystem ..> FirePacing
+```
+*What the picture shows that prose hid: every round in the sim is timed at exactly TWO places, one per layer — the brain's per-shot
+path and the muscle's turret clock — so ONE helper called from both varies every weapon, automatic ones included; no behaviour
+needs to know.*
+
+| what | rule | why |
+|---|---|---|
+| the first shot | the mount's aim time × `AimFactor` ∈ [0.7, 1.6), drawn once per (shooter, target) | the opening volley was one frame for every man ordered on the same tick |
+| every later gap | the interval (asked, or the mount's own 60 / rate of fire — a cyclic rate too) × `Gap` ∈ [0.8, 1.25), drawn per round (shooter, round, action) | a fixed identical gap keeps men locked in step for ever, once in phase |
+| reproducible | `SimRng.FromSim(shooter index, salt, 0)` — no time input: the same scenario run gives the same rhythm | CE-2188 (user 2026-09-04): looks random, the same every run |
+| untouched | operator fire (a station pulls the trigger itself), the proficiency factors (DA-2 — this sits on top) | the person decides; the skill tier is a separate scale |
+
+**Rejected:** jitter in each play — every play must remember, and an order that skips a play fires in unison; staggering the order
+dispatch by entity index — it offsets the first shot only, identical gaps keep them locked.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

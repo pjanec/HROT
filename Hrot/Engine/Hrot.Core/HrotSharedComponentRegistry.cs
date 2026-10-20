@@ -300,6 +300,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
         // ⭐ CE-2125 (R-272) — a unit is not a body (the TKB translator stamps it on every node) and its leadership (CGF).
         world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.MapGraphic>();   // ⭐ CE-2324 — a map graphic is not a body (TKB-stamped, like UnitEntity)
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadLeadership>();
 
         // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────

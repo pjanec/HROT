@@ -584,6 +584,47 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 |---|---|
 | `PhysicalPresence` via `EmbarkedStateSystemTests.CE3110_I2c_BoardingAnOpenCabin_LeavesThePassengerExposed` · `LocalGridBuilderSystemTests.CE3110_I2c_…` (incl. the equal-count boarding) · `SpatialHashSystemTests.CE3110_I2c_…` · `AreaEffectSystemTests.CE3110_I2c_…` · `CarKinematicsSystemTests.CE3110_I2c_…` · `EmbarkedStateSystemTests` carry + kill · `VehicleKinematicsTkbTranslatorTests.CE3110_I2c_…` · `UnitCommanderTests.CE3110_I2c_…` (EQS area search) · `EmbarkationTests.CE3110_AUnitNeitherBoardsNorCarries` · `HrotSharedComponentRegistryTests.CE3110_…` | ✅ all green; red-proved by reverting each mechanism |
 
+#### 7.2c A map graphic is not a body *(behaviors, `2026-10-20`; `CE-2324`; build-state: BUILT — as drawn)*
+
+> 🔒 **User, `2026-10-20`:** *"the insurgents in the urban battle open fire also on 'Avenue E north' marker entity"* — a ROUTE
+> (`TacGraphic_Route`, Friend, `uc-urban-battle`). 📐 The perception grid takes every entity with a `SimTransform`
+> (`LocalGridBuilderSystem`); `PhysicalPresence.IsHidden` skipped only the body-less unit, the enclosed passenger and the round.
+
+```mermaid
+classDiagram
+  class PhysicalPresence {
+    <<static, Fdp.Toolkit.Perception — existing, grows>>
+    +IsHidden(view, entity) bool
+  }
+  class MapGraphic {
+    <<component 419, Fdp.Toolkit.Perception — NEW, NoScenario, never sent>>
+  }
+  class MapGraphicDef {
+    <<TKB descriptor, Hrot.Map.Definitions.Tkb — NEW>>
+  }
+  class MapGraphicTkbTranslator {
+    <<Hrot.Core — NEW, beside CompositeUnitTkbTranslator>>
+    +Inject() stamps MapGraphic
+  }
+  class UnitEntity {
+    <<existing, CE-2125 — the precedent>>
+  }
+  MapGraphicTkbTranslator ..> MapGraphicDef : consumes
+  MapGraphicTkbTranslator ..> MapGraphic : produces
+  PhysicalPresence ..> MapGraphic : hidden
+  PhysicalPresence ..> UnitEntity : hidden
+```
+*What the picture shows that prose hid: it is CE-2125's own shape, a type-level fact stamped by a TKB translator on every node (the
+creator and every ghost promotion) and read by the ONE rule every candidate door already calls — so no reader changes.*
+
+| what | as built | why |
+|---|---|---|
+| which types | `TacGraphic_Route` (8802), `TacGraphic_Area` (8803), `TacGraphic_FireLine` (8801, a bare template now), `WeatherRegion` (8811), `StoneSource` (8812) carry `MapGraphicDef` | each is drawn on the map and has a position, and none is a thing in the world |
+| ⛔ not a graphic | `Door` (8805), the obstacles (8806–8809) | physical: a door and an obstacle block sight and fire |
+| ⛔ not touched | `TerrainZone` (8804, no template: a load directive with no force), `WorldEnvironment` / `Traffic` (no position) | never in the grid as a target |
+| never a promotion wait | `MapGraphic` is neither `[PerInstanceValue]` nor ingressed ⇒ never mandatory (`MandatoryComponentResolver`) | the same as `UnitEntity` |
+| a second fix | a NEUTRAL graphic (a weather region, a stone source) in the grid could hold a shot as a "neutral on the line" (AW-20) | gone with it |
+
 ### 7.3 I-2d — the AI can ask *(build-state: BUILT `2026-10-12` — as built §7.3a; live acceptance: Squad Tactics §5a.1, ui lane; HANDOFF_Embark_I2d_And_Unit_Orders.md §2 item 1, its STEER; R-282 (behaviors))*
 
 #### 7.3.0 INVENTORY *(graph CLI `search_graph` `.*Embark.*` · `.*Disembark.*` · `.*DoorNodes.*` · `.*SquadManeuverRunner.*` · `.*DoorLocksmith.*`, + grep)*

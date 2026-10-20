@@ -115,6 +115,8 @@ namespace Hrot.Core.Tkb
             new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
             // ⭐ CE-2125 (R-272) — a composite type is a unit, not a body (never sensed; placed at its members' centroid).
             new Hrot.Map.Definitions.Tkb.CompositeUnitTkbTranslator(),
+            // ⭐ CE-2324 — a map graphic (a route, an area) is not a body (never sensed, found or targeted).
+            new Hrot.Map.Definitions.Tkb.MapGraphicTkbTranslator(),
         }.AsReadOnly();
 
         /// <summary>

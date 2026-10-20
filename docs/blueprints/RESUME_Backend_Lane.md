@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
-current-answer: ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-20
+current-answer: ⭐⭐⭐⭐⭐⭐ §000000000 (2026-10-20) — Q95 (sound signatures + lossless hearing) BUILT (CE-3282…CE-3285), CE-3279 (EQS timeouts) BUILT, EQS breaker 2 s; NEXT: merge behaviors, then their Scenario Description handoff, then CE-3286 (vehicles stuck in building corners). ⛔ §00000000 below (Q94) is DONE — history. ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,58 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 000000000. NOW (`2026-10-20`) — Q95 and CE-3279 done; next: the scenario description, then the stuck vehicles *(🔒 user: "write resumption doc so i can continue in other session")*
+
+⭐ **Start here.** `backend` is clean and pushed. ⚠ `behaviors` has moved since this lane merged it (`912d35866` merged up to `96e18de8e`;
+`origin/behaviors` was at `f36b5b2cb`) — **merge it first** (it carries the next handoff). ⛔ Read `RULINGS.md` first (RULE ZERO).
+
+### Done this session (all on `backend`)
+
+| what | commit | where it is written |
+|---|---|---|
+| **S1 / `CE-3282`** — the lossless sound ring: every shot / burst in `SoundEmissionRing` (4096 entries, 30 s, a managed singleton BORROWED by the snapshot, read by a per-slot seqlock); each hearing sensor reads everything after its own `AcousticCursor` | `279220eb3` | [Sensing §8.3](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| **S3 / `CE-3283`** — a heard sound's family (`Flags` bits 13–15) and TKB type (a ring token in `EqsResult.SignatureToken`, the struct stays 32 B), by the ear's `ProficiencyOf.Tier` (below Regular the class, Regular + family, Veteran + type); on `SoundContactEvent` and `AudioTargetDetected` | `2abbb0c89` | Sensing §8.4 |
+| **S4 / `CE-3284`** — real carries: 60 mm 4 km · 81 mm 5 km (and the urban `MortarTeam`) · 120 mm 7 km · 105 mm 12 km · M109 18 km | `2abbb0c89` | Sensing §8.5 (sources) |
+| **S6 / `CE-3285`** — `MovingBand` / `FiringBand` / `DetonationBand` authored; nothing reads them (WQ-E Q3) | `2abbb0c89` | Sensing §8.5 |
+| **S5** — the distance rule in Sensing §8.2 and Terrain World; ruling `R-3024` (Q95 approved) | `2abbb0c89` | — |
+| **S2 / `CE-3279`** — the EQS timeouts, measured live then fixed (user: *"Yes a b and c"*): (a) the Bepu terrain index attached in `TerrainResidency` and asked by the point queries; (b) one navmesh search per sensor (`INavmeshProvider.PathCosts`); (c) path and exposure COUNT their work (`IEqsCountedWork`). A solve 1.8–2.4 s → ~320 ms | `6cab61d7b` `11e6ce9b5` `e0cf95cf1` | [Sensors §5.3 + O5](../DESIGN_Sensors_And_Doctrine.md), [World Query Seam §5a](../DESIGN_World_Query_Seam.md) |
+| the EQS breaker **400 ms → 2 s** (`EqsModule.MaxRunMs`, user: *"make it 2 s"*): a timed-out run is not stopped (a zombie blocks the next, CE-3066), so the cap only threw away late answers and opened the circuit | this commit | Sensors O5 |
+| **`CE-3286`** recorded (user report): a tank / technical peeking round a building corner drives into it and stays — NOT measured | `5f5081f78` | the tracker row |
+| notes to behaviors: [signatures built](batches/NOTE_Backend_To_Behaviors_Sound_Signatures_Built.md) (their readers — E1 — are theirs now) · [EQS timeouts fixed](batches/NOTE_Backend_To_Behaviors_Eqs_Timeouts_Fixed.md) (path costs can shift slightly; their golden red) | | |
+
+### ⏭ The queue, in order
+
+| # | item | how to start | ⚠ watch |
+|---|---|---|---|
+| **1** | **merge `behaviors`** | `git fetch origin behaviors && git merge origin/behaviors` | — |
+| **2** | ⭐ **the scenario DESCRIPTION** — behaviors' FRAME [`HANDOFF_Behaviors_To_Backend_Scenario_Description.md`](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md) (on `behaviors` until merged): every scenario header carries `description` ("What: … · Judge: …") that survives editor load → save → cluster merge. Backend designs the details first (UML into [Distributed Scenario Persistence §4](../DESIGN_Distributed_Scenario_Persistence.md)), then builds | the traps the handoff measured: both save sites build a FRESH header (`HrotScenarioSaveHandler.cs:98`, `ScenarioFileService.cs:104`) and the merge rebuilds it (`ScenarioMergeCore.cs:160-162`); the terrain name survives only because the loader stamps it resident (`TerrainResidency.cs:300`) — the description needs the same, NOT tied to the terrain (a scenario may have none); leans D1–D6 in the handoff; the 88 texts are behaviors' (D5) |
+| **3** | **`CE-3286`** — vehicles stuck in a building corner (shoot-and-scoot) | measure first, on behaviors' shoot-and-scoot scenarios (`ua-technical-scoot`, `ua-tank-corner` family — find them under `scenarios/`): is it the route (navmesh clearance for a hull) or the chosen hide / firing point (`FindVehicleHide` / `FindVehicleFiringPoint` too near a wall)? Lead: `CE-2198` ([Motion Domains §5b](../designs/motion-models/DESIGN_Motion_Domains.md)) stops the step into a wall and nothing backs off | 🔒 user's order: ① never drive into the building (preferred) ② reverse a little and re-plan (V5 reverse exists, [Exposure Cycle §5](../designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md)) |
+
+### ⏳ Waiting on the user
+
+| | lean |
+|---|---|
+| `CE-3281` — the built-in military catalogue (M1, T-72, Bradley, HMMWV, aircraft, persons 200–211) is SILENT to AI ears | yes: author `SignaturesDto` on them (data, like the urban catalogue) |
+| the EQS budget: 150 000 units ≈ 450 ms on this debug VM (~3 µs a unit) | leave it — deterministic counts, a release build is several times faster; lower it only if timeouts show on a release machine |
+
+### ⚠ Findings for others (not backend's to fix)
+
+| | |
+|---|---|
+| `EqsFlatTerrainGoldenTests.RegisteredTemplates_AllHaveAGoldenScenario` red — six window/roof templates from behaviors' `CE-2275` have no golden scenario | told behaviors |
+| `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` — intermittent in the full SimHost suite, green alone | known |
+
+### ⭐ Tooling that cost time this session
+
+| ⚠ | |
+|---|---|
+| **the codebase-memory graph is NOT indexed** in a fresh cloud session | `/opt/codebase-memory-mcp/codebase-memory-mcp cli index_repository '{"repo_path":"/home/user/HROT"}'` |
+| **Roslyn over stdio: `roslyn_preview_rename` works, `roslyn_apply_rename` returns a bare "An error occurred"** (with `token` + `approval` + `projectPath`) | read the preview's diff and apply exactly that diff; grep the old name afterwards. Script: the stdio client pattern in `CLAUDE.md` §②a |
+| **`pkill -f <pattern>` inside a Bash call kills that call's own shell** when the pattern is in its command line (exit 144) | kill by pid |
+| **a live EQS profile** — temporary Stopwatch timers in `EqsModule.Tick` / `EqsSolverSystem` (per template) and the expensive tests, run `uc-request-chain` through `scripts/utility-demo-check.py`'s `launch` / `load` / `play`, grep `[EQS-PROF]` in `/tmp/utility-demo-cluster-8111.log`; revert with `git checkout` before committing | the probe REFUSES a runner older than a source file — rebuild `Hrot/Runner/Hrot.ClusterRunner` first; a stale-runner refusal leaves the OLD log in place (do not read its counts) |
+| **`--no-build` after a FAILED build runs the stale binary green** | check `Build succeeded` before reading any test count |
+| **IDL: TKB enum members share ONE scope** in the generated DDS IDL — a new enum may not repeat `Unknown`, `SmallArms`, … from another | the codegen error names the collision |
 
 ## 00000000. NOW (`2026-10-19`, evening) — finish Q94 (R-3018): A-5…A-7, then C, D, B *(🔒 user: "pls merge behaviors and write resumtion document so i can continue in another session")*
 

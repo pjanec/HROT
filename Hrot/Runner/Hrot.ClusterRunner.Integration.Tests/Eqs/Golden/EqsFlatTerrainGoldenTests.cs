@@ -68,13 +68,25 @@ public sealed class EqsFlatTerrainGoldenTests
             // ⭐ Stage 7a (CE-3134) — window positions from a manual database: two see the target past the wall's ends, one
             //   is behind the wall (rejected), and a Cover point at the same range must never appear (one kind per query).
             [FindWindowFiringPosition.BlueprintId] = (nameof(FindWindowFiringPosition),
-                () => CaptureOnFlatGround(nameof(FindWindowFiringPosition), FindWindowFiringPosition.BlueprintId, 30f, cover: new ManualCoverProvider(new[]
-                {
-                    new CoverPoint { PositionX = 0f,   PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
-                    new CoverPoint { PositionX = 28f,  PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
-                    new CoverPoint { PositionX = -27f, PositionY = -8f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
-                    new CoverPoint { PositionX = 26f,  PositionY = -6f, DirectionY = -1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
-                }))),
+                () => CaptureOnFlatGround(nameof(FindWindowFiringPosition), FindWindowFiringPosition.BlueprintId, 30f, cover: Windows())),
+            // ⭐ CE-2275 D-1 / D-2b (Defend §8c) — a squad's window POSTS and their set-back twins, on the same window database: the
+            //   engagement area's point is slot 1 (the target). The defensive asks keep only posts that see it; the all-round asks keep
+            //   every window; the set-back ones move each post 2 m back from the sill (the flat ground is floor everywhere).
+            [FindDefensiveWindowPosts.BlueprintId] = (nameof(FindDefensiveWindowPosts),
+                () => CaptureOnFlatGround(nameof(FindDefensiveWindowPosts), FindDefensiveWindowPosts.BlueprintId, 30f, cover: Windows())),
+            [FindWindowPostsAllRound.BlueprintId] = (nameof(FindWindowPostsAllRound),
+                () => CaptureOnFlatGround(nameof(FindWindowPostsAllRound), FindWindowPostsAllRound.BlueprintId, 30f, cover: Windows())),
+            [FindDefensiveWindowSetBackPosts.BlueprintId] = (nameof(FindDefensiveWindowSetBackPosts),
+                () => CaptureOnFlatGround(nameof(FindDefensiveWindowSetBackPosts), FindDefensiveWindowSetBackPosts.BlueprintId, 30f, cover: Windows())),
+            [FindWindowSetBackPostsAllRound.BlueprintId] = (nameof(FindWindowSetBackPostsAllRound),
+                () => CaptureOnFlatGround(nameof(FindWindowSetBackPostsAllRound), FindWindowSetBackPostsAllRound.BlueprintId, 30f, cover: Windows())),
+            [FindWindowSetBackPosition.BlueprintId] = (nameof(FindWindowSetBackPosition),
+                () => CaptureOnFlatGround(nameof(FindWindowSetBackPosition), FindWindowSetBackPosition.BlueprintId, 30f, cover: Windows())),
+            // ⭐ CE-2275 D-2g — ROOF posts: one cqb-village house-3f (roof storey at 6 m behind a 1 m parapet) 12 m north of the self; the
+            //   terrain's own cover database, so only its roof points may answer, and only those that see the target to the south.
+            [FindRoofPosts.BlueprintId] = (nameof(FindRoofPosts),
+                () => CaptureOnFlatGround(nameof(FindRoofPosts), FindRoofPosts.BlueprintId, 25f, terrainCover: true,
+                    terrain: OneHouse("cqb-village", "house-3f", new Vector2(0, 12)))),
             // ⭐ WL-4 W-12f — where to throw from: a donut round the target's last-known point at the ~18 m radius the node sets.
             [FindThrowingPosition.BlueprintId] = (nameof(FindThrowingPosition),
                 () => CaptureOnFlatGround(nameof(FindThrowingPosition), FindThrowingPosition.BlueprintId, 18f)),
@@ -104,6 +116,29 @@ public sealed class EqsFlatTerrainGoldenTests
             [FindEnterableShelter.BlueprintId] = (nameof(FindEnterableShelter),
                 () => CaptureOnFlatGround(nameof(FindEnterableShelter), FindEnterableShelter.BlueprintId, 40f, terrain: TwoHouses())),
         };
+
+    /// <summary>Stage 7a's window database: two window points that see the target past the wall's ends, one behind the wall, and a
+    /// Cover point at the same range that a window ask must never answer (one kind per query).</summary>
+    private static ManualCoverProvider Windows() => new(new[]
+    {
+        new CoverPoint { PositionX = 0f,   PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = 28f,  PositionY = -5f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = -27f, PositionY = -8f, DirectionY = -1f, Quality = 1f, StanceHeight = 1, Kind = CoverKind.WindowFiring },
+        new CoverPoint { PositionX = 26f,  PositionY = -6f, DirectionY = -1f, Quality = 1f, StanceHeight = 2, Kind = CoverKind.Cover },
+    });
+
+    /// <summary>One building of a recipe terrain's templates, alone on flat ground at <paramref name="at"/>.</summary>
+    private static Fdp.Toolkit.Terrain.TerrainWorld OneHouse(string recipe, string template, Vector2 at)
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", recipe);
+        string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
+            + $"{{\"type\":\"Feature\",\"properties\":{{\"kind\":\"building\",\"template\":\"{template}\",\"label\":\"House\",\"baseZ\":0,\"rotation\":0}},"
+            + $"\"geometry\":{{\"type\":\"Point\",\"coordinates\":[{at.X},{at.Y}]}}}}"
+            + "]}";
+        return Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(geojson, "one-house", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+    }
 
     /// <summary>Two bt-range <c>house-2f</c> buildings on flat ground, one 20 m north of the self, one 25 m south with its front locked.</summary>
     private static Fdp.Toolkit.Terrain.TerrainWorld TwoHouses()
@@ -160,6 +195,12 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindVehicleFiringPoint))]
     [InlineData(nameof(FindShelter))]
     [InlineData(nameof(FindEnterableShelter))]
+    [InlineData(nameof(FindDefensiveWindowPosts))]
+    [InlineData(nameof(FindWindowPostsAllRound))]
+    [InlineData(nameof(FindDefensiveWindowSetBackPosts))]
+    [InlineData(nameof(FindWindowSetBackPostsAllRound))]
+    [InlineData(nameof(FindWindowSetBackPosition))]
+    [InlineData(nameof(FindRoofPosts))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
@@ -189,8 +230,10 @@ public sealed class EqsFlatTerrainGoldenTests
 
 #if EQS_HAS_POSITIONZ
         // P3D-403: the only new information on flat ground is a constant Z ≈ 0.
-        Assert.True(actual.MaxAbsPositionZ <= 1e-3f,
-            $"Flat-terrain PositionZ expected ≈0 but max |Z| = {actual.MaxAbsPositionZ:R}");
+        // ⭐ CE-2275 D-2g — a ROOF post stands on the roof (6 m) by definition: the one template whose every answer is off the ground.
+        if (templateName != nameof(FindRoofPosts))
+            Assert.True(actual.MaxAbsPositionZ <= 1e-3f,
+                $"Flat-terrain PositionZ expected ≈0 but max |Z| = {actual.MaxAbsPositionZ:R}");
 #endif
     }
 

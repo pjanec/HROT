@@ -291,7 +291,11 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// ⭐ <c>CE-2319</c> / <c>CE-2320</c> (AQ96 §2c) — runs <see cref="UnderFire.Step"/> for every stamped move, on the brain host, AFTER the
     /// action dispatchers (so a move issued this frame already has its intent when the reflex halts it). Gated on the brain's authority.
+    /// ⚠ The attributes are for the hosts that register the pack's systems one by one through the scheduler (the editor): without a phase
+    /// the topology refuses to build, and the scheduler's sort, not the list order, decides the order there.
     /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [UpdateAfter(typeof(Fdp.Toolkit.Behavior.Systems.LocomotionDispatcherSystem))]
     public sealed class UnderFireMoveSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;

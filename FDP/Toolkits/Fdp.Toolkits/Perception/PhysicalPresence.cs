@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Perception
     /// ⭐ Every door that gathers candidates calls it per entity: the perception grid (<c>LocalGridBuilderSystem</c> — visual, thermal,
     /// acoustic), the EQS area search (<c>EntitiesInAreaGenerator</c>), the collider hash (<c>SpatialHashSystem</c> — bullets, near misses,
     /// the radius search, network raycasts, avoidance), the blast (<c>AreaEffectSystem</c>) and the line-of-sight occluder lists.
+    /// ⭐ <c>CE-2324</c> — and a MAP GRAPHIC (<see cref="MapGraphic"/>): a route the insurgents shot at.
     /// ⛔ The query filter <c>ExcludeHidden</c> was removed: a filter cannot read <c>Exposed</c>, and two halves of one rule rot apart.
     /// 📄 docs/DESIGN_Entity_Interactions.md §7.2a · docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.1 C-2.
     /// </summary>
@@ -24,7 +25,8 @@ namespace Fdp.Toolkit.Perception
         /// <summary>True when <paramref name="entity"/> must not be sensed, found, targeted or hit.</summary>
         public static bool IsHidden(ISimulationView view, Entity entity)
             => view.HasComponent<UnitEntity>(entity) || IsEnclosedPassenger(view, entity)
-               || view.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(entity);
+               || view.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(entity)
+               || view.HasComponent<MapGraphic>(entity);   // ⭐ CE-2324 — a route, an area: drawn, not a body (§7.2c)
 
         /// <summary>⭐ <c>CE-1058</c> — the passenger half of <see cref="IsHidden"/>: aboard a vehicle whose cabin is ENCLOSED (its own
         /// <see cref="IsEmbarkedTag"/> with <c>Exposed = 0</c>). An exposed rider (a motorcycle, a bike, a helicopter with its side door
