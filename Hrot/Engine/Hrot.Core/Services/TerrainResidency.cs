@@ -223,8 +223,8 @@ public sealed class TerrainResidency
                     $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
                   + $"at '{worldPath}'.", worldPath);
             // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides).
-            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName,
-                TerrainAssets.ForFolder(Path.GetDirectoryName(definitionPath)!));
+            staged.World = Indexed(TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName,
+                TerrainAssets.ForFolder(Path.GetDirectoryName(definitionPath)!)));
 
             // ⭐ W6 — the bake rides Prepare, whose contract is already "off-thread, no ECS mutation".
             if (_navmeshFactory != null)
@@ -450,6 +450,18 @@ public sealed class TerrainResidency
 
     /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
     /// <summary>
+    /// ⭐ <c>CE-3279</c> (a) — every world this residency publishes carries the terrain's spatial index (World Query Seam WQ-D):
+    /// its segment and point queries visit only the pieces the index names, with identical answers. 📐 Built in tens of ms, off
+    /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
+    /// line and every EQS point placement scanned every piece.
+    /// </summary>
+    private static TerrainWorld Indexed(TerrainWorld world)
+    {
+        Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(world);
+        return world;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3136</c> P-7a (R-243) — what an obstacle bake built off-thread: the terrain + obstacle prisms, its cover database and
     /// (on a navigation node) its navmesh. Published by <see cref="CommitObstacles"/>.
     /// </summary>
@@ -476,7 +488,7 @@ public sealed class TerrainResidency
         var baseWorld = _baseWorld;
         int baseVersion = BaseVersion;
         var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
-        bake.World = TerrainObstacles.With(baseWorld, obstacles);
+        bake.World = Indexed(TerrainObstacles.With(baseWorld, obstacles));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
         bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
         bake.Milliseconds = sw.ElapsedMilliseconds;

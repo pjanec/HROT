@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.Navigation
             => Current.PathExists(from, to, layerMask, doors);
         public float PathCost(Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
             => Current.PathCost(from, to, layerMask, doors);
+        // ⭐ CE-3279 (b) — and the one-search batch (the default would fall back to a path per point)
+        public void PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
+            => Current.PathCosts(from, to, costs, reach, layerMask, doors);
     }
 
     /// <summary>

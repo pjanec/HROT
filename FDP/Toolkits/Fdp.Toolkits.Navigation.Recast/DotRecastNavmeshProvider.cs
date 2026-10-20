@@ -392,6 +392,92 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         return cost;
     }
 
+    // ⭐ CE-3279 (b) — per-thread scratch for the one-search batch (R-220: no allocation once warm)
+    private const int MaxCirclePolys = 8192;
+    [ThreadStatic] private static long[]? t_circleRefs;
+    [ThreadStatic] private static long[]? t_circleParents;
+    [ThreadStatic] private static float[]? t_circleCosts;
+    [ThreadStatic] private static Dictionary<long, int>? t_circleIndex;
+    private long _pathCostFallbacks;
+
+    /// <summary>⭐ CE-3279 — points <see cref="PathCosts"/> answered with a full path because its search ran out of room (diagnostics, rails).</summary>
+    public long PathCostFallbacks => Interlocked.Read(ref _pathCostFallbacks);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3279</c> (b) — ONE search from <paramref name="from"/> (<c>FindPolysAroundCircle</c>, a Dijkstra over the polygons
+    /// within <paramref name="reach"/>) answers every point: the search tree's corridor to the polygon the point stands on, straightened
+    /// exactly as <see cref="PlanPath(Vector3, Vector3, Span{NavWaypoint}, uint, DoorStates?)"/> straightens an A* corridor. 📐 Live on demo-city an
+    /// A* per point cost 3.3 ms, 0.85 s of an EQS solve. ⚠ The search's corridor can differ from A*'s where two routes cost
+    /// nearly the same, and a point reached only by a detour outside
+    /// <paramref name="reach"/> reads as no path. When the search outgrows its buffer, the points it left unanswered get a full path.
+    /// </summary>
+    public void PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, DoorStates? doors)
+    {
+        costs[..to.Length].Fill(float.MaxValue);
+        if (to.IsEmpty) return;
+        var refs    = t_circleRefs    ??= new long[MaxCirclePolys];
+        var parents = t_circleParents ??= new long[MaxCirclePolys];
+        var cost    = t_circleCosts   ??= new float[MaxCirclePolys];
+        var index   = t_circleIndex   ??= new Dictionary<long, int>(MaxCirclePolys);
+        var corridor = t_polyPath ??= new long[MaxPath];             // ⭐ R-220 — the same per-thread scratch PlanPath uses
+        var straight = t_straight ??= new DtStraightPath[MaxStraight];
+        int open = to.Length;
+        bool overflow = false;
+        var start = ToRcVec(from);
+
+        var snap = Current;   // ⭐ P1 — one snapshot for the whole query
+        for (int li = 0; li < snap.States.Length && open > 0; li++)
+        {
+            if (((uint)snap.Masks[li] & layerMask) == 0) continue;
+            var ls = snap.States[li];
+            var filter = ls.FilterFor(doors);   // ⭐ R-219 — the caller's doors
+            var query = ls.Query;
+            var startStatus = FindNearestPoly(query, start, filter, out long startRef, out _);
+            if (startStatus.Failed() || startRef == 0) continue;
+
+            var status = query.FindPolysAroundCircle(startRef, start, reach, filter,
+                refs.AsSpan(), parents.AsSpan(), cost.AsSpan(), out int n, MaxCirclePolys);
+            if (status.Failed()) continue;
+            if (n >= MaxCirclePolys) overflow = true;
+            index.Clear();
+            for (int i = 0; i < n; i++) index[refs[i]] = i;
+
+            for (int c = 0; c < to.Length; c++)
+            {
+                if (costs[c] != float.MaxValue) continue;   // answered on an earlier layer
+                var end = ToRcVec(to[c]);
+                var st = FindNearestPoly(query, end, filter, out long r, out _);
+                if (st.Failed() || r == 0 || !index.ContainsKey(r)) continue;
+
+                // the corridor the search reached r by (its parents back to the start), then straightened as PlanPath does
+                int len = 0;
+                for (long cur = r; cur != 0 && len < MaxPath; )
+                {
+                    corridor[len++] = cur;
+                    if (!index.TryGetValue(cur, out int ki)) { len = 0; break; }   // a parent the full buffer dropped
+                    cur = parents[ki];
+                }
+                if (len == 0 || len == MaxPath) { overflow = true; continue; }   // left to the full path below
+                corridor.AsSpan(0, len).Reverse();
+                var ss = query.FindStraightPath(start, end, corridor.AsSpan(0, len), len, straight.AsSpan(), out int sc, MaxStraight,
+                    DtStraightPathOptions.DT_STRAIGHTPATH_AREA_CROSSINGS);
+                if (ss.Failed() || sc == 0) continue;
+                float d = 0f;
+                for (int i = 1; i < sc; i++) d += RcVec3f.Distance(straight[i - 1].pos, straight[i].pos);
+                costs[c] = d;
+                open--;
+            }
+        }
+
+        if (!overflow || open == 0) return;
+        for (int c = 0; c < to.Length; c++)
+        {
+            if (costs[c] != float.MaxValue) continue;
+            costs[c] = PathCost(from, to[c], layerMask, doors);
+            Interlocked.Increment(ref _pathCostFallbacks);
+        }
+    }
+
     /// <inheritdoc/>
     public uint QueryVersion() => Current.Version;
 
