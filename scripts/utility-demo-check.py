@@ -4491,6 +4491,92 @@ def run_uc_urban_battle(c, timeout):
     c.ok(by["Blue"] > 0 and by["Red"] > 0, f"④ both sides fight (rounds: {by})")
 
 
+# ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ──────
+def _under_fire_samples(men, seconds, every=0.25):
+    """Each man's (t, position, stance, reflex phase, last near miss or hit) every `every` s for `seconds` of sim time."""
+    out = {m: [] for m in men}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for m in men:
+            cs = comps(m)
+            p = (cs.get("SimTransform") or {}).get("Position")
+            rs = cs.get("RecentSenses") or {}
+            fire = max(rs.get("NearMiss") or 0, rs.get("Hit") or 0)
+            out[m].append((t, tuple(p) if p else None, (cs.get("StanceIntent") or {}).get("TargetStance"),
+                           (cs.get("UnderFireMove") or {}).get("Phase"), fire if fire > 0 else None))
+        time.sleep(every)
+    return out
+
+
+def _under_fire_judge(c, name, rows, alone):
+    """The AQ96 judgement over one man's samples; returns (drops, rises, rises under fire)."""
+    first_fire = next((r[0] for r in rows if r[4] is not None), None)
+    if not c.ok(first_fire is not None, f"{name}: rounds pass near him (a near miss or hit is recorded)"):
+        return 0, 0, 0
+    upright_moving, fastest, drops, rises, rises_under_fire, shifted_before_rise, still_when_down = 0, 0.0, 0, 0, 0, True, True
+    prev, saw_shift = None, False
+    for r in rows:
+        if prev and r[1] and prev[1] and r[0] > prev[0]:
+            v = flat(r[1], prev[1]) / (r[0] - prev[0])
+            if r[0] >= first_fire + 1.0 and r[3] == "Moving":
+                fastest = max(fastest, v)
+                if v > 0.5 and r[2] == "Standing": upright_moving += 1
+            if r[3] == "Down" and prev[3] == "Down" and v > 0.6: still_when_down = False
+        if prev and prev[3] != "Down" and r[3] == "Down" and prev[3] == "Moving": drops += 1; saw_shift = False
+        if r[3] == "Shifting": saw_shift = True
+        if prev and prev[3] in ("Down", "Shifting") and r[3] == "Moving":
+            rises += 1
+            if not saw_shift: shifted_before_rise = False
+            if r[4] is not None and r[0] - r[4] < 2.5: rises_under_fire += 1
+        prev = r
+    print(f"    {name}: first fire at {first_fire}, drops {drops}, rises {rises} ({rises_under_fire} under fire), "
+          f"fastest on the move {fastest:.1f} m/s, upright-and-moving samples under fire {upright_moving}")
+    c.ok(upright_moving <= 1, f"{name}: ① under fire he never runs upright ({upright_moving} samples)")
+    c.ok(fastest >= 2.5, f"{name}: ① under fire he rushes (fastest {fastest:.1f} m/s ≥ 2.5; the order said 2)")
+    c.ok(drops >= 1, f"{name}: ② a near miss in the open drops him (drops {drops})")
+    c.ok(still_when_down, f"{name}: ② down, he stops")
+    c.ok(shifted_before_rise, f"{name}: ④ he never rises where he dropped (a side step before each rise)")
+    if alone:
+        c.ok(rises_under_fire == 0, f"{name}: ③ alone, he never rises while still fired on ({rises_under_fire} rises within 2.5 s of a round)")
+    return drops, rises, rises_under_fire
+
+
+def run_uf_alone_under_fire(c, timeout):
+    ids = ids_by_name()
+    runner = ids.get("Runner")
+    if not c.ok(runner is not None and ids.get("Hostile 1") is not None, "the runner and the hostiles are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _under_fire_samples([runner], 60)[runner]
+    drops, rises, _ = _under_fire_judge(c, "Runner", rows, alone=True)
+    c.ok(rises >= 1, f"Runner: ④ after the fire lapses he rises and goes on (rises {rises})")
+
+
+def run_uf_squad_under_fire(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    men = [ids.get(n) for n in names]
+    if not c.ok(sq is not None and None not in men, "the squad and its six men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    samples = _under_fire_samples(men, 75)
+    drops = rises = covered = 0
+    for n, m in zip(names, men):
+        rows = samples[m]
+        if not any(r[4] is not None for r in rows):
+            print(f"    {n}: never fired on")
+            continue
+        d, r, u = _under_fire_judge(c, n, rows, alone=False)
+        drops += d; rises += r; covered += u
+    c.ok(drops >= 1, f"the squad: ② movers drop under fire ({drops} drops)")
+    c.ok(covered >= 1, f"the squad: ③ a covered mover rises with rounds still coming ({covered} of {rises} rises)")
+    hs = (maneuver(sq) or {}).get("history", [])
+    c.ok(len([h for h in hs if "Rush" in (h.get("phaseName") or "")]) >= 2,
+         f"the squad: ⑤ the bounds go on ({[(h.get('t'), h.get('phaseName')) for h in hs][-6:]})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4555,6 +4641,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2298 LD-5 — the look-direction demos (Look Direction §3.4)
              "ld-sentry-surprise": run_ld_sentry_surprise,
              "ld-sentry-surprise-360": run_ld_sentry_surprise_360,
+             # ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire, alone and in a squad
+             "uf-alone-under-fire": run_uf_alone_under_fire,
+             "uf-squad-under-fire": run_uf_squad_under_fire,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
@@ -4598,6 +4687,13 @@ def main():
         sys.exit(f"no debug API at {BASE} — launch ClusterRunner --mode all with HROT_DEBUG_API_PORT={a.port}, or pass --launch")
     try:
         print(f"== {a.scenario}")
+        # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
+        try:
+            with open(os.path.join(REPO, "scenarios", a.scenario, "scenario.json")) as fh:
+                desc = (json.load(fh).get("header") or {}).get("description")
+            if desc: print(f"   {desc}")
+        except (OSError, ValueError):
+            pass
         load(a.scenario)
         c = Check()
         t0 = sim_time()

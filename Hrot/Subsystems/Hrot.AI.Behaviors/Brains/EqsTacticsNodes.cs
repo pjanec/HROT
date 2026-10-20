@@ -252,7 +252,8 @@ namespace Hrot.AI.Behaviors.Brains
                     || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
             {
-                LocomotionMoveTo.Issue(world, self, best, p.Speed, p.ArrivalRadius);
+                // ⭐ AQ96 D (CE-2320) — every move here is made against a threat (to cover, back, round its flank): crouched, at least a rush
+                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched);
                 ws.Goal = best;
                 ws.Moving = 1;
                 ws.ThreatAtMove = threatPos;

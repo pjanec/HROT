@@ -404,7 +404,8 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekPoint = point;
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
+            // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 
@@ -743,7 +744,8 @@ namespace Hrot.AI.Behaviors.Brains
             ws.HidePoint = ws.PeekPoint = point;
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, p.RelocateSpeed, ArrivalRadius) ? 1 : 0);
+            // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 

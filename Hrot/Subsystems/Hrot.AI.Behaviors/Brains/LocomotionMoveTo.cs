@@ -92,6 +92,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<LocomotionChannel>(self)) return false;
             if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
                 StanceRequest.Set(world, self, stance, TacticalGait.BlendSeconds);
+            // ⭐ AQ96 A (CE-2319) — a soldier's move under fire goes at least the rush speed (the crouched cap makes it 3 m/s); the asked speed
+            //   is the pace out of contact. A person only — a vehicle's move is never re-paced.
+            bool threatened = UnderFire.Keeps(gait) && StanceRequest.CanCarry(world, self) && TacticalGait.Threatened(world, self);
+            float asked = speed;
+            if (threatened) speed = UnderFire.Pace(speed, true);
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
             StampOwner(world, self, ref channel);
             unchecked { channel.ActionInstanceId++; }
@@ -109,6 +114,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 *(MoveToParams*)dst = moveToParams;
             }
+            // ⭐ AQ96 B / C — the reflex keeps this move honest from here on (the gait, the pace, the drop): UnderFireMoveSystem
+            UnderFire.Stamp(world, self, channel.ActionInstanceId, gait, asked, threatened);
             return true;
         }
 

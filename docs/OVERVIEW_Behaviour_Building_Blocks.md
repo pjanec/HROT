@@ -318,6 +318,20 @@ graph TD
   classDef missing fill:#f8d7da,stroke:#c00
 ```
 
+## 7a. Moving under fire — what every soldier's move does by itself *(AQ96, R-2061, built 2026-10-20)*
+
+⭐ A behaviour does NOTHING to get this: any move a play issues through `LocomotionMoveTo.Issue` (gait `Tactical` or `Crouched`, a person)
+is kept by `UnderFireMoveSystem`. ⛔ So do not build a per-play "go prone when shot at" — it would fight the reflex.
+
+| | what happens | where |
+|---|---|---|
+| threatened mid-move | the gait re-picks (crouched) and the move rushes (≥ 4 m/s; the crouched cap makes 3) — the asked speed is the pace out of contact | `UnderFire.Step` · `LocomotionMoveTo.Issue` |
+| a near miss / hit in the open | prone, the move halted (the play still sees Running); down while fired on; up after a 3 s lapse, or when his half is covered (`UnderFire.MarkCovered`, stamped by `FireAndMovement`); a 1.5 m side step first; a crawl to cover within 10 m | `UnderFireMove` (component 418) · `MoveToExecutor` ignores the reflex's own intents (`HoldIntentId`) |
+| a move to cover | crouched, at least the rush speed (PeekAndFire's hides, every EQS tactics move) | `PeekAndFireNodes` · `EqsTacticsNodes` |
+| not kept | `Upright` (civilians) and `Keep` moves, vehicles, a man carrying a casualty (no drop) | — |
+
+📄 [AQ96](blueprints/Architect_Question_96_Movement_Under_Fire.md) §6 · demos `uf-alone-under-fire`, `uf-squad-under-fire`.
+
 ## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
 
 | question | ✅ answer | where |

@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — ASKED 2026-10-20, leans per sub-question (§3); C revised the same day on the user's question (§3 C, C3); waiting on the user
+state: LIVE — APPROVED 2026-10-20 (R-2061): A–F as leaned, C revised + C3; BUILT the same day (§6)
 updated: 2026-10-20 (C revised: the drop has outcomes, not a fixed time)
-build-state: DESIGN — the UML (§2a–§2c) is drawn for the leans; READY-TO-BUILD once approved
-current-answer: §3 the leans · §4 sequencing · §5 answers (empty until the user replies)
+build-state: BUILT (§6 as built; §2a–§2c drawn before the build — §6 names where it deviated)
+current-answer: §5 the answer · §6 as built · §3 the leans it approved
 stale-below: §3 C's first form ("prone 2–4 s, then up") is SUPERSEDED by the revised C below — kept only in §⛔ HISTORY
 known-rot: none
 known-conflict: none
@@ -253,7 +253,31 @@ refused when he is breaking); TS-6's break replaces it (he stays down, flees or 
 
 ## 5. Answers
 
-*(empty — the user decides)*
+🔒 **User, 2026-10-20 (after C was revised):** *"Pls implement also demo scenario for it"* — read as approval of A–F as leaned (C revised,
+C3 added), and a demo scenario — ✅ **APPROVED** (R-2061). Built the same day: §6.
+
+## 6. As built *(2026-10-20, behaviors)*
+
+As §2a–§2c, with these differences (each measured during the build):
+
+| deviation | why |
+|---|---|
+| ① `UnderFireMove` lives in FDP Toolkits (`Behavior/Components`, id **418** — the first of behaviors' block, free on every lane), not in behaviors | the move's EXECUTOR (FDP) must read `HoldIntentId`; a behaviors-only type it cannot see |
+| ② the reflex's intents are marked by **`HoldIntentId`**, and `MoveToExecutor.Execute` ignores the result of that intent (cross-lane, FDP Navigation) | ⛔ the move's `Flags` byte is full (bits 0–4 used, 5–7 the road use) — no bit for "a reflex intent". 📐 Without the mark, a side step or crawl that ARRIVES reads as the play's move arriving |
+| ③ `MoveToExecutor.WriteIntent` / `Halt` — the intent write factored out of `OnEnter` (one writer, reused by the reflex) | the bridge applies an intent only on a new `IntentId` (`NavigationIntentBridgeSystem.cs:152-190`), so every re-pace, halt, step and resume is a re-written intent; ⛔ never a second copy of OnEnter's field list |
+| ④ A is applied twice: at issue (a man already threatened sets off at the rush speed) and mid-move by the system | a move issued under fire should not start at the order's walk and be corrected a frame later |
+| ⑤ the system's re-pace also rewrites the channel's `MoveToParams.Speed` (not its instance) | so the move's params keep saying what it now does; no play reads them |
+| ⑥ D covers EVERY EQS tactics move (TakeCover, FallBack, Flank, FiringPosition, CloseToThrow — one shared step, `EqsTacticsNodes.cs:256`) and PeekAndFire's two hide moves; the `TakeCover` asset's 2.5 m/s is left in the data (the code floors it) | they share one step, and each is made against a threat; no asset (and no generator golden) changed |
+| ⑦ C3 is stamped by `FireAndMovement` only (its rush phases, while the other half's `Covering` holds) | `CasualtyCare`'s carry is exempt from the drop anyway (`CarryLoad`); BoundingOverwatch has no covering gate yet |
+| ⑧ the crawl asks the terrain's `ICoverProvider` (synchronous radius query) for the nearest point within 10 m whose cover faces his nearest remembered threat | the EQS query is asynchronous; the provider answers in the same frame |
+| ⑨ the system runs in `CgfLogicPack` AFTER the action dispatchers | a move issued this frame must already have its intent when the reflex halts it |
+
+Rails (`TacticsTreesTests`): `AQ96_AThreatMidMove_CrouchesHim_AndRushes_TheSameMove` · `AQ96_ANearMissInTheOpen_DropsHim_HeStaysDownUnderFire_ThenShiftsAndRises`
+· `AQ96_CoveredByHisHalf_HeRisesUnderFire_AloneHeStaysDown` · `AQ96_NoDropWhenArriving_AndAnUprightRunIsNotKept`.
+Demos: `uf-alone-under-fire` (one man, nobody covers him) and `uf-squad-under-fire` (the fire-and-movement cast) — the first scenarios that
+carry `header.description` (what they show and how to judge them; the round-trip is backend's, [handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md)).
+`python3 scripts/utility-demo-check.py --launch uf-alone-under-fire` (and `uf-squad-under-fire`); the live results are below.
+
 
 ## ⛔ HISTORY
 
