@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -742,7 +742,7 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 📐 Measured (rail `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard`, red first — it IS the inventory): 41 silences in
 `HrotEnvironment.CreateTkb()` — the M1, T-72, Bradley, HMMWV; persons 200–211 (moving and firing); the UH-60 (both), F-16, C-130, A-10 (and its
 Mk-82 bursts), AH-64; the security men's stun grenades and baton launcher (CE-3223); plus three FALSE positives the rail now names (the hands
-mount, the FPV drone's warhead, a static obstacle car) and one OPEN question (SUMO traffic).
+mount, the FPV drone's warhead, a static obstacle car) and SUMO traffic, kept silent (user, `2026-10-20`).
 
 | type | moving | firing (burst = the firing figure unless stated) | why this figure | source |
 |---|---|---|---|---|
@@ -756,10 +756,10 @@ mount, the FPV drone's warhead, a static obstacle car) and one OPEN question (SU
 
 | decision | why | rejected |
 |---|---|---|
-| ⚠ a fixed-wing engine is heard as class **`Rotor`** ("an aircraft overhead") | the 3-bit class is full (`Rotor` = 7, the last value); `OfClass(Rotor)` = 1 is the right danger for an unknown aircraft; data only, cheap to change | ⛔ a new class — a wire and `Flags` layout change (bits 13–15 hold the family, CE-3283) for one label |
+| ⚠ a fixed-wing engine is heard as class **`Rotor`** ("an aircraft overhead") — ✅ 🔒 user, `2026-10-20`: *"Jets ok"* | the 3-bit class is full (`Rotor` = 7, the last value); `OfClass(Rotor)` = 1 is the right danger for an unknown aircraft; data only, cheap to change | ⛔ a new class — a wire and `Flags` layout change (bits 13–15 hold the family, CE-3283) for one label |
 | one figure per type: the loudest weapon's report, the largest burst | a signature has ONE firing and ONE detonation range (§8.4) | ⛔ per-mount signatures — a schema change no reader needs yet |
 | the hands mount (Grenade, no round), a static obstacle, a warhead whose burst is heard (the FPV drone) are NOT silences | a throw makes no report (CE-3248); an obstacle never moves; a drone IS its warhead | — |
-| ⏳ **SUMO traffic (`TrafficCar` 8851) excluded, not decided** | hundreds of background cars as sound sources is load and noise the AI ears never had; the traffic programme (R-4040) owns that call | asked of the user |
+| ✅ **SUMO traffic (`TrafficCar` 8851) stays silent** | hundreds of background cars as sound sources is load and noise the AI ears never had; the traffic programme (R-4040) owns that call | 🔒 user, `2026-10-20`: *"sumo not heard ok"* |
 
 ⚠ **Behaviour changes in every scenario using these types**: BDC soldiers' shots, tanks' guns and aircraft are now heard — a soldier who hears a
 shot reacts (CE-2106). Told behaviors ([note](blueprints/batches/NOTE_Backend_To_Behaviors_Catalogue_Heard.md)).

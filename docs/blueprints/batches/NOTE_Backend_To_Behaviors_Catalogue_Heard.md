@@ -18,4 +18,4 @@ the CE-2106 reactions, and a jet or helicopter overhead is heard as `Rotor` (`Of
 silent (a tank firing unheard, an air strike nobody hears coming) will play differently. Measured: the backend suites stay green (see the commit);
 the live demos were not re-run here.
 
-**Not changed:** SUMO traffic cars (`TrafficCar` 8851) stay silent — asked of the user (hundreds of background cars as sound sources).
+**Not changed:** SUMO traffic cars (`TrafficCar` 8851) stay silent — confirmed by the user (`2026-10-20`: *"sumo not heard ok"*), as is a jet heard as `Rotor` (*"Jets ok"*).
