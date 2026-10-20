@@ -194,8 +194,9 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 ✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built) · `CE-1207` + `CE-1205` (Entity Control §8m — the leans PK-2…PK-7 are the build's; the user may overturn any).
 
-1. `CE-1210` — seat switching (`R-1008`) — design first (with the vehicle look clamp, `CE-1204` LK-6).
-2. `CE-1230` — the ORBAT tree's menu = the map's entity menu (`R-1015`) — design first.
+1. ⏸ `CE-1210` — seat switching DESIGNED (Entity Control §8n) — build when the user rules MS-1…MS-7 (⚠ MS-2 amends W-H).
+2. ⏸ `CE-1230` — the shared ORBAT menu DESIGNED (canvas context menu §11) — build when the user rules OM-1…OM-5.
+3. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
 
 ### The standing rules of this lane (the user's, still binding)
 

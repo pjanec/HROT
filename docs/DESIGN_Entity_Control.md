@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
+updated: 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1870,6 +1870,98 @@ that registers none would refuse the action, as it already would for a door.
 
 📐 **Rails:** `OperatorUseActionsTests.CE1207_*`, `RoundPickUpTests.CE1207_*`, `PossessionStationTests.CE1207_*` (×2,
 `PossessionStationTests.PickUp.cs`), `MenuOrdersTests.CE1205_*`.
+
+## 8n. S15 DESIGN — seat switching in a vehicle with several crewed weapons (`CE-1210`, `2026-10-20`, ui) — build-state: DESIGN (MW-1 R-1008; ⏸ leans MS-1…MS-7 with the user — ⚠ MS-2 amends Weapon Systems W-H)
+
+🔒 User, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* —
+*"Seat switching approved, record it."* (§8i MW-1)
+
+### 8n.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` `.*Seat.*`, `.*Station.*`, `.*Possess.*`, `.*Controlled.*`, `.*Arc.*`, `.*Rider.*`, `search_code` `ControlledMountBase` (limit 100); grep and the code read; `check_index_coverage` not reachable through the CLI)*
+
+| piece | where | what it does today |
+|---|---|---|
+| possession | `PossessionSystem.Possess` (`Possession.cs:252–273`) | ONE unit per station is Fps; possessing it pauses its task (`OperatorControl` origin Possession); `Riding` = held, paused, no frames |
+| the Drive hand-over | `PossessionStation.StepHandOver` (:162–224), `TryGetOut` (:187), `ReleaseOrphanRiders` (:238) | the soldier boards the Driver seat, is held Riding, the VEHICLE becomes Fps; Get out reverses it |
+| the possessed brain | `OperatorControlBehavior.ManualControl` (`OperatorControlBehavior.cs:71–119`) | Manual navigation from the frames, then `OperateWeapon` (32+k ⇒ that weapon's mount 0) and `OperateUse` |
+| a station weapon | `CarrierStations` / `StationSeat` (`InteractionComponents.cs:203–287`): Accepts, OperatedBy, NeedsGunner, the arc, the seat's X/Y/Z/Facing | its controller is ALWAYS the host vehicle (`WeaponSystems.ControllerOf`, W-H); NeedsGunner gates on the OperatedBy seat being taken — skipped while the host is possessed (`CE-1206`) |
+| a man in a gunner seat | `WeaponSystems.Controlled` (:134–155); `Embarkation` CanShoot (:465) | ⛔ controls NOTHING (his tag points at the vehicle, not a weapon) and loses CanShoot aboard |
+| the arc | `SeatDto.Traverse*/Elevation*Deg` (`CarrierDefDto.cs:127`); `WeaponSystems.InStationArc` (:114) | a yes/no test used by the AI's fire paths; ⛔ nothing clamps a LOOK |
+| the eye | `FpsCameraDriver.EyeOf` (`PossessionStation.cs:1106`) | a vehicle's eye 2.5 m over its origin (§8d deferred the turret eye); seats have places only the 3-D map reads (riders drawn there) |
+| the vehicles | `BdcTkbCatalog.cs` | UH-60 doors-off: per side a Gunner seat with a rifleman + a Door station (M134, NeedsGunner, arc 20…160°) — ⚠ **no Driver seat** (Pilot falls to SeatTaken); technicals: Driver 0, Gunner 1, Station 2 (OperatedBy 1); HMMWV: Gunner 3, Station 4 |
+
+### 8n.2 Claim table
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| possessing the vehicle pauses its brain | ✅ `Possession.cs:252–266` | ✅ §8d M-2 — ⚠ MW-1 wants the vehicle's brain to KEEP its order while a gun is manned ⇒ the gunner seat cannot be "possess the vehicle" |
+| a gunner seat's man is a real entity on most crewed types | ✅ the UH-60's door riflemen, the technical's rifleman (`BdcTkbCatalog.cs:1321`, :697) | ✅ Weapon Systems W-I (crew presets; killing the gunner silences the gun) |
+| the station gun's controller is the host | ✅ `WeaponSystems.cs:41–56` | ✅ W-H *"the HOST's gunner seat operates its station weapon"* — ⭐ it already names the SEAT; MS-2 makes that literal while the seat's man is possessed |
+| the arc is TKB data per station | ✅ `SeatDto` traverse / elevation | ✅ R-1006 / LK-1, LK-6 (the clamp is the gunner seat's) |
+| a seat has a place on the vehicle | ✅ `SeatDto` X/Y/Z/Facing (drawn by the 3-D map) | ⛔ searched §8d, Map 3-D §6m: the eye was deferred, no seat-eye design |
+
+### 8n.3 Diagrams
+
+```mermaid
+classDiagram
+  class PossessionStation { <<exists ui, changed>> G : next seat (driver, gunner seats in order) }
+  class FpsCameraDriver { <<exists ui, changed>> SeatEye(vehicle, seat) : eye at the seat · look clamped to the station arc }
+  class SeatSwitch { <<new ui>> Next(vehicle, current) : the next crewed seat this operator may take }
+  class WeaponSystems { <<exists FDP, changed>> ControllerOf : the POSSESSED man in the OperatedBy seat, else the host · Controlled(man) : + the station his seat operates }
+  class Embarkation { <<exists FDP, changed>> a possessed gunner keeps CanShoot aboard }
+  class PossessionSystem { <<exists FDP>> one Fps unit, its task paused }
+  class OperatorControlBehavior { <<exists behaviors>> OperateWeapon 32+k — unchanged }
+  PossessionStation ..> SeatSwitch
+  PossessionStation ..> PossessionSystem : possess the seat's man (Fps), the vehicle released
+  FpsCameraDriver ..> WeaponSystems : the arc
+  OperatorControlBehavior ..> WeaponSystems : Controlled / ControllerOf
+```
+*What the picture shows that prose hid:* a gunner seat is played by possessing the MAN in it — so the vehicle is not possessed and its
+brain keeps flying, which is MW-1's promise, with no new possession mode.
+
+```mermaid
+sequenceDiagram
+  participant O as operator
+  participant S as PossessionStation
+  participant P as PossessionSystem (brain node)
+  participant B as OperatorControlBehavior (the gunner's brain)
+  participant V as the vehicle's brain
+  O->>S: G (in the pilot seat)
+  S->>P: possess the left door gunner (Fps) - the vehicle is released
+  P-->>V: the vehicle's task resumes (it flies its order)
+  S->>S: the eye at his seat, the look clamped to the door arc
+  O->>S: LMB on key 1 (the M134, 32+0)
+  S->>B: frame (Mount 32, AimPoint)
+  B->>B: OperateWeapon - ControllerOf(M134) = him while possessed
+  O->>S: G again
+  S->>P: possess the right door gunner, or back to the pilot seat (the vehicle Fps)
+```
+*What the picture shows that prose hid:* the brain that fires the door gun is the GUNNER's, not the aircraft's — the gun follows the
+possession, and nothing on the wire changes.
+
+```mermaid
+graph TD
+  AML["AttachMapLayers (possessing host)"] -->|each frame| PS[PossessionStation - G, seat eye, arc clamp]
+  BR["brain node of the gunner"] -->|each tick| OCB[OperatorControlBehavior.OperateWeapon]
+  BRV["brain node of the vehicle"] -->|each tick, task resumed| VB[the vehicle's order]
+  FDP["Combat - every node"] -->|on demand| WS[WeaponSystems.ControllerOf / Controlled]
+```
+*What the picture shows that prose hid:* the gunner and the vehicle may live on two brain nodes — the seat switch is a possession move,
+which already crosses nodes (`EntityOrders.Possess`).
+
+### 8n.4 Decisions — ⏸ leans for the user
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **MS-1** | who is possessed in a gunner seat | ⭐ **the man in that seat** (Fps); the vehicle is released, so its brain resumes its order (MW-1); aboard, his W/A/S/D move nothing (the seat holds him) | a new possession mode on the vehicle ("gunner view") — its brain would stay paused, contradicting MW-1 |
+| **MS-2** *(⚠ amends W-H)* | whose gun it is | ⭐ `WeaponSystems.ControllerOf` = the man in the station's OperatedBy seat **while he is possessed**, else the host as today; `Controlled(man)` lists that station (key 1–4 ⇒ 32+k); a possessed gunner keeps CanShoot aboard. The AI keeps today's rule | the host fires for him (its brain is busy flying); a copy of the gun on the man |
+| **MS-3** | the key | ⭐ **G** cycles his seats: driver / pilot → each crewed gunner seat in seat order → back; the HUD names the seat (`SEAT: Left door gun (G)`) | the hold-F list — F aboard is Get out (U-4); number keys — they pick weapons |
+| **MS-4** | an EMPTY gunner seat | ⭐ skipped — G goes only to seats with a man (crew are entities on these types); a pilot-only possession of a seatless vehicle has no G | moving the operator's own soldier into it — a seat change mid-flight is a boarding the sim does not model |
+| **MS-5** | the eye | ⭐ at the seat (`SeatDto` X/Y/Z on the vehicle's pose) + the seat pose's eye height; the look **clamped to the station arc** (relative to the hull; elevation too) — LK-6's clamp | the man's own drawn head — a rider's sim position is the hull's origin, so it needs the seat anyway |
+| **MS-6** | the UH-60 with no Driver seat | ⭐ possessing the aircraft is its pilot seat (as today); G from there goes to the door gunners | adding a pilot seat to the type — a TKB change for one key |
+| **MS-7** | leaving the gun | ⭐ G back to the pilot / driver seat possesses the vehicle again (its task pauses, as when driving); Esc releases as everywhere | a release to the map from a gunner seat — the operator would lose the aircraft |
+
+⇒ ⚠ **Blast radius:** MS-2 changes the controller rule behaviors' and backend's fire paths read (`ControllerOf` is the W-D single controller) —
+⭐ narrowed to *possessed* gunners, so every AI path is unchanged; ⛔ **not built until the user rules.**
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
