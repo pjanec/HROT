@@ -98,7 +98,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (TargetMemory.IsAnonymous(in memory, i)) continue;   // heard, never identified: he cannot tell what it is
                 if (new Vector2(memory.PositionsX[i] - at.X, memory.PositionsY[i] - at.Y).Length() > metres) continue;
                 var e = new Entity((ulong)memory.EntityIds[i]);
-                if (!world.IsAlive(e) || !CombatLife.IsAlive(world, e) || !Hostile(world, watcher, e)) continue;
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !Hostile(world, watcher, e)) continue;
                 if (vehiclesOnly && !Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, e)) continue;
                 return true;
             }

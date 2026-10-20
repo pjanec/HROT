@@ -284,7 +284,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — HUNTING an attack order's target: the objective follows where the memory
             //   last placed it, and arriving does not end the posture — the target going down does (UntilTargetDown).
-            bool hunting = DesignatedTarget.Of(world, self, out var hunted) && CombatLife.IsAlive(world, hunted);
+            bool hunting = DesignatedTarget.Of(world, self, out var hunted) && Injury.IsInTheFight(world, hunted);
             var objective = hunting && HiddenTargetThrow.LastKnown(world, self, hunted, out var seenAt) ? seenAt : p.Objective;
             if (ws.Moving == 1 && hunting && Vector3.Distance(objective, ws.IssuedTo) > p.ArrivalRadius) ws.Moving = 0;   // it moved
             if (ws.Moving == 1)
@@ -397,7 +397,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.TargetPacked == 0) return NodeStatus.Failure;
             var target = new Entity((ulong)p.TargetPacked);
-            if (!CombatLife.IsAlive(world, target)) return NodeStatus.Success;
+            if (!Injury.IsInTheFight(world, target)) return NodeStatus.Success;
             Designate(world, self, target, ref ws.Told);
             return NodeStatus.Running;
         }

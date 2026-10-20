@@ -504,7 +504,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var c = pool[i];
                 if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) return false;
-                if (CombatLife.IsAlive(world, new Entity((ulong)c.EntityId))) return false;
+                if (Injury.IsInTheFight(world, new Entity((ulong)c.EntityId))) return false;
             }
             return true;
         }

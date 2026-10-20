@@ -457,7 +457,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);
-                    if (CombatLife.IsAlive(world, targetEntity)   // CE-466: never aim at a knocked-out target
+                    if (Injury.IsInTheFight(world, targetEntity)   // CE-466: never aim at a knocked-out target
                         && world.HasComponent<NetworkIdentity>(targetEntity))
                     {
                         targetNetId = world.GetComponentRO<NetworkIdentity>(targetEntity).Value;

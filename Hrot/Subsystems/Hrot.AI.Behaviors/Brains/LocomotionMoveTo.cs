@@ -48,7 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) return true;   // heard — "something about here" is a threat
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (CombatLife.IsAlive(world, e)) return true;   // exists and not dead (CE-2120: a corpse is no threat)
+                if (Injury.IsInTheFight(world, e)) return true;   // in the fight (CE-2120: a corpse is no threat; CE-2318: nor a man down)
             }
             return false;
         }

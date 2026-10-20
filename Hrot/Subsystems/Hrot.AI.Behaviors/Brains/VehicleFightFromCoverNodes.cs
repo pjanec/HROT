@@ -207,7 +207,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus VehicleFightFromCover(ref VehicleFightFromCoverParams authored, ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<LocomotionChannel>(self) || !world.HasComponent<WeaponChannel>(self)) return NodeStatus.Failure;
-            if (authored.DesignatePacked != 0 && new Entity((ulong)authored.DesignatePacked) is var named && CombatLife.IsAlive(world, named))
+            if (authored.DesignatePacked != 0 && new Entity((ulong)authored.DesignatePacked) is var named && Injury.IsInTheFight(world, named))
                 PostureNodes.Designate(world, self, named, ref ws.Told);   // ⭐ CE-2230 — the named target (the one step UntilTargetDown takes)
             if (ws.Phase == VehiclePhase.Choose && ws.Exposures == 0 && ws.Moving == 0) ws.Scoot = (byte)(Scoots(in authored, world, self) ? 1 : 0);
             var p = Effective(in authored, ws.Scoot == 1);

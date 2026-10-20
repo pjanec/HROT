@@ -148,7 +148,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!SquadManeuverRunner.AnyLive(in ctx)) return NodeStatus.Failure;
             var threat = new Entity((ulong)ws.ThreatId);
-            if (!CombatLife.IsAlive(ctx.World, threat)) return NodeStatus.Success;   // the enemy is down: the drill is done
+            if (!Injury.IsInTheFight(ctx.World, threat)) return NodeStatus.Success;   // the enemy is down: the drill is done
             return ctx.Squad.PhaseId == SuppressAndManeuverManeuver.PhaseAssaultComplete ? NodeStatus.Success : NodeStatus.Running;
         }
 

@@ -502,6 +502,29 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
+        /// <summary>⭐ <c>CE-2318</c> (Injury States I4) — a target DOWN (incapacitated: alive, bleeding, below his type's band) ends the
+        /// action too — Success, no round fired. 🔒 User, live: soldiers kept firing at an enemy lying wounded. ✅ Red-proof: the end test
+        /// back to <c>CombatLife.IsAlive</c> ⇒ the round is fired ⇒ red.</summary>
+        [Fact]
+        public void CE2318_AimAndFire_ReportsSuccess_WhenTheTargetIsDown()
+        {
+            _world.RegisterComponent<Health>();
+            _world.RegisterComponent<InjuryThresholds>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            _world.AddComponent(target, new Health { Current = 20f, Max = 100f });
+            _world.AddComponent(target, Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator.Thresholds(new Fdp.Toolkit.Tkb.Domain.InjuryDefDto()));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+
+            EnterAimed(shooter, ref channel);
+            Tick(shooter, ref channel, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.True(CombatLife.IsAlive(_world, target));
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2075</c> (R-200) — the ROE is enforced here: HoldFire never fires; ReturnFire fires only within the window
         /// after a hit; FireAtWill (and no ROE) fires. A held shot spends no round and keeps the action Running.

@@ -801,7 +801,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var c = pool[i];
                 if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) continue;
-                if (liveOnly && !CombatLife.IsAlive(ctx.World, new Entity((ulong)c.EntityId))) continue;
+                if (liveOnly && !Injury.IsInTheFight(ctx.World, new Entity((ulong)c.EntityId))) continue;
                 if (keep != 0 && c.EntityId == keep) { contact = c; return true; }
                 if (!found || c.ThreatScore > contact.ThreatScore) { contact = c; found = true; }
             }

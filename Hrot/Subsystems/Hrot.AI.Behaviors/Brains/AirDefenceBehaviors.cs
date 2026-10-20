@@ -43,7 +43,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!AirContacts.IsAir(world, in mem, i) || mem.LastSeenTick[i] < newest) continue;
                 // ⭐ CE-2191 — a downed aircraft (Health ≤ 0: it falls and rests as a wreck, AT3) is no longer about: nobody shelters from
                 //   it or fires at it (rail-found: EngageAircraft kept the ZU-23 on a dead helicopter)
-                if (!TargetMemory.IsAnonymous(in mem, i) && !CombatLife.IsAlive(world, new Entity((ulong)mem.EntityIds[i]))) continue;
+                if (!TargetMemory.IsAnonymous(in mem, i) && !Injury.IsInTheFight(world, new Entity((ulong)mem.EntityIds[i]))) continue;
                 newest = mem.LastSeenTick[i];
                 found = i;
             }

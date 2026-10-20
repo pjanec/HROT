@@ -354,10 +354,11 @@ namespace Hrot.AI.Behaviors.Brains
             return !threat.IsNull;
         }
 
-        /// <summary>⭐ CE-2202 + ⭐ CE-2233 (CIV-0) — a threat to fight: in the fight (never a body) and not a NEUTRAL (a civilian is
+        /// <summary>⭐ CE-2202 + ⭐ CE-2233 (CIV-0) + ⭐ CE-2318 — a threat to fight: in the fight (never a body, never a man down —
+        /// <c>Injury.IsInTheFight</c>, Injury States I4) and not a NEUTRAL (a civilian is
         /// remembered — a police line must see a crowd — but is never the threat; its side is read live, so a flip to Hostile counts).</summary>
         private static bool Engageable(EntityRepository world, Entity e)
-            => Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
+            => Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
 
         /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
         /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>

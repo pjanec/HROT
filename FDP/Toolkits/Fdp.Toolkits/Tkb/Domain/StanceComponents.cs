@@ -75,14 +75,24 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// (<see cref="StanceIntent.TargetStance"/>), in the tick it is ordered — an animation, where one runs, only shows it and never
     /// gates it (🔒 approved, §3f). No intent ⇒ Standing. Read by the hit model (σ), the fire chain (shot heights) and perception
     /// (eye heights, the target's body points), so the three cannot disagree.
+    /// ⭐ <c>CE-2318</c> — a man DOWN (incapacitated or dead, <see cref="Fdp.Toolkit.Combat.Injury"/>) lies: Prone, whatever his brain
+    /// last ordered, so aim, sight and the round's body band follow the lying body his hit boxes already take (<c>PersonBody.PoseOf</c>).
     /// </summary>
     public static class LogicalStance
     {
-        /// <summary>The logical stance of <paramref name="e"/>; Standing when the type is not registered in that world or the unit has none.</summary>
+        /// <summary>The logical stance of <paramref name="e"/>; Prone when he is down; Standing when the type is not registered in that
+        /// world or the unit has none.</summary>
         public static Fdp.Toolkit.Tkb.Domain.StanceId Of(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
+            if (IsDown(view, e)) return Fdp.Toolkit.Tkb.Domain.StanceId.Prone;
             if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<StanceIntent>()) return Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
             return view.HasComponent<StanceIntent>(e) ? view.GetComponentRO<StanceIntent>(e).TargetStance : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+        }
+
+        private static bool IsDown(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return false;
+            return Fdp.Toolkit.Combat.Injury.StateOf(view, e) is Fdp.Toolkit.Combat.InjuryState.Incapacitated or Fdp.Toolkit.Combat.InjuryState.Dead;
         }
     }
 

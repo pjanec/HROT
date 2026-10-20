@@ -1123,6 +1123,34 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2318</c> (Injury States I4) — A MAN DOWN IS NO THREAT AND NO TARGET. An enemy who is incapacitated (alive, bleeding,
+        /// below the band) is dropped as the top threat even while he is the CURRENT one and nothing else scores — the case live, where
+        /// soldiers kept firing at a man lying wounded — and a mover no longer crouches for him. Wounded he is still fought.
+        /// ✅ Red-proof: <c>Engageable</c> back to <c>CombatLife.IsAlive</c> ⇒ he stays the threat ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2318_AnIncapacitatedEnemy_IsNoLongerTheThreat_NorAThreatToMoveFrom()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.InjuryThresholds>())
+                w.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            var enemy = w.Contact(armed: true);
+            w.Repo.AddComponent(enemy, new Fdp.Toolkit.Combat.Components.Health { Current = 20f, Max = 100f });   // below 0.3: down
+            w.Repo.AddComponent(enemy, Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator.Thresholds(new Fdp.Toolkit.Tkb.Domain.InjuryDefDto()));
+
+            Assert.True(Fdp.Toolkit.Combat.CombatLife.IsAlive(w.Repo, enemy));                          // alive — he bleeds
+            Assert.False(EqsTacticsNodes.TopThreat(w.Repo, w.Unit, enemy, out _));                        // but not the threat
+            Assert.True(LocomotionMoveTo.Issue(w.Repo, w.Unit, new Vector3(10f, 0f, 0f), 3f, 1f, MoveGait.Tactical));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing,
+                w.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(w.Unit).TargetStance);
+
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 50f;            // wounded: still a fighter
+            Assert.True(EqsTacticsNodes.TopThreat(w.Repo, w.Unit, enemy, out var threat));
+            Assert.Equal(enemy, threat);
+        }
+
         // ── ⭐ CE-2297 LD-3 — who points the eyes (docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a) ─────────────────
 
         private static void CanLook(World w)

@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 if ((area.SeenFrom & (1 << i)) == 0) continue;
                 var c = pool[i];
                 bool heard = (c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0;
-                if (!heard && !Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, new Entity((ulong)c.EntityId))) continue;
+                if (!heard && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, new Entity((ulong)c.EntityId))) continue;
                 return 1f;
             }
             return 0f;
