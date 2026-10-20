@@ -71,6 +71,8 @@ namespace CarKinem.Systems
             _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
             // ⭐ CE-3286 — a held hull's recovery keeps its state on the watchdog's component; a world without it does not recover
             _recovery = repo.IsComponentTypeRegistered<FrustrationTicks>();
+            // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
+            _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -136,6 +138,7 @@ namespace CarKinem.Systems
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
         private bool _clampFlags;
         private bool _recovery;
+        private bool _health;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity)
@@ -214,7 +217,10 @@ namespace CarKinem.Systems
             // ⭐⭐ CE-3286 (R-3025; Motion Domains §5f) — A HELD HULL BACKS OUT. The recovery's state is the watchdog's (FrustrationTicks);
             //   a hull with a size, on a move it is driving, over a world with walls. ⭐ The "smart" half: a STANDING START on a new move is
             //   checked first — a hull parked nose to a wall whose way on is not clear backs out before it touches it.
-            bool recoverable = _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
+            // ⭐⭐ CE-3287 (R-3026; Motion Domains §5g) — a WRECK has no driver: no move, no recovery, no push (📐 one man 4 m off pushed a
+            //   destroyed M1 ~10 m). Belt and braces with CE-3091, which ends the move on the brain at death.
+            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
+            bool recoverable = !wreck && _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
                                && repo.HasComponent<FrustrationTicks>(entity);
             FrustrationTicks ft = recoverable ? repo.GetComponent<FrustrationTicks>(entity) : default;
             if (recoverable)
@@ -358,6 +364,7 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
+            if (wreck) targetSpeed = 0f;   // ⭐ CE-3287 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
             if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
@@ -395,9 +402,12 @@ namespace CarKinem.Systems
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
             // Apply collision avoidance
-            Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
-                desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
-                spatialGrid, @params, repo);
+            // ⭐⭐ CE-3287 (R-3026) — avoidance bends a DRIVING vehicle's own motion round others; a vehicle with no wanted speed (parked,
+            //   arrived, held, a wreck) has none, and is not pushed — people walk round it (a person's avoidance is untouched).
+            Vector2 avoidanceVelocity = @params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f
+                ? desiredVelocity
+                : ApplyCollisionAvoidance(desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
+                                          spatialGrid, @params, repo);
             
             // Speed control
             float targetSpeedAfterAvoidance = avoidanceVelocity.Length();

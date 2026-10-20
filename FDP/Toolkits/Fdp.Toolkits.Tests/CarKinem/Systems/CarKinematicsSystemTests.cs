@@ -1036,6 +1036,85 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3287</c> (R-3026; Motion Domains §5g; user: <i>"I have seen destroyed vehicle still moving, maybe being pushed by people
+        /// coming close"</i> · <i>"parked vehicles should not be pushed either"</i>) — a WRECK, and a PARKED live tank, with no move, beside
+        /// which a man stands 4 m off, are not moved: avoidance's separation push (inside twice the avoidance radius, 10 m for the tank)
+        /// drives only a vehicle that is driving. 📐 Measured red before: the wreck was pushed ~10 m. 🔴 Red-proof: push a vehicle with no
+        /// wanted speed ⇒ both move.
+        /// </summary>
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(3000f)]
+        public void CE3287_AWreck_OrAParkedVehicle_IsNotPushedByAManBesideIt(float health)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 0f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            var nav = repo.GetComponent<NavState>(e);
+            nav.Mode = KinematicsMode.None;
+            nav.TargetSpeed = 0f;
+            repo.SetComponent(e, nav);
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 3000f });
+            Stander(repo, new Vector3(0f, 4f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(p.X, p.Y).Length() < 0.05f, $"the wreck was pushed to ({p.X:F2}, {p.Y:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3287</c> — a WRECK whose move the brain has not ended yet (CE-3091 runs on the brain, a frame or more later) does not drive
+        /// it: on a path at 5 m/s with Health 0 it stays put. 🔴 Red-proof: drop the wreck test ⇒ it drives the path.
+        /// </summary>
+        [Fact]
+        public void CE3287_AWreck_DoesNotDriveTheMoveItStillHas()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 3000f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 5 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(p.X, p.Y).Length() < 0.05f, $"the wreck drove to ({p.X:F2}, {p.Y:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3287</c> — and a DRIVING vehicle still steers round a man in its way: a tank on its path past a man 1 m off the line bends
+        /// away from him (avoidance kept where it belongs — on a vehicle that drives). 🔴 Red-proof: no avoidance at all ⇒ it runs straight.
+        /// </summary>
+        [Fact]
+        public void CE3287_ADrivingVehicle_StillSteersRoundAMan()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            Stander(repo, new Vector3(25f, 1f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float swerve = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                swerve = MathF.Min(swerve, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.True(swerve < -0.3f, $"it ran straight past the man (least y {swerve:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3286</c> — a box with no way out is BOUNDED: a tank sent INTO the block (its destination inside it) is held, backs out
         /// <see cref="CarKinem.Controllers.HullRecovery.MaxRecoveries"/> times and then stays the watchdog's (it never enters, never loops).
         /// </summary>
