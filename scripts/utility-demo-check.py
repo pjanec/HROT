@@ -4515,15 +4515,16 @@ def _under_fire_judge(c, name, rows, alone):
     if not c.ok(first_fire is not None, f"{name}: rounds pass near him (a near miss or hit is recorded)"):
         return 0, 0, 0
     upright_moving, fastest, drops, rises, rises_under_fire, shifted_before_rise, still_when_down = 0, 0.0, 0, 0, 0, True, True
-    prev, saw_shift = None, False
+    prev, saw_shift, down_at = None, False, None
     for r in rows:
         if prev and r[1] and prev[1] and r[0] > prev[0]:
             v = flat(r[1], prev[1]) / (r[0] - prev[0])
             if r[0] >= first_fire + 1.0 and r[3] == "Moving":
                 fastest = max(fastest, v)
                 if v > 0.5 and r[2] == "Standing": upright_moving += 1
-            if r[3] == "Down" and prev[3] == "Down" and v > 0.6: still_when_down = False
-        if prev and prev[3] != "Down" and r[3] == "Down" and prev[3] == "Moving": drops += 1; saw_shift = False
+            if r[3] == "Down" and prev[3] == "Down" and down_at is not None and r[0] - down_at > 1.0 and v > 0.6:
+                still_when_down = False   # (the first second down is his braking slide)
+        if prev and prev[3] != "Down" and r[3] == "Down" and prev[3] == "Moving": drops += 1; saw_shift = False; down_at = r[0]
         if r[3] == "Shifting": saw_shift = True
         if prev and prev[3] in ("Down", "Shifting") and r[3] == "Moving":
             rises += 1
@@ -4548,9 +4549,24 @@ def run_uf_alone_under_fire(c, timeout):
     if not c.ok(runner is not None and ids.get("Hostile 1") is not None, "the runner and the hostiles are loaded"):
         return
     call("POST", "/sim/play", {})
-    rows = _under_fire_samples([runner], 60)[runner]
+    # pinned first: two immortal riflemen never stop firing, so a lone man stays down (measured live: a round a second for 50 s)
+    rows = _under_fire_samples([runner], 15)[runner]
+    # then the fire STOPS — both run dry — and he must wait the lapse, step aside, rise and rush on
+    stopped = sim_time() or 0
+    for h in ("Hostile 1", "Hostile 2"):
+        call("POST", f"/entities/{ids[h]}/component", {"networkId": ids[h], "componentType": "WeaponState", "patch": {"Ammo": 0}})
+    print(f"    the hostiles run dry at {stopped:.1f}")
+    rows += _under_fire_samples([runner], 25)[runner]
     drops, rises, _ = _under_fire_judge(c, "Runner", rows, alone=True)
-    c.ok(rises >= 1, f"Runner: ④ after the fire lapses he rises and goes on (rises {rises})")
+    pinned = [r for r in rows if r[0] < stopped]
+    c.ok(pinned and all(r[3] in ("Down", "Crawling") for r in pinned if r[0] > (pinned[0][0] + 6)),
+         "Runner: ③ pinned by steady fire he stays down (no rise before the fire stops)")
+    up = next((r[0] for r in rows if r[0] > stopped and r[3] == "Moving"), None)
+    c.ok(up is not None and 2.5 <= up - stopped <= 8.0,
+         f"Runner: ④ after the fire stops he waits the lapse, steps aside and rises ({None if up is None else round(up - stopped, 1)} s after)")
+    after = [r for r in rows if up is not None and r[0] > up + 1.0 and r[3] == "Moving" and r[1]]
+    v = max((flat(b[1], a[1]) / (b[0] - a[0]) for a, b in zip(after, after[1:]) if b[0] > a[0]), default=0.0)
+    c.ok(v >= 2.5, f"Runner: ④ and rushes on, crouched ({v:.1f} m/s)")
 
 
 def run_uf_squad_under_fire(c, timeout):
