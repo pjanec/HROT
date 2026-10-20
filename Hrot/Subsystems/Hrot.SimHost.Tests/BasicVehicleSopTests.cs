@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>A carrier: <paramref name="passenger"/> ⇒ a soldier aboard (a passenger seat); <paramref name="speed"/> its velocity
         /// east (m/s); <paramref name="mobile"/> false ⇒ a mobility kill (no CanMove).</summary>
-        private static World Carrier(bool passenger, float speed, bool mobile = true, bool crewOnly = false)
+        private static World Carrier(bool passenger, float speed, bool mobile = true, bool crewOnly = false, bool brainNode = false)
         {
             var w = new World();
             if (crewOnly)   // its only rider sits in a GUNNER seat — crew, not troops
@@ -166,6 +166,20 @@ namespace Hrot.SimHost.Tests
                 var buffer = new PassengerBuffer();
                 buffer.Passengers[0] = man;
                 w.Repo.AddComponent(w.Unit, buffer);
+            }
+            if (brainNode)   // ⭐ CE-2313 — as a brain node holds a vehicle SimHost drives: a stale VehicleState, the motion replicated
+            {
+                var r = w.Repo;
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkAuthority>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkTransform>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+                if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkVelocity>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+                if (!r.IsComponentTypeRegistered<CarKinem.Core.VehicleState>()) r.RegisterComponent<CarKinem.Core.VehicleState>();
+                r.AddComponent(w.Unit, new CarKinem.Core.VehicleState { Speed = 0f });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = System.Numerics.Vector3.Zero, LastRotation = System.Numerics.Quaternion.Identity });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = new System.Numerics.Vector3(speed, 0f, 0f) });
+                r.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+                r.SetAuthority<SimTransform>(w.Unit, false);
+                speed = 0f;   // this node's own SimVelocity is the zero it was given
             }
             w.Repo.AddComponent(w.Unit, new SimVelocity { Linear = new System.Numerics.Vector3(speed, 0f, 0f) });
             w.Repo.AddComponent(w.Unit, new ActorCapabilityState { Capabilities = mobile ? ActorCapabilities.CanMove | ActorCapabilities.CanShoot : ActorCapabilities.CanShoot });
@@ -195,6 +209,20 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("VehicleFightFromCover", Carrier(passenger: false, speed: 8f).TaskName);                // empty
             Assert.Equal("VehicleFightFromCover", Carrier(passenger: true, speed: 8f, mobile: false).TaskName);  // a mobility kill
             Assert.Equal("VehicleFightFromCover", Carrier(passenger: true, speed: 8f, crewOnly: true).TaskName); // only its gunner aboard
+        }
+
+        /// <summary>⭐⭐ <c>CE-2313</c> — the same carrier as a BRAIN node holds it (found live, <c>uc-convoy-hit-ifv</c>): its VehicleState is the
+        /// stale copy (Speed 0) and its own SimVelocity zero, but the motion replicated to the node says 8 m/s and the node does not own its
+        /// transform ⇒ it is DRIVING: hit, it pushes through, along the replicated velocity. ✅ Red-proof: the replica branch dropped (the
+        /// VehicleState first) ⇒ standing ⇒ it fights from cover.</summary>
+        [Fact]
+        public void CE2313_OnABrainNode_ADrivingCarrierReadsAsDriving_AndPushesThrough()
+        {
+            var push = Carrier(passenger: true, speed: 8f, brainNode: true);
+            Assert.False(Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(push.Repo, push.Unit));
+            Assert.Equal("PushThrough", push.TaskName);
+            var to = PushThroughBehavior.Ahead(push.Repo, push.Unit, 150f);
+            Assert.True(System.Numerics.Vector3.Distance(to, new System.Numerics.Vector3(150f, 0f, 0f)) < 0.01f, $"ahead {to}");
         }
     }
 }

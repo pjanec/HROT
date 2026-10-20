@@ -4187,6 +4187,8 @@ def run_uc_convoy_hit(c, timeout):
     hp = (comps(apc).get("Health") or {})
     c.ok(branch is not None, f"③ the carrier reacts: {branch} (APC task {task_name(apc)}, health {hp}, squad {task_name(sq)})")
     if branch == "push":
+        aboard = all("IsEmbarkedTag" in comps(m) for m in men)
+        c.ok(aboard, f"③ …its squad stays aboard while it pushes (squad task {task_name(sq)}; aboard {[('IsEmbarkedTag' in comps(m)) for m in men]})")
         far = wait_for(lambda: (position(apc) or (0, 0))[1] > ied_at[1] + 100, 60)
         c.ok(far, f"④ it pushes through, 100 m past the charge (at {position(apc)})")
         c.ok(wait_for(lambda: task_name(apc) == "FollowRoute", 60), f"④ …then its route resumes (task {task_name(apc)})")
@@ -4202,8 +4204,8 @@ def run_uc_convoy_hit(c, timeout):
                 call("POST", "/perspective", {"name": "Scenario"})
         fired = wait_for(lambda: their_shots(), 60)
         c.ok(fired, f"④ …and fights: the dismounted men fire ({len(fired or [])} rounds; men's tasks {[task_name(m) for m in men]})")
-    print(f"    the APC: {hp}, capabilities {(comps(apc).get('ActorCapabilityState') or {}).get('Capabilities')} — the MilitaryApc loses CanMove on any hit "
-          f"(MobilityKillBelowFraction 1, CE-3092), so its branch is the halt")
+    print(f"    the carrier: {hp}, capabilities {(comps(apc).get('ActorCapabilityState') or {}).get('Capabilities')} (the MilitaryApc loses CanMove on any hit, "
+          f"CE-3092 — its branch is the halt; the Bradley keeps it above 60 % — its branch is the push)")
 
 
 

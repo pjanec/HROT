@@ -36,10 +36,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
                    && view.HasComponent<global::CarKinem.Core.VehicleState>(e);
         }
 
-        /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: its <c>VehicleState.Speed</c>, else its velocity as this node knows it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>).</summary>
+        /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: on a node that does not own its motion, the velocity
+        /// replicated to it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>); else its <c>VehicleState.Speed</c>, else its velocity.</summary>
         public static bool IsStanding(ISimulationView view, Entity e)
         {
             var repo = view as EntityRepository;
+            // ⭐ CE-2313 — a REPLICA first: a brain node's VehicleState is the copy the vehicle was created with (its Speed stays 0), so
+            //   it read every moving vehicle as standing there — measured live (uc-convoy-hit-ifv: CGF Speed 0, NetworkVelocity 8 m/s,
+            //   SimHost Speed 8.0): no hit carrier could push through (CE-2307) and its squad got out at speed.
+            if (repo != null && !repo.HasAuthority<SimTransform>(e)
+                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkVelocity>()
+                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>(e)
+                && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var replicated))
+                return replicated.Length() < StandingSpeed;
             if ((repo == null || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>())
                 && view.HasComponent<global::CarKinem.Core.VehicleState>(e))
                 return MathF.Abs(view.GetComponentRO<global::CarKinem.Core.VehicleState>(e).Speed) < StandingSpeed;
