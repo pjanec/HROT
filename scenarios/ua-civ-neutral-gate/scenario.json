@@ -82,6 +82,11 @@
             }
           ]
         }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c1030000-0000-4000-8000-000000000002": {
@@ -119,6 +124,11 @@
         "Name": "Idle",
         "Params": "{}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c1030000-0000-4000-8000-000000000003": {
@@ -151,6 +161,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c1030000-0000-4000-8000-000000000004": {
@@ -183,6 +198,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

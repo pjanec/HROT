@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-10-13
 build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b wounded SPEED built 2026-10-14 (ui, CE-1082: WoundedSpeedFactor 0.6, DESIGN_Map_3D_Mode §6m); wounded AIM still open
-current-answer: §8 I-a as built · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
+current-answer: §8 I-a as built · §8a CE-2318 (a man down is no target, and lies) · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
-known-rot: ⛔ 2026-10-20 (live, user) — §6 I4 "units stop shooting him" does NOT hold: TopThreat / AimAndFire / several posture nodes test CombatLife.IsAlive (Health > 0), not Injury.IsInTheFight, and a downed man's aim height stays standing — CE-2318. And a man down is still moved and turned by collision avoidance — CE-2321. · none
+known-rot: ⛔ 2026-10-20 (live, user) — a man down is still moved and turned by collision avoidance — CE-2321 (backend). ⛔ SUPERSEDED: "§6 I4 'units stop shooting him' does NOT hold" — fixed 2026-10-20 by CE-2318, §8a.
 known-conflict: none
 related-designs:
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
@@ -171,3 +171,17 @@ Rails — `InjuryTests` (8):
 - an unreadable band is refused at spawn
 
 Plus `LiveSimulationPlanRails` pins `BleedOutSystem` second on every live node, and the two editor sequence rails gained it.
+
+## 8a. CE-2318 — a man down is no target, and he lies *(`2026-10-20`, behaviors)*
+
+🔒 *User, live, 2026-10-20: "AI soldiers keep firing at an enemy who is already laying wounded on the ground … and they keep firing above
+it (like if aiming at still standing figure)."* I4 said units stop shooting him; I-a changed the threat SCORE but not the TARGET tests.
+
+| what | as built |
+|---|---|
+| ① the target test | every reader that asks *"is this enemy still a target / a threat"* now asks `Injury.IsInTheFight`, not `CombatLife.IsAlive` (Health > 0) — **21 sites**: `EqsTacticsNodes.Engageable` (the kept current and the ranking's top — the live case: nothing scored above 0, so the downed current was KEPT), `AimAndFireExecutor` / `TrackTargetExecutor` end, `PostureNodes` hunting + `UntilTargetDown`, `SquadAssignment`, the squad runner's live pool and `SuppressAndManeuver`'s outcome, `NothingToFight`, `DangerAreaSensorSystem`, `TacticalGait.Threatened`, the air / IED / spotter / hold-the-line / eject / vehicle-cover pickers, the hill-attack target, the escalation ladder's warning |
+| kept on health (they ask about HEALTH, the unit's own men or friends) | `CasualtyCare` (he died), `EmbarkedStateSystem` (passengers die with the vehicle), `HiddenTargetThrow.FriendlyInBurst` (⭐ a downed FRIEND in the burst still stops the throw — the tracker row had listed it as a target test), own-subordinate rosters (`SupportCommand`, the hill-attack tanks, `UnitCentroidSystem`), self (`PushThrough.CanMove`), `CrowdSystem`'s security presence, the presentation (ui), `BlueprintWorldLibrary.IsAliveInCombat` (a named node: alive is what it says) |
+| ② the stance | `LogicalStance.Of` answers **Prone for a man down** (incapacitated or dead), whatever his brain last ordered — so the aim point (`AimPoint.Middle`), sight's body points, the round's body band and the hit model follow the lying body his hit boxes already take (`PersonBody.PoseOf` → `Downed`). One rule: Building Interiors §3f *"one profile for being seen, being shot and being hit"* |
+| rails | `InjuryTests.CE2318_AManDown_LiesProne_SoTheAimPointIsTheLyingBody` · `AimAndFireExecutorTests.CE2318_AimAndFire_ReportsSuccess_WhenTheTargetIsDown` · `TacticsTreesTests.CE2318_AnIncapacitatedEnemy_IsNoLongerTheThreat_NorAThreatToMoveFrom` — each red-proofed by putting the old test back |
+| what would change it | a doctrine of *"make sure"* fire on the downed (I4's own condition) — then a play asks for it explicitly; an operator's own shot is not gated (`AimAndFire`'s operator path returns before the test) |
+

@@ -92,6 +92,31 @@ public static class BasicInfantrySopRegistrar
                     return status;
                 }
             });
+        actionRegistry.RegisterCondition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@40",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Fdp.Toolkit.Behavior.SopSenseParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)40));
+                    var status = global::Fdp.Toolkit.Behavior.SopConditions.SensedFresh(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                    return status;
+                }
+            });
+
+        // CE-504: shared param-less node calls — keyed by bare FQN, no variable.
+        actionRegistry.RegisterCondition("Fdp.Toolkit.Behavior.SopConditions.UnderCommand",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Fdp.Toolkit.Behavior.SopConditions.UnderCommand(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
+        actionRegistry.RegisterCondition("Fdp.Toolkit.Behavior.SopConditions.Aboard",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Fdp.Toolkit.Behavior.SopConditions.Aboard(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
 
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:EngageAircraft:UnderFire@-1",
@@ -118,6 +143,11 @@ public static class BasicInfantrySopRegistrar
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 return global::Fdp.Toolkit.Behavior.SopActions.DoWhenIdle(ctx.World, ctx.Self, "Idle", "{}");
+            });
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:UnderFire@-1",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "TakeCover", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.UnderFire, "{}");
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
@@ -152,6 +182,10 @@ public static class BasicInfantrySopRegistrar
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EngageAircraftParams>("{\"ClearSeconds\":10,\"MinElevationDeg\":80}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 32, __v);
                 }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Behavior.SopSenseParams>("{\"Kind\":\"NearMiss\",\"Seconds\":3}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __v);
+                }
             }
             __bakeDefaults = __BakeDefaults;
             __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
@@ -171,7 +205,7 @@ public static class BasicInfantrySopRegistrar
             Group        = "Library/Sop",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 5450162295683755356UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 1932330893584416822UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("airSense", typeof(global::Fdp.Toolkit.Behavior.SopSenseParams), 0),
@@ -179,6 +213,7 @@ public static class BasicInfantrySopRegistrar
                 new("threatSense", typeof(global::Fdp.Toolkit.Behavior.SopSenseParams), 16),
                 new("holdFire", typeof(global::Fdp.Toolkit.Behavior.SopRoeParams), 24),
                 new("airDefence", typeof(global::Hrot.AI.Behaviors.Brains.EngageAircraftParams), 32),
+                new("nearMissSense", typeof(global::Fdp.Toolkit.Behavior.SopSenseParams), 40),
             },
             JsonParamsDtoType    = typeof(global::Hrot.Map.Definitions.Behavior.NoParams),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.BasicInfantrySop_Block),

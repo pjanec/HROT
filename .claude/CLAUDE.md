@@ -856,6 +856,22 @@ leave every commit unable to find its own prepare)*.
 | ⭐⭐ **when a gate row looks TOO clean after a behaviour change, check the dll timestamp** | 📌 `ls -l <tests>/bin/*/Production.dll` vs your commit time — seconds, and it is the only thing that distinguishes this from a genuine pass |
 | ⚠ **this is DIFFERENT from the failed-build trap above** | ⛔ there the build failed and the old binary ran; ⭐ **here the build SUCCEEDED — just not the one that mattered.** No error appears anywhere |
 
+#### ⛔⛔⛔ THE THIRD STALE-BINARY TRAP — **`--no-restore` AFTER A MERGE THAT ADDS A DEPENDENCY** *(measured `2026-10-20`, behaviors)*
+
+📌 **Measured cost: ~2 hours and a false alarm about ~35 "broken" scenario tests.** Backend's merge wired a new package
+(`Fdp.Toolkits.Spatial.Bepu` → `BepuPhysics`) into the graph. ⭐ Every later build in the tree used `--no-restore` *(the rule above
+tells you to)* and printed **`0 Error(s)`** — ⛔ but the test projects' `obj/project.assets.json` predated the merge, so **the new
+packages never reached their `bin`**. ⇒ the terrain index failed at load, the CGF node never spawned a scenario's entities, and
+**every in-process scenario test and every terrain/navmesh rail failed the same way** — which reads exactly like a behaviour break.
+⭐ Found by building the same commit in a clean worktree (it passed) and diffing the two `bin`s (`BepuPhysics.dll` missing).
+
+| ⭐ the checkable habit | |
+|---|---|
+| ⭐⭐⭐ **after merging another lane, RESTORE the test projects you will run once** — `dotnet restore <tests.csproj>` — **then** `--no-restore` as usual | ⛔ `--no-restore` is safe only while the dependency graph is the one last restored |
+| ⭐⭐ **many unrelated reds failing the SAME way after a merge ⇒ suspect the build, not the code** | 📌 the tell here: 32/32 scenarios, each failing at the same wait after ~27 s |
+| ⭐⭐ **the decisive probe: the same commit in a CLEAN worktree** *(`git worktree add`, a full build with restore)* | ⭐ passes there ⇒ your tree's build output is stale; ⛔ never bisect commits until this rules the tree out |
+
+
 ### ⛔⛔⛔ T-1 — **EVERY FEATURE HAS ITS OWN RAILS. FIND AND RUN THEM FIRST** *(user, `2026-09-04`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"remember that every feature has own rails so first thing to do to verify if

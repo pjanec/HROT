@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §5's crouched run is chosen ONCE, when a move is issued (LocomotionMoveTo.cs:93-94): a man who set off unthreatened walks the leg upright under fire; an authored order Speed overrides the rush speed; nothing goes to ground — CE-2319, CE-2320. · none
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: re-picks this gait mid-move, the rush speed under fire, the per-move drop (CE-2319 / CE-2320)
   - DESIGN_Peek_And_Fire.md — OWNS the fight-from-cover node; its relocation speed (4.5 m/s) is one of the clamped asks (§2 row 2)
   - docs/designs/navig-2/Navigation_Design_v2_0.md — OWNS the move pipeline; §11 stance speed ratios exist for the crowd agent only
   - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS the pedestrian mover ("Human gait"): the MaxSpeedFwd clamp is here

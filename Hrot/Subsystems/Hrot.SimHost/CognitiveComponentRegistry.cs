@@ -36,6 +36,7 @@ namespace Hrot.SimHost
             // (⭐ CE-3268 — EngagementArea (CE-2282 DA-L) is registered by HrotSharedComponentRegistry: replicated since CE-3261, every node takes it.)
             world.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>();            // ⭐ CE-2291 CC-A — reports waiting to go up
             world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
+            world.RegisterComponent<UnderFireMove>();  // ⭐ CE-2319 / CE-2320 (AQ96) — a soldier's move under fire, kept by UnderFireMoveSystem
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
             world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
             world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)

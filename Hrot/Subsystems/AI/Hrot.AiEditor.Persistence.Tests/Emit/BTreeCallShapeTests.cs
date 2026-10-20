@@ -26,7 +26,13 @@ public sealed class BTreeCallShapeTests
     [Fact]
     public void EveryCorpusBinding_ClassifiesToTheShapeItsFileRecorded()
     {
-        var signatures = BTreeCallShapes.ReflectionSignatures(new[] { typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly });
+        // CE-2322: the toolkit assembly too (SopConditions lives there), as the editor's AppDomain source sees it — an
+        //   unresolved method keeps the default Plain, which hid that every SensedFresh row went unresolved.
+        var signatures = BTreeCallShapes.ReflectionSignatures(new[]
+        {
+            typeof(Fdp.Toolkit.Behavior.SopConditions).Assembly,
+            typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
+        });
         var actual = new List<(string File, string VisualId, BTreeDelegateShapeDto Shape)>();
         foreach (var path in Directory.GetFiles(CorpusDir(), "*.btree.json", SearchOption.AllDirectories)
                                       .OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal))
@@ -166,6 +172,13 @@ public sealed class BTreeCallShapeTests
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000094", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-1118 H-3 (D-23) — the pilot's SOP row: AirborneIndividualNodes.OnTheGround is (Entity, EntityRepository) ⇒ NoParams.
         ("PilotSop.btree.json", "c1118000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-2322 (AQ97) — the soldier's gates SopConditions.UnderCommand / .Aboard are (Entity, EntityRepository) ⇒ NoParams; the
+        //   near-miss row's SensedFresh is plain; the civilian SOP's CivilianBehavior.NotOnHisRoutine / .FrightenedOrHurt are NoParams.
+        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
+        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c2", BTreeDelegateShapeDto.NoParams),
+        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
+        ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
+        ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000012", BTreeDelegateShapeDto.NoParams),
         // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.Stateful),
         ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Stateful),

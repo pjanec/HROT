@@ -211,6 +211,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2235 (civilians CIV-1, CV-3; DESIGN_Civilians_And_Crowd_Control §5d) — a civilian's one behaviour: his routine,
         /// alarm and casualty (slice 1), later panic, shelter, protest and riot — modes of one HSM, never types.</summary>
         public const string CivilianHsm = "CivilianHsm";
+        /// <summary>⭐ <c>CE-2322</c> (AQ97 D, R-2062) — a civilian's fear reaction on ANY task: the alarm / panic / shelter / cower / casualty
+        /// part of <see cref="CivilianHsm"/>, run by his SOP (<c>CivilianSop</c>) when his task is something else. Ends when he calms.</summary>
+        public const string CivilianReact = "CivilianReact";
         /// <summary>⭐ <c>CE-2241</c> ① (AW-5, AW-21; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.5) — lay every weapon down and raise the hands; after
         /// <c>Seconds</c> (0 = for good) take them up again and finish (the feint).</summary>
         public const string Surrender = "Surrender";

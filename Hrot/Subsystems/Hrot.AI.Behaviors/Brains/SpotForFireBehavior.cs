@@ -120,7 +120,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in memory, i)) continue;
                 var e = new Entity((ulong)memory.EntityIds[i]);
-                if (!world.IsAlive(e) || !CombatLife.IsAlive(world, e) || !KillZone.Hostile(world, observer, e)) continue;
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, observer, e)) continue;
                 if (new Vector2(memory.PositionsX[i] - eye.X, memory.PositionsY[i] - eye.Y).Length() > maxMetres) continue;
                 live[k] = i;
                 weight[k++] = Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, e) ? VehicleWeight : 1f;

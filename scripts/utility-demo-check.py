@@ -4491,6 +4491,170 @@ def run_uc_urban_battle(c, timeout):
     c.ok(by["Blue"] > 0 and by["Red"] > 0, f"④ both sides fight (rounds: {by})")
 
 
+# ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ──────
+def _under_fire_samples(men, seconds, every=0.25):
+    """Each man's (t, position, stance, reflex phase, last near miss or hit) every `every` s for `seconds` of sim time."""
+    out = {m: [] for m in men}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for m in men:
+            cs = comps(m)
+            p = (cs.get("SimTransform") or {}).get("Position")
+            rs = cs.get("RecentSenses") or {}
+            fire = max(rs.get("NearMiss") or 0, rs.get("Hit") or 0)
+            out[m].append((t, tuple(p) if p else None, (cs.get("StanceIntent") or {}).get("TargetStance"),
+                           (cs.get("UnderFireMove") or {}).get("Phase"), fire if fire > 0 else None))
+        time.sleep(every)
+    return out
+
+
+def _under_fire_judge(c, name, rows, alone):
+    """The AQ96 judgement over one man's samples; returns (drops, rises, rises under fire)."""
+    first_fire = next((r[0] for r in rows if r[4] is not None), None)
+    if not c.ok(first_fire is not None, f"{name}: rounds pass near him (a near miss or hit is recorded)"):
+        return 0, 0, 0
+    upright_moving, fastest, drops, rises, rises_under_fire, shifted_before_rise, still_when_down = 0, 0.0, 0, 0, 0, True, True
+    prev, saw_shift, down_at = None, False, None
+    for r in rows:
+        if prev and r[1] and prev[1] and r[0] > prev[0]:
+            v = flat(r[1], prev[1]) / (r[0] - prev[0])
+            if r[0] >= first_fire + 1.0 and r[3] == "Moving":
+                fastest = max(fastest, v)
+                if v > 0.5 and r[2] == "Standing": upright_moving += 1
+            if r[3] == "Down" and prev[3] == "Down" and down_at is not None and r[0] - down_at > 1.0 and v > 0.6:
+                still_when_down = False   # (the first second down is his braking slide)
+        # a drop is Moving → any down phase: covered, he can go down and start his side step within one sample
+        if prev and prev[3] == "Moving" and r[3] in ("Down", "Shifting", "Crawling"): drops += 1; saw_shift = r[3] == "Shifting"; down_at = r[0]
+        if r[3] == "Shifting": saw_shift = True
+        if prev and prev[3] in ("Down", "Shifting") and r[3] == "Moving":
+            rises += 1
+            if not saw_shift: shifted_before_rise = False
+            if r[4] is not None and r[0] - r[4] < 2.5: rises_under_fire += 1
+        prev = r
+    print(f"    {name}: first fire at {first_fire}, drops {drops}, rises {rises} ({rises_under_fire} under fire), "
+          f"fastest on the move {fastest:.1f} m/s, upright-and-moving samples under fire {upright_moving}")
+    c.ok(upright_moving <= 1, f"{name}: ① under fire he never runs upright ({upright_moving} samples)")
+    c.ok(fastest >= 2.5, f"{name}: ① under fire he rushes (fastest {fastest:.1f} m/s ≥ 2.5; the order said 2)")
+    if alone:   # in a squad not every man is near-missed while he is out in the open; the squad's count is judged instead
+        c.ok(drops >= 1, f"{name}: ② a near miss in the open drops him (drops {drops})")
+    c.ok(still_when_down, f"{name}: ② down, he stops")
+    c.ok(shifted_before_rise, f"{name}: ④ he never rises where he dropped (a side step before each rise)")
+    if alone:
+        c.ok(rises_under_fire == 0, f"{name}: ③ alone, he never rises while still fired on ({rises_under_fire} rises within 2.5 s of a round)")
+    return drops, rises, rises_under_fire
+
+
+def run_uf_alone_under_fire(c, timeout):
+    ids = ids_by_name()
+    runner = ids.get("Runner")
+    if not c.ok(runner is not None and ids.get("Hostile 1") is not None, "the runner and the hostiles are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    # pinned first: two immortal riflemen never stop firing, so a lone man stays down (measured live: a round a second for 50 s)
+    rows = _under_fire_samples([runner], 15)[runner]
+    # then the fire STOPS — both run dry — and he must wait the lapse, step aside, rise and rush on
+    stopped = sim_time() or 0
+    for h in ("Hostile 1", "Hostile 2"):
+        call("POST", f"/entities/{ids[h]}/component", {"networkId": ids[h], "componentType": "WeaponState", "patch": {"Ammo": 0}})
+    print(f"    the hostiles run dry at {stopped:.1f}")
+    rows += _under_fire_samples([runner], 25)[runner]
+    drops, rises, _ = _under_fire_judge(c, "Runner", rows, alone=True)
+    pinned = [r for r in rows if r[0] < stopped]
+    c.ok(pinned and all(r[3] in ("Down", "Crawling") for r in pinned if r[0] > (pinned[0][0] + 6)),
+         "Runner: ③ pinned by steady fire he stays down (no rise before the fire stops)")
+    up = next((r[0] for r in rows if r[0] > stopped and r[3] == "Moving"), None)
+    c.ok(up is not None and 2.5 <= up - stopped <= 8.0,
+         f"Runner: ④ after the fire stops he waits the lapse, steps aside and rises ({None if up is None else round(up - stopped, 1)} s after)")
+    after = [r for r in rows if up is not None and r[0] > up + 1.0 and r[3] == "Moving" and r[1]]
+    v = max((flat(b[1], a[1]) / (b[0] - a[0]) for a, b in zip(after, after[1:]) if b[0] > a[0]), default=0.0)
+    c.ok(v >= 2.5, f"Runner: ④ and rushes on, crouched ({v:.1f} m/s)")
+
+
+def run_uf_squad_under_fire(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    men = [ids.get(n) for n in names]
+    if not c.ok(sq is not None and None not in men, "the squad and its six men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    samples = _under_fire_samples(men, 75)
+    drops = rises = covered = 0
+    for n, m in zip(names, men):
+        rows = samples[m]
+        if not any(r[4] is not None for r in rows):
+            print(f"    {n}: never fired on")
+            continue
+        d, r, u = _under_fire_judge(c, n, rows, alone=False)
+        drops += d; rises += r; covered += u
+    c.ok(drops >= 1, f"the squad: ② movers drop under fire ({drops} drops)")
+    c.ok(covered >= 1, f"the squad: ③ a covered mover rises with rounds still coming ({covered} of {rises} rises)")
+    hs = (maneuver(sq) or {}).get("history", [])
+    c.ok(len([h for h in hs if "Rush" in (h.get("phaseName") or "")]) >= 2,
+         f"the squad: ⑤ the bounds go on ({[(h.get('t'), h.get('phaseName')) for h in hs][-6:]})")
+
+
+# ── ⭐ AQ97 (CE-2322) — every lone soldier and civilian reacts by default; InertSop says "no response" ──────────────────────
+def _task_of(nid):
+    cur = (data(call("GET", f"/entities/{nid}/order")) or {}).get("current") or {}
+    return cur.get("behavior"), cur.get("origin")
+
+
+def _watch_tasks(names, ids, seconds, every=0.5):
+    """Each man's (t, task, origin, position, civilian mode, fear) over `seconds` of sim time."""
+    out = {n: [] for n in names}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for n in names:
+            task, origin = _task_of(ids[n])
+            cs = comps(ids[n])
+            civ = cs.get("CivilianState") or {}
+            p = (cs.get("SimTransform") or {}).get("Position")
+            out[n].append((t, task, origin, tuple(p) if p else None, civ.get("Mode"), civ.get("Fear"),
+                           (cs.get("StanceIntent") or {}).get("TargetStance")))
+        time.sleep(every)
+    return out
+
+
+def run_df_lone_soldier_reflex(c, timeout):
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Reflex", "Inert", "Hostile")), "Reflex, Inert and the hostile are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _watch_tasks(["Reflex", "Inert"], ids, 40)
+    reflex, inert = rows["Reflex"], rows["Inert"]
+    reacted = next((r for r in reflex if r[1] in ("TakeCover", "FallBack") and r[2] == "Reaction"), None)
+    print(f"    Reflex tasks: {sorted({(r[1], r[2]) for r in reflex}, key=str)}")
+    print(f"    Inert tasks:  {sorted({(r[1], r[2]) for r in inert}, key=str)}")
+    c.ok(reacted is not None, f"(1) Reflex reacts by himself: a TakeCover reaction ({reacted and round(reacted[0], 1)} s)")
+    moved = max((flat(r[3], reflex[0][3]) for r in reflex if r[3] and reflex[0][3]), default=0.0)
+    c.ok(moved > 2.0, f"(1) and he leaves his spot ({moved:.1f} m)")
+    c.ok(all(r[1] in (None, "None") for r in inert), "(2) Inert never gets a task, whatever comes near him")
+    still = max((flat(r[3], inert[0][3]) for r in inert if r[3] and inert[0][3]), default=0.0)
+    c.ok(still < 1.0, f"(2) and never moves ({still:.1f} m)")
+
+
+def run_df_civilian_ordered(c, timeout):
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Ordered", "Inert civilian", "Target", "Hostile")), "the two civilians, the target and the hostile are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _watch_tasks(["Ordered", "Inert civilian"], ids, 45)
+    o, i = rows["Ordered"], rows["Inert civilian"]
+    print(f"    Ordered: tasks {sorted({(r[1], r[2]) for r in o}, key=str)}, modes {sorted({r[4] for r in o if r[4]}, key=str)}, "
+          f"fear max {max((r[5] or 0) for r in o):.2f}")
+    print(f"    Inert civilian: tasks {sorted({(r[1], r[2]) for r in i}, key=str)}, fear max {max((r[5] or 0) for r in i):.2f}")
+    c.ok(max((r[5] or 0) for r in o) > 0.3 and max((r[5] or 0) for r in i) > 0.3,
+         "(1) the gunfire frightens both (fear above the alarm, though neither runs his routine HSM)")
+    react = [r for r in o if r[1] == "CivilianReact" and r[2] == "Reaction"]
+    c.ok(bool(react), "(2) Ordered reacts on top of his order: CivilianReact")
+    c.ok(any(r[4] in ("Alarmed", "Panic", "Cower", "Shelter", "Inside") for r in react) or any(r[6] in ("Crouched", "Prone") for r in react),
+         f"(2) he stops and gets down, or flees ({sorted({(r[4], r[6]) for r in react}, key=str)})")
+    c.ok(all(r[1] == "Idle" for r in i if r[1]), "(3) Inert civilian keeps standing on his order (Idle) however frightened")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4555,6 +4719,12 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2298 LD-5 — the look-direction demos (Look Direction §3.4)
              "ld-sentry-surprise": run_ld_sentry_surprise,
              "ld-sentry-surprise-360": run_ld_sentry_surprise_360,
+             # ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire, alone and in a squad
+             "uf-alone-under-fire": run_uf_alone_under_fire,
+             "uf-squad-under-fire": run_uf_squad_under_fire,
+             # ⭐ AQ97 (CE-2322) — default reflexes; InertSop is the explicit none
+             "df-lone-soldier-reflex": run_df_lone_soldier_reflex,
+             "df-civilian-ordered": run_df_civilian_ordered,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
@@ -4598,6 +4768,13 @@ def main():
         sys.exit(f"no debug API at {BASE} — launch ClusterRunner --mode all with HROT_DEBUG_API_PORT={a.port}, or pass --launch")
     try:
         print(f"== {a.scenario}")
+        # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
+        try:
+            with open(os.path.join(REPO, "scenarios", a.scenario, "scenario.json")) as fh:
+                desc = (json.load(fh).get("header") or {}).get("description")
+            if desc: print(f"   {desc}")
+        except (OSError, ValueError):
+            pass
         load(a.scenario)
         c = Check()
         t0 = sim_time()

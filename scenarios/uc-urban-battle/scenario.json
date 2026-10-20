@@ -1016,6 +1016,11 @@
         "Name": "TriggerIed",
         "Params": "{\"Charge\": 9860, \"KillZoneMetres\": 10}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "d0cf0000-0000-4000-8000-000000009862": {
@@ -1052,6 +1057,11 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": "{\"advance\": {\"Objective\": [690, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [690, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     },
@@ -1090,6 +1100,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\": {\"Objective\": [696, 153, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [696, 153, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "d0cf0000-0000-4000-8000-000000009864": {
@@ -1126,6 +1141,11 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": "{\"advance\": {\"Objective\": [702, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [702, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     },
@@ -1321,6 +1341,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\": {\"Objective\": [796, 784, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [796, 784, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "d0cf0000-0000-4000-8000-000000009878": {
@@ -1357,6 +1382,11 @@
       "Behavior": {
         "Name": "SpotForFire",
         "Params": "{\"Battery\": 9870, \"Rounds\": 2}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     },

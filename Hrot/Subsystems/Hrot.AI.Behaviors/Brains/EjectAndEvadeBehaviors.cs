@@ -87,7 +87,7 @@ namespace Hrot.AI.Behaviors.Brains
             float best = float.MaxValue;
             for (int i = 0; i < mem.Count; i++)
             {
-                if (!TargetMemory.IsAnonymous(in mem, i) && !CombatLife.IsAlive(world, new Entity((ulong)mem.EntityIds[i]))) continue;
+                if (!TargetMemory.IsAnonymous(in mem, i) && !Injury.IsInTheFight(world, new Entity((ulong)mem.EntityIds[i]))) continue;
                 var p = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 float d = Vector2.DistanceSquared(new Vector2(p.X, p.Y), new Vector2(me.X, me.Y));
                 if (d < best) { best = d; at = p; }

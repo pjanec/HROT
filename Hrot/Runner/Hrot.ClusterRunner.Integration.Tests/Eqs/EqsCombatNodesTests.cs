@@ -307,6 +307,43 @@ public sealed class EqsCombatNodesTests : IDisposable
         Assert.Equal(second, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
     }
 
+    /// <summary>
+    /// ⭐ CE-2322 (AQ96 C, "still under fire, nothing near: stays down") — fired on with no cover point to go to, he drops where he
+    /// stands; a point arriving gets him up into the crouched rush; leaving the node with him still down stands him up.
+    /// 🔴 Red before: live, a lone soldier on open ground stood upright for 25 s, hit every few seconds (df-lone-soldier-reflex).
+    /// </summary>
+    [Fact]
+    public void CE2322_TakeCover_FiredOnWithNoPointToGo_DropsProne_APointGetsHimUp_LeavingStandsHimUp()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        _repo.AddComponent(_entity, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+        _repo.SetSingleton(new GlobalTime { TotalTime = 10.0, DeltaTime = 0.1f, TimeScale = 1f, FrameNumber = 1 });
+        Remember(_repo.CreateEntity());
+        Fdp.Toolkit.Tkb.Domain.StanceId Stance() => _repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(_entity).TargetStance;
+        var p = Tunables(); var ws = default(EqsTacticsState);
+
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);   // no answer, not fired on: he waits as he is
+        Assert.NotEqual(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance());
+
+        var senses = new RecentSenses();
+        senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 10.0);
+        _repo.AddComponent(_entity, senses);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance());
+        Assert.Equal(0, _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);
+
+        EqsTacticsNodes.Deactivate_TakeCover(ref p, ref ws, _entity, _repo);   // the node is left with him down: he gets up
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Stance());
+
+        var again = default(EqsTacticsState);   // a fresh run, still fired on: down again
+        EqsTacticsNodes.TakeCover(ref p, ref again, _entity, _repo);
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance());
+        Answer(again.Sensor.ChildId, 5, 10f, 20f);   // a cover point: up into the crouched rush to it
+        EqsTacticsNodes.TakeCover(ref p, ref again, _entity, _repo);
+        Assert.Equal(NavigationConstants.ActionIdMoveTo, _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance());
+    }
+
     [Fact]
     public void CE2092_TakeCover_ADifferentThreat_RePointsTheSameSensor_WithANewEpoch()
     {

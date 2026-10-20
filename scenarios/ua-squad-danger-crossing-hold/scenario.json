@@ -374,6 +374,11 @@
         "MaxAmmo": 120,
         "CooldownSecondsRemaining": 0,
         "MuzzleVelocity": 900
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2159e00-0000-4000-8000-000000000101": {
@@ -412,6 +417,11 @@
         "MaxAmmo": 120,
         "CooldownSecondsRemaining": 0,
         "MuzzleVelocity": 900
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2159e00-0000-4000-8000-000000000102": {
@@ -450,6 +460,11 @@
         "MaxAmmo": 120,
         "CooldownSecondsRemaining": 0,
         "MuzzleVelocity": 900
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2159e00-0000-4000-8000-000000000103": {
@@ -488,6 +503,11 @@
         "MaxAmmo": 120,
         "CooldownSecondsRemaining": 0,
         "MuzzleVelocity": 900
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2159e00-0000-4000-8000-000000000104": {
@@ -526,6 +546,11 @@
         "MaxAmmo": 120,
         "CooldownSecondsRemaining": 0,
         "MuzzleVelocity": 900
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     }
   }

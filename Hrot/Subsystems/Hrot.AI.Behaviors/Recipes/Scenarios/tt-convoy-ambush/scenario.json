@@ -302,6 +302,11 @@
         "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "2b105600-0000-4000-8000-000000000022": {
@@ -338,6 +343,11 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
         "Origin": "Superior"
       }
     }

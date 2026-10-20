@@ -347,6 +347,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "a2173400-0000-4000-8000-000000000002": {

@@ -89,7 +89,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 1)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())   // ⭐ CE-2155 — wounded, incapacitated, bleeds out (R-2011)
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithPocketItems(type, new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = binoculars })
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
@@ -111,7 +111,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -291,7 +291,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, carrier)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -323,7 +323,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
                 .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy, OpenSeconds = openSeconds })
-                .WithBehavior(type, defaultSop)
+                .WithBehavior(type, defaultSop ?? Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A) — a paratrooper is a soldier; the pilot keeps PilotSop
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
 
@@ -1013,6 +1013,7 @@ namespace Hrot.Map.Definitions.Tkb
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
+            areaTemplate.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — drawn, not a body
             tkbDb.Register(areaTemplate);
 
             // Tactical graphic: route entity (ROUTES1-T003)
@@ -1020,7 +1021,13 @@ namespace Hrot.Map.Definitions.Tkb
             // in Phase 6 via translator.
             var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
+            routeTemplate.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — the insurgents shot at one ("Avenue E north")
             tkbDb.Register(routeTemplate);
+
+            // ⭐ CE-2324 — a fire line: the third tactical graphic, until now with no template (so nothing could mark it)
+            var fireLine = new TkbTemplate("TacGraphic_FireLine", TkbEntityTypes.TacGraphic_FireLine);
+            fireLine.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(fireLine);
 
             // ⭐ Buildings Stage 5b — a terrain door (📄 docs/DESIGN_Building_Interiors.md §3j). A bare template like the two above:
             //   its state (DoorState) and key (TerrainObjectKey) arrive with the creation request on the creator and through the
@@ -1032,10 +1039,13 @@ namespace Hrot.Map.Definitions.Tkb
             tkbDb.Register(new TkbTemplate("World Environment", TkbEntityTypes.WorldEnvironment));
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
-            tkbDb.Register(new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion));
+            var weather = new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion);
+            weather.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — an area, not a body
+            tkbDb.Register(weather);
             // ⭐ CE-3235 (B-13, AW-8) — a Stone Source: an area like the Weather Region; its template names what a hand takes there
             var stones = new TkbTemplate("Stone Source", TkbEntityTypes.StoneSource);
             stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });
+            stones.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — an area, not a body (ItemSources.At reads the world, not the grid)
             tkbDb.Register(stones);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.

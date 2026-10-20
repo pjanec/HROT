@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-20: A–E and B3 approved as leaned (§5)
 updated: 2026-10-20
-build-state: DESIGN — approved; dispatched to backend (HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md)
-current-answer: §5 the answers; §3 the leans they approve (B3 added after the approval)
+build-state: BUILT by backend (S1, S3–S6: NOTE_Backend_To_Behaviors_Sound_Signatures_Built.md) · behaviors E1 BUILT (§6) · E2, E3 open
+current-answer: §5 the answers; §6 behaviors' as-built (E1); §3 the leans they approve (B3 added after the approval)
 stale-below: nothing
 known-rot: none
 known-conflict: CE-3280 (backend, asked of the user 2026-10-20) proposes ONE new `Artillery` class — §3 A supersedes it if A is approved
@@ -195,3 +195,17 @@ instead of building a new map.
 | C | ✅ approved — the lossless unmanaged ring with a per-sensor serial cursor and an overflow counter; CE-3279 still fixed |
 | D | ✅ approved — demo-city's `hrot.bounds` over the road net for performance tests |
 | E | ✅ approved — behaviors: E1 readers, E2 the measurement, E3 L7 off the terrain |
+
+## 6. As built — behaviors' half *(2026-10-20)*
+
+| item | as built | why |
+|---|---|---|
+| **E1** the staff | `StaffComposerSystem.IsLaunch` (`StaffSystems.cs`): a launch is a SHOT whose TOLD family is `Mortar` or `Gun`, at any range; `LaunchHeardMetres` and its comment are gone. [Command Chain §8d](../designs/group-maneuvers/DESIGN_Command_Chain_Example.md) HQ-1 marks its first rule superseded | A: "a mortar fired" becomes what was heard. An ear below Regular tells no family, so it reports no launch; the default with nothing authored is Regular (`ProficiencyOf`), so an ordinary listener still does |
+| E1 the vehicle node | `VehicleFightFromCoverNodes.LaunchHeard` keeps the CLASS (`HeavyWeapon`) | a coarse decision ("a heavy weapon from the threat's bearing cuts the exposure") — A's rule for class readers; `TargetMemory` has no family slot, and adding one moves a component layout for no reader |
+| E1 the squad merge | `SquadPerceptionMergeSystem` keeps copying the class | the same: it carries what memory holds |
+| E2, E3 | ⏳ open | the off-terrain measurement and L7's guns 2–3 km off |
+
+**Rail:** `SquadManeuverTests.CE2309_ALaunchToldByTheEar_IsSpottedAsIndirectFire_OnceAtAnyRange_NotAnHmgOrAnUntoldShot` (rewritten from the
+1 km rail): a told mortar 390 m off is SPOTted once; a told HMG 1.2 km off, an untold heavy shot, rifles and a mortar's burst are not.
+Red-proved: the family test swapped back to the class ⇒ red.
+

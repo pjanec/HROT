@@ -38,9 +38,6 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>⭐ CE-2294 (CB-33, CB-34) — a still-held element is SPOTted again this often, so the superior's picture keeps it
         /// fresh while the squad still sees it (and a stale one means it is really gone) — the engaged heartbeat.</summary>
         public const float SpotRefreshSeconds = 15f;
-        /// <summary>⭐ CE-2309 (HQ-1) — a heavy weapon's shot heard from this far is a launch (a mortar, a gun): only the tubes and the 23 mm
-        /// carry past it (BR-14: the HMG's report is 1 km).</summary>
-        public const float LaunchHeardMetres = 1000f;
         /// <summary>⭐ CE-2309 (HQ-1) — a launch heard within this of the last one SPOTted, this soon, is the same one.</summary>
         public const float LaunchSameMetres = 150f, LaunchSameSeconds = 30f;
         /// <summary>⭐ CE-2309 (HQ-2) — a gun that elevates this far is an air-defence gun (the SOPs' air-defence row's figure).</summary>
@@ -189,16 +186,16 @@ namespace Fdp.Toolkit.Squad.Command
             return e;
         }
 
-        /// <summary>⭐ CE-2309 (HQ-1) — a heard sound is a LAUNCH: a heavy weapon's shot, heard by a man of a commander from at least
-        /// <see cref="LaunchHeardMetres"/>.</summary>
+        /// <summary>⭐ CE-2309 (HQ-1) — a heard sound is a LAUNCH: a mortar's or a gun's shot, as the listener's ear TOLD it (Q95 A / E1, R-3024 —
+        /// the family a Regular-or-better ear names), heard by a man of a commander. ⛔ No distance test: CE-2309's "≥ 1 km" guessed the weapon
+        /// from the range and is retired; an ear below Regular tells no family (0 = "could not tell") and reports no launch.</summary>
         private static bool IsLaunch(EntityRepository repo, in SoundContactEvent heard, out Entity commander)
         {
             commander = Entity.Null;
             if (heard.Kind != (byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot
-                || heard.SourceClass != (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon) return false;
+                || (heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar && heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun))
+                return false;
             if (heard.Observer.IsNull || !repo.IsAlive(heard.Observer) || !repo.HasComponent<UnitSubordinate>(heard.Observer)) return false;
-            var ear = PositionOf(repo, heard.Observer);
-            if (Vector2.Distance(new Vector2(ear.X, ear.Y), new Vector2(heard.X, heard.Y)) < LaunchHeardMetres) return false;
             commander = repo.GetComponentRO<UnitSubordinate>(heard.Observer).Commander;
             return !commander.IsNull;
         }

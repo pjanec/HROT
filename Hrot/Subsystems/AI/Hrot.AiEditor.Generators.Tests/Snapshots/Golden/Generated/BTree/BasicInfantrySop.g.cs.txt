@@ -18,6 +18,10 @@ public static class BasicInfantrySop
         new BTreeBuilder<byte, BTreeContext>()
             .Selector(sel =>
             {
+                sel.Condition("Fdp.Toolkit.Behavior.SopConditions.UnderCommand",
+                    visualId: new Guid("c2080000-0000-0000-0000-0000000000c1"));
+                sel.Condition("Fdp.Toolkit.Behavior.SopConditions.Aboard",
+                    visualId: new Guid("c2080000-0000-0000-0000-0000000000c2"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
@@ -36,6 +40,14 @@ public static class BasicInfantrySop
                         visualId: new Guid("c2080000-0000-0000-0000-000000000012"));
                 },
                     visualId: new Guid("c2080000-0000-0000-0000-000000000010"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@40",
+                        visualId: new Guid("c2080000-0000-0000-0000-000000000016"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:UnderFire@-1",
+                        visualId: new Guid("c2080000-0000-0000-0000-000000000017"));
+                },
+                    visualId: new Guid("c2080000-0000-0000-0000-000000000015"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@16",

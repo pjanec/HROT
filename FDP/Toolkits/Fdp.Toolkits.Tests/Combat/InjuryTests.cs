@@ -160,6 +160,33 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal((long)hurt.PackedValue, candidates[1].EntityId);
         }
 
+        /// <summary>⭐⭐ <c>CE-2318</c> — a man DOWN lies: his logical stance is Prone whatever his brain last ordered, so the aim point, the
+        /// sight points and the round's body band follow the lying body his hit boxes take — rounds no longer go over him at a standing
+        /// man's 0.85 m. A wounded man on his feet keeps his stance. ✅ Red-proof: <c>LogicalStance.Of</c> without the down rule ⇒ the
+        /// downed man aims at the standing height ⇒ red.</summary>
+        [Fact]
+        public void CE2318_AManDown_LiesProne_SoTheAimPointIsTheLyingBody()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            Entity At(float health)
+            {
+                var e = Soldier(health, new InjuryDefDto());
+                _world.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Standing });
+                _world.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                return e;
+            }
+            var down = At(20f);
+            var dead = At(0f);
+            var hurt = At(40f);
+            Assert.Equal(StanceId.Prone, Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(_world, down));
+            Assert.Equal(StanceId.Prone, Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(_world, dead));
+            Assert.Equal(StanceId.Standing, Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(_world, hurt));
+
+            Assert.InRange(AimPoint.Middle(_world, down, out var stance, out _).Z, 0f, 0.3f);
+            Assert.Equal(StanceId.Prone, stance);
+            Assert.InRange(AimPoint.Middle(_world, hurt, out _, out _).Z, 0.7f, 1.0f);
+        }
+
         /// <summary>⭐ I6 — a casualty set down stays down: leaving a carrier gives move and fire back only to someone in the fight.
         /// ✅ Red-proof: Leave restoring for any alive passenger ⇒ the casualty stands up armed ⇒ red.</summary>
         [Fact]

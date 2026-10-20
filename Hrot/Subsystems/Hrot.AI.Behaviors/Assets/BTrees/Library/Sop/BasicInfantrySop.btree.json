@@ -28,8 +28,11 @@
       "kind": "Selector",
       "VisualId": "c2080000-0000-0000-0000-000000000002",
       "ChildVisualIds": [
+        "c2080000-0000-0000-0000-0000000000c1",
+        "c2080000-0000-0000-0000-0000000000c2",
         "c2080000-0000-0000-0000-0000000000a1",
         "c2080000-0000-0000-0000-000000000010",
+        "c2080000-0000-0000-0000-000000000015",
         "c2080000-0000-0000-0000-000000000020",
         "c2080000-0000-0000-0000-000000000030",
         "c2080000-0000-0000-0000-000000000040"
@@ -299,6 +302,89 @@
         "Collapsed": false,
         "Color": null
       }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.UnderCommand"
+      },
+      "VisualId": "c2080000-0000-0000-0000-0000000000c1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Under command → his unit reacts for him",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "CE-2322 (AQ97 A, R-2062): true = the row wins and nothing is ordered — a man under a live commander gets his reactions from his unit (its SOP, its plays); with no commander (or his commander out of the fight) the rows below are his.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2080000-0000-0000-0000-000000000015",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000016",
+        "c2080000-0000-0000-0000-000000000017"
+      ],
+      "DisplayLabel": "Shot at (near miss) → take cover",
+      "EditorMetadata": {
+        "X": 700,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "nearMissSense"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000016",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Near miss (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 640,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "TakeCover",
+        "Urgency": "UnderFire"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000017",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: TakeCover",
+      "EditorMetadata": {
+        "X": 760,
+        "Y": 400,
+        "Comment": "CE-2322 (AQ97 B): rounds passing near him are reason enough.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.Aboard"
+      },
+      "VisualId": "c2080000-0000-0000-0000-0000000000c2",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Aboard a vehicle → the vehicle decides",
+      "EditorMetadata": {
+        "X": 420,
+        "Y": 260,
+        "Comment": "CE-2322 (AQ97, as built): a crewman in his seat or a passenger — his seat and the vehicle's behaviour decide, not his own rows.",
+        "Collapsed": false,
+        "Color": null
+      }
     }
   ],
   "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
@@ -367,6 +453,16 @@
         },
         "DefaultValueJson": "{\"ClearSeconds\":10,\"MinElevationDeg\":80}",
         "Comment": "CE-2191 — a gun counts as an air-defence gun from this elevation up (the ZU-23-2's 90°, not an M2's 70°)."
+      },
+      {
+        "Name": "nearMissSense",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"NearMiss\",\"Seconds\":3}",
+        "Comment": "CE-2322 — a round passed within 3 m recently (and since the current run began)."
       }
     ]
   }
