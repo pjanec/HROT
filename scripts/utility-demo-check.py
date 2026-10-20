@@ -4291,6 +4291,47 @@ def run_uc_request_chain_dry(c, timeout):
     closer = wait_for(lambda: (p := position(heli)) and math.hypot(p[0] - at[0], p[1] - at[1]) < d0 - 300, min(timeout, 240))
     p1 = position(heli)
     c.ok(closer, f"③ the Apache flies to the point ({d0:.0f} m → {math.hypot(p1[0] - at[0], p1[1] - at[1]) if p1 else 0:.0f} m)")
+    def its_shots():
+        call("POST", "/perspective", {"name": "SimHost"})
+        try:
+            return [x for x in (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or [] if x.get("shooter") == heli]
+        finally:
+            call("POST", "/perspective", {"name": "Scenario"})
+    fired = wait_for(its_shots, min(timeout, 300), every=2.0)
+    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    hurt = [(comps(m).get("Health") or {}).get("Current") for m in crew]
+    c.ok(fired, f"④ the Apache attacks what it finds there ({len(fired or [])} rounds; targets {sorted({x.get('target') for x in fired or []})}; "
+                f"crew health {hurt}; Apache task {task_name(heli)})")
+
+
+
+def run_uc_a10_zu23_dry(c, timeout):
+    """⭐ Urban Battle §6 L4 (dry) — uc-a10-zu23-dry: L7's cast + a ZU-23 beside the tubes and an A-10 on its orbit under the HQ. Two SPOTs
+    faked (AirDefence at the ZU-23, then IndirectFire at the tubes): ① the platoon relays the air defence up and asks FireSupport
+    (CE-2310) · ② the HQ sends the A-10 at the ZU-23 FIRST (HQ-7, CE-2312) · ③ the AH-64 waits while the air defence stays reported."""
+    ids = ids_by_name()
+    hq, heli, jet, pl, sq1 = ids.get("Blue HQ"), ids.get("Apache"), ids.get("A-10"), ids.get("Blue Platoon"), ids.get("Blue Squad 1")
+    tube, zu = ids.get("Mortar Tube 1"), ids.get("ZU-23")
+    if not c.ok(None not in (hq, heli, jet, pl, sq1, tube, zu), "the HQ, its Apache and A-10, the platoon, the mortar and the ZU-23 are loaded"):
+        return
+    at, aa = position(tube), position(zu)
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(jet) == "FollowRoute", 30),
+         f"the plays run (HQ {task_name(hq)}, A-10 {task_name(jet)} on its orbit, Apache {task_name(heli)})")
+    call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [aa[0], aa[1], 0], "count": 1, "size": "Individual", "equipment": "Vehicle, AirDefence"})
+    wait_for(lambda: False, 4, every=1.0)
+    call("POST", f"/entities/{sq1}/reports", {"kind": "Spot", "at": [at[0], at[1], 0], "count": 2, "size": "Team", "equipment": "IndirectFire"})
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "FireSupport"
+                                 and x.get("from") == pl), None), 30)
+    c.ok(ask is not None, "① the platoon asks the HQ for FireSupport")
+    relayed = next((x for x in squad_reports(last=128) if x.get("kind") == "Spot" and x.get("from") == pl and "AirDefence" in str(x.get("equipment"))), None)
+    c.ok(relayed is not None, f"① …having relayed the air defence up ({json.dumps(relayed)[:200] if relayed else None})")
+    struck = wait_for(lambda: task_name(jet) not in (None, "", "FollowRoute"), 30)
+    o = _order(jet)
+    print(f"    A-10 order: {json.dumps(o)[:400]}")
+    c.ok(struck, f"② the HQ sends the A-10 at the air defence first (A-10 task {task_name(jet)})")
+    wait_for(lambda: False, 15, every=1.0)
+    c.ok(task_name(heli) in (None, "", "None"), f"③ the Apache waits while the air defence stays reported (task {task_name(heli)})")
 
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
@@ -4377,7 +4418,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
