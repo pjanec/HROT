@@ -4408,6 +4408,84 @@ def run_uc_reinforce_dry(c, timeout):
     c.ok(moved, f"② …and it goes (reserve at {position(res)})")
 
 
+
+# ── Urban Battle §1 / §6 — the FLAGSHIP: uc-urban-battle (demo-city), unscripted, judged by what must hold whatever happens ────────
+def run_uc_urban_battle(c, timeout):
+    """⭐ Urban Battle §1 — uc-urban-battle (DESIGN_Urban_Battle_Demo.md §1, §6): a convoy (an APC and a Bradley, a squad in each) up Avenue E on
+    a market day; an IED and its covert trigger man; an insurgent fire team up the street; a covert spotter and his mortar in the north-east; a
+    ZU-23 beside it; the convoy's platoon under an HQ owning an AH-64, an A-10 on its orbit and a reserve squad. NOTHING is faked or timed. The
+    fight decides the story; the check asserts only what must hold whatever happens: ① the charge goes off only with a vehicle in its kill zone ·
+    ② no Blue round is aimed at a civilian · ③ nothing is sent without a report — every HQ order follows a REQUEST · ④ both sides fight. The
+    timeline is printed: what happened, in what order."""
+    ids = ids_by_name()
+    need = ("Blue HQ", "Apache", "A-10", "Blue Reserve", "Blue Platoon", "Convoy APC", "Convoy IFV", "Squad A", "Squad B", "IED", "Trigger man", "Spotter")
+    if not c.ok(all(ids.get(n) for n in need), f"the cast is loaded ({[n for n in need if not ids.get(n)] or 'all'})"):
+        return
+    hq, pl, ied = ids["Blue HQ"], ids["Blue Platoon"], ids["IED"]
+    assets = {n: ids[n] for n in ("Apache", "A-10", "Blue Reserve")}
+    vehicles = [ids["Convoy APC"], ids["Convoy IFV"]]
+    blue = {v for k, v in ids.items() if k.startswith(("Squad A", "Squad B", "Blue Reserve", "Convoy", "Apache", "A-10"))}
+    red = {v for k, v in ids.items() if k.startswith(("Insurgent", "Mortar", "ZU-23"))}
+    civilians = {v for k, v in ids.items() if k.startswith("Civilian")}
+    ied_at = position(ied)
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(vehicles[0]) == "FollowRoute", 30), "the plays run")
+    log, last, det_seen, ied_ok, first_req = [], {}, 0, None, None
+    def note(t, what):
+        log.append(f"{t:7.1f}  {what}")
+    end = time.time() + min(timeout, 900)
+    while time.time() < end:
+        t = sim_time() or 0.0
+        dets = _detonations()
+        for d in dets[det_seen:]:
+            who = next((k for k, v in ids.items() if v == d.get("shooter")), d.get("shooter"))
+            note(t, f"detonation by {who} at {[round(x) for x in d.get('burst') or []][:2]} ({d.get('warhead')})")
+            if d.get("shooter") == ids["Trigger man"] and ied_ok is None:
+                vs = [position(v) for v in vehicles]
+                near = min((math.hypot(p[0] - ied_at[0], p[1] - ied_at[1]) for p in vs if p), default=999)
+                ied_ok = near <= 15
+                note(t, f"  …the IED: nearest vehicle {near:.1f} m from it")
+        det_seen = len(dets)
+        for r in squad_reports(last=256):
+            key = (r.get("serial"), r.get("from"))
+            if key in last or r.get("kind") in ("Sitrep", "Progress"):
+                continue
+            last[key] = True
+            who = next((k for k, v in ids.items() if v == r.get("from")), r.get("from"))
+            note(t, f"{r.get('kind')} {r.get('subtype') or ''} from {who} {r.get('equipment') or ''} at {[round(x) for x in (r.get('at') or [])][:2]}")
+            if r.get("kind") == "Request" and r.get("from") == pl and first_req is None:
+                first_req = t
+        for n, a in assets.items():
+            tk = task_name(a)
+            if last.get(("task", n)) != tk:
+                last[("task", n)] = tk
+                note(t, f"{n}: {tk}")
+                if tk not in (None, "", "None", "FollowRoute") and first_req is None:
+                    last["sent-unasked"] = (n, tk, t)
+        for v in vehicles + [ids["Squad A"], ids["Squad B"]]:
+            tk = task_name(v)
+            name = next(k for k, x in ids.items() if x == v)
+            if last.get(("task", name)) != tk:
+                last[("task", name)] = tk
+                note(t, f"{name}: {tk}")
+        time.sleep(1.5)
+    print("    timeline (sim s):")
+    for line in log:
+        print("      " + line)
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        shots = (data(call("GET", "/combat/shots?last=1024")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    by = {"Blue": sum(1 for x in shots if x.get("shooter") in blue), "Red": sum(1 for x in shots if x.get("shooter") in red)}
+    at_civ = [x for x in shots if x.get("shooter") in blue and x.get("target") in civilians]
+    c.ok(ied_ok is not False, f"① the charge went off only with a vehicle in its kill zone ({'it did not go off' if ied_ok is None else 'yes'})")
+    c.ok(not at_civ, f"② no Blue round aimed at a civilian ({len(at_civ)} of {by['Blue']})")
+    c.ok("sent-unasked" not in last, f"③ nothing sent without a report ({last.get('sent-unasked') or 'every HQ order came after a REQUEST'})")
+    c.ok(by["Blue"] > 0 and by["Red"] > 0, f"④ both sides fight (rounds: {by})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4492,7 +4570,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

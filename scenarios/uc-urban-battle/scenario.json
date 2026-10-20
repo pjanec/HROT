@@ -1,0 +1,1614 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city"
+  },
+  "entities": {
+    "d0cf0000-0000-4000-8000-000000009800": {
+      "SimTransform": {
+        "Position": [
+          40,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9800
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue HQ",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SupportCommand",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009801": {
+      "SimTransform": {
+        "Position": [
+          20,
+          20,
+          60
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9801
+      },
+      "TkbIdentity": {
+        "TkbType": 406
+      },
+      "EntityInfo": {
+        "Name": "Apache",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009800",
+        "Designation": "Wingman"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009802": {
+      "SimTransform": {
+        "Position": [
+          -500,
+          -500,
+          400
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9802
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009800",
+        "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 9803, \"Speed\": 120}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009803": {
+      "SimTransform": {
+        "Position": [
+          -500,
+          -500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9803
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "A-10 orbit",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -500,
+            "Y": -500,
+            "Z": 0,
+            "TargetSpeed": 120,
+            "HeightAgl": 400
+          },
+          {
+            "X": -500,
+            "Y": 500,
+            "Z": 0,
+            "TargetSpeed": 120,
+            "HeightAgl": 400
+          },
+          {
+            "X": 300,
+            "Y": 500,
+            "Z": 0,
+            "TargetSpeed": 120,
+            "HeightAgl": 400
+          },
+          {
+            "X": 300,
+            "Y": -500,
+            "Z": 0,
+            "TargetSpeed": 120,
+            "HeightAgl": 400
+          }
+        ],
+        "IsLoop": true
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009805": {
+      "SimTransform": {
+        "Position": [
+          40,
+          25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9805
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Reserve",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009800",
+        "Designation": "Wingman"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009806": {
+      "SimTransform": {
+        "Position": [
+          37.6,
+          25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9806
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Reserve Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009805",
+        "Designation": "SquadLeader"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009807": {
+      "SimTransform": {
+        "Position": [
+          39.2,
+          25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9807
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Reserve Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009805",
+        "Designation": "MachineGunner"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009808": {
+      "SimTransform": {
+        "Position": [
+          40.800000000000004,
+          25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9808
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Reserve Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009805",
+        "Designation": "Wingman"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009809": {
+      "SimTransform": {
+        "Position": [
+          42.400000000000006,
+          25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9809
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Reserve Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009805",
+        "Designation": "Wingman"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009810": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9810
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Platoon",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009800",
+        "Designation": "Wingman"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009811": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9811
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Avenue E north",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 652,
+            "Y": 30,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          },
+          {
+            "X": 652,
+            "Y": 380,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009820": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9820
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy APC",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 9811, \"Speed\": 8}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009830": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9830
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad A",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009810",
+        "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "SquadHold",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009831": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9831
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad A Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009830",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009820"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009832": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9832
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad A Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009830",
+        "Designation": "MachineGunner"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009820"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009833": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9833
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad A Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009830",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009820"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009834": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9834
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad A Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009830",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009820"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009835": {
+      "SimTransform": {
+        "Position": [
+          652,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9835
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad A Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009830",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009820"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009840": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9840
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Convoy IFV",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 9811, \"Speed\": 8}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009850": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9850
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad B",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009810",
+        "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "SquadHold",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009851": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9851
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad B Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009850",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009840"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009852": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9852
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad B Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009850",
+        "Designation": "MachineGunner"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009840"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009853": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9853
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad B Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009850",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009840"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009854": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9854
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad B Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009850",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009840"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009855": {
+      "SimTransform": {
+        "Position": [
+          652,
+          15,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9855
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Squad B Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009850",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0cf0000-0000-4000-8000-000000009840"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009860": {
+      "SimTransform": {
+        "Position": [
+          652,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9860
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "IED",
+        "ForceId": "Neutral"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009861": {
+      "SimTransform": {
+        "Position": [
+          641,
+          170,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9861
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Trigger man",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "TriggerIed",
+        "Params": "{\"Charge\": 9860, \"KillZoneMetres\": 10}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009862": {
+      "SimTransform": {
+        "Position": [
+          659,
+          262,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9862
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Insurgent RPG",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009863": {
+      "SimTransform": {
+        "Position": [
+          659,
+          274,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9863
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Insurgent rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009864": {
+      "SimTransform": {
+        "Position": [
+          641,
+          286,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9864
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Insurgent rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009870": {
+      "SimTransform": {
+        "Position": [
+          795,
+          790,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9870
+      },
+      "TkbIdentity": {
+        "TkbType": 304
+      },
+      "EntityInfo": {
+        "Name": "Insurgent Mortar",
+        "ForceId": "Hostile"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009871": {
+      "SimTransform": {
+        "Position": [
+          790,
+          790,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9871
+      },
+      "TkbIdentity": {
+        "TkbType": 610
+      },
+      "EntityInfo": {
+        "Name": "Mortar Tube 1",
+        "ForceId": "Hostile"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009873": {
+      "SimTransform": {
+        "Position": [
+          788,
+          790,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9873
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Mortar Man 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009870",
+        "Designation": "SquadLeader"
+      },
+      "Behavior": {
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 9871}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009872": {
+      "SimTransform": {
+        "Position": [
+          800,
+          790,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9872
+      },
+      "TkbIdentity": {
+        "TkbType": 610
+      },
+      "EntityInfo": {
+        "Name": "Mortar Tube 2",
+        "ForceId": "Hostile"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009874": {
+      "SimTransform": {
+        "Position": [
+          798,
+          790,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9874
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Mortar Man 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0cf0000-0000-4000-8000-000000009870",
+        "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 9872}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009877": {
+      "SimTransform": {
+        "Position": [
+          796,
+          784,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9877
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Mortar Ammo Bearer",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009878": {
+      "SimTransform": {
+        "Position": [
+          641,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9878
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Spotter",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "SpotForFire",
+        "Params": "{\"Battery\": 9870, \"Rounds\": 2}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009879": {
+      "SimTransform": {
+        "Position": [
+          730,
+          740,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9879
+      },
+      "TkbIdentity": {
+        "TkbType": 110
+      },
+      "EntityInfo": {
+        "Name": "ZU-23",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009891": {
+      "SimTransform": {
+        "Position": [
+          641,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9891
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 1",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009892": {
+      "SimTransform": {
+        "Position": [
+          659,
+          222,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9892
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 2",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009893": {
+      "SimTransform": {
+        "Position": [
+          641,
+          238,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9893
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 3",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009894": {
+      "SimTransform": {
+        "Position": [
+          659,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9894
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Civilian 4",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009895": {
+      "SimTransform": {
+        "Position": [
+          641,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9895
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 5",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0cf0000-0000-4000-8000-000000009896": {
+      "SimTransform": {
+        "Position": [
+          659,
+          310,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9896
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 6",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
