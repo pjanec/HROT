@@ -60,7 +60,27 @@ def scenario_names(name):
     return sorted(e.get("EntityInfo", {}).get("Name") for e in doc["entities"].values() if e.get("EntityInfo", {}).get("Name"))
 
 
+def _off_grid(since):
+    """⭐ Urban Battle §6 (2026-10-20) — the WARN lines the cluster logged since byte `since` for entities placed outside the terrain's grids
+    (an entity there can be neither seen, nor hit, nor found — measured: a mortar 800 m past demo-city's edge was invisible to everyone)."""
+    path = os.path.join("/tmp", f"utility-demo-cluster-{BASE.rsplit(':', 1)[-1]}.log")
+    try:
+        with open(path, errors="replace") as fh:
+            fh.seek(since)
+            return [l.strip() for l in fh if "is outside the collider grid" in l]
+    except OSError:
+        return []
+
+
+def _log_size():
+    try:
+        return os.path.getsize(os.path.join("/tmp", f"utility-demo-cluster-{BASE.rsplit(':', 1)[-1]}.log"))
+    except OSError:
+        return 0
+
+
 def load(name):
+    log_at = _log_size()
     resp = call("POST", "/scenario/load/live", {"name": name, "waitForReady": True})
     if "http" in resp and resp.get("http") == 504 and "did not reach a settled" in str(resp.get("body")):
         # ⭐ Urban Battle §6 — a big terrain (demo-city: 541 entities, ~29 s to OperatingLive, measured 2026-10-20) can outlast the
@@ -78,6 +98,11 @@ def load(name):
     elif "http" in resp:
         sys.exit(f"load failed: {resp}")
     call("POST", "/perspective", {"name": "Scenario"})
+    wait_for(lambda: False, 2, every=1.0)
+    off = _off_grid(log_at)
+    if off:
+        sys.exit(f"the scenario places {len(off)} entit{'y' if len(off) == 1 else 'ies'} outside the terrain's grids — they can be neither "
+                 f"seen nor hit; move them inside:\n  " + "\n  ".join(off[:8]))
     # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
     #   check could report on the previous scenario's cast. Kept as a guard.
     #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an
