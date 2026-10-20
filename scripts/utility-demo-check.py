@@ -14,7 +14,7 @@ previous one); the script verifies the loaded cast.
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
 """
-import argparse, json, math, os, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy (RUNBOOK §2)
 BASE = "http://localhost:8111"                                            # the HOSTNAME — 127.0.0.1 404s (RUNBOOK §2)
@@ -67,9 +67,22 @@ def _off_grid(since):
     try:
         with open(path, errors="replace") as fh:
             fh.seek(since)
-            return [l.strip() for l in fh if "is outside the collider grid" in l]
+            text = fh.read()
     except OSError:
         return []
+    lines = [l.strip() for l in text.splitlines() if "is outside the collider grid" in l]
+    # the grid RE-FITS to the resident terrain during the load (SpatialGridFit, CE-3018; 300 cells): judge each position against the last fit
+    fits = re.findall(r"collider grid origin \((-?[\d.]+),(-?[\d.]+)\) cell ([\d.]+) m", text)
+    if not fits:
+        return lines
+    ox, oy, cell = (float(v) for v in fits[-1])
+    lo_x, lo_y, hi_x, hi_y = ox, oy, ox + 300 * cell, oy + 300 * cell
+    out = []
+    for l in lines:
+        m = re.search(r"at \((-?[\d.]+), (-?[\d.]+)\)", l)
+        if not m or not (lo_x <= float(m.group(1)) <= hi_x and lo_y <= float(m.group(2)) <= hi_y):
+            out.append(l)
+    return out
 
 
 def _log_size():
@@ -4322,11 +4335,14 @@ def run_uc_request_chain_dry(c, timeout):
             return [x for x in (data(call("GET", "/combat/shots?last=256")) or {}).get("shots") or [] if x.get("shooter") == heli]
         finally:
             call("POST", "/perspective", {"name": "Scenario"})
-    fired = wait_for(its_shots, min(timeout, 300), every=2.0)
     crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2"), ids.get("Mortar Ammo Bearer")]
-    hurt = [(comps(m).get("Health") or {}).get("Current") for m in crew]
+    def health():
+        return [(comps(m).get("Health") or {}).get("Current") for m in crew]
+    # its rockets do not enter the shot log (only gun rounds do) — so an attack is its rounds OR the cell's losses
+    fired = wait_for(lambda: its_shots() or any((h or 100) < 100 for h in health()), min(timeout, 300), every=2.0)
+    hurt = health()
     print(f"    the Apache's memory: {json.dumps([(s_.get('networkId'), s_.get('anonymous')) for s_ in (data(call('GET', f'/entities/{heli}/memory')) or {}).get('slots', [])])[:300]} (crew {crew})")
-    c.ok(fired, f"④ the Apache attacks what it finds there ({len(fired or [])} rounds; targets {sorted({x.get('target') for x in fired or []})}; "
+    c.ok(fired, f"④ the Apache attacks what it finds there ({len(fired) if isinstance(fired, list) else 'rockets'}; targets {sorted({x.get('target') for x in fired or []})}; "
                 f"crew health {hurt}; Apache task {task_name(heli)})")
 
 
