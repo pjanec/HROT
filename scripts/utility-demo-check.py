@@ -4334,6 +4334,32 @@ def run_uc_a10_zu23_dry(c, timeout):
     c.ok(task_name(heli) in (None, "", "None"), f"③ the Apache waits while the air defence stays reported (task {task_name(heli)})")
 
 
+
+def run_uc_reinforce_dry(c, timeout):
+    """⭐ Urban Battle §6 L6 (dry) — uc-reinforce-dry: L7's cast + a Blue reserve squad under the HQ. Faked: both Blue squads SITREP Red and an
+    enemy element 100 m off ⇒ ① the platoon asks the HQ to be reinforced (CE-2310 HQ-5) · ② the HQ sends its free ground unit — the
+    reserve, never the requester — to defend at the platoon (CE-2312 HQ-9)."""
+    ids = ids_by_name()
+    hq, pl, res = ids.get("Blue HQ"), ids.get("Blue Platoon"), ids.get("Blue Reserve")
+    sq = [ids.get("Blue Squad 1"), ids.get("Blue Squad 2")]
+    if not c.ok(None not in (hq, pl, res) and None not in sq, "the HQ, the platoon, its squads and the reserve are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend", 30), f"the plays run (reserve {task_name(res)})")
+    wait_for(lambda: False, 3, every=1.0)
+    for s_ in sq:
+        call("POST", f"/entities/{s_}/reports", {"kind": "Sitrep", "strength": "Red"})
+    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [650, 250, 0], "count": 6, "size": "SquadSize"})
+    ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "Reinforce"
+                                 and x.get("from") == pl), None), 40)
+    c.ok(ask is not None, f"① the platoon asks to be reinforced ({json.dumps(ask)[:220] if ask else None})")
+    sent = wait_for(lambda: task_name(res) in ("SquadDefend", "PlatoonDefend"), 30)
+    print(f"    reserve order: {json.dumps(_order(res))[:300]}")
+    c.ok(sent, f"② the HQ sends the reserve to defend at the platoon (reserve task {task_name(res)}; platoon {task_name(pl)})")
+    moved = wait_for(lambda: (p := position(res)) and p[1] > 80, min(timeout, 120))
+    c.ok(moved, f"② …and it goes (reserve at {position(res)})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4418,7 +4444,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
