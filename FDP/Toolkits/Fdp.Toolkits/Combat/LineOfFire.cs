@@ -72,6 +72,28 @@ namespace Fdp.Toolkit.Combat
 
             var eye = ShotOrigin.Eye(world, shooter, out _);
             var origin = ShotOrigin.From(world, shooter, weaponIndex, eye, aim, out _);
+            return Stops(world, terrain, mount, ammo, warhead, origin, aim);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2327</c> (R-2064) — the same hold for a round that WOULD leave from <paramref name="origin"/> (an eye at a spot he is not
+        /// at yet: the firing-position search marks the spots a round clears from). ⛔ The barrel is not placed — a spot has no pose yet; a
+        /// rifleman's round leaves from his eye anyway (<see cref="ShotOrigin"/>).
+        /// </summary>
+        public static bool MaskedFrom(EntityRepository world, Fdp.Toolkit.World.IWorldQuery terrain, Entity shooter, int weaponIndex,
+                                      Vector3 origin, Vector3 aim)
+        {
+            var mount = CombatTkb.MountOf(world, shooter, weaponIndex);
+            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            var warhead = CombatTkb.WarheadOf(world, ammo);
+            if (warhead is { Indirect: true } || mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb) return false;
+            return Stops(world, terrain, mount, ammo, warhead, origin, aim);
+        }
+
+        /// <summary>The terrain stops the round within its danger distance of <paramref name="origin"/> on its way to <paramref name="aim"/>.</summary>
+        private static bool Stops(EntityRepository world, Fdp.Toolkit.World.IWorldQuery terrain, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long ammo,
+                                  Fdp.Toolkit.Tkb.Domain.WarheadDto? warhead, Vector3 origin, Vector3 aim)
+        {
             var line = aim - origin;
             float length = line.Length();
             if (length < 1e-3f) return false;

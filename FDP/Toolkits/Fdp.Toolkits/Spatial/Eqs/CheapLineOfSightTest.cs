@@ -62,6 +62,22 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>What is kept. Default <see cref="EqsLosRequire.Hidden"/> (cover).</summary>
         public EqsLosRequire Require { get; set; } = EqsLosRequire.Hidden;
 
+        /// <summary>
+        /// ⭐ <c>CE-2327</c> (R-2064) — with a candidate eye, also MARK (never reject) the spots a ROUND clears from: <see cref="FireClearBit"/>
+        /// when a body point he sees from there is one his weapon's round is not stopped short of (<see cref="Fdp.Toolkit.Combat.LineOfFire.MaskedFrom"/>
+        /// — the muscle's own masked rule). 🔒 User: <i>"for peeking the place does not need to allow shooting as that would expose the
+        /// soldier too much"</i> — so a spot that only SEES stays an answer (he looks from it); one that also lets him shoot is marked.
+        /// </summary>
+        public bool MarkFireClear { get; set; }
+
+        /// <summary>⭐ <c>CE-2327</c> — the result flag: a round leaving from this candidate's eye clears what is in front of it.</summary>
+        public const short FireClearBit = 1 << 7;
+
+        /// <summary>⭐ <c>CE-2327</c> — an answer's fire mark: 0 = not marked (no terrain, or a template that does not mark) · 1 = a round clears
+        /// from it · 2 = it only SEES. The one reader every behaviour uses.</summary>
+        public static byte FireMarkOf(in EqsResult r)
+            => (r.FlagsMeaningful & FireClearBit) == 0 ? (byte)0 : (r.Flags & FireClearBit) != 0 ? (byte)1 : (byte)2;
+
         /// <inheritdoc/>
         /// <inheritdoc/>
         public int CostPerCandidate => EqsCost.Sight;   // CE-3037 — sight weight (DESIGN_Sensors_And_Doctrine §5.3)
@@ -87,6 +103,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 ref readonly var mem = ref view.GetComponentRO<TargetMemory>(memOwner);
                 if (mem.Count == 0 || mem.Freshness[0] < sensor.ThreatThreshold) return;
             }
+
+            // ⭐ CE-2327 — the fire mark needs the round's world (the muscle's terrain) and the unit's weapon; none ⇒ unmarked
+            var fire = MarkFireClear && Viewer == EqsLosViewer.Candidate && view is EntityRepository repo && !self.IsNull ? repo : null;
+            var fireTerrain = fire != null ? Fdp.Toolkit.World.WorldQuery.Of(fire) : null;
+            if (fireTerrain == null) fire = null;
 
             var otherMount = EqsTerrainSight.Mount(view, other);
             var selfMount  = EqsTerrainSight.Mount(view, self);
@@ -121,8 +142,20 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     float eye = c.TryGetStance(out var stance) ? selfMount.For(stance) : selfMount.Standing;
                     var from = cPos + new Vector3(0, 0, eye);
                     visible = false;
-                    for (int k = 0; k < aimCount && !visible; k++)
-                        visible = los.HasLineOfSight(from, otherPos + new Vector3(0, 0, aims[k]));
+                    bool fireClear = false;
+                    for (int k = 0; k < aimCount && !(visible && (fireClear || fire == null)); k++)
+                    {
+                        var at = otherPos + new Vector3(0, 0, aims[k]);
+                        if (!los.HasLineOfSight(from, at)) continue;
+                        visible = true;
+                        // ⭐ CE-2327 — a point he sees is one he can SHOOT when the round from his eye is not stopped short
+                        if (fire != null && !Fdp.Toolkit.Combat.LineOfFire.MaskedFrom(fire, fireTerrain!, self, 0, from, at)) fireClear = true;
+                    }
+                    if (fire != null)
+                    {
+                        c.FlagsMeaningful |= FireClearBit;
+                        if (fireClear) c.Flags |= FireClearBit;
+                    }
                 }
                 else
                 {
