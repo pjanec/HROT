@@ -254,6 +254,51 @@ public sealed class Map3DFrameRail
             Assert.Equal(4, effectsLayer.Drawn);
         }
 
+        // ⑨ CE-1225 (docs/DESIGN_Command_Display.md §8) — the Sectors layer in 3-D: a platoon's three line squads, each with its slice of
+        //   the platoon's arc (DA-52, a commander's arc ⇒ drawn for everyone), draped on the ground; a rifleman's own arc is not drawn.
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = true }.ToMask());
+            var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(30, buffer, new Fdp.Core.FdpEventBus())   // < 32: the canvas hides higher bits
+            {
+                CurrentCamera = () => canvas.Camera,
+            };
+            gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+            canvas.AddLayer(gizmos);
+            var origin = new Vector3(spot.X, spot.Y - 40f, 0f);
+            var platoon = world.CreateEntity();
+            Entity squad2 = default;
+            float[] lefts = { 300f, 340f, 20f };
+            for (int i = 0; i < 3; i++)
+            {
+                var squad = world.CreateEntity();
+                world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = platoon });
+                world.AddComponent(squad, new Fdp.Toolkit.Behavior.Components.EngagementArea
+                {
+                    ArcSet = 1, ArcOrigin = origin, LeftBearing = lefts[i], RightBearing = (lefts[i] + 40f) % 360f, MaxRange = 70f,
+                });
+                if (i == 1) squad2 = squad;
+                else world.AddComponent(world.CreateEntity(), new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });   // he leads a man ⇒ a commander
+            }
+            var rifleman = world.CreateEntity();
+            world.AddComponent(rifleman, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad2 });
+            world.AddComponent(rifleman, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = origin, LeftBearing = 150f, RightBearing = 210f, MaxRange = 40f,
+            });
+            new Hrot.ScenarioEditor.Gizmos.SectorAreasGizmo().Draw(world, buffer);
+
+            float oz = query.GroundHeightAt(origin.X, origin.Y);
+            sw.Camera3D.Pose = new CameraPose(new Vector3(origin.X, origin.Y + 35f, oz), 150f, MathF.PI * 1.5f, -0.75f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-9-sectors.png"));
+            Assert.True(gizmos.Renderer3D.LinesDrawn > 3 * 6, $"sector lines: {gizmos.Renderer3D.LinesDrawn}");   // three arcs, each 2 edges + 4 far pieces
+            Assert.Equal(0, gizmos.Renderer3D.Skipped.Total);
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
     }

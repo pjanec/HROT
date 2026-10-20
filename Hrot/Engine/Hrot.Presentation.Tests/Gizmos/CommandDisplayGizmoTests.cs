@@ -87,6 +87,7 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         var red = Lines(SectorAreasGizmo.NoFireColour);
         Assert.Equal(4 + hatch.Count, red.Length);   // ONE outline + ONE hatch, though eleven units name the room
         Assert.True(hatch.Count >= 2, $"{hatch.Count} hatch lines over a 6 m room");
+        Assert.All(_draw.GetFrame().ToArray(), p => Assert.Equal(DebugTraceLayers.Sectors, p.DebugLayer));   // ⭐ CE-1225 — its own layer
     }
 
     [Fact]
@@ -175,5 +176,55 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         Assert.Empty(Texts(man));                                          // he commands nobody
         _w.AddComponent(leader, new CommandPicture());
         Assert.Empty(Texts(leader));                                       // the picture is here: CommandPictureGizmo draws it
+    }
+
+    /// <summary>⭐ <c>CE-1225</c> (§8 S-2, S-3) — with the Sectors layer on, every COMMANDER's arc (a platoon's slice on a squad) is drawn
+    /// for everyone by the global gizmo, on the ground (z = 0, draped in 3-D) and on the Sectors layer; a man's own arc is not (it stays
+    /// behind selection, <see cref="SectorArcGizmo"/>). 🔒 User, 2026-10-20: "rendering the sectors behind a switch/checkbox".</summary>
+    [Fact]
+    public void CE1225_EveryCommandersArc_IsDrawnForEveryone_OnTheGround_OnTheSectorsLayer_AndAMansOwnArcIsNot()
+    {
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        var squad = Unit(20, "1st Squad");
+        _w.SetComponent(squad, new EngagementArea { ArcSet = 1, ArcOrigin = new Vector3(0, 0, 7f), LeftBearing = 0f, RightBearing = 45f, MaxRange = 40f });
+        var man = Unit(21, "Rifleman");
+        _w.SetComponent(man, new EngagementArea { ArcSet = 1, ArcOrigin = new Vector3(100, 0, 0), LeftBearing = 90f, RightBearing = 120f, MaxRange = 30f });
+        _w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });
+
+        new SectorAreasGizmo().Draw(_w, _draw);
+
+        var squads = Lines(SectorAreasGizmo.ColourOf(20));
+        Assert.NotEmpty(squads);
+        Assert.Contains(squads, p => Vector3.Distance(p.LineEnd, new Vector3(0, 40, 0)) < 0.01f);          // the north edge, on the ground
+        Assert.All(squads, p => { Assert.Equal(0f, p.LineStart.Z); Assert.Equal(0f, p.LineEnd.Z); });       // z = 0 ⇒ draped in 3-D
+        Assert.Empty(Lines(SectorAreasGizmo.ColourOf(21)));                                                  // the man's arc: selection only
+        Assert.All(_draw.GetFrame().ToArray(), p => Assert.Equal(DebugTraceLayers.Sectors, p.DebugLayer));
+    }
+
+    /// <summary>⭐ <c>CE-1225</c> (§8 S-1) — the Sectors checkbox off ⇒ no sector area, NoFire hatch or arc is drawn at all, by either gizmo,
+    /// while the units' own layer stays on.</summary>
+    [Fact]
+    public void CE1225_TheSectorsLayerOff_NoAreaNoFireOrArc_IsDrawn()
+    {
+        var square = new[] { new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20) };
+        Area(7001, new Vector2(100, 100), square);
+        Area(7003, new Vector2(150, 150), square);
+        var unit = Unit(9210, "1st Squad", 7001, 7003);
+        var sector = _w.GetComponentRO<EngagementArea>(unit);
+        sector.ArcSet = 1; sector.LeftBearing = 0f; sector.RightBearing = 90f;
+        _w.SetComponent(unit, sector);
+
+        var mask = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = false }.ToMask();
+        Assert.True(mask.IsSet(0));
+        _draw.SetActiveLayers(mask);
+        new SectorAreasGizmo().Draw(_w, _draw);
+        new SectorArcGizmo().Draw(_w, unit, _draw);
+        Assert.Empty(_draw.GetFrame().ToArray());
+
+        _draw.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Sectors = true }.ToMask());
+        new SectorAreasGizmo().Draw(_w, _draw);
+        new SectorArcGizmo().Draw(_w, unit, _draw);
+        Assert.NotEmpty(Lines(SectorAreasGizmo.ColourOf(9210)));
+        Assert.NotEmpty(Lines(SectorAreasGizmo.NoFireColour));
     }
 }

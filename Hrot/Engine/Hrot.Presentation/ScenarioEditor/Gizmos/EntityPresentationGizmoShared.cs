@@ -129,7 +129,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             Rgba32 color,
             float thickness = 1.5f,
             LineStyle style = LineStyle.Solid,
-            float z = 0f)
+            float z = 0f,
+            byte layer = 0)
         {
             if (points == null || points.Count < 2) return;
 
@@ -143,7 +144,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     new Vector3(pa.X, pa.Y, z),
                     new Vector3(pb.X, pb.Y, z),
                     color, thickness, SizeMode.ScreenPixels,
-                    PipelineTarget.All, layer: 0, style: style);
+                    PipelineTarget.All, layer: layer, style: style);
             }
         }
 

@@ -130,6 +130,10 @@ namespace Hrot.SimHost.Tests.Gizmos
             }
             Assert.True(new LayerControlDto { UnitDetails = true }.ToMask().IsSet(DebugTraceLayers.UnitDetails));
             Assert.True(new LayerControlDto { SpatialGrid = true }.ToMask().IsSet(DebugTraceLayers.SpatialGrid));
+            // ⭐ CE-1225 — the sectors have their own toggle, OFF by default, inside the toggled range (the selection ring stays above it)
+            Assert.False(all.IsSet(DebugTraceLayers.Sectors), "the sectors default off");
+            Assert.True(new LayerControlDto { Sectors = true }.ToMask().IsSet(DebugTraceLayers.Sectors));
+            Assert.True(DebugTraceLayers.Sectors < LayerControlDto.FirstUntoggledLayer, "the sectors lie below the always-on range");
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that

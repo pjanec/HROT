@@ -60,9 +60,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool UnitDetails { get; set; }
         /// <summary>⭐ CE-1065 — the spatial hash grid (layer 13). Off by default.</summary>
         public bool SpatialGrid { get; set; }
+        /// <summary>⭐ <c>CE-1225</c> — every sector: the units' sector areas, the NoFire areas and the commanders' arcs (layer 14;
+        /// docs/DESIGN_Command_Display.md §8). Off by default.</summary>
+        public bool Sectors { get; set; }
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 14;
+        public const int FirstUntoggledLayer = 15;
 
         // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
         //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
@@ -133,6 +136,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Labels) mask.SetBit(DebugTraceLayers.Labels);
             if (UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (SpatialGrid) mask.SetBit(DebugTraceLayers.SpatialGrid);
+            if (Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }

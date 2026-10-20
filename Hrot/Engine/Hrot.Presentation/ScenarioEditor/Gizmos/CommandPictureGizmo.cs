@@ -123,7 +123,9 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
 /// <summary>
 /// ⭐ <c>CE-1192</c> (UI-5b, 📄 docs/DESIGN_Command_Display.md §6 D2) — a selected / pinned man's own sector ARC (<see cref="EngagementArea"/>
 /// <c>ArcSet</c>): two edges from the arc's origin along its compass bearings and the far edge at its range (50 m when unlimited), in his
-/// unit's colour. Every man may carry one, so it is drawn only for the selection (family <c>SquadAssignment</c>).
+/// unit's colour. Every man may carry one, so it is drawn only for the selection (family <c>SquadAssignment</c>). ⭐ <c>CE-1225</c> (§8 S-1,
+/// S-3): on the <see cref="DebugTraceLayers.Sectors"/> layer, on the ground (z = 0, draped in 3-D); a COMMANDER's arc is also drawn for
+/// everyone by <see cref="SectorAreasGizmo"/> (the same line twice when he is selected — S-5).
 /// </summary>
 [GizmoProjector(typeof(EngagementArea), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
 public sealed class SectorArcGizmo : IStatelessGizmo
@@ -132,25 +134,36 @@ public sealed class SectorArcGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Sectors)) return;
         ref readonly var a = ref view.GetComponentRO<EngagementArea>(entity);
         if (a.ArcSet == 0) return;
         long net = view is EntityRepository repo && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
             && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
             ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value : entity.Index;
-        var colour = SectorAreasGizmo.ColourOf(net);
+        DrawArc(draw, in a, SectorAreasGizmo.ColourOf(net));
+    }
+
+    /// <summary>An arc's two edges and its far edge on the ground (z = 0) on the Sectors layer; nothing when it has no arc.</summary>
+    public static void DrawArc(IDebugDrawBuilder draw, in EngagementArea a, Rgba32 colour)
+    {
+        if (a.ArcSet == 0) return;
         float far = a.MaxRange > 0f ? a.MaxRange : UnlimitedDrawRange;
         float near = MathF.Max(0f, a.MinRange);
         float left = a.LeftBearing, sweep = ((a.RightBearing - a.LeftBearing) % 360f + 360f) % 360f;
         if (sweep == 0f) sweep = 360f;
-        draw.DrawLine(a.ArcOrigin + Dir(left) * near, a.ArcOrigin + Dir(left) * far, colour, 1.5f);
-        draw.DrawLine(a.ArcOrigin + Dir(left + sweep) * near, a.ArcOrigin + Dir(left + sweep) * far, colour, 1.5f);
+        var origin = new Vector3(a.ArcOrigin.X, a.ArcOrigin.Y, 0f);
+        Line(draw, origin + Dir(left) * near, origin + Dir(left) * far, colour);
+        Line(draw, origin + Dir(left + sweep) * near, origin + Dir(left + sweep) * far, colour);
         int steps = Math.Max(2, (int)(sweep / 10f));
         for (int i = 0; i < steps; i++)
         {
             float b0 = left + sweep * i / steps, b1 = left + sweep * (i + 1) / steps;
-            draw.DrawLine(a.ArcOrigin + Dir(b0) * far, a.ArcOrigin + Dir(b1) * far, colour, 1.5f);
+            Line(draw, origin + Dir(b0) * far, origin + Dir(b1) * far, colour);
         }
     }
+
+    private static void Line(IDebugDrawBuilder draw, Vector3 from, Vector3 to, Rgba32 colour)
+        => draw.DrawLine(from, to, colour, 1.5f, layer: DebugTraceLayers.Sectors);
 
     /// <summary>A compass bearing (0 = north +Y, 90 = east +X) as a unit vector on the map plane.</summary>
     public static Vector3 Dir(float bearingDeg)

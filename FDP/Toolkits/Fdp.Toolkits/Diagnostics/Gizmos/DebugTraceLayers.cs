@@ -25,11 +25,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ CE-1065 — the spatial hash's tiles (<c>SpatialGridGizmo</c>): hundreds of long lines over the whole map. Off by
         /// default; before, only the Entities layer could hide it.</summary>
         public const byte SpatialGrid = 13;
-        /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): the first bit no layer toggle owns
-        /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. 🔒 User, 2026-10-16: <i>"I need the entity selection and right
+        /// <summary>⭐ <c>CE-1225</c> (docs/DESIGN_Command_Display.md §8 S-1) — every SECTOR: the units' sector areas, the NoFire areas and
+        /// the arcs (<c>SectorAreasGizmo</c>, <c>SectorArcGizmo</c>). Off by default; before, only the Entities layer could hide them.</summary>
+        public const byte Sectors = 14;
+        /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
+        /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
+        /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right
         /// click work always independently of what i pick in the debug layers menu."</i> It used to sit on layer 0 with the entity symbols,
         /// and turning <c>Entities</c> off hid it.</summary>
-        public const byte Selection = 14;
+        public const byte Selection = 255;
     }
 }
 

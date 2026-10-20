@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14 (rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-20 (rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5e finer layers, one checkbox per kind (CE-1203, DESIGN — leans await the user) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -23,6 +23,7 @@ related-designs:
   - DESIGN_Thermal_And_Acoustic_Sensing.md — the sound sources and anonymous heard estimates §5a's hearing layer draws.
   - designs/replay-and-modules/DESIGN.md — what runs during replay; §5a's traces are restored state, drawn by gizmos outside the disabled groups.
   - UX/UX_Feature_Map_Parity.md §3.2f — the per-projector visibility seam §5b's family policy plugs into.
+  - DESIGN_Command_Display.md — OWNS the sector, picture and report drawings; its §8 adds the Sectors layer (CE-1225) that §5e's table lists.
   - designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md §6/§8 — the AI overlay family §5b folds into gizmos.
   - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
@@ -916,6 +917,105 @@ classDiagram
 - `GizmoPresentationTests.CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing`.
 - `EntityPlacementGizmoTests.CE1065_TheGhost_IsHalfTheOldSize` and `EntityPickerGizmoTests.CE1065_TheCrosshair_IsHalfTheOldSize`.
 - F: `GizmoPresentationTests.CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops` and `CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable`; `LayerControlGizmoTests.CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt`; `GizmoInteractionTranslatorTests.CE1066_APanelsClose_RoundTripsAsInspectorClosed`.
+
+## 5e. Finer layers — one checkbox per kind of gizmo *(`CE-1203`, ui, `2026-10-20`; build-state: DESIGN — leans below await the user; the Sectors row is `CE-1225`, BUILT, [Command Display §8](DESIGN_Command_Display.md))*
+
+🔒 **User, `2026-10-19`:** *"lots of gizmos is hidden under 'Entities' layer, i need finer granularity — separate checkboxes. now when i
+click the entity i see many different gizmos and because there is no checkbox i do not even know what they mean … Maybe more
+layers-categories."* · `2026-10-20`: *"many other gizmos now gated by one single Entites checkbox should get their own checkbox, pls check
+the recorded item on that topic and suggest."*
+
+### INVENTORY *(graph CLI `query_graph` IMPLEMENTS → `IStatelessGizmo` 38, `IGlobalStatelessGizmo` 15 (`has_more:false`, tests included);
+then per projector file: `Family =` and every `layer:` / `IsLayerActive` / `Card(…, layer)`; `check_index_coverage` is not reachable
+through the CLI — the 38 + 15 were cross-checked against `git grep "\[GizmoProjector"` (47 production files))*
+
+| on layer 0 ("Entities") today | draws | family (scope) | ⭐ proposed checkbox |
+|---|---|---|---|
+| `EntityPresentationGizmo` | the unit symbol / silhouette and its pick box | — | **Entities** (stays) |
+| `ProjectilePresentationGizmo`, `LightweightRoundGizmo` | rounds and grenades in flight | — | **Rounds** · on |
+| `SquadGizmo`, `CommandPictureGizmo`, `CommandPictureAbsentGizmo` | leader → member lines, `E#R#`, phase, shared contacts; the commander's reported picture | SquadAssignment | **Squad & command** · on (selected) |
+| `HillAttackGizmo` *(behaviors' file)* | the hill-attack play's state | — | **Squad & command** |
+| `ActionStatusGizmo`, `PeekAndFireGizmo` | busy channels (`W aiming 0.4/0.8s`); peek-and-fire slots and phase | Channels | **Actions** · on (selected) |
+| `UtilityDecisionGizmo` | each decision's winner and margin | UtilityDecision | **Utility** · on (selected) |
+| `EqsSensorGizmo` | scored candidate points | Eqs | **EQS** · on (selected) |
+| `MissionPresentationGizmo` | unit → its mission tasks (orange) | Path ⚠ on layer 0 | **Paths** (its family's layer) |
+| `RouteGizmo` | route entities, waypoints, flyer heights | — | **Routes** · on |
+| `TacticalAreaGizmo`, `MapOverlayGizmo` | tactical-graphic areas; drawn overlay polylines | — | **Tactical graphics** · on |
+| `TerrainZoneGizmo` | terrain zones and their load state | — | **Terrain zones** · on |
+| `TerrainWorldGizmo` | the 2-D terrain: ground cover, buildings, labels | — | **Terrain (2-D)** · on |
+| `TrafficRoadGizmo` | SUMO lanes, lights, pedestrians, non-entity cars | — | **Traffic** · on |
+| `SectorAreasGizmo`, `SectorArcGizmo` | sectors, NoFire areas, arcs | SquadAssignment (arcs) | **Sectors** · off — ✅ BUILT (`CE-1225`) |
+| `ContextMenuProjectorGizmo`, `CanvasContextMenuGizmo` | menus, no drawing | — | ⛔ never gated (CE-1160) |
+| `EntityEditorPolylineGizmo` | — | — | not registered (attribute commented out) |
+
+Layers that already have a checkbox but hold two kinds: **Perception** (1) = vision cones (family Perception) + contact lines and heard
+rings (family Contacts); **AI helpers** (2) = nav arrow + danger areas. Measured: the panel draws a nested DTO object as a collapsible tree
+node (`ImGuiPropertyTreeAdapter.DrawEditNode`, `TreeNode` per child) ⇒ categories need no new UI; ⛔ there is NO tooltip / description
+support today (searched the adapter and `StructInspectorProjector`) ⇒ the one-line meaning needs a small addition.
+
+```mermaid
+graph TD
+  P["View, Tactical Map Layers..."] --> U["Units: Entities · Labels · Unit details · Rounds"]
+  P --> C["Command: Squad & command · Sectors · Paths · Routes"]
+  P --> A["AI: Vision cones · Contacts · Actions · Utility · EQS · AI helpers"]
+  P --> F["Fire: Fire traces · Blast · Hearing"]
+  P --> M["Map: Terrain (2-D) · Terrain zones · Roads · Traffic · Tactical graphics · Doors · Cover · Navmesh · Spatial grid"]
+  A -.->|"each family row also keeps 'selected only'"| SC["GizmoFamilies scope (§5b)"]
+```
+*What the picture shows that prose hid:* five groups, every row one kind of drawing — the per-family "selected only" ticks stay, but now sit
+beside a family's own on/off instead of under Entities.
+
+```mermaid
+classDiagram
+  class DebugTraceLayers { <<exists, changed>> one const per row, contiguous from 0 }
+  class LayerControlDto {
+    <<exists, changed>>
+    Units, Command, Ai, Fire, Map : nested groups
+    one bool per row
+    ToMask() one bit per row
+  }
+  class AGizmo {
+    <<each of the 15 above, changed>>
+    Draw() returns at once when its layer is hidden
+    passes layer on each draw call
+  }
+  class EntityPresentationGizmoShared { <<exists>> DrawClosedPolylineOutline(…, layer) (CE-1225) }
+  class EditNode { <<StructEdit, changed>> Description : new, from [Description] }
+  class ImGuiPropertyTreeAdapter { <<exists, changed>> tooltip on hover }
+  LayerControlDto --> DebugTraceLayers
+  AGizmo --> DebugTraceLayers
+  AGizmo ..> EntityPresentationGizmoShared
+  LayerControlDto ..> EditNode : a row's meaning
+  ImGuiPropertyTreeAdapter ..> EditNode
+```
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant L as LayerControlGizmo
+  participant B as DebugPrimitiveBuffer
+  participant X as a gizmo on the Actions layer
+  U->>L: unticks "Actions" (in the AI group)
+  L->>B: SetActiveLayers(mask without Actions)
+  X->>B: IsLayerActive(Actions)?
+  B-->>X: false
+  X-->>X: return (no work, nothing emitted)
+  U->>L: ticks it again
+  X->>B: DrawText(…, layer: Actions)
+```
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **FL-1** | the rows | ⭐ the table above: 10 new checkboxes (Rounds, Squad & command, Actions, Utility, EQS, Routes, Tactical graphics, Terrain zones, Terrain (2-D), Traffic) + Perception split into Vision cones / Contacts; Mission lines join Paths | one checkbox per CLASS — 30+ rows, and three of them draw one idea |
+| **FL-2** | defaults | ⭐ every new row ON = what is drawn today (the families still selected-only), so nothing changes until a box is unticked; Sectors stays off | new rows off — the 2-D terrain and routes would vanish on first start |
+| **FL-3** | the mechanism | ⭐ the pattern the 14 existing layers already use: each gizmo passes `layer:` on its draw calls (📐 measured: **49** across the 15 gizmos, plus the shared outline helper) and returns at once when `IsLayerActive` is false — so a hidden layer costs no work (EQS and the 2-D terrain are the heavy ones); a rail per row asserts every primitive the gizmo emits carries its layer | a `[GizmoProjector(Layer = …)]` the gizmo system stamps as an "ambient" layer — a second rule beside the per-call one for 49 sites |
+| **FL-4** | groups | ⭐ five nested groups in the panel (Units · Command · AI · Fire · Map), each a collapsible node | one flat list of ~25 rows |
+| **FL-5** | the meaning | ⭐ a `[Description]` on each row, shown on hover (StructEdit `EditNode.Description` + `ImGui.SetItemTooltip`) | a help window — one more panel to find |
+| **FL-6** | the selection ring | stays above every toggle (bit 255, `CE-1225` S-4) | — |
+
+⚠ **Cross-lane:** FL-5 touches StructEdit (FDP); `HillAttackGizmo` is behaviors' (its four draw calls).
+⚠ **Unmeasured:** whether `TerrainWorldGizmo` also draws over the 3-D terrain (a duplicate there would argue for "Terrain (2-D)" defaulting
+off in 3-D) — checked at build, in a frame.
 
 ## 6. Slices
 
