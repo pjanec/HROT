@@ -737,6 +737,14 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal(SoundSourceClass.HeavyWeapon, A(t)!.FiringClass);
             Assert.Equal(SoundSourceClass.TrackedEngine, A(TkbEntityTypes.Sph_M109)!.MovingClass);
             Assert.Equal(SoundSourceClass.SmallArms, A(TkbEntityTypes.WeaponSystem_PickUpRifle)!.FiringClass);
+
+            // ⭐ CE-3278 — a weapon whose round BURSTS states its burst's carry (the burst is stamped on the shooter); a ball / AP round none
+            foreach (var t in new[] { TkbEntityTypes.WeaponSystem_Mortar60, TkbEntityTypes.WeaponSystem_Mortar81, TkbEntityTypes.WeaponSystem_Mortar120,
+                                      TkbEntityTypes.WeaponSystem_Howitzer105, TkbEntityTypes.Sph_M109, TkbEntityTypes.WeaponSystem_Javelin,
+                                      TkbEntityTypes.WeaponSystem_KornetTripod, TkbEntityTypes.WeaponSystem_Zu23 })
+                Assert.True(A(t)!.DetonationAudibleRange > 0f, $"{db.GetByType(t)!.Name}'s burst is unheard");
+            Assert.Equal(R(TkbEntityTypes.WeaponSystem_Mortar81), A(TkbEntityTypes.WeaponSystem_Mortar81)!.DetonationAudibleRange);
+            Assert.Equal(0f, A(TkbEntityTypes.WeaponSystem_M2Hmg)!.DetonationAudibleRange);
         }
 
         /// <summary>

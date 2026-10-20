@@ -605,3 +605,8 @@ thousand listeners scan one short list — never a wider broadphase each.
 ⚠ **The step toward [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md) WQ-E** (approved, not built): its loudness model reads every
 TKB range as *"the distance where the sound falls to the hearing threshold"* — the source's carry governs, walls subtract dB. Under it the
 ear range becomes a SENSITIVITY, and this loud-class exception folds into the general rule.
+
+⭐ **`2026-10-20` — measured live (uc-request-chain, behaviors' note):** a BURST is stamped on its shooter's emitter, so a weapon whose
+round bursts must state `DetonationAudibleRange` — BR-14 had left it 0 (fixed, `CE-3278`). ⚠ Open: the EQS module times out
+intermittently on a 541-entity scene (`CE-3279`); a sound that lingers 0.5 s is lost with a skipped solve — §6 B's *"last serial it
+heard"* (not built) is the robust form.

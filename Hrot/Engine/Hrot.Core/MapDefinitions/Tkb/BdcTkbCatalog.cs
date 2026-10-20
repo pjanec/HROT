@@ -240,7 +240,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .HiddenFromPalette(type);
             if (report.Range > 0f)
                 builder.WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
-                    { FiringAudibleRange = report.Range, FiringClass = report.Class } });
+                    { FiringAudibleRange = report.Range, FiringClass = report.Class, DetonationAudibleRange = report.Burst } });   // ⭐ CE-3278 — and its burst
             if (turret != null) builder.WithTurrets(type, turret);
             if (ws.NeedsOperator)
             {
@@ -337,22 +337,25 @@ namespace Hrot.Map.Definitions.Tkb
         private const float PersonRunSpeed = 6.0f, PersonAcceleration = 2.5f;
 
         /// <summary>⭐ BR-14 — a weapon's report: how far its shot is heard (m) and what it sounds like (a class, never an identity — R-207).</summary>
-        private readonly record struct Report(float Range, SoundSourceClass Class);
+        private readonly record struct Report(float Range, SoundSourceClass Class, float Burst = 0f);
+        // ⭐ CE-3278 — a round's BURST is stamped on its shooter's emitter (SoundEmissionSystem: DetonationNotification.Shooter), so a weapon
+        //   that fires an explosive round states how far its burst carries (class Explosion, the translator's default); 0 = a round that
+        //   does not burst (ball, AP). 🔴 BR-14 gave the tubes no burst: a shell bursting 35 m from a soldier was heard by nobody.
 
         // ⭐ BR-14 — the reports. Starter figures, rounded (an open field, no wind); the hearing rule caps them by the listener's ear.
         private static readonly Report HmgReport      = new(1000f, SoundSourceClass.HeavyWeapon);   // the technicals' figure (12.7 / 7.62 mm minigun)
-        private static readonly Report CannonReport   = new(1500f, SoundSourceClass.HeavyWeapon);   // the ZU-23's 23 mm
-        private static readonly Report LauncherReport = new(500f,  SoundSourceClass.HeavyWeapon);   // a shoulder launch (the urban RPG's)
-        private static readonly Report AtgmReport     = new(800f,  SoundSourceClass.HeavyWeapon);   // a tripod ATGM's launch
+        private static readonly Report CannonReport   = new(1500f, SoundSourceClass.HeavyWeapon, Burst: 600f);   // the ZU-23's 23 mm (its HEI bursts)
+        private static readonly Report LauncherReport = new(500f,  SoundSourceClass.HeavyWeapon, Burst: 800f);   // a shoulder launch (the urban RPG's, and its burst)
+        private static readonly Report AtgmReport     = new(800f,  SoundSourceClass.HeavyWeapon, Burst: 800f);   // a tripod ATGM's launch and burst
         private static readonly Report RifleReport    = new(400f,  SoundSourceClass.SmallArms);     // the urban rifle's
         private static readonly Report PistolReport   = new(200f,  SoundSourceClass.SmallArms);
         private static readonly Report MgReport       = new(600f,  SoundSourceClass.SmallArms);     // a 7.62 mm RWS
         /// <summary>⭐ BR-14 — the tubes and guns (Urban Battle §4 ②: "a mortar ≈ 1.5–2 km, a howitzer more").</summary>
-        private static readonly Report Mortar60Report = new(1500f, SoundSourceClass.HeavyWeapon),
-                                       Mortar81Report = new(2000f, SoundSourceClass.HeavyWeapon),
-                                       Mortar120Report = new(2500f, SoundSourceClass.HeavyWeapon),
-                                       Howitzer105Report = new(4000f, SoundSourceClass.HeavyWeapon),
-                                       Howitzer155Report = new(5000f, SoundSourceClass.HeavyWeapon);
+        private static readonly Report Mortar60Report = new(1500f, SoundSourceClass.HeavyWeapon, Burst: 1500f),
+                                       Mortar81Report = new(2000f, SoundSourceClass.HeavyWeapon, Burst: 2000f),
+                                       Mortar120Report = new(2500f, SoundSourceClass.HeavyWeapon, Burst: 2500f),
+                                       Howitzer105Report = new(4000f, SoundSourceClass.HeavyWeapon, Burst: 4000f),
+                                       Howitzer155Report = new(5000f, SoundSourceClass.HeavyWeapon, Burst: 5000f);
         /// <summary>⭐ BR-14 — a tracked hull's engine (the urban APC's figure).</summary>
         private const float TrackedEngineRange = 300f;
 
@@ -561,6 +564,7 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     MovingAudibleRange = TrackedEngineRange, MovingClass = SoundSourceClass.TrackedEngine,
                     FiringAudibleRange = Howitzer155Report.Range, FiringClass = Howitzer155Report.Class,
+                    DetonationAudibleRange = Howitzer155Report.Burst,   // ⭐ CE-3278
                 } })
                 .WithFaction(type, 1)
                 .WithBehavior(type)
