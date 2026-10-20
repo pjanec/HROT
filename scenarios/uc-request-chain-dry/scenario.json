@@ -644,6 +644,43 @@
         "Params": "{\"Battery\": 9750, \"Rounds\": 2}",
         "Origin": "Superior"
       }
+    },
+    "d0c70000-0000-4000-8000-000000009757": {
+      "SimTransform": {
+        "Position": [
+          656,
+          1586,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9757
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Mortar Ammo Bearer",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
     }
   }
 }
