@@ -62,7 +62,20 @@ def scenario_names(name):
 
 def load(name):
     resp = call("POST", "/scenario/load/live", {"name": name, "waitForReady": True})
-    if "http" in resp:
+    if "http" in resp and resp.get("http") == 504 and "did not reach a settled" in str(resp.get("body")):
+        # ⭐ Urban Battle §6 — a big terrain (demo-city: 541 entities, ~29 s to OperatingLive, measured 2026-10-20) can outlast the
+        #   endpoint's fixed 30 s wait. Keep waiting on /status for OperatingLive with a steady entity count — never for ever.
+        prev, steady, end = None, 0, time.time() + 120
+        while time.time() < end and steady < 3:
+            st = data(call("GET", "/status")) or {}
+            count = st.get("entityCount")
+            steady = steady + 1 if st.get("clusterState") == "OperatingLive" and count == prev else 0
+            prev = count
+            time.sleep(1.0)
+        if steady < 3:
+            sys.exit(f"load failed: {resp} — and no settled OperatingLive within 120 s more (last status {st})")
+        print(f"   (the load outlasted the endpoint's 30 s wait; settled at {prev} entities)")
+    elif "http" in resp:
         sys.exit(f"load failed: {resp}")
     call("POST", "/perspective", {"name": "Scenario"})
     # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
@@ -4184,6 +4197,58 @@ def run_uc_convoy_hit(c, timeout):
         c.ok(fights, f"④ …and fights (squad task {task_name(sq)})")
 
 
+
+# ── Urban Battle §6 L7 — uc-request-chain (demo-city): spotter → mortar → heard launch → SPOT → REQUEST → HQ → armed search ────────
+def run_uc_request_chain(c, timeout):
+    """⭐ Urban Battle §6 L7 — uc-request-chain (DESIGN_Urban_Battle_Demo.md §6; Command Chain §8d / §8d-a; Indirect Fire §3.11a;
+    Air Operations). Nothing is faked and nothing is sent by time: ① the insurgent spotter calls his mortar on the platoon he sees
+    (CE-2308) · ② a Blue man hears the launch past 1 km ⇒ his squad's staff SPOTs IndirectFire (CE-2309) · ③ the platoon asks the HQ
+    for FireSupport (CE-2310) · ④ the HQ sends its free AH-64 on an armed search of the point (CE-2312, CE-2311) — and not before ③."""
+    ids = ids_by_name()
+    hq, heli, pl, spot = ids.get("Blue HQ"), ids.get("Apache"), ids.get("Blue Platoon"), ids.get("Spotter")
+    tubes = [ids.get("Mortar Tube 1"), ids.get("Mortar Tube 2")]
+    crew = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
+    squads = [ids.get("Blue Squad 1"), ids.get("Blue Squad 2")]
+    if not c.ok(None not in (hq, heli, pl, spot) and None not in tubes + crew + squads, f"the HQ, its Apache, the platoon and the mortar cell are loaded"):
+        return
+    mortar_at = position(tubes[0])
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonDefend" and task_name(spot) == "SpotForFire", 30),
+         f"the plays run (HQ {task_name(hq)}, platoon {task_name(pl)}, spotter {task_name(spot)}, Apache {task_name(heli)})")
+    shooters = set(tubes + crew)
+    log, seen = [], {}
+    end = time.time() + timeout
+    while time.time() < end:
+        t = sim_time() or 0.0
+        if "rounds" not in seen and any(d.get("shooter") in shooters for d in _detonations()):
+            seen["rounds"] = t; log.append(f"{t:7.1f} mortar rounds land")
+        reps = squad_reports(last=256)
+        if "spot" not in seen:
+            r = next((r for r in reps if r.get("kind") == "Spot" and "IndirectFire" in str(r.get("equipment")) and r.get("from") in squads), None)
+            if r: seen["spot"] = t; seen["spotAt"] = r.get("at"); log.append(f"{t:7.1f} SPOT IndirectFire from {r.get('from')} at {r.get('at')}")
+        if "ask" not in seen:
+            r = next((r for r in reps if r.get("kind") == "Request" and r.get("subtype") == "FireSupport" and r.get("from") == pl), None)
+            if r: seen["ask"] = t; log.append(f"{t:7.1f} REQUEST FireSupport from the platoon at {r.get('at')}")
+        tk = task_name(heli)
+        if tk and "heli" not in seen:
+            seen["heli"] = t; seen["heliTask"] = tk; log.append(f"{t:7.1f} Apache ordered: {tk} {json.dumps(_order(heli).get('params'))[:200]}")
+        if "heli" in seen:
+            break
+        time.sleep(1.0)
+    print("    timeline:")
+    for line in log:
+        print("      " + line)
+    c.ok("rounds" in seen, "① the spotter's mortar fires on the platoon")
+    c.ok("spot" in seen, "② a Blue squad's staff SPOTs IndirectFire (the heard launch)")
+    if "spot" in seen and seen.get("spotAt") and mortar_at:
+        d = math.hypot(seen["spotAt"][0] - mortar_at[0], seen["spotAt"][1] - mortar_at[1])
+        print(f"    the SPOT's estimate is {d:.0f} m from the tubes")
+    c.ok("ask" in seen, "③ the platoon asks the HQ for FireSupport")
+    c.ok(seen.get("heliTask") == "AirArmedSearch", f"④ the HQ sends the Apache on an armed search ({seen.get('heliTask')})")
+    c.ok("ask" in seen and "heli" in seen and seen["heli"] >= seen["ask"] - 0.5, "④ …and only after the request (nothing sent without a report)")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4268,7 +4333,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
