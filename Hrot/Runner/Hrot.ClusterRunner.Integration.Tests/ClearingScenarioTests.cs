@@ -1,0 +1,228 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Fdp.Core;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Squad;
+using Fdp.Toolkit.Squad.Command;
+using Hrot.NED.Descriptors.Orchestration;
+using Xunit;
+using Xunit.Abstractions;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+
+namespace Hrot.ClusterRunner.Integration.Tests;
+
+/// <summary>
+/// ⭐⭐ The building-clearing demos (📄 docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §8), each the in-process twin of its
+/// live check: the shipped scenario on the four hosts, the squad's reports read from the node's report log (the record every node holds,
+/// §8.2), the people read from the CGF world.
+/// </summary>
+[Collection("HeavyE2ETests")]
+public sealed class ClearingScenarioTests : IDisposable
+{
+    private const int DomainBase = 196;   // CycloneDDS accepts 0–232; 196–199 used by no other rail (grep of DomainBase, 2026-10-20)
+    private static int _domainSeq = DomainBase - 1;
+    private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
+
+    private readonly List<string> _staged = new();
+    private readonly ITestOutputHelper _out;
+
+    public ClearingScenarioTests(ITestOutputHelper output) => _out = output;
+
+    public void Dispose()
+    {
+        foreach (var id in _staged) NasScenarioStaging.Remove(id);
+    }
+
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
+        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
+    }
+
+    private static Entity ByName(EntityRepository world, string name)
+    {
+        for (int i = 0; i <= world.MaxEntityIndex; i++)
+        {
+            var e = world.GetEntityByIndex(i);
+            if (!world.IsAlive(e) || !world.HasComponent<EntityInfo>(e)) continue;
+            if (world.GetComponent<EntityInfo>(e).Name.ToString() == name) return e;
+        }
+        return Entity.Null;
+    }
+
+    /// <summary>Stages <c>scenarios/&lt;name&gt;</c>, boots the four hosts and takes the cluster live.</summary>
+    private async Task<HrotRunnerHarness> Live(string scenario)
+    {
+        var id = scenario.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
+        _staged.Add(id);
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(id));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", scenario, "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
+
+        var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+        {
+            harness.PumpFrames(1);
+            Thread.Sleep(10);
+        }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = id }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+            $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+        return harness;
+    }
+
+    /// <summary>
+    /// The PROGRESS reports a squad has made, in order: (subtype, where). ⚠ A squad with NO superior never SENDS (its reports wait in
+    /// its own <see cref="ReportOutbox"/>, CE-2304) — so the node's log stays empty for a lone squad and the record is its outbox, which
+    /// keeps the newest eight: <see cref="Collect"/> samples it often and keeps each report once (by its sequence number).
+    /// </summary>
+    private sealed class Reports
+    {
+        private readonly SortedDictionary<uint, CommandReport> _seen = new();
+        public void Collect(EntityRepository cgf, Entity squad)
+        {
+            foreach (var e in SquadReportLog.Peek(cgf)?.Recent(SquadReportLog.Capacity) ?? Enumerable.Empty<SquadReportLogEntry>())
+                if (e.FromUnit.Equals(squad)) _seen.TryAdd(e.Report.Seq, e.Report);
+            if (squad.IsNull || !cgf.IsAlive(squad) || !cgf.HasComponent<ReportOutbox>(squad)) return;
+            var outbox = cgf.GetComponent<ReportOutbox>(squad);
+            for (int i = 0; i < outbox.Queued.Count; i++) _seen.TryAdd(outbox.Queued.Items[i].Report.Seq, outbox.Queued.Items[i].Report);
+        }
+        public List<(ProgressKind Kind, Vector3 At)> Progress()
+            => _seen.Values.Where(r => r.Kind == ReportKind.Progress).Select(r => ((ProgressKind)r.Subtype, r.At)).ToList();
+    }
+
+    /// <summary>Pumps <paramref name="frames"/> in one-second steps, collecting the squad's reports after each.</summary>
+    private static void Pump(HrotRunnerHarness harness, EntityRepository cgf, Entity squad, Reports reports, int frames)
+    {
+        for (int f = 0; f < frames; f += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); }
+    }
+
+    /// <summary>The squad commander's drill: phase, since when, and each member's order (kind @ point).</summary>
+    private static string Drill(EntityRepository w, Entity squad)
+    {
+        var t = SquadDrillTrace.Of(w, squad);
+        if (!t.Active) return "none";
+        return $"k{t.Kind} p{t.Phase}@{t.PhaseSince:F0} [{string.Join(" ", t.Orders.Select(o => $"{o.Kind}({o.Point.X:F1},{o.Point.Y:F1})"))}] "
+             + $"hist [{string.Join(" ", t.History.Select(h => $"{h.Phase}/{h.Event}@{h.At:F0}"))}]";
+    }
+
+    private static bool InTheFight(EntityRepository w, Entity e) => !e.IsNull && w.IsAlive(e) && Injury.IsInTheFight(w, e);
+
+    private static string Where(EntityRepository w, Entity e)
+        => !e.IsNull && w.IsAlive(e) && w.HasComponent<SimTransform>(e)
+            ? $"({w.GetComponent<SimTransform>(e).Position.X:F1},{w.GetComponent<SimTransform>(e).Position.Y:F1}) {(InTheFight(w, e) ? "up" : "DOWN")}"
+            : "gone";
+
+    // ── bc-room-clear (BC-1, CE-2257; §8.1) ────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2257</c> BC-1 — <c>bc-room-clear</c> in-process: a six-man squad at room A's north side door of the CQB house
+    /// (<c>bt-range</c>, SW corner (40,100)) is ordered <c>ClearRoom</c> A; two insurgents (<c>CombatPosture</c>, staying) hold its south
+    /// corners. ③ both insurgents down · ④ a <c>RoomClear</c> report for A (its point inside A), after them · no friend lost.
+    /// </summary>
+    [Fact(Timeout = 600_000, Skip = "CE-2257: bc-room-clear does not pass yet — work in progress (the stack flows in one man at a time)")]
+    public async Task CE2257_BcRoomClear_TheSquadClearsRoomA_BothInsurgentsDown_RoomClearReported()
+    {
+        using var harness = await Live("bc-room-clear");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Insurgent 2").IsNull && !ByName(cgf, "Blue Rifleman 5").IsNull, timeoutFrames: 2000),
+            "the squad and the insurgents spawn on CGF");
+        var squad = ByName(cgf, "Blue Squad");
+        var reports = new Reports();
+        var insurgents = new[] { ByName(cgf, "Insurgent 1"), ByName(cgf, "Insurgent 2") };
+        var blue = new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4", "Blue Rifleman 5" }
+            .Select(n => ByName(cgf, n)).ToArray();
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        string Runs(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<BehaviorState>(e)
+            && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var n) ? n : "-";
+        string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e) + ":" + Runs(e)))}] blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] "
+                        + $"squad {Runs(squad)} drill {Drill(cgf, squad)} progress [{string.Join(" ", reports.Progress().Select(p => $"{p.Kind}@({p.At.X:F1},{p.At.Y:F1})"))}]";
+
+        bool RoomAClear() => reports.Progress().Any(p => p.Kind == ProgressKind.RoomClear && p.At.X is > 40f and < 47f && p.At.Y is > 106f and < 110f);
+        for (int f = 0; f < 60 * 240 && !RoomAClear(); f += 600)
+        {
+            Pump(harness, cgf, squad, reports, 600);
+            _out.WriteLine($"f{f}: {State()}");
+        }
+        _out.WriteLine("end: " + State());
+        Assert.True(insurgents.All(e => !InTheFight(cgf, e)), $"③ both insurgents down; {State()}");
+        Assert.True(RoomAClear(), $"④ RoomClear for room A; {State()}");
+        Assert.True(blue.All(e => InTheFight(cgf, e)), $"no friend lost; {State()}");
+    }
+
+    // ── bc-house-clear (BC-3, CE-2259; §8.1) ───────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The CQB house's rooms (world, SW corner (40,100)): hallway, A, B, C, D, E — the quads the RoomClear points must fall in.</summary>
+    private static readonly (string Name, float X0, float Y0, float X1, float Y1)[] CqbRooms =
+    {
+        ("hall", 40f, 104f, 54f, 106f), ("A", 40f, 106f, 47f, 110f), ("B", 47f, 106f, 54f, 110f),
+        ("C", 40f, 100f, 49f, 104f), ("D", 49f, 100f, 51.8f, 104f), ("E", 51.8f, 100f, 54f, 104f),
+    };
+
+    private static string RoomAt(Vector3 at)
+    {
+        foreach (var r in CqbRooms)
+            if (at.X >= r.X0 && at.X <= r.X1 && at.Y >= r.Y0 && at.Y <= r.Y1) return r.Name;
+        return "?";
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2259</c> BC-3 — <c>bc-house-clear</c> in-process: the same six-man squad at the CQB house's FRONT door is ordered
+    /// <c>ClearBuilding</c>; insurgents hold room A's far corner and the closet E; civilians stand in B and C. ① a <c>RoomClear</c> for
+    /// each of hallway, A, B, C, D, E — each ONCE, E after D · ③ both insurgents down, both civilians unhurt · ④ <c>BuildingClear</c> last.
+    /// ⏭ "held" (§8.1 ③) is BC-2's; "the teams swap" (②) is read from the drill trace by the live check, not here.
+    /// </summary>
+    [Fact(Timeout = 900_000, Skip = "CE-2259: bc-house-clear does not pass yet — work in progress (no progress report in 360 s)")]
+    public async Task CE2259_BcHouseClear_TheSquadClearsEveryRoomOnce_InsurgentsDown_CiviliansUnhurt_BuildingClearLast()
+    {
+        using var harness = await Live("bc-house-clear");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Civilian 2").IsNull && !ByName(cgf, "Blue Rifleman 5").IsNull, timeoutFrames: 2000),
+            "the squad, the insurgents and the civilians spawn on CGF");
+        var squad = ByName(cgf, "Blue Squad");
+        var reports = new Reports();
+        var insurgents = new[] { ByName(cgf, "Insurgent 1"), ByName(cgf, "Insurgent 2") };
+        var civilians = new[] { ByName(cgf, "Civilian 1"), ByName(cgf, "Civilian 2") };
+        float Hp(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : 0f;
+        string Rooms() => string.Join(" ", reports.Progress().Select(p => p.Kind == ProgressKind.RoomClear ? RoomAt(p.At) : p.Kind.ToString()));
+        var blue = new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4", "Blue Rifleman 5" }
+            .Select(n => ByName(cgf, n)).ToArray();
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        string Runs(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<BehaviorState>(e)
+            && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var n) ? n : "-";
+        string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e)))}] civilians [{string.Join(" ", civilians.Select(e => $"{Hp(e):F0}"))}] "
+                        + $"blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] squad {Runs(squad)} drill {Drill(cgf, squad)} progress [{Rooms()}]";
+
+        bool Done() => reports.Progress().Any(p => p.Kind is ProgressKind.BuildingClear);
+        for (int f = 0; f < 60 * 480 && !Done(); f += 600)
+        {
+            Pump(harness, cgf, squad, reports, 600);
+            _out.WriteLine($"f{f}: {State()}");
+        }
+        _out.WriteLine("end: " + State());
+        var progress = reports.Progress();
+        var cleared = progress.Where(p => p.Kind == ProgressKind.RoomClear).Select(p => RoomAt(p.At)).ToList();
+        Assert.True(insurgents.All(e => !InTheFight(cgf, e)), $"③ both insurgents down; {State()}");
+        Assert.True(civilians.All(e => Hp(e) >= 100f), $"③ both civilians unhurt; {State()}");
+        foreach (var room in new[] { "hall", "A", "B", "C", "D", "E" })
+            Assert.True(cleared.Count(r => r == room) == 1, $"① {room} cleared exactly once; {State()}");
+        Assert.True(cleared.IndexOf("E") > cleared.IndexOf("D"), $"① E (reached only through D) after D; {State()}");
+        Assert.Equal(ProgressKind.BuildingClear, progress[^1].Kind);
+    }
+}
