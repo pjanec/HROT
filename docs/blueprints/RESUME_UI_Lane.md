@@ -174,6 +174,8 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1230` | ⛔ OPEN, recorded only (`R-1015`): the ORBAT tree's right-click menu = the map's entity menu, one shared menu, Embark/Disembark in it — design first | tracker |
 | `CE-1229` | ✅ CLOSED — not a defect: a stale restore (the serializers kept their namespace); `Hrot.SimHost.Tests` builds after `dotnet restore` | tracker |
 | `CE-1228` | ⛔ OPEN — found by CE-1227's parity rail: the gizmo renderer blends every translucent `FilledTriangle` twice (both windings, culling off) | tracker |
+| `CE-1234` | ✅ the layer panel works in 3-D: the gizmo's own state (the 3-D set) now reaches the map's panel (`LocalGizmoUiStateTransport` polled by `DebugGizmoLayer`; `ReceiveUiState` keyed by the instance id) | Tuning §5e.1 |
+| `CE-1204` | ✅ **BUILT** (`R-1017`, LK-2…LK-7): V frees a person's look (kept by the station), the mouse turns his look within his neck dragging the body past it, A/D turn him at 120°/s; the neck is the TKB's `HeadYawLimitDeg` (0 ⇒ 70°) through `LookOf.HeadLimit` (backend's FDP file, additive); every node draws his head where his eyes point | [Entity Control](../DESIGN_Entity_Control.md) §8l.5 |
 | `CE-1203` | ✅ **BUILT** (`R-1011`, FL-1…FL-9): 10 new rows (bits 16–25) in five groups with display names and hover meanings (`[EditDisplayName]`/`[EditDoc]`), a rail per row (`GizmoLayerProbe`); round markers 2-D only; a set per view picked by the view switch (wired through the shared buffer); both sets + scopes + navmesh choice remembered in `map-layers.json`; registry int save/load bug fixed | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e.1 as built · [GUIDE_Debug_Gizmos](../GUIDE_Debug_Gizmos.md) §1 |
 
 ### Waiting on / from other lanes
@@ -186,8 +188,10 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 ### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
 
-1. `CE-1203` — ⛔ only when the user says go (§5e is buildable as written; check the panel re-syncs when its whole set is swapped — the inspector suppresses echoes).
-2. `CE-1204` — person mouse-look (`R-1006`): write its INVENTORY + UML in Entity Control (new §8l) BEFORE code (§8i: *"still gets its INVENTORY and UML here before it is built"*).
+🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"* — work on down this list.
+
+1. `CE-1196` — one depth bias for the SUMO road mesh AND the draped gizmo fills (the near plane stays, `R-1014`).
+2. `CE-1228` — a translucent `FilledTriangle` blended twice.
 3. `CE-1207` + `CE-1205` — pick up stones / rounds, take weapons (`R-1007`) — same: design first.
 4. `CE-1210` — seat switching (`R-1008`) — design first.
 5. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
@@ -204,7 +208,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
 - `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
 - cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
-- ids: ui tracker next free **`CE-1234`**; ui rulings next free **`R-1017`**.
+- ids: ui tracker next free **`CE-1235`**; ui rulings next free **`R-1018`**.
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 

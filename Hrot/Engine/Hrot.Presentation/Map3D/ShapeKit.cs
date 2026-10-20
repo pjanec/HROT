@@ -69,9 +69,12 @@ public enum PartRole : byte
 /// bend each shin back about its knee (radians) — the foot lifting as the leg swings through.</para>
 /// <para>⭐ WL-6d — <paramref name="Moving"/> (0..1, from the speed alone — a crawl is too slow to read as a walk) and the
 /// <paramref name="CrawlPhase"/> (radians, one cycle per <c>MotionTracker.CrawlMetres</c>).</para>
+/// <para>⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5) — <paramref name="HeadTurn"/>: the HEAD (the <see cref="FaceOn.Front"/> part)
+/// turns about its own vertical axis by this much off the torso (radians, counter-clockwise), before the torso's <paramref name="Twist"/>
+/// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
                                          float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f)
+                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -176,6 +179,13 @@ public readonly record struct KitPart(
                 m *= Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationY(-sign * motion.Swing) * Matrix4x4.CreateTranslation(pivot);
                 break;
             }
+        }
+
+        // ⭐ CE-1204 (§8l LK-5) — the head turns on its neck (its own vertical axis) first; the torso's twist then carries it
+        if (Face == FaceOn.Front && motion.HeadTurn != 0f)
+        {
+            var neck = new Vector3(centre.X, centre.Y, 0f);
+            m *= Matrix4x4.CreateTranslation(-neck) * Matrix4x4.CreateRotationZ(motion.HeadTurn) * Matrix4x4.CreateTranslation(neck);
         }
 
         // ⭐ WL-6 (W-13e) — the upper body leans (a run, an aim pitched down) and twists (an aim to the side) about the hip
@@ -1514,6 +1524,9 @@ public sealed class PostureBlend
     /// <summary>The aim angles' time constant (s, sim time): about 95 % of a turn is done in three of these.</summary>
     public const float AimSeconds = 0.12f;
 
+    /// <summary>⭐ CE-1204 (§8l LK-5) — the drawn head's time constant (s, sim time): a glance turns the head, never snaps it.</summary>
+    public const float HeadSeconds = 0.15f;
+
     private struct State
     {
         public WeaponPostureKind From, To;
@@ -1521,6 +1534,9 @@ public sealed class PostureBlend
         public float Twist, Pitch;
         public double AimAt;
         public bool HasAim;
+        public float Head;
+        public double HeadAt;
+        public bool HasHead;
     }
 
     private readonly Dictionary<Entity, State> _states = new();
@@ -1571,6 +1587,19 @@ public sealed class PostureBlend
         st.HasAim = true;
         _states[e] = st;
         return (st.Twist, st.Pitch);
+    }
+
+    /// <summary>⭐ CE-1204 (§8l LK-5) — the head's turn off the torso this frame, eased toward <paramref name="turn"/> like the aim.</summary>
+    public float Head(Entity e, float turn, double simTime)
+    {
+        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
+        double dt = simTime - st.HeadAt;
+        if (!st.HasHead || dt < 0 || dt > 1.0) st.Head = turn;   // first seen, a clock jump, or a long gap: no easing
+        else if (dt > 0) st.Head += (turn - st.Head) * (1f - MathF.Exp(-(float)dt / HeadSeconds));
+        st.HeadAt = simTime;
+        st.HasHead = true;
+        _states[e] = st;
+        return st.Head;
     }
 
     /// <summary>Forgets everyone not drawn this frame.</summary>

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8l CE-1204 designed, leans for the user)
+updated: 2026-10-20 (§8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1621,7 +1621,7 @@ and the station keeps its own instance, so the darkening does not depend on the 
 
 Rails `PossessionStationTests.CE1216_TheSpreadRingIsTheSimsSigma_ANearMissShocks_HisShotKicksTheViewAndItSettles`, `CE1220_KilledWhileHeld_TheViewStays_NamesTheShooter_KShowsHim_TabTakesASquadMate_EscTheMap` (red-proved), `CE1220_APlainRelease_LeavesAtOnce_NoFallScreen`, `CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen`, `EmbarkNodesTests.CE1219_BHeld_RaisesHisBinoculars_LettingGoLowersThem_AManWithNoneIsRefused` (both red-proved), `InteractionTransportTests` (the byte crosses the wire), `CE1218_M_OpensTheMapCentredOnHim_HeHoldsStill_AndMBringsTheOperatorBack` (red-proved), `CE1217_TheCompassReadsTheHeading_AndTheNamesAreHisSidesWithin50m` (red-proved), frame `fps-hit-feedback.png` (now with the compass and two names), `AudioTests.CE1216_ARoundPassingTheEar_CountsOnce_NotHisOwn_NotFarOff_NotBornBesideHim` (both red-proved), and the audio's own crack rail `CE1120_…CracksOnce…` through the extraction.
 
-## 8l. S13 DESIGN — a person's switchable mouse look (`CE-1204`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (LK-1 R-1006; ✅ LK-2…LK-7 APPROVED `2026-10-20`, R-1017 — LK-2 narrows LK-1's wording)
+## 8l. S13 DESIGN — a person's switchable mouse look (`CE-1204`, `2026-10-20`, ui) — build-state: BUILT (LK-1 R-1006; ✅ LK-2…LK-7 APPROVED `2026-10-20`, R-1017 — LK-2 narrows LK-1's wording; as-built §8l.5)
 
 🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"*
 
@@ -1740,6 +1740,22 @@ graph TD
 
 ⇒ ✅ **Ruled `2026-10-20` (R-1017)** — LK-2…LK-7 as leaned. Build size once ruled: the station (~60 lines) + the
 head drawing + `HeadLimit` and its TKB field; rails in the station's suite (`PossessionStationTests`), the figure suite and backend's look suite.
+
+### 8l.5 AS-BUILT (`2026-10-20`, ui) — build-state: BUILT
+
+| design said | built | why / note |
+|---|---|---|
+| `LookFree` / `BodyYaw` on the driver | ✅ `FpsCameraDriver.LookFree` (a person only) reads ⭐ **`PossessionStation.PersonLookFree`** — the choice lives on the STATION, so a new driver (a possession, Tab, Get out) keeps it; `BodyYaw` = `_bodyYaw` while free, else the look | LK-4 "kept by the station" |
+| the mouse clamps the look, dragging the body | ✅ `FpsCameraDriver.DragBody(body, look, neck)` — the look moves freely, the body follows only past the neck; the neck is `LookOf.HeadLimit(world, unit)` | ⚠ the look is never clamped — the body is dragged instead, so the mouse never "hits a wall" |
+| A/D turn the body at 120°/s | ✅ `FreeLookTurnRate`; ⭐ **the view turns WITH him** (body and look both turn, the head's offset kept) | as a shooter's free look does — a world-fixed look would swing out of the neck and drag him back at once. Not stated in LK-4; chosen here |
+| V locks it back | ✅ the body turns to the look (`_bodyYaw = _yaw`) — the frame's heading becomes the look's | not stated in LK-4 |
+| the HUD | ✅ `Hud.LookFreeLine` "LOOK FREE (V)" (amber) + the keys line "W/S move  A/D turn … V lock look"; locked: "… V free look" | |
+| `LookOf.HeadLimit` + `HeadYawLimitDeg` | ✅ `VehicleParametersDto.HeadYawLimitDeg` (0 ⇒ 70°); `LookOf.HeadLimit(view, e)` (the type via `CombatTkb.TryGetTemplate`); `LookFollowSystem` clamps with it (`Toward(…, neck)`, the 3-arg overload kept at 70°) | ⚠ **cross-lane: backend's FDP files** `LookState.cs`, `LookFollowSystem.cs`, `VehicleParametersDto.cs` — additive. No authored type sets it yet |
+| `MotionPose.HeadTurn` | ✅ the `FaceOn.Front` part turns about its own vertical axis (through its centre) before the torso's twist; the face details and the eye ride on it | |
+| head = `HeadYaw` − drawn twist | ✅ `EntityBodyLayer3D.HeadTurnOf(world, e, drawnTwist)` (clamped to the neck), ⭐ **eased** by `PostureBlend.Head` (0.15 s) — a glance's on/off would otherwise snap the head; a civilian's head too (twist 0); prone and dead: 0 | the easing is not in LK-5; added for the glances |
+
+📐 **Rails:** `PossessionStationTests.CE1204_VFreesAPersonsLook_…` and `CE1204_DragBody_…` (`PossessionStationTests.MouseLook.cs`),
+`Map3DTests.CE1204_TheDrawnHead_…`, `LookFollowSystemTests.CE1204_HisTypesNeck_StopsTheHead`.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
