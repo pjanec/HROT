@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). ⭐ §10 impacts on every surface BUILT 2026-10-16 (CE-1128 / CE-1129). Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-19 (§10 impact marks sized by their round — CE-1199)
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
+updated: 2026-10-20 (§11 charges: the IED / vest burst and the placed IED — leans APPROVED R-1016, CE-1231/1232, not built) · 2026-10-19 (§10 impact marks sized by their round — CE-1199)
+current-answer: §11 charges (APPROVED, not built) · §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -1005,3 +1005,25 @@ writes, viewers read, never both), `EffectTests.CE1129_*` (puff + mark; a wall m
 light ([Map 3D §6aa](DESIGN_Map_3D_Mode.md) WS-5). ⚠ Whatever is added to the effects must keep drawing unlit; an effect that lights its
 SURROUNDINGS at night (a flare lighting the ground) is not built — CE-1146's open discussion.
 
+
+## 11. Charges — the IED / suicide-vest / car-bomb burst, and the placed IED itself *(`CE-1231` · `CE-1232`, ui, `2026-10-20`; build-state: DESIGN — leans APPROVED, R-1016; UML is drawn here before the build)*
+
+🔒 **User, `2026-10-20`:** *"do we have any vsualization of ICD explosion? I ahevnt seen any. Also nothing for suicide bomber explosion. adn
+visualization of the OCD itself - i sam just the entity label"* · on the leans below: *"the explosions leans accepted, record as tracked item."*
+
+**How it is** *(measured `2026-10-20`)*:
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a charge (vest, IED, car bomb) bursts as one `DetonationNotification` carrying its round (ammo 6043) | ✅ `Charges.Detonate` (`Fdp.Toolkits/Combat/Charges.cs`) | ✅ Civilians AW-12: one charge type, three placements |
+| that burst is drawn as the SMALLEST explosion (0.35 s, 0.8 m dust puff + a bullet mark) | ✅ 6043 has no `MunitionEffectsDto` ⇒ `EffectTkbCatalog.EffectsFor` sizes by damage; the charge mount has no `DamagePerHit` and its ammo is the mount's own ⇒ `RoundOf` = 0 ⇒ `CalibreClass.Small` | ⛔ searched this file and Civilians: no look for a charge |
+| the placed IED shows only its label | ✅ 2-D: its class chain reaches `LandPlatform` ⇒ a ground-VEHICLE outline at its ~30 cm size (sub-pixel); 3-D: `WeaponKits.Charge` is a 0.30 × 0.20 × 0.12 m box | ⛔ none; AW-12 / BM-2 keep the WORN vest hidden (what observers can tell, not the map) |
+| the burst's SOUND is small too | ⛔ not measured (`SoundEvents.Burst` gets damage 0) | ⛔ not searched |
+
+| id | ✅ APPROVED lean *(R-1016)* | rejected — one line each |
+|---|---|---|
+| **CH-1** *(`CE-1231`)* | a round with no per-hit damage is sized by its warhead's EXPLOSIVE MASS (`WarheadDto`); a new look **"Explosion huge"** (≈ 2 s, ≈ 20 m, orange core in a grey-brown cloud) + the crater decal from 5 kg up — fixes the IED, the vest, the car bomb and any later damage-0 area round, all in `EffectTkbCatalog`; check the sound and the Mk-82 with it | a one-off look for 6043 only — every other damage-0 area round stays a puff · raising the charge's `DamagePerHit` — that number is combat damage (backend's), not a look |
+| **CH-2** *(`CE-1232`)* | a PLACED charge gets a fixed-pixel 2-D marker (a small diamond reading "IED", side-coloured) through its class (`ExplosiveChargeWeaponSystem`), not the ground-vehicle outline; a WORN vest stays unmarked (the bomber is a person — AW-12); a car bomb is its car | a symbol on the bomber — AW-12 rules the vest hidden until it goes off |
+| **CH-3** *(`CE-1232`)* | in 3-D the charge keeps its true size but reads as what it is: two shells bundled with a wire (`WeaponKits.Charge`); from map height its label and the 2-D marker find it | a minimum on-screen size in 3-D — a 30 cm thing drawn metres wide lies about the scene |
+
+⚠ **Before building:** the INVENTORY of every damage-0 detonation source (the graph, not a grep) and the class / sequence / module diagrams go in this section; the build folds its as-built back here.

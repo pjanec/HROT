@@ -169,6 +169,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1226` | ✅ Add Entity enabled in Preview (`R-1012`) | [Add Entity Picker](../DESIGN_Add_Entity_Picker.md) |
 | `CE-1227` | ✅ the 2-D terrain is a RETAINED layer (`R-1013`): demo-city's terrain gizmo emitted 73 188 primitives a frame into the 16 384 map buffer, so uc-convoy-hit lost every symbol and the marquee. `TerrainLayer2D` (mesh + in-view strokes, under the gizmos, every host), own "Terrain (2-D)" checkbox (bit 15 — the first §5e row), first-frame mask seeded at build. Merged backend `50ddf3366` + behaviors `82ba54f45` before it | [Terrain World §10](../DESIGN_Terrain_World.md) |
 | `R-1014` | ✅ the 3-D near plane back to 0.1 % (user: "as it was before"); `CE-1196` road flicker REOPENED — fix without moving the near plane | [Map 3-D](../DESIGN_Map_3D_Mode.md) CA-3 |
+| `CE-1231` · `CE-1232` | ⛔ APPROVED, not built (`R-1016`): the IED / vest burst sized by explosive mass ("Explosion huge"), the placed IED's 2-D marker and 3-D kit — design first | [Visual Effects §11](../DESIGN_Visual_Effects.md) |
 | `CE-1230` | ⛔ OPEN, recorded only (`R-1015`): the ORBAT tree's right-click menu = the map's entity menu, one shared menu, Embark/Disembark in it — design first | tracker |
 | `CE-1229` | ⛔ OPEN — `Hrot.SimHost.Tests` does not compile since CE-4015 moved the serializers (filed, not ui's to fix) | tracker |
 | `CE-1228` | ⛔ OPEN — found by CE-1227's parity rail: the gizmo renderer blends every translucent `FilledTriangle` twice (both windings, culling off) | tracker |
@@ -202,7 +203,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
 - `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
 - cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
-- ids: ui tracker next free **`CE-1231`**; ui rulings next free **`R-1016`**.
+- ids: ui tracker next free **`CE-1233`**; ui rulings next free **`R-1017`**.
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 
