@@ -531,12 +531,13 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The far clip distance, m.</summary>
         public float FarClip => MathF.Max(2000f, Distance * 60f);
 
-        /// <summary>⭐ <c>CE-1196</c> — the near clip's share of the look-at distance. 📐 It was 0.001: from 2 km out the 24-bit depth buffer then
-        /// told apart only ~12 cm at the look-at, so SUMO's roads (lifted 3–6 cm over our ground) flickered through it; 0.005 resolves ~2.4 cm
-        /// there, and the nearest drawn point is still well inside the eye-to-look-at distance.</summary>
-        public const float NearClipShare = 0.005f;
+        /// <summary>The near clip's share of the look-at distance. ⛔ <c>R-1014</c> (🔒 user, 2026-10-20: <i>"the near plane seems to be too far
+        /// … i need near plane as it was before"</i>): 0.001, as before <c>CE-1196</c> raised it to 0.005 to stop SUMO's roads flickering
+        /// from afar — 0.005 clipped near geometry (1 m at 200 m out). The road flicker is fixed some other way (<c>CE-1196</c> reopened),
+        /// never by moving the near plane.</summary>
+        public const float NearClipShare = 0.001f;
 
-        /// <summary>⭐ <c>CE-1196</c> — the near clip distance, m: <see cref="NearClipShare"/> of the look-at distance, never under 5 cm.</summary>
+        /// <summary>The near clip distance, m: <see cref="NearClipShare"/> of the look-at distance, never under 5 cm.</summary>
         public float NearClip => MathF.Max(0.05f, Distance * NearClipShare);
 
         /// <summary>⭐ <c>CE-1196</c> — the smallest depth difference the 24-bit depth buffer tells apart at <paramref name="atMetres"/> from

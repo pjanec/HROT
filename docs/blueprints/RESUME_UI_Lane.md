@@ -168,6 +168,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1225` | ✅ a **Sectors** checkbox in Tactical Map Layers (off by default): sector areas, NoFire hatching and every COMMANDER's arc for everyone (a platoon's slice on each squad, the support squad's arc — behaviors' DA-52), draped in 3-D; a man's own arc still selection-only; the selection ring moved to layer bit 255 | [Command Display](../DESIGN_Command_Display.md) §8 / §8a; frame `docs/assets/map-3d/map3d-9-sectors.png` |
 | `CE-1226` | ✅ Add Entity enabled in Preview (`R-1012`) | [Add Entity Picker](../DESIGN_Add_Entity_Picker.md) |
 | `CE-1227` | ✅ the 2-D terrain is a RETAINED layer (`R-1013`): demo-city's terrain gizmo emitted 73 188 primitives a frame into the 16 384 map buffer, so uc-convoy-hit lost every symbol and the marquee. `TerrainLayer2D` (mesh + in-view strokes, under the gizmos, every host), own "Terrain (2-D)" checkbox (bit 15 — the first §5e row), first-frame mask seeded at build. Merged backend `50ddf3366` + behaviors `82ba54f45` before it | [Terrain World §10](../DESIGN_Terrain_World.md) |
+| `R-1014` | ✅ the 3-D near plane back to 0.1 % (user: "as it was before"); `CE-1196` road flicker REOPENED — fix without moving the near plane | [Map 3-D](../DESIGN_Map_3D_Mode.md) CA-3 |
 | `CE-1229` | ⛔ OPEN — `Hrot.SimHost.Tests` does not compile since CE-4015 moved the serializers (filed, not ui's to fix) | tracker |
 | `CE-1228` | ⛔ OPEN — found by CE-1227's parity rail: the gizmo renderer blends every translucent `FilledTriangle` twice (both windings, culling off) | tracker |
 | `CE-1203` | ✅ **APPROVED, NOT STARTED** (`R-1011`, user: *"Record it, do nkt start building it."*): ~10 new layer checkboxes in five groups with hover text; a 2-D symbol of what 3-D draws itself (round markers) never drawn in 3-D (FlatOnly, extends R-4058); a layer SET PER VIEW (2-D / 3-D) chosen by the view switch; both REMEMBERED per user through `GizmoSettingsRegistry.SaveToDisk/LoadFromDisk` (built in gizmos-1, never called) | [Terrain Combat Tuning](../DESIGN_Terrain_Combat_Tuning.md) §5e FL-1…FL-9 (INVENTORY, today-state claim table, class + sequence diagrams) |
@@ -200,7 +201,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
 - `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
 - cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
-- ids: ui tracker next free **`CE-1230`**; ui rulings next free **`R-1014`**.
+- ids: ui tracker next free **`CE-1230`**; ui rulings next free **`R-1015`**.
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 
