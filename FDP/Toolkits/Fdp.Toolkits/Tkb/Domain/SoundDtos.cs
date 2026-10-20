@@ -31,6 +31,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Footsteps, WheeledEngine, TrackedEngine, Rotor, Jet,
         Reload, EmptyClick, Breathing, Door,
         Wind, Birds, Insects, Town, BattleRumble,
+        /// <summary>⭐ CE-1231 (Hrot DESIGN_Visual_Effects §11 CH-1) — the bang of 5 kg and more (an IED, a vest, a bomb). Appended: stored values never move.</summary>
+        ExplosionHuge,
     }
 
     /// <summary>

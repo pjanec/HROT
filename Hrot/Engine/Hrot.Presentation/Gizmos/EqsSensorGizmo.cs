@@ -76,6 +76,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Eqs)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
 
             // ⭐ CE-3143 — the sensor's self (a child sensor's parent unit), at its authoritative altitude (P3D-401).
@@ -91,7 +92,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     obsPos, sensor.SearchRadius,
                     new Rgba32(0, 255, 255, 100),
                     thickness: 1f,
-                    style: LineStyle.Dashed);
+                    style: LineStyle.Dashed, layer: DebugTraceLayers.Eqs);
             }
 
             // 2. Draw lines to Top-K candidate positions (requires EqsCognitiveBuffer).
@@ -117,8 +118,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                     ? new Rgba32(0, 255, 0, 150)
                     : new Rgba32(255, 255, 0, 150);
 
-                draw.DrawLine(obsPos, targetPos, lineColor, thickness: 1.5f);
-                draw.DrawSphere(targetPos, 1.5f, lineColor);
+                draw.DrawLine(obsPos, targetPos, lineColor, thickness: 1.5f, layer: DebugTraceLayers.Eqs);
+                draw.DrawSphere(targetPos, 1.5f, lineColor, layer: DebugTraceLayers.Eqs);
 
                 if (showScores)
                 {
@@ -126,7 +127,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     draw.DrawText(
                         targetPos.X, targetPos.Y + 2f,
                         new Fdp.Core.FixedString32(string.Format("#{0} ({1:F2})", i + 1, candidate.Score)),
-                        Rgba32.White);
+                        Rgba32.White, layer: DebugTraceLayers.Eqs);
                 }
             }
         }
@@ -154,7 +155,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             foreach (var (point, kept) in cache.Dots)
             {
                 var color = kept ? KeptColor : RejectedColor;
-                draw.DrawSphere(point, 0.3f, color, fillColor: color);
+                draw.DrawSphere(point, 0.3f, color, fillColor: color, layer: DebugTraceLayers.Eqs);
             }
             if (now >= _pruneAt)   // a sensor not drawn for a few seconds (deselected, gone) leaves the cache
             {

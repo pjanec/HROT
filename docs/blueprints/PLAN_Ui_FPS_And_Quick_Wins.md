@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-10-20
 current-answer: §1 the order (the user's, reordered 2026-10-19: the quick wins first) · §2 how each step is done · §3 approved earlier the same day, after the list · §4 progress log
 stale-below: nothing.
 known-rot: none.
@@ -67,6 +67,7 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `CE-1207` + `CE-1205` | the operator picks up stones / rounds and takes weapons; a lying weapon is not possessed | `R-1007` |
 | `CE-1210` | seat switching in a vehicle with several crewed weapons | `R-1008` |
 | `CE-1206` | the ZU-23 technical that would not fire — reproduce live first | — |
+| `CE-1196` | ⛔ reopened (`R-1014` put the near plane back): the SUMO roads flicker in 3-D — 🔒 user, `2026-10-20`: *"Keep road flicker in the plan, btw same flicker is for multiple gizmos showing filled circle on the ground in 3d."* ⇒ one depth bias for everything drawn ON the ground (the road mesh and the draped gizmo fills) | — |
 
 ## 4. Progress log
 
@@ -98,3 +99,5 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 18 | ✅ M: the 2-D map centred on him (he holds still, still possessed), M again back to his eyes; Presentation 790 / 0 |
 | `2026-10-19` | 19 | ✅ hold B: the binoculars (raised by his brain, refused without them), 10° view when up, the range, LMB designates for his men; cross-lane: `OperatorControlBehavior` + the frame byte through the wire; Presentation 791 / 0, SimHost 1689 / 0 |
 | `2026-10-19` | 20 | ✅ when he falls: the view stays and fades, "KILLED - by <name>", Tab a squad mate / K a kill cam / Esc the map; DOWN dims the view; Presentation 793 / 0. **#16–#20 done.** |
+| `2026-10-20` | — | `CE-1204` (a person's mouse look) designed — Entity Control §8l, leans LK-2…LK-7 with the user; `CE-1196` kept, widened to the draped ground circles |
+| `2026-10-20` | — | ✅ `CE-1225` the Sectors checkbox (Command Display §8; Presentation 795 / 0); `CE-1203` finer layers + a set per view + remembered — APPROVED `R-1011`, ⛔ not started (Tuning §5e). Next: §3's items, each designed first — see [RESUME_UI_Lane](RESUME_UI_Lane.md) "SESSION 2026-10-20" |

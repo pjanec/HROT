@@ -65,6 +65,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
+    [InlineData(@"new\s+([\w.]+\.)?TerrainLayer2D\(")]   // ⭐ CE-1227
     [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
@@ -111,5 +112,69 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.Contains("Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TrafficAmbientBodies")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires SUMO's far bodies itself: " + string.Join(", ", hostMentions));
+    }
+
+    /// <summary>⭐ CE-1203 FL-8 (docs/DESIGN_Terrain_Combat_Tuning.md §5e) — the layer control applies the set of the view on screen: the
+    /// shared attach hands it the view switch, found by the buffer <c>Build</c> made — so ① a host's attach reaches it with no wiring of
+    /// its own, and ② every host hands the attach THAT buffer. 🔴 Red-proof: without the hand-over the layer control stays on the 2-D set
+    /// in 3-D.</summary>
+    [Fact]
+    public void CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        Assert.Null(mi.LayerControl.Is3D);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new Fdp.Toolkit.Vis2D.Components.MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.NotNull(mi.LayerControl.Is3D);
+        Assert.False(mi.LayerControl.Is3D!());
+        layers.ViewSwitch.Set(true, animate: false);
+        Assert.True(mi.LayerControl.Is3D!());
+
+        // ② every attaching host passes the buffer its Build made
+        var files = ProductionFiles().ToList();
+        var attachers = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).Select(f => HostOf(f.Rel)).Distinct().ToList();
+        var re = new Regex(@"=\s*\w*[Mm]apInteraction\w*\.Buffer\s*;");
+        var without = attachers.Where(h => !files.Any(f => HostOf(f.Rel) == h && re.IsMatch(f.Text))).ToList();
+        Assert.True(attachers.Count >= 5, "anti-vacuity: " + string.Join(", ", attachers));
+        Assert.True(without.Count == 0, "hosts whose map buffer is not the one MapInteractionPack.Build made: " + string.Join(", ", without));
+    }
+
+    /// <summary>⭐ CE-1234 — the layer panel works in 3-D on every map host: the gizmo's state reaches the map's own panel (the local
+    /// transport the shared attach hands the render layer), so in 3-D the panel shows the 3-D set and a click on it changes the 3-D mask.
+    /// 🔒 User, 2026-10-20: <i>"map layer controls (checkbox) does not seem to work in 3d (nothing chages on chekcbox click in 3d) - only in
+    /// 2d"</i>. 🔴 Red-proof: with no state reaching the panel its copy still read "2-D map", and the click was dropped.</summary>
+    [Fact]
+    public void CE1234_TheLayerPanel_ClickedIn3D_ChangesThe3DLayers()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new Fdp.Toolkit.Vis2D.Components.MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.NotNull(layers.GizmoLayer.UiStates);
+        layers.ViewSwitch.Set(true, animate: false);
+
+        // the panel opens and the gizmo publishes its (3-D) set
+        mi.InteractionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+        mi.InteractionBus.SwapBuffers();
+        mi.LayerControl.UpdateAndDraw(world, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
+        var states = new List<GizmoMap.Network.GizmoUiState>();
+        layers.GizmoLayer.UiStates!.PollAndApply(states.Add);
+        var state = Assert.Single(states);
+
+        // the panel's side: its document takes the state, the operator unticks Rounds, the panel sends its document back
+        var registry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterGizmoSchemas(registry);
+        Assert.True(registry.TryGet(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, out var doc) && doc != null);
+        StructEdit.Json.EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc!);
+        StructEdit.Core.EditNode Find(StructEdit.Core.EditNode n, string path)
+            => n.JsonPath.EndsWith(path, StringComparison.Ordinal) ? n : n.Children.Select(c => Find(c, path)).FirstOrDefault(x => x != null)!;
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.LayerControlSets.View3D, Find(doc!.Root, "View").Binding!.GetBoxed());
+        Find(doc!.Root, "Rounds").Binding!.SetBoxed(false);
+        mi.LayerControl.OnStructUpdate(StructEdit.Json.EditDocumentJsonSerializer.Serialize(doc!));
+
+        Assert.False(mi.LayerControl.ActiveLayers.IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Rounds), "the 3-D click took");
+        Assert.False(mi.LayerControl.SetOf(is3D: true).Units.Rounds);
+        Assert.True(mi.LayerControl.SetOf(is3D: false).Units.Rounds, "the 2-D set is its own");
     }
 }

@@ -387,8 +387,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             });
         }
 
+        /// <summary>⭐ CE-1234 — where the gizmos' UI states arrive in this process (the map pack's local transport): drained into the panel each
+        /// frame before it draws, so a panel shows what its gizmo holds (the layer control's view set, its remembered rows) — not only what
+        /// was clicked here. Null: the panel shows only its own edits (as before).</summary>
+        public Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport? UiStates { get; set; }
+
         public void DrawStructInspector()
         {
+            if (_imGuiAdapter is { } adapter) UiStates?.PollAndApply(adapter.ReceiveUiState);
             _innerTerminal.DrawStructInspector((networkId, gizmoTypeId, json) =>
             {
                 _eventBus?.PublishManaged(new GizmoStructUpdateEvent

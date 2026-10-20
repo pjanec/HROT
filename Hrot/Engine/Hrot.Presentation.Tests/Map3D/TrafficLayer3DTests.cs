@@ -72,17 +72,14 @@ public sealed class TrafficLayer3DTests
         Assert.True(TrafficAmbientBodies.KeyOf(0, "veh7") < 0, "a hashed key never meets a real network id");
     }
 
-    /// <summary>⭐ CE-1196 — SUMO's roads no longer flicker against our ground from afar: with the camera 2 km from what it looks at, the depth
-    /// buffer tells apart less than the asphalt's lift over the ground there (it told apart ~12 cm with the old near clip, three times the
-    /// lift). 🔒 User, live, 2026-10-19: <i>"sumo roads (black) z-fight heavily with artificial terrain if looked at from distance"</i>.</summary>
+    /// <summary>⛔ R-1014 — the near plane is where it was before CE-1196 moved it: 0.1 % of the look-at distance, never under 5 cm.
+    /// 🔒 User, 2026-10-20: <i>"the near plane seems to be too far probably maybe as a result of trying to fix teh z-fight of the roads; i
+    /// need near plane as it was before"</i>. CE-1196 (the roads flickering from afar) is reopened, to be fixed without moving it.</summary>
     [Fact]
-    public void CE1196_FromTwoKilometresTheRoadsLiftIsWithinTheDepthBuffersReach()
+    public void R1014_TheNearPlane_IsAsBefore_ATenthOfAPercentOfTheLookAtDistance()
     {
-        var camera = new Fdp.Toolkit.Vis3D.MapCamera3D { Distance = 2000f };
-        float lift = TrafficLayer3D.Style(SceneKind.Asphalt).Lift - TrafficLayer3D.Style(SceneKind.AmbientGround).Lift;   // over the ground
-        float step = Fdp.Toolkit.Vis3D.MapCamera3D.DepthStepAt(2000f, camera.NearClip);
-        Assert.True(step < lift, $"the depth step at 2 km is {step * 100f:F1} cm, the road lies {lift * 100f:F1} cm above the ground");
-        Assert.True(camera.NearClip < 2000f * 0.05f, "the near clip stays far inside the eye-to-look-at distance");
-        Assert.Equal(0.05f, new Fdp.Toolkit.Vis3D.MapCamera3D { Distance = 2f }.NearClip);   // close up (first person): unchanged
+        Assert.Equal(2f, new Fdp.Toolkit.Vis3D.MapCamera3D { Distance = 2000f }.NearClip, 3);
+        Assert.Equal(0.2f, new Fdp.Toolkit.Vis3D.MapCamera3D { Distance = 200f }.NearClip, 3);
+        Assert.Equal(0.05f, new Fdp.Toolkit.Vis3D.MapCamera3D { Distance = 2f }.NearClip);   // close up (first person): the 5 cm floor
     }
 }

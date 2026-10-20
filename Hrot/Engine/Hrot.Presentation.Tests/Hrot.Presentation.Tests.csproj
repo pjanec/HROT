@@ -28,4 +28,7 @@
     <!-- ⭐ CE-1033 S1 — a real window under Xvfb for the 3-D map's render rail (test support only, R-124) -->
     <ProjectReference Include="..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
+  </ItemGroup>
 </Project>

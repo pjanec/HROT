@@ -833,9 +833,14 @@ public sealed class Map3DTests
         {
             var size = WeaponKits.DefaultSize(kind);
             Assert.True(size.X < 1f && size.Z < 0.25f, $"{kind}: {size}");
-            Assert.NotEqual(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.Length, WeaponKits.Kit(kind, false).Parts.Length);
+            // not the HMG's kit (⭐ CE-1232: compared part by part — the two-shell charge happens to have the HMG's part COUNT)
+            Assert.False(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.SequenceEqual(WeaponKits.Kit(kind, false).Parts), $"{kind} draws the HMG");
             Assert.Null(WeaponKits.GunnerSpot(kind));                 // nobody kneels behind it
         }
+        // ⭐ CE-1232 (VE §11 CH-3) — the charge reads as what it is: two shells (each a body and an ogive) bundled with wire, not a box
+        var chargeKit = WeaponKits.Kit(WeaponKind.Charge, false).Parts;
+        Assert.Equal(2, chargeKit.Count(p => p.Shape == PartShape.Cone));
+        Assert.True(chargeKit.Count(p => p.Shape == PartShape.Cylinder && p.Axis == PartAxis.X) == 2, "two shells lying");
         Assert.True(WeaponKits.IsHandWeapon(WeaponKind.Rifle) && WeaponKits.IsHandWeapon(WeaponKind.Pistol));
         Assert.False(WeaponKits.IsHandWeapon(WeaponKind.Charge) || WeaponKits.IsHandWeapon(WeaponKind.Hmg));
 

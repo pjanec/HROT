@@ -254,6 +254,51 @@ public sealed class Map3DFrameRail
             Assert.Equal(4, effectsLayer.Drawn);
         }
 
+        // ⑨ CE-1225 (docs/DESIGN_Command_Display.md §8) — the Sectors layer in 3-D: a platoon's three line squads, each with its slice of
+        //   the platoon's arc (DA-52, a commander's arc ⇒ drawn for everyone), draped on the ground; a rifleman's own arc is not drawn.
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.EngagementArea>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Command = { Sectors = true } }.ToMask());
+            var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(30, buffer, new Fdp.Core.FdpEventBus())   // < 32: the canvas hides higher bits
+            {
+                CurrentCamera = () => canvas.Camera,
+            };
+            gizmos.Renderer3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+            canvas.AddLayer(gizmos);
+            var origin = new Vector3(spot.X, spot.Y - 40f, 0f);
+            var platoon = world.CreateEntity();
+            Entity squad2 = default;
+            float[] lefts = { 300f, 340f, 20f };
+            for (int i = 0; i < 3; i++)
+            {
+                var squad = world.CreateEntity();
+                world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = platoon });
+                world.AddComponent(squad, new Fdp.Toolkit.Behavior.Components.EngagementArea
+                {
+                    ArcSet = 1, ArcOrigin = origin, LeftBearing = lefts[i], RightBearing = (lefts[i] + 40f) % 360f, MaxRange = 70f,
+                });
+                if (i == 1) squad2 = squad;
+                else world.AddComponent(world.CreateEntity(), new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });   // he leads a man ⇒ a commander
+            }
+            var rifleman = world.CreateEntity();
+            world.AddComponent(rifleman, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad2 });
+            world.AddComponent(rifleman, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = origin, LeftBearing = 150f, RightBearing = 210f, MaxRange = 40f,
+            });
+            new Hrot.ScenarioEditor.Gizmos.SectorAreasGizmo().Draw(world, buffer);
+
+            float oz = query.GroundHeightAt(origin.X, origin.Y);
+            sw.Camera3D.Pose = new CameraPose(new Vector3(origin.X, origin.Y + 35f, oz), 150f, MathF.PI * 1.5f, -0.75f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, "map3d-9-sectors.png"));
+            Assert.True(gizmos.Renderer3D.LinesDrawn > 3 * 6, $"sector lines: {gizmos.Renderer3D.LinesDrawn}");   // three arcs, each 2 edges + 4 far pieces
+            Assert.Equal(0, gizmos.Renderer3D.Skipped.Total);
+        }
+
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-2-tilted.png"));
         AssertLooksLikeAWorld(Path.Combine(shots, "map3d-3-close.png"));
     }
@@ -1046,6 +1091,179 @@ public sealed class Map3DFrameRail
             Assert.True(bestRow < top + (bottom - top) / 3, $"the T's crossbar (row {bestRow}) must be its TOP ({top}..{bottom}) — text upright");
         }
         finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1227 (V) — demo-city's 2-D terrain through the PRODUCTION attach (<see cref="Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers"/>),
+    /// in a real window: the retained <see cref="Hrot.UI.Common.Map2D.TerrainLayer2D"/> sits under the gizmo layer, draws the whole city
+    /// (its fills in one mesh, built once), and a red box in the map's 16 384 buffer — the stand-in for a unit symbol — draws over it.
+    /// Unticking "Terrain (2-D)" removes the city and keeps the box. Screenshots: <c>terrain2d-1-demo-city.png</c>,
+    /// <c>terrain2d-2-off.png</c>, <c>terrain2d-3-close.png</c>. 📄 docs/DESIGN_Terrain_World.md §10.
+    /// </summary>
+    [SkippableFact]
+    public void CE1227_V_DemoCity_TheTerrainIsARetainedLayer_UnderTheGizmos()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        var plan = Hrot.UI.Common.Map2D.TerrainLayer2D.PlanOf(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>());
+        var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
+        foreach (var v in plan.FillVertices) { lo = Vector2.Min(lo, v); hi = Vector2.Max(hi, v); }
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var cam = new MapCamera();
+        canvas.Camera = cam;
+        void Look(Vector2 centre, float zoom)
+        {
+            var target = centre + new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);   // north-up: the top-left corner's world point
+            cam.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        }
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, buffer, new FdpEventBus(), () => world);
+        var terrain = layers.Terrain2D!;
+        Assert.True(canvas.Layers.ToList().IndexOf(terrain) < canvas.Layers.ToList().IndexOf(layers.GizmoLayer), "the terrain is drawn UNDER the gizmos");
+
+        var centre = (lo + hi) / 2f;
+        var red = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(230, 20, 20);
+        buffer.AppendRaw(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeBox2D(centre, new Vector2(25f, 25f), red,
+            sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters, fillColor: red));
+
+        (int Terrain, int Red) Count(string png)
+        {
+            var image = Raylib.LoadImage(png);
+            try
+            {
+                int t = 0, r = 0;
+                for (int y = 0; y < 800; y += 2)
+                    for (int x = 0; x < 1280; x += 2)
+                    {
+                        var c = Raylib.GetImageColor(image, x, y);
+                        bool bg = Math.Abs(c.R - 80) < 12 && Math.Abs(c.G - 80) < 12 && Math.Abs(c.B - 80) < 12;
+                        bool isRed = c.R > 200 && c.G < 60 && c.B < 60;
+                        if (isRed) r++; else if (!bg) t++;
+                    }
+                return (t, r);
+            }
+            finally { Raylib.UnloadImage(image); }
+        }
+
+        // ⓪ the REFERENCE: the same plan through the old path — every primitive in a gizmo buffer big enough to hold it, drawn by the
+        //   gizmo layer at the same camera. The retained layer must draw the same picture (orientation, colours, strokes).
+        float fit = Math.Min(1280f / (hi.X - lo.X), 800f / (hi.Y - lo.Y)) * 0.95f;
+        Look(centre, fit);
+        //   Without its labels: at this zoom the layer leaves them out on purpose (LabelMinZoom) — the old path smeared all 1 500.
+        var emitted = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(262_144);
+        Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.Emit(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>(), emitted);
+        Assert.Equal(0, emitted.DroppedCount);
+        var refBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(262_144);
+        foreach (var p in emitted.GetFrame().ToArray())
+            if (p.Shape != Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text) refBuffer.AppendRaw(p);
+        var refCanvas = new MapCanvas(input: null) { Camera = cam };
+        refCanvas.AddLayer(new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, refBuffer, new FdpEventBus(), camera: cam));
+        frame.StepN(2, refCanvas.Draw);
+        string reference = Path.Combine(Path.GetTempPath(), "terrain2d-0-gizmo-reference.png");
+        frame.Screenshot(reference);
+
+        // ① the whole city, through the retained layer, with the red box in the production buffer
+        frame.StepN(3, canvas.Draw);
+        string on = Path.Combine(shots, "terrain2d-1-demo-city.png");
+        frame.Screenshot(on);
+        var whole = Count(on);
+        Assert.Equal(1, terrain.Builds);   // built once, not per frame
+        Assert.True(terrain.FillTriangles > 1000, $"fills {terrain.FillTriangles}");
+        Assert.True(whole.Terrain > 8_000, $"the city must draw (terrain pixels {whole.Terrain})");
+        Assert.True(whole.Red > 20, $"the gizmo box must draw over the city (red pixels {whole.Red})");
+        var a = Raylib.LoadImage(reference); var b = Raylib.LoadImage(on);
+        try
+        {
+            int inked = 0, same = 0, onlyOld = 0, onlyNew = 0, colour = 0;
+            var diff = Raylib.GenImageColor(1280, 800, new Color(0, 0, 0, 255));
+            for (int y = 0; y < 800; y += 2)
+                for (int x = 0; x < 1280; x += 2)
+                {
+                    var p = Raylib.GetImageColor(a, x, y); var q = Raylib.GetImageColor(b, x, y);
+                    if (q.R > 200 && q.G < 60 && q.B < 60) continue;   // the red box is not terrain
+                    bool pBg = Math.Abs(p.R - 80) < 12 && Math.Abs(p.G - 80) < 12 && Math.Abs(p.B - 80) < 12;
+                    bool qBg = Math.Abs(q.R - 80) < 12 && Math.Abs(q.G - 80) < 12 && Math.Abs(q.B - 80) < 12;
+                    if (pBg && qBg) continue;
+                    inked++;
+                    if (Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B) < 40) { same++; Raylib.ImageDrawPixel(ref diff, x, y, new Color(70, 70, 70, 255)); }
+                    else if (qBg) { onlyOld++; Raylib.ImageDrawPixel(ref diff, x, y, new Color(255, 255, 0, 255)); }
+                    else if (pBg) { onlyNew++; Raylib.ImageDrawPixel(ref diff, x, y, new Color(0, 255, 255, 255)); }
+                    else { colour++; Raylib.ImageDrawPixel(ref diff, x, y, new Color(255, 0, 255, 255)); }
+                }
+            Raylib.ExportImage(diff, Path.Combine(Path.GetTempPath(), "terrain2d-diff.png"));
+            Raylib.UnloadImage(diff);
+            // ⭐ COVERAGE is the parity: the same shapes in the same places (orientation, mirror, geometry). ⚠ Colour is NOT compared —
+            //   📐 the gizmo renderer draws every FilledTriangle in BOTH windings and the 2-D camera turns culling off (CE-1040 N4), so the
+            //   old path blended each translucent fill TWICE; the mesh blends it once, as its colour says (measured: the sand house, the
+            //   slabs and the walls differ, the opaque-enough tower and orange houses agree). Recorded in Terrain World §10.
+            Assert.True(inked > 8_000 && onlyOld + onlyNew <= inked / 50,
+                $"the retained layer must cover what the gizmo path covered: {same} of {inked} inked samples agree "
+                + $"(only the old path {onlyOld}, only the layer {onlyNew}, colour differs {colour})");
+        }
+        finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
+
+        // ② "Terrain (2-D)" unticked: the city goes, the gizmo stays
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Terrain2D = false } }.ToMask());
+        frame.StepN(2, canvas.Draw);
+        string off = Path.Combine(shots, "terrain2d-2-off.png");
+        frame.Screenshot(off);
+        var hidden = Count(off);
+        Assert.True(hidden.Terrain < whole.Terrain / 20, $"unticked, the city must go (terrain pixels {hidden.Terrain} vs {whole.Terrain})");
+        Assert.True(hidden.Red > 20, $"the gizmo box stays (red pixels {hidden.Red})");
+
+        // ③ close up: outlines and labels in view only
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto().ToMask());
+        Look(centre, 6f);
+        frame.StepN(2, canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "terrain2d-3-close.png"));
+        Assert.Equal(1, terrain.Builds);
+        Assert.True(terrain.StrokesDrawn > 0 && terrain.StrokesDrawn < terrain.Strokes,
+            $"close up only what is in view is drawn ({terrain.StrokesDrawn} of {terrain.Strokes})");
+
+        // ④ ⭐ CE-1233 (routes-1 §8.1) — uc-convoy-hit's route "Avenue E north" (652,30)→(652,380) over the city, through the REAL route
+        //   gizmo and the production renderer: a line you can see and a circle at each waypoint. Screenshot: route-1-convoy.png.
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+        var routeEntity = world.CreateEntity();
+        world.AddComponent(routeEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+        var avenue = new Hrot.Map.Common.Components.RoutePlan();
+        avenue.Mutate(w =>
+        {
+            w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 30f, 0f), TargetSpeed = 8f });
+            w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 380f, 0f), TargetSpeed = 8f });
+        });
+        world.SetManagedComponent(routeEntity, avenue);
+        buffer.Clear();
+        new Hrot.ScenarioEditor.Gizmos.RouteGizmo().Draw(world, routeEntity, buffer);
+        Look(new Vector2(652f, 60f), 3f);   // the southern waypoint and 260 m of the avenue
+        frame.StepN(2, canvas.Draw);
+        string routePng = Path.Combine(shots, "route-1-convoy.png");
+        frame.Screenshot(routePng);
+        var shot = Raylib.LoadImage(routePng);
+        try
+        {
+            int blue = 0, dot = 0;
+            var wp = cam.WorldToScreen(new Vector2(652f, 30f));
+            for (int y = 0; y < 800; y++)
+                for (int x = 0; x < 1280; x++)
+                {
+                    var c = Raylib.GetImageColor(shot, x, y);
+                    if (c.R < 110 && c.G is > 100 and < 180 && c.B > 220)
+                    {
+                        blue++;
+                        if (Vector2.Distance(new Vector2(x, y), wp) <= Hrot.ScenarioEditor.Gizmos.RouteGizmo.WaypointPixels + 1f) dot++;
+                    }
+                }
+            Assert.True(blue > 300, $"the route must be visible over the avenue (route-blue pixels {blue})");
+            Assert.True(dot > 20, $"the southern waypoint must carry its circle (route-blue pixels within it {dot})");
+        }
+        finally { Raylib.UnloadImage(shot); }
     }
 
     /// <summary>

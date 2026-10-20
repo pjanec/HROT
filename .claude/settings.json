@@ -4,8 +4,6 @@
     "allow": [
       "Bash(*)",
       "PowerShell(*)",
-      "mcp__codebase-memory-mcp",
-      "mcp__codebase-memory-mcp__*",
       "mcp__Claude_Code_Remote__list_repos",
       "mcp__Claude_Code_Remote__add_repo",
       "mcp__Claude_Code_Remote__register_repo_root",
@@ -15,9 +13,6 @@
     ]
   },
   "defaultMode": "dangerously-skip-permissions",
-  "enabledMcpjsonServers": [
-    "codebase-memory-mcp"
-  ],
   "hooks": {
     "SessionStart": [
       {
@@ -41,5 +36,8 @@
         ]
       }
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "codebase-memory-mcp"
+  ]
 }

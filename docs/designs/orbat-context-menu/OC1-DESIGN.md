@@ -1,3 +1,15 @@
+<!--STATUS
+state: SUPERSEDED (in part) 2026-10-20 by R-1015 / CE-1230
+updated: 2026-10-20
+current-answer: Phases 0-3 (bug fixes, contracts, SimHost and IG command handling) are unchanged history. Phase 4 (a SEPARATE ORBAT context menu) is SUPERSEDED.
+stale-below: Phase 4 "IOS — ORBAT Context Menu" — do not build a separate ORBAT menu.
+superseded-by: docs/blueprints/Blueprint_Issues_Tracker.md CE-1230 (its design is written there first)
+known-rot: none checked (IOS-era document, not re-measured)
+known-conflict: R-1015 — user, 2026-10-20: "the contex menu in orbat tree panel should be the same as when right clicked on entity in 2d map or 3d map. not duplicated, but shared and unified. the embark/disembark command should go to the shared menu." The ORBAT row serves the map's entity menu (MapEntityMenuHandler / ContextMenuProjectorGizmo.MenuJsonFor); OC1's five actions belong in that one menu if still wanted.
+related-designs:
+  - docs/DESIGN_Add_Entity_Picker.md — the map's empty-canvas menu (the entity menu's sibling on the same canvas)
+-->
+
 # ORBAT Context Menu — Design
 
 **Prefix:** `OC1-`  

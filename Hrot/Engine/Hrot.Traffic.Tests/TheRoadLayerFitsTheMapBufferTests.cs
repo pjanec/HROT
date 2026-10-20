@@ -34,6 +34,8 @@ public sealed class TheRoadLayerFitsTheMapBufferTests
         Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.FilledTriangle);   // no surfaces in 2-D
         Assert.All(frame, p => Assert.True((p.TargetView & PipelineTarget.FlatOnly) != 0, $"a {p.Shape} would be drawn in 3-D too"));
         Assert.Equal(net.Roads.Plan.Lines.Count, frame.Count(p => p.Shape == DebugPrimitiveShape.Line));
+        // ⭐ CE-1203 (§5e FL-3) — the Traffic row (was the Entities bit)
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new TrafficRoadGizmo().Draw(world, d), DebugTraceLayers.Traffic);
     }
 
     /// <summary>Every segment of every normal vehicle lane, and nothing else (no sidewalk, no junction interior).</summary>

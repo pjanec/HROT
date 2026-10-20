@@ -273,6 +273,27 @@ namespace GizmoMap.Presentation.Tests
         }
     }
 
+    // ⭐ CE-1203 (docs/DESIGN_Terrain_Combat_Tuning.md §5e FL-5) — a row prints its [EditDisplayName] (else its name) and shows its
+    // [EditDoc] line on hover; a row without one shows no tooltip.
+    public class CE1203_RowLabelAndMeaningTests
+    {
+        [Fact]
+        public void ARow_PrintsItsDisplayName_AndHoversItsDoc()
+        {
+            var meta = new StructEdit.Core.EditNodeMetadata
+            {
+                DisplayName = "Vision cones",
+                CustomAttributes = new System.Attribute[] { new StructEdit.Core.Attributes.EditDocAttribute("What each unit can see.") },
+            };
+            var named = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(1), "VisionCones", "$.Ai.VisionCones", default, typeof(bool), metadata: meta);
+            var plain = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(2), "Doors", "$.Map.Doors", default, typeof(bool));
+            Assert.Equal("Vision cones", ImGuiPropertyTreeAdapter.LabelOf(named));
+            Assert.Equal("What each unit can see.", ImGuiPropertyTreeAdapter.DocOf(named));
+            Assert.Equal("Doors", ImGuiPropertyTreeAdapter.LabelOf(plain));
+            Assert.Null(ImGuiPropertyTreeAdapter.DocOf(plain));
+        }
+    }
+
     // ---- GZ068: ImGui window stable ID tests --------------------------------
 
     public class ImGuiWindowStableIdTests
@@ -535,6 +556,35 @@ namespace GizmoMap.Presentation.Tests
 
             // Deserialize must NOT have been called; binding remains 0.
             Assert.Equal(0, (int)binding.GetBoxed()!);
+        }
+
+        // ⭐ CE-1234 — a gizmo publishes under its INSTANCE id (the projector: GizmoInstanceId = its anchor), the registry is keyed by
+        // SCHEMA: the panel finds the schema from what it scheduled, and a state that arrives before the schedule waits for it.
+        // 🔒 User: "map layer controls (checkbox) does not seem to work in 3d". 🔴 Red-proof: looked up by instance id only, the state
+        // never reached the panel — its own copy kept the 2-D view, and every 3-D click was dropped as an edit of the other view.
+        [Fact]
+        public void CE1234_AStateUnderItsInstanceId_ReachesThePanel_EvenBeforeItIsScheduled()
+        {
+            var (doc, binding) = TestDocFactory.MakeIntDoc(initial: 0);
+            var registry = new GizmoSchemaRegistry();
+            const uint schemaHash = 0xC0DEu;
+            const long instance = 1099511627790L;   // a GlobalGizmoManager id: far above any schema hash
+            registry.Register(schemaHash, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+            binding.SetBoxed(7);
+            string json = EditDocumentJsonSerializer.Serialize(doc);
+            binding.SetBoxed(0);
+
+            adapter.ReceiveUiState(new GizmoUiState { GizmoInstanceId = unchecked((uint)instance), EditDocumentJson = json });
+            Assert.Equal(0, (int)binding.GetBoxed()!);   // not scheduled yet: kept
+            adapter.Schedule(instance, schemaHash, 100u, 0f, 0f, false);
+            Assert.Equal(7, (int)binding.GetBoxed()!);   // applied when the panel learns its schema
+
+            binding.SetBoxed(9);
+            json = EditDocumentJsonSerializer.Serialize(doc);
+            binding.SetBoxed(0);
+            adapter.ReceiveUiState(new GizmoUiState { GizmoInstanceId = unchecked((uint)instance), EditDocumentJson = json });
+            Assert.Equal(9, (int)binding.GetBoxed()!);   // known: applied at once
         }
 
         // SC-GZ070-3: ReceiveUiState with unknown GizmoInstanceId does not throw.

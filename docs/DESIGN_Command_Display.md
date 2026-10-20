@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
-build-state: BUILT for D1–D3 (CE-1192, CE-1191); D4 (the picture and the log on a node with no brain) ✅ approved 2026-10-19 (R-2058), behaviors (the log, CE-2301) and backend (the picture's replication) build it; ui's one part — absence shown — BUILT 2026-10-19 (§7, D4 row)
-current-answer: §1 what · §2 INVENTORY · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 as built
+updated: 2026-10-20
+build-state: BUILT for D1–D3 (CE-1192, CE-1191); D4 (the picture and the log on a node with no brain) ✅ approved 2026-10-19 (R-2058), behaviors (the log, CE-2301) and backend (the picture's replication) build it; ui's one part — absence shown — BUILT 2026-10-19 (§7, D4 row) · §8 the Sectors layer BUILT 2026-10-20 (CE-1225, §8a)
+current-answer: §1 what · §2 INVENTORY · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 as built · §8 the Sectors layer (CE-1225)
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -134,3 +134,114 @@ registered there and draw nothing until D4 lands; on SimHost's map (and `--mode 
 |---|---|---|---|---|---|
 | **D3** Reports window | ✅ the log of the node as a table: time · kind / subtype · from → to · SPOT fields · age · SYN · verdict, newest first; unit combo (from OR to) and kind combo | `ReportsWindowModel` (pure: `Rows`, `Units`, `NameOf`, the two empty/no-match texts) + `ReportRow` / `ReportSpot` + `ReportsWindow` (`ManagedWindow`, with `BuildViewModel` → `ReportsWindowViewModel`, dumped through `PanelSnapshot`) — `Hrot/Engine/Hrot.Presentation/Windows/`. Shared words: `CommandReportText` (`SubtypeName`, `CarriesElementFields`, `UnitName`) — `FDP/Toolkits/Fdp.Toolkits/Squad/Command/`, **moved out of the HTTP route**: `DebugApiService.Reports.cs` now calls it too (subtype text, the SPOT-field kinds, the subordinate's name) — one copy | **Editor** (`editor_reports`, perspective Scenario, `EditorSubsystem.RegisterWindows`, non-headless) · **ExCon** (`excon_reports`, in the `_mock` block of `ExConSubsystem.RegisterWindows`) · **SimHost** (`simhost_reports`, `SimHostSubsystem.RegisterWindows`) — ids in `ScenarioPanelWindowIds`. `() => world` per host: editor `_world`, SimHost `vis.GetRepo()`, ExCon `() => null` | `Hrot.Presentation.Tests/Windows/ReportsWindowTests.cs` (the feature suite: 20-report fixture, order, unit/kind/both filters, SYN, age, names, SPOT only for SPOT/CONTACT, null/empty log, the empty text, the window's dump) | ① `Rows` takes the **world** as well as the log (`Rows(world, log, now, unit, kind)`): a name is an `EntityInfo` read on the world, the log holds entity handles only. ② also registered on **SimHost** — the one host where the log fills today (§5); the brief named editor and ExCon. ③ **ExCon keeps no world at all** (the map is remote), so its window shows the empty line permanently — it can only change when D4 puts a log where ExCon can read it, not by `StaffInboxSystem` writing it on every node. ④ a unit is named by `EntityInfo.Name`, else `#index` (no entity map in the model, so no network id) |
 | **D4** — ui's part *(behaviors' [answer](blueprints/batches/NOTE_Behaviors_To_Ui_Command_Display_D4_Answer.md), R-2058, `2026-10-19`)* | ✅ absence is visible: a SELECTED commander (a unit some `UnitSubordinate` names as commander) with no `CommandPicture` on this node gets the line *"no picture on this node yet"* over his head; the Reports window's empty line is now *"No report on this node yet."* (the log fills on every node once behaviors' inbox lands) | `CommandPictureAbsentGizmo` (family `SquadAssignment`, beside `CommandPictureGizmo`) · `ReportsWindowModel.EmptyText` | `CommandDisplayGizmoTests.D4_ACommanderWithNoPictureOnThisNode_SaysSo` (red-proved) | — |
+
+## 8. The Sectors layer — one checkbox for every sector *(UI-5c, `CE-1225`, ui, `2026-10-20`; build-state: BUILT — §8a)*
+
+🔒 **User, `2026-10-20`:** *"The behavior lane has developed attack and defend behavior for platoons and squads. they are using sectors
+assigned to them. Do you support rendering the sectors behind a switch/checkbox in the map tactical layers?"* · on the lean: *"Yes, lets do
+sector checkbox first."*
+
+**INVENTORY** *(graph CLI `search_graph .*Sector.*` (Class) → 3: `SectorArcGizmo`, `SectorAreasGizmo`, `SectorSplit` (behaviors' plan
+helper, not drawn); `query_graph` IMPLEMENTS `IStatelessGizmo` 38 / `IGlobalStatelessGizmo` 15; grep `layer:` per projector)* —
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| both sector drawings sit on layer 0, so only "Entities off" (which hides the units too) hides them | `IDebugDrawBuilder.DrawLine(… byte layer = 0 …)`; neither gizmo passes a layer; `EntityPresentationGizmoShared.DrawClosedPolylineOutline` hard-codes `layer: 0` | §6 D1/D2 named no layer — searched, none |
+| a squad's arc draws only for the selected / pinned unit | `SectorArcGizmo`, family `SquadAssignment` | §6 D2 (*"a man's own arc"*) |
+| behaviors writes THREE tiers onto the one replicated `EngagementArea` | the platoon's slice on each line squad (`PlatoonDefendBehavior` DA-52), the support squad's arc (`PlatoonAttackBehavior`), each man's arc from his post (`SquadManeuverRunner.Sector`, DA-37) — behaviors branch, `2026-10-19` | [Defend & Attack](designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) DA-37, DA-52; R-3020 / R-2054 |
+| a COMMANDER is a unit some replicated `UnitSubordinate.Commander` names | `CommandPictureAbsentGizmo` (§7 D4) | §7 D4 |
+| a z = 0 line is draped on the ground in 3-D; any other z floats | `GizmoRenderer3D` (`drape = !Anchored && z == 0`) | [Map 3-D](DESIGN_Map_3D_Mode.md) M18, M22 |
+| the layer mask: toggles 0…13, everything from `FirstUntoggledLayer` (14) up always on; the selection ring at 14 | `LayerControlDto.ToMask`, `DebugTraceLayers.Selection` | [Tuning §5d](DESIGN_Terrain_Combat_Tuning.md) C; CE-1160 |
+
+```mermaid
+classDiagram
+  class LayerControlDto {
+    <<exists, changed>>
+    Sectors : new, false
+    FirstUntoggledLayer = 15
+  }
+  class DebugTraceLayers {
+    <<exists, changed>>
+    Sectors = 14
+    Selection = 255 (was 14)
+  }
+  class SectorAreasGizmo {
+    <<exists, changed>>
+    Draw() areas, NoFire AND every commander's arc, on Sectors
+    DrawArc(draw, area, colour) static, shared
+  }
+  class SectorArcGizmo {
+    <<exists, changed>>
+    family SquadAssignment, any selected unit's arc, on Sectors
+  }
+  class EntityPresentationGizmoShared {
+    <<exists, changed>>
+    DrawClosedPolylineOutline(…, layer)
+  }
+  class EngagementArea { <<FDP Toolkits, replicated>> AllowArea · NoFire · ArcSet, ArcOrigin, bearings, ranges }
+  class UnitSubordinate { <<FDP Core, replicated>> Commander }
+  LayerControlDto --> DebugTraceLayers : bit 14
+  SectorAreasGizmo ..> EngagementArea : every unit
+  SectorAreasGizmo ..> UnitSubordinate : which units command
+  SectorArcGizmo ..> SectorAreasGizmo : DrawArc
+  SectorAreasGizmo ..> EntityPresentationGizmoShared : outline on Sectors
+```
+*What the picture shows that prose hid:* nothing new is drawn by a new class — the global gizmo, which already walks every
+`EngagementArea`, also draws the commanders' arcs, and the per-unit arc gizmo keeps the men behind selection. The checkbox is one bit;
+the only structural change is moving the selection ring out of the way to the top bit, so the toggles stay one contiguous range.
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant L as LayerControlGizmo
+  participant G as SectorAreasGizmo (global)
+  participant A as SectorArcGizmo (per unit, family SquadAssignment)
+  participant R as 2-D / 3-D renderer
+  U->>L: Tactical Map Layers, ticks "Sectors"
+  L->>R: LayerControlMask, bit 14 on
+  loop each frame
+    G->>G: commanders = every UnitSubordinate.Commander
+    G->>R: each AllowArea outlined + name, each NoFire hatched (layer 14, z = 0)
+    G->>R: each commander's arc (layer 14, z = 0)
+    A->>R: the selected / pinned unit's arc (layer 14, z = 0)
+  end
+  R->>R: draws layer 14 only while the bit is on, z = 0 draped in 3-D
+```
+
+```mermaid
+graph TD
+  REG["GizmoReflectionRegistrar — every map host"] --> G[SectorAreasGizmo]
+  REG --> A[SectorArcGizmo]
+  POL["GizmoFamilyVisibilityPolicy (SquadAssignment scope)"] --> A
+  G --> BUF["DebugPrimitive buffer, layer 14"]
+  A --> BUF
+  LCG["LayerControlGizmo — View, Tactical Map Layers..."] -->|"mask bit 14"| R2[DebugPrimitiveRenderer2D]
+  LCG -->|"mask bit 14"| R3[GizmoRenderer3D]
+  BUF --> R2
+  BUF --> R3
+  NET["EngagementArea + UnitSubordinate replicated (EntityEngagementAreaTranslators)"] --> G
+```
+*Who calls it each frame:* the stateless gizmo system of EVERY map host (editor, SimHost, CGF, IG) — the data is replicated, so a
+node with no brain draws the same sectors.
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **S-1** | the switch | ⭐ a **Sectors** checkbox, OFF by default (§5d A: a quiet map), bit 14; areas, NoFire hatching and arcs all on it | reuse "Squad: selected only" — unticking it also draws every man's arc and the leader–member lines · leave sectors on Entities — hiding them hides the units |
+| **S-2** | whose sectors | ⭐ every COMMANDER's arc for every unit while the box is ticked (the platoon's slices, the support squad's arc); a man's own arc only when he is selected or pinned (the family scope, as before) | every man's arc — a platoon is ~30 arcs over the map |
+| **S-3** | height | ⭐ arcs drawn at z = 0 ⇒ draped on the ground in 3-D, like the areas | at the arc's origin height — the far edge floats over or sinks under a slope |
+| **S-4** | the selection ring | ⭐ moves to bit 255 (still above every toggle, still always on) so the toggles stay one range 0…14 and later toggles (`CE-1203`) can grow it | a hole list of toggled bits above 14 — two rules for one mask |
+| **S-5** | a selected commander | ⭐ his arc is drawn by both gizmos — the same line twice, invisible; no per-frame selection lookup in the global gizmo | skip selected commanders in one of them — needs the selection on a stateless global gizmo for no visible gain |
+
+⚠ **Not drawn: the platoon's whole area** when it came in the order — it lives only in the play's params, never on an entity; its squad
+slices together cover it. Drawing it needs behaviors to put it on the platoon leader's `EngagementArea` (not asked).
+
+### 8a. As built *(`CE-1225`, ui, `2026-10-20`)* — matches §8's three diagrams; no deviation
+
+| piece | where |
+|---|---|
+| S-1 the bit and the checkbox | `DebugTraceLayers.Sectors = 14` (`Fdp.Toolkits`); `LayerControlDto.Sectors` (default false), `ToMask`, `FirstUntoggledLayer = 15` (`Hrot.Common/Diagnostics/Gizmos/LayerControlGizmo.cs`) |
+| S-2 commanders for everyone | `SectorAreasGizmo` — a cached `UnitSubordinate` query → `Commanders(…)` set each frame; a commander's arc through `SectorArcGizmo.DrawArc`; areas, names and the NoFire hatch pass `layer: Sectors` (`EntityPresentationGizmoShared.DrawClosedPolylineOutline` gained a `layer` argument); both gizmos return at once when the layer is hidden (`IsLayerActive`), so a hidden layer costs no work |
+| S-3 on the ground | `SectorArcGizmo.DrawArc` draws at z = 0 (the arc's X/Y origin) |
+| S-4 the selection ring | `DebugTraceLayers.Selection = 255`. ⚠ Measured on the way: the 2-D renderer SORTS by layer and the pick test prefers the higher layer (`DebugGizmoLayer`), so the ring is still drawn on top and still out-ranks everything below it — as at 14; sector lines (layer 14) now draw above the unit symbols (0) and cards (11), and are lines, so they never take a pick (only boxes and spheres are hit-tested) |
+| S-5 | as leaned — a selected commander's arc is emitted twice, identically |
+| rails | `CommandDisplayGizmoTests` (`Hrot.Presentation.Tests`): `CE1225_EveryCommandersArc_IsDrawnForEveryone_OnTheGround_OnTheSectorsLayer_AndAMansOwnArcIsNot` · `CE1225_TheSectorsLayerOff_NoAreaNoFireOrArc_IsDrawn` · the CE-1192 area rail now also asserts its layer. `LayerControlGizmoTests.CE3117_…` (`Hrot.SimHost.Tests`): Sectors defaults off, toggles its bit, lies below the always-on range. Frame: `Map3DFrameRail` ⑨ → `docs/assets/map-3d/map3d-9-sectors.png` (a platoon's three squad slices draped in 3-D, the rifleman's own arc absent) |

@@ -22,7 +22,7 @@ namespace Hrot.UI.Common.Audio
         public const float ShotRangeSmall = 800f, ShotRangeMedium = 1500f, ShotRangeLarge = 3000f;
 
         /// <summary>A burst's audible range when the round names none (m), by its size.</summary>
-        public const float BurstRangeSmall = 700f, BurstRangeMedium = 2000f, BurstRangeLarge = 4000f;
+        public const float BurstRangeSmall = 700f, BurstRangeMedium = 2000f, BurstRangeLarge = 4000f, BurstRangeHuge = 6000f;   // ⭐ CE-1231 — huge
 
         /// <summary>A round passing this close to the ear cracks (m).</summary>
         public const float PassDistance = RoundPasses.PassDistance;
@@ -171,7 +171,8 @@ namespace Hrot.UI.Common.Audio
             float d = Vector3.Distance(b.At, ear.Position);
             if (bang != 0 && SoundTkbCatalog.SoundOf(tkb, bang) is { } s)
             {
-                float range = bang == SoundTkbCatalog.ExplosionLarge ? BurstRangeLarge : bang == SoundTkbCatalog.ExplosionMedium ? BurstRangeMedium : BurstRangeSmall;
+                float range = bang == SoundTkbCatalog.ExplosionHuge ? BurstRangeHuge : bang == SoundTkbCatalog.ExplosionLarge ? BurstRangeLarge
+                            : bang == SoundTkbCatalog.ExplosionMedium ? BurstRangeMedium : BurstRangeSmall;
                 if (d >= range) { _rumble = MathF.Min(1f, _rumble + 0.08f); return; }
                 BurstsHeard++;
                 _recentNear = MathF.Min(1f, _recentNear + 0.5f);

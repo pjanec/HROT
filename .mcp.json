@@ -1,14 +1,11 @@
 {
   "mcpServers": {
-    "codebase-memory-mcp": {
-      "type": "stdio",
-      "command": "${CODEBASE_MEMORY_MCP_BIN:-/opt/codebase-memory-mcp/codebase-memory-mcp}",
-      "args": []
-    },
     "claude-worker-orchestrator": {
       "type": "stdio",
       "command": "node",
-      "args": ["c:/Utils/AITools/ClaudeWorkerMCP/dist/index.js"],
+      "args": [
+        "c:/Utils/AITools/ClaudeWorkerMCP/dist/index.js"
+      ],
       "env": {}
     },
     "hrot-ai-debug": {

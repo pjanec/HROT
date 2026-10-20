@@ -35,6 +35,7 @@ namespace Hrot.AI.Behaviors.Gizmos
 
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
             if (bs.ActiveBehaviorHash != PlatoonHillAttack_BT)
                 return;
@@ -57,9 +58,9 @@ namespace Hrot.AI.Behaviors.Gizmos
             var baseColor = new Rgba32(0, 200,   0, 220);  // green (baseline)
 
             draw.DrawLine(fireStart, fireEnd, fireColor, thickness: 2f,
-                sizeMode: SizeMode.ScreenPixels);
+                sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.SquadCommand);
             draw.DrawLine(baseStart, baseEnd, baseColor, thickness: 2f,
-                sizeMode: SizeMode.ScreenPixels);
+                sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.SquadCommand);
 
             bool showSlots = _settings
                 .Read(GizmoSettingsRegistry.ComputeHash(HillAttackGizmoSettings.ShowSlots))
@@ -83,9 +84,9 @@ namespace Hrot.AI.Behaviors.Gizmos
             {
                 float t   = count == 1 ? 0f : (float)i / (count - 1);
                 var pos   = Vector3.Lerp(start, end, t);
-                draw.DrawSphere(pos, 2f, color);
+                draw.DrawSphere(pos, 2f, color, layer: DebugTraceLayers.SquadCommand);
                 var label = new FixedString32($"{prefix}{i + 1}");
-                draw.DrawText(pos.X, pos.Y, label, color);
+                draw.DrawText(pos.X, pos.Y, label, color, layer: DebugTraceLayers.SquadCommand);
             }
         }
     }

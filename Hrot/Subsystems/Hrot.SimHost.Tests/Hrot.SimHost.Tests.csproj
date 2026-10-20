@@ -30,4 +30,7 @@
     <!-- GZH-011: LayerControlGizmoTests need ComponentEditServiceBuilder -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
+  </ItemGroup>
 </Project>

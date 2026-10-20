@@ -1982,7 +1982,9 @@ namespace Hrot.Editor
                         Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                         GeoTransform: () => geoTransform)
                     {
-                        SuspendedReason = () => _previewController?.IsInPreviewMode == true ? "suspended in Preview" : null,
+                        // ⭐ CE-1226 (R-1012, user: "When preview, adding new entities is disabled in the menu, i need it enabled") —
+                        //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview
+                        //   lives until Stop: leaving Preview rewinds the whole world and the id allocator (PreviewClusterOpHandler).
                         HostPickers     = () => _shellPickers,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not

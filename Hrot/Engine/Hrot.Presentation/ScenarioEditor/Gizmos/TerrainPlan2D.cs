@@ -9,22 +9,20 @@ using Fdp.Toolkit.Terrain;
 namespace Hrot.ScenarioEditor.Gizmos;
 
 /// <summary>
-/// ⭐⭐ <b>The 2D map layer that draws the terrain WORLD</b> (docs/DESIGN_Terrain_World.md §7.1 W2/W3) — ground
-/// cover, floor slabs and ramps, then buildings and walls, filled and shaded by height, outlined, and labelled.
+/// ⭐⭐ <b>The 2-D map's PLAN of the terrain WORLD</b> (docs/DESIGN_Terrain_World.md §7.1 W2/W3, §10) — ground cover, floor
+/// slabs and ramps, then buildings and walls, filled and shaded by height, outlined, and labelled.
 ///
-/// <para>⭐ A GLOBAL stateless projector on the shared gizmo seam: it reads the <see cref="TerrainWorld"/>
-/// singleton every ECS node holds, so every host with a map — editor, CGF, SimHost, IG — draws the same world
-/// from this one class (🔒 user: <i>"Cgf must render the map as well"</i>).</para>
-/// <para>⭐ Fills use <see cref="IDebugDrawBuilder.DrawFilledTriangle"/> over the triangles the parser computed
-/// ONCE; the gizmo does no geometry of its own.</para>
-/// <para>⚠ Drawn on <see cref="TerrainLayer"/> 0, the lowest, and emitted before entity gizmos sort above it
-/// by the renderer's stable painter's order.</para>
+/// <para>⭐⭐ <c>CE-1227</c> (§10, R-1013) — NO LONGER A PROJECTOR. It was the <c>TerrainWorldGizmo</c>, emitting the whole world into
+/// the map's gizmo buffer every frame: 📐 73 188 primitives on demo-city against a 16 384 buffer, so the entity symbols and the
+/// marquee were dropped. Now <see cref="Hrot.UI.Common.Map2D.TerrainLayer2D"/> calls <see cref="Emit"/> ONCE per loaded terrain into a
+/// private buffer, keeps the fills as one mesh and draws the outlines and labels in view. The look is unchanged.</para>
+/// <para>⭐ Fills use <see cref="IDebugDrawBuilder.DrawFilledTriangle"/> over the triangles the parser computed ONCE; the plan does
+/// no geometry of its own.</para>
 /// </summary>
-[GizmoProjector]
-public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
+public sealed class TerrainPlan2D
 {
-    /// <summary>The debug layer terrain draws on — the bottom of the painter's order.</summary>
-    public const byte TerrainLayer = 0;
+    /// <summary>⭐ CE-1227 — the layer every primitive of the plan carries: the "Terrain (2-D)" checkbox (§5e FL-1).</summary>
+    public const byte TerrainLayer = DebugTraceLayers.Terrain2D;
 
     private static readonly Rgba32 ForestFill  = new(40, 110, 50, 110);
     private static readonly Rgba32 WaterFill   = new(50, 110, 200, 150);
@@ -36,12 +34,17 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
     private static readonly Rgba32 SlabOutline = new(40, 90, 170, 220);
     private static readonly Rgba32 LabelColor  = new(20, 20, 20, 255);
 
+    /// <summary>Emits the plan of the terrain <paramref name="view"/> holds; nothing when it holds none.</summary>
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository repo || !repo.HasSingletonManaged<TerrainWorld>()) return;
         var world = repo.GetSingletonManaged<TerrainWorld>();
-        if (world == null) return;
+        if (world != null) Emit(world, draw);
+    }
 
+    /// <summary>⭐ CE-1227 — emits <paramref name="world"/>'s plan: fills first (painter's order), then outlines and labels.</summary>
+    public static void Emit(TerrainWorld world, IDebugDrawBuilder draw)
+    {
         foreach (var s in world.Surfaces)
         {
             if (s.Type == TerrainSurfaceType.Open) continue;

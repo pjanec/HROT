@@ -11,6 +11,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Contacts)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-1), split from Perception
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             ref readonly var mem = ref view.GetComponentRO<TargetMemory>(entity);
 
@@ -41,11 +42,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     thickness: 1.5f,
                     sizeMode: SizeMode.ScreenPixels,
                     target: PipelineTarget.Map2D,
-                    layer: 1,
+                    layer: DebugTraceLayers.Contacts,
                     style: heard ? LineStyle.Dashed : LineStyle.Solid);
                 if (heard && mem.Radius[i] > 0f)
                     draw.DrawSphere(targetPos, mem.Radius[i], new Rgba32(255, 60, 60, startAlpha), thickness: 1f,
-                        target: PipelineTarget.Map2D, layer: 1, style: LineStyle.Dashed);
+                        target: PipelineTarget.Map2D, layer: DebugTraceLayers.Contacts, style: LineStyle.Dashed);
             }
         }
     }
