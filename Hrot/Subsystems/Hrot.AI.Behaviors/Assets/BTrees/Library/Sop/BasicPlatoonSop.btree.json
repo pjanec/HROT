@@ -44,6 +44,7 @@
       "VisualId": "c2294000-0000-0000-0000-000000000010",
       "ChildVisualIds": [
         "c2294000-0000-0000-0000-000000000014",
+        "c2294000-0000-0000-0000-000000000015",
         "c2294000-0000-0000-0000-000000000011",
         "c2294000-0000-0000-0000-000000000012",
         "c2294000-0000-0000-0000-000000000013"
@@ -69,6 +70,22 @@
         "X": -20,
         "Y": 400,
         "Comment": "CE-2276 DA-55: a defending platoon's squads already hold their posts — holding them again would pull them off the posts and stop the defence's trigger.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking"
+      },
+      "VisualId": "c2294000-0000-0000-0000-000000000015",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not attacking",
+      "EditorMetadata": {
+        "X": -180,
+        "Y": 400,
+        "Comment": "CE-2277 AT-13: an attacking platoon expects contact — its base of fire and its control region answer it; holding every squad would stop the attack at its first SPOT.",
         "Collapsed": false,
         "Color": null
       }

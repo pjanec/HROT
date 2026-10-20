@@ -23,6 +23,8 @@ public static class BasicPlatoonSop
                 {
                     seq.Condition("Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending",
                         visualId: new Guid("c2294000-0000-0000-0000-000000000014"));
+                    seq.Condition("Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking",
+                        visualId: new Guid("c2294000-0000-0000-0000-000000000015"));
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
                         visualId: new Guid("c2294000-0000-0000-0000-000000000011"));
                     seq.Condition("Fdp.Toolkit.Squad.Command.PictureConditions.ElementReported@8",

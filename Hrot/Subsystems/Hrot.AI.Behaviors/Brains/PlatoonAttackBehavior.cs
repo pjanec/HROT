@@ -643,6 +643,15 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static int RosterCount(EntityRepository world, Entity self)
             => world.HasComponent<UnitRoster>(self) ? world.GetComponentRO<UnitRoster>(self).Count : 0;
+
+        private static readonly int AttackHash = BehaviorHash.FromName(BehaviorNames.PlatoonAttack);
+
+        /// <summary>⭐ AT-13 (as DA-55 for the defence) — the platoon's task is NOT an attack. <c>BasicPlatoonSop</c>'s hold row asks it: an
+        /// attacking platoon expects contact — its base of fire is up for it and its control region relieves and breaks off — so pausing the
+        /// task to order every squad <c>Hold</c> would stop the attack at its first SPOT (measured live, <c>pc-defend-house</c>).</summary>
+        [SharedAiCondition]
+        public static bool NotAttacking(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != AttackHash;
     }
 
     /// <summary>

@@ -169,11 +169,11 @@ output). ⚠ Not measured: a live cluster load of demo-city with the quarters (t
 |---|---|---|---|
 | 1 ✅ | the frame lean (D-2l) — built 2026-10-19 | a trained man watches and fires from beside the window frame | Defend & Attack §8c D-2l |
 | 2 ✅ | battle positions from the survey — built 2026-10-19 (Defend & Attack §8d E-4) | a platoon defends an AREA — buildings and open ground, one position per squad (R-2060's area rule) | Defend & Attack §8d, Platoon §5a |
-| 3 | `ClearBuilding` (`CE-2259`) | the room-by-room drill; then the Veteran counterattack (DA-75) is one switch | Building Clearing §7 |
-| 4 | the request round trip, Casevac first | a squad asks, the platoon answers, the request closes — the seed of ① | Platoon §4 Answer, §5 DAnswer |
-| 5 | the scene's reactions: ④ trigger man + ambush · ⑤ convoy halt · ⑥ insurgent spotter | the ladder's convoy rungs | §4 |
-| 6 | ① the headquarters play · ③ armed search · ② (on BR-14) | route B: assets sent only because a report arrived | §3, §4 |
-| 7 | `AttackPosition` (`CE-2277`) over an AREA, then `pc-attack-dry` and `pc-defend-house` | attack + defend, platoon against platoon | Platoon §4, §5a, §12 |
+| 3 ✅ | `ClearBuilding` (`CE-2259`) — built 2026-10-19 | the room-by-room drill; then the Veteran counterattack (DA-75) is one switch | Building Clearing §7 |
+| 4 ✅ | the request round trip, Casevac first (`CE-2305`) — built 2026-10-19 | a squad asks, the platoon answers, the request closes — the seed of ① | Platoon §4 Answer, §5 DAnswer |
+| 5 ✅ | the scene's reactions: ④ trigger man + ambush (`CE-2306`) · ⑤ convoy halt (`CE-2307`) · ⑥ insurgent spotter (`CE-2308`) — built 2026-10-19 | the ladder's convoy rungs | §4 |
+| 6 ✅ | ① the headquarters play (`CE-2312`) · ③ armed search (`CE-2311`) · ② (`CE-2309`, `CE-2310`) — built 2026-10-19 | route B: assets sent only because a report arrived | §3, §4 |
+| 7 🟡 | `AttackPosition` (`CE-2277`) over an AREA ✅ built, ✅ `pc-attack-dry` live 12/12; `pc-defend-house` | attack + defend, platoon against platoon | Platoon §4, §5a, §12 |
 | 8 | the demo ladder on demo-city, then the flagship | the urban battle | below |
 
 Backend's BR-14 (a launch heard), BR-15 (the HMMWV killable), BR-16 (the APC armed) run in parallel, filed 2026-10-19.

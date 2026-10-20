@@ -3145,6 +3145,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, result);
         }
 
+        /// <summary>⭐⭐ <c>CE-2277</c> AT-13 (as DA-55) — an attacking platoon WITH its SOP (<c>BasicPlatoonSop</c>): an enemy reported in
+        /// the area does not pause the attack for <c>PlatoonHold</c> — the task stays on and its base of fire stays up. Measured live first
+        /// (<c>pc-defend-house</c>: the attack became PlatoonHold at the first SPOT). ✅ Red-proof: the guard always true ⇒ the hold reaction
+        /// pauses the attack and orders every squad Hold.</summary>
+        [Fact]
+        public void CE2277_WithItsSop_AReportedEnemy_DoesNotPauseTheAttack()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.StartSop("BasicPlatoonSop");
+            var o = new Vector3(0f, 200f, 0f);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(6);
+            Assert.Equal(BehaviorNames.PlatoonAttack, p.S.TaskName);
+            Assert.False(p.S.Repo.HasComponent<PausedTask>(p.S.Commander));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Hold"));
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
+        }
+
         /// <summary>⭐ <c>CE-2277</c> (AT-11, RQ-6) — a Casevac during the attack is answered by the free reserve (`SquadRecover`), as in the
         /// defence (one helper, `CasevacAnswers`). ✅ Red-proof: the answer state dropped ⇒ nobody fetches him.</summary>
         [Fact]

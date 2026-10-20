@@ -4082,8 +4082,10 @@ def run_pc_defend_house(c, timeout):
     call("POST", "/sim/play", {})
     c.ok(wait_for(lambda: task_name(rpl) == "PlatoonDefend" and task_name(bpl) == "PlatoonAttack", 15),
          f"① Red runs PlatoonDefend, Blue PlatoonAttack ({task_name(rpl)}, {task_name(bpl)})")
+    red_men = {v for k, v in ids.items() if k.startswith("Red Squad") or k.startswith("Red Reserve")}
+    blue_men = {v for k, v in ids.items() if k.startswith("Blue Squad")}
     log, last = [], {}
-    seen = {"support": False, "redFire": False, "assault": False, "broke": False}
+    seen = {"support": False, "redHeld": False, "redFire": False, "assault": False, "broke": False}
     end = time.time() + min(timeout, 600)
     while time.time() < end:
         t = sim_time() or 0.0
@@ -4096,7 +4098,8 @@ def run_pc_defend_house(c, timeout):
         seen["support"] |= "SquadDefend" in tasks
         seen["assault"] |= "ClearBuilding" in tasks or "FireAndMovement" in tasks
         seen["broke"] |= "BreakContact" in tasks
-        seen["redFire"] |= any(last[n][1] == "FireAtWill" for n in ("Red Squad 1", "Red Squad 2"))
+        seen["redHeld"] |= any(last[n][1] == "HoldFire" for n in ("Red Squad 1", "Red Squad 2"))   # the line holds first (DA-7)…
+        seen["redFire"] |= seen["redHeld"] and any(last[n][1] == "FireAtWill" for n in ("Red Squad 1", "Red Squad 2"))   # …then opens
         if seen["assault"] or seen["broke"] or task_name(bpl) != "PlatoonAttack":
             break
         time.sleep(1.0)
@@ -4110,8 +4113,8 @@ def run_pc_defend_house(c, timeout):
         call("POST", "/perspective", {"name": "Scenario"})
     sides = {}
     for sh in shots:
-        who = sh.get("shooter") or 0
-        side = "Red" if 9300 <= int(who) < 9400 else "Blue" if 9400 <= int(who) < 9500 else "?"
+        who = sh.get("shooter")
+        side = "Red" if who in red_men else "Blue" if who in blue_men else "?"
         sides[side] = sides.get(side, 0) + 1
     c.ok(seen["support"], "② Blue's base of fire goes up (a Blue squad SquadDefends)")
     c.ok(seen["redFire"], "② Red's line opens fire (FireAtWill) on what it spots inside its EA")

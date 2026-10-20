@@ -67,6 +67,12 @@ public static class BasicPlatoonSopRegistrar
                 var status = global::Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
                 return status;
             });
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
 
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:PlatoonHold:Contact@-1",

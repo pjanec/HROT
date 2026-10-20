@@ -1656,8 +1656,9 @@ live `pc-attack-dry` and `pc-defend-house` (step 7's demos). ⛔ Not in it: smok
 | AT-10 | ABreaking orders `BreakContact {To: the start}`; every squad's Set or TaskFailed ⇒ ABroke raises fault `Custom + 277` — the run FAILS |
 | AT-11 | ⭐ ONE helper for both plays: `CasevacAnswers.Answer` / `.Returned` (`PlatoonDefend`'s `AnswerCasevac` and `KeepDefence` now call it); the attack's reserve carries the casualty to where it stands |
 | AT-12 | a phase change marks every role slot dirty, so `KeepAttack` re-orders with `newOrder` — the picture forgets the last leg's Set (`OrderGiven`) and a stale Set cannot open the next phase (rail: the second objective's approach waits for the support's NEW Set) |
+| ⭐ **AT-13** *(new, found live)* | ⭐ **the platoon SOP does not hold an attack** — `BasicPlatoonSop`'s hold row gains `PlatoonAttackBehavior.NotAttacking` beside DA-55's `NotDefending`. 📐 Measured live (`pc-defend-house`, first run): at the first SPOT the SOP paused the attack for `PlatoonHold` and every squad held at its start — the attack never began. An attack expects contact: its base of fire answers it, its control region relieves and breaks off. Rail `CE2277_WithItsSop_AReportedEnemy_DoesNotPauseTheAttack` |
 
-Rails `SquadManeuverTests.CE2277_*` ×5 — mutants: see the tracker row. ⛔ Not live yet (`pc-attack-dry`, step 7).
+Rails `SquadManeuverTests.CE2277_*` ×5 — mutants: see the tracker row. ✅ **`pc-attack-dry` 12/12 live** (`scripts/utility-demo-check.py pc-attack-dry`, cqb-village: a Blue platoon 150 m south of OBJ; the live area survey returned OBJ as the one objective; the support went to (124, 37) — the SBF berm — and each faked report moved one phase). `pc-defend-house` (nothing faked, AI on both sides) is §9's next row.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
