@@ -343,7 +343,7 @@
       },
       "EntityInfo": {
         "Name": "IED",
-        "ForceId": "Hostile"
+        "ForceId": "Neutral"
       }
     },
     "d0c00000-0000-4000-8000-000000009521": {
