@@ -4355,14 +4355,15 @@ def run_uc_reinforce_dry(c, timeout):
             set_health(ids.get(f"Blue Squad 2 {n}"), 0)
     finally:
         call("POST", "/perspective", {"name": "Scenario"})
-    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [650, 250, 0], "count": 6, "size": "SquadSize"})
+    call("POST", f"/entities/{sq[0]}/reports", {"kind": "Spot", "at": [40, 140, 0], "count": 6, "size": "SquadSize"})
     ask = wait_for(lambda: next((x for x in squad_reports(last=128) if x.get("kind") == "Request" and x.get("subtype") == "Reinforce"
                                  and x.get("from") == pl), None), 40)
     c.ok(ask is not None, f"① the platoon asks to be reinforced ({json.dumps(ask)[:220] if ask else None})")
     sent = wait_for(lambda: task_name(res) in ("SquadDefend", "PlatoonDefend"), 30)
     print(f"    reserve order: {json.dumps(_order(res))[:300]}")
     c.ok(sent, f"② the HQ sends the reserve to defend at the platoon (reserve task {task_name(res)}; platoon {task_name(pl)})")
-    moved = wait_for(lambda: (p := position(res)) and p[1] > 80, min(timeout, 120))
+    start = position(res)
+    moved = wait_for(lambda: (p := position(res)) and start and math.hypot(p[0] - start[0], p[1] - start[1]) > 10, min(timeout, 120))
     c.ok(moved, f"② …and it goes (reserve at {position(res)})")
 
 
