@@ -184,6 +184,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | item | state |
 |---|---|
 | backend's [NOTE](batches/NOTE_Backend_To_Ui_Walk_Run_Mount_UnderFire_Binoculars.md) (on `origin/backend`) | `CE-1208` walk/run speeds, `CE-1222` the operator's mount, `CE-1223` `UnderFire` replicated, `CE-1224` binoculars for every leader by ROLE — all built there; nothing in ui has to change. ⚠ `CE-1206`: their fix (no gunner gate while possessed) does NOT explain the ZU-23 case — they ask ui to reproduce live: which slot the HUD held, what refusal it showed |
+| `CE-1206` | ✅ closed by backend `2026-10-20` — not reproduced live (one press fired the ZU-23); reopen with the HUD state if seen |
 | `CE-1158` | the live cluster run is still owed |
 | `CE-1197` | sidewalks need a SumoSharp `SceneKind` (cross-lane, coordinator) |
 
@@ -194,8 +195,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 ✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built) · `CE-1207` + `CE-1205` (Entity Control §8m — the leans PK-2…PK-7 are the build's; the user may overturn any).
 
 1. `CE-1210` — seat switching (`R-1008`) — design first (with the vehicle look clamp, `CE-1204` LK-6).
-2. `CE-1206` — reproduce the ZU-23 technical live (after the backend merge), answer backend's question.
-3. `CE-1230` — the ORBAT tree's menu = the map's entity menu (`R-1015`) — design first.
+2. `CE-1230` — the ORBAT tree's menu = the map's entity menu (`R-1015`) — design first.
 
 ### The standing rules of this lane (the user's, still binding)
 
