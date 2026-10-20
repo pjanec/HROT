@@ -72,6 +72,69 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ <c>CE-3063</c> — what a detonation of its munition sounds like; <see cref="SoundSourceClass.Unknown"/> ⇒ an explosion.</summary>
         public SoundSourceClass DetonationClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3283</c> (Q95 A) — the weapon FAMILY a trained ear tells its shots and bursts by (a ZU-23 is an AA gun, not a heavy MG):
+        /// data, because the role is not in the weapon's category. A Regular hears the family; a Veteran the type itself.</summary>
+        public SoundFamily Family { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> (Q95 B3) — the frequency band of its movement / shots / bursts: how much an obstacle stops it (World Query
+        /// Seam WQ-E scales its loss by it). <see cref="SoundBand.Unset"/> ⇒ <see cref="SoundBands.Of"/> the class's. ⛔ Read by nothing yet.</summary>
+        public SoundBand MovingBand { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> — the band of its shots (see <see cref="MovingBand"/>).</summary>
+        public SoundBand FiringBand { get; init; }
+
+        /// <summary>⭐ <c>CE-3285</c> — the band of its bursts (see <see cref="MovingBand"/>).</summary>
+        public SoundBand DetonationBand { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — the weapon family a Regular ear tells a shot or a burst by: finer than the class, coarser than the
+    /// type. 3 bits on the acoustic answer (flags 13–15) — at most 8 values.
+    /// </summary>
+    /// ⚠ The TKB DTOs become DDS IDL, where enumerators share ONE scope: no member may repeat another enum's (<c>SoundSourceClass</c> has
+    /// <c>Unknown</c> and <c>SmallArms</c> — hence <see cref="Untold"/> and <see cref="Rifle"/>).
+    public enum SoundFamily : byte
+    {
+        /// <summary>No family (the ear could not tell, or the source has none).</summary>
+        Untold    = 0,
+        Mortar    = 1,
+        /// <summary>A gun: a howitzer, a tank's or a field gun.</summary>
+        Gun       = 2,
+        HeavyMg   = 3,
+        /// <summary>An anti-aircraft gun (the ZU-23).</summary>
+        AaGun     = 4,
+        /// <summary>A rocket or missile launcher (an RPG, an ATGM, a MANPADS).</summary>
+        Launcher  = 5,
+        /// <summary>Small arms: a rifle, a pistol, a light machine gun.</summary>
+        Rifle     = 6,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3285</c> (Q95 B3, approved) — a sound's band: bass bends round hills and passes walls, a faint high sound is stopped by them. One
+    /// propagation model scales its obstacle loss by the band (WQ-E): <see cref="Low"/> ×0.2, <see cref="Mid"/> ×0.6, <see cref="High"/> ×1.0.
+    /// </summary>
+    public enum SoundBand : byte
+    {
+        Unset = 0,
+        /// <summary>A blast, a gun's report.</summary>
+        Low   = 1,
+        /// <summary>A rifle, an engine.</summary>
+        Mid   = 2,
+        /// <summary>Footsteps, voices, a bolt worked.</summary>
+        High  = 3,
+    }
+
+    /// <summary>⭐ <c>CE-3285</c> — the band a sound class has when its TKB states none (Q95 B3's table).</summary>
+    public static class SoundBands
+    {
+        public static SoundBand Of(SoundSourceClass cls) => cls switch
+        {
+            SoundSourceClass.HeavyWeapon or SoundSourceClass.Explosion => SoundBand.Low,
+            SoundSourceClass.Footsteps => SoundBand.High,
+            SoundSourceClass.Unknown => SoundBand.Unset,
+            _ => SoundBand.Mid,   // small arms, engines, rotors
+        };
     }
 
     /// <summary>

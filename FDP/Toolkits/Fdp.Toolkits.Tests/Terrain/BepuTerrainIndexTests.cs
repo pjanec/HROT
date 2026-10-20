@@ -115,6 +115,55 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(crossNull >= 100, "the segments must actually cross terrain, or the comparison proves nothing");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> (a) — the POINT queries narrow through the same index (a vertical segment through the point), and every
+        /// answer stays identical: <c>SurfaceZ</c> (from several height hints), <c>SurfacesAt</c>, and the footprint test behind
+        /// <c>TryStandAt</c>. demo-city is the terrain whose EQS placement scanned every prism (0.4 ms a point, live).
+        /// </summary>
+        [Theory]
+        [InlineData("test-town")]
+        [InlineData("bt-range")]
+        [InlineData("demo-city")]
+        public void CE3279_PointQueries_GiveIdenticalAnswers_ThroughTheIndex(string name)
+        {
+            var w = Shipped(name);
+            var rng = new Random(3279);
+            var min = w.BoundsMin; var max = w.BoundsMax;
+            var points = new List<Vector2>();
+            for (int i = 0; i < 4000; i++)
+                points.Add(new Vector2(min.X + (float)rng.NextDouble() * (max.X - min.X), min.Y + (float)rng.NextDouble() * (max.Y - min.Y)));
+            float[] hints = { 0f, 3f, 7f, MaxTop(w) + 1f };
+
+            List<(bool Inside, float[] Levels, int Ground, float[] Z)> Answers()
+            {
+                var list = new List<(bool, float[], int, float[])>(points.Count);
+                foreach (var p in points)
+                {
+                    var levels = w.SurfacesAt(p.X, p.Y, out int ground);
+                    list.Add((w.InsideFootprint(p.X, p.Y), levels, ground, hints.Select(h => w.SurfaceZ(p.X, p.Y, h)).ToArray()));
+                }
+                return list;
+            }
+
+            Assert.Null(w.SpatialIndex);
+            var plain = Answers();
+            using var index = BepuTerrainIndex.AttachTo(w);
+            var indexed = Answers();
+
+            int inside = 0, raised = 0;
+            for (int i = 0; i < points.Count; i++)
+            {
+                Assert.Equal(plain[i].Inside, indexed[i].Inside);
+                Assert.Equal(plain[i].Levels, indexed[i].Levels);
+                Assert.Equal(plain[i].Ground, indexed[i].Ground);
+                Assert.Equal(plain[i].Z, indexed[i].Z);
+                if (plain[i].Inside) inside++;
+                if (plain[i].Levels.Length > 1) raised++;
+            }
+            _out.WriteLine($"[CE3279] {name}: {w.Prisms.Count} prisms, {w.Walkables.Count} walkables; {points.Count} points, {inside} inside a footprint, {raised} with more than one level — all identical");
+            Assert.True(inside >= 20, "the points must land in footprints, or the comparison proves nothing");   // bt-range: 40 of 4000
+        }
+
         // ── ② speed on a large terrain ────────────────────────────────────────────────────────────────────────
 
         /// <summary>A 2 km square town: 80 × 80 blocks of a building and a garden wall each (12 800 prisms), and a few decks.</summary>

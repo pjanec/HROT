@@ -25,6 +25,11 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AcousticEmitter>()) return;
 
+            // ⭐ CE-3282 (Q95 C; Sensing §8.3) — the lossless ring HEARING reads (the emitter's 0.5 s linger below now only feeds the map's
+            //   hearing gizmo); its clock moves every frame, so "too old" is measured on this node's time
+            var ring = SoundEmissionRing.Of(repo);
+            ring.Tick(repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d);
+
             bool flight = repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
             foreach (var e in repo.Query().With<AcousticEmitter>().With<SimTransform>().Build())
             {
@@ -65,6 +70,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                     var p = repo.GetComponentRO<SimTransform>(shot.Shooter).Position;
                     a.ShotTimeLeft = SoundLingerSeconds;
                     a.ShotX = p.X; a.ShotY = p.Y; a.ShotZ = p.Z;
+                    if (a.FiringAudibleRange > 0f)
+                        ring.Append(Emission(repo, shot.Shooter, SoundKind.Shot, a.FiringClass, p, a.FiringAudibleRange, ring.Now, TypeOf(repo, shot.Shooter), a.Family));
                 }
 
             if (repo.Bus.IsRegistered<DetonationNotification>())
@@ -74,7 +81,25 @@ namespace Fdp.Toolkit.Perception.Signatures
                     ref var a = ref repo.GetComponentRW<AcousticEmitter>(det.Shooter);
                     a.DetonationTimeLeft = SoundLingerSeconds;
                     a.DetonationX = det.HitX; a.DetonationY = det.HitY; a.DetonationZ = det.HitZ;
+                    if (a.DetonationAudibleRange > 0f)
+                        ring.Append(Emission(repo, det.Shooter, SoundKind.Detonation, a.DetonationClass, new System.Numerics.Vector3(det.HitX, det.HitY, det.HitZ),
+                                             a.DetonationAudibleRange, ring.Now, det.Ammo, a.Family));   // a burst's signature is its munition (Q95 A)
                 }
         }
+
+        // ⭐ CE-3282 — one ring entry: the source (anonymous to the listener — only the error's seed and the own-force test read it).
+        private static SoundEmission Emission(EntityRepository repo, Entity source, SoundKind kind, byte cls, System.Numerics.Vector3 at, float carry,
+                                              double time, long signature, byte family)
+            => new()
+            {
+                Source = source.PackedValue,
+                Force  = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(source) ? (byte)repo.GetComponentRO<EntityInfo>(source).ForceId : (byte)0,
+                Kind   = (byte)kind, Class = cls, At = at, Carry = carry, Time = time, Signature = signature, Family = family,
+            };
+
+        // ⭐ Q95 A — a shot's signature is the weapon's TKB type (a crewed weapon's round names the weapon, WS-3)
+        private static long TypeOf(EntityRepository repo, Entity e)
+            => repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>() && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e)
+                ? repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType : 0L;
     }
 }

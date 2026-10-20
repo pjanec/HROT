@@ -281,6 +281,23 @@ dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -c Release
 ```
 The `[Q0_…]` lines carry every number above. ⚠ Debug numbers understate both paths; the ratios are the point.
 
+⚠ **Found `2026-10-20` (backend, `CE-3279`) — the index is BUILT and ATTACHED NOWHERE.** `BepuTerrainIndex.AttachTo` has no production
+caller (only `BepuTerrainIndexTests`; no host references `Fdp.Toolkits.Spatial.Bepu`), so every live segment query still scans every
+piece. And the two POINT queries — `TerrainWorld.SurfaceZ` and `TerrainWorldQuery.TryStandAt` — never consult `SpatialIndex` even when
+set: they loop over every prism (and `SurfaceZ` over every walkable). 📐 On demo-city an EQS point placement costs 0.4 ms (0.7 s of a
+1.8 s solver tick). ⏳ Proposed in `CE-3279`: attach in `TerrainResidency` after the parse, and narrow both point queries through
+the index (a degenerate segment; identical answers by the same construction as §5a ①).
+
+✅ **BUILT `2026-10-20` (`CE-3279` (a), user-approved).** `TerrainResidency.Indexed` attaches a `BepuTerrainIndex` to every world it
+publishes — the parsed terrain in `Prepare` and each obstacle bake's derived world (`BakeObstacles`), both off the main thread.
+`TerrainWorld.SurfaceZ`, `SurfacesAt` and the new `InsideFootprint` (behind `TerrainWorldQuery.TryStandAt`) visit `PointCandidates(x, y)` —
+the index's candidates for a vertical segment through the point, door leaves skipped, ascending. The index frees its native pool by
+finalizer (a published world is never disposed: a background snapshot may still read it). ⚠ `Hrot.Core` now references
+`Fdp.Toolkits.Spatial.Bepu` directly — Terrain World §3 keeps only DotRecast out of `Hrot.Core`, and Bepu lives "inside the stand-in"
+whose loader `TerrainResidency` is (the "they LOAD or BUILD the stand-in" row below); ⛔ an injected factory was rejected: a host that forgot it would silently scan every piece again.
+Rail: `BepuTerrainIndexTests.CE3279_PointQueries_GiveIdenticalAnswers_ThroughTheIndex` (test-town, bt-range, demo-city; 4000 points,
+every hint).
+
 ## 5b. Q1 — as built `2026-10-10`
 
 **Moved onto `IWorldQuery`** (all SimHost-side — the stand-in engine's physics and its sensors; ⭐ the brain touches no terrain:

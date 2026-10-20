@@ -56,12 +56,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The stand-in's rule: not inside any piece's footprint (a building is solid at every height), then the surface near the hint.</summary>
         public bool TryStandAt(float x, float y, float zHint, out float z)
         {
-            var p = new Vector2(x, y);
-            foreach (var prism in World.Prisms)
-            {
-                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
-                if (PolygonMath.Contains(prism.Footprint, p)) { z = default; return false; }
-            }
+            if (World.InsideFootprint(x, y)) { z = default; return false; }   // ⭐ CE-3279 (a) — narrowed through the spatial index
             z = World.SurfaceZ(x, y, zHint);
             return true;
         }

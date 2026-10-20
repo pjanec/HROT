@@ -1149,13 +1149,13 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐ BR-14 (Urban Battle §4 ②; DESIGN_Thermal_And_Acoustic_Sensing §6 B) — an 81 mm tube's LAUNCH is heard, from the TUBE: the real
         /// catalogue's <c>WeaponSystem_Mortar81</c> carries its own report (a crewed weapon's round names the weapon as its shooter, WS-3), so a
-        /// fired tube is a <c>HeavyWeapon</c> shot at its own position — heard by a listener 1.2 km away, not by one 3 km away (the report's
-        /// 2 km). The listeners are acoustic posts whose ears reach 5 km; a SOLDIER's 200 m ears are <c>CE3276_…</c>'s (R-3023).
+        /// fired tube is a <c>HeavyWeapon</c> shot at its own position — heard by a listener 1.2 km away, not by one 6 km away (the report's
+        /// 5 km, CE-3284's real carry). The listeners are acoustic posts whose ears reach 8 km; a SOLDIER's 200 m ears are <c>CE3276_…</c>'s (R-3023).
         /// </summary>
         [Fact]
-        public void BR14_AnEightyOneMillimetreLaunch_IsHeardFromTheTube_At1200m_NotAt3km()
+        public void BR14_AnEightyOneMillimetreLaunch_IsHeardFromTheTube_At1200m_NotAt6km()
         {
-            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km — the default grid is 1 km
+            var big = SpatialHashGrid.Create(400, 400, 20f, 1000, Allocator.Persistent);   // 8 km — the default grid is 1 km (CE-3284: the far post at 6 km is ON it)
             try
             {
                 var view = (ISimulationView)_world;
@@ -1180,14 +1180,14 @@ namespace Hrot.SimHost.Tests
                     var post = new TkbTemplate("ListeningPost", 1400 + netId);
                     post.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
                     {
-                        Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 5000f,
-                        Acoustic = new AcousticSensorDto { Range = 5000f, UncertaintyPerMeter = 0.05f },
+                        Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 8000f,
+                        Acoustic = new AcousticSensorDto { Range = 8000f, UncertaintyPerMeter = 0.05f },
                     } } });
                     new PerceptionTkbTranslator().Inject(_world, unit, post);
                     return unit;
                 }
                 var near = Listener(1200f, 4301);
-                var far  = Listener(3000f, 4302);
+                var far  = Listener(6000f, 4302);   // ⭐ CE-3284 — past the 81 mm's real 5 km
 
                 _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = tube });
                 _world.Bus.SwapBuffers();
@@ -1201,7 +1201,7 @@ namespace Hrot.SimHost.Tests
                 _world.Bus.SwapBuffers();
 
                 var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
-                var one = Assert.Single(heard);                                   // the near post only: 3 km is past the report's 2 km
+                var one = Assert.Single(heard);                                   // the near post only: 6 km is past the report's 5 km
                 Assert.Equal(near, one.Observer);
                 Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
                 Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);
@@ -1217,14 +1217,14 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ CE-3276 (R-3023; DESIGN_Thermal_And_Acoustic_Sensing §8.2) — a LOUD sound carries past the listener's ear range: a man whose
-        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 2 km carry), and not at 3 km. A QUIET class keeps both caps: a
+        /// ears reach 200 m hears the 81 mm tube's launch at 1.2 km (its own 5 km carry, CE-3284), and not at 6 km. A QUIET class keeps both caps: a
         /// small-arms shot that would carry 1.5 km, from the same spot, is not heard at 1.2 km. His own side's gun is never heard (the
         /// broadphase's rule). 🔴 Red before: the near man heard nothing.
         /// </summary>
         [Fact]
         public void CE3276_ALoudLaunch_CarriesPastASoldiersEars_AQuietShotDoesNot()
         {
-            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km
+            var big = SpatialHashGrid.Create(400, 400, 20f, 1000, Allocator.Persistent);   // 8 km (CE-3284: the far man at 6 km is ON it)
             try
             {
                 var view = (ISimulationView)_world;
@@ -1262,7 +1262,7 @@ namespace Hrot.SimHost.Tests
                     return unit;
                 }
                 var near = Soldier(1200f, 4311);
-                var far  = Soldier(3000f, 4312);
+                var far  = Soldier(6000f, 4312);   // ⭐ CE-3284 — past the 81 mm's real 5 km
 
                 foreach (var shooter in new[] { tube, rifle, ours })
                     _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = shooter });
@@ -1287,6 +1287,177 @@ namespace Hrot.SimHost.Tests
             {
                 big.Dispose();
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3278 (behaviors' NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live, measured live on uc-request-chain) — a round from the 81 mm
+        /// tube 1.43 km away BURSTS 35 m from a soldier whose ears reach 200 m, and he HEARS it, at the burst (the burst is stamped on its
+        /// shooter, the tube, whose type now states the burst's carry; class Explosion, a loud one, R-3023). 🔴 Red before: the tube's
+        /// <c>DetonationAudibleRange</c> was 0, so nobody heard it, however near.
+        /// </summary>
+        [Fact]
+        public void CE3278_AShellBurstingBesideASoldier_IsHeard_ThoughItsTubeIsFarAway()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);   // 4 km
+            try
+            {
+                var view = (ISimulationView)_world;
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+                AcousticPerception.Register(registry, big);
+                var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+                var tube = _world.CreateEntity();
+                _world.AddComponent(tube, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                    tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+
+                var man = _world.CreateEntity();
+                var at = new Vector3(1530f, 100f, 0f);   // 1430 m from the tube
+                _world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+                _world.AddComponent(man, new NetworkIdentity { Value = 4321 });
+                var soldier = new TkbTemplate("Soldier", 1532);
+                soldier.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });
+                new PerceptionTkbTranslator().Inject(_world, man, soldier);
+
+                var burst = at + new Vector3(-35f, 0f, 0f);
+                _world.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = tube, HitX = burst.X, HitY = burst.Y, HitZ = 0f });
+                _world.Bus.SwapBuffers();
+                new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute(view, 0.1f);
+                _world.Bus.SwapBuffers();
+
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(big).Execute(view, 0.1f);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+
+                var one = Assert.Single(view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray());
+                Assert.Equal(man, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Detonation, one.Kind);
+                Assert.Equal((byte)SoundSourceClass.Explosion, one.SourceClass);
+                Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(burst.X, burst.Y)) <= one.Radius + 0.01f, "heard at the burst");
+            }
+            finally
+            {
+                big.Dispose();
+            }
+        }
+
+        // ⭐ CE-3282 — the hearing rig: the 81 mm tube (hostile, real TKB) and a soldier with 200 m ears 1430 m away, a 4 km grid.
+        private (SpatialHashGrid Grid, Entity Tube, Entity Man) HearingRig()
+        {
+            var big = SpatialHashGrid.Create(200, 200, 20f, 1000, Allocator.Persistent);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, big);
+            var tube = _world.CreateEntity();
+            _world.AddComponent(tube, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
+            new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
+                Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 });
+            var man = _world.CreateEntity();
+            _world.AddComponent(man, new SimTransform { Position = new Vector3(1530f, 100f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(man, new NetworkIdentity { Value = 4331 });
+            var soldier = new TkbTemplate("Soldier", 1533);
+            soldier.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 200f });
+            new PerceptionTkbTranslator().Inject(_world, man, soldier);
+            return (big, tube, man);
+        }
+
+        // ⭐ CE-3282 — the sound side at sim time t: the clock, then whatever was published this frame, through the emission system
+        private void SoundFrame(double t, params Entity[] shooters)
+        {
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.1f });
+            foreach (var s in shooters) _world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = s });
+            _world.Bus.SwapBuffers();
+            new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem().Execute((ISimulationView)_world, 0.1f);
+            _world.Bus.SwapBuffers();
+        }
+
+        // ⭐ CE-3282 — one solve of every sensor; the sounds it heard this run
+        private Fdp.Toolkit.Perception.Events.SoundContactEvent[] Solve(SpatialHashGrid grid)
+        {
+            var view = (ISimulationView)_world;
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid).Execute(view, 0.1f);
+            new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (Q95 C; Sensing §8.3; the handoff's S1) — a short sound is NEVER MISSED: the tube fires once; the hearing sensor is not
+        /// solved for ten seconds (the EQS circuit's skip, CE-3279) — long after the 0.5 s linger ended — and when it runs it hears the launch
+        /// ONCE; the next solve does not hear it again. ✅ Red-proof: hearing from the linger (before) ⇒ nothing heard ⇒ red; the cursor not
+        /// written ⇒ heard again on the next solve ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_AShot_IsHeardOnce_ThoughTheSensorWasSkippedForTenSeconds()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));                                       // the sensor's first solve plants its cursor
+                SoundFrame(0.1d, tube);                                          // the launch
+                for (int i = 2; i <= 101; i++) SoundFrame(i * 0.1d);             // ten seconds, no solve
+                Assert.Equal(0f, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube).ShotTimeLeft);   // the linger is long gone
+                var heard = Solve(grid);
+                var one = Assert.Single(heard);
+                Assert.Equal(man, one.Observer);
+                Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, one.Kind);
+                Assert.Empty(Solve(grid));                                       // heard once, not again
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3282 (S1) — two shots of ONE gun inside half a second are heard TWICE (one emitter's linger held one). ✅ Red-proof: the linger
+        /// (before) ⇒ one heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3282_TwoShotsOfOneGun_InsideHalfASecond_AreHeardTwice()
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                SoundFrame(0d);
+                Assert.Empty(Solve(grid));
+                SoundFrame(0.1d, tube);
+                SoundFrame(0.3d, tube);
+                var heard = Solve(grid);
+                Assert.Equal(2, heard.Length);
+                Assert.All(heard, h => Assert.Equal(man, h.Observer));
+                Assert.All(heard, h => Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Shot, h.Kind));
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3283 (Q95 A; Sensing §8.4; the handoff's S3) — what the EAR can tell, by its proficiency: the same 81 mm launch is, to a
+        /// Militia man, a heavy weapon (the class only); to a Regular, a MORTAR (+ the family); to a Veteran, the 81 mm itself (+ the type,
+        /// the weapon's TKB type). The class is the same for all three. ✅ Red-proof: the tier gate removed ⇒ the Militia man hears the type ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, (byte)0, false)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular, (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, false)]
+        [InlineData(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Veteran, (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar, true)]
+        public void CE3283_TheEar_TellsTheClass_TheFamily_OrTheType_ByItsProficiency(float proficiency, byte family, bool knowsType)
+        {
+            var (grid, tube, man) = HearingRig();
+            try
+            {
+                _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                    { Authored = proficiency, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                SoundFrame(0d, tube);
+                var one = Assert.Single(Solve(grid));
+                Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // the class, always
+                Assert.Equal(family, one.Family);
+                Assert.Equal(knowsType ? Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 : 0L, one.Signature);
+            }
+            finally { grid.Dispose(); }
         }
 
         /// <summary>

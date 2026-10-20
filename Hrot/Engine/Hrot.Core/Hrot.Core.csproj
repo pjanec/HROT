@@ -15,6 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ CE-3279 (a) — the terrain's spatial index (World Query Seam WQ-D), attached to every world TerrainResidency publishes -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Spatial.Bepu\Fdp.Toolkits.Spatial.Bepu.csproj" />
     <!-- CycloneDDS.Runtime: DdsParticipant can be accepted/stored in HrotNodeConfig -->
     <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
   </ItemGroup>

@@ -110,8 +110,24 @@ namespace Fdp.Toolkit.Spatial.Bepu
 
         public void Dispose()
         {
+            Release();
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3279</c> — the tree lives in the pool's NATIVE memory, and a published world is never disposed (a background
+        /// snapshot may still read it), so the index frees itself once nothing references it.
+        /// </summary>
+        ~BepuTerrainIndex() => Release();
+
+        private void Release()
+        {
+            if (_released) return;
+            _released = true;
             _tree.Dispose(_buildPool);
             _buildPool.Clear();
         }
+
+        private bool _released;
     }
 }

@@ -1066,6 +1066,13 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3272</c> (backend, Q94 B, R-3018) — <c>EqsContextPoints</c>: up to 16 points a sensor's owner hands its solver (the
         /// danger-area sensor's remembered contacts), carried on <c>EqsSensorConfig</c>. §5.3. Backend's block; measured free 2026-10-19.</summary>
         public const int EqsContextPoints = 437;
+
+        /// <summary>⭐ <c>CE-3282</c> (backend, Q95 C) — <c>SoundEmissionRing</c>: every shot and burst, serial-numbered, a managed singleton the
+        /// background solver reads (borrowed, Sync allow-list). Sensing §8.3. Backend's block; measured free on four lanes 2026-10-20.</summary>
+        public const int SoundEmissionRing = 438;
+
+        /// <summary>⭐ <c>CE-3282</c> — <c>AcousticCursor</c>: the last ring serial a hearing sensor consumed. Sensing §8.3.</summary>
+        public const int AcousticCursor = 439;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

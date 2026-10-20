@@ -317,8 +317,8 @@ namespace Hrot.SimHost.Systems
             if (template.ScoreCheap != null)
                 foreach (var test in template.ScoreCheap)
                 {
-                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                    cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
 
             // 6. Top-K reduction: now that cheap scores exist, rank by Score and truncate to
@@ -330,8 +330,8 @@ namespace Hrot.SimHost.Systems
             if (template.ScoreExpensive != null)
                 foreach (var test in template.ScoreExpensive)
                 {
-                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                    cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
 
             // Check if any candidate has FlagPendingRay set.

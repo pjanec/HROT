@@ -761,4 +761,68 @@ public sealed class RecastNavmeshFactoryTests
         for (int i = 0; i < n; i++) { len += Vector2.Distance(new Vector2(prev.X, prev.Y), new Vector2(wps[i].Position.X, wps[i].Position.Y)); prev = wps[i].Position; }
         Assert.InRange(len, 14.9f, 15.6f);   // straight through the moved door (via the old one, at x 121.45, ≈ 20.8 m)
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3279 (b) — <c>PathCosts</c> answers an EQS sensor's candidates from ONE search, and agrees with an exact path per
+    /// point: the same "no path" whenever the exact path fits the reach, and a cost that is the corridor through edge midpoints —
+    /// never much shorter than the straightened path, at most a little longer. On the shipped test-town (buildings, walls).
+    /// </summary>
+    [Fact]
+    public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town");
+        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
+            TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        const uint Inf = (uint)NavLayerMask.Infantry;
+
+        var rng = new Random(3279);
+        var min = world.BoundsMin; var max = world.BoundsMax;
+        Vector3 Walkable()
+        {
+            while (true)
+            {
+                var p = new Vector3(min.X + (float)rng.NextDouble() * (max.X - min.X), min.Y + (float)rng.NextDouble() * (max.Y - min.Y), 0f);
+                if (nav.ProjectToNavmesh(p, out var on, Inf)) return on;
+            }
+        }
+
+        int compared = 0, unreachable = 0;
+        double ratioSum = 0, worst = 0;
+        var to = new Vector3[48]; var batch = new float[48];
+        for (int o = 0; o < 40; o++)
+        {
+            var from = Walkable();
+            float far = 0f;
+            for (int i = 0; i < to.Length; i++)
+            {
+                float ang = (float)(rng.NextDouble() * Math.PI * 2), r = 5f + (float)rng.NextDouble() * 55f;
+                to[i] = new Vector3(from.X + MathF.Cos(ang) * r, from.Y + MathF.Sin(ang) * r, from.Z);
+                far = Math.Max(far, Vector3.Distance(from, to[i]));
+            }
+            float reach = far * 1.5f + 25f;
+            nav.PathCosts(from, to, batch, reach, Inf, null);
+            for (int i = 0; i < to.Length; i++)
+            {
+                float exact = nav.PathCost(from, to[i], Inf);
+                if (exact == float.MaxValue)
+                {
+                    Assert.Equal(float.MaxValue, batch[i]);   // the batch never reaches what a full path cannot
+                    unreachable++;
+                    continue;
+                }
+                if (exact > reach * 0.9f) continue;   // a path near the reach may leave the circle — that is the documented trade
+                Assert.True(batch[i] != float.MaxValue, $"origin {from}, point {to[i]}: a {exact:F1} m path inside the {reach:F0} m reach read as no path");
+                Assert.True(batch[i] >= exact * 0.95f - 1f, $"{batch[i]:F1} m is shorter than the exact {exact:F1} m");
+                Assert.True(batch[i] <= exact * 1.5f + 5f, $"{batch[i]:F1} m is far longer than the exact {exact:F1} m");
+                double ratio = exact < 1f ? 1 : batch[i] / exact;
+                ratioSum += ratio; worst = Math.Max(worst, ratio); compared++;
+            }
+        }
+        Assert.True(compared >= 1000, $"only {compared} points compared");
+        Assert.Equal(0, nav.PathCostFallbacks);   // the search never outgrew its buffer here
+        Console.WriteLine($"[CE3279] test-town: {compared} points compared, {unreachable} unreachable (both agree), cost ratio mean {ratioSum / compared:F3}, worst {worst:F3}");
+    }
 }

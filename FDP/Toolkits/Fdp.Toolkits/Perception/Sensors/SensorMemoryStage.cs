@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Perception.Sensors
         {
             var unit = view.GetComponentRO<PartMetadata>(sensor).ParentEntity;
             if (results.IsEmpty || !view.IsAlive(unit)) return;
+            var ring = Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.In(view);   // ⭐ CE-3283 — the token's TKB type, this node's ring
             foreach (ref readonly var r in results)
             {
                 if (r.EntityId != 0) continue;
@@ -108,6 +109,8 @@ namespace Fdp.Toolkit.Perception.Sensors
                     Radius   = r.Score,   // the radius the generator drew the error in (AcousticSensorGenerator)
                     Kind     = (byte)((r.Flags & AcousticPerception.KindMask) >> AcousticPerception.KindShift),
                     SourceClass = (byte)((r.Flags & AcousticPerception.ClassMask) >> AcousticPerception.ClassShift),
+                    Family      = (byte)((r.Flags >> AcousticPerception.FamilyShift) & 0x7),   // ⭐ CE-3283 — the top 3 bits (the mask keeps the sign out)
+                    Signature   = ring?.TypeOf(r.SignatureToken) ?? 0L,
                 });
             }
         }

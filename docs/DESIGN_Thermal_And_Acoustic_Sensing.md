@@ -543,7 +543,7 @@ graph TD
 gets one sensor per sense it authors a range for; a template that lists sensors gets exactly its list.
 
 ⭐ **`2026-10-19` (backend, `CE-3273`):** a WEAPON SYSTEM's shot is stamped on the weapon's own emitter (the round's shooter, WS-3), so
-every weapon type now authors its report (mortars 1.5–2.5 km, guns 4–5 km `HeavyWeapon`; HMG 1 km; hand weapons `SmallArms`). ⭐ The
+every weapon type now authors its report (~~mortars 1.5–2.5 km, guns 4–5 km~~ ⛔ SUPERSEDED `2026-10-20` by §8.5's real carries; `HeavyWeapon`; HMG 1 km; hand weapons `SmallArms`). ⭐ The
 "heard if within BOTH ranges" rule above now holds for QUIET classes only — a loud one carries past the ear (§8.2, R-3023).
 
 | decision | why | rejected |
@@ -599,6 +599,7 @@ thousand listeners scan one short list — never a wider broadphase each.
 
 | decision | why | rejected |
 |---|---|---|
+| ⭐ **the rule (Q95 B, approved `2026-10-20`):** a loud sound is heard by **distance × weather wherever its source stands — on the terrain or off it** (never by the high-resolution terrain's size); a quiet one within its carry and the ear | 🔒 user: *"The hearing should not be limited by inner (high resolution) terrain size, but by the distance."* — the ring (§8.3) reads every source, no grid | ⛔ a terrain big enough to hold the guns |
 | loud = `HeavyWeapon` and `Explosion` | the two classes a doctrine expects heard kilometres away (a tube, a gun, a burst) | ⛔ every class past the ear — a footstep at 25 m would ignore a deaf listener's range |
 | the weather scales the loud carry | the ear's own weather factor (R-3017) would otherwise drop out for exactly these sounds | ⛔ unscaled — a storm would not mask a distant gun |
 | a per-tick list, not a wider broadphase | cost: one pass over emitters per tick, then O(loud) per listener | ⛔ raise every ear range — the broadphase radius grows for every listener every tick |
@@ -606,3 +607,132 @@ thousand listeners scan one short list — never a wider broadphase each.
 ⚠ **The step toward [`DESIGN_World_Query_Seam.md`](DESIGN_World_Query_Seam.md) WQ-E** (approved, not built): its loudness model reads every
 TKB range as *"the distance where the sound falls to the hearing threshold"* — the source's carry governs, walls subtract dB. Under it the
 ear range becomes a SENSITIVITY, and this loud-class exception folds into the general rule.
+
+⭐ **`2026-10-20` — measured live (uc-request-chain, behaviors' note):** a BURST is stamped on its shooter's emitter, so a weapon whose
+round bursts must state `DetonationAudibleRange` — BR-14 had left it 0 (fixed, `CE-3278`). ⚠ Open: the EQS module times out
+intermittently on a 541-entity scene (`CE-3279`); a sound that lingers 0.5 s is lost with a skipped solve — §6 B's *"last serial it
+heard"* (not built) is the robust form.
+
+### 8.3 `CE-3282` — the LOSSLESS RING: a short sound is never missed *(backend, `2026-10-20`; Q95 C, approved; build-state: BUILT)*
+
+🔒 **User, `2026-10-20`:** *"Short loud sounds might need different hear sensor machinery (hearing module might need to buffer sound related
+events — it is not acceptable to miss those)."* — [Q95](blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) C, §6 B's
+buffer built after all. ⛔ The 0.5 s linger stops feeding HEARING (it stays on the emitter for the map's hearing gizmo only).
+
+```mermaid
+classDiagram
+  class SoundEmissionSystem { <<existing, SimHost main thread>> Execute() appends every shot / burst }
+  class SoundEmissionRing { <<NEW managed singleton, id 438>> SoundEmission[] slots (4096) ; long Head ; double Now ; long Overflow ; Append() ; ReadAfter() }
+  class SoundEmission { <<NEW struct>> long Serial ; ulong Source ; byte Force ; byte Kind ; byte Class ; Vector3 At ; float Carry ; double Time ; long Signature }
+  class AcousticCursor { <<NEW component on the sensor, id 439>> long LastSerial }
+  class AcousticSensorGenerator { <<existing>> movement via the grid ; shots / bursts via the ring }
+  class EntityRepository_SyncFrom { <<existing, FDP>> borrows allow-listed singletons BY REFERENCE }
+  SoundEmissionSystem --> SoundEmissionRing : Append (single writer)
+  SoundEmissionRing "1" *-- "4096" SoundEmission
+  AcousticSensorGenerator --> SoundEmissionRing : ReadAfter(cursor)
+  AcousticSensorGenerator --> AcousticCursor : SetComponent via the solver's command buffer
+  EntityRepository_SyncFrom --> SoundEmissionRing : allow-list += 438
+```
+*What the picture shows that prose hid:* the snapshot does NOT copy the ring — `SyncSingletonById` hands the background solver the LIVE
+table by reference (`EntityRepository.Sync.cs`). So the race Q95 C expected the snapshot to remove is still there; a per-slot sequence
+number (the writer blanks it, writes the slot, then stamps it) lets a reader detect a slot torn or overwritten under it, and count it.
+
+```mermaid
+sequenceDiagram
+  participant F as FireProcessing / ingress (main)
+  participant E as SoundEmissionSystem (main)
+  participant R as SoundEmissionRing (live, shared)
+  participant G as AcousticSensorGenerator (background solve)
+  participant C as the solver's command buffer
+  F->>E: WeaponFireNotification / DetonationNotification
+  E->>R: Append {serial n, source, force, at, carry, kind, class, time}
+  Note over R: slot n mod 4096 — Serial blanked, fields written, Serial = n, Head = n
+  G->>R: ReadAfter(my cursor) up to Head
+  Note over G: a slot whose Serial is not n was overwritten — counted in Overflow
+  G->>G: hear each by distance (loud: carry x weather, quiet: carry and ear)
+  G->>C: AcousticCursor = last serial read
+  Note over C: a timed-out run is DISCARDED with its cursor, so the next run reads the same sounds again
+```
+*What the picture shows that prose hid:* the cursor travels with the solve's own output — the ModuleHost discards a timed-out run's buffer,
+and with it the cursor, so a skipped or discarded solve re-reads instead of losing.
+
+| decision | why | rejected |
+|---|---|---|
+| a managed singleton holding a preallocated array | the table is borrowed by reference either way (managed or unmanaged); an array avoids copying a 256 KB struct | ⛔ an unmanaged InlineArray singleton — every `SetSingletonUnmanaged` / default would copy 256 KB on a stack |
+| a seqlock per slot, ONE writer (the main thread) | lock-free, no allocation per shot; the reader detects a torn read | ⛔ a lock — the solver would block the main loop |
+| the cursor is a component written through the command buffer | a discarded solve loses its cursor too ⇒ lossless | ⛔ a cursor table inside the ring — a discarded run would still advance it |
+| a new sensor starts at the current Head | it does not "hear" the minutes before it existed | ⛔ from 0 |
+| N = 4096 entries, T = 30 s | 4096 / 10 s (the circuit's worst skip) ≈ 400 shots / s sustained; T stops a long-silent sensor hearing old news | — the overflow counter tells when N is too small |
+
+### 8.4 `CE-3283` — a SIGNATURE per weapon, and what the ear can tell *(backend, `2026-10-20`; Q95 A, approved; build-state: BUILT)*
+
+🔒 **User, `2026-10-20`:** *"Basically each gun type could have its own sound signature, not just artillery."* — the class stays (R-207);
+a heard sound ALSO carries what made it, as far as the listener's ear can tell.
+
+```mermaid
+classDiagram
+  class AcousticSignatureDto { <<TKB, existing>> FiringAudibleRange ; FiringClass ; Family NEW ; MovingBand FiringBand DetonationBand NEW (S6) }
+  class SoundFamily { <<NEW enum, 3 bits>> Untold ; Mortar ; Gun ; HeavyMg ; AaGun ; Launcher ; Rifle }
+  class SoundEmissionRing { <<8.3>> TokenOf(type) NEW, private, at Append ; TypeOf(token) NEW }
+  class SoundEmission { <<ring entry, 8.3>> Signature (TKB type) ; Token NEW ; Family NEW }
+  class EqsResult { <<existing, 32 bytes, unchanged>> SignatureToken NEW (former padding) ; Flags bits 13-15 = family }
+  class SoundContactEvent { <<existing>> SourceClass ; Family NEW ; Signature NEW }
+  class AudioTargetDetected { <<wire, existing>> SourceClass ; Family NEW ; Signature NEW }
+  class ProficiencyOf { <<existing, CE-2273>> Tier(view, man) }
+  AcousticSignatureDto --> SoundEmission : Family and Signature stamped
+  SoundEmission --> EqsResult : the generator answers, per ear
+  ProficiencyOf --> EqsResult : what this ear can tell
+  EqsResult --> SoundContactEvent : the memory stage
+  SoundContactEvent --> AudioTargetDetected : to the brain
+```
+*What the picture shows that prose hid:* identification is decided ONCE, at the ear (the generator knows the listener), so everything
+downstream carries only what that man could tell — the anonymity rule (§6 D) holds by construction.
+
+| decision | why | rejected |
+|---|---|---|
+| the signature rides a new `ushort EqsResult.SignatureToken` in the struct's LAST two padding bytes; the ring maps token ↔ TKB type (append-only, per node), and the memory stage turns it back into the 64-bit type in the same solve | a field (the handoff), and the struct stays **32 bytes** — two rails pin that (`EqsComponentLayoutTests`, `EqsFlagsMeaningfulTests`: *"a jump to 40 … is the regression this guards"*) and recordings hold it (CE-3135 put `Stance` / `Kind` in padding for the same reason) | ⛔ a 64-bit `Tag` (32 → 40: both pins, the recordings); ⛔ a negative `EntityId` — the egress reads non-zero as an entity |
+| the family rides `Flags` bits 13–15 | bits 0–7 are the tests', 8–9 the kind, 10–12 the class: 13–15 are FREE (Q95 thought the flags full) | — |
+| what the ear tells, by `ProficiencyOf.Tier` | below Regular: the class only · Regular: + the family · Veteran / Elite: + the type (Q95 A) | ⛔ everyone the type — omniscient |
+| the family is TKB data (`AcousticSignatureDto.Family`) | a ZU-23 is a 23 mm machine gun by category and an AA gun by role: only data says which | ⛔ derived from `WeaponCategory` |
+| ⚠ the family's members are `Untold` and `Rifle`, never `Unknown` / `SmallArms` | the TKB DTOs are generated to DDS IDL, where every enumerator shares ONE scope: `SoundSourceClass` already owns `Unknown` and `SmallArms` (📐 the codegen refused: *"Declaration 'Unknown' collides"*) | — |
+| the token table is append-only, 4096 types per node, `0` = none | a node meets a few dozen weapon types; a full table answers `0` (the class and family still travel) | ⛔ a token per emission — the answer would need the ring slot, which may be overwritten by then |
+
+**As built (`2026-10-20`).** `SoundEmissionRing.Append` stamps the token (`TokenOf`), `AcousticPerception.Sound` puts the family in the
+flags when the ear `Identifies ≥ 1` and the token when `≥ 2` (`IdentificationOf(ProficiencyOf.Tier)`), `SensorMemoryStage.HearAll`
+fills `SoundContactEvent.Family` / `.Signature`, and `AudioTargetDetected` carries both to the brain. The catalogues author `Family` and
+the three bands on every firing weapon (`BdcTkbCatalog`, `UrbanCombatTkbCatalog`; a hand weapon defaults to `Rifle`).
+
+| rail | proves | red-proof |
+|---|---|---|
+| `EqsModuleTests.CE3283_TheEar_TellsTheClass_TheFamily_OrTheType_ByItsProficiency` (Militia / Regular / Veteran) | the class always; the family from Regular; the TKB type from Veteran | ✅ measured: `IdentificationOf` returning 2 for every tier ⇒ the Militia AND Regular rows red, Veteran green |
+| `AudioTargetDetectedEgressTranslatorTests` | family and signature cross the wire | — (field mapping) |
+| `NedTkbBuilderCombatTests` (BR-14 rail) | every firing weapon has a family and a firing band; the ZU-23 is an `AaGun` | — (data) |
+
+### 8.5 `CE-3284` / `CE-3285` — the REAL carries, and a band per sound *(backend, `2026-10-20`; Q95 B1 / B3, approved; build-state: BUILT)*
+
+🔒 Q95 B1 (R-3024): *"each signature's carry is its real one. A 155 mm can carry 15–20 km."* Nothing in the hearing changes — only the
+data (`BdcTkbCatalog` reports); a loud sound is heard by distance × weather (§8.2) and the estimate's radius grows with distance as before.
+
+| weapon | carry (shot = burst) | was (`CE-3273`) | source |
+|---|---|---|---|
+| 60 mm mortar | **4 km** | 1.5 km | 1B19 sound-ranging kit: mortars ≤ 81 mm detected at 4–5 km ([valka.cz](https://en.valka.cz/topic/view/71991) — ⚠ a hobby archive, approximate) |
+| 81 mm mortar | **5 km** | 2 km | same, top of the band — ⭐ and the urban `MortarTeam` (an 81 mm crew; it reused the RPG's 500 m) |
+| 120 mm mortar | **7 km** | 2.5 km | 1B19: mortars ≤ 120 mm 6–8 km |
+| 105 mm howitzer | **12 km** | 4 km | 1B19: guns ≤ 90 mm and howitzers ≤ 105 mm 12–15 km |
+| 155 mm (M109) | **18 km** | 5 km | the handoff's 15–20 km; 1B19 gives 20–25 km above 155 mm; Adams MSRA detects artillery at 20 km, mortars 12 km ([adamsengg.com](https://adamsengg.com/msra-2/)) |
+
+| decision | why | rejected |
+|---|---|---|
+| the low end of each instrument's band | the sources are SOUND-RANGING kits (microphone arrays, a quiet post); a man in a firefight hears less — the weather factor still scales it | ⛔ the top of each band — a 120 mm heard at 8 km by every rifleman |
+| the burst carries as far as the shot | the shell is the same charge order of magnitude as the gun's report; one figure per weapon keeps the data honest until WQ-E's dB model | ⛔ a separate burst table with no source |
+| the band is three fields (`MovingBand` / `FiringBand` / `DetonationBand`), from the class by `SoundBands.Of` unless authored | one signature makes three sounds (engine, report, burst) and they differ (an M109's tracks are `Mid`, its report and burst `Low`) | ⛔ one `Band` per type — the M109 would need two answers |
+| ⛔ nothing reads the band yet | WQ-E Q3's wall loss reads it (Q95 B3); until then every band is heard alike | — |
+
+⚠ **The demo terrains are 0.8–1 km across, so every soldier on them now hears every tube and gun.** That is the ruling (distance, not
+terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT heard must stand its guns past the carry.
+
+| rail | proves |
+|---|---|
+| `NedTkbBuilderCombatTests` (BR-14 rail) | each carry inside its sourced band, ordered 60 < 81 < 120 < 105 < 155; every firing weapon has a family and a band |
+| `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
+

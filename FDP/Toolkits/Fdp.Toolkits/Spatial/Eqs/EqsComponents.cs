@@ -47,6 +47,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </summary>
         public byte Kind;
 
+        /// <summary>
+        /// ⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — an acoustic answer's SIGNATURE as the node's ring token (<c>SoundEmissionRing.TypeOf</c> turns
+        /// it back into the TKB type, in the same solve); <c>0</c> = none (every other generator, and every recording made before it). The
+        /// struct's LAST two padding bytes, so it stays 32 bytes (the layout rails pin it).
+        /// </summary>
+        public ushort SignatureToken;
+
         /// <summary>The <see cref="Kind"/> encoding of <paramref name="kind"/>.</summary>
         public static byte EncodeKind(CoverKind kind) => (byte)((byte)kind + 1);
 
