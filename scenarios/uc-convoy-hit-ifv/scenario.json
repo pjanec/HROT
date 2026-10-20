@@ -368,7 +368,7 @@
       },
       "EntityInfo": {
         "Name": "Trigger man",
-        "ForceId": "Hostile"
+        "ForceId": "Neutral"
       },
       "Health": {
         "Current": 100,
@@ -380,80 +380,6 @@
       "Behavior": {
         "Name": "TriggerIed",
         "Params": "{\"Charge\": 9520, \"KillZoneMetres\": 10}",
-        "Origin": "Superior"
-      }
-    },
-    "d0c00000-0000-4000-8000-000000009522": {
-      "SimTransform": {
-        "Position": [
-          659,
-          232,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          1,
-          0
-        ]
-      },
-      "NetworkIdentity": {
-        "Value": 9522
-      },
-      "TkbIdentity": {
-        "TkbType": 2003
-      },
-      "EntityInfo": {
-        "Name": "Insurgent RPG",
-        "ForceId": "Hostile"
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "Behavior": {
-        "Name": "CombatPosture",
-        "Params": "{}",
-        "Origin": "Superior"
-      }
-    },
-    "d0c00000-0000-4000-8000-000000009523": {
-      "SimTransform": {
-        "Position": [
-          659,
-          244,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          1,
-          0
-        ]
-      },
-      "NetworkIdentity": {
-        "Value": 9523
-      },
-      "TkbIdentity": {
-        "TkbType": 2002
-      },
-      "EntityInfo": {
-        "Name": "Insurgent rifleman",
-        "ForceId": "Hostile"
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "Behavior": {
-        "Name": "CombatPosture",
-        "Params": "{}",
         "Origin": "Superior"
       }
     }
