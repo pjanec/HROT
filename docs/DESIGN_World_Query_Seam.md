@@ -354,7 +354,7 @@ chosen by the mover's level; the flag clear keeps Z; no world keeps the point).
 | `SpatialHashSystem`, `LocalGridBuilderSystem`, `EqsModule`'s terrain source | they size the stand-in's grids to the terrain's bounds (W9) and refit on the terrain's identity — the seam has no bounds question yet |
 | `DoorPassageSystem`, `AreaEffectSystem.BreachDoors`, `DoorLeafGizmo` | they walk the terrain's door list — doors become entities on the seam later |
 | `TerrainCoverProvider`, `CoverPointsGizmo` | the stand-in's own `ICoverProvider`, built from its geometry |
-| `TerrainWorldGizmo`, `WorldInfoReport` | they draw / report the stand-in's terrain itself — the map's terrain drawing moves with **`ITerrainRenderGeometry`** |
+| `TerrainWorldGizmo` (now `TerrainPlan2D` + `TerrainLayer2D`, CE-1227), `WorldInfoReport` | they draw / report the stand-in's terrain itself — the map's terrain drawing moves with **`ITerrainRenderGeometry`** |
 
 **Gates (Q0b + Q2):** `Fdp.Toolkits.Tests` 1251/1251 on the touched features, later **3038/3038** in full; `Hrot.SimHost.Tests`
 **1177/1177** (+3 skips); `Hrot.Editor.Tests` 86/86 on the debug API; `Hrot.ClusterRunner.Integration.Tests` EQS + perception +

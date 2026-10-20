@@ -182,10 +182,10 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.SetSingletonManaged(world);
 
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
 
             Assert.Equal(4, draw.TriangleCalls.Count);             // building 2 + forest 2; open ground is not drawn
-            Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainWorldGizmo.TerrainLayer, t.Layer));
+            Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainPlan2D.TerrainLayer, t.Layer));
             Assert.Single(draw.TextCalls);                         // one building label
             Assert.Equal(4, draw.LineCalls.Count);                 // the building outline
         }
@@ -206,12 +206,12 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.SetSingletonManaged(world);
 
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
 
             Assert.Equal(8, draw.LineCalls.Count);   // two walls, four edges each
             Assert.All(draw.LineCalls, l =>
             {
-                Assert.Equal(TerrainWorldGizmo.WallEdgePixels, l.Thickness);
+                Assert.Equal(TerrainPlan2D.WallEdgePixels, l.Thickness);
                 Assert.True(l.Color.R + l.Color.G + l.Color.B > 200, $"outline {l.Color} reads as black");
             });
             Assert.Contains(draw.LineCalls, l => l.Color.R > l.Color.G + 20);   // the brick wall's edge is brick-coloured
@@ -221,7 +221,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void TerrainWorldGizmo_DrawsNothing_WhenNoTerrainIsLoaded()
         {
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
             Assert.Empty(draw.TriangleCalls);
             Assert.Empty(draw.LineCalls);
         }

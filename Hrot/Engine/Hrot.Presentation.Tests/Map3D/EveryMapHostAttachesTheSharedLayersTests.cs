@@ -65,7 +65,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
-    [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
+    [InlineData(@"new\s+([\w.]+\.)?TerrainLayer2D\(")]   // ⭐ CE-1227    [InlineData(@"new\s+([\w.]+\.)?EntityBodyLayer3D\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]

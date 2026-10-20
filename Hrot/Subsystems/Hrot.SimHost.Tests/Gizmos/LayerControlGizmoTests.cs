@@ -134,6 +134,11 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(all.IsSet(DebugTraceLayers.Sectors), "the sectors default off");
             Assert.True(new LayerControlDto { Sectors = true }.ToMask().IsSet(DebugTraceLayers.Sectors));
             Assert.True(DebugTraceLayers.Sectors < LayerControlDto.FirstUntoggledLayer, "the sectors lie below the always-on range");
+            // ⭐ CE-1227 — the 2-D terrain has its own toggle (no longer the Entities bit), ON by default, inside the toggled range
+            Assert.True(all.IsSet(DebugTraceLayers.Terrain2D), "the 2-D terrain defaults on");
+            Assert.False(new LayerControlDto { Terrain2D = false }.ToMask().IsSet(DebugTraceLayers.Terrain2D));
+            Assert.True(new LayerControlDto { Entities = false }.ToMask().IsSet(DebugTraceLayers.Terrain2D), "unticking Entities keeps the city");
+            Assert.True(DebugTraceLayers.Terrain2D < LayerControlDto.FirstUntoggledLayer, "the terrain lies below the always-on range");
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that

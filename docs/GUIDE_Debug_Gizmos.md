@@ -40,6 +40,8 @@ related-designs:
 | Labels | on | the entity cards: name, health bar |
 | **UnitDetails** | **off** *(CE-1065)* | heading arrow + degrees, stance label, per unit |
 | **SpatialGrid** | **off** *(CE-1065)* | the spatial hash's tiles |
+| Sectors | off *(CE-1225)* | sector areas, NoFire areas, arcs |
+| **Terrain2D** | on *(CE-1227)* | the 2-D terrain: ground cover, buildings, walls, their labels — drawn by its own layer, not the gizmo buffer, so a big town no longer crowds out the unit symbols; 2-D only |
 
 ⭐ **CE-1065 (`2026-10-14`):** each checkbox applies **as you click** and the panel stays open; the same menu entry closes it. Most layers start off — see [`DESIGN_Terrain_Combat_Tuning.md` §5d](DESIGN_Terrain_Combat_Tuning.md).
 

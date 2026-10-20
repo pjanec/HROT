@@ -410,7 +410,7 @@ public sealed class AudioTests
         string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         Assert.Contains("var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);", pack);
         Assert.Contains("canvas.AddLayer(audio);", pack);
-        Assert.Contains("possession, audio);", pack);
+        Assert.Contains("possession, audio", pack);   // (CE-1227 appended the 2-D terrain after it)
         string spawner = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs"));
         Assert.Contains("Hrot.UI.Common.Audio.SoundEvents.Of(world)", spawner);
     }

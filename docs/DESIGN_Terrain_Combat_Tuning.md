@@ -945,7 +945,7 @@ through the CLI — the 38 + 15 were cross-checked against `git grep "\[GizmoPro
 | `RouteGizmo` | route entities, waypoints, flyer heights | — | **Routes** · on |
 | `TacticalAreaGizmo`, `MapOverlayGizmo` | tactical-graphic areas; drawn overlay polylines | — | **Tactical graphics** · on |
 | `TerrainZoneGizmo` | terrain zones and their load state | — | **Terrain zones** · on |
-| `TerrainWorldGizmo` | the 2-D terrain: ground cover, buildings, labels | — | **Terrain (2-D)** · on |
+| `TerrainWorldGizmo` → ✅ `TerrainLayer2D` (`CE-1227`) | the 2-D terrain: ground cover, buildings, labels | — | **Terrain (2-D)** · on — ✅ BUILT `2026-10-20` (bit 15; a retained layer now, not a gizmo — [Terrain World §10](DESIGN_Terrain_World.md)) |
 | `TrafficRoadGizmo` | SUMO lanes, lights, pedestrians, non-entity cars | — | **Traffic** · on |
 | `SectorAreasGizmo`, `SectorArcGizmo` | sectors, NoFire areas, arcs | SquadAssignment (arcs) | **Sectors** · off — ✅ BUILT (`CE-1225`) |
 | `ContextMenuProjectorGizmo`, `CanvasContextMenuGizmo` | menus, no drawing | — | ⛔ never gated (CE-1160) |
@@ -1079,7 +1079,7 @@ sequenceDiagram
 ```
 
 ⚠ **Cross-lane:** FL-5 touches StructEdit (FDP); `HillAttackGizmo` is behaviors' (its four draw calls).
-⚠ **Unmeasured:** whether `TerrainWorldGizmo` also draws over the 3-D terrain (a duplicate there would argue for "Terrain (2-D)" defaulting
+✅ **Measured `2026-10-20` (`CE-1227`):** it did — its triangles targeted `All` and the 3-D triage draped them; the retained `TerrainLayer2D` is 2-D only, so FL-7 holds for the terrain. *(Was: ⚠ Unmeasured: whether `TerrainWorldGizmo` also draws over the 3-D terrain (a duplicate there would argue for "Terrain (2-D)" defaulting)*
 off in 3-D) — checked at build, in a frame.
 
 ## 6. Slices

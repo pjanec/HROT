@@ -28,6 +28,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ <c>CE-1225</c> (docs/DESIGN_Command_Display.md §8 S-1) — every SECTOR: the units' sector areas, the NoFire areas and
         /// the arcs (<c>SectorAreasGizmo</c>, <c>SectorArcGizmo</c>). Off by default; before, only the Entities layer could hide them.</summary>
         public const byte Sectors = 14;
+        /// <summary>⭐ <c>CE-1227</c> (docs/DESIGN_Terrain_World.md §10; the "Terrain (2-D)" row of DESIGN_Terrain_Combat_Tuning.md §5e FL-1) —
+        /// the 2-D map's terrain plan, drawn by <c>TerrainLayer2D</c>. On by default; before, it rode on the Entities layer (0), so
+        /// unticking Entities hid the city.</summary>
+        public const byte Terrain2D = 15;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

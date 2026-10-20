@@ -168,7 +168,7 @@ Seen on 5 of ~10 fresh `--mode all` loads (log: the third "geo origin set" line 
 
 | question | answer | where |
 |---|---|---|
-| what the map's terrain / road gizmos read | world singletons only: `TerrainWorldGizmo` ← `TerrainWorld` (managed); `RoadNetworkGizmo` ← `ZoneEnvironmentData.RoadNetwork` | `TerrainWorldGizmo.cs:40`, `RoadNetworkGizmo.cs:27` |
+| what the map's terrain / road gizmos read | world singletons only: `TerrainLayer2D` ← `TerrainWorld` (managed; was `TerrainWorldGizmo` until CE-1227); `RoadNetworkGizmo` ← `ZoneEnvironmentData.RoadNetwork` | `TerrainLayer2D.cs` (`TerrainOf`), `RoadNetworkGizmo.cs:27` |
 | the repos the browser draws | the boot repo, each node's sandbox, the Merged transient master — **every one passes `PrepareRepo`** (boot + `RebindActiveRepo`, which every seek, step and view switch goes through) | `ReplayBrowserSubsystem.cs:161,620,646` |
 | how a host makes a NAMED terrain resident | `TerrainResidency.Prepare(name)` (I/O, throws when missing) + `Commit(world, staged)`; `Commit` also sets the world's geo origin from the FILE | `TerrainResidency.cs:130,232,251` |
 | where names resolve | `TerrainCatalog.ForNode(staging, shared, shipped)` — staging → the shared NAS stand-in → `{app}/Recipes/Terrain` | `TerrainCatalog.cs:46` |
@@ -187,7 +187,7 @@ classDiagram
   class RecordingMetadata { <<existing>> TerrainName; GeoOrigin }
   class ZoneEnvironmentData { <<existing, changes>> DataPolicy NoScenario|NoReplay }
   class TerrainWorld { <<existing>> NoScenario|NoReplay }
-  class TerrainWorldGizmo { <<existing>> reads TerrainWorld }
+  class TerrainLayer2D { <<existing>> reads TerrainWorld }
   class RoadNetworkGizmo { <<existing>> reads ZoneEnvironmentData }
   ReplayBrowserSubsystem --> TerrainResidency : owns, display only (no navmesh)
   ReplayBrowserSubsystem --> RoadNetworkHolder : owns
@@ -195,7 +195,7 @@ classDiagram
   ReplayBrowserSubsystem ..> RecordingMetadata : TerrainName
   TerrainResidency ..> TerrainWorld : commits into the carrier
   TerrainResidency ..> ZoneEnvironmentData : commits into the carrier
-  TerrainWorldGizmo ..> TerrainWorld
+  TerrainLayer2D ..> TerrainWorld
   RoadNetworkGizmo ..> ZoneEnvironmentData
 ```
 
@@ -235,7 +235,7 @@ sequenceDiagram
 ```mermaid
 graph TD
   U[ReplayBrowserSubsystem.Update<br/>every frame] --> S[StatelessGizmoSystem<br/>on _activeRepo]
-  S --> TG[TerrainWorldGizmo]
+  S --> TG[TerrainLayer2D]
   S --> RG[RoadNetworkGizmo]
   L[OnLoadGroup / LoadFdpGroupForTest<br/>once per recording] --> AT[ApplyRecordingTerrain]
   AT --> TR[TerrainResidency.Prepare+Commit into carrier]

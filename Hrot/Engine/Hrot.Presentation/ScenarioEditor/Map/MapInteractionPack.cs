@@ -51,7 +51,8 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Effects.EffectLayer Effects,
         Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
         Hrot.UI.Common.Map3D.PossessionStation? Possession = null,
-        Hrot.UI.Common.Audio.AudioLayer? Audio = null);
+        Hrot.UI.Common.Audio.AudioLayer? Audio = null,
+        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null);
 
     public static class MapInteractionPack
     {
@@ -297,6 +298,10 @@ namespace Hrot.ScenarioEditor.Map
                 layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
                 ctx.GizmoUiPublisher, settings);   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
             globalManager.Register(layerControlId, layerControl);
+            // ⭐ CE-1227 — the gizmo hands the buffer its mask only when it runs, AFTER the projectors: 📐 on demo-city the first frame
+            //   therefore stored the hidden Cover (7 891 points) and SpatialGrid layers and dropped 17 943 primitives. Seeded here, the
+            //   first frame refuses them like every later one (CE-1071's one authority, applied from the start).
+            buffer.SetActiveLayers(layerControl.ActiveLayers);
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
             // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
@@ -453,6 +458,12 @@ namespace Hrot.ScenarioEditor.Map
             int layerBitIndex = 31)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
+            //   slot in the map buffer (demo-city's terrain alone was 73 188 primitives a frame against 16 384, and the symbols and the
+            //   marquee were dropped). Its checkbox is the buffer's Terrain2D bit — the mask LayerControlGizmo hands the buffer (CE-1071).
+            var terrain2D = new Hrot.UI.Common.Map2D.TerrainLayer2D(worldProvider,
+                () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
+            canvas.AddLayer(terrain2D);
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
@@ -510,7 +521,7 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(audio);
             // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
             canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)
