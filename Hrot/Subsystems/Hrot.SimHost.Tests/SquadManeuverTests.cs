@@ -4414,7 +4414,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ <c>CE-1056</c> — under fire while mounted the squad gets out, then reacts to contact. ⭐ <c>CE-2307</c> (CH-3, Squad Tactics
         /// §5b): only once its carrier STANDS — a carrier that drives on carries it out of the kill zone. ✅ Red-proof (CE-2307): the standing
-        /// test dropped ⇒ the squad bails out of the moving carrier.</summary>
+        /// test dropped ⇒ the squad bails out of the moving carrier. ⭐ <c>CE-2313</c>: nor while it PUSHES THROUGH, even in the moment it
+        /// slows near a stop. ✅ Red-proof: the push-through test dropped ⇒ the squad gets out of the pushing carrier.</summary>
         [Fact]
         public void CE1056_BasicSquadSop_UnderFireWhileMounted_Dismounts_ThenReactsToContactOnceOut()
         {
@@ -4428,7 +4429,13 @@ namespace Hrot.SimHost.Tests
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
             Ticks(s, 4);
             Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // nobody gets out of a moving carrier: it rides
-            s.Repo.GetComponentRW<SimVelocity>(apc).Linear = Vector3.Zero;                           // it stops
+            s.Repo.GetComponentRW<SimVelocity>(apc).Linear = Vector3.Zero;                           // it nearly stops…
+            if (!s.Repo.HasComponent<BehaviorState>(apc)) s.Repo.AddComponent(apc, new BehaviorState());
+            s.Repo.GetComponentRW<BehaviorState>(apc).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PushThrough);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 4);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // ⭐ CE-2313 — …but it is pushing through: ride on
+            s.Repo.GetComponentRW<BehaviorState>(apc).ActiveBehaviorHash = 0;                         // it stops for good
 
             s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
             Ticks(s, 4);

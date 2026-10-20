@@ -197,6 +197,11 @@ namespace Hrot.AI.Behaviors.Brains
 
         private enum AboardWhere : byte { OnTheGround, Unloading, Roping, Dropping }
 
+        private static readonly int PushThroughHash = BehaviorHash.FromName(BehaviorNames.PushThrough);
+
+        private static bool PushingThrough(EntityRepository world, Entity carrier)
+            => world.HasComponent<BehaviorState>(carrier) && world.GetComponentRO<BehaviorState>(carrier).ActiveBehaviorHash == PushThroughHash;
+
         private static bool AnyMemberAboard(EntityRepository world, Entity commander, AboardWhere where)
         {
             if (!world.HasComponent<UnitRoster>(commander)) return false;
@@ -219,8 +224,10 @@ namespace Hrot.AI.Behaviors.Brains
                 return where switch
                 {
                     // ⭐ CE-2307 (CH-3, §5b) — and STANDING: a carrier that drives on (PushThrough) carries its squad out of the kill zone
+                    //   ⭐ CE-2313 — and NOT pushing through: the carrier slows near a stop as PushThrough issues its move (measured live,
+                    //   uc-convoy-hit-ifv: 0.6 m/s), and the squad got out in that dip; a carrier driving on has decided to drive on
                     AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
-                                               && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier),
+                                               && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier) && !PushingThrough(world, carrier),
                     AboardWhere.Roping      => phase == Fdp.Toolkit.Navigation.NavigationPhase.Roping,     // ⭐ CE-1118 H-1
                     AboardWhere.Dropping    => phase == Fdp.Toolkit.Navigation.NavigationPhase.Dropping,   // ⭐ CE-1118 H-1
                     _                       => phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading,
