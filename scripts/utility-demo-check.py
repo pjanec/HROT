@@ -4122,6 +4122,68 @@ def run_pc_defend_house(c, timeout):
     c.ok(seen["assault"] or seen["broke"], f"④ Blue reaches its assault ({seen['assault']}) or breaks off ({seen['broke']}) — the winner is not asserted")
 
 
+
+# ── Urban Battle §6 L2 — uc-convoy-hit (demo-city): the trigger man, the IED, the carrier's reaction (CE-2306, CE-2307) ──────────
+def _detonations():
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        return (data(call("GET", "/combat/detonations?last=64")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def run_uc_convoy_hit(c, timeout):
+    """⭐ Urban Battle §6 L2 — uc-convoy-hit (DESIGN_Urban_Battle_Demo.md §6; Defend & Attack §8e.1; Squad Tactics §5b.1). An APC with a
+    squad aboard drives north up Avenue E; a placed charge lies on the road at y 200, its trigger man on the west sidewalk. Nothing is
+    faked. ① the APC drives its route · ② the charge goes off only with the APC in its kill zone · ③ the carrier, hit with troops
+    aboard, pushes through or halts and its squad dismounts — the log says which · ④ the branch completes (the push-through carries it
+    on; a dismounted squad fights)."""
+    ids = ids_by_name()
+    apc, sq, ied, trig = ids.get("Convoy APC"), ids.get("Convoy Squad"), ids.get("IED"), ids.get("Trigger man")
+    men = [ids.get(f"Convoy {n}") for n in ("Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4")]
+    if not c.ok(None not in (apc, sq, ied, trig) and None not in men, f"the convoy, the charge and the trigger man are loaded ({apc}, {sq}, {ied}, {trig})"):
+        return
+    ied_at = position(ied)
+    before = len(_detonations())
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: task_name(apc) == "FollowRoute" and (position(apc) or (0, 0))[1] > 35, 30),
+         f"① the APC drives its route north (task {task_name(apc)}, at {position(apc)})")
+    print(f"    trigger man's task: {task_name(trig)}; the charge at {ied_at}")
+    det, at, t_det, track = None, None, None, []
+    end = time.time() + timeout
+    while time.time() < end:
+        pa = position(apc)
+        track.append((sim_time(), pa, task_name(apc)))
+        ds = _detonations()
+        if len(ds) > before:
+            det, at, t_det = ds[-1], pa, sim_time()
+            break
+        if pa and pa[1] > 260:
+            break
+        time.sleep(0.25)
+    if not c.ok(det is not None, f"② the charge goes off ({len(_detonations()) - before} new detonations; the APC reached {track[-1][1] if track else None})"):
+        for t, pa, tk in track[-12:]:
+            print(f"      {t}  {pa}  {tk}")
+        print(f"    trigger man: {json.dumps(data(call('GET', f'/entities/{trig}/state')))[:600]}")
+        return
+    d = math.hypot(at[0] - ied_at[0], at[1] - ied_at[1]) if at and ied_at else 999
+    c.ok(d <= 15, f"② …with the APC in its kill zone ({d:.1f} m from the charge at t {t_det:.1f}; detonation {json.dumps(det)[:200]})")
+    branch = wait_for(lambda: "push" if task_name(apc) == "PushThrough"
+                      else "dismount" if any("IsEmbarkedTag" not in comps(m) for m in men) else None, 15)
+    hp = (comps(apc).get("Health") or {})
+    c.ok(branch is not None, f"③ the carrier reacts: {branch} (APC task {task_name(apc)}, health {hp}, squad {task_name(sq)})")
+    if branch == "push":
+        far = wait_for(lambda: (position(apc) or (0, 0))[1] > ied_at[1] + 100, 60)
+        c.ok(far, f"④ it pushes through, 100 m past the charge (at {position(apc)})")
+        c.ok(wait_for(lambda: task_name(apc) == "FollowRoute", 60), f"④ …then its route resumes (task {task_name(apc)})")
+    elif branch == "dismount":
+        out = wait_for(lambda: all("IsEmbarkedTag" not in comps(m) for m in men if comps(m)), 20)
+        c.ok(out, "④ the squad is out")
+        fights = wait_for(lambda: task_name(sq) not in (None, "SquadHold", "SquadDismount"), 60)
+        c.ok(fights, f"④ …and fights (squad task {task_name(sq)})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4206,7 +4268,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

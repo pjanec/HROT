@@ -1,0 +1,461 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city"
+  },
+  "entities": {
+    "d0c00000-0000-4000-8000-000000009500": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9500
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy APC",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 9502, \"Speed\": 8}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009502": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9502
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Avenue E north",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 652,
+            "Y": 30,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          },
+          {
+            "X": 652,
+            "Y": 380,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009510": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9510
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Convoy Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadHold",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009511": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9511
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Convoy Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0c00000-0000-4000-8000-000000009510",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0c00000-0000-4000-8000-000000009500"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009512": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9512
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Convoy Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0c00000-0000-4000-8000-000000009510",
+        "Designation": "MachineGunner"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0c00000-0000-4000-8000-000000009500"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009513": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9513
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Convoy Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0c00000-0000-4000-8000-000000009510",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0c00000-0000-4000-8000-000000009500"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009514": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9514
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Convoy Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0c00000-0000-4000-8000-000000009510",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0c00000-0000-4000-8000-000000009500"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009515": {
+      "SimTransform": {
+        "Position": [
+          652,
+          30,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9515
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Convoy Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "d0c00000-0000-4000-8000-000000009510",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d0c00000-0000-4000-8000-000000009500"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009520": {
+      "SimTransform": {
+        "Position": [
+          652,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9520
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "IED",
+        "ForceId": "Hostile"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009521": {
+      "SimTransform": {
+        "Position": [
+          641,
+          170,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9521
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Trigger man",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "TriggerIed",
+        "Params": "{\"Charge\": 9520, \"KillZoneMetres\": 10}",
+        "Origin": "Superior"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009522": {
+      "SimTransform": {
+        "Position": [
+          659,
+          232,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9522
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Insurgent RPG",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "d0c00000-0000-4000-8000-000000009523": {
+      "SimTransform": {
+        "Position": [
+          659,
+          244,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9523
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Insurgent rifleman",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

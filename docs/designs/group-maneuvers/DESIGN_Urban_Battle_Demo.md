@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§5 the approved plan, R-2060; §4 statuses re-measured)
+updated: 2026-10-20 (§5 steps 1–7 built; §6 the ladder, step 8)
 build-state: PLANNED — §5 is the approved order (R-2060, 2026-10-19); still the infrastructure first (R-2051), the demos after it
-current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order
+current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order · §6 the ladder (step 8)
 stale-below: nothing.
 known-rot: §2/§4 ② said a mortar launch has no sound — half true: the crewed tubes and guns have none, the MortarTeam person type has (500 m, since 97b751b3a); re-measured 2026-10-19, BR-14 filed.
 known-conflict: none.
@@ -184,3 +184,33 @@ and **the flagship**: §1 beat by beat, route B, judged by what must hold whatev
 a report, every arrival explained by one), never by a fixed outcome.
 
 ⛔ HISTORY — before 2026-10-19 the order was three lines (infrastructure first · the ladder · the flagship), not scheduled (R-2051).
+
+## 6. The ladder — step 8, one live demo per rung *(behaviors, 2026-10-20; built under the user's "go ahead autonomously")*
+
+```mermaid
+graph LR
+  L1[L1 street panic] --> L2[L2 convoy hit]
+  L2 --> L7[L7 the request chain]
+  L7 --> L4[L4 A-10 on the ZU-23]
+  L2 --> L3[L3 tank vs AT teams]
+  L2 --> L5[L5 FPV on the convoy]
+  L7 --> L6[L6 UH-60 reinforcement]
+  L3 & L4 & L5 & L6 --> F[the flagship, §1]
+```
+*What the picture shows that prose hid:* every rung after L2 starts from L2's convoy on Avenue E, and L7 is the hub — the A-10 and
+the UH-60 rungs are two answers of the SAME headquarters to two requests. So L2 then L7 come first; the others are ports of demos
+that already pass on other terrains.
+
+| rung | cast on demo-city (Avenue E, x ≈ 650, south → north) | must hold | new code it is the first live run of |
+|---|---|---|---|
+| **L2** `uc-convoy-hit` | an APC (2001) with a squad aboard follows a route north up Avenue E; a placed charge (618) on the road at y 200; a trigger man (2003, phone) at the west row's front, his kill zone 10 m; an RPG man and a rifleman in the east row | ① the charge goes off only with the APC in its kill zone · ② the carrier, hit with troops aboard, pushes through (a mobile carrier) or halts and its squad dismounts (one that cannot move) · ③ the squad fights | `CE-2306` TriggerIed · `CE-2307` PushThrough / dismount from a halt |
+| **L7** `uc-request-chain` | a Blue platoon in the market quarter; an insurgent mortar 1–1.5 km off with its spotter; a body-less HQ (`SupportCommand`) owning an AH-64 and a battery | ① the spotter's own mission lands rounds · ② a Blue man hears the launch ⇒ SPOT IndirectFire · ③ the platoon asks FireSupport · ④ the HQ sends the free AH-64 on an armed search of the point · nothing sent without a report | `CE-2308`…`CE-2312` |
+| L1 `uc-street-panic` | civilians on the battle street; shots | they shelter in the houses | — (`ua-civ-shelter` port) |
+| L3 `uc-tank-street` | an M1 up Avenue E; NLAW / Javelin teams in the rows | the hide / fire cycle in a street | — (`ua-tank-corner` port) |
+| L4 `uc-a10-zu23` | L7 + a ZU-23 technical near the mortar | the HQ sends the A-10 on the ZU-23 first, the AH-64 waits | `CE-2312` HQ-7 |
+| L5 `uc-fpv-convoy` | L2's convoy; an FPV drone near the route | the drone searches, picks the APC, dives | — (`ua-drone-shelter` port) |
+| L6 `uc-reinforce` | L7's platoon losing men | Reinforce ⇒ a free unit sent to defend at the requester | `CE-2310` HQ-5 · `CE-2312` HQ-9 |
+
+⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
+which way it went.
+
