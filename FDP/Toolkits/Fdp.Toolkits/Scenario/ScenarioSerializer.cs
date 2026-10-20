@@ -244,8 +244,14 @@ namespace Fdp.Toolkit.Scenario
 
             // ⚠ The Header node is written only when it has something to say. ⛔⛔ R-4018: never a TKB name —
             //   a scenario does not name a TKB (one TKB per deployment).
-            if (header.TerrainName != null)
-                root["Header"] = new JsonObject { ["TerrainName"] = JsonValue.Create(header.TerrainName) };
+            //   ⭐ CE-3288 — and the scenario's description, when it has one (§4d)
+            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description))
+            {
+                var headerNode = new JsonObject();
+                if (header.TerrainName != null) headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
+                if (!string.IsNullOrWhiteSpace(header.Description)) headerNode["Description"] = JsonValue.Create(header.Description);
+                root["Header"] = headerNode;
+            }
             // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from
             //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
             if (Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
