@@ -180,9 +180,8 @@ namespace Fdp.Toolkit.Combat.Tests
             PublishIntent(shooter, target);
             _sys.Execute(_world, 0.016f);
 
-            float middle = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(_world, target,
-                Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, 0f);
-            Assert.Equal(middle, AimHeightAt(12f), 2);
+            float chest = AimPoint.Middle(_world, target, out _, out _).Z;   // ⭐ CE-2325 — his chest, through the fence
+            Assert.Equal(chest, AimHeightAt(12f), 2);
         }
 
         /// <summary>⭐ <c>CE-3136</c> P-2 — with terrain resident but nothing in the way, the round still aims at the MIDDLE (as-built
@@ -198,7 +197,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
 
             var eye = new Vector3(0f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
-            var mid = new Vector3(12f, 20f, 0.5f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            var mid = AimPoint.Middle(_world, target, out _, out _);   // ⭐ CE-2325 — his chest
             AssertNear(Vector3.Normalize(mid - eye), FlightOfTheRound(), 1e-3f);
         }
 
@@ -667,7 +666,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             // ⭐ R-217 — the shot leaves from the shooter's EYE toward the middle of the target's silhouette (default standing soldier)
             var eye = shooterPos + new Vector3(0f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
-            var aim = new Vector3(20f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding * 0.5f);
+            var aim = AimPoint.Middle(_world, target, out _, out _);   // ⭐ CE-2325 — his chest
             var tf = _world.GetComponent<SimTransform>(bulletEntity);
             AssertNear(eye + Vector3.Normalize(aim - eye) * CombatConstants.MuzzleOffsetMeters, tf.Position);
 
@@ -688,7 +687,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
 
             foreach (var e in _world.Query().With<BallisticProjectile>().Build())
-                AssertNear(new Vector3(0.5f, 0f, 1.7f * 0.75f), _world.GetComponent<SimTransform>(e).Position);   // half way, eye 1.7 → aim 0.85
+                AssertNear(new Vector3(0.5f, 0f, 0.5f * (1.7f + AimPoint.Middle(_world, target, out _, out _).Z)), _world.GetComponent<SimTransform>(e).Position);   // half way, eye 1.7 → his chest (CE-2325)
         }
 
         /// <summary>
@@ -804,7 +803,7 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var e in q)
             {
                 var vel = _world.GetComponent<SimVelocity>(e);
-                AssertNear(Vector3.Normalize(new Vector3(10f, 0f, 0.85f - 1.7f)) * muzzleVelocity, vel.Linear);   // ⭐ R-217 eye → aim
+                AssertNear(Vector3.Normalize(new Vector3(10f, 0f, AimPoint.Middle(_world, target, out _, out _).Z - 1.7f)) * muzzleVelocity, vel.Linear);   // ⭐ R-217 eye → his chest (CE-2325)
                 return;
             }
 

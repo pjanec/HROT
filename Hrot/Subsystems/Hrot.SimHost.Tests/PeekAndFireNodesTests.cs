@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -184,6 +185,32 @@ namespace Hrot.SimHost.Tests
                     };
                 Repo.SetComponent(sensor, buf);
             }
+
+            /// <summary>⭐ CE-2327 — as <see cref="Answer(int, uint, ValueTuple{float, float, StanceId?}[])"/>, each point with its fire mark
+            /// (0 unmarked, 1 a round clears from it, 2 it only sees — <see cref="CheapLineOfSightTest.FireClearBit"/>).</summary>
+            public void AnswerMarked(int site, uint tick, params (float X, float Y, StanceId? Stance, byte Mark)[] points)
+            {
+                Answer(site, tick, points.Select(q => (q.X, q.Y, q.Stance)).ToArray());
+                var sensor = Sensor(site);
+                var buf = Repo.GetComponent<EqsCognitiveBuffer>(sensor);
+                var span = buf.GetSpanRW();
+                for (int i = 0; i < points.Length; i++)
+                {
+                    if (points[i].Mark == 0) continue;
+                    span[i].FlagsMeaningful |= CheapLineOfSightTest.FireClearBit;
+                    if (points[i].Mark == 1) span[i].Flags |= CheapLineOfSightTest.FireClearBit;
+                }
+                Repo.SetComponent(sensor, buf);
+            }
+
+            public void Mask()
+            {
+                ref var status = ref Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self);
+                status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
+                status.Weapon.At = Time;
+            }
+
+            public void Unmask() => Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self).Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
 
             public FiringPositionMemory Memory => UnitMemory.Get<FiringPositionMemory>(Repo, Self);
 
@@ -392,32 +419,101 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-2218</c> — at a window whose launcher line runs into the wall, the weapon holds <c>Masked</c>: the exposure ends at once, the
-        /// window is BURNED (it cannot shoot that target), and the unit moves to the next window. A <c>Masked</c> left by an EARLIER exposure
-        /// does not count. 🔴 Red-proof: without the node's masked check it stays up at the first window for the whole exposure.
+        /// ⭐ <c>CE-2218</c> — at a window whose launcher line runs into the wall, the weapon holds <c>Masked</c>: ⭐ <c>CE-2330</c> (R-2064) he
+        /// first comes up ONE stance (crouched → standing) and keeps the exposure; refused again standing, the window is BURNED (it cannot
+        /// shoot that target) and the unit moves to the next window. A <c>Masked</c> left by an EARLIER exposure does not count.
+        /// 🔴 Red-proofs: without the node's masked check it stays up at the first window for the whole exposure; without CE-2330 the first
+        /// refusal burns a window a standing man shoots from.
         /// </summary>
         [Fact]
-        public void CE2218_AMaskedShot_BurnsTheWindow_AndMovesToTheNext()
+        public void CE2218_AMaskedShot_ComesUpOneStance_ThenBurnsTheWindow_AndMovesToTheNext()
         {
             var d = new Duel(Window());
             d.Repo.AddComponent(d.Self, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
             d.Step();
             d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched), (8f, 3f, StanceId.Crouched));
             Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(StanceId.Crouched, d.Stance);
             Assert.False(PeekAndFireNodes.MaskedSince(d.Repo, d.Self, d.Time + 1.0), "a reason stamped before the exposure does not count");
 
-            ref var status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
-            status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
-            status.Weapon.At = d.Time;
+            d.Mask();
+            d.Step();
+            Assert.Equal(StanceId.Standing, d.Stance);   // ⭐ CE-2330 — taller, the window kept
+            var kept = d.Memory;
+            Assert.True(kept.Heat[0] < PeekAndFireNodes.Effective(d.P).BurnHeat, $"not burned at the first refusal (heat {kept.Heat[0]:0.##})");
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed, 2));
+
+            d.Mask();   // refused standing too
             d.Step();
             Assert.NotEqual(PeekPhase.Aimed, d.Ws.Phase);
             var m = d.Memory;
-            Assert.True(m.Heat[0] >= d.P.BurnHeat, $"the window is burned (heat {m.Heat[0]:0.##})");
+            Assert.True(m.Heat[0] >= PeekAndFireNodes.Effective(d.P).BurnHeat, $"the window is burned (heat {m.Heat[0]:0.##})");
 
-            status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
-            status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
+            d.Unmask();
             d.Run(10);
             Assert.Contains(new Vector3(8f, 3f, 0f), d.Moves);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2330</c> (R-2064) — the look / shoot split at a STANCE peek: refused once from a low spot, he remembers it for this hide
+        /// point — the next exposure LOOKS at the low stance (nothing seen yet ⇒ still crouched) and comes up one stance only to SHOOT.
+        /// 🔒 User: <i>"the soldier looks out first, before trying to shoot, so for peeking the place does nto neet to allow shooting"</i>.
+        /// 🔴 Red-proof: without <c>ShootTaller</c> the second exposure fires crouched and is refused again.
+        /// </summary>
+        [Fact]
+        public void CE2330_AStancePeekRefusedOnce_LooksLowNextTime_AndShootsOneStanceTaller()
+        {
+            var d = new Duel(Window());
+            d.Repo.AddComponent(d.Self, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            d.Mask();
+            d.Step();
+            d.Unmask();
+            Assert.Equal(1, d.Ws.ShootTaller);
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+
+            d.See(false);
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose));
+            Assert.Equal(StanceId.Crouched, d.Stance);   // LOOKS low
+            d.See(true);
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed, 2));
+            Assert.Equal(StanceId.Standing, d.Stance);   // SHOOTS taller
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2327</c> (R-2064) — a STEP peek whose step-out spot only SEES (the search marked it look-only): he looks from it, and before
+        /// the aimed round he steps on to the nearest spot a round clears from. 📐 <c>bt-window-duel</c>: B's spot was still behind his van.
+        /// 🔴 Red-proof: without <c>StepToShoot</c> he fires from the look spot (two moves, not three).
+        /// </summary>
+        [Fact]
+        public void CE2327_AStepPeekFromALookOnlySpot_StepsOnToAMarkedSpot_BeforeItFires()
+        {
+            var d = new Duel(Street());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.AnswerMarked(PeekAndFireNodes.PeekSite, 7, (10f, 11f, null, 2), (13f, 10f, null, 1), (10.5f, 12f, null, 1));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.Equal(new[] { new Vector3(10f, 10f, 0f), new Vector3(10f, 11f, 0f), new Vector3(10.5f, 12f, 0f) }, d.Moves);   // look, then the NEAREST marked
+            Assert.Equal(1, d.Ws.PeekFire);
+        }
+
+        /// <summary>⭐ <c>CE-2327</c> — no marked spot: he looks, and goes back down without a round (never fires from a spot that only sees).</summary>
+        [Fact]
+        public void CE2327_NoSpotARoundClears_HeLooksAndGoesDown_NoRound()
+        {
+            var d = new Duel(Street());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.AnswerMarked(PeekAndFireNodes.PeekSite, 7, (10f, 11f, null, 2));
+            Assert.Equal(PeekPhase.Recover, d.RunUntil(PeekPhase.Recover));
+            Assert.Equal(0, d.AimedRounds);
+            Assert.Equal(0, d.BlindRounds);
         }
 
         /// <summary>

@@ -165,6 +165,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// shape from then on) · 1 while the lean is still coming out (<see cref="PeekAndFireNodes.LeanSeconds"/>, since <see cref="LeanAt"/>).</summary>
         public byte Framed, FrameOff, Leaning;
         public double LeanAt;
+        /// <summary>⭐ <c>CE-2328</c> — when the current blind burst began (sim s): it runs its count, for up to <c>ExposeSeconds</c> from HERE.</summary>
+        public double BlindAt;
+        /// <summary>⭐ <c>CE-2327</c> (R-2064) — the step-out spot's fire mark (<see cref="CheapLineOfSightTest.FireClearBit"/>): 0 = not marked,
+        /// 1 = a round clears from it, 2 = it only SEES (he looks from it, and steps on to a marked spot before he fires).</summary>
+        public byte PeekFire;
+        /// <summary>⭐ <c>CE-2330</c> (R-2064) — 1 once the muscle refused a round from this hide point at the peek stance: he LOOKS at the
+        /// peek stance and SHOOTS one stance taller from here (a low wall, a window sill). Reset with the hide point.</summary>
+        public byte ShootTaller;
     }
 
     /// <summary>
@@ -402,6 +410,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.HidePoint = point;
             ws.PeekPoint = point;
+            ws.ShootTaller = 0;   // ⭐ CE-2330
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
@@ -590,6 +599,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (!target.Equals(ws.Reacting)) { ws.Reacting = target; ws.ReactingSince = now; }
                     if (now - ws.ReactingSince < delay) return;
                 }
+                if (StepToShoot(ref ws, in p, ref mem, self, world, now)) return;   // ⭐ CE-2327 — seen from a look-only spot
                 ws.Engaged = target;
                 ws.Fire = default;   // a fresh aimed action each exposure (B7's count starts at 0)
                 // ⭐ CE-3158 G4 — the target is LOCKED for the exposure: the one whose sight was just checked is the one shot at
@@ -598,6 +608,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             if (now - ws.ExposedAt < p.GraceSeconds) return;
+            if ((p.Disable & PeekDisable.BlindFire) == 0 && StepToShoot(ref ws, in p, ref mem, self, world, now)) return;   // ⭐ CE-2327
 
             // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time);
             //   ⭐ CE-3158 G8 — or, with blind fire switched off, straight back down
@@ -632,6 +643,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             FireAtPointNodes.FireAtPoint(ref ws.Blind, self, world);
             ws.Phase = PeekPhase.Blind;
+            ws.BlindAt = Now(world);   // ⭐ CE-2328
             return true;
         }
 
@@ -687,6 +699,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   window, the barrel's does not): this spot cannot shoot that target. Burn it and come down; the next choice moves on.
             if (!guiding && MaskedSince(world, self, ws.ExposedAt))
             {
+                if (ShootHigher(ref ws, in p, ref mem, self, world, now)) return;   // ⭐ CE-2330 — taller, or a spot a round clears from
                 PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
                 Recover(ref ws, in p, ref mem, self, world, now, false);
                 return;
@@ -700,8 +713,19 @@ namespace Hrot.AI.Behaviors.Brains
                                   EntityRepository world, double now)
         {
             var status = FireAtPointNodes.FireAtPoint(ref ws.Blind, self, world);
+            // ⭐ CE-2330 — a burst refused as masked: taller / a clearing spot, else this spot is burned (as an aimed round's, CE-2218)
+            if (MaskedSince(world, self, ws.BlindAt))
+            {
+                if (ShootHigher(ref ws, in p, ref mem, self, world, now)) return;
+                PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
+                Recover(ref ws, in p, ref mem, self, world, now, false);
+                return;
+            }
             bool firedUpon = FiredUponSince(world, self, ws.ExposedAt);
-            if (status != NodeStatus.Running || firedUpon || now - ws.ExposedAt >= p.ExposeSeconds)
+            // ⭐ CE-2328 — the burst's own time, from when IT began. ⛔ SUPERSEDED: from when he came up — the grace and the turn had
+            //   already spent it, so he went down after ONE round and the rest of the burst was refused against his own sill (measured,
+            //   bt-window-duel: every burst from the window cut to one round)
+            if (status != NodeStatus.Running || firedUpon || now - ws.BlindAt >= p.ExposeSeconds)
                 Recover(ref ws, in p, ref mem, self, world, now, firedUpon);
         }
 
@@ -742,6 +766,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.HideStance = ws.PeekStance = StanceId.Standing;   // DA-80 — upright beside the frame, hidden by the wall
             ws.Waiting = 0;
             ws.HidePoint = ws.PeekPoint = point;
+            ws.ShootTaller = 0;   // ⭐ CE-2330
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
@@ -895,9 +920,113 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5
                 point = at;
                 stance = r.TryGetStance(out var s) ? s : null;
+                ws.PeekFire = FireMark(in r);
                 return true;   // the sensor's order is its ranking
             }
             return false;
+        }
+
+        /// <summary>⭐ <c>CE-2327</c> — an answer's fire mark: 0 not marked · 1 a round clears from it · 2 it only sees.</summary>
+        private static byte FireMark(in EqsResult r) => CheapLineOfSightTest.FireMarkOf(in r);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2327</c> (R-2064) — the SHOOTING spot: the step-peek sensor's marked answer (a round clears from it) nearest to where he
+        /// looked from, within <c>PeekSearchRadius</c> of the hide point and not a friend's. 🔒 User: <i>"if attacking is desired, then the spot
+        /// must let him shoot. But the soldier looks out first … for peeking the place does not need to allow shooting"</i>.
+        /// </summary>
+        private static bool PickShoot(ref PeekAndFireState ws, in PeekAndFireParams p, EntityRepository world, double now, Entity self,
+                                      out Vector3 point, out StanceId? stance)
+        {
+            point = default; stance = null;
+            if (!ws.PeekSensor.IsValid || !world.IsAlive(ws.PeekSensor.ChildId)
+                || !world.HasComponent<EqsCognitiveBuffer>(ws.PeekSensor.ChildId)) return false;
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.PeekSensor.ChildId);
+            if (!buffer.IsReady || buffer.Count == 0) return false;
+            var span = buffer.GetSpanRO()[..buffer.Count];
+            float best = float.MaxValue;
+            for (int i = 0; i < span.Length; i++)
+            {
+                var r = span[i];
+                if (FireMark(in r) != 1) continue;
+                var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
+                if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius) continue;
+                if (ClaimedByAFriend(world, self, at, now)) continue;
+                float d = Vector3.Distance(at, ws.PeekPoint);
+                if (d >= best) continue;
+                best = d;
+                point = at;
+                stance = r.TryGetStance(out var s) ? s : null;
+            }
+            return best < float.MaxValue;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2327</c> — before he FIRES from a spot that only sees: he steps on to the nearest spot a round clears from (true: the step is
+        /// under way, or there is none and he goes back down having looked). False = fire from here.
+        /// </summary>
+        private static bool StepToShoot(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                        EntityRepository world, double now)
+        {
+            // ⭐ CE-2330 — a stance peek that learned it must shoot taller here: up one stance before the round (never a look stance higher)
+            if (ws.PeekIsStep == 0)
+            {
+                if (ws.ShootTaller == 1 && ws.PeekStance != StanceId.Standing) StanceRequest.Set(world, self, Taller(ws.PeekStance), StanceBlendSeconds);
+                return false;
+            }
+            if (ws.PeekFire != 2) return false;
+            if (!PickShoot(ref ws, in p, world, now, self, out var spot, out var stance))
+            {
+                Recover(ref ws, in p, ref mem, self, world, now, firedUpon: false);   // nowhere to shoot from: he has looked, and goes down
+                return true;
+            }
+            ws.PeekFire = 1;
+            ws.PeekPoint = spot;
+            if (stance is { } s) ws.PeekStance = s;
+            ws.Stepping = 1;
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+            return true;
+        }
+
+        /// <summary>One stance taller (prone → crouched → standing).</summary>
+        private static StanceId Taller(StanceId stance) => stance == StanceId.Prone ? StanceId.Crouched : StanceId.Standing;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2330</c> (R-2064) — the muscle REFUSED his round as masked (R-3018): before giving the spot up, shoot from where a round
+        /// clears — a stance peek comes up ONE stance (and remembers it for this hide point, so the next exposure looks low and shoots
+        /// taller); a step peek steps on to the nearest marked spot (<see cref="PickShoot"/>). True = handled (he stays up, or steps);
+        /// false = nowhere better: the caller burns the spot (CE-2218). A frame post already crosses to its other point (D-2l).
+        /// </summary>
+        private static bool ShootHigher(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
+                                        EntityRepository world, double now)
+        {
+            if (ws.Framed == 1) return false;
+            if (ws.PeekIsStep == 0)
+            {
+                if (ws.ShootTaller == 1 || ws.PeekStance == StanceId.Standing || !StanceRequest.CanCarry(world, self)) return false;
+                ws.ShootTaller = 1;
+                StanceRequest.Set(world, self, Taller(ws.PeekStance), StanceBlendSeconds);
+            }
+            else
+            {
+                if (!PickShoot(ref ws, in p, world, now, self, out var spot, out var stance) || Vector3.Distance(spot, ws.PeekPoint) <= ArrivalRadius)
+                    return false;
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
+                StopBlind(ref ws, self, world);
+                ws.PeekFire = 1;
+                ws.PeekPoint = spot;
+                if (stance is { } s) ws.PeekStance = s;
+                ws.Stepping = 1;
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+                ws.Phase = PeekPhase.Expose;
+                return true;
+            }
+            // the same exposure goes on, taller: a fresh aimed action (the refused one is spent), its masked stamp now in the past
+            PostureNodes.StopFiring(world, self, ref ws.Fire);
+            StopBlind(ref ws, self, world);
+            ws.Fire = default;
+            ws.ExposedAt = now + 1e-3;   // just after this tick: the refusal that brought him up is behind it
+            ws.Phase = PeekPhase.Expose;
+            return true;
         }
 
         /// <summary>The cover sensor always; the step-peek sensor once a step peek is chosen — both pointed at the threat.</summary>

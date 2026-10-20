@@ -80,8 +80,8 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(0f, eye.Y, 3);
 
             var middle = AimPoint.Middle(_world, man, out _, out _);
-            float aim = TerrainWorldLosStrategy.DefaultMount.Standing * 0.5f;
-            Assert.Equal(-(0.4f * 0.5f + Leans.ExposedHalf), middle.X, 3);
+            float aim = AimPoint.Chest(Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(_world, man)).Z;   // ⭐ CE-2325 — his chest
+            Assert.Equal(-(0.4f * aim / TerrainWorldLosStrategy.DefaultMount.Standing + Leans.ExposedHalf), middle.X, 3);
             Assert.Equal(aim, middle.Z, 3);
         }
 

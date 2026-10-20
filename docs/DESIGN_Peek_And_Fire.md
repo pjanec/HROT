@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
+current-answer: ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
-known-rot: none yet
+known-rot: D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: D — the move to a hide is crouched at the rush speed
@@ -834,3 +834,160 @@ window; the LAUNCHER's line (muzzle 0.97 m from his eye) ran into the wall — t
 | where | `AimAndFireExecutor`'s aimed release and its blind release; ⛔ not an arc (`ThrowArc` already lobs), not a bomb, not with no terrain |
 | rails | `AimAndFireExecutorTests.CE2218_TheRpgIntoHisOwnWindowFrame_IsMasked_AnOpenShotIsNot` (bt-range, the live points) · `CE2218_TheExecutorHoldsTheMaskedShot_Masked_NothingSpent` — both red-proved |
 | ⭐ the node's answer | `PeekAndFire` (§10, this node): an exposure whose weapon holds `Masked` ends at once and its spot is BURNED (`PositionHeat` at `BurnHeat`), so the next choice moves on — read from the stamped `ActionStatus` weapon row, so an earlier exposure's `Masked` does not count. Rail `PeekAndFireNodesTests.CE2218_AMaskedShot_BurnsTheWindow_AndMovesToTheNext`. ⭐ `VehicleFightFromCover` (behaviors, `CE-2221`, `2026-10-16`): the same answer through the same reader (`PeekAndFireNodes.MaskedSince`) — an `Engaging` exposure whose gun holds `Masked` burns its FIRING point and withdraws (rail `VehicleFightFromCoverNodesTests.CE2218_AMaskedGun_BurnsTheFiringPoint_AndGoesBackIn`, red-proved). ⏭ the posture behaviours that fire (CombatPosture's Suppress / AdvanceAndAttack) still wait on a `Masked` hold — behaviors' |
+
+## 11. Look, then shoot — and aim at the chest *(behaviors, `2026-10-20` · ✅ R-2064 · `CE-2325`…`CE-2329`)*
+
+🔒 **User, `2026-10-20`:** *"if attacking is desired, then the spot must let him shoot. But i guess the soldier looks out first, before
+trying to shoot, so for peeking the place does nto neet to allow shooting as that woul expose solder too much"* · *"firing a shot to
+the center results in hitting the bottom part of the window not the figure in the window — soldiers should aim to the chest (where it
+really is — honoring body posture)"* · *"head visibility where the head really is, honoring the body stance"*.
+
+### 11.1 What was measured *(`bt-window-duel`, in-process, 120 s, HEAD `35d463ad1` + a throwaway probe)*
+
+| | |
+|---|---|
+| ⛔ **no aimed round in 120 s** — both fought by blind bursts only | A 9 rounds, B 6 |
+| ⛔ **B's bursts refused `Masked` by his OWN van** | his step-out spot (x 105.9) is still behind Van 1 (x 101.75–106.25): the round clipped its top edge ≈ 0.7 m from his eye. The step-out search had passed the spot on SIGHT alone |
+| ⛔ **A fired ONE round per exposure** | the burst's time ran from when he came up — the grace and the turn had spent it; he dropped prone and the rest was refused against his own sill |
+| ⛔ **the aim was the hips** | "the middle" = half the eye height: 0.85 m standing (the crotch — the torso box is 0.90–1.46 m), 0.55 m crouched; a burst = the remembered spot + 1 m (a window's sill top) |
+
+### 11.2 Classes
+
+```mermaid
+classDiagram
+  class AimPoint {
+    <<EXISTING, changed>>
+    +Middle(repo, target) Vector3  : a person's CHEST, a vehicle's hull middle
+    +Chest(PersonPose) Vector3  : NEW
+    +For(view, world, eye, middle, ...) Vector3  : chest, or the seen band when the chest sits on a stopping cover
+  }
+  class PersonBody {
+    <<EXISTING>>
+    +Boxes(PersonPose) : torso, head, ... (the drawn figure)
+    +PoseOf(world, e) PersonPose
+  }
+  class LineOfFire {
+    <<EXISTING, grows>>
+    +MuzzleMasked(world, shooter, w, ammo, aim) bool
+    +MaskedFrom(world, terrain, shooter, w, origin, aim) bool  : NEW, the same rule from a spot
+  }
+  class CheapLineOfSightTest {
+    <<EXISTING, grows>>
+    +MarkFireClear bool  : NEW
+    +FireClearBit = 1<<7  : NEW result flag
+  }
+  class FindOpenFiringPosition {
+    <<EXISTING template>>
+    MarkFireClear = true
+  }
+  class PeekAndFireNodes {
+    <<EXISTING, grows>>
+    PickPeek() : the look spot, its mark kept
+    PickShoot() : NEW nearest marked spot
+    StepToShoot() : NEW before aimed fire or a burst
+    ShootHigher() : NEW on Masked: one stance taller / a marked spot
+    Blind() : runs from BlindAt
+  }
+  class PeekAndFireState {
+    +PeekFire byte  : NEW 0 unmarked / 1 clear / 2 look-only
+    +BlindAt double : NEW
+    +ShootTaller byte : NEW stance peek shoots taller here
+  }
+  class EqsTacticsNodes {
+    <<EXISTING, changed>>
+    TryNewAnswer() : skips look-only answers
+  }
+  class FireProcessingSystem {
+    <<EXISTING muscle>>
+    aims (Middle -> For), THEN judges MuzzleMasked on that line
+  }
+  AimPoint --> PersonBody : torso + head of the pose
+  FireProcessingSystem --> AimPoint
+  FireProcessingSystem --> LineOfFire
+  CheapLineOfSightTest --> LineOfFire : MaskedFrom
+  FindOpenFiringPosition *-- CheapLineOfSightTest
+  PeekAndFireNodes --> FindOpenFiringPosition : step-peek sensor
+  PeekAndFireNodes *-- PeekAndFireState
+  EqsTacticsNodes --> FindOpenFiringPosition : FiringPosition move
+```
+*What the picture shows that prose hid:* there is ONE masked rule (`LineOfFire`) read in two places — the muscle at fire time and the
+search marking spots — and ONE aim rule (`AimPoint`) whose chest comes from the same boxes the round hits. Nothing new decides geometry
+on the brain: the node only reads the mark.
+
+### 11.3 Sequence — a step peek
+
+```mermaid
+sequenceDiagram
+  participant N as PeekAndFire (brain)
+  participant E as EQS FindOpenFiringPosition (muscle)
+  participant F as FireProcessingSystem (muscle)
+  E-->>N: answers, each marked FireClear or look-only
+  N->>N: PickPeek = the best answer (look spot), PeekFire = its mark
+  N->>N: step out to the look spot, look
+  alt seen, or not seen within the grace (a burst)
+    alt the look spot is look-only (PeekFire = 2)
+      N->>N: PickShoot = nearest marked spot
+      alt a marked spot exists
+        N->>N: step on to it, then fire
+      else none
+        N->>N: back down (he has looked)
+      end
+    end
+    N->>F: fire request (aimed / burst)
+    F->>F: AimPoint.Middle = the chest of his pose
+    F->>F: AimPoint.For: chest, or the seen band if the chest sits on a stopping cover
+    F->>F: MuzzleMasked on THAT line
+    alt masked
+      F-->>N: refused Masked (safety net) => the spot burns, next choice
+    else clear
+      F-->>N: fired
+    end
+  end
+```
+
+### 11.4 Modules — who runs what each frame
+
+```mermaid
+graph TD
+  CGF["CGF node — Brain"] --> PF["PeekAndFire (BTree action, WindowDuel / library trees)"]
+  PF -->|sensor config| EQS["EqsSystem — solved on the named Perception node (R-179, R-185)"]
+  EQS -->|ranked answers + flags| PF
+  PF -->|WeaponFireIntent| FPS["FireProcessingSystem — the combat muscle (one node, R-3018)"]
+  FPS --> AP["AimPoint + LineOfFire (Fdp.Toolkits)"]
+  EQS --> LOF["LineOfFire.MaskedFrom"]
+```
+*Caption:* the mark is computed where the world is (the EQS solver) and only READ on the brain — R-2037 (the brain never reads world
+geometry) holds. A host without terrain marks nothing (`FlagsMeaningful` stays clear) ⇒ `PeekFire = 0` ⇒ he fires from the look spot
+as before.
+
+### 11.5 Decisions *(✅ R-2064, the user's words above)*
+
+| # | rule | rejected |
+|---|---|---|
+| ① | ⭐ **LOOK from a spot that only sees; SHOOT only from a spot a round clears from** — the search MARKS, never rejects; the node steps on to the nearest marked spot before aimed fire or a burst, or goes back down having looked | *reject sight-only spots* — he would expose himself fully just to look (the user) · *a second query for shooting spots* — two producers for one answer (R-132) |
+| ② | ⭐ **a person is aimed at his CHEST** — his pose's torso, 35 % of the way to its head (`AimPoint.Chest`; ≈ 1.23 m standing aimed, 0.89 m crouched, the lying torso prone) | *half the eye height* — the crotch/hips (§11.1) · *the head* — the smallest box, the most misses |
+| ③ | ⭐ **the chest seen just over a cover that STOPS a round ⇒ the middle of what shows**, never lower — a weak cover below it ⇒ still the chest (through it) | *the chest regardless* — half the rounds into the sill (the user) |
+| ④ | the muscle judges the masked muzzle on the line the round FLIES (after the aim is chosen) | *on the hidden middle first* — refused shots his real aim cleared |
+| ⑤ | a blind burst runs its count, for `ExposeSeconds` from when IT began | *from when he came up* — one round per exposure |
+| ⑥ | ⭐⭐ **the same split at a STANCE peek** (a low wall, a window sill — what the platoon's defend posts and TakeCover fight from): he LOOKS at the lowest stance that sees; the muscle refusing his round as masked ⇒ he comes up ONE stance and keeps the exposure, and REMEMBERS it for that hide point (`ShootTaller`), so every later exposure there looks low and shoots one stance taller. Refused standing too ⇒ the spot burns (CE-2218). A step peek refused ⇒ the nearest marked spot; a frame post ⇒ its other point (D-2l, unchanged) — `CE-2330` | *mark the window and cover searches too* — their answers are HIDE points; the stance a round clears from is only known on the muscle, and its refusal costs no round (R-3018) · *always peek standing* — exposes him most just to look (the user) |
+| ⑦ | ⭐ **the attack's move to a firing position never goes to a look-only spot** (`EqsTacticsNodes` — FiringPosition, and every tactics move whose search marks) | *the top answer regardless* — he walks to a spot he cannot shoot from |
+
+### 11.6 ⏭ Open — `CE-2326` *(the memory keeps the stance he was last seen in)*
+
+⛔ **Not built — it needs a nod, and the window shows why.** A remembered spot is judged and burst at as a standing man (the EQS test's
+own rule; the burst at the spot + 1 m). ⭐ **Lean:** the burst at a remembered spot is aimed by the MUSCLE as at a body there — the last-seen
+pose's chest, or the band that showed (③) — which needs (a) `TargetMemory` to keep the seen pose (a byte per slot: backend's component,
+on the scenario save) and (b) the fire request to carry it (a field on `WeaponFireIntent`). ⚠ "the chest of the last-seen pose" alone is
+NOT enough: a crouched man's chest at a window is AT the sill (0.89 m vs 0.9 m) — only ③'s seen-band rule clears it, and that rule needs
+the geometry, i.e. the muscle.
+
+### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
+
+| | |
+|---|---|
+| `CE-2325` chest | `Fdp.Toolkits/Combat/AimPoint.cs` — `Middle` (person ⇒ `Chest(PersonBody.PoseOf)` × `ScaleOf(collider)`, turned with him, + the lean's offset at the chest's height), `Chest`, `For` (③), `ShootsThrough` |
+| `CE-2327` look / shoot | `CheapLineOfSightTest.MarkFireClear` / `FireClearBit` (on `FindOpenFiringPosition` only); `LineOfFire.MaskedFrom` (the masked rule extracted into `Stops`, `MuzzleMasked` unchanged in behaviour); `PeekAndFireNodes.FireMark` / `PickShoot` / `StepToShoot`, `PeekAndFireState.PeekFire` |
+| `CE-2328` burst | `PeekAndFireState.BlindAt`, set by `StartBurst`; `Blind()` times from it |
+| `CE-2329` masked line | `FireProcessingSystem` — `AimPoint.For` before `MuzzleMasked` |
+| `CE-2330` stance peek / generic | `PeekAndFireNodes.ShootHigher` (Aimed and Blind, on the muscle's `Masked`), `PeekAndFireState.ShootTaller` (reset with the hide point), `StepToShoot`'s stance branch; `CheapLineOfSightTest.FireMarkOf` — the one reader; `EqsTacticsNodes.TryNewAnswer` skips look-only answers |
+| ⏭ not yet | the posture's Engage / Suppress (`PostureNodes.Fire` from where he stands) still holds on `Masked` (§10.10's ⏭) — measured next in `pc-defend-house` / `uc-urban-battle` before a rule is chosen |
