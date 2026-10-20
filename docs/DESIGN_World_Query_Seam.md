@@ -281,6 +281,13 @@ dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj -c Release
 ```
 The `[Q0_…]` lines carry every number above. ⚠ Debug numbers understate both paths; the ratios are the point.
 
+⚠ **Found `2026-10-20` (backend, `CE-3279`) — the index is BUILT and ATTACHED NOWHERE.** `BepuTerrainIndex.AttachTo` has no production
+caller (only `BepuTerrainIndexTests`; no host references `Fdp.Toolkits.Spatial.Bepu`), so every live segment query still scans every
+piece. And the two POINT queries — `TerrainWorld.SurfaceZ` and `TerrainWorldQuery.TryStandAt` — never consult `SpatialIndex` even when
+set: they loop over every prism (and `SurfaceZ` over every walkable). 📐 On demo-city an EQS point placement costs 0.4 ms (0.7 s of a
+1.8 s solver tick). ⏳ Proposed in `CE-3279`: attach in `TerrainResidency` after the parse, and narrow both point queries through
+the index (a degenerate segment; identical answers by the same construction as §5a ①).
+
 ## 5b. Q1 — as built `2026-10-10`
 
 **Moved onto `IWorldQuery`** (all SimHost-side — the stand-in engine's physics and its sensors; ⭐ the brain touches no terrain:

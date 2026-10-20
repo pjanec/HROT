@@ -1936,6 +1936,7 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | ✅ **O3** | a doctrine that FAULTS | stays stopped (the unit is brain-dead), the fault is logged and visible in the editor's AI section and `/diagnostics`; no auto-restart (a doctrine that faults every tick would spam) | the user |
 | ✅ ~~**O4**~~ | S0's interim cap | ⛔ the observer cap was NOT built — it would have broken the debounce (contacts of a skipped observer age into *Lost*); the measured hot spots were fixed instead, see §9.1 | build (S0) |
 | **O5** | the cost-unit weights (§5.3) | measured once on a reference scenario at S4, then constants | build (S4) |
+| ⚠ **O5 — measured `2026-10-20` (`CE-3279`)** | 📐 the reference scenario held VISION only, so the path / placement weights were never measured. Live, `uc-request-chain` on demo-city (debug, 4-core VM): vision ≈ 70 units / ms, but `FindFlankingPosition` ≈ 4 units / ms — a path query costs **3.3 ms** (`DotRecastNavmeshProvider.PathCost`: a full A* + straight path per candidate) where `Path = 16` predicts ~5 µs, and each generated point's placement (`TryStandAt`) **0.4 ms**, counted as 1. ⇒ 21 400 units took **1.8–2.4 s** a tick; the budget (150 000) never stopped anything and the 400 ms breaker opened every tick | ⏳ the fix is proposed in the `CE-3279` row (index the point queries, one path search per sensor, re-measure the weights) |
 
 | verify while building | §9 |
 |---|---|
