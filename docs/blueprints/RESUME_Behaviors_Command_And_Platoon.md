@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2323`** · rulings next free **`R-2062`** · component ids **419–433** (418 = `UnderFireMove`, R-2056) · next architect question **98** (AQ97 asked 2026-10-20: default reflexes, `CE-2322`) |
+| ⭐ ids | tracker next free **`CE-2323`** · rulings next free **`R-2063`** · component ids **419–433** (418 = `UnderFireMove`, R-2056) · next architect question **98** (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -57,6 +57,7 @@ States §8a: 21 target tests on `Injury.IsInTheFight`, a man down lies Prone for
 `UnderFireMoveSystem` — rush under fire, crouch mid-move, the drop with its outcomes, cover moves crouched; `CE-2319` / `CE-2320` closed;
 live `uf-alone-under-fire` PASS; `uf-squad-under-fire` — see AQ96 §6) · **scenario `header.description`** handed to backend
 ([handoff](batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md); behaviors fills its own scenarios once the round-trip lands).
+✅ *2026-10-20, the user: "Approved, go"* ⇒ **[AQ97](Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) (R-2062) BUILT, `CE-2322` closed**: every lone soldier reacts by default (`BasicInfantrySop` on the soldier types, gated off under a live commander or aboard), `InertSop` = the explicit "no response", a civilian's fear is `CivilianFearSystem`'s and `CivilianSop` reacts off his routine; live `df-lone-soldier-reflex` + `df-civilian-ordered` PASS; TakeCover now drops a man fired on with no cover point (Eqs §6 A8).
 ⭐ next: Q95's behaviors half (`CE-2315` E2), N.3's ladder. The ui/backend rows wait for those lanes unless the user hands them over.
 
 ### N.3 Still open from the plan

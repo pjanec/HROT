@@ -7,21 +7,21 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: AQ97 A/C (CE-2322) - two soldiers stand idle in the open with no orders; a hostile rifleman 120 m away opens fire (all immortal). 'Reflex' carries nothing in the file, so he gets his type's default SOP (BasicInfantrySop); 'Inert' is stamped InertSop - the explicit 'no response'. Judge: (1) Reflex reacts by himself once he sees the hostile or is fired on - his task becomes TakeCover (a reaction) and he moves off his spot; (2) Inert never gets a task and never moves, whatever comes near him. Fail: Reflex stands still under fire, or Inert reacts. Check: python3 scripts/utility-demo-check.py --launch df-lone-soldier-reflex"
+    "description": "What: AQ97 A/C (CE-2322) - two soldiers stand idle with no orders by the L-Block on test-town; a hostile rifleman ~150 m south-west opens fire (all immortal). 'Reflex' carries nothing in the file, so he gets his type's default SOP (BasicInfantrySop); 'Inert' is stamped InertSop - the explicit 'no response'. Judge: (1) Reflex reacts by himself once he sees the hostile or is fired on - his task becomes TakeCover (a reaction) and he moves off his spot behind the block; (2) Inert never gets a task and never moves, whatever comes near him. Fail: Reflex stands still under fire, or Inert reacts. Check: python3 scripts/utility-demo-check.py"
   },
   "entities": {
     "d2322000-0000-0000-0000-000000000001": {
       "SimTransform": {
         "Position": [
-          195,
-          165,
+          225,
+          180,
           0
         ],
         "Rotation": [
           0,
           0,
-          0.7071068,
-          0.7071068
+          -0.8870108,
+          0.4617486
         ]
       },
       "Health": {
@@ -45,15 +45,15 @@
     "d2322000-0000-0000-0000-000000000002": {
       "SimTransform": {
         "Position": [
-          205,
-          165,
+          210,
+          185,
           0
         ],
         "Rotation": [
           0,
           0,
-          0.7071068,
-          0.7071068
+          -0.8870108,
+          0.4617486
         ]
       },
       "Health": {
@@ -82,15 +82,15 @@
     "d2322000-0000-0000-0000-000000000011": {
       "SimTransform": {
         "Position": [
-          200,
-          285,
+          140,
+          60,
           0
         ],
         "Rotation": [
           0,
           0,
-          -0.7071068,
-          0.7071068
+          0.4617486,
+          0.8870108
         ]
       },
       "Health": {
@@ -117,7 +117,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [200, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Params": "{\"Advance\": {\"Objective\": [140, 60, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
         "Origin": "Superior"
       }
     }

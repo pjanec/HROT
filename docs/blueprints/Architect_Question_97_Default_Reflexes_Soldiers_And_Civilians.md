@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — APPROVED 2026-10-20 (R-2062): A–F as leaned; BUILDING
+state: LIVE — APPROVED 2026-10-20 (R-2062): A–F as leaned; BUILT, both demos live PASS
 updated: 2026-10-20
 build-state: BUILT (§6 as built)
-current-answer: §5 the answer · §6 as built · §3 the leans it approved
+current-answer: §5 the answer · §6 as built (deviations ①–⑩, live results) · §3 the leans it approved
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -11,6 +11,7 @@ related-designs:
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — §3 OWNS R-188 "no SOP = brain-dead = absolute control; the TKB names the default"; this question keeps the rule and adds the explicit "none"
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS CivilianHsm (CIV-2: Routine, Alarmed, Panic, Shelter, Inside, Cower, Casualty, crowds) and the fear (CivilianFearSystem); this question moves the fear's OWNERSHIP of the state out of the HSM and adds a civilian SOP for a civilian on another task
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — OWNS the reflex of a soldier already MOVING (the drop); this question covers the man who is idle or on a task with no reaction
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover; §6 A8 is this build's live finding ⑧ (down in the open with no cover point)
   - docs/DESIGN_Temperament_And_Stress.md — TS-6's break (later) shapes how a lone man reacts; out of scope here
 -->
 
@@ -208,7 +209,17 @@ As §2a–§2c, with these differences (each measured during the build):
 | ⑤ the civilian conditions are `CivilianBehavior.NotOnHisRoutine` / `FrightenedOrHurt` (no params), not `TaskIs` / `FearAtLeast` | a params variable would repeat the thresholds in the SOP asset; no-params conditions read the one table |
 | ⑥ `CivilianSop` also has **Do-when-idle(CivilianHsm)** | a civilian whose order finished goes back to his own routine instead of standing |
 | ⑦ the stamp: **146 units in 64 scenario files** (`scenarios/` and the recipe scenarios), purely additive | soldier types 200–205, 207–211, 2002–2007 with no commander and no `Sop` key, and the `Idle` civilians |
+| ⑧ ⭐ **found live: under fire in the open with no cover in reach, `TakeCover` left him STANDING** — the reaction ran, he was hit every few seconds for 25 s and never moved | ⇒ `TakeCover` now drops him where he stands while fired on with no point to go to, and its first cover point gets him up into AQ96's crouched rush ([DESIGN_Eqs_Consuming_Behaviours.md](../DESIGN_Eqs_Consuming_Behaviours.md) §6 A8; AQ96 §6). AQ96 C's own rule *"still under fire, nothing near: stays down"*, which as built watched only a man on a MOVE |
+| ⑨ the demo `df-lone-soldier-reflex` stands by the L-Block (cover within the 25 m search), not in the open | the open-ground placement showed ⑧, not the SOP's cover move; the open ground is now ⑧'s rail |
+| ⑩ the call-shape corpus rail reflects the toolkit assembly too | `SopConditions.UnderCommand` / `.Aboard` are the first param-less bindings from `Fdp.Toolkits`; unresolved, they kept the default `Plain` — the rail was blind to that assembly all along ([DESIGN_BTree_Node_Call_Shapes.md](DESIGN_BTree_Node_Call_Shapes.md) slice 1 as-built) |
 
 **Rails:** `BasicInfantrySopTests.CE2322_*` (4: near miss → cover; under command or aboard the rows stand aside, commander gone they are his; `InertSop` orders nothing; the TKB names the defaults) · `CivilianHsmTests.CE2322_*` (3: an ordered civilian reacts and his order restarts when he calms; on his routine the SOP stands aside; the reaction carries the HSM's fear edges) · `CivilianFearSystemTests.CE2322_*` (an ordered civilian is frightened, a soldier is not) · `BTreeCallShapeTests` rows · generator goldens (corpus 37 → 39).
 **Demos:** `df-lone-soldier-reflex`, `df-civilian-ordered` (both with `header.description`). Live results below.
+
+| live, 2026-10-20 | measured |
+|---|---|
+| ✅ `df-lone-soldier-reflex` PASS | Reflex (no `Sop` in the file ⇒ his type's `BasicInfantrySop`): a `TakeCover` **reaction** at 2.1 s, 11.4 m to behind the block; Inert (`InertSop`): no task, 0.0 m, under the same fire |
+| ✅ `df-civilian-ordered` PASS | both frightened to fear 1.00 off their routine HSM (`CivilianFearSystem` now creates the fear); Ordered: `CivilianReact` as a **reaction** on top of his `Idle` order, Cower, crouched; Inert civilian: stays on `Idle` |
+| ⚠ the first run of the lone demo FAILED | ⑧ above — the reaction was right, the man stood in the open |
+| gates | Toolkits 3951/0 (+1 skip, baseline) · SimHost 1768/0 (6 skips, baseline) · AiEditor.Persistence 162/0 (after ⑩) · AiEditor.Generators 426/0 (tree clean) · `EqsCombatNodesTests` 17/0 · red-proofs: five for AQ97's rows and fear owner + one for ⑧, all red, all restored byte-for-byte |
 

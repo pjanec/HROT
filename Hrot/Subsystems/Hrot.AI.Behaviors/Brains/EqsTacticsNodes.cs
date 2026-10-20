@@ -10,6 +10,8 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Utility;
 using Fbt.Kernel;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -58,7 +60,7 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 Goal;
         /// <summary>The answer stamp (<see cref="EqsCognitiveBuffer.LastUpdateTick"/>) last acted on — one look per answer.</summary>
         public uint LastAnswerTick;
-        /// <summary>1 once a move was issued.</summary>
+        /// <summary>1 once a move was issued; ⭐ 2 = down in the open, no cover point yet (CE-2322, TakeCover only).</summary>
         public byte Moving;
         /// <summary>⭐ <c>CE-2108</c> — what the weapon is aimed at while moving (<see cref="EqsTacticsParams.FireWhileMoving"/>).</summary>
         public EngageState Fire;
@@ -122,6 +124,8 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>⭐ WL-4 W-12f — fire (through the weapon brain, which throws at a hidden target) whenever there is a threat,
             /// not only while moving: the spot is reached to THROW from.</summary>
             FireAlways = 32,
+            /// <summary>⭐ <c>CE-2322</c> (AQ96 C) — fired on with no point to move to: down, prone, until a point comes.</summary>
+            DownInTheOpen = 64,
         }
 
         /// <summary>The starter threat ranking (<see cref="ThreatRankingDecision"/>'s asset id).</summary>
@@ -136,7 +140,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [SharedAiAction]
         public static NodeStatus TakeCover(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
-            => Run(ref p, ref ws, self, world, FindCoverFromTarget.BlueprintId, TakeCoverSite, Mode.Reposition);
+            => Run(ref p, ref ws, self, world, FindCoverFromTarget.BlueprintId, TakeCoverSite, Mode.Reposition | Mode.DownInTheOpen);
 
         /// <summary>
         /// Falls back once to a point hidden from the top threat and far from it: one move, Success on arrival. The sensor
@@ -248,7 +252,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             bool hasThreatPos = ThreatPosition(world, self, threat, out var threatPos);
             if (TryNewAnswer(world, child, ref ws, in p, out var best)
-                && (ws.Moving == 0
+                && (ws.Moving != 1
                     || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
             {
@@ -261,6 +265,14 @@ namespace Hrot.AI.Behaviors.Brains
             else if (!endOnArrival && ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Failure)
             {
                 ws.Moving = 0;   // the move failed (or was taken over): the next answer moves again
+            }
+            // ⭐ CE-2322 (AQ96 C, "still under fire, nothing near: stays down") — no point to move to and fired on: he drops where he
+            //   stands rather than standing in it. The next answer's crouched move gets him up (LocomotionMoveTo sets the gait's stance).
+            if ((mode & Mode.DownInTheOpen) != 0 && ws.Moving == 0
+                && Now(world) - UnderFire.LastFire(world, self) <= UnderFire.FreshFireSeconds)
+            {
+                StanceRequest.Set(world, self, StanceId.Prone, UnderFire.DropBlendSeconds);
+                ws.Moving = 2;
             }
             FireOnTheMove(ref p, ref ws, self, world, (mode & Mode.FireAlways) != 0);
             return NodeStatus.Running;
@@ -286,7 +298,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world, bool always = false)
         {
             // ⭐ CE-2275 D-2d (PC-14) — a posted man with no move to make (none asked yet, or no answer on his post) fights from where he stands
-            bool posted = p.AnchorRadius > 0f && ws.Moving == 0;
+            bool posted = p.AnchorRadius > 0f && ws.Moving != 1;
             if (p.FireWhileMoving == 0 && !posted) return;
             if (always || posted || (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running))
                 // ⭐ AQ89 C — FireAlways (CloseToThrow) suppresses BLIND at the hidden target while it closes (R-269)
@@ -517,11 +529,15 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        private static double Now(EntityRepository world)
+            => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+
         private static void Release(ref EqsTacticsState ws, Entity self, EntityRepository world, bool stopMoving = true)
         {
             PostureNodes.StopFiring(world, self, ref ws.Fire);   // CE-2108: a weapon this node aimed stops with it
             if (ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId)) EqsChildSensor.Destroy(world, ws.Sensor.ChildId);
             if (stopMoving && ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
+            if (ws.Moving == 2) StanceRequest.Set(world, self, StanceId.Standing, PostureNodes.GetUpSeconds);   // CE-2322: up again
             ws = default;
         }
     }

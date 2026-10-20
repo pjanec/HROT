@@ -18,6 +18,7 @@ related-designs:
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS a behaviour's child-sensor lifetime (CE-485/486): the sensors here die with the run.
   - docs/DESIGN_Terrain_World.md — OWNS the sight (SegmentBlocked) the acceptance checks with.
   - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the inspector binding; §5.6 (CE-2099) is the gap that keeps a designer from picking TakeCover / FallBack in the editor today.
+  - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — OWNS who gets TakeCover as a default reaction (every lone soldier's BasicInfantrySop); its live demo found §6 A8
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS heard contacts (CE-3063); its §8 makes TakeCover / FallBack hide from a HEARD point (ThreatAim, the sensor's context point 1).
 -->
 
@@ -327,6 +328,7 @@ Built as §2 draws it: `EqsTacticsNodes.TakeCover` / `FallBack` (+ stateful deac
 | A5 | `EqsTacticsParams.FactionFilter` (0 = every acquired contact, `StarterTemplates.cs:5`) — the query's exposure scoring needs it | not listed |
 | A7 | ⚠ the trees are hand-authored JSON: the inspector cannot yet bind a C# stateful node's working state (`DESIGN_Behavior_Action_Binding.md` §5.6, `CE-2099`) | — |
 | A6 | ⚠ **step 1 (does infantry fill `TargetMemory` on a live run) moves to `CE-2094`** — it needs the acceptance scenario; the rails here set the memory directly | §5: "step 1 also measures…" in CE-2092 |
+| A8 | ⭐ **`2026-10-20`, CE-2322 (AQ96 C extended) — no point to move to and fired on ⇒ he goes down where he stands.** `Mode.DownInTheOpen` (TakeCover only): `Moving == 0` and a near miss or hit within `UnderFire.FreshFireSeconds` ⇒ `StanceRequest` Prone, `Moving = 2` ("down in the open", no new field — the struct's layout and every golden stay put). The next answer's crouched move gets him up (`LocomotionMoveTo` sets the gait's stance); leaving the node with him still down stands him up (`Release`). 📐 found live: on `df-lone-soldier-reflex`'s first placement (no cover within the 25 m search) the reaction ran 25 s with the man **upright, hit every few seconds**, because AQ96's drop only watches a man on a MOVE. Rail `EqsCombatNodesTests.CE2322_TakeCover_FiredOnWithNoPointToGo_*` | — (a man with no answer simply waited, as he stood) |
 
 **Rails:** `EqsCombatNodesTests.CE2092_*` (6) + `CE2093_*` (1) — the feature's own suite, called directly: no threat ⇒
 Success and no sensor · first answer ⇒ MoveTo the top · a new answer < 5 m ⇒ no new move, ≥ 5 m ⇒ a new one, the same
