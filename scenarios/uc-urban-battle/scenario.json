@@ -1051,7 +1051,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{}",
+        "Params": "{\"advance\": {\"Objective\": [690, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [690, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
       }
     },
@@ -1088,7 +1088,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{}",
+        "Params": "{\"advance\": {\"Objective\": [696, 153, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [696, 153, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
       }
     },
@@ -1125,7 +1125,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{}",
+        "Params": "{\"advance\": {\"Objective\": [702, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [702, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
       }
     },
@@ -1319,7 +1319,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{}",
+        "Params": "{\"advance\": {\"Objective\": [796, 784, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [796, 784, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
         "Origin": "Superior"
       }
     },

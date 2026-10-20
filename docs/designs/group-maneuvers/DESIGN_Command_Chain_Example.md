@@ -814,3 +814,11 @@ tracker rows. ⛔ Not live yet (the urban demo ladder, step 8).
 composer's SPOT and REQUESTs), the air suite (the armed search), the platoon suite (the HQ). ⛔ Not in them: an air-assault answer, Casevac by
 air, the live rung (the demo ladder, step 8).
 
+
+#### 8d-b. Found live *(2026-10-20, Urban Battle §6)*
+
+| | measured | as built |
+|---|---|---|
+| ⭐ **HQ-10** *(new, `CE-2314`)* | the HQ (type 305) carries `BasicPlatoonSop`; a subordinate's SPOT paused `SupportCommand` for `PlatoonHold` — its AH-64, A-10 and reserve were ordered to hold (`uc-urban-battle`, 305 s) | the hold row also asks `SupportCommandBehavior.NotCommandingSupport` (as AT-13 / DA-55): an HQ answers reports, it does not hold on them |
+| the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
+| dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |

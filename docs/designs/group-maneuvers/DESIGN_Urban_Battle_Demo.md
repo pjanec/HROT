@@ -215,7 +215,13 @@ that already pass on other terrains.
 asserts only what must hold: ① the charge goes off only with a vehicle in its kill zone · ② no Blue round aimed at a civilian · ③ nothing sent
 without a REQUEST · ④ both sides fight. **First run (1200 sim s): ①②③ held, ④ did not** — the Bradley saw the fire team on the open sidewalks
 from 230 m at 9 s and destroyed it from cover before it fired (Blue 238 rounds, Red 0); ⚠ the same charge burst THREE times (37, 229, 256 s);
-⚠ the reserve squad SPOTted "an element at (0, 0)" every ~17 s from 547 s. Being measured.
+⚠ the reserve squad SPOTted "an element at (0, 0)" every ~17 s from 547 s. **Measured, all three:** the "three bursts" were the check
+(it indexed a rolling detonation log) · the (0, 0) SPOT was the insurgents WALKING there — `CombatPosture` with `{}` advances to (0,0,0), its
+default objective; a man who holds gets SquadDefend's shape (objective = his spot, `stay`, `post`, `watchTowards`) · and the HQ's platoon SOP
+then held the HQ and every asset (⇒ `CE-2314`). **Recast** round the Street S corner (the IED at the crossing, the fire team 40–50 m down
+Street S east, hidden from the avenue). ✅ **PASS live 6/6** (2026-10-20, 1200 sim s): the IED at 28 s with the APC 9.7 m off; the Bradley
+pushes through and resumes; the immobilised APC's squad SPOTs the team round the corner, dismounts under an RPG and fights it (Blue 34 / Red
+24 rounds); 0 rounds at civilians; no REQUEST was made, so the HQ sent nothing — the story the fight chose this time.
 
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.
