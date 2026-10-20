@@ -7,6 +7,7 @@ stale-below: §3 C's first form ("prone 2–4 s, then up") is SUPERSEDED by the 
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — the man who is IDLE (or on a task with no reaction): default SOPs for lone soldiers and civilians
   - docs/blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — OWNS the sprint (6 m/s), the stance speed caps (crouched 0.5, prone 0.2) and the Tactical gait (R-265); this question re-times WHEN that gait is chosen and adds what happens under fire mid-move
   - docs/DESIGN_Temperament_And_Stress.md — OWNS stress (TS-4) and the break (TS-6: surrender / flee / go to ground, R-2034, not built); the reflex here is the short per-move drop that stress later lengthens or turns into the break
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7.6 OWNS fire and movement ("I'm up, he sees me, I'm down", rush 3–5 s, Speed 4) and its "set … or prone" gate that has no prone order yet
