@@ -207,7 +207,7 @@ that already pass on other terrains.
 | **L7** 🟡 `uc-request-chain` (2026-10-20: ① live — the spotter's rounds land; ② blocked — no Blue man hears the launch, [note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Launch_Not_Heard_Live.md); ✅ `uc-request-chain-dry` fakes ② and ③ ④ pass live 8/8) | a Blue platoon in the market quarter; an insurgent mortar 1–1.5 km off with its spotter; a body-less HQ (`SupportCommand`) owning an AH-64 and a battery | ① the spotter's own mission lands rounds · ② a Blue man hears the launch ⇒ SPOT IndirectFire · ③ the platoon asks FireSupport · ④ the HQ sends the free AH-64 on an armed search of the point · nothing sent without a report | `CE-2308`…`CE-2312` |
 | L1 `uc-street-panic` | civilians on the battle street; shots | they shelter in the houses | — (`ua-civ-shelter` port) |
 | L3 `uc-tank-street` | an M1 up Avenue E; NLAW / Javelin teams in the rows | the hide / fire cycle in a street | — (`ua-tank-corner` port) |
-| L4 `uc-a10-zu23` | L7 + a ZU-23 technical near the mortar | the HQ sends the A-10 on the ZU-23 first, the AH-64 waits | `CE-2312` HQ-7 |
+| L4 ✅ `uc-a10-zu23-dry` (live 7/7, 2026-10-20: two faked SPOTs ⇒ the platoon relays the air defence and asks FireSupport, the HQ sends its orbiting A-10 at the ZU-23 first, the AH-64 waits) | L7 + a ZU-23 technical near the mortar | the HQ sends the A-10 on the ZU-23 first, the AH-64 waits | `CE-2312` HQ-7 |
 | L5 `uc-fpv-convoy` | L2's convoy; an FPV drone near the route | the drone searches, picks the APC, dives | — (`ua-drone-shelter` port) |
 | L6 `uc-reinforce` | L7's platoon losing men | Reinforce ⇒ a free unit sent to defend at the requester | `CE-2310` HQ-5 · `CE-2312` HQ-9 |
 
