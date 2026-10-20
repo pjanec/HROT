@@ -42,6 +42,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>How many entry men have been sent in · 1 once RoomClear went · <see cref="RoomDrill.Running"/>, <c>Cleared</c> or
         /// <c>Blocked</c>.</summary>
         public byte Released, Reported, Outcome;
+        /// <summary>⭐ CE-2334 — 1 when the way in is crossed on foot first (a door or a gap; a stair has no threshold) · per roster slot, a
+        /// bit once that entry man has crossed it.</summary>
+        public byte Threshold;
+        public ushort Crossed;
     }
 
     /// <summary>
@@ -56,12 +60,15 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>CB-53 — the door given up after this long (s).</summary>
         public const float BreachTimeoutSeconds = 12f;
-        /// <summary>Stacked: every man this close to his stack point (m); the stack given up waiting after this long (s).</summary>
-        public const float StackedMetres = 1f, StackTimeoutSeconds = 60f;
+        /// <summary>Stacked: every ENTRY man this close to his stack point (m) — the posture's own "he is there" (CE-2334); the stack
+        /// given up waiting after this long (s).</summary>
+        public const float StackedMetres = PostureNodes.OccupiedMetres, StackTimeoutSeconds = 30f;
         /// <summary>CB-54 — the next entry man goes this long after the one before (s).</summary>
         public const float FlowSeconds = 0.6f;
         /// <summary>CB-55 — at his point: this close (m); the room clear after this long with every man there and no hostile in it (s).</summary>
-        public const float AtPointMetres = 1.2f, ClearSeconds = 3f;
+        public const float AtPointMetres = PostureNodes.OccupiedMetres, ClearSeconds = 3f;
+        /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m).</summary>
+        public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f;
         /// <summary>How far round his point a man fights from it (his post, m) · the stack's arc toward the door (half width, °).</summary>
         public const float PointRadius = 1.2f, StackArcHalfWidth = 60f;
 
@@ -78,6 +85,7 @@ namespace Hrot.AI.Behaviors.Brains
             d.FloorZ = room.FloorZ;
             d.RoomAt = new Vector3(room.CentreX, room.CentreY, room.FloorZ);
             d.HasDoor = way.IsDoor && way.DoorKey.Length > 0 ? (byte)1 : (byte)0;
+            d.Threshold = way.Kind == (byte)BuildingPortalKind.Stair ? (byte)0 : (byte)1;
             if (d.HasDoor != 0) d.Door = new TerrainObjectRef(way.DoorKey);
             int inFight = 0;
             for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) inFight++;
@@ -91,7 +99,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// then reads <see cref="Cleared"/>).</summary>
         public static void Update(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
-            if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering) Flow(ref d, ref ws, in ctx);
+            if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering) { Flow(ref d, ref ws, in ctx); Cross(ref d, ref ws, in ctx); }
             if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseCleared && d.Reported == 0)
             {
                 d.Reported = 1;
@@ -154,6 +162,13 @@ namespace Hrot.AI.Behaviors.Brains
                 case StackAndRoomEntryManeuver.PhaseEntering:
                 case StackAndRoomEntryManeuver.PhaseCleared:
                     if (k >= d.Plan.Entry || (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering && k >= d.Released)) return atStack;
+                    // ⭐ CE-2334 — through the way in first, straight, firing on the way; then to his point
+                    if (d.Threshold != 0 && (d.Crossed & (1 << member)) == 0)
+                        return new MemberOrder
+                        {
+                            Kind = MemberOrderKind.AdvanceTo, Point = d.Plan.Threshold, Speed = speed * 1.5f, RoleId = role,
+                            ArrivalRadius = ThresholdArrival,
+                        };
                     return new MemberOrder
                     {
                         Kind = MemberOrderKind.Watch, Point = d.Plan.Point(k), Speed = speed * 1.5f, RoleId = role,
@@ -211,7 +226,27 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Reissue = 1;
         }
 
-        /// <summary>Every live man of the stack (or of the entry) within <paramref name="metres"/> of his point.</summary>
+        /// <summary>⭐ CE-2334 — a released entry man who is in the room, <see cref="CrossedMetres"/> past the way in, has crossed the
+        /// threshold: his next order is his point.</summary>
+        private static unsafe void Cross(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (d.Threshold == 0) return;
+            Span<float> corners = stackalloc float[8];
+            for (int i = 0; i < 8; i++) corners[i] = d.Corners[i];
+            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+            {
+                int k = d.OrderOf[i];
+                if (k == RoomDrillState.NotInIt || k >= d.Plan.Entry || k >= d.Released || (d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out var m)) continue;
+                var at = ctx.At(m);
+                var flat = new Vector2(at.X, at.Y);
+                if (!RoomEntryPlan.Inside(corners, flat) || Vector2.Dot(flat - d.Plan.Door, d.Plan.Into) < CrossedMetres) continue;
+                d.Crossed |= (ushort)(1 << i);
+                ws.Reissue = 1;
+            }
+        }
+
+        /// <summary>Every live ENTRY man within <paramref name="metres"/> of his stack point (or of his point) — the rest of the stack (the
+        /// leader, the support) need not be in place for the entry team to go (CE-2334).</summary>
         private static unsafe bool AllAt(ref RoomDrillState d, in SquadPlayContext ctx, bool stack, float metres)
         {
             bool any = false;
@@ -219,7 +254,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 int k = d.OrderOf[i];
                 if (k == RoomDrillState.NotInIt || !ctx.Live(i, out var m)) continue;
-                if (!stack && k >= d.Plan.Entry) continue;
+                if (k >= d.Plan.Entry) continue;
                 any = true;
                 var target = stack ? d.Plan.Stack(k) : d.Plan.Point(k);
                 if (Vector3.Distance(ctx.At(m), target) > metres) return false;

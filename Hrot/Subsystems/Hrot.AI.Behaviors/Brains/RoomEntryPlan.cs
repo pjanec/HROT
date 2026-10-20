@@ -20,6 +20,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>CB-52 — the sector's half width: the corner men (#1, #2) · the centre men (#3, #4) (°).</summary>
         public const float CornerHalfWidth = 50f, CentreHalfWidth = 45f;
 
+        /// <summary>⭐ CE-2334 — the threshold point lies this far into the room from the way in (m).</summary>
+        public const float ThresholdMetres = 1f;
+
         /// <summary>The plan: the stack points (outside, #1 first), how many go in, each one's point of domination and the compass bearing
         /// his sector faces; <see cref="Into"/> is the unit vector into the room through the door.</summary>
         public struct Result
@@ -40,6 +43,10 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = Door - Into * StackOffWallMetres + Along * (Half + StackPastJambMetres + StackSpacingMetres * k);
                 return new Vector3(at, StackZ);
             }
+
+            /// <summary>⭐ CE-2334 — the THRESHOLD: <see cref="ThresholdMetres"/> into the room straight through the way in, on the room's
+            /// floor — where an entry man crosses before he turns to his point (Battle Drill 6: through the fatal funnel, then the corner).</summary>
+            public Vector3 Threshold => new(Door + Into * ThresholdMetres, FloorZ);
 
             public Vector3 Point(int k) => k switch { 0 => Point0, 1 => Point1, 2 => Point2, _ => Point3 };
             public float Facing(int k) => k switch { 0 => Facing0, 1 => Facing1, 2 => Facing2, _ => Facing3 };

@@ -2389,6 +2389,14 @@ namespace Hrot.SimHost.Tests
             Assert.All(given, d => Assert.True(d.Post.Window && !d.Post.Frame));
         }
 
+        /// <summary>⭐ CE-2334 — where <paramref name="m"/>'s latest <c>AdvanceTo</c> order sends him.</summary>
+        private static Vector3 AdvanceOf(Squad s, Entity m)
+        {
+            var o = s.Orders.Last(x => x.Entity.Equals(m) && (x.IntentId == BehaviorNames.AdvanceTo || x.IntentId == BehaviorNames.CombatPosture));
+            Assert.Equal(BehaviorNames.AdvanceTo, o.IntentId);
+            return System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Objective;
+        }
+
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
         {
             var o = s.Orders.Last(x => x.Entity.Equals(m) && x.IntentId == BehaviorNames.CombatPosture);
@@ -4013,11 +4021,15 @@ namespace Hrot.SimHost.Tests
             s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
-            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 goes first");
+            Near(plan.Threshold, AdvanceOf(s, s.Members[0]), "#1 goes first — straight through the door (CE-2334)");
+            Near(new Vector3(1.5f, 11f, 0f), plan.Threshold, "the threshold: 1 m in through the door");
             Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
             TickFor(s, 0.6);
-            Near(plan.Point(1), PostureOf(s, s.Members[1]).Post.Point, "#2 0.6 s after");
+            Near(plan.Threshold, AdvanceOf(s, s.Members[1]), "#2 0.6 s after, through the door");
             TickFor(s, 1.3);
+            for (int k = 0; k < 4; k++) Near(plan.Threshold, AdvanceOf(s, s.Members[k]), $"man {k} not across yet: still the door");
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // across
+            TickFor(s, 0.1);
             for (int k = 0; k < 4; k++)
             {
                 Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
@@ -4057,9 +4069,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, plan.Entry);
             Near(plan.Stack(0), PostureOf(s, s.Members[1]).Post.Point, "the first after the leader is #1");
             Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader last");
-            for (int k = 0; k < 6; k++) s.Teleport(s.Members[k], plan.Stack((k + 5) % 6));
+            for (int k = 1; k < 3; k++) s.Teleport(s.Members[k], plan.Stack(k - 1));   // ⭐ CE-2334 — only the entry men need be stacked
             TickFor(s, 1.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            for (int k = 1; k < 3; k++) Near(plan.Threshold, AdvanceOf(s, s.Members[k]), $"man {k} through the gap first");
+            for (int k = 1; k < 3; k++) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
+            TickFor(s, 0.1);
             Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
             Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
             for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");
@@ -4183,6 +4198,8 @@ namespace Hrot.SimHost.Tests
                         posts.Add(post);
                         s.Teleport(o.Entity, post);
                     }
+                    else if (o.IntentId == BehaviorNames.AdvanceTo)   // ⭐ CE-2334 — the threshold leg
+                        s.Teleport(o.Entity, System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, opts).Objective);
                 }
             }
             return (false, default);

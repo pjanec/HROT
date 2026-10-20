@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a)
+updated: 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
@@ -694,15 +694,18 @@ sequenceDiagram
   P->>P: RoomEntryPlan: the door nearest the squad · stack side · points · sectors · two-man?
   P->>M1: Watch at stack point 0 (facing the door)
   P->>Mk: Watch at stack points 1…
-  Note over P: all within 1 m ⇒ Breaching
+  Note over P: the ENTRY men within 1.5 m of their stack points (the posture's own "there") ⇒ Breaching — CE-2334
   alt the door is closed or locked
     P->>M1: OperateDoor (BreachDoor)
     M1->>D: Open — refused if locked ⇒ Breach (3 s)
     D-->>P: DoorState Open (or destroyed)
   end
-  P->>M1: Watch at point 1, sector (t = 0)
-  P->>Mk: Watch at point k, sector (t = 0.6 s · k)
-  Note over P: every entry man at his point, no fresh hostile in the room for 3 s
+  P->>M1: AdvanceTo the threshold, 1 m in (t = 0) — CE-2334
+  P->>Mk: AdvanceTo the threshold (t = 0.6 s · k)
+  Note over P: a man 0.5 m past the way in has crossed ⇒ his order turns
+  P->>M1: Watch at point 1, sector
+  P->>Mk: Watch at point k, sector
+  Note over P: every entry man within 1.5 m of his point, no fresh hostile in the room for 3 s
   P->>P: PROGRESS RoomClear · stays Running (they hold their points)
 ```
 *What the picture shows that prose hid:* the door is the only step that waits on another node — everything else is the squad's own
@@ -758,6 +761,29 @@ Rails: `SquadManeuverTests.CE2257_BC1_*` (the pure plan · the drill through the
 the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an enemy in the room, RoomClear and holding · a small
 room: two go in, the leader stays out · RoomBlocked on no answer or a door that stays shut) · `WorldSurveySolveTests.CE2257_BC1_*`
 (the key). ✅ Red-proved by 11 compiling mutants, all killed (stack side · two-man rule · portal kind · flow · hostile check · leader last · both timeouts · succeeding when cleared · the key · the breach order). ⚠ The hostile mutant first SURVIVED: the rail's `Ticks(s, 4)` bound to the suite's `Ticks(Squad, int frames)` — four FRAMES, not four seconds — so the enemy was pooled for 64 ms; the seconds helper is now `TickFor`. ⛔ Not run live yet (`bc-room-clear` waits on a CQB test house, BR-1).
+
+#### 7.1b As built — the drill on the real house *(`CE-2334`, 2026-10-20, measured on `bc-room-clear` / `bc-house-clear` in-process)*
+
+📐 **Measured** (the twins' drill trace: phase, each man's order, his behaviour and his locomotion status every 10 s): the slice's rails
+moved men by teleport, so three things only the real house showed:
+
+| measured | cause | as built |
+|---|---|---|
+| the stack never formed: every man's move *Running*, nobody moving, for 60 s; the leader 2 m from his point with the next man standing 0.5 m from it | stack points 0.8 m apart = two body radii (0.4 m) — inside the crowd's push zone; a man whose point lies past another cannot reach it | **stacked = the ENTRY men** at their stack points (the leader and the support need not be — they follow); the timeout 60 s → **30 s** |
+| an entry man stopped 1.26 m from his point for ever; the room never clear | two measures of "there": the drill's 1.2 m against the posture's own 1.5 m (`PostureNodes.OccupiedMetres` — past it he stops moving) | **one measure**: the drill's stacked and at-point tests ARE the posture's `OccupiedMetres` |
+| an entry man stuck at the doorway's mouth, his move *Running* for 2 min, heading for a point off to the side | the navmesh's 0.3 m radius leaves a 1.0 m door a 0.4 m corridor; entering at an angle he slides on the jamb | **the threshold** (Battle Drill 6: through the fatal funnel, then the corner): a released entry man is sent `AdvanceTo` the point 1 m straight in (`RoomEntryPlan.Result.Threshold`), firing on the way; 0.5 m past the way in and inside the room he has crossed (`RoomDrillState.Crossed`, a bit per roster slot) and his order turns to his point with his sector. A stair has none (CB-60: no wall) |
+
+⚠ **Two deviations of the DEMO from §8.1's cast** (recorded, not silent): `bc-room-clear` stacks on room A's **north side door** from
+outside, not at the hallway's front door (that cast needs the hallway cleared first — it is `bc-house-clear`'s first room); and its
+insurgents hold A's **south** corners — the far side from that door.
+
+⚠ **Found on the way, not fixed here — `CE-2335` (backend's replication):** in one of two identical runs CGF read the north door
+`Open` for the whole run while it was closed (`TerrainDoorState.Open = 0` — a door whose state sample never applied reads open), so the
+drill skipped the breach. CB-53 reads the door live on the brain's node; that read is only as true as the replica.
+
+Rails: `SquadManeuverTests.CE2257_BC1_*` now assert the threshold leg (#1 `AdvanceTo` 1 m in, #2 0.6 s later, each man's point only once
+across; a small room's entry with the leader NOT stacked); `Obey` follows an `AdvanceTo` too. ✅ Red-proved by 3 compiling mutants, all killed
+(never crossed: 4 rails · no threshold: 2 · the whole stack gating the breach: 1).
 
 ### 7.2 BC-3 in detail — the building, one squad *(`CE-2259`, behaviors, 2026-10-19 — Urban Battle §5 step 3; build-state: BUILT (§7.2a) — leans CB-57…CB-63, built under the user's "go ahead autonomously")*
 
