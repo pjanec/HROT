@@ -35,6 +35,17 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>⭐ <c>CE-3063</c> — the flag bits an answer's <c>SoundSourceClass</c> is written in (bits 10–12).</summary>
         public const short ClassShift = 10, ClassMask = 0x7 << 10;
 
+        /// <summary>⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — the flag bits an answer's <c>SoundFamily</c> is written in (bits 13–15, the last free
+        /// ones) — set only when the listener's ear can tell it (a Regular or better).</summary>
+        public const short FamilyShift = 13;
+        public const short FamilyMask = unchecked((short)(0x7 << 13));
+
+        /// <summary>⭐ <c>CE-3283</c> — what a listener's ear can tell a sound by, from his proficiency (Q95 A): below Regular the class only, a
+        /// Regular + the family, a Veteran or Elite + the weapon type itself.</summary>
+        public static byte IdentificationOf(Fdp.Toolkit.Behavior.Components.ProficiencyTier tier)
+            => tier >= Fdp.Toolkit.Behavior.Components.ProficiencyTier.Veteran ? (byte)2
+             : tier >= Fdp.Toolkit.Behavior.Components.ProficiencyTier.Regular ? (byte)1 : (byte)0;
+
         public static EqsQueryTemplate Template(SpatialHashGrid grid) => new()
         {
             BlueprintId   = BlueprintId,
@@ -112,7 +123,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             var broadphase = _broadphase.For(view, _grid);
 
             var ear = view.GetComponentRO<SimTransform>(unit).Position;
-            var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, view.Tick);
+            var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, view.Tick,
+                                AcousticPerception.IdentificationOf(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(view, unit)));
             int n = 0;
             // MOVEMENT is continuous: the emitters near the unit, through the grid (§5.1)
             foreach (var (_, source) in broadphase.Select(view, unit, range, fovCos: -1f))
@@ -147,7 +159,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 ref readonly var e = ref sounds[i];
                 if (n == candidates.Length) { last = e.Serial - 1; break; }   // no room: this one and the rest wait for the next solve
                 if (e.Source == unit.PackedValue || e.Force == ourForce) continue;   // not his own sound, not his own side's (the broadphase's rule)
-                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, (uint)e.Serial);
+                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, (uint)e.Serial, e.Family, e.Token);
             }
             if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
             var cmd = view.GetCommandBuffer();                       //   else a sound after a long skip would meet the no-cursor window
@@ -156,19 +168,30 @@ namespace Fdp.Toolkit.Perception.Sensors
         }
 
         /// <summary>One listener's ears for this tick: where, how far they reach (masked), the weather's masking, the uncertainty.</summary>
-        private readonly record struct Ears(Vector3 At, float Range, float Masking, float PerMeter, ulong Listener, uint Tick);
+        /// ⭐ CE-3283 — <c>Identifies</c>: 0 the class, 1 + the family, 2 + the type (<see cref="AcousticPerception.IdentificationOf"/>).
+        private readonly record struct Ears(Vector3 At, float Range, float Masking, float PerMeter, ulong Listener, uint Tick, byte Identifies);
 
         // ⭐ CE-3276 (R-3023) — a QUIET sound is heard within its carry AND the ear range; a LOUD one within its carry × the weather's
         //   masking alone, whatever the ear range.
         //   ⭐ CE-3282 — <paramref name="seed"/> varies the error: the tick for a continuous sound, the ring serial for a short one (two shots
         //   heard in one solve are misheard apart, deterministically).
         private static void Sound(Span<EqsResult> candidates, ref int n, in Ears ears, Vector3 where, float carries, SoundKind kind,
-                                  byte sourceClass, ulong source, uint seed)
+                                  byte sourceClass, ulong source, uint seed, byte family = 0, ushort token = 0)
         {
+            int before = n;
             if (AcousticPerception.IsLoud(sourceClass))
                 Hear(candidates, ref n, ears.At, where, carries * ears.Masking, float.MaxValue, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
             else
                 Hear(candidates, ref n, ears.At, where, carries, ears.Range, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
+            if (n == before) return;
+            // ⭐ CE-3283 (Q95 A) — what THIS ear can tell, decided here, once: downstream carries only that (anonymity by construction, §6 D)
+            ref var answer = ref candidates[n - 1];
+            if (ears.Identifies >= 1 && family != 0)
+            {
+                answer.Flags           |= (short)((family & 0x7) << AcousticPerception.FamilyShift);
+                answer.FlagsMeaningful |= AcousticPerception.FamilyMask;
+            }
+            if (ears.Identifies >= 2) answer.SignatureToken = token;
         }
 
         // One sound: heard when it carries this far AND the ear reaches this far; answered as an anonymous estimate.

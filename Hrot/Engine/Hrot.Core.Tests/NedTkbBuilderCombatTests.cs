@@ -723,11 +723,27 @@ namespace Hrot.Map.Common.Tests
             {
                 var a = A(t.TkbType);
                 Assert.True(a is { FiringAudibleRange: > 0f } && a.FiringClass != SoundSourceClass.Unknown, $"{t.Name} fires unheard");
+                // ⭐ CE-3283 / CE-3285 (Q95 A, B3) — and a trained ear can tell its family; its shot has a band
+                Assert.True(a!.Family != SoundFamily.Untold, $"{t.Name} has no sound family");
+                Assert.True(a.FiringBand != SoundBand.Unset, $"{t.Name}'s shot has no band");
             }
             Assert.Null(A(TkbEntityTypes.WeaponSystem_ExplosiveCharge));
+            Assert.Equal(SoundFamily.Mortar, A(TkbEntityTypes.WeaponSystem_Mortar81)!.Family);
+            Assert.Equal(SoundFamily.Gun, A(TkbEntityTypes.WeaponSystem_Howitzer105)!.Family);
+            Assert.Equal(SoundFamily.Gun, A(TkbEntityTypes.Sph_M109)!.Family);
+            Assert.Equal(SoundFamily.AaGun, A(TkbEntityTypes.WeaponSystem_Zu23)!.Family);        // ⭐ Q95: a ZU-23 is not read as a heavy MG
+            Assert.Equal(SoundFamily.HeavyMg, A(TkbEntityTypes.WeaponSystem_M2Hmg)!.Family);
+            Assert.Equal(SoundFamily.Launcher, A(TkbEntityTypes.WeaponSystem_Javelin)!.Family);
+            Assert.Equal(SoundFamily.Rifle, A(TkbEntityTypes.WeaponSystem_PickUpRifle)!.Family);
+            Assert.Equal(SoundBand.Low, A(TkbEntityTypes.WeaponSystem_Mortar81)!.FiringBand);
 
             float R(long t) => A(t)!.FiringAudibleRange;
-            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Mortar60), 1500f, 2000f);                 // "a mortar ≈ 1.5–2 km"
+            // ⭐ CE-3284 (Q95 B1) — the real carries, each inside its sourced band (Sensing §8.5)
+            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Mortar60), 4000f, 5000f);                 // 1B19: mortars ≤ 81 mm 4–5 km
+            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Mortar81), 4000f, 5000f);
+            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Mortar120), 6000f, 8000f);                // ≤ 120 mm 6–8 km
+            Assert.InRange(R(TkbEntityTypes.WeaponSystem_Howitzer105), 12000f, 15000f);            // ≤ 105 mm 12–15 km
+            Assert.InRange(R(TkbEntityTypes.Sph_M109), 15000f, 20000f);                            // the handoff's 155 mm 15–20 km
             Assert.True(R(TkbEntityTypes.WeaponSystem_Mortar81) > R(TkbEntityTypes.WeaponSystem_Mortar60));
             Assert.True(R(TkbEntityTypes.WeaponSystem_Mortar120) > R(TkbEntityTypes.WeaponSystem_Mortar81));
             Assert.True(R(TkbEntityTypes.WeaponSystem_Howitzer105) > R(TkbEntityTypes.WeaponSystem_Mortar120));   // "a howitzer more"

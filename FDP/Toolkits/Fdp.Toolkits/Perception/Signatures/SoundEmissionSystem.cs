@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                     a.ShotTimeLeft = SoundLingerSeconds;
                     a.ShotX = p.X; a.ShotY = p.Y; a.ShotZ = p.Z;
                     if (a.FiringAudibleRange > 0f)
-                        ring.Append(Emission(repo, shot.Shooter, SoundKind.Shot, a.FiringClass, p, a.FiringAudibleRange, ring.Now, TypeOf(repo, shot.Shooter)));
+                        ring.Append(Emission(repo, shot.Shooter, SoundKind.Shot, a.FiringClass, p, a.FiringAudibleRange, ring.Now, TypeOf(repo, shot.Shooter), a.Family));
                 }
 
             if (repo.Bus.IsRegistered<DetonationNotification>())
@@ -83,18 +83,18 @@ namespace Fdp.Toolkit.Perception.Signatures
                     a.DetonationX = det.HitX; a.DetonationY = det.HitY; a.DetonationZ = det.HitZ;
                     if (a.DetonationAudibleRange > 0f)
                         ring.Append(Emission(repo, det.Shooter, SoundKind.Detonation, a.DetonationClass, new System.Numerics.Vector3(det.HitX, det.HitY, det.HitZ),
-                                             a.DetonationAudibleRange, ring.Now, det.Ammo));   // a burst's signature is its munition (Q95 A)
+                                             a.DetonationAudibleRange, ring.Now, det.Ammo, a.Family));   // a burst's signature is its munition (Q95 A)
                 }
         }
 
         // ⭐ CE-3282 — one ring entry: the source (anonymous to the listener — only the error's seed and the own-force test read it).
         private static SoundEmission Emission(EntityRepository repo, Entity source, SoundKind kind, byte cls, System.Numerics.Vector3 at, float carry,
-                                              double time, long signature)
+                                              double time, long signature, byte family)
             => new()
             {
                 Source = source.PackedValue,
                 Force  = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(source) ? (byte)repo.GetComponentRO<EntityInfo>(source).ForceId : (byte)0,
-                Kind   = (byte)kind, Class = cls, At = at, Carry = carry, Time = time, Signature = signature,
+                Kind   = (byte)kind, Class = cls, At = at, Carry = carry, Time = time, Signature = signature, Family = family,
             };
 
         // ⭐ Q95 A — a shot's signature is the weapon's TKB type (a crewed weapon's round names the weapon, WS-3)

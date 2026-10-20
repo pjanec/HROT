@@ -46,6 +46,7 @@ namespace Hrot.Network.NED.SimHost
                 cmd.PublishEvent(new SoundContactEvent
                 {
                     Observer = listener, X = data.OriginX, Y = data.OriginY, Z = data.OriginZ, Radius = data.Radius, Kind = data.Kind, SourceClass = data.SourceClass,
+                    Family = data.Family, Signature = data.Signature,   // ⭐ CE-3283
                 });
             }
         }

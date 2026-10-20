@@ -56,6 +56,7 @@ namespace Hrot.SimHost.Tests
             _world.Bus.Publish(new SoundContactEvent
             {
                 Observer = listener, X = origin.X, Y = origin.Y, Z = origin.Z, Radius = radius, Kind = kind, SourceClass = 4,   // CE-3063: small arms
+                Family = 1, Signature = 611,   // ⭐ CE-3283: a mortar, the 81 mm
             });
             _world.Bus.SwapBuffers();
         }
@@ -81,6 +82,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(7.5f, writer.Written[0].Radius);
             Assert.Equal((byte)2, writer.Written[0].Kind);
             Assert.Equal((byte)4, writer.Written[0].SourceClass);   // ⭐ CE-3063 — the class crosses the wire
+            Assert.Equal((byte)1, writer.Written[0].Family);        // ⭐ CE-3283 — and what the ear told
+            Assert.Equal(611L, writer.Written[0].Signature);
             Assert.Equal(10f, writer.Written[0].OriginX);
             Assert.Equal(20f, writer.Written[0].OriginY);
             Assert.Equal(30f, writer.Written[0].OriginZ);

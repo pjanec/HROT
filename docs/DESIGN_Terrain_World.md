@@ -427,6 +427,9 @@ PERCEPTION grid says so too.** 📐 Measured live on `basic-desert` ([0, 600]²)
 `LocalGridBuilderSystem` places every entity through one `Place`, which logs **one** warning per entity per terrain fit (`Warnings`; the
 fit clears the set) on both the full rebuild and the incremental (moving) path. Same rule as CE-2193: the grid is not widened.
 
+
+⭐ **Off the grids (`2026-10-20`, [Q95](blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) B2, approved):** a unit standing outside the fitted grids — a battery 20 km off the high-resolution terrain — **is HEARD, not seen, and does not collide.** Its loud sounds reach every listener by distance alone (the ring, [Sensing §8.3](DESIGN_Thermal_And_Acoustic_Sensing.md)); vision and collision walk the grids and never find it (`LocalGridBuilderSystem` warns *"outside the perception grid"*). Off-terrain units are guns that do not move; a unit that must be SEEN far away (an aircraft at 6 km) is another question.
+
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 
 ```mermaid

@@ -27,6 +27,11 @@ namespace Fdp.Toolkit.Perception.Signatures
         public double Time;
         /// <summary>⭐ Q95 A (<c>CE-3283</c>) — what made it: the TKB type of the weapon (a shot) or the munition (a burst); 0 = unknown.</summary>
         public long Signature;
+        /// <summary>⭐ <c>CE-3283</c> — <see cref="Signature"/>'s per-node token (<see cref="SoundEmissionRing.TypeOf"/>): what fits the answer's
+        /// padding. Stamped by <see cref="SoundEmissionRing.Append"/>.</summary>
+        public ushort Token;
+        /// <summary>⭐ <c>CE-3283</c> — the source's <c>SoundFamily</c> (TKB data).</summary>
+        public byte Family;
     }
 
     /// <summary>
@@ -68,6 +73,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>Appends one sound (the ONE writer: the main thread); returns its serial.</summary>
         public long Append(SoundEmission e)
         {
+            e.Token = TokenOf(e.Signature);
             long serial = _head + 1;
             ref var slot = ref _slots[serial % Capacity];
             Volatile.Write(ref slot.Serial, 0L);   // ① blank: a reader copying now sees a mismatch
@@ -113,6 +119,27 @@ namespace Fdp.Toolkit.Perception.Signatures
             }
             return n;
         }
+
+        // ⭐ CE-3283 (Sensing §8.4) — signature tokens: a TKB type ↔ a 16-bit token, per node, append-only. The writer assigns (main thread);
+        //   a reader only ever holds a token it read from a slot stamped AFTER the type was stored, so the array entry is already there.
+        /// <summary>How many distinct signatures a node can tell apart; a type past it is heard as unknown (token 0).</summary>
+        public const int MaxSignatures = 4096;
+        private readonly long[] _types = new long[MaxSignatures];
+        private readonly System.Collections.Generic.Dictionary<long, ushort> _tokens = new();
+
+        private ushort TokenOf(long type)
+        {
+            if (type == 0) return 0;
+            if (_tokens.TryGetValue(type, out var t)) return t;
+            if (_tokens.Count + 1 >= MaxSignatures) return 0;
+            t = (ushort)(_tokens.Count + 1);
+            Volatile.Write(ref _types[t], type);
+            _tokens[type] = t;
+            return t;
+        }
+
+        /// <summary>⭐ <c>CE-3283</c> — the TKB type a token stands for (0 = unknown). Safe beside the writer.</summary>
+        public long TypeOf(ushort token) => token == 0 || token >= MaxSignatures ? 0L : Volatile.Read(ref _types[token]);
 
         /// <summary>The world's ring, created on first use (idempotent).</summary>
         public static SoundEmissionRing Of(EntityRepository world)
