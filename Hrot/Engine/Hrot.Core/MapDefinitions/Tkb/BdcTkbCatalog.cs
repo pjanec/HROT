@@ -91,6 +91,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
                 .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
                 .WithPocketItems(type, new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = binoculars })
+                .WithSignatures(type, Heard(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FootstepsRange, SoundSourceClass.Footsteps, RifleReport))   // ⭐ CE-3281
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
 
@@ -112,6 +113,9 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
                 .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
+                // ⭐ CE-3281 — an LMG's report is the 7.62 mm RWS figure; a scoped rifle's the rifle's
+                .WithSignatures(type, Heard(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FootstepsRange, SoundSourceClass.Footsteps,
+                                            lmg.Category == WeaponCategory.MachineGun ? MgReport : RifleReport))
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -292,6 +296,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, carrier)
                 .WithBehavior(type, Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A)
+                .WithSignatures(type, Heard(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FootstepsRange, SoundSourceClass.Footsteps, RifleReport))   // ⭐ CE-3281 — his launcher reports as its own weapon system (BR-14)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
@@ -324,6 +329,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
                 .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy, OpenSeconds = openSeconds })
                 .WithBehavior(type, defaultSop ?? Hrot.Core.Tkb.UrbanCombatTkbCatalog.SoldierSop)   // ⭐ CE-2322 (AQ97 A) — a paratrooper is a soldier; the pilot keeps PilotSop
+                .WithSignatures(type, Heard(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FootstepsRange, SoundSourceClass.Footsteps, RifleReport))   // ⭐ CE-3281
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
 
@@ -364,6 +370,19 @@ namespace Hrot.Map.Definitions.Tkb
                                        Howitzer155Report = new(18000f, SoundSourceClass.HeavyWeapon, Burst: 18000f, Family: SoundFamily.Gun);
         /// <summary>⭐ BR-14 — a tracked hull's engine (the urban APC's figure).</summary>
         private const float TrackedEngineRange = 300f;
+
+        // ⭐⭐ CE-3281 (DESIGN_Thermal_And_Acoustic_Sensing §8.6, the sources there) — the built-in catalogue is HEARD: the tanks' main guns,
+        //   the aircraft, the persons. ⚠ A fixed-wing engine is heard as class Rotor ("an aircraft overhead"): the 3-bit class is full.
+        private const float WheeledEngineRange = 100f;    // the technicals' figure
+        private const float RotorRange         = 3000f;   // below the ~5 km detector figure for heavy military helicopters
+        private const float JetRange           = 15000f;  // the low end of a jet's 15–25 km (⚠ a non-authoritative guide)
+        private const float BombBurstRange     = 10000f;  // a 1 000 kg bomb heard ~10 km (⚠ news reports)
+        private static readonly Report TankGunReport = new(12000f, SoundSourceClass.HeavyWeapon, Burst: 12000f, Family: SoundFamily.Gun);   // 120 / 125 mm: ≥ the 1B19 floor for guns ≤ 90 mm (12 km)
+
+        /// <summary>⭐ CE-3281 — a type's sounds: its movement, and its loudest weapon's report and burst (one figure each, §8.4) — the urban
+        /// catalogue's <c>Sounds</c>, so the family and the bands come out the same way.</summary>
+        private static SignaturesDto Heard(float moving, SoundSourceClass movingClass, Report report = default)
+            => Hrot.Core.Tkb.UrbanCombatTkbCatalog.Sounds(moving, movingClass, report.Range, report.Class, report.Burst, report.Family);
 
         /// <summary>⭐ WS-4 — the 12.7 mm heavy machine gun as the M9 technical carried it (penetration: the round's own, 25 mm).</summary>
         private static WeaponMount Hmg(string name) => new()
@@ -641,6 +660,7 @@ namespace Hrot.Map.Definitions.Tkb
                     ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
                 .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
+                .WithSignatures(TkbEntityTypes.Tank_M1Abrams, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1 });
             
             // Bradley IFV
@@ -692,6 +712,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithCarrier(TkbEntityTypes.IFV_Bradley, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(6))   // ⭐ CE-2151 — six dismounts; the crew stay abstract (R-2009 B5)
                 .WithBehavior(TkbEntityTypes.IFV_Bradley)
+                .WithSignatures(TkbEntityTypes.IFV_Bradley, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, CannonReport))   // ⭐ CE-3281 — the 25 mm as the catalogue's autocannon
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
             // HMMWV
@@ -730,6 +751,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
                 .WithCarrier(TkbEntityTypes.Truck_HMMWV, HmmwvSeats())   // ⭐ CE-2151 three beside the (abstract) driver; ⭐ ui P1 + the roof ring
                 .WithBehavior(TkbEntityTypes.Truck_HMMWV)
+                .WithSignatures(TkbEntityTypes.Truck_HMMWV, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
                 .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
             
             // T-72 (OPFOR)
@@ -777,6 +799,7 @@ namespace Hrot.Map.Definitions.Tkb
                     ElevationMinDeg = -6f, ElevationMaxDeg = 14f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
                 .WithBehavior(TkbEntityTypes.Tank_T72)
+                .WithSignatures(TkbEntityTypes.Tank_T72, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
 
             // ⭐⭐ M9 (docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §6, D-K) — the TECHNICALS: an unarmoured pickup
@@ -990,6 +1013,15 @@ namespace Hrot.Map.Definitions.Tkb
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
+            //   overhead", the 3-bit class is full); the AH-64's Hydra-70 as the ATGM's report; the A-10's GAU-8 as the catalogue's autocannon,
+            //   its burst a Mk-82's (the larger of its two).
+            builder.WithSignatures(TkbEntityTypes.Heli_UH60, Heard(RotorRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
+                   .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
             // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the crewed aircraft with a brain carry a flare / chaff DISPENSER as their last
             //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
             //   brain (nothing could release their flares), so they carry none yet.

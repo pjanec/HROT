@@ -420,5 +420,26 @@ namespace CarKinem.Tests.Systems
             system.Execute(repo, 0.016f);
             Assert.Equal(1, repo.GetComponent<FrustrationTicks>(entity).Ticks);
         }
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> (R-3025; Motion Domains §5f) — a hull BACKING OUT of a wall (<see cref="FrustrationTicks.RecoverDir"/> ≠ 0) is not stuck:
+        /// standing still well past <see cref="NavigationExecutionSystem.FrustrationTickLimit"/>, it stays <c>InProgress</c> — no replan, no
+        /// <c>FailedBlocked</c> — and its counts stay clear. 🔴 Red-proof: drop the <c>RecoverDir</c> skip ⇒ <c>FailedBlocked</c>.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullBackingOutOfAWall_IsNotStuck()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f);
+            repo.SetComponent(entity, new FrustrationTicks { RecoverDir = -1, RecoverSteer = 1 });
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 2; i++)
+                system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(entity).Result);
+            var ft = repo.GetComponent<FrustrationTicks>(entity);
+            Assert.Equal(0, ft.Ticks);
+            Assert.Equal(-1, ft.RecoverDir);   // the watchdog leaves the recovery alone
+        }
     }
 }

@@ -764,6 +764,54 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3281</c> (user-approved `2026-10-20`; DESIGN_Thermal_And_Acoustic_Sensing §8.6) — NO BUILT-IN TYPE MOVES OR FIRES UNHEARD:
+        /// every platform or person in the catalogue every host builds (a weapon system has BR-14's rail; a composite unit has no body) is heard
+        /// when it moves; one with a weapon (not a flare dispenser) when it fires; one that drops bombs when they burst (the burst is stamped
+        /// on its shooter, CE-3278). 🔴 Red before: the M1, T-72, Bradley, HMMWV, every aircraft and every BDC person were silent to AI ears.
+        /// </summary>
+        [Fact]
+        public void CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            var silent = new System.Collections.Generic.List<string>();
+            int bodies = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.DisType.Kind is not (1 or 3) || t.GetDescriptor<WeaponSystemDto>() != null || t.GetDescriptor<TkbCompositionDef>() != null) continue;
+                // ⏳ SUMO background traffic: whether hundreds of cars are sound sources is the traffic programme's call (§8.6, asked) · a static
+                //   obstacle never moves
+                if (t.TkbType is TkbEntityTypes.TrafficCar or TkbEntityTypes.Obstacle_Car) continue;
+                bodies++;
+                var a = t.GetDescriptor<SignaturesDto>()?.Acoustic;
+                if (a is not { MovingAudibleRange: > 0f } || a.MovingClass == SoundSourceClass.Unknown) silent.Add($"{t.Name} ({t.TkbType}) moves unheard");
+                // a mount that is not a weapon (a flare dispenser) or makes no report: the HANDS (a throw, CE-3248 — a Grenade mount with no round)
+                var mounts = t.GetDescriptor<WeaponSuiteDto>()?.Mounts
+                    .Where(m => m.Category != WeaponCategory.Countermeasure && !(m.Category == WeaponCategory.Grenade && m.AmmoGuid == 0)).ToList();
+                // a SHOT is a report; a thrown grenade, a dropped bomb or a warhead (the FPV drone IS its round) is heard when it bursts
+                bool Shot(WeaponMountDto m) => m.Category is not (WeaponCategory.Grenade or WeaponCategory.Bomb or WeaponCategory.Unknown);
+                if (mounts?.Any(Shot) == true && (a is not { FiringAudibleRange: > 0f } || a.FiringClass == SoundSourceClass.Unknown))
+                    silent.Add($"{t.Name} ({t.TkbType}) fires unheard: {string.Join(", ", mounts.Select(m => $"{m.Category}/ammo {m.AmmoGuid}"))}");
+                if (mounts?.Any(m => !Shot(m)) == true && a is not { DetonationAudibleRange: > 0f } && a is not { FiringAudibleRange: > 0f })
+                    silent.Add($"{t.Name} ({t.TkbType}) bursts unheard: {string.Join(", ", mounts.Select(m => $"{m.Category}/ammo {m.AmmoGuid}"))}");
+                if (mounts?.Any(m => m.Category == WeaponCategory.Bomb) == true && a is not { DetonationAudibleRange: > 0f })
+                    silent.Add($"{t.Name} ({t.TkbType}) bombs burst unheard");
+            }
+            Assert.True(bodies >= 20, $"only {bodies} bodies checked");
+            Assert.True(silent.Count == 0, string.Join("\n", silent));
+
+            // the figures (§8.6): a tank gun inside the 1B19 gun band, louder than any mortar; aircraft heard further than any ground engine
+            AcousticSignatureDto A(long type) => db.GetByType(type)!.GetDescriptor<SignaturesDto>()!.Acoustic!;
+            Assert.InRange(A(TkbEntityTypes.Tank_M1Abrams).FiringAudibleRange, 12000f, 15000f);
+            Assert.Equal(SoundFamily.Gun, A(TkbEntityTypes.Tank_T72).Family);
+            Assert.Equal(SoundSourceClass.TrackedEngine, A(TkbEntityTypes.IFV_Bradley).MovingClass);
+            Assert.Equal(SoundSourceClass.Rotor, A(TkbEntityTypes.Heli_AH64).MovingClass);
+            Assert.True(A(TkbEntityTypes.Jet_F16).MovingAudibleRange > A(TkbEntityTypes.Heli_UH60).MovingAudibleRange);
+            Assert.True(A(TkbEntityTypes.Jet_AttackA10).DetonationAudibleRange >= 10000f);   // its Mk-82s
+            Assert.Equal(SoundFamily.Rifle, A(TkbEntityTypes.Infantry_Rifleman).Family);
+            Assert.True(A(TkbEntityTypes.Infantry_AutomaticRifleman).FiringAudibleRange > A(TkbEntityTypes.Infantry_Sniper).FiringAudibleRange);   // an LMG louder than a rifle
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3277</c> — the catalogue's INTEGRITY: every type a seat preset (<c>SeatDto.StartWith</c>), a composite's slot
         /// (<c>TkbCompositionDef</c>) or a child blueprint names EXISTS in the catalogue every host builds. 🔴 Red before: the squad's leader
         /// slot and the M109's commander seat named <c>Infantry_Officer</c> (201), which had no template — both spawned nothing.

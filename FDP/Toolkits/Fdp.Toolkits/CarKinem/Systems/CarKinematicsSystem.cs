@@ -69,6 +69,10 @@ namespace CarKinem.Systems
             // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
             //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
             _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
+            // ⭐ CE-3286 — a held hull's recovery keeps its state on the watchdog's component; a world without it does not recover
+            _recovery = repo.IsComponentTypeRegistered<FrustrationTicks>();
+            // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
+            _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -133,6 +137,8 @@ namespace CarKinem.Systems
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
         private bool _clampFlags;
+        private bool _recovery;
+        private bool _health;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity)
@@ -204,8 +210,33 @@ namespace CarKinem.Systems
                     turnRate = ManualMotion.Vehicle(ref pos2D, ref fwd2D, ref state, in @params, drive.Forward, drive.Steer, dt);
                     planar = fwd2D * state.Speed;
                 }
-                FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, planar, turnRate, walker, dt);
+                FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, planar, turnRate, walker, dt, hull: @params);
                 return;
+            }
+
+            // ⭐⭐ CE-3286 (R-3025; Motion Domains §5f) — A HELD HULL BACKS OUT. The recovery's state is the watchdog's (FrustrationTicks);
+            //   a hull with a size, on a move it is driving, over a world with walls. ⭐ The "smart" half: a STANDING START on a new move is
+            //   checked first — a hull parked nose to a wall whose way on is not clear backs out before it touches it.
+            // ⭐⭐ CE-3287 (R-3026; Motion Domains §5g) — a WRECK has no driver: no move, no recovery, no push (📐 one man 4 m off pushed a
+            //   destroyed M1 ~10 m). Belt and braces with CE-3091, which ends the move on the brain at death.
+            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
+            bool recoverable = !wreck && _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
+                               && repo.HasComponent<FrustrationTicks>(entity);
+            FrustrationTicks ft = recoverable ? repo.GetComponent<FrustrationTicks>(entity) : default;
+            if (recoverable)
+            {
+                if (ft.RecoverDir == 0 && MathF.Abs(state.Speed) < HullRecovery.StandingSpeed && ft.CheckedMoveKey != HullRecovery.MoveKey(in nav))
+                {
+                    ft.CheckedMoveKey = HullRecovery.MoveKey(in nav);
+                    if (ft.Recoveries < HullRecovery.MaxRecoveries && !HullClearance.WayOnClear(_terrain!, _trajectoryPool, in nav, in @params, pos2D, fwd2D, tf.Position.Z))
+                        HullRecovery.Begin(ref ft, -1, fwd2D, AimOf(in nav, in @params, pos2D, state.Speed) - pos2D);
+                    repo.SetComponent(entity, ft);
+                }
+                if (ft.RecoverDir != 0)
+                {
+                    DriveRecovery(repo, entity, ref state, ref nav, ref tf, ref vel, in @params, ref ft, pos2D, fwd2D, dt);
+                    return;
+                }
             }
 
             // Determine target (position, heading, speed) based on navigation mode
@@ -333,6 +364,7 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
+            if (wreck) targetSpeed = 0f;   // ⭐ CE-3287 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
             if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
@@ -370,9 +402,12 @@ namespace CarKinem.Systems
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
             // Apply collision avoidance
-            Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
-                desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
-                spatialGrid, @params, repo);
+            // ⭐⭐ CE-3287 (R-3026) — avoidance bends a DRIVING vehicle's own motion round others; a vehicle with no wanted speed (parked,
+            //   arrived, held, a wreck) has none, and is not pushed — people walk round it (a person's avoidance is untouched).
+            Vector2 avoidanceVelocity = @params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f
+                ? desiredVelocity
+                : ApplyCollisionAvoidance(desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
+                                          spatialGrid, @params, repo);
             
             // Speed control
             float targetSpeedAfterAvoidance = avoidanceVelocity.Length();
@@ -497,18 +532,85 @@ namespace CarKinem.Systems
                 nav.ProgressS += state.Speed * dt;
             }
             
-            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
+            bool held = FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
                 keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt,
-                bentWalker: person && avoidanceVelocity != desiredVelocity);
+                bentWalker: person && avoidanceVelocity != desiredVelocity, hull: @params);
+
+            // ⭐⭐ CE-3286 — the wall held this hull: at its move's end it has ARRIVED (the nose met the wall); else, held HoldSeconds, it backs out
+            if (recoverable)
+            {
+                var at = new Vector2(tf.Position.X, tf.Position.Y);
+                var facing = FacingOf(tf.Rotation);
+                if (!held)
+                {
+                    if (ft.WallHeldSeconds != 0f) { ft.WallHeldSeconds = 0f; repo.SetComponent(entity, ft); }
+                    return;
+                }
+                bool forward = finalTargetSpeed >= 0f;
+                var toEnd = HullClearance.EndPoint(_trajectoryPool, in nav, nav.Mode == KinematicsMode.CustomTrajectory) - at;
+                float tol = nav.ArrivalRadius > 0f ? nav.ArrivalRadius : DefaultTrajectoryArrivalRadius;
+                if (forward && toEnd.Length() <= @params.Length * 0.5f + tol && Vector2.Dot(facing, toEnd) > 0f)
+                {
+                    nav.HasArrived = 1;   // a point beside a wall is reached when the nose meets the wall
+                    repo.SetComponent(entity, nav);
+                    ft.WallHeldSeconds = 0f;
+                }
+                else
+                {
+                    ft.WallHeldSeconds += dt;
+                    if (ft.WallHeldSeconds >= HullRecovery.HoldSeconds && ft.Recoveries < HullRecovery.MaxRecoveries)
+                        HullRecovery.Begin(ref ft, (sbyte)(forward ? -1 : 1), facing, AimOf(in nav, in @params, at, state.Speed) - at);
+                }
+                repo.SetComponent(entity, ft);
+            }
+        }
+
+        /// <summary>⭐ CE-3286 — the point the follower steers at from <paramref name="at"/> (the path's lookahead, else the destination).</summary>
+        private Vector2 AimOf(in NavState nav, in VehicleParams p, Vector2 at, float speed)
+            => HullClearance.AimPoint(_trajectoryPool, in nav, in p,
+                nav.Mode == KinematicsMode.CustomTrajectory && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out _), nav.ProgressS,
+                MathF.Max(MathF.Abs(speed), nav.TargetSpeed), at);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3286</c> (R-3025; Motion Domains §5f) — one tick of a recovery try: drive against the held motion at
+        /// <see cref="HullRecovery.SpeedMps"/> on full lock (the bicycle model, guarded like any step); every
+        /// <see cref="HullRecovery.CheckEveryM"/> ask <see cref="HullClearance.WayOnClear"/> — clear ends the try and the path is driven on. Held
+        /// (blocked behind) or <see cref="HullRecovery.MaxHullLengths"/> driven also ends it; the next try steers the other way.
+        /// </summary>
+        private void DriveRecovery(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav, ref SimTransform tf,
+            ref SimVelocity vel, in VehicleParams p, ref FrustrationTicks ft, Vector2 pos2D, Vector2 fwd2D, float dt)
+        {
+            float target = HullRecovery.Speed(in p, ft.RecoverDir);
+            float accel = SpeedController.CalculateAcceleration(state.Speed, target, p.AccelGain, p.MaxAccel, p.MaxDecel);
+            float steer = ft.RecoverSteer * p.MaxSteerAngle;
+            var before = pos2D;
+            BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steer, accel, dt, p.WheelBase,
+                ft.RecoverDir < 0 ? -target : 0f, p.MaxSpeedFwd > 0f ? p.MaxSpeedFwd : float.MaxValue);
+            float yawRate = (state.Speed / p.WheelBase) * MathF.Tan(steer);
+            bool held = FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, fwd2D * state.Speed, yawRate, false, dt, hull: p);
+            var at = new Vector2(tf.Position.X, tf.Position.Y);
+            ft.RecoverMetres += Vector2.Distance(before, at);
+            if (held || ft.RecoverMetres >= HullRecovery.MaxHullLengths * p.Length)
+                HullRecovery.End(ref ft);
+            else if (ft.RecoverMetres - ft.RecoverCheckedMetres >= HullRecovery.CheckEveryM)
+            {
+                ft.RecoverCheckedMetres = ft.RecoverMetres;
+                if (HullClearance.WayOnClear(_terrain!, _trajectoryPool, in nav, in p, at, FacingOf(tf.Rotation), tf.Position.Z))
+                    HullRecovery.End(ref ft);
+            }
+            repo.SetComponent(entity, ft);
         }
 
         /// <summary>
         /// The output of a step, shared by the autonomous and the ⭐ CE-3173 manual integrators: the surface under the body, the
-        /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe).
+        /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe). Returns whether a WALL
+        /// held the step (⭐ CE-3286 — the recovery's trigger); <paramref name="hull"/> is the vehicle's, for its corners.
         /// </summary>
-        private void FinishMove(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav,
-            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt, bool bentWalker = false)
+        private bool FinishMove(EntityRepository repo, Entity entity, ref VehicleState state, ref NavState nav,
+            ref SimTransform tf, ref SimVelocity vel, Vector2 pos2D, Vector2 fwd2D, Vector2 planar, float yawRate, bool person, float dt,
+            bool bentWalker = false, in VehicleParams hull = default)
         {
+            bool held = false;
             // Output conversion
             // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
             //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
@@ -537,17 +639,29 @@ namespace CarKinem.Systems
             //   barriers the same way (only the barrier test — a stair rises like a wall). The navmesh rule above it cannot hold him
             //   alone: the mesh stops a body radius short of every wall, and a man pushed into that margin is "off the mesh" and free.
             //   📌 Live in sq-defend-house a rifleman with no move at all was shoved 1.3 m out through the south wall at 3 m/s.
+            // ⭐⭐ CE-3286 (R-3025; Motion Domains §5f) — and the VEHICLE is its HULL, not its centre: the step is traced for the four corners
+            //   and the centre (HullClearance.StepBlocked; a corner already inside may move out), and a refused step keeps the HEADING too.
+            //   📌 Live: the centre-only trace let the front half of a tank and of a technical stand inside a building, and the heading crept
+            //   ~1°/s while held, sweeping corners in.
             if ((!person || bentWalker) && _terrain != null)
             {
                 var here = new Vector2(tf.Position.X, tf.Position.Y);
                 float rise = z - tf.Position.Z;
                 bool wall = !person && rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
-                if (!wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
+                Vector2 hereFwd = fwd2D;
+                if (!wall && person && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
                 {
-                    _crossings.Clear();
+                    var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
                     _terrain.Trace(new Vector3(here, tf.Position.Z + HullProbeM), new Vector3(pos2D, z + HullProbeM),
-                                   Fdp.Toolkit.World.TracePurpose.Fire, _crossings);
-                    foreach (var c in _crossings) if (c.ClosedBarrier) { wall = true; break; }
+                                   Fdp.Toolkit.World.TracePurpose.Fire, crossings);
+                    foreach (var c in crossings) if (c.ClosedBarrier) { wall = true; break; }
+                }
+                else if (!wall && !person)
+                {
+                    hereFwd = FacingOf(tf.Rotation);
+                    bool sized = HullClearance.HasHull(in hull);
+                    wall = HullClearance.StepBlocked(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
+                                                     sized ? hull.Length : 0f, sized ? hull.Width : 0f);
                 }
                 if (wall)
                 {
@@ -555,6 +669,8 @@ namespace CarKinem.Systems
                     z = tf.Position.Z;
                     state.Speed = 0f;
                     planar = Vector2.Zero;
+                    if (!person) { fwd2D = hereFwd; yawRate = 0f; }
+                    held = true;
                 }
             }
             float dz = z - tf.Position.Z;
@@ -574,8 +690,17 @@ namespace CarKinem.Systems
             repo.SetComponent(entity, nav);
             repo.SetComponent(entity, tf);
             repo.SetComponent(entity, vel);
+            return held;
         }
-        
+
+        /// <summary>The 2-D facing of a rotation (X-forward).</summary>
+        private static Vector2 FacingOf(Quaternion rotation)
+        {
+            var f3 = Vector3.Transform(Vector3.UnitX, rotation);
+            var f = new Vector2(f3.X, f3.Y);
+            return f.LengthSquared() < 0.0001f ? Vector2.UnitX : Vector2.Normalize(f);
+        }
+
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D,
                                                                                Vector2 fwd2D, float speedNow)
         {
@@ -746,7 +871,8 @@ namespace CarKinem.Systems
         /// window is still a wall.</summary>
         public const float HullProbeM = 0.5f;
 
-        private readonly System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing> _crossings = new();
+        /// <summary>⭐ CE-3286 — one list PER THREAD: the update runs ForEachParallel (the single shared list since CE-2198 was a latent race).</summary>
+        [ThreadStatic] private static System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>? t_crossings;
 
         /// <summary>⭐ CE-2059 — the arrival tolerance at a trajectory's end when the move set no <c>ArrivalRadius</c>.</summary>
         private const float DefaultTrajectoryArrivalRadius = 2f;

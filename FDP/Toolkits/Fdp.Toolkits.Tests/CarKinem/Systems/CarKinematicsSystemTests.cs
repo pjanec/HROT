@@ -789,6 +789,357 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        // ── CE-3286 (R-3025; docs/designs/motion-models/DESIGN_Motion_Domains.md §5f) — a hull never enters a building; a held one backs out ──
+
+        /// <summary>A 60 × 30 m solid block (test-town's form: a building polygon with a height) whose south wall runs along y = 10.</summary>
+        private const string BlockWorld =
+            "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"height\":15,\"label\":\"Block\"}," +
+            "\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[0,10],[60,10],[60,40],[0,40],[0,10]]]}}]}";
+
+        /// <summary>
+        /// The tank preset (7.0 × 3.5 m, turn radius ~6.3 m) at <paramref name="start"/> facing <paramref name="facing"/>, on a path through
+        /// <paramref name="path"/> (or driven direct to its last point), beside <see cref="BlockWorld"/>; with the watchdog's
+        /// <see cref="FrustrationTicks"/> (the recovery's state) unless <paramref name="recovery"/> is off.
+        /// </summary>
+        private static (EntityRepository Repo, Entity E, TrajectoryPoolManager Pool) HullWorld(Vector2 start, Quaternion facing, Vector3[] path,
+            KinematicsMode mode = KinematicsMode.CustomTrajectory, float arrivalRadius = 2f, float startSpeed = 0f, bool recovery = true)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: startSpeed, facing: facing, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(BlockWorld));
+            if (recovery)
+            {
+                repo.RegisterComponent<FrustrationTicks>();
+                repo.AddComponent(e, new FrustrationTicks());
+            }
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(start.X, start.Y, 0f);
+            repo.SetComponent(e, tf);
+            repo.SetComponent(e, new SimVelocity { Linear = new Vector3(Vector2.Transform(Vector2.UnitX, facing) * startSpeed, 0f) });
+            pool.RegisterTrajectoryWithKey(path, 11);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.Mode = mode;
+            nav.TrajectoryId = 11;
+            nav.ArrivalRadius = arrivalRadius;
+            nav.FinalDestination = path[^1];
+            repo.SetComponent(e, nav);
+            return (repo, e, pool);
+        }
+
+        /// <summary>How deep (m) the hull's deepest corner stands inside the block (0 = none inside).</summary>
+        private static float CornerDepth(EntityRepository repo, Entity e)
+        {
+            var p = repo.GetComponent<VehicleParams>(e);
+            var tf = repo.GetComponent<SimTransform>(e);
+            var f3 = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+            var f = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+            var c = new Vector2(tf.Position.X, tf.Position.Y);
+            float deepest = 0f;
+            foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+            {
+                var k = CarKinem.Controllers.HullClearance.Corner(c, f, a * p.Length * 0.5f, b * p.Width * 0.5f);
+                if (k.X > 0f && k.X < 60f && k.Y > 10f && k.Y < 40f) deepest = MathF.Max(deepest, MathF.Min(k.Y - 10f, MathF.Min(k.X, 60f - k.X)));
+            }
+            return deepest;
+        }
+
+        private static readonly Quaternion FacingNorth = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3286</c> A — a tank driven NOSE-FIRST at a wall stops with its nose AT the wall: no corner ever inside. 📌 Live
+        /// <c>ua-tank-corner</c>: the centre-only guard (CE-2198) let the front half stand in the block. No recovery here — the guard alone.
+        /// 🔴 Red-proof: trace the centre only ⇒ the nose 3.5 m deep.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullDrivenNoseFirstAtAWall_StopsWithNoCornerInside()
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth, new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 25f, 0f) },
+                                            mode: KinematicsMode.Direct, recovery: false);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float deepest = 0f, northmost = float.MinValue;
+            for (int i = 0; i < 15 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+                northmost = MathF.Max(northmost, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            Assert.True(northmost >= 10f - 3.5f - 0.6f, $"stopped short of the wall: the centre reached y={northmost:F2}");   // it drove up to it
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3286</c> B, the "smart" half (R-3025) — a tank STANDING nose to the wall (0.3 m off it) on a new path west along the wall:
+        /// its way on is not clear (a left turn at full lock carries the nose into the block), so it BACKS OUT before it touches the wall, then
+        /// drives its path and arrives — never touching the wall, never a corner inside. 📌 Live <c>ua-technical-scoot</c>: held 207 s.
+        /// 🔴 Red-proofs: no recovery ⇒ never arrives (held); a fixed 1 m back-up instead of the rollout ⇒ it touches the wall again.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullStandingNoseToAWall_BacksOutFirst_ThenDrivesItsPathAlongTheWall()
+        {
+            var start = new Vector2(30f, 10f - 3.5f - 0.3f);
+            var (repo, e, pool) = HullWorld(start, FacingNorth,
+                new[] { new Vector3(start.X, start.Y, 0f), new Vector3(20f, 3f, 0f), new Vector3(-30f, 3f, 0f) });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float deepest = 0f, slowest = 0f;
+            bool touched = false;
+            int arrivedAt = -1;
+            for (int i = 0; i < 60 * 60 && arrivedAt < 0; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+                slowest = MathF.Min(slowest, repo.GetComponent<VehicleState>(e).Speed);
+                touched |= repo.GetComponent<FrustrationTicks>(e).WallHeldSeconds > 0f;
+                if (repo.GetComponent<NavState>(e).HasArrived == 1) arrivedAt = i;
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(arrivedAt >= 0, $"never arrived in 60 s — at ({end.X:F1}, {end.Y:F1}), recoveries {repo.GetComponent<FrustrationTicks>(e).Recoveries}");
+            Assert.True(slowest < -0.5f, $"it never backed (slowest {slowest:F2} m/s)");
+            Assert.False(touched, "it touched the wall — the recovery ended before its way on was clear");
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3286</c> B, the reactive half — a tank already ROLLING north at 2 m/s with its nose 0.3 m off the wall, on a path that
+        /// turns west along it, is HELD at the wall (its left turn carries the nose in), backs out and drives on to the path's end, held ONCE —
+        /// never back in the same situation. 📌 Live <c>ua-tank-corner</c>: four more moves were issued and each was held again.
+        /// 🔴 Red-proof: no recovery ⇒ held for good.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullHeldAtAWall_BacksOut_AndDrivesOn_HeldOnlyOnce()
+        {
+            var start = new Vector2(30f, 10f - 3.5f - 0.3f);
+            var (repo, e, pool) = HullWorld(start, FacingNorth,
+                new[] { new Vector3(start.X, start.Y, 0f), new Vector3(30f, 7f, 0f), new Vector3(-30f, 4f, 0f) }, startSpeed: 2f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float deepest = 0f;
+            int holds = 0, arrivedAt = -1;
+            bool wasHeld = false;
+            for (int i = 0; i < 60 * 60 && arrivedAt < 0; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+                bool isHeld = repo.GetComponent<FrustrationTicks>(e).WallHeldSeconds > 0f;
+                if (isHeld && !wasHeld) holds++;
+                wasHeld = isHeld;
+                if (repo.GetComponent<NavState>(e).HasArrived == 1) arrivedAt = i;
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(arrivedAt >= 0, $"never arrived in 60 s — at ({end.X:F1}, {end.Y:F1}), recoveries {repo.GetComponent<FrustrationTicks>(e).Recoveries}");
+            Assert.True(holds <= 1, $"held at the wall {holds} times — it drove back into the same situation");
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> — a point beside the wall that the hull's centre cannot reach (the live hide 2.25 m off the L-Block, a 7 m hull
+        /// arriving nose-first, here with a 1 m radius) is REACHED when the nose meets the wall — not a hold to back out of. 🔴 Red-proof:
+        /// drop the rule ⇒ never arrives.
+        /// </summary>
+        [Fact]
+        public void CE3286_APointBesideTheWall_IsReached_WhenTheNoseMeetsTheWall()
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth,
+                new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 7.75f, 0f) }, arrivalRadius: 1f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            int arrivedAt = -1;
+            float deepest = 0f;
+            for (int i = 0; i < 30 * 60 && arrivedAt < 0; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+                if (repo.GetComponent<NavState>(e).HasArrived == 1) arrivedAt = i;
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(arrivedAt >= 0, $"never arrived — at ({end.X:F1}, {end.Y:F1})");
+            Assert.InRange(end.Y, 10f - 3.5f - 0.6f, 10f - 3.5f + 0.05f);   // the nose at the wall
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> — a hull LEFT half inside a block (spawned there, or by the old centre-only guard) is not walled in: its nose 1.5 m
+        /// in, sent south, it drives out. 🔴 Red-proof: block a corner whose surface already rose ⇒ it never moves.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullLeftHalfInsideABlock_CanDriveOut()
+        {
+            var start = new Vector2(30f, 10f - 3.5f + 1.5f);
+            var (repo, e, pool) = HullWorld(start, FacingNorth,
+                new[] { new Vector3(start.X, start.Y, 0f), new Vector3(30f, -30f, 0f) }, recovery: false);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.ReverseAllowed = 1;   // it backs straight out (a forward turn would swing the nose further in)
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(end.Y < start.Y - 10f, $"walled in: still at y={end.Y:F1} (started {start.Y:F1})");
+            Assert.True(CornerDepth(repo, e) <= 0.05f, "still inside");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> — a hull HELD at the wall while it steers for a point off to its side keeps its HEADING: the refused step is
+        /// refused whole, so no corner rotates in. 📌 Live: held hulls' headings crept ~1°/s (the one tick of speed the controller gives
+        /// before the hold zeroes it), sweeping a corner into the block. No recovery — the guard alone. 🔴 Red-proof: keep the position, let
+        /// the heading turn ⇒ it creeps while held.
+        /// </summary>
+        [Fact]
+        public void CE3286_AHeldHull_KeepsItsHeading()
+        {
+            // 6 m beside its path (x = 30, north into the block) and 9 m from the wall: it is still turning onto the path when the nose meets
+            // the wall, so the follower keeps steering while held
+            var (repo, e, pool) = HullWorld(new Vector2(24f, 1f), FacingNorth, new[] { new Vector3(30f, -20f, 0f), new Vector3(30f, 30f, 0f) },
+                                            recovery: false);
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.ProgressS = 21f;
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float? heldYaw = null;
+            float creep = 0f, deepest = 0f;
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+                float yaw = YawOf(repo, e);
+                bool standing = MathF.Abs(repo.GetComponent<VehicleState>(e).Speed) < 1e-4f && i > 60;
+                if (standing && heldYaw is null) heldYaw = yaw;
+                if (standing && heldYaw is float h) creep = MathF.Max(creep, MathF.Abs(MathF.IEEERemainder(yaw - h, 2f * MathF.PI)));
+            }
+            Assert.NotNull(heldYaw);   // it reached the wall and was held
+            Assert.True(creep < 0.01f, $"the heading crept {creep * 180f / MathF.PI:F1}° while held");
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3287</c> (R-3026; Motion Domains §5g; user: <i>"I have seen destroyed vehicle still moving, maybe being pushed by people
+        /// coming close"</i> · <i>"parked vehicles should not be pushed either"</i>) — a WRECK, and a PARKED live tank, with no move, beside
+        /// which a man stands 4 m off, are not moved: avoidance's separation push (inside twice the avoidance radius, 10 m for the tank)
+        /// drives only a vehicle that is driving. 📐 Measured red before: the wreck was pushed ~10 m. 🔴 Red-proof: push a vehicle with no
+        /// wanted speed ⇒ both move.
+        /// </summary>
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(3000f)]
+        public void CE3287_AWreck_OrAParkedVehicle_IsNotPushedByAManBesideIt(float health)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 0f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            var nav = repo.GetComponent<NavState>(e);
+            nav.Mode = KinematicsMode.None;
+            nav.TargetSpeed = 0f;
+            repo.SetComponent(e, nav);
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 3000f });
+            Stander(repo, new Vector3(0f, 4f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(p.X, p.Y).Length() < 0.05f, $"the wreck was pushed to ({p.X:F2}, {p.Y:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3287</c> — a WRECK whose move the brain has not ended yet (CE-3091 runs on the brain, a frame or more later) does not drive
+        /// it: on a path at 5 m/s with Health 0 it stays put. 🔴 Red-proof: drop the wreck test ⇒ it drives the path.
+        /// </summary>
+        [Fact]
+        public void CE3287_AWreck_DoesNotDriveTheMoveItStillHas()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 3000f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 5 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(p.X, p.Y).Length() < 0.05f, $"the wreck drove to ({p.X:F2}, {p.Y:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3287</c> — and a DRIVING vehicle still steers round a man in its way: a tank on its path past a man 1 m off the line bends
+        /// away from him (avoidance kept where it belongs — on a vehicle that drives). 🔴 Red-proof: no avoidance at all ⇒ it runs straight.
+        /// </summary>
+        [Fact]
+        public void CE3287_ADrivingVehicle_StillSteersRoundAMan()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            Stander(repo, new Vector3(25f, 1f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float swerve = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                swerve = MathF.Min(swerve, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.True(swerve < -0.3f, $"it ran straight past the man (least y {swerve:F2})");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3286</c> — a box with no way out is BOUNDED: a tank sent INTO the block (its destination inside it) is held, backs out
+        /// <see cref="CarKinem.Controllers.HullRecovery.MaxRecoveries"/> times and then stays the watchdog's (it never enters, never loops).
+        /// </summary>
+        [Fact]
+        public void CE3286_AHullWithNoWayOn_TriesABoundedNumberOfTimes()
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -10f), FacingNorth,
+                new[] { new Vector3(30f, -10f, 0f), new Vector3(30f, 25f, 0f) }, mode: KinematicsMode.Direct, startSpeed: 3f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float deepest = 0f;
+            for (int i = 0; i < 90 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                deepest = MathF.Max(deepest, CornerDepth(repo, e));
+            }
+            var ft = repo.GetComponent<FrustrationTicks>(e);
+            Assert.Equal(CarKinem.Controllers.HullRecovery.MaxRecoveries, ft.Recoveries);
+            Assert.Equal(0, ft.RecoverDir);
+            Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3128</c> — a path of two COINCIDENT points (a move to where the unit already stands) arrives, and the unit's
         /// position stays finite. 🔴 Measured in the ua-danger-crossing-bp twin: the end-of-path heading normalised the zero last

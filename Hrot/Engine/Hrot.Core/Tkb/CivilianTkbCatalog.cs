@@ -118,6 +118,12 @@ namespace Hrot.Core.Tkb
             var suite = new WeaponSuiteDto();
             foreach (var m in mounts) suite.Mounts.Add(m);
             t.AddDescriptor(suite);
+            // ⭐ CE-3281 (DESIGN_Thermal_And_Acoustic_Sensing §8.6) — his footsteps (as Person), a baton round's report at the pistol's 200 m and
+            //   a stun / gas grenade's burst at 400 m (⚠ an estimate: a flash-bang is as loud as a rifle shot or louder). Replaces Person's.
+            bool launcher = System.Array.Exists(mounts, m => m.Category == WeaponCategory.SmallArms);
+            bool grenades = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Grenade);
+            t.AddDescriptor(UrbanCombatTkbCatalog.Sounds(UrbanCombatTkbCatalog.FootstepsRange, SoundSourceClass.Footsteps,
+                launcher ? 200f : 0f, launcher ? SoundSourceClass.SmallArms : SoundSourceClass.Unknown, grenades ? 400f : 0f));
             tkb.Register(t);
         }
 

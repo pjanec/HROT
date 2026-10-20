@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
-build-state: BUILDING (§5f) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+updated: 2026-10-20 (§5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
+current-answer: ⭐ §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -433,7 +433,7 @@ graph TD
 
 | rule | why |
 |---|---|
-| ⭐ the guard traces the LEADING corners (front when driving forward, rear when backing) and the centre; a crossing BLOCKS only when it ENTERS (`T > EnterEpsilon`) — a corner already inside may move out | A: the nose stops at the wall. A hull spawned or left half inside can still leave |
+| ⭐ the guard traces the FOUR corners and the centre, each with CE-2198's two tests: the surface under the point RISES like a wall, or its line ENTERS a closed barrier (`T > EnterEpsilon`); a point whose surface had already risen, or that started inside, may move | A: the nose stops at the wall. A hull spawned or left half inside can still leave. ⚠ AS-BUILT `2026-10-20` — deviates from the first draft ("the LEADING corners · a closed barrier", ⛔ SUPERSEDED): all four, because a tight turn swings the TAIL into a wall; and the RISE test, because the stand-in's solid block is NOT a closed barrier (`TerrainWorldQuery.IsClosedBarrier` — a blast meaning, W-7′: "a free-standing wall or a solid block is not one"). 📐 Measured: with the barrier test alone the rails' tank stood 3.5 m inside a block — the live centre was only ever stopped by CE-2198's rise test |
 | a refused step keeps the HEADING too | ⛔ the heading creep (~1°/s) swept corners in |
 | recovery starts after **0.5 s** held, or AT ONCE on a standing start (a new path) whose way on is not clear | the second is the "smart" half: a hull parked nose to a wall backs out before it touches it |
 | recovery drives against the held motion at **2 m/s** (capped by `MaxSpeedRev` when it has one) on FULL LOCK, the nose swinging toward the path's aim point | the reverse leg of a three-point turn |
@@ -444,9 +444,60 @@ graph TD
 | persons are untouched | a walker has CE-2304's rule |
 | ⚠ the system's shared `_crossings` list was used from `ForEachParallel` | made per-thread with the new traces (a latent race since CE-2198) |
 
+⭐ **Live `2026-10-20` — both shoot-and-scoot demos, before and after** (a 0.5 s trace of each vehicle's pose; the hull's corners against
+test-town's footprints; hulls from the live `VehicleParams`: M1 7.93 × 3.66 m, the technical 5.3 × 1.9 m):
+
+| demo · vehicle | before (`18bd6ed48`) | after (`3fc536e33`) |
+|---|---|---|
+| `ua-tank-corner` · M1 | front 3.98 m inside the L-Block, stuck 13 s and 10.5 s, never reversed, 70 m driven | 0.00 m inside, never stuck, reversed on 5 samples, 67 m driven over 5 moves |
+| `ua-technical-scoot` · HMG technical | 2.83 m inside Block C, held to the end of the run, 59 m driven | 0.00 m inside, never stuck, reversed on 5 samples, **158 m** driven over 15 moves — it kept shooting and scooting |
+| `ua-technical-scoot` · M1, ATGM technical | — | 0.00 m inside; the ATGM technical killed early in both, as before (the demo's design ending) |
+
+⚠ A first `ua-tank-corner` run after the fix proved nothing: a Javelin hit the tank 7 s in on its first drive (3000 → 1800), a mobility
+kill (CE-2197), so it never reached the wall. The runs vary; the table's tank run is the second.
+
 | rejected | the one fact |
 |---|---|
 | replan from the held pose (the watchdog's remedy) | the path from the same pose starts forward again — measured live (§5e) |
 | a fixed back-up distance | the room a hull needs is its turn — a tank needs ~6.3 m of radius, a pickup less |
 | a hull-sized navmesh | the navmesh is a disc (1.8 m); a 7 m box's corners are the problem |
 | reverse on every behaviour move | a motion fault fixed in every behaviour |
+
+## 5g. A wreck never moves, and a vehicle that is not driving is never pushed — `CE-3287` (`2026-10-20`, backend; R-3026)
+
+🔒 User, `2026-10-20`: *"I have seen destroyed vehicle still moving, maybe being pushed by people coming close"* · *"parked vehicles should not be pushed either"*
+
+📐 Measured (rail `CE3287_*`, red before): one man standing 4 m from a destroyed M1 with no move pushed it **~10 m**. `RVOAvoidance.ApplyAvoidance`
+returns the wanted velocity PLUS a push — a separation inside 2 × `AvoidanceRadius` (10 m for the tank) and a repulsion from anyone closing — and
+`CarKinematicsSystem` applied it with a wanted velocity of zero; nothing in the ground model read `Health`. The route is not the cause: a running move
+is ended at death on the brain (CE-3091, `LocomotionDispatcherSystem` ⇒ `OnExit` ⇒ intent `None`).
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a vehicle's tick)
+    participant L as CombatLife
+    participant A as RVOAvoidance
+    K->>L: IsDestroyed(hull)? (Health ≤ 0, read where Health is registered)
+    alt a wreck
+      K->>K: wanted speed 0 · no recovery (§5f) · no avoidance — it brakes and stays
+    else wanted speed 0 (parked, arrived, held)
+      K->>K: no avoidance — it stays where it is
+    else driving
+      K->>A: ApplyAvoidance(wanted velocity, neighbours) — it steers round others, as before
+    end
+```
+
+*Caption:* what the picture shows — avoidance is a DRIVER's act: it bends a vehicle's own motion round others. A vehicle with no motion of its own has
+nothing to bend, and a person walks round it (a person's avoidance is untouched — it sees the vehicle as a neighbour).
+
+| rule | why |
+|---|---|
+| a destroyed hull (`CombatLife.IsDestroyed`) is driven at speed 0 and takes no recovery try | a wreck has no driver; belt and braces with CE-3091 (a move the brain has not ended yet) |
+| a vehicle whose wanted speed is 0 gets no avoidance push | 🔒 "parked vehicles should not be pushed either" |
+| a driving vehicle avoids as before | `System_AvoidanceMovesVehicle`, the RVO rails |
+| persons unchanged | crowds still part; a person steps round a vehicle |
+
+| rejected | the one fact |
+|---|---|
+| strip the push inside `RVOAvoidance` | it is shared by persons, who must keep parting |
+| read `CanMove` instead of `Health` | `ActorCapabilityState` is the brain's group (`HrotOwnershipGroups.cs:54`); `Health` is the one the presentation already reads for a wreck (`IsDestroyed`) |
