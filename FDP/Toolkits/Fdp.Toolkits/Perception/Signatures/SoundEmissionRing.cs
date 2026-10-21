@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using System.Threading;
 using Fdp.Core;
@@ -103,7 +103,13 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// </summary>
         /// <param name="notBefore">⭐ a sensor with no cursor yet (<paramref name="after"/> ≤ 0) reads only sounds made since this time, and
         /// counts nothing lost — it never existed for the older ones.</param>
-        public int ReadAfter(long after, Span<SoundEmission> into, out long last, double notBefore = double.MinValue)
+        /// <param name="before">⭐ <c>CE-3293</c> — the READER's clock: only sounds made before it are read, and the cursor stops at the first
+        /// one that is not, so the next read takes it. 📐 A background solve runs beside the writer, which goes on appending the sounds of
+        /// the step that dispatched it; whether those were seen depended on the threads (live, four loads of ua-tank-ammo: one run heard a
+        /// burst a solve earlier than the others). Every sound before the snapshot's own time was written before the snapshot was taken.
+        /// Also what "too old" is measured against (default: the writer's clock).</param>
+        public int ReadAfter(long after, Span<SoundEmission> into, out long last, double notBefore = double.MinValue,
+                             double before = double.PositiveInfinity)
         {
             long head = Head;
             last = after;
@@ -116,17 +122,18 @@ namespace Fdp.Toolkit.Perception.Signatures
             }
             first = Math.Max(first, FirstOfTimeline);   // ⭐ CE-3292 — never a sound from an earlier timeline
             if (first > head) { last = head; return 0; }
-            double oldest = Math.Max(Now - MaxAgeSeconds, notBefore);
+            double oldest = Math.Max((double.IsPositiveInfinity(before) ? Now : before) - MaxAgeSeconds, notBefore);
             int n = 0;
             for (long s = first; s <= head; s++)
             {
                 if (n == into.Length) break;   // the caller's span is full: stop here, the next run reads on
                 ref var slot = ref _slots[s % Capacity];
-                long before = Volatile.Read(ref slot.Serial);
+                long stamped = Volatile.Read(ref slot.Serial);
                 var copy = slot;
                 long after2 = Volatile.Read(ref slot.Serial);
                 last = s;
-                if (before != s || after2 != s) { Interlocked.Increment(ref _overflow); continue; }   // overwritten under me
+                if (stamped != s || after2 != s) { Interlocked.Increment(ref _overflow); continue; }   // overwritten under me
+                if (copy.Time >= before) { last = s - 1; break; }   // ⭐ CE-3293 — made at or after the reader's time: the next read
                 if (copy.Time < oldest) continue;
                 copy.Serial = s;
                 into[n++] = copy;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -1427,6 +1427,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Empty(Solve(grid));
                 SoundFrame(0.1d, tube);
                 SoundFrame(0.3d, tube);
+                SoundFrame(0.4d);                                                // ⭐ CE-3293 — a solve hears what came BEFORE its own time
                 var heard = Solve(grid);
                 Assert.Equal(2, heard.Length);
                 Assert.All(heard, h => Assert.Equal(man, h.Observer));
@@ -1452,6 +1453,7 @@ namespace Hrot.SimHost.Tests
                 _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.CombatProficiency
                     { Authored = proficiency, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
                 SoundFrame(0d, tube);
+                SoundFrame(0.1d);                                                // ⭐ CE-3293 — heard by the solve after it
                 var one = Assert.Single(Solve(grid));
                 Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // the class, always
                 Assert.Equal(family, one.Family);

@@ -13,6 +13,7 @@ related-designs:
     the reasons ~40 % of systems must run while paused.
   - docs/DESIGN_Film_Director.md — a CONSUMER: needs stepped runs to repeat (R-3035); paused until this lands (R-3034).
   - FDP/Engine/Fdp.ModuleHost/docs/UserGuide/05_EventBus.md — owns the bus and its one-frame double buffer.
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
 
