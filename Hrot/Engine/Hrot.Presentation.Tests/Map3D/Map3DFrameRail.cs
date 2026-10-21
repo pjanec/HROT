@@ -2658,6 +2658,60 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1200 (docs/DESIGN_Entity_Control.md §8o) — first person in a vehicle draws the vehicle, from a crew eye: the HMMWV from the
+    /// driver's seat (its bonnet ahead), the tank from the commander's hatch (its turret and barrel), the UH-60 from the cockpit. 🔒 User,
+    /// live: <i>"in FPS mode the vehicle model should not be turned off — once the camera looks from proper cockpit place, seeing vehicle parts
+    /// is not so much distracting"</i>. Screenshots <c>ce1200-crew-eye-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1200_V_FirstPersonInAVehicle_DrawsIt_FromACrewEye()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        var cam = sw.Camera3D;
+        foreach (var (type, name, z) in new[] { (TkbEntityTypes.Truck_HMMWV, "hmmwv", 0f), (TkbEntityTypes.Tank_T72, "tank", 0f), (TkbEntityTypes.Heli_UH60, "uh60", 30f) })
+        {
+            var v = world.CreateEntity();
+            var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + z);
+            world.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(v, new TkbIdentity { TkbType = type });
+            bodies.FirstPerson = v;
+            frame.Step(canvas.Draw);   // the first frame draws it and learns its crew eye
+            Assert.True(bodies.TryGetEyeLocal(v, out var local), $"{name}: a crew eye");
+            var eye = at + local;
+            cam.Yaw = 0f; cam.Pitch = -0.12f; cam.Roll = 0f;   // looking ahead (east), a little down
+            cam.Distance = cam.MinDistance;
+            cam.LookAt = eye + cam.Forward * cam.Distance;
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, $"ce1200-crew-eye-{name}.png"));
+            world.DestroyEntity(v);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1202 (docs/DESIGN_Map_3D_Mode.md §6n N-2) — the DShK technical with its gun swung to the left: the gunner kneels BEHIND the gun,
     /// turned with it, not where his seat was. Screenshot <c>ce1202-gunner-turns.png</c>.
     /// </summary>

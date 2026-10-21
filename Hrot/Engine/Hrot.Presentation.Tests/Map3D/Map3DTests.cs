@@ -2036,6 +2036,40 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1200 (Entity Control §8o CR-2) — every vehicle and aircraft kind has a CREW eye: inside its cab / canopy / cockpit glass (that
+    /// box culls itself from inside, the rest of the vehicle stays in view), on the left where two sit side by side; a tank, an AFV and a
+    /// self-propelled gun a commander's eye above the turret's roof. A person and a unit have none. ✅ Red-proof: the glass branch removed ⇒
+    /// a car's eye falls back to none.
+    /// </summary>
+    [Fact]
+    public void CE1200_EveryVehicleKind_HasACrewEye_InsideItsGlass_OrAboveItsTurret()
+    {
+        foreach (var family in new[] { VisualFamily.WheeledCar, VisualFamily.WheeledUtility, VisualFamily.Helicopter, VisualFamily.Jet,
+                                       VisualFamily.CargoPlane, VisualFamily.AttackJet, VisualFamily.AttackHelicopter, VisualFamily.Drone })
+        {
+            var size = ShapeKits.DefaultSize(family);
+            var eye = EntityBodyLayer3D.CrewEye(family, size);
+            Assert.True(eye.HasValue, $"{family}: a crew eye");
+            var glass = ShapeKits.For(family).Parts.First(p => p.Colour == ColourRole.Glass);
+            var lo = (glass.Centre - glass.Extent / 2f) * size;
+            var hi = (glass.Centre + glass.Extent / 2f) * size;
+            Assert.True(eye!.Value.X > lo.X && eye.Value.X < hi.X && eye.Value.Y > lo.Y && eye.Value.Y < hi.Y && eye.Value.Z > lo.Z && eye.Value.Z < hi.Z,
+                $"{family}: the eye {eye} inside its glass {lo}..{hi} — the box culls itself from inside");
+            Assert.True(eye.Value.X > glass.Centre.X * size.X, $"{family}: in the front half of it");
+        }
+        Assert.True(EntityBodyLayer3D.CrewEye(VisualFamily.WheeledCar, ShapeKits.DefaultSize(VisualFamily.WheeledCar))!.Value.Y > 0f, "a car's driver sits on the left");
+        foreach (var family in new[] { VisualFamily.Tank, VisualFamily.Afv, VisualFamily.SpArtillery })
+        {
+            var size = ShapeKits.DefaultSize(family);
+            var turret = ShapeKits.For(family).Parts.First(p => p.Role == PartRole.Turret);
+            var eye = EntityBodyLayer3D.CrewEye(family, size);
+            Assert.True(eye.HasValue && eye.Value.Z > (turret.Centre.Z + turret.Extent.Z / 2f) * size.Z + 0.3f, $"{family}: above the turret's roof ({eye})");
+        }
+        Assert.Null(EntityBodyLayer3D.CrewEye(VisualFamily.Person, ShapeKits.DefaultSize(VisualFamily.Person)));
+        Assert.Null(EntityBodyLayer3D.CrewEye(VisualFamily.Unit, Vector3.One));
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

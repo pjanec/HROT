@@ -140,10 +140,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
 
-            // ⭐ CE-1131 — the operator's OWN vehicle, aircraft or weapon is not drawn while he looks from inside it: its airframe filled the
-            //   view (only a person's head was hidden). 🔒 User, 2026-10-16: "my view is cluttered a lot by vehicle parts … difficult to fly"
-            if (e == FirstPerson && look.Family != VisualFamily.Person) { _drawn.Add(e); continue; }
             var size = SizeOf(world, e, look);
+            // ⭐ CE-1200 (docs/DESIGN_Entity_Control.md §8o) — the operator's OWN vehicle IS drawn while he looks from it: his eye is a CREW
+            //   eye inside its cab / canopy / cockpit (that box, seen from inside, culls itself) or a commander's above its turret, so the
+            //   bonnet, the wings, the barrel are in view. ⛔ SUPERSEDED CE-1131 ("not drawn: the airframe filled the view" — the eye was
+            //   a fixed height above the reference point, inside the hull). A kind with no crew eye is still not drawn.
+            Vector3? crewEye = null;
+            if (e == FirstPerson && look.Family != VisualFamily.Person)
+            {
+                crewEye = CrewEye(look.Family, size);
+                if (crewEye == null) { _drawn.Add(e); continue; }
+            }
             var colour = ColourOf(world, e, look.Colour);
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
                 colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
@@ -269,6 +276,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
             // ⭐ CE-1193 — a man leaning round a corner, sheared as the sim shears him; his eyes and muzzle tip go with it (they read kitToBody)
             if (leans) kitToBody *= LeanShear(world, e);
+            if (crewEye is { } eyeKit) _eyes[e] = Vector3.Transform(eyeKit, kitToBody);   // ⭐ CE-1200 — the station puts the camera there
             int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet, parts, size) : 0;   // ⭐ CE-1098 (§6p)
             // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
             Outfit? outfit = null;
@@ -1267,6 +1275,30 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-1073 — the eyes of <paramref name="e"/> in its body frame, as its figure was last drawn. False when it was not
     /// drawn as a figure.</summary>
     public bool TryGetEyeLocal(Entity e, out Vector3 local) => _eyes.TryGetValue(e, out local);
+
+    /// <summary>⭐ <c>CE-1200</c> — how far above a turret's roof a commander's eye is, his head out of the hatch (m).</summary>
+    public const float HatchEyeAboveRoof = 0.55f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1200</c> (docs/DESIGN_Entity_Control.md §8o CR-2) — a vehicle kind's CREW eye in its kit's body frame (metres, the kit's own
+    /// convention: x forward, y left, z up from the box bottom): in its first GLASS part (the cab, the canopy, the cockpit) a fifth of the
+    /// way forward and a seventh up from its middle — on the driver's / pilot's side (left) where two sit side by side (a car, a utility, a
+    /// helicopter, a transport); else a commander's eye above its TURRET's roof, a quarter of its width to the left. Null: no crew eye.
+    /// Pure — the rail runs it over every kind.
+    /// </summary>
+    public static Vector3? CrewEye(VisualFamily family, Vector3 size)
+    {
+        var kit = ShapeKits.For(family);
+        bool sideBySide = family is VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.Helicopter or VisualFamily.CargoPlane;
+        foreach (var p in kit.Parts)
+            if (p.Colour == ColourRole.Glass)
+                return new Vector3((p.Centre.X + 0.2f * p.Extent.X) * size.X, (p.Centre.Y + (sideBySide ? 0.25f * p.Extent.Y : 0f)) * size.Y,
+                                   (p.Centre.Z + 0.15f * p.Extent.Z) * size.Z);
+        foreach (var p in kit.Parts)
+            if (p.Role == PartRole.Turret)
+                return new Vector3(p.Centre.X * size.X, (p.Centre.Y + 0.25f * p.Extent.Y) * size.Y, (p.Centre.Z + 0.5f * p.Extent.Z) * size.Z + HatchEyeAboveRoof);
+        return null;
+    }
 
     /// <summary>The rails' stand-in for a drawn frame (a figure's eyes without a GL context).</summary>
     internal void RememberEyeLocal(Entity e, Vector3 local) => _eyes[e] = local;

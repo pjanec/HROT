@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
+updated: 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -1977,6 +1977,41 @@ which already crosses nodes (`EntityOrders.Possess`).
 
 📐 **Rails:** `AimAndFireExecutorTests.CE1210_*` (FDP), `PossessionStationTests.CE1210_*` (`PossessionStationTests.Seats.cs`).
 
+## 8o. First person in a vehicle — the vehicle drawn, from a crew eye (`CE-1200`, `2026-10-21`, ui) — build-state: BUILT
+
+🔒 User, live, `2026-10-19`: *"in FPS mode the vehicle model should not be turned off — once the camera looks from proper cockpit place,
+seeing vehicle parts is not so much distracting"*. ⛔ SUPERSEDES the §7.x row *"in first person in a vehicle the own vehicle's body is not
+drawn"* (`CE-1131`, *"flyer cockpit view cluttered"*): the clutter came from the EYE — a fixed height above the reference point, inside the
+hull — not from drawing the vehicle.
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D.Draw (each frame)
+  participant K as ShapeKits (the kind's kit)
+  participant S as PossessionStation.FpsCameraDriver
+  L->>L: e == FirstPerson, not a person
+  L->>K: CrewEye(family, size): the first Glass part, else the Turret
+  K-->>L: the eye in kit metres (null: the vehicle is not drawn, as before)
+  L->>L: draw the vehicle, _eyes[e] = CrewEye through kitToBody (a flyer's CG offset)
+  S->>L: TryGetEyeLocal(unit)
+  L-->>S: the crew eye in the body frame
+  S->>S: camera at position + rotation x eye (else the old heights)
+```
+*Caption:* what the picture shows that prose hid — the eye is learned from the SAME frame the vehicle is drawn in (the one `_eyes` table a
+person's head already fills), so a flyer's CG offset and the kit's proportions place it; nothing new crosses to the station.
+
+| id | decision | ⭐ lean (taken overnight, `R-106`; the user to confirm) | rejected — one line each |
+|---|---|---|---|
+| **CR-1** | draw the own vehicle | ✅ DRAW it whenever it has a crew eye; the box the eye is in (the cab, the canopy) is seen from inside and back-face culling drops it, so the bonnet, the barrel, the wings stay in view | keep CE-1131's skip — the user overruled it · cut the cab open — more geometry for what culling already does |
+| **CR-2** | where the eye is | ✅ from the KIT: inside its first Glass part (a fifth forward, a seventh up from its middle; on the left where two sit side by side — car, utility, helicopter, transport); no glass ⇒ a commander's eye 0.55 m above the turret's roof, a quarter of its width left (tank, AFV, SP gun) | a TKB eye per seat — no type carries one (a crew seat's place is used when a man SITS in it, MS-5) · a fixed height per scheme — what put the eye inside the hull |
+| **CR-3** | a seated crewman | unchanged — his seat's eye (MS-5); the vehicle was never his body, so it was always drawn | — |
+
+**As built:** `EntityBodyLayer3D.CrewEye(family, size)` (pure), the FirstPerson vehicle drawn and its eye stored through `kitToBody`;
+`PossessionStation.EyeOf` takes it first for every non-person scheme (the old heights remain the fallback). Pickers still skip the own
+body (CE-1080). Rails `Map3DTests.CE1200_*` (every kind: inside its glass or above its turret), frame `Map3DFrameRail.CE1200_V_*`
+(`docs/assets/map-3d/ce1200-crew-eye-{hmmwv,tank,uh60}.png`); `PossessionStationTests` 0 red. ⚠ Windows check owed: a flyer's cockpit
+view in motion.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
@@ -2360,7 +2395,7 @@ Rails: `AimAndFireExecutorTests.CE1125_ALockedShot_GoesToTheCrosshairPointOnTheU
 | stance keys: **C** toggles crouch, **Z** toggles prone, **Ctrl held** crouches (not from prone), **Shift** runs (`Gait` 0 = full speed — unchanged); the frame sends the EFFECTIVE stance; the HUD's stance line says `RUN` | 🔒 *"Shift+W run, Ctrl hold crouch, prone toggle key"* — supersedes §13.5's one cycle key |
 | 🔴 **CE-1139 root cause:** the IG world carried no `StanceIntent`, so `LogicalStance.Of` answered Standing — the brain's crouch reached the brain and the muscle but never the IG's figure, and the eye rides the drawn head. ⭐ The IG now takes both stance topics in (`AnimationReplicationModule.RegisterStanceViewerOn`; [Decision Layer §3.3g](DESIGN_Decision_Layer.md)) | 🔒 *"switching FPS posture does not seem to move the camera"* |
 | the RTS tool: **Ctrl + RMB attacks whatever is under the cursor** (any side); a legend (`RtsModeState.Legend`) top-left while armed, a red reticle at the cursor while Ctrl is held | 🔒 *"how to switch to attack mode … would not matter if ctrl or shift-click activated the attack"* |
-| in first person in a vehicle the own vehicle's body is not drawn (`EntityBodyLayer3D` skips the FirstPerson entity unless a person) | 🔒 *"flyer cockpit view cluttered"* — ⚠ a cockpit / crew-eye position from the TKB is a follow-up |
+| ⛔ SUPERSEDED by §8o (`CE-1200`, `2026-10-21`): ~~in first person in a vehicle the own vehicle's body is not drawn~~ — it is drawn, from a crew eye | 🔒 *"flyer cockpit view cluttered"* — the eye was the cause |
 | ⚠ **CE-1133 not reproduced:** select A+B, click C, right-click the ground orders only C through the real pack (`RtsCommandToolTests.CE1133_*`) | the order loop reads the selection the map shows; the reported case needs a repro (which view, how the units were deselected) |
 
 Rails: `PossessionStationTests.CE1143_*`, `CE1140_*` ×2, `RtsCommandToolTests.CE1133_*`, `StanceWireTests.CE1139_*`, `IgRoleComponentRegistryTests.CE1139_*`.

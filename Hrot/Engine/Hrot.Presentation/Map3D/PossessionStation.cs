@@ -1138,6 +1138,9 @@ namespace Hrot.UI.Common.Map3D
         /// </summary>
         private Vector3 EyeOf(EntityRepository w, in SimTransform tf, bool vehicle)
         {
+            // ⭐ CE-1200 (§8o CR-2) — a vehicle's or a flyer's CREW eye, as its kit was drawn (inside the cab / canopy, or above the turret)
+            if (Scheme != ControlScheme.Person && _station.Bodies is { } drawn && drawn.TryGetEyeLocal(Unit, out var crew))
+                return tf.Position + Vector3.Transform(crew, tf.Rotation);
             if (Scheme == ControlScheme.Rotorcraft) return tf.Position + new Vector3(0f, 0f, RotorcraftEyeHeight);   // ⭐ CE-2168 (MD-D)
             if (Scheme == ControlScheme.FixedWing) return tf.Position + new Vector3(0f, 0f, FixedWingEyeHeight);     // ⭐ CE-1095 (§8f P-3)
             if (vehicle) return tf.Position + new Vector3(0f, 0f, VehicleEyeHeight);
