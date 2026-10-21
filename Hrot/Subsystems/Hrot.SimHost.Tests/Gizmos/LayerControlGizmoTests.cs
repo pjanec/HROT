@@ -259,6 +259,44 @@ namespace Hrot.SimHost.Tests.Gizmos
             finally { System.IO.File.Delete(file); }
         }
 
+        // ⭐ CE-4038 B10 (docs/DESIGN_Film_Director.md §4b, R-4060) — a film take's layers are a TRANSIENT override: the mask follows it (the
+        // take starts clean — overlays off, the scene kept as the user has it — then its own layers on), but ⛔ NOTHING reaches the user's
+        // settings or file; clearing it gives the user's set back. And POST /map/layers IS the user's click: written and saved.
+        // 🔴 Red-proof: SetOverride writing through LayerControlSets.Write + saveSettings ⇒ the save count and the registry move.
+        [Fact]
+        public void CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick()
+        {
+            var settings = new GizmoSettingsRegistry();
+            int saves = 0;
+            var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: settings, saveSettings: () => saves++);
+            uint labels = GizmoSettingsRegistry.ComputeHash(LayerControlSets.Key(false, "Units", "Labels"));
+            uint cones = GizmoSettingsRegistry.ComputeHash(LayerControlSets.Key(false, "Ai", "VisionCones"));
+            bool labelsBefore = settings.Read(labels).BoolValue, conesBefore = settings.Read(cones).BoolValue;
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "the user's set shows the cards");
+
+            var unknown = gizmo.SetOverride(new[] { "Ai.VisionCones" }, new[] { "Map.Roads" });
+            Assert.Empty(unknown);
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "a take starts clean: the cards are off");
+            Assert.True(gizmo.ActiveLayers.IsSet(1), "the take's own layer is on (vision cones)");
+            Assert.True(gizmo.ActiveLayers.IsSet(0), "the scene is kept: the units");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Roads), "and the take can turn a scene layer off");
+            Assert.Equal(new[] { "No.Such" }, gizmo.SetOverride(new[] { "No.Such" }, System.Array.Empty<string>()));
+
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, new DebugPrimitiveBuffer());   // a frame with the override: still nothing written
+            Assert.Equal(0, saves);
+            Assert.Equal((labelsBefore, conesBefore), (settings.Read(labels).BoolValue, settings.Read(cones).BoolValue));
+
+            gizmo.ClearOverride();
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "the user's set again");
+
+            Assert.Empty(gizmo.SetRows(is3D: false, new[] { "Fire.Blast" }, new[] { "Units.Labels" }));
+            Assert.Equal(1, saves);
+            Assert.False(settings.Read(labels).BoolValue, "the route's change is the user's: in the registry");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels));
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Blast));
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Ai.VisionCones" && r.Display.Length > 0 && r.Doc.Length > 0);
+        }
+
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
         // survives the panel's JSON round trip (the StructEdit session the projector opens).
         [Fact]

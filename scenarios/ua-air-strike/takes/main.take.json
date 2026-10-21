@@ -1,0 +1,52 @@
+{
+ "title": "Level bomb",
+ "caption": "The A-10 releases on the weapon's cue; the bomb hits the target, the truck 120 m off survives",
+ "clip": "F-49",
+ "chapter": 10,
+ "state": "ready",
+ "anchors": {
+  "release": {
+   "on": "shot",
+   "by": "A-10",
+   "n": 1
+  },
+  "blast": {
+   "on": "blast",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "release-4",
+   "seconds": 4,
+   "follow": "A-10",
+   "distance": 40,
+   "yaw": 0,
+   "pitch": -5,
+   "why": "the jet on its run"
+  },
+  {
+   "at": "release-0.5",
+   "seconds": 3,
+   "follow": "A-10",
+   "distance": 25,
+   "yaw": 90,
+   "pitch": 5,
+   "why": "from below: the release"
+  },
+  {
+   "at": "blast-2",
+   "seconds": 4,
+   "lookAt": [
+    620.0,
+    360.0,
+    0.0
+   ],
+   "distance": 250,
+   "yaw": 90,
+   "pitch": -15,
+   "fov": 25,
+   "why": "both trucks in frame; the bomb lands"
+  }
+ ]
+}

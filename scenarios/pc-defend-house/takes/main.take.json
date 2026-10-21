@@ -1,0 +1,71 @@
+{
+ "title": "Platoon attacks a house",
+ "caption": "AI on both sides: a platoon attack with base of fire and bound, against a platoon defending a house",
+ "clip": "F-32",
+ "chapter": 7,
+ "state": "ready",
+ "anchors": {
+  "set": {
+   "on": "task",
+   "who": "Blue Squad 1",
+   "is": "Set"
+  },
+  "lift": {
+   "on": "shot",
+   "by": "*Red",
+   "n": 1
+  },
+  "clear": {
+   "on": "task",
+   "who": "*Blue Squad",
+   "is": "ClearBuilding"
+  }
+ },
+ "shots": [
+  {
+   "at": 5,
+   "seconds": 5,
+   "lookAt": [
+    120.0,
+    90.0,
+    0.0
+   ],
+   "distance": 230,
+   "yaw": 90,
+   "pitch": -45,
+   "why": "establish: the village, the house, blue coming up"
+  },
+  {
+   "at": "set-1",
+   "seconds": 4,
+   "follow": "Blue Squad 1 Leader",
+   "distance": 14,
+   "yaw": 90,
+   "pitch": -12,
+   "why": "the base of fire goes down on the berm"
+  },
+  {
+   "at": "lift-1",
+   "seconds": 4,
+   "over": "Red Squad 1 Leader",
+   "toward": "Blue Squad 2 Leader",
+   "back": 4,
+   "height": 3,
+   "fov": 30,
+   "why": "from the house: the defenders open up"
+  },
+  {
+   "at": "clear-6",
+   "seconds": 6,
+   "lookAt": [
+    121.0,
+    150.0,
+    0.0
+   ],
+   "distance": 90,
+   "yaw": 90,
+   "pitch": -40,
+   "why": "the assault reaches the house"
+  }
+ ]
+}

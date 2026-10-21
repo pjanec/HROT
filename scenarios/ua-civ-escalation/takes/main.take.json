@@ -1,0 +1,53 @@
+{
+ "title": "The escalation ladder",
+ "caption": "Police warn first, use non-lethal force on the rioters, and lethal rounds only at the gunman",
+ "clip": "F-13",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "warn": {
+   "on": "gesture",
+   "who": "Police rifleman",
+   "is": "Warning"
+  },
+  "lethal": {
+   "on": "shot",
+   "by": "Police rifleman",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "warn-1",
+   "seconds": 4,
+   "over": "Police rifleman",
+   "toward": "Gunman",
+   "back": 4,
+   "height": 2,
+   "fov": 30,
+   "why": "the warning"
+  },
+  {
+   "at": "lethal-1",
+   "seconds": 3,
+   "follow": "Gunman",
+   "distance": 8,
+   "yaw": 200,
+   "pitch": -8,
+   "why": "the gunman raises his rifle — and is shot"
+  },
+  {
+   "at": "lethal+1",
+   "seconds": 4,
+   "lookAt": [
+    108.0,
+    200.0,
+    0.0
+   ],
+   "distance": 35,
+   "yaw": 0,
+   "pitch": -40,
+   "why": "high: the rioters stunned, not shot"
+  }
+ ]
+}

@@ -1,0 +1,49 @@
+{
+ "title": "Flank a lost target",
+ "caption": "When the target ducks out of sight, the soldier moves to a new firing position",
+ "clip": "F-19",
+ "chapter": 5,
+ "state": "ready",
+ "anchors": {
+  "fire": {
+   "on": "shot",
+   "by": "Rifleman",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": 1,
+   "seconds": 3,
+   "lookAt": [
+    320.0,
+    120.0,
+    1.0
+   ],
+   "distance": 80,
+   "yaw": 90,
+   "pitch": -40,
+   "why": "high: the wall between them"
+  },
+  {
+   "at": 4,
+   "seconds": 5,
+   "follow": "Rifleman",
+   "distance": 10,
+   "yaw": 60,
+   "pitch": -12,
+   "why": "with him as he moves round"
+  },
+  {
+   "at": "fire-1",
+   "seconds": 3,
+   "over": "Rifleman",
+   "toward": "Hidden Hostile",
+   "back": 3,
+   "height": 1.7,
+   "ahead": 0.8,
+   "fov": 30,
+   "why": "sight regained, fire"
+  }
+ ]
+}

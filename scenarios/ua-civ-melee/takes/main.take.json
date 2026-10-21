@@ -1,0 +1,39 @@
+{
+ "title": "A blow",
+ "caption": "A protester strikes a policeman down — and that act makes him hostile",
+ "clip": "F-17",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "blow": {
+   "on": "side",
+   "who": "Rioter",
+   "is": "Hostile"
+  }
+ },
+ "shots": [
+  {
+   "at": "blow-3",
+   "seconds": 3,
+   "lookAt": [
+    103.0,
+    200.0,
+    1.5
+   ],
+   "distance": 10,
+   "yaw": 90,
+   "pitch": -5,
+   "why": "side on, close"
+  },
+  {
+   "at": "blow-0.5",
+   "seconds": 2,
+   "follow": "Policeman",
+   "distance": 4,
+   "yaw": 0,
+   "pitch": -10,
+   "speed": 0.5,
+   "why": "the blow, slow"
+  }
+ ]
+}

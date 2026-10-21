@@ -1,0 +1,62 @@
+{
+ "title": "Door-gun orbit",
+ "caption": "A helicopter circles its target firing from the door; when that gunner is hit it turns to fight from the other door",
+ "clip": "F-50",
+ "chapter": 10,
+ "state": "ready",
+ "anchors": {
+  "orbit": {
+   "on": "near",
+   "who": "Door Gunship UH-60",
+   "point": [
+    -350,
+    300
+   ],
+   "within": 150
+  },
+  "gunner": {
+   "on": "health",
+   "who": "*Door Gunner",
+   "below": 0.3
+  }
+ },
+ "shots": [
+  {
+   "at": "orbit",
+   "seconds": 5,
+   "lookAt": [
+    -350.0,
+    300.0,
+    0.0
+   ],
+   "distance": 400,
+   "yaw": 90,
+   "pitch": -25,
+   "fov": 30,
+   "why": "wide: the circle round the truck"
+  },
+  {
+   "at": "orbit+8",
+   "seconds": 4,
+   "follow": "Door Gunship UH-60",
+   "distance": 30,
+   "yaw": 0,
+   "pitch": -10,
+   "why": "alongside the door"
+  },
+  {
+   "at": "gunner+2",
+   "seconds": 5,
+   "lookAt": [
+    -350.0,
+    300.0,
+    0.0
+   ],
+   "distance": 400,
+   "yaw": 90,
+   "pitch": -25,
+   "fov": 30,
+   "why": "the orbit reverses"
+  }
+ ]
+}

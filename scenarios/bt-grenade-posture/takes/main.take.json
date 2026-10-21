@@ -1,0 +1,52 @@
+{
+ "title": "Prone saves your life",
+ "caption": "A grenade lands between a standing and a prone man; the fragments find only the standing one",
+ "clip": "F-36",
+ "chapter": 8,
+ "state": "ready",
+ "anchors": {
+  "blast": {
+   "on": "blast",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "blast-5",
+   "seconds": 3,
+   "follow": "Thrower",
+   "distance": 8,
+   "yaw": 90,
+   "pitch": -10,
+   "why": "the throw"
+  },
+  {
+   "at": "blast-1",
+   "seconds": 3,
+   "lookAt": [
+    110.0,
+    43.0,
+    0.5
+   ],
+   "distance": 9,
+   "yaw": 90,
+   "pitch": -6,
+   "why": "low, side on: the burst between them"
+  },
+  {
+   "at": "blast-0.3",
+   "seconds": 2,
+   "lookAt": [
+    110.0,
+    43.0,
+    0.5
+   ],
+   "distance": 7,
+   "yaw": 270,
+   "pitch": -4,
+   "speed": 0.25,
+   "replay": true,
+   "why": "replay, very slow"
+  }
+ ]
+}

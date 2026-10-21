@@ -1,0 +1,45 @@
+{
+ "title": "Surrender, then a feint",
+ "caption": "Hands up and weapon down hold fire; when he picks the rifle up again he is engaged",
+ "clip": "F-15",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "fire": {
+   "on": "shot",
+   "by": "Rifleman",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": 3,
+   "seconds": 4,
+   "over": "Rifleman",
+   "toward": "Enemy Soldier",
+   "back": 4,
+   "height": 2,
+   "ahead": 0.7,
+   "fov": 30,
+   "why": "the covering rifleman's view"
+  },
+  {
+   "at": 12,
+   "seconds": 4,
+   "follow": "Enemy Soldier",
+   "distance": 6,
+   "yaw": 135,
+   "pitch": -8,
+   "why": "close: hands up, rifle at his feet"
+  },
+  {
+   "at": "fire-2",
+   "seconds": 4,
+   "follow": "Enemy Soldier",
+   "distance": 9,
+   "yaw": 135,
+   "pitch": -8,
+   "why": "he reaches for it — and is shot"
+  }
+ ]
+}

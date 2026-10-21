@@ -1,0 +1,78 @@
+{
+ "title": "Suicide bomber",
+ "caption": "The vest stays hidden until he sets it off; the casualties fall with the distance from the blast",
+ "clip": "F-16",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "blast": {
+   "on": "blast",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": 2,
+   "seconds": 4,
+   "lookAt": [
+    205.0,
+    200.0,
+    1.0
+   ],
+   "distance": 60,
+   "yaw": 90,
+   "pitch": -12,
+   "why": "establish: a crowd, a rifleman, a man walking in"
+  },
+  {
+   "at": "blast-6",
+   "seconds": 4,
+   "follow": "Bomber",
+   "distance": 6,
+   "yaw": 0,
+   "pitch": -5,
+   "why": "close behind him: an ordinary man"
+  },
+  {
+   "at": "blast-0.5",
+   "seconds": 3,
+   "lookAt": [
+    200.0,
+    200.0,
+    1.0
+   ],
+   "distance": 50,
+   "yaw": 0,
+   "pitch": -25,
+   "why": "the blast, wide"
+  },
+  {
+   "at": "blast-0.3",
+   "seconds": 2,
+   "lookAt": [
+    200.0,
+    200.0,
+    1.0
+   ],
+   "distance": 25,
+   "yaw": 270,
+   "pitch": -10,
+   "speed": 0.5,
+   "replay": true,
+   "why": "replay, the reverse angle, slow"
+  },
+  {
+   "at": "blast+3",
+   "seconds": 4,
+   "lookAt": [
+    200.0,
+    200.0,
+    0.0
+   ],
+   "distance": 35,
+   "yaw": 0,
+   "pitch": -60,
+   "why": "overhead: who fell, by distance"
+  }
+ ]
+}

@@ -1,0 +1,85 @@
+{
+ "title": "Protest, provocation, riot",
+ "caption": "Police facing a crowd make it angry; after a baton charge some — never the friendly ones — riot",
+ "clip": "F-07",
+ "chapter": 3,
+ "state": "ready",
+ "anchors": {
+  "arrive": {
+   "on": "near",
+   "who": "Police shield",
+   "point": [
+    194,
+    259
+   ],
+   "within": 4
+  },
+  "charge": {
+   "on": "task",
+   "who": "Police baton 1",
+   "is": "BatonCharge"
+  },
+  "riot": {
+   "on": "side",
+   "who": "*Protester",
+   "is": "Hostile"
+  }
+ },
+ "shots": [
+  {
+   "at": 3,
+   "seconds": 4,
+   "lookAt": [
+    200.0,
+    265.0,
+    1.5
+   ],
+   "distance": 22,
+   "yaw": 0,
+   "pitch": -6,
+   "why": "eye level in the crowd: placards and fists"
+  },
+  {
+   "at": "arrive-6",
+   "seconds": 4,
+   "over": "Police shield",
+   "toward": "Protester 6",
+   "back": 7,
+   "height": 2.2,
+   "why": "the police walk up: their view"
+  },
+  {
+   "at": "charge-0.5",
+   "seconds": 4,
+   "follow": "Police baton 1",
+   "distance": 10,
+   "yaw": 0,
+   "pitch": -12,
+   "why": "the charge"
+  },
+  {
+   "at": "charge-0.5",
+   "seconds": 3,
+   "follow": "Police baton 1",
+   "distance": 7,
+   "yaw": 180,
+   "pitch": -8,
+   "speed": 0.5,
+   "replay": true,
+   "why": "replay from the crowd's side, slow"
+  },
+  {
+   "at": "riot-1",
+   "seconds": 5,
+   "lookAt": [
+    190.0,
+    265.0,
+    1.0
+   ],
+   "distance": 60,
+   "yaw": 0,
+   "pitch": -35,
+   "why": "wide: a few break out, most stand"
+  }
+ ]
+}

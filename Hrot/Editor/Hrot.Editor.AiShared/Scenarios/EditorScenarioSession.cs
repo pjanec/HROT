@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
@@ -178,7 +179,29 @@ public sealed class EditorScenarioSession : IScenarioSession
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         PublishScenarioSave(scenarioName);
+        CopyTakes(_loadedScenarioName, scenarioName);
         _loadedScenarioName = scenarioName;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4038 B1 (docs/DESIGN_Film_Director.md §4a, D-2) — a scenario's film takes live BESIDE it (<c>takes/*.take.json</c>), so "Save As"
+    /// and "new from" (which loads the seed, then saves it as) carry them to the copy. ⛔ Never over a scenario that has takes of its own.
+    /// (The same rule as <c>TakeStore.CopyTakes</c>, which this assembly cannot reach.)
+    /// </summary>
+    private void CopyTakes(string? from, string to)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.Equals(from, to, StringComparison.Ordinal)) return;
+        try
+        {
+            var src = Path.Combine(_scenariosRoot(), from, "takes");
+            var dst = Path.Combine(_scenariosRoot(), to, "takes");
+            if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return;
+            Directory.CreateDirectory(dst);
+            foreach (var file in Directory.EnumerateFiles(src, "*.take.json"))
+                File.Copy(file, Path.Combine(dst, Path.GetFileName(file)), overwrite: false);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     /// <summary>

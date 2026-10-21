@@ -1,0 +1,53 @@
+{
+ "title": "Celebratory fire",
+ "caption": "A wedding guest fires into the air and is only warned; when he aims at the patrol, he is shot",
+ "clip": "F-14",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "volley": {
+   "on": "shot",
+   "by": "Celebrant",
+   "n": 1
+  },
+  "fire": {
+   "on": "shot",
+   "by": "Police patrol",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "volley-1",
+   "seconds": 4,
+   "lookAt": [
+    126.0,
+    212.0,
+    1.5
+   ],
+   "distance": 18,
+   "yaw": 0,
+   "pitch": -5,
+   "why": "the party, the rifle up"
+  },
+  {
+   "at": "volley+2",
+   "seconds": 3,
+   "over": "Police patrol",
+   "toward": "Celebrant",
+   "back": 4,
+   "height": 2,
+   "fov": 30,
+   "why": "the patrol watches and warns"
+  },
+  {
+   "at": "fire-1",
+   "seconds": 3,
+   "follow": "Celebrant",
+   "distance": 7,
+   "yaw": 180,
+   "pitch": -6,
+   "why": "he turns the rifle on them — shot"
+  }
+ ]
+}

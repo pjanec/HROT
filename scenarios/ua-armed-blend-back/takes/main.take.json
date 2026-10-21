@@ -1,0 +1,66 @@
+{
+ "title": "Only the witness remembers",
+ "caption": "A man aims, hides his rifle and walks off: the patrol that saw it engages him, the one that did not, never does",
+ "clip": "F-10",
+ "chapter": 4,
+ "state": "ready",
+ "anchors": {
+  "aim": {
+   "on": "side",
+   "who": "Insurgent",
+   "is": "Hostile"
+  },
+  "fire": {
+   "on": "shot",
+   "by": "Patrol A",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "aim-1",
+   "seconds": 3,
+   "follow": "Insurgent",
+   "distance": 7,
+   "yaw": 180,
+   "pitch": -6,
+   "why": "the act, close"
+  },
+  {
+   "at": "aim+4",
+   "seconds": 4,
+   "lookAt": [
+    170.0,
+    200.0,
+    1.0
+   ],
+   "distance": 120,
+   "yaw": 90,
+   "pitch": -20,
+   "fov": 35,
+   "why": "wide: A at one end, B walking in at the other"
+  },
+  {
+   "at": "fire-1",
+   "seconds": 3,
+   "over": "Patrol A",
+   "toward": "Insurgent",
+   "back": 3,
+   "height": 1.7,
+   "ahead": 0.9,
+   "fov": 25,
+   "why": "A fires"
+  },
+  {
+   "at": "fire+1",
+   "seconds": 3,
+   "over": "Patrol B",
+   "toward": "Insurgent",
+   "back": 3,
+   "height": 1.7,
+   "ahead": 0.9,
+   "fov": 25,
+   "why": "B sees an unarmed walker — and holds"
+  }
+ ]
+}

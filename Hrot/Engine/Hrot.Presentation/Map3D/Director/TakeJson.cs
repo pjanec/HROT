@@ -1,0 +1,325 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Numerics;
+using System.Text.Json.Nodes;
+
+namespace Hrot.UI.Common.Map3D.Director;
+
+/// <summary>
+/// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §4, §4a) — reads and writes takes and reels. The shot keys are <c>clips.json</c>'s (film.py's
+/// plan keys, snake or camel case) plus <c>to</c>, <c>ease</c>, <c>speed</c>, <c>replay</c>, <c>caption</c>, <c>layers</c>, <c>sound</c>.
+/// ⭐ Lenient where a key is spelt two ways, ⛔ strict about a key it does not know: every one is listed in <c>problems</c>, never dropped.
+/// </summary>
+public static class TakeJson
+{
+    private static readonly HashSet<string> ShotKeys = new(StringComparer.Ordinal)
+    {
+        "at", "seconds", "follow", "over", "toward", "look_at", "lookAt", "eye", "target", "distance", "yaw", "pitch", "orbit", "lift",
+        "back", "height", "ahead", "fov", "to", "ease", "speed", "replay", "caption", "layers", "sound", "why",
+    };
+
+    private static readonly HashSet<string> ToKeys = new(StringComparer.Ordinal) { "distance", "yaw", "pitch", "lift", "back", "height", "ahead", "fov" };
+
+    private static readonly HashSet<string> TakeKeys = new(StringComparer.Ordinal)
+        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "layers", "sound" };
+
+    /// <summary>Kept, not read: what <c>clips.json</c> carries per clip, and a file's own note.</summary>
+    private static readonly HashSet<string> ExtraKeys = new(StringComparer.Ordinal)
+        { "id", "clip", "chapter", "state", "needs", "take", "scenario", "$doc", "note" };
+
+    // ── takes ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A take from its JSON; every problem (an unknown key, a bad value, a camera naming none or two kinds) goes in <paramref name="problems"/>.</summary>
+    public static Take ParseTake(JsonObject json, string scenario, string name, List<string> problems)
+    {
+        var anchors = new Dictionary<string, AnchorSpec>(StringComparer.Ordinal);
+        if (json["anchors"] is JsonObject a)
+            foreach (var (key, node) in a)
+                if (node is JsonObject o) anchors[key] = ParseAnchor(o, key, problems);
+                else problems.Add($"anchor '{key}' is not an object");
+
+        var shots = new List<ShotSpec>();
+        if (json["shots"] is JsonArray arr)
+            for (int i = 0; i < arr.Count; i++)
+                if (arr[i] is JsonObject s) shots.Add(ParseShot(s, i + 1, problems));
+                else problems.Add($"shot {i + 1} is not an object");
+
+        JsonObject? extra = null;
+        foreach (var (key, node) in json)
+        {
+            if (TakeKeys.Contains(key)) continue;
+            if (ExtraKeys.Contains(key)) (extra ??= new JsonObject())[key] = node?.DeepClone();
+            else problems.Add($"unknown take key '{key}'");
+        }
+
+        int tickHz = Int(json["tickHz"]) ?? 60;
+        if (tickHz is not (60 or 30 or 20 or 15)) problems.Add($"tickHz {tickHz}: 60, 30, 20 or 15");
+
+        return new Take
+        {
+            Scenario = scenario, Name = name,
+            Title = Str(json["title"]), Caption = Str(json["caption"]),
+            TickHz = tickHz,
+            EndAt = TryAt(json["endAt"], "endAt", problems),
+            Anchors = anchors,
+            Baked = json["baked"] is JsonObject b ? ParseBaked(b) : null,
+            Shots = shots,
+            Layers = json["layers"] is JsonObject l ? ParseLayers(l, "the take", problems) : null,
+            Sound = Bool(json["sound"]),
+            Extra = extra,
+        };
+    }
+
+    public static ShotSpec ParseShot(JsonObject s, int number, List<string> problems)
+    {
+        foreach (var (key, _) in s)
+            if (!ShotKeys.Contains(key)) problems.Add($"shot {number}: unknown key '{key}'");
+        var camera = new CameraSpec
+        {
+            Follow = Name(s["follow"]), Over = Name(s["over"]), Toward = Name(s["toward"]),
+            LookAt = Vec(s["lookAt"] ?? s["look_at"], $"shot {number} lookAt", problems),
+            Eye = Vec(s["eye"], $"shot {number} eye", problems), Target = Vec(s["target"], $"shot {number} target", problems),
+            Distance = Float(s["distance"]) ?? 30f, Yaw = Float(s["yaw"]) ?? 0f, Pitch = Float(s["pitch"]) ?? -20f,
+            Orbit = Float(s["orbit"]) ?? 0f, Lift = Float(s["lift"]) ?? 1.5f, Back = Float(s["back"]) ?? 20f,
+            Height = Float(s["height"]) ?? 6f, Ahead = Float(s["ahead"]) ?? 0.35f, Fov = Float(s["fov"]),
+        };
+        if (camera.Kinds != 1) problems.Add($"shot {number}: needs exactly one of follow · over (+ toward) · lookAt · eye + target ({camera.Kinds} given)");
+        if (camera.Over != null && camera.Toward == null) problems.Add($"shot {number}: over needs toward");
+        if ((camera.Eye == null) != (camera.Target == null)) problems.Add($"shot {number}: eye needs target");
+
+        Dictionary<string, float>? to = null;
+        if (s["to"] is JsonObject t)
+            foreach (var (key, node) in t)
+                if (!ToKeys.Contains(key)) problems.Add($"shot {number}: 'to' cannot move '{key}' (only {string.Join(", ", ToKeys)})");
+                else if (Float(node) is { } f) (to ??= new Dictionary<string, float>(StringComparer.Ordinal))[key] = f;
+
+        var ease = Ease.InOut;
+        if (Str(s["ease"]) is { } e && !Enum.TryParse(e, ignoreCase: true, out ease)) problems.Add($"shot {number}: ease '{e}' (linear, in, out, inOut)");
+
+        double seconds = Float(s["seconds"]) ?? 3f;
+        if (!(seconds > 0)) problems.Add($"shot {number}: seconds must be positive");
+        double speed = Float(s["speed"]) ?? 1f;
+        if (!(speed > 0)) problems.Add($"shot {number}: speed must be positive");
+
+        return new ShotSpec
+        {
+            At = TryAt(s["at"], $"shot {number} at", problems) ?? new AtExpr(0),
+            Seconds = seconds, Camera = camera, To = to, Ease = ease, Speed = speed,
+            Replay = s["replay"] is JsonNode r && r.ToString() != "false" ? r.DeepClone() : null,
+            Caption = Str(s["caption"]),
+            Layers = s["layers"] is JsonObject l ? ParseLayers(l, $"shot {number}", problems) : null,
+            Sound = Bool(s["sound"]),
+            Why = Str(s["why"]),
+        };
+    }
+
+    public static AnchorSpec ParseAnchor(JsonObject o, string key, List<string> problems)
+    {
+        var on = Str(o["on"]) ?? "";
+        if (!AnchorSpec.Kinds.Contains(on)) problems.Add($"anchor '{key}': cue '{on}' is not one of {string.Join(", ", AnchorSpec.Kinds)}");
+        foreach (var (k, _) in o)
+            if (k is not ("on" or "who" or "by" or "target" or "is" or "n" or "point" or "within" or "below"))
+                problems.Add($"anchor '{key}': unknown key '{k}'");
+        var p = Vec(o["point"], $"anchor '{key}' point", problems);
+        return new AnchorSpec
+        {
+            On = on, Who = Name(o["who"]), By = Name(o["by"]), Target = Name(o["target"]), Is = o["is"]?.DeepClone(),
+            N = Int(o["n"]) ?? 1, Point = p is { } v ? new Vector2(v.X, v.Y) : null,
+            Within = Float(o["within"]) ?? 3f, Below = Float(o["below"]) ?? 0f,
+        };
+    }
+
+    public static BakedAnchors ParseBaked(JsonObject b)
+    {
+        var times = new Dictionary<string, double>(StringComparer.Ordinal);
+        if (b["times"] is JsonObject t)
+            foreach (var (k, v) in t)
+                if (Float(v) is { } f) times[k] = Double(v) ?? f;
+        return new BakedAnchors
+        {
+            Times = times, TickHz = Int(b["tickHz"]) ?? 60,
+            ScenarioHash = Str(b["scenarioHash"]) ?? "", BuildSha = Str(b["buildSha"]) ?? "",
+            Missing = b["missing"] is JsonArray m ? m.Select(x => x?.ToString() ?? "").ToList() : Array.Empty<string>(),
+        };
+    }
+
+    public static LayerChange ParseLayers(JsonObject l, string where, List<string> problems)
+    {
+        foreach (var (k, _) in l)
+            if (k is not ("on" or "off")) problems.Add($"{where}: layers key '{k}' (on, off)");
+        static List<string> Names(JsonNode? n) => n is JsonArray a ? a.Select(x => x?.ToString() ?? "").Where(x => x.Length > 0).ToList() : new();
+        return new LayerChange(Names(l["on"]), Names(l["off"]));
+    }
+
+    /// <summary>The take as written to its file (camel case; a camera key only when it differs from the default).</summary>
+    public static JsonObject WriteTake(Take take)
+    {
+        var o = new JsonObject();
+        if (take.Title != null) o["title"] = take.Title;
+        if (take.Caption != null) o["caption"] = take.Caption;
+        if (take.TickHz != 60) o["tickHz"] = take.TickHz;
+        if (take.EndAt is { } end) o["endAt"] = end.ToJson();
+        if (take.Layers != null) o["layers"] = WriteLayers(take.Layers);
+        if (take.Sound is { } sound) o["sound"] = sound;
+        var anchors = new JsonObject();
+        foreach (var (k, a) in take.Anchors) anchors[k] = WriteAnchor(a);
+        o["anchors"] = anchors;
+        if (take.Baked != null) o["baked"] = WriteBaked(take.Baked);
+        var shots = new JsonArray();
+        foreach (var s in take.Shots) shots.Add(WriteShot(s));
+        o["shots"] = shots;
+        if (take.Extra != null)
+            foreach (var (k, v) in take.Extra) o[k] = v?.DeepClone();
+        return o;
+    }
+
+    public static JsonObject WriteShot(ShotSpec s)
+    {
+        var d = new CameraSpec();
+        var c = s.Camera;
+        var o = new JsonObject { ["at"] = s.At.ToJson(), ["seconds"] = s.Seconds };
+        if (c.Follow != null) o["follow"] = c.Follow;
+        if (c.Over != null) o["over"] = c.Over;
+        if (c.Toward != null) o["toward"] = c.Toward;
+        if (c.LookAt is { } la) o["lookAt"] = V(la);
+        if (c.Eye is { } eye) o["eye"] = V(eye);
+        if (c.Target is { } tg) o["target"] = V(tg);
+        void F(string key, float value, float fallback) { if (value != fallback) o[key] = value; }
+        F("distance", c.Distance, d.Distance); F("yaw", c.Yaw, d.Yaw); F("pitch", c.Pitch, d.Pitch); F("orbit", c.Orbit, d.Orbit);
+        F("lift", c.Lift, d.Lift); F("back", c.Back, d.Back); F("height", c.Height, d.Height); F("ahead", c.Ahead, d.Ahead);
+        if (c.Fov is { } fov) o["fov"] = fov;
+        if (s.To is { Count: > 0 } to)
+        {
+            var t = new JsonObject();
+            foreach (var (k, v) in to) t[k] = v;
+            o["to"] = t;
+        }
+        if (s.Ease != Ease.InOut) o["ease"] = s.Ease == Ease.Linear ? "linear" : s.Ease == Ease.In ? "in" : "out";
+        if (s.Speed != 1d) o["speed"] = s.Speed;
+        if (s.Replay != null) o["replay"] = s.Replay.DeepClone();
+        if (s.Caption != null) o["caption"] = s.Caption;
+        if (s.Layers != null) o["layers"] = WriteLayers(s.Layers);
+        if (s.Sound is { } sound) o["sound"] = sound;
+        if (s.Why != null) o["why"] = s.Why;
+        return o;
+    }
+
+    public static JsonObject WriteAnchor(AnchorSpec a)
+    {
+        var o = new JsonObject { ["on"] = a.On };
+        if (a.Who != null) o["who"] = a.Who;
+        if (a.By != null) o["by"] = a.By;
+        if (a.Target != null) o["target"] = a.Target;
+        if (a.Is != null) o["is"] = a.Is.DeepClone();
+        if (a.N != 1 || a.On is "shot" or "blast") o["n"] = a.N;
+        if (a.Point is { } p) o["point"] = new JsonArray(p.X, p.Y);
+        if (a.On == "near") o["within"] = a.Within;
+        if (a.On == "health") o["below"] = a.Below;
+        return o;
+    }
+
+    public static JsonObject WriteBaked(BakedAnchors b)
+    {
+        var times = new JsonObject();
+        foreach (var (k, v) in b.Times.OrderBy(kv => kv.Value)) times[k] = Math.Round(v, 4);
+        var o = new JsonObject { ["times"] = times, ["tickHz"] = b.TickHz, ["scenarioHash"] = b.ScenarioHash, ["buildSha"] = b.BuildSha };
+        if (b.Missing.Count > 0) o["missing"] = new JsonArray(b.Missing.Select(m => (JsonNode?)m).ToArray());
+        return o;
+    }
+
+    public static JsonObject WriteLayers(LayerChange l) => new()
+    {
+        ["on"] = new JsonArray(l.On.Select(x => (JsonNode?)x).ToArray()),
+        ["off"] = new JsonArray(l.Off.Select(x => (JsonNode?)x).ToArray()),
+    };
+
+    // ── reels ─────────────────────────────────────────────────────────────────────────────────
+
+    public static Reel ParseReel(JsonObject json, string name, List<string> problems)
+    {
+        foreach (var (k, _) in json)
+            if (k is not ("title" or "transition" or "items" or "loop" or "gapSeconds" or "note" or "$doc"))
+                problems.Add($"unknown reel key '{k}'");
+        var items = new List<ReelItem>();
+        if (json["items"] is JsonArray arr)
+            for (int i = 0; i < arr.Count; i++)
+            {
+                if (arr[i] is not JsonObject it) { problems.Add($"item {i + 1} is not an object"); continue; }
+                foreach (var (k, _) in it)
+                    if (k is not ("scenario" or "take" or "title" or "chapterCard" or "clip" or "from" or "to" or "note"))
+                        problems.Add($"item {i + 1}: unknown key '{k}'");
+                var scenario = Str(it["scenario"]);
+                if (string.IsNullOrWhiteSpace(scenario)) { problems.Add($"item {i + 1}: no scenario"); continue; }
+                items.Add(new ReelItem
+                {
+                    Scenario = scenario!, Take = Str(it["take"]) ?? "main", Title = Str(it["title"]),
+                    ChapterCard = Str(it["chapterCard"]), Clip = Str(it["clip"]),
+                    From = TryAt(it["from"], $"item {i + 1} from", problems), To = TryAt(it["to"], $"item {i + 1} to", problems),
+                });
+            }
+        else problems.Add("a reel needs items");
+        return new Reel
+        {
+            Name = name, Title = Str(json["title"]), Transition = Str(json["transition"]) ?? "fade", Items = items,
+            Loop = Bool(json["loop"]) ?? false, GapSeconds = Float(json["gapSeconds"]) ?? 1.5f,
+        };
+    }
+
+    public static JsonObject WriteReel(Reel reel)
+    {
+        var items = new JsonArray();
+        foreach (var it in reel.Items)
+        {
+            var o = new JsonObject { ["scenario"] = it.Scenario, ["take"] = it.Take };
+            if (it.Title != null) o["title"] = it.Title;
+            if (it.Clip != null) o["clip"] = it.Clip;
+            if (it.ChapterCard != null) o["chapterCard"] = it.ChapterCard;
+            if (it.From is { } f) o["from"] = f.ToJson();
+            if (it.To is { } t) o["to"] = t.ToJson();
+            items.Add(o);
+        }
+        var r = new JsonObject();
+        if (reel.Title != null) r["title"] = reel.Title;
+        r["transition"] = reel.Transition;
+        if (reel.Loop) r["loop"] = true;
+        r["items"] = items;
+        return r;
+    }
+
+    // ── values ────────────────────────────────────────────────────────────────────────────────
+
+    private static AtExpr? TryAt(JsonNode? n, string where, List<string> problems)
+    {
+        if (n is null) return null;
+        try { return AtExpr.Parse(n); }
+        catch (FormatException ex) { problems.Add($"{where}: {ex.Message}"); return null; }
+    }
+
+    internal static string? Str(JsonNode? n) => n is JsonValue v ? v.ToString() : null;
+
+    /// <summary>A unit: a name, or a network id written as a number.</summary>
+    private static string? Name(JsonNode? n) => n is JsonValue v ? v.ToString() : null;
+
+    public static double? Double(JsonNode? n) =>
+        n is JsonValue v && (v.TryGetValue<double>(out var d) || double.TryParse(v.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) ? d : null;
+
+    internal static float? Float(JsonNode? n) => Double(n) is { } d ? (float)d : null;
+
+    private static int? Int(JsonNode? n) => Double(n) is { } d ? (int)Math.Round(d) : null;
+
+    private static bool? Bool(JsonNode? n) => n is JsonValue v && v.TryGetValue<bool>(out var b) ? b : null;
+
+    /// <summary><c>[x, y, z]</c>, <c>[x, y]</c> (z = 0) or <c>"x,y,z"</c>.</summary>
+    internal static Vector3? Vec(JsonNode? n, string where, List<string> problems)
+    {
+        if (n is null) return null;
+        var parts = n is JsonArray a ? a.Select(x => Double(x)).ToList()
+                  : n.ToString().Split(',').Select(t => double.TryParse(t.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : (double?)null).ToList();
+        if (parts.Count is not (2 or 3) || parts.Any(p => p is null)) { problems.Add($"{where}: '{n.ToJsonString()}' is not [x, y, z]"); return null; }
+        return new Vector3((float)parts[0]!, (float)parts[1]!, parts.Count == 3 ? (float)parts[2]! : 0f);
+    }
+
+    private static JsonArray V(Vector3 v) => new(v.X, v.Y, v.Z);
+}

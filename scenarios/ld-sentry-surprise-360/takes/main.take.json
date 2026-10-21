@@ -1,0 +1,47 @@
+{
+ "title": "The sentry turns",
+ "caption": "A sentry notices a man creeping up behind him and turns to face him",
+ "clip": "F-22",
+ "chapter": 5,
+ "state": "ready",
+ "anchors": {
+  "near": {
+   "on": "near",
+   "who": "Hostile B",
+   "point": [
+    185,
+    40
+   ],
+   "within": 5
+  }
+ },
+ "shots": [
+  {
+   "at": 2,
+   "seconds": 3,
+   "follow": "Sentry",
+   "distance": 8,
+   "yaw": 90,
+   "pitch": -8,
+   "why": "the sentry watching his front"
+  },
+  {
+   "at": "near-6",
+   "seconds": 4,
+   "follow": "Hostile B",
+   "distance": 10,
+   "yaw": 90,
+   "pitch": -15,
+   "why": "behind him, someone creeping in"
+  },
+  {
+   "at": "near-1",
+   "seconds": 4,
+   "follow": "Sentry",
+   "distance": 7,
+   "yaw": 300,
+   "pitch": -6,
+   "why": "he turns"
+  }
+ ]
+}

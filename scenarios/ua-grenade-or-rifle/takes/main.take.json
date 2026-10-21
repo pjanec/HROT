@@ -1,0 +1,56 @@
+{
+ "title": "Grenade over the sandbags",
+ "caption": "Against a man behind sandbags, the grenadier closes and lobs a grenade",
+ "clip": "F-21",
+ "chapter": 5,
+ "state": "ready",
+ "needs": "no live check exists — the scout pass is its first live look",
+ "anchors": {
+  "throw": {
+   "on": "shot",
+   "by": "Grenadier",
+   "n": 1
+  },
+  "blast": {
+   "on": "blast",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": 1,
+   "seconds": 3,
+   "lookAt": [
+    149.0,
+    30.0,
+    1.0
+   ],
+   "distance": 40,
+   "yaw": 90,
+   "pitch": -20,
+   "why": "establish"
+  },
+  {
+   "at": "throw-1.5",
+   "seconds": 3,
+   "follow": "Grenadier",
+   "distance": 7,
+   "yaw": 60,
+   "pitch": -10,
+   "why": "the throw"
+  },
+  {
+   "at": "blast-1",
+   "seconds": 3,
+   "lookAt": [
+    149.0,
+    42.0,
+    0.5
+   ],
+   "distance": 12,
+   "yaw": 90,
+   "pitch": -25,
+   "why": "the burst behind the bags"
+  }
+ ]
+}

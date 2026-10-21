@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
+updated: 2026-10-21 (§8.2 the 2-D ear, the film switch and sound track, CE-4038) · 2026-10-15
 build-state: BUILT (A0–A3, 2026-10-15) — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); A4 later
 current-answer: §1 the diagrams (as built), §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices, §8 AS BUILT and its deviations.
 stale-below: nothing — what the build changed is in §8 with the earlier wording quoted there.
@@ -252,4 +252,15 @@ Measured: the device opens (miniaudio | ALSA), every clip loads, the loop stream
 
 `AudioPreferences` keeps ONE settings object per file, so the menu toggle and the layer read the same value (rail
 `CE1137_WithNoUnitHeld_TheCameraListens_OnlyWhenTheOperatorAsks`).
+
+### 8.2 AS BUILT — sound outside FPS in both views, a film's switch, a film's track (`CE-4038` B11, R-4059, ui, `2026-10-21`)
+
+📄 The owner of WHY: [DESIGN_Film_Director.md §4c, §8](../../DESIGN_Film_Director.md). What changed HERE:
+
+| | as built |
+|---|---|
+| ⭐ the **2-D ear** (D-14) | `AudioLayer.Ear2D`: at the 2-D view's centre (`MapViewSwitch.CurrentPose`, the overhead pose that shows the same), as high as half the visible width, looking north (the map is north-up) — the same spatializer, so a wide view hears only the loud things. ⛔ SUPERSEDES §8.1's "3-D view only" for the camera's ear |
+| ⭐ the switch | `AudioDirector.CameraSound` = a film take's `sound` if it set one, else Settings ▸ Sound (`AudioPreferences.CameraSound`); `GET/POST /audio` reads and sets the menu's switch, master and mute. ⭐ **FPS always sounds** — the switch is the camera's (rail `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice`, red-proven) |
+| ⭐ the film's track | while `AudioDirector.Recorder` is set, the layer's output is a `RecordingAudioOutput` (over a `NullAudioOutput` when there is no device): every clip's samples and every started sound go into a `SoundTrack`, rendered offline to a WAV on the film's own timeline and muxed by ffmpeg |
+| ⛔ known gap | a clip loaded from an `.ogg` file is not decoded for the track (`WavReader` reads PCM WAV) — it plays live but is missing from a film |
 

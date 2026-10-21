@@ -1,0 +1,64 @@
+{
+ "title": "Air rescue",
+ "caption": "The medic carries the downed pilot aboard; the helicopter lifts off",
+ "clip": "F-54",
+ "chapter": 10,
+ "state": "ready",
+ "anchors": {
+  "pick": {
+   "on": "near",
+   "who": "Medic",
+   "point": [
+    190,
+    318
+   ],
+   "within": 2
+  },
+  "lift": {
+   "on": "near",
+   "who": "UH-60 (doors off)",
+   "point": [
+    190,
+    340
+   ],
+   "within": 8
+  }
+ },
+ "shots": [
+  {
+   "at": 22,
+   "seconds": 4,
+   "lookAt": [
+    190.0,
+    330.0,
+    1.0
+   ],
+   "distance": 50,
+   "yaw": 45,
+   "pitch": -15,
+   "why": "the landing near the pilot"
+  },
+  {
+   "at": "pick",
+   "seconds": 5,
+   "follow": "Medic",
+   "distance": 8,
+   "yaw": 90,
+   "pitch": -12,
+   "why": "carried back"
+  },
+  {
+   "at": 68,
+   "seconds": 4,
+   "lookAt": [
+    190.0,
+    340.0,
+    5.0
+   ],
+   "distance": 60,
+   "yaw": 45,
+   "pitch": -5,
+   "why": "lift-off"
+  }
+ ]
+}

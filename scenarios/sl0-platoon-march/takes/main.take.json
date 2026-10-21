@@ -1,0 +1,28 @@
+{
+ "title": "Platoon march",
+ "caption": "Two squads march in column while the third lies back",
+ "clip": "F-30",
+ "chapter": 7,
+ "state": "ready",
+ "anchors": {},
+ "shots": [
+  {
+   "at": 5,
+   "seconds": 6,
+   "follow": "Alpha 1",
+   "distance": 70,
+   "yaw": 90,
+   "pitch": -50,
+   "why": "high, moving with the columns"
+  },
+  {
+   "at": 60,
+   "seconds": 5,
+   "follow": "Bravo 2",
+   "distance": 15,
+   "yaw": 135,
+   "pitch": -12,
+   "why": "in the file"
+  }
+ ]
+}

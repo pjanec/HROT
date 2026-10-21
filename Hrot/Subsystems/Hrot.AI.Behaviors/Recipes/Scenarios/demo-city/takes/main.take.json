@@ -1,0 +1,56 @@
+{
+ "title": "City traffic turns to panic",
+ "caption": "SUMO drives the city's cars and people; a burst of fire turns the people nearby into frightened civilians",
+ "clip": "F-02",
+ "chapter": 2,
+ "state": "fix",
+ "needs": "a burst of fire in the recipe (a shooter with a short ShootAt task at ~20 s), or a plan action that fires one",
+ "anchors": {
+  "burst": {
+   "on": "shot",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": 8,
+   "seconds": 5,
+   "lookAt": [
+    400.0,
+    400.0,
+    0.0
+   ],
+   "distance": 220,
+   "yaw": 45,
+   "pitch": -35,
+   "orbit": 3,
+   "why": "establish: the living city from above"
+  },
+  {
+   "at": "burst-2",
+   "seconds": 4,
+   "lookAt": [
+    400.0,
+    400.0,
+    1.0
+   ],
+   "distance": 45,
+   "yaw": 45,
+   "pitch": -12,
+   "why": "street level, normal life, then the shots"
+  },
+  {
+   "at": "burst+2",
+   "seconds": 5,
+   "lookAt": [
+    400.0,
+    400.0,
+    1.0
+   ],
+   "distance": 70,
+   "yaw": 225,
+   "pitch": -25,
+   "why": "reverse angle: people running away from the shooter"
+  }
+ ]
+}

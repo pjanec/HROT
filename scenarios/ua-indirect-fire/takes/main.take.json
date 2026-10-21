@@ -1,0 +1,59 @@
+{
+ "title": "Adjust, then fire for effect",
+ "caption": "The observer walks the rounds onto the target from what he sees, then calls fire for effect",
+ "clip": "F-58",
+ "chapter": 11,
+ "state": "script",
+ "needs": "the check sends the orders; better: give Observer and Mortar Section their missions in the file so a launch plays by itself",
+ "anchors": {
+  "b1": {
+   "on": "blast",
+   "n": 1
+  },
+  "ffe": {
+   "on": "blast",
+   "n": 4
+  }
+ },
+ "shots": [
+  {
+   "at": "b1-3",
+   "seconds": 4,
+   "over": "Observer",
+   "toward": "Enemy 2",
+   "back": 3,
+   "height": 2,
+   "ahead": 0.95,
+   "fov": 8,
+   "why": "his binoculars"
+  },
+  {
+   "at": "b1-0.5",
+   "seconds": 3,
+   "lookAt": [
+    340.0,
+    300.0,
+    0.0
+   ],
+   "distance": 300,
+   "yaw": 270,
+   "pitch": -15,
+   "fov": 25,
+   "why": "the first round, well off"
+  },
+  {
+   "at": "ffe-1",
+   "seconds": 5,
+   "lookAt": [
+    340.0,
+    300.0,
+    0.0
+   ],
+   "distance": 300,
+   "yaw": 270,
+   "pitch": -15,
+   "fov": 25,
+   "why": "fire for effect on target"
+  }
+ ]
+}

@@ -1,0 +1,59 @@
+{
+ "title": "Fear spreads",
+ "caption": "Fear travels through a crowd, reaching people who never heard a shot",
+ "clip": "F-05",
+ "chapter": 3,
+ "state": "ready",
+ "anchors": {
+  "fire": {
+   "on": "shot",
+   "n": 1
+  },
+  "far": {
+   "on": "task",
+   "who": "Civilian 15",
+   "is": "Alarmed"
+  }
+ },
+ "shots": [
+  {
+   "at": "fire-2",
+   "seconds": 4,
+   "lookAt": [
+    100.0,
+    210.0,
+    1.0
+   ],
+   "distance": 150,
+   "yaw": 180,
+   "pitch": -12,
+   "fov": 20,
+   "why": "telephoto down the street from the far end: everyone stacked, the fight tiny at the back"
+  },
+  {
+   "at": "fire+2",
+   "seconds": 6,
+   "lookAt": [
+    100.0,
+    210.0,
+    1.0
+   ],
+   "distance": 110,
+   "yaw": 90,
+   "pitch": -40,
+   "to": {
+    "yaw": 60
+   },
+   "why": "high side view: the wave of movement running east"
+  },
+  {
+   "at": "far-1",
+   "seconds": 4,
+   "follow": "Civilian 15",
+   "distance": 8,
+   "yaw": 180,
+   "pitch": -6,
+   "why": "the last man, who heard nothing, turns and goes"
+  }
+ ]
+}

@@ -1,0 +1,59 @@
+{
+ "title": "Clear the house",
+ "caption": "A squad clears a house room by room, fire teams taking turns, sparing the civilians inside",
+ "clip": "F-33",
+ "chapter": 8,
+ "state": "ready",
+ "anchors": {
+  "entry": {
+   "on": "near",
+   "who": "Blue Leader",
+   "point": [
+    40,
+    104
+   ],
+   "within": 3
+  }
+ },
+ "shots": [
+  {
+   "at": "entry-5",
+   "seconds": 4,
+   "lookAt": [
+    45.0,
+    105.0,
+    2.0
+   ],
+   "distance": 35,
+   "yaw": 0,
+   "pitch": -15,
+   "why": "the stack at the door"
+  },
+  {
+   "at": "entry",
+   "seconds": 8,
+   "lookAt": [
+    47.0,
+    105.0,
+    0.0
+   ],
+   "distance": 30,
+   "yaw": 90,
+   "pitch": -75,
+   "why": "top-down through the roof: room by room"
+  },
+  {
+   "at": "entry+30",
+   "seconds": 6,
+   "lookAt": [
+    47.0,
+    105.0,
+    0.0
+   ],
+   "distance": 30,
+   "yaw": 90,
+   "pitch": -75,
+   "why": "the last rooms"
+  }
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "title": "Doors",
+ "caption": "A locked door is avoided, a closed one opened on the way; a locksmith unlocks the front",
+ "clip": "F-35",
+ "chapter": 8,
+ "state": "ready",
+ "anchors": {},
+ "shots": [
+  {
+   "at": 2,
+   "seconds": 4,
+   "follow": "Visitor",
+   "distance": 10,
+   "yaw": 90,
+   "pitch": -15,
+   "why": "he walks round the locked front"
+  },
+  {
+   "at": 20,
+   "seconds": 4,
+   "lookAt": [
+    107.0,
+    108.0,
+    1.5
+   ],
+   "distance": 10,
+   "yaw": 270,
+   "pitch": -8,
+   "why": "the back door opens"
+  },
+  {
+   "at": 40,
+   "seconds": 4,
+   "follow": "Locksmith",
+   "distance": 6,
+   "yaw": 90,
+   "pitch": -8,
+   "why": "the locksmith at the front"
+  }
+ ]
+}

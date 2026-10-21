@@ -1,0 +1,70 @@
+{
+ "title": "Into the weather",
+ "caption": "Weather regions blend into each other: clear sky, a fog bank, then overcast",
+ "clip": "F-01",
+ "chapter": 2,
+ "state": "fix",
+ "needs": "the IFV has no order: give 'IFV (drive east)' a move to (560,300) in the file",
+ "anchors": {
+  "fog": {
+   "on": "near",
+   "who": "IFV (drive east)",
+   "point": [
+    140,
+    300
+   ],
+   "within": 6
+  },
+  "cloud": {
+   "on": "near",
+   "who": "IFV (drive east)",
+   "point": [
+    330,
+    300
+   ],
+   "within": 6
+  }
+ },
+ "shots": [
+  {
+   "at": 1,
+   "seconds": 4,
+   "lookAt": [
+    300.0,
+    300.0,
+    5.0
+   ],
+   "distance": 320,
+   "yaw": 0,
+   "pitch": -8,
+   "fov": 30,
+   "to": {
+    "distance": 260
+   },
+   "why": "establish: the grey wall ahead, the vehicle small in the clear"
+  },
+  {
+   "at": "fog-3",
+   "seconds": 5,
+   "follow": "IFV (drive east)",
+   "distance": 18,
+   "yaw": 0,
+   "pitch": -6,
+   "lift": 2,
+   "why": "behind the hull as it drives into the fog"
+  },
+  {
+   "at": "cloud-1",
+   "seconds": 4,
+   "follow": "IFV (drive east)",
+   "distance": 40,
+   "yaw": 90,
+   "pitch": -4,
+   "lift": 3,
+   "to": {
+    "yaw": 60
+   },
+   "why": "side on: the light drops under the overcast"
+  }
+ ]
+}

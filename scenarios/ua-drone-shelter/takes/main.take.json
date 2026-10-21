@@ -1,0 +1,58 @@
+{
+ "title": "Hide from the drone",
+ "caption": "A tank hears an FPV drone and backs under a deck; the tank in the open is hit on the roof",
+ "clip": "F-48",
+ "chapter": 10,
+ "state": "ready",
+ "anchors": {
+  "hide": {
+   "on": "task",
+   "who": "Tank by the deck",
+   "is": "ShelterFromAir"
+  },
+  "hit": {
+   "on": "hit",
+   "target": "Tank in the open"
+  }
+ },
+ "shots": [
+  {
+   "at": 2,
+   "seconds": 3,
+   "follow": "Drone A",
+   "distance": 12,
+   "yaw": 270,
+   "pitch": -15,
+   "why": "the drone inbound"
+  },
+  {
+   "at": "hide-0.5",
+   "seconds": 5,
+   "follow": "Tank by the deck",
+   "distance": 25,
+   "yaw": 90,
+   "pitch": -15,
+   "why": "the tank backs under cover"
+  },
+  {
+   "at": "hit-3",
+   "seconds": 3.5,
+   "follow": "Drone B",
+   "distance": 10,
+   "yaw": 270,
+   "pitch": -20,
+   "why": "the dive"
+  },
+  {
+   "at": "hit-0.5",
+   "seconds": 2,
+   "follow": "Tank in the open",
+   "distance": 18,
+   "yaw": 90,
+   "pitch": -25,
+   "speed": 0.5,
+   "replay": true,
+   "why": "the roof hit, slow"
+  }
+ ]
+}

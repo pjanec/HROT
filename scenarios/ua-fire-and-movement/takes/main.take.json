@@ -1,0 +1,55 @@
+{
+ "title": "Fire and movement",
+ "caption": "One half of the squad fires while the other rushes to cover, then they swap",
+ "clip": "F-24",
+ "chapter": 6,
+ "state": "ready",
+ "anchors": {
+  "contact": {
+   "on": "shot",
+   "n": 1
+  }
+ },
+ "shots": [
+  {
+   "at": "contact-1",
+   "seconds": 4,
+   "lookAt": [
+    200.0,
+    225.0,
+    0.0
+   ],
+   "distance": 150,
+   "yaw": 90,
+   "pitch": -50,
+   "why": "high: the squad and the enemy, the gap between"
+  },
+  {
+   "at": "contact+10",
+   "seconds": 6,
+   "follow": "Leader",
+   "distance": 45,
+   "yaw": 45,
+   "pitch": -45,
+   "why": "three-quarter above the squad: halves alternate"
+  },
+  {
+   "at": "contact+30",
+   "seconds": 4,
+   "follow": "Rifleman 3",
+   "distance": 10,
+   "yaw": 90,
+   "pitch": -12,
+   "why": "one rusher, close"
+  },
+  {
+   "at": "contact+60",
+   "seconds": 4,
+   "follow": "Leader",
+   "distance": 45,
+   "yaw": 45,
+   "pitch": -45,
+   "why": "the gap has closed"
+  }
+ ]
+}

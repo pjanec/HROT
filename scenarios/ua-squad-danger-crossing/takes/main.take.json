@@ -1,0 +1,59 @@
+{
+ "title": "Crossing a road",
+ "caption": "Security first, a pair at a time, far side secured, security last",
+ "clip": "F-26",
+ "chapter": 6,
+ "state": "ready",
+ "anchors": {
+  "first": {
+   "on": "near",
+   "who": "Rifleman 1",
+   "point": [
+    200,
+    75
+   ],
+   "within": 3
+  }
+ },
+ "shots": [
+  {
+   "at": "first-8",
+   "seconds": 4,
+   "lookAt": [
+    195.0,
+    72.0,
+    0.0
+   ],
+   "distance": 70,
+   "yaw": 90,
+   "pitch": -55,
+   "why": "the road from above, the squad arriving"
+  },
+  {
+   "at": "first-1",
+   "seconds": 5,
+   "lookAt": [
+    200.0,
+    74.0,
+    0.0
+   ],
+   "distance": 30,
+   "yaw": 0,
+   "pitch": -25,
+   "why": "along the road: a pair dashes across"
+  },
+  {
+   "at": "first+20",
+   "seconds": 5,
+   "lookAt": [
+    195.0,
+    72.0,
+    0.0
+   ],
+   "distance": 70,
+   "yaw": 90,
+   "pitch": -55,
+   "why": "the last ones over"
+  }
+ ]
+}
