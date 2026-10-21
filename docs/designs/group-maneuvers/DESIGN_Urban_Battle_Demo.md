@@ -19,6 +19,7 @@ related-designs:
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the FPV drone (launch by an operator is "later", R-263)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS civilians, covert armed men, charges (AW-12 remote trigger)
   - docs/OVERVIEW_Rules_And_Demos.md — the index of every demo this one is assembled from
+  - docs/designs/group-maneuvers/DESIGN_Demo_City_Showcase.md — OWNS the showcase: seven acts on demo-city, of which this design's flagship is acts 2–4, started by a timetable between acts (coordinator, 2026-10-21)
 -->
 
 # The urban battle — one unscripted combined-arms fight in demo-city *(an idea, recorded)*
@@ -223,6 +224,24 @@ then held the HQ and every asset (⇒ `CE-2314`). **Recast** round the Street S 
 Street S east, hidden from the avenue). ✅ **PASS live 6/6** (2026-10-20, 1200 sim s): the IED at 28 s with the APC 9.7 m off; the Bradley
 pushes through and resumes; the immobilised APC's squad SPOTs the team round the corner, dismounts under an RPG and fights it (Blue 34 / Red
 24 rounds); 0 rounds at civilians; no REQUEST was made, so the HQ sent nothing — the story the fight chose this time.
+
+⚠ **User's viewing, `2026-10-21`** *(reported by the user to the coordinator, recorded here as the owning design; a report, not a fix
+request)*: *"I have never seen the IED explosive to explode, harming the front vehicle. If the car with the soldiers is hit, they go out
+and they just stand there around the vehicle. I could not see the mortar attacking. I could not see the aircraft attacking the mortars."*
+⭐ The check's ①–③ hold vacuously when their event never happens (the 6/6 run made no REQUEST, so nothing was sent); only ④ needs
+anything to happen. The showcase design ([DESIGN_Demo_City_Showcase.md](DESIGN_Demo_City_Showcase.md) §0, D-3) asserts each beat
+HAPPENED and was visible.
+
+### 6a. Measured — why the user saw none of it *(coordinator, `2026-10-21`, `CE-4032`; four live `--mode all` runs of `uc-urban-battle`, probes over the debug API — a report, not a fix)*
+
+| what the user saw | ⭐ measured cause | evidence |
+|---|---|---|
+| ③ no mortar fire | ⭐⭐ **the battery REFUSES every call: danger close.** The spotter's one mission (at ~38 s, on the APC) reaches the battery, which answers `fire mission refused: danger close (friends within 600 m)` — the insurgent fire team stands ~60 m from the call point and the ZU-23 ~560 m. The spotter never asks danger close. **0 mortar rounds in 589 s** | `IndirectFireBehaviors.cs:29` `DangerCloseMetres = 600`, `:236`; the spotter's block: `Missions 1, Phase 1, Calls 1, CalledAt 38.0` |
+| ④ no aircraft on the mortar | ⭐ **a consequence of ③** — no launch heard ⇒ no SPOT IndirectFire ⇒ no FireSupport REQUEST ⇒ the HQ (running `SupportCommand`) sends nothing; the only REQUESTs were Squad B's Casevac. The A-10 is sent only on a ZU-23 reported near the mortar (HQ-7), never reported | run 3's 21 reports: Spot ×19, Casevac ×2 |
+| ① the IED never hurts the front vehicle | ⭐ **the authored order does not hold**: the IFV (authored 25 m BEHIND) overtakes the APC within ~9 s in every run, sees the fire team at y ≈ 136, stops to fight from cover 7 m short of the charge — and THEN the trigger man fires (with two RPGs the same second: 500 → 84, a wreck at 41 s). ⇒ the IED does hit the vehicle that happens to lead, but stopped, not driving over it; a wreck is drawn only at 0 health. The APC then wedges between the IFV and the west house row (642.5, 142.2) — or earlier at y ≈ 82 — and never moves again (navigation "InProgress" for the rest of the run) | runs 2–4: the vehicle track every 2 s |
+| ② the men stand round the vehicle | ⭐ Squad A **never dismounts**: its APC is never hit, so neither SOP row fires (under fire while mounted / carrier hit) — they sit in a wedged APC. Squad B dismounts at 18 s, closes and suppresses briefly, carries a casualty — then the **platoon's `PlatoonHold` at ~126 s** puts it back to a hold; **13 rounds fired by the whole squad in 10 minutes** (the IFV fired 242) | run 3 per-man tasks: `ReactToContact` → `AdvanceTo` → `Suppress`/`CarryCasualty` → `InfantrySquadHold` → none |
+
+⚠ Also measured, not explained: ① the cold navmesh bake of demo-city with the quarters takes **27.6 s on SimHost and its heartbeat lapses — the node is EJECTED** during the load (`CE-4033`); a warm cache loads; ② one run at 2× timescale froze both vehicles at y ≈ 85 for 575 s while the clock ran — not reproduced at 1×. ⇒ each run differs; four runs are not a distribution.
 
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.
