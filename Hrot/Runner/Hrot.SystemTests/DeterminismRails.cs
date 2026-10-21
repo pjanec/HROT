@@ -409,4 +409,119 @@ public sealed class DeterminismRails
                     $"declared-volatile kind(s) [{string.Join(", ", noLongerDrifting)}] no longer drift — "
                   + "delete the exemption rather than carrying one nothing needs.");
     }
+
+    // ── CE-4038 B0 — a TAKE at film scale ───────────────────────────────────────
+
+    /// <summary>A real demo with combat in it: the M1 shoots the T-72 three times and kills it (RUNBOOK_Filming §0, §4).</summary>
+    private const string FilmScenario = "ua-tank-ammo";
+
+    /// <summary>The cuts of the take: every 5 s for 30 s.</summary>
+    private static readonly double[] FilmCuts = { 5, 10, 15, 20, 25, 30 };
+
+    /// <summary>
+    /// The world at one cut: every entity's every component, by network id, plus the shots fired in THIS run (each carries
+    /// its own <c>firedAt</c>). ⛔ Nothing in the world is normalised: the claim is that the run is the SAME run.
+    /// ⚠ The shot log is a diagnostics ring that outlives a rewind (measured: run B started with run A's 14 shots), so a run
+    /// reads only the shots past <paramref name="sinceSeq"/>, without their log sequence number.
+    /// </summary>
+    private static async Task<string> WorldAt(EditorProcess ed, long sinceSeq)
+    {
+        var rows = new List<string>();
+        foreach (var e in (await ed.Client.ListEntitiesAsync()).EnsureOk().DataOrThrow().AsArray())
+        {
+            long id = e!["networkId"]!.GetValue<long>();
+            if (id == 0) continue;   // a derived part (a sensor child) has no network id of its own
+            var data = (await ed.Client.GetEntityAsync(id)).EnsureOk().DataOrThrow();
+            rows.Add($"{id}\t{data["Components"]?.ToJsonString()}");
+        }
+        rows.Sort(StringComparer.Ordinal);
+        var shots = new List<string>();
+        foreach (var shot in await ShotsAsync(ed))
+        {
+            if (shot!["seq"]!.GetValue<long>() <= sinceSeq) continue;
+            var o = shot.AsObject().DeepClone().AsObject();
+            o.Remove("seq");
+            shots.Add(o.ToJsonString());
+        }
+        return string.Join("\n", rows) + "\nshots\t" + string.Join("\n", shots);
+    }
+
+    private static async Task<JsonArray> ShotsAsync(EditorProcess ed)
+        => (await ed.Client.GetCombatShotsAsync()).EnsureOk().Field("shots") as JsonArray ?? new JsonArray();
+
+    /// <summary>One run of the take: enter the preview paused, step to each cut at <paramref name="hz"/>, read the world there.</summary>
+    private static async Task<string[]> PlayTake(EditorProcess ed, int hz)
+    {
+        (await ed.Client.EnterPreviewAsync(startPaused: true)).EnsureOk();
+        long sinceSeq = (await ShotsAsync(ed)).Select(x => x!["seq"]!.GetValue<long>()).DefaultIfEmpty(-1).Max();
+        var worlds = new string[FilmCuts.Length];
+        int stepped = 0;
+        for (int i = 0; i < FilmCuts.Length; i++)
+        {
+            int n = (int)Math.Round(FilmCuts[i] * hz) - stepped;
+            (await (hz == 60 ? ed.Client.StepAsync(n) : ed.Client.StepAsync(n, 1f / hz))).EnsureOk();
+            stepped += n;
+            worlds[i] = await WorldAt(ed, sinceSeq);
+        }
+        return worlds;
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>CE-4038 B0 — THE FILM DIRECTOR'S GATE: one take, played again, is the same take at every cut.</b>
+    /// 📄 <c>docs/DESIGN_Film_Director.md</c> D-1 and §3b-i.
+    ///
+    /// <para>⭐ The director bakes its cut times from a scout pass and replays the take live and to film (D-3); that is only
+    /// sound if every run of the take is the same run. ⇒ in ONE editor process: run A opens the scenario from its file, enters
+    /// the preview paused and steps; run B is a rewind (Stop, then the preview again — the director's "replay this take");
+    /// run C reopens the file. B and C must equal A at every cut, entity by entity, component by component, shot by shot.</para>
+    ///
+    /// <para>⭐ At 60 Hz and at the coarser fixed steps D-1 falls back to when 60 Hz cannot keep up in real time (20 Hz,
+    /// 15 Hz — <c>/sim/step {dt}</c>). ⚠ This proves a rate repeats itself, NOT that 20 Hz plays the same story as 60 Hz —
+    /// movers and rounds were tuned at 1/60 s; the scout at that rate is the check for that.</para>
+    ///
+    /// <para>⛔ Slow — one rendered frame per step (minutes per rate): <c>SystemFilmDeterminism</c>, a T3 rail, never a
+    /// foreground gate (<c>scripts/run-system-tests.sh --film</c>).</para>
+    ///
+    /// <para>🔴 <b>RED as measured `2026-10-21` (15 Hz, the same method by script):</b> neither the rewind nor the reload
+    /// equals run A at any cut. ① The FIRST run after boot differs: the infantry (1003, 1004) fire from tick 3 and stand,
+    /// where later runs walk off — while the M1's three hits on the T-72 (ticks 138, 269, 427) match between A and the
+    /// reload. ② A REWIND leaks state: at 5 s the M1 has no sensor track and an empty <c>TargetMemory</c>, and in 30 s it
+    /// never engages the T-72. Only the id allocator, the entity map and the ELM are rewind participants
+    /// (<c>PreviewParticipants</c>; <c>DESIGN_Deterministic_Network_Ids.md</c> §2b) — no brain, perception or behaviour
+    /// state. ③ Instance counters (<c>SopState.SopInstanceId</c>, <c>BehaviorState.InstanceId</c>) and a perception
+    /// tick in <c>TargetMemory</c> keep counting across runs, so even a run that BEHAVES the same is not byte-identical.
+    /// ⇒ the film director's D-1 premise does not hold yet; this rail stays red until it does (CE-4038 B0).</para>
+    /// </summary>
+    [SystemSmokeTheory]
+    [Trait("Category", "SystemFilmDeterminism")]
+    [InlineData(60)]
+    [InlineData(20)]
+    [InlineData(15)]
+    public async Task A_take_played_again_is_the_same_take_at_every_cut(int hz)
+    {
+        await using var ed = await EditorProcess.StartAsync($"det-take-{hz}");
+
+        (await ed.Client.LoadScenarioEditAsync(FilmScenario)).EnsureOk();
+        var a = await PlayTake(ed, hz);
+
+        (await ed.Client.ExitPreviewAsync()).EnsureOk();
+        var b = await PlayTake(ed, hz);
+
+        (await ed.Client.ExitPreviewAsync()).EnsureOk();
+        (await ed.Client.LoadScenarioEditAsync(FilmScenario)).EnsureOk();
+        var c = await PlayTake(ed, hz);
+
+        // ⛔ Anti-vacuity: a world with no entities, or a take in which nothing was fired, agrees with anything.
+        Assert.True(a[0].Split('\n').Length > 3, $"run A saw almost no world at the first cut:\n{a[0]}");
+        Assert.Contains("firedAt", a[^1]);
+
+        string Differing(string[] x, string label) => string.Join("; ", Enumerable.Range(0, FilmCuts.Length)
+            .Where(i => !string.Equals(a[i], x[i], StringComparison.Ordinal))
+            .Select(i => $"{label} differs at cut {FilmCuts[i]} s: entities " + string.Join(",",
+                a[i].Split('\n').Zip(x[i].Split('\n')).Where(p => p.First != p.Second).Select(p => p.First.Split('\t')[0]))));
+
+        var diff = string.Join("\n", new[] { Differing(b, "rewind"), Differing(c, "reload") }.Where(s => s.Length > 0));
+        _out.WriteLine(diff.Length == 0 ? $"{hz} Hz: rewind and reload identical to run A at all {FilmCuts.Length} cuts" : diff);
+        Assert.True(diff.Length == 0, $"{hz} Hz — a replayed take is NOT the same take:\n{diff}");
+    }
 }
