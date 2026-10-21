@@ -4017,6 +4017,219 @@ namespace Hrot.SimHost.Tests
         /// <summary>A 6 × 6 m room (x 0…6, y 10…16, floor 0) of building 4, entered by a door on its south wall at (1.5, 10) — 1 m wide, key
         /// "t/H/front" — with a window on the same wall NEARER the squad (no way in) and a gap in the far wall; or a 3 × 3 m room entered by a
         /// gap only.</summary>
+        // ── ⭐ CE-2260 / CE-2261 (BC-4, BC-5 — Building Clearing §7.3) — the grenade before the entry, contact at the way in ───────────
+
+        /// <summary>A 6 × 12 m room entered by a gap at (1.5, 10) — deep enough that a stun grenade at its far third spares the stack.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload DeepRoomAnswer(float depth = 12f)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 4, CentreX = 3f, CentreY = 10f + depth / 2f });
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                { Building = 4, Index = 1, Indoors = true, FloorZ = 0f, Corners = new[] { 0f, 10f, 6f, 10f, 6f, 10f + depth, 0f, 10f + depth } });
+            a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f });
+            return a;
+        }
+
+        /// <summary>The squad's men become AssaultRiflemen (2009): their TKB type and weapon mounts (rifle, stun grenades, M67, pistol).</summary>
+        private static void AssaultRiflemen(Squad s)
+        {
+            var db = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            s.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponState>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            db.TryGetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman, out var t);
+            foreach (var m in s.Members)
+            {
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman });
+                new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(s.Repo, m, t!);
+            }
+            s.Tick();
+        }
+
+        private static FireAtPointParamsJsonDto FireOf(Squad s, Entity m)
+        {
+            var o = s.Orders.Last(x => x.Entity.Equals(m) && x.IntentId == BehaviorNames.FireAtPoint);
+            return System.Text.Json.JsonSerializer.Deserialize<FireAtPointParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        }
+
+        /// <summary>A world query whose every line crosses one closed barrier (a building's wall) — the stack behind the wall.</summary>
+        private sealed class WalledQuery : Fdp.Toolkit.World.IWorldQuery
+        {
+            public float GroundHeightAt(float x, float y) => 0f;
+            public float SurfaceZ(float x, float y, float zHint) => 0f;
+            public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) { groundIndex = 0; return new[] { 0f }; }
+            public float ResolveLevel(float x, float y, int level) => 0f;
+            public bool TryStandAt(float x, float y, float zHint, out float z) { z = 0f; return true; }
+            public bool SightBlocked(Vector3 from, Vector3 to) => true;
+            public void Trace(Vector3 from, Vector3 to, Fdp.Toolkit.World.TracePurpose purpose, List<Fdp.Toolkit.World.TraceCrossing> into)
+            {
+                into.Clear();
+                into.Add(new Fdp.Toolkit.World.TraceCrossing(0.5f, 0.3f, 10000f, 3f, true, "panel", null, null, "H", 0));
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2260</c> BC-4 (CB-67, CB-70) — pure: the choice (not suspected ⇒ none · Precision ⇒ stun · HighIntensity ⇒ fragmentation, a
+        /// stun with civilians known) and the friend check by the area effect's own laws: the stun grenade (8 m, 8 s) stuns a man 2 m off in the
+        /// open for more than 0.5 s, not one 7.6 m off, and not one 2 m off behind a closed barrier; an M67 is lethal to a man 1 m off in the
+        /// open. ✅ Red-proofs: the civilians row dropped ⇒ fragmentation with civilians known; the barrier left out ⇒ the walled man "hurt".
+        /// </summary>
+        [Fact]
+        public void CE2260_BC4_TheGrenadeChoice_AndTheFriendCheck()
+        {
+            var none = new RoomKnowledge(false, false, false);
+            var held = new RoomKnowledge(true, false, false);
+            var withCivilians = new RoomKnowledge(true, true, false);
+            Assert.Equal(RoomGrenadeKind.None, GrenadeCheck.Choose(ClearIntensity.HighIntensity, in none));
+            Assert.Equal(RoomGrenadeKind.Stun, GrenadeCheck.Choose(ClearIntensity.Precision, in held));
+            Assert.Equal(RoomGrenadeKind.Fragmentation, GrenadeCheck.Choose(ClearIntensity.HighIntensity, in held));
+            Assert.Equal(RoomGrenadeKind.Stun, GrenadeCheck.Choose(ClearIntensity.HighIntensity, in withCivilians));
+            Assert.Equal(RoomGrenadeKind.Stun, GrenadeCheck.Choose(ClearIntensity.Precision, in withCivilians));
+
+            var db = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var stun = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(db, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStunGrenade).Warhead!;
+            var m67 = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(db, Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade).Warhead!;
+            Assert.Equal(RoomGrenadeKind.Stun, GrenadeCheck.KindOf(stun));
+            Assert.Equal(RoomGrenadeKind.Fragmentation, GrenadeCheck.KindOf(m67));
+            var scratch = new List<Fdp.Toolkit.World.TraceCrossing>();
+            var burst = new Vector3(0f, 0f, GrenadeCheck.ChestHeight);
+            Assert.True(GrenadeCheck.Hurts(null, stun, burst, new Vector3(2f, 0f, 0f), scratch), "2 m off in the open: stunned");
+            Assert.False(GrenadeCheck.Hurts(null, stun, burst, new Vector3(7.6f, 0f, 0f), scratch), "7.6 m off: under 0.5 s");
+            Assert.False(GrenadeCheck.Hurts(new WalledQuery(), stun, burst, new Vector3(2f, 0f, 0f), scratch), "behind the wall: spared");
+            Assert.True(GrenadeCheck.Hurts(null, m67, burst, new Vector3(1f, 0f, 0f), scratch), "an M67 1 m off: lethal");
+            Assert.False(GrenadeCheck.Hurts(new WalledQuery(), m67, burst, new Vector3(1f, 0f, 0f), scratch), "behind the wall: spared");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2260</c> BC-4 (CB-68, CB-69) — "bang out": four AssaultRiflemen at a SUSPECTED room (the order says so); the way in reached,
+        /// #2 goes to the door front (#1 is not released), throws a STUN grenade from his stun mount into the room's far third (the 3 m point
+        /// would stun the stack — no wall in this world), goes back to his stack point, and the entry is released only after the bang
+        /// (fuze + flight) — then #1 goes first. ✅ Red-proofs: the entry released on the throw ⇒ #1 into his own grenade; the friend check
+        /// dropped ⇒ the 3 m point.
+        /// </summary>
+        [Fact]
+        public void CE2260_BC4_ASuspectedRoom_GetsAStunFromNumberTwo_AtTheDoorFront_AndTheEntryGoesAfterTheBang()
+        {
+            var s = new Squad(members: 4);
+            AssaultRiflemen(s);
+            Assert.True(GrenadeCheck.Carried(s.Repo, s.Members[1], RoomGrenadeKind.Stun, out int stunMount, out _, out _), "#2 carries stun grenades");
+            Assert.Equal(1, stunMount);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0],\"Suspected\":true}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "#2 to the door front to throw");
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
+            Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 is not released");
+
+            s.Teleport(s.Members[1], plan.DoorFront);
+            TickFor(s, 0.1);
+            var fire = FireOf(s, s.Members[1]);
+            Assert.Equal(1, fire.Mount);                                                  // his stun grenades
+            Assert.Equal(1, fire.Rounds);
+            Assert.InRange(fire.Y, 17f, 19f);                                              // the far third (10 + 12 × 2/3), not 13
+            var mount = Fdp.Toolkit.Combat.PersonHands.MountEntity(s.Repo, s.Members[1], 1);
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount).Ammo--;   // the throw
+            TickFor(s, 0.1);
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 back behind the wall");
+            TickFor(s, 1.5);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // nothing newer than his stack order
+            Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 waits for the bang");
+            TickFor(s, 1.0);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "after the bang #1 goes first");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2260</c> BC-4 (CB-66, CB-70) — no grenade: into a room nobody suspects (Precision), and into a suspected room so small that
+        /// every aim point would stun the stack (no wall here) — either way #1 goes in at once. ✅ Red-proofs: suspicion ignored ⇒ a throw into
+        /// the clean room; the friend check dropped ⇒ a throw into the small one.
+        /// </summary>
+        [Fact]
+        public void CE2260_BC4_NoGrenade_IntoAnUnsuspectedRoom_OrWhereItWouldStunTheStack()
+        {
+            foreach (var (json, depth) in new[] { ("{\"Room\":[3,16,0]}", 12f), ("{\"Room\":[3,12,0],\"Suspected\":true}", 4f) })
+            {
+                var s = new Squad(members: 4);
+                AssaultRiflemen(s);
+                s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer(depth);
+                s.Order(json, BehaviorNames.ClearRoom);
+                for (int i = 0; i < 4; i++) s.Tick();
+                var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 10f + depth, 0f, 10f + depth }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+                for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+                TickFor(s, 0.5);
+                Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+                Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), $"{json}: #1 goes at once");
+                Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.FireAtPoint);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2261</c> BC-5 (CB-72, CB-12 + CB-22) — contact at the way in: #1 released, then a hostile is SEEN in the room before anybody
+        /// is through ⇒ #1 is recalled and the first two fight from PIE POINTS beside the doorway (frame posts leaning toward it, on the stack's
+        /// side, out of its line); the hostile gone, 3 s of quiet ⇒ the entry resumes. ✅ Red-proofs: the hold dropped ⇒ #1 keeps walking into
+        /// the fire; the quiet wait dropped ⇒ resumed at once.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_ContactAtTheWayIn_HoldsTheEntry_TheFirstTwoPie_QuietResumesIt()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+
+            var enemy = s.PoolMany(1, new Vector3(3f, 18f, 0f))[0];   // seen in the room, before anybody is through
+            s.Repo.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
+            TickFor(s, 0.2);
+            for (int k = 0; k < 2; k++)
+            {
+                var post = PostureOf(s, s.Members[k]).Post;
+                Assert.True(post.Frame, $"#{k + 1} fights from a frame post");
+                Assert.True(post.Point.Y < 10f, $"#{k + 1} outside the room");
+                Assert.InRange(Vector2.Distance(new Vector2(post.Point.X, post.Point.Y), plan.Door), RoomDrill.PieMetres - 0.05f, RoomDrill.PieMetres + 0.05f);
+                Assert.True(Vector2.Dot(new Vector2(post.Point.X, post.Point.Y) - plan.Door, plan.Along) > 0.3f, $"#{k + 1} on the stack's side, out of the doorway's line");
+                Near(new Vector3(plan.Door, 0f), post.Opening, "he leans toward the doorway");
+            }
+            Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 holds the stack");
+
+            s.ClearPool();
+            TickFor(s, RoomDrill.QuietSeconds - 0.5);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not released again yet
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "not quiet long enough yet");
+            TickFor(s, 1.0);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "quiet: #1 goes again");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2261</c> BC-5 (CB-73, §6a) — #1 is shot down before anybody is through: the stack is placed again over the live men — the
+        /// next man takes #1's place and goes; nobody stands waiting in the doorway for the dead man. ✅ Red-proof: no re-stack ⇒ the dead #1 is
+        /// still the one the flow waits on, and #2 never goes.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_AManDownBeforeTheEntry_TheNextTakesHisPlace()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+            Down(s, s.Members[0], 0f);
+            TickFor(s, 0.2);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "the next takes his place and goes");
+            Near(plan.Stack(1), PostureOf(s, s.Members[2]).Post.Point, "the rest move up one");
+        }
+
         private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload RoomAnswer(bool small = false)
         {
             var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };

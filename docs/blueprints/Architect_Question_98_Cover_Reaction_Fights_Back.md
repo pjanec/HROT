@@ -1,11 +1,11 @@
 <!--STATUS
-state: LIVE — ASKED 2026-10-20 (behaviors, overnight); leans written, NOT built
-updated: 2026-10-20
-build-state: DESIGN
-current-answer: §0 the decision · §2 the sub-questions with leans
+state: LIVE — ✅ APPROVED 2026-10-21 (R-2070) — user: "Aq 98 approved." (A · B · C · D, the leans as written)
+updated: 2026-10-21 (approved; §3 the design, built — B′ the as-built open-ground half)
+build-state: BUILT — §3 (classes, sequence, modules; B′ as-built)
+current-answer: §0 the decision · §2 the sub-questions with leans · §3 the design
 stale-below: nothing
 known-rot: none yet
-known-conflict: docs/DESIGN_Decision_Layer.md §4.7 (CE-2094 D6) — "cover lasts while the unit remembers a threat, and the paused task restarts when it is forgotten": B below would change that rule; not reconciled until answered
+known-conflict: none — docs/DESIGN_Decision_Layer.md §4.7 (CE-2094 D6) is amended by B (R-2070): the cover reaction ends after a quiet lapse in cover, not when the threat is forgotten
 related-designs:
   - docs/DESIGN_Decision_Layer.md — OWNS the SOP slot, reactions and resume (§4.1, §4.7); the rule this question revisits
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — OWNS BasicInfantrySop's rows (hit, near miss, first threat → TakeCover)
@@ -66,3 +66,67 @@ that; only the SOP's reaction changes · Peek and Fire §10/§11 — applies: `P
 
 **What would change the lean:** if a reaction must never fire on its own (the commander alone decides return fire) — then B alone
 (end after a quiet lapse, the task fights), and A stays `TakeCover`.
+
+## 3. The design to build *(✅ approved `2026-10-21`, R-2070 — 🔒 user: *"Aq 98 approved."*)*
+
+```mermaid
+classDiagram
+  class FightFromCoverBehavior {
+    <<new, curated BTree>>
+    +Resolve(FightFromCoverParamsJsonDto)
+    +Run(ref FightFromCoverParams, ref FightFromCoverState) one node
+  }
+  class FightFromCoverParams { <<new>> QuietSeconds 8; PeekAndFireParams Peek; EqsTacticsParams Open }
+  class FightFromCoverState { <<new>> PeekAndFireState Peek; InTheOpen; EqsTacticsState Open }
+  class PeekAndFireNodes { <<existing>> PeekAndFire() hide, expose, fire per the ROE }
+  class EqsTacticsNodes { <<existing>> TakeCover() down in the open until a point comes (AQ96 C) }
+  class RecentSensesOf { <<existing>> Within(Hit / NearMiss, s) }
+  class CoverFightConditions { <<new>> EnemyInSight(); NoTask() }
+  class BasicInfantrySop { <<existing asset>> hit / near miss / first threat rows; new row: enemy in sight and no task }
+  class WeaponDispatcherSystem { <<existing>> no weapon action: clears the weapon status row (D) }
+  class ActionStatusOf { <<existing>> + ClearWeapon() }
+  FightFromCoverBehavior --> FightFromCoverParams
+  FightFromCoverBehavior --> FightFromCoverState
+  FightFromCoverBehavior ..> PeekAndFireNodes : runs it (A)
+  FightFromCoverBehavior ..> EqsTacticsNodes : no cover anywhere, the rest of the run
+  FightFromCoverBehavior ..> RecentSensesOf : the quiet lapse (B)
+  BasicInfantrySop ..> FightFromCoverBehavior : React, replaces TakeCover (A)
+  BasicInfantrySop ..> CoverFightConditions : the new row (C)
+  WeaponDispatcherSystem ..> ActionStatusOf : ClearWeapon (D)
+```
+*What the picture shows that prose hid:* nothing new fights — the reaction is one node that runs the library's `PeekAndFire` and adds only
+its END (B); `TakeCover` stays the hide-only node for the trees that ask for exactly that (Eqs Consuming Behaviours §6).
+
+```mermaid
+sequenceDiagram
+  participant S as BasicInfantrySop
+  participant R as FightFromCover (reaction)
+  participant P as PeekAndFire
+  participant T as his task
+  S->>R: hit / near miss / first threat (or: an enemy in sight and no task)
+  R->>T: the gate pauses it
+  loop every tick
+    R->>P: hide, expose, fire per the ROE, down when fired on
+    R->>R: in cover AND no hit / near miss on him for 8 s?
+  end
+  R-->>S: Success (quiet, or nothing left to fight) — the reaction ends
+  S->>T: the task resumes and decides the fight
+```
+
+```mermaid
+graph TD
+  BT[BrainTickSystem: the soldier's SOP slot] -->|React| ING[BehaviorIngressSystem]
+  ING --> R[FightFromCover in the task slot, origin Reaction]
+  R --> WC[WeaponChannel / LocomotionChannel]
+  WC --> WD[WeaponDispatcherSystem: executes, or clears the status row when no action runs]
+```
+*Caption:* nothing new is scheduled; one behaviour, one SOP row, one status clear in the dispatcher that already runs.
+
+| id | as designed |
+|---|---|
+| A | `BasicInfantrySop`'s Hit, NearMiss and Contact rows react with `FightFromCover` (the HoldFire withdrawal row keeps `FallBack`) |
+| B | `FightFromCover` = `PeekAndFire` + an end: Success once he has reached cover (`PeekAndFireState.Phase` ≥ `Hidden`) and no `Hit` / `NearMiss` on HIM for `QuietSeconds` (8); or when `PeekAndFire` itself ends (nothing left to fight). A fresh hit after the end fires the Hit row again |
+| B′ *(as-built, found while building)* | ⭐ **no cover anywhere** — `PeekAndFire` answers Failure after its `NoCoverSeconds` (3) — would have ended the reaction and left him standing in the open, which AQ96 C (`CE-2322`) forbids. ⇒ the rest of the run is `EqsTacticsNodes.TakeCover` (down in the open until a point comes, moves to it — firing while it moves, ROE-gated) and it ends the same way: not on the move, and quiet for `QuietSeconds`. A `[BTreeDeactivator]` releases whichever half runs when the reaction is cut off (a new hit, an order) |
+| C | a row before `Idle`: `EnemyInSight` (a hostile in his target memory, alive and in the fight, SEEN — not heard — within 1 s) AND `NoTask` (his task slot empty or `Idle`) ⇒ React `FightFromCover`, urgency Contact |
+| D | `WeaponDispatcherSystem`: a unit with no weapon action (`ActiveAction` 0) has its weapon status row cleared to `None` (`ActionStatusOf.ClearWeapon`) |
+

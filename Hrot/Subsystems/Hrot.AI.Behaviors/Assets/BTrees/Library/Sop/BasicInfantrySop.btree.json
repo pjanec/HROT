@@ -35,6 +35,7 @@
         "c2080000-0000-0000-0000-000000000015",
         "c2080000-0000-0000-0000-000000000020",
         "c2080000-0000-0000-0000-000000000030",
+        "c2331000-0000-0000-0000-000000000001",
         "c2080000-0000-0000-0000-000000000040"
       ],
       "DisplayLabel": "Rows — first true wins",
@@ -122,7 +123,7 @@
         "c2080000-0000-0000-0000-000000000011",
         "c2080000-0000-0000-0000-000000000012"
       ],
-      "DisplayLabel": "Hit → take cover",
+      "DisplayLabel": "Hit → fight from cover",
       "EditorMetadata": {
         "X": 120,
         "Y": 260,
@@ -152,16 +153,16 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "TakeCover",
+        "BehaviorName": "FightFromCover",
         "Urgency": "Hit"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000012",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: TakeCover",
+      "DisplayLabel": "React: FightFromCover",
       "EditorMetadata": {
         "X": 220,
         "Y": 400,
-        "Comment": "Stand-in reaction — swap for your project's take-cover behaviour in the picker.",
+        "Comment": "CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes. Stand-in reaction — swap for your project's take-cover behaviour in the picker.",
         "Collapsed": false,
         "Color": null
       }
@@ -242,7 +243,7 @@
         "c2080000-0000-0000-0000-000000000031",
         "c2080000-0000-0000-0000-000000000032"
       ],
-      "DisplayLabel": "Contact → take cover",
+      "DisplayLabel": "Contact → fight from cover",
       "EditorMetadata": {
         "X": 900,
         "Y": 260,
@@ -272,14 +273,81 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "TakeCover",
+        "BehaviorName": "FightFromCover",
         "Urgency": "Contact"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000032",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: TakeCover",
+      "DisplayLabel": "React: FightFromCover",
       "EditorMetadata": {
         "X": 1040,
+        "Y": 400,
+        "Comment": "CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2331000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2331000-0000-0000-0000-000000000002",
+        "c2331000-0000-0000-0000-000000000003",
+        "c2331000-0000-0000-0000-000000000004"
+      ],
+      "DisplayLabel": "Enemy in sight, no task → fight from cover",
+      "EditorMetadata": {
+        "X": 1100,
+        "Y": 260,
+        "Comment": "CE-2332 (AQ98 C, R-2070): a man nobody gave anything to do engages an enemy he sees from where he is — never Idle with an enemy in sight.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CoverFightConditions.EnemyInSight"
+      },
+      "VisualId": "c2331000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Enemy in sight (seen within 1 s)",
+      "EditorMetadata": {
+        "X": 1040,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CoverFightConditions.NoTask"
+      },
+      "VisualId": "c2331000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "No task",
+      "EditorMetadata": {
+        "X": 1100,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "FightFromCover",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2331000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: FightFromCover",
+      "EditorMetadata": {
+        "X": 1160,
         "Y": 400,
         "Comment": null,
         "Collapsed": false,
@@ -326,7 +394,7 @@
         "c2080000-0000-0000-0000-000000000016",
         "c2080000-0000-0000-0000-000000000017"
       ],
-      "DisplayLabel": "Shot at (near miss) → take cover",
+      "DisplayLabel": "Shot at (near miss) → fight from cover",
       "EditorMetadata": {
         "X": 700,
         "Y": 260,
@@ -356,16 +424,16 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "TakeCover",
+        "BehaviorName": "FightFromCover",
         "Urgency": "UnderFire"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000017",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: TakeCover",
+      "DisplayLabel": "React: FightFromCover",
       "EditorMetadata": {
         "X": 760,
         "Y": 400,
-        "Comment": "CE-2322 (AQ97 B): rounds passing near him are reason enough.",
+        "Comment": "CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes. CE-2322 (AQ97 B): rounds passing near him are reason enough.",
         "Collapsed": false,
         "Color": null
       }

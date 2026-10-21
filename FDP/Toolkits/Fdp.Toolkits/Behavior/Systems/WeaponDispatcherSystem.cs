@@ -127,7 +127,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
                 // ⭐ WL-6 (DESIGN_Weapon_Layers W-13b) — no weapon action runs: the weapon brain lowers the weapon (Aimed ⇒ Ready at
                 //   once, Ready ⇒ AtEase after WeaponPostureOf.LowerAfterSeconds). A running action's executor reports it instead.
-                else Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
+                else
+                {
+                    Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
+                    // ⭐ CE-2333 (AQ98 D, R-2070) — no action at all: the weapon status row clears (a finished one keeps its Done / Failed)
+                    if (channel.ActiveAction == 0) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.ClearWeapon(repo, entity);
+                }
             }
         }
 

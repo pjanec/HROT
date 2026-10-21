@@ -63,3 +63,22 @@ AI walker stays on the mesh, avoidance skips another storey"* (2026-10-19, behav
 
 ⭐ The shelter twin (`PostureScenarioTests.CE2236_CivShelter`) is the rail; it was not in that commit's gates (Fdp.Toolkits navigation +
 kinematics). ⚠ `bt-doors` (a visitor opening a closed back door) runs through the same door passage — worth one run.
+
+## ③ Added `2026-10-21` by behaviors — the line, measured by reading (CE-4039; not fixed here, it is yours)
+
+⭐ **`EqsSolverSystem.cs:342` reads flag bit 15 as `AccurateLineOfSightTest.FlagPendingRay` on EVERY template.** A rifle's family is
+`SoundFamily.Rifle = 6` (`SignaturesDto.cs:110`); `AcousticSensorGenerator.Sound` writes it at `FamilyShift = 13` ⇒ bits 14 **and 15**. So
+for a Regular+ listener every heard rifle shot looks "awaiting raycasts": the solve yields (`_AwaitingRaycasts`) before `_memory.Observe`
+(`:357`) and never publishes — the listener hears nothing, `CivilianFearSystem` never sees it. ⭐ Mortar (1), Gun (2), HeavyMg (3) never set bit
+15 — which is why `EqsModuleTests.CE3283_TheEar_*` (Mortar only) stayed green. Families 4–7 (AaGun, Launcher, Rifle) are all affected, soldiers
+included (Ask 3).
+
+| a fix that was drafted and withdrawn (the user: yours) | |
+|---|---|
+| in the solver: the pending check only when the template RUNS an `AccurateLineOfSightTest` (none of the acoustic template's phases do) | a `HasRayTest(in template)` over its four test arrays |
+| the rail, in the ear's suite: `EqsModuleTests` — `HearingRig` given a shooter type and a listener x; an `InfantrySoldier` (rifle) at 200 m; Militia / Regular / Veteran ⇒ one Shot, `SmallArms`, family 0 / Rifle / Rifle | red before the fix for Regular and Veteran (by reading — not run) |
+
+⚠ An alternative is moving the family off bit 15 (the flags are full: bits 0–7 tests, 8–9 kind, 10–12 class, 13–15 family) — the solver
+guard is the smaller change.
+
+_behaviors lane, 2026-10-21_

@@ -22,6 +22,24 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65) — how hard the room is gone into (the grenade before the entry).</summary>
+        [JsonPropertyName("Intensity")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ClearIntensity Intensity;
+
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65, CB-66) — the order says the room is held (intelligence): it is SUSPECTED before anything is seen.</summary>
+        [JsonPropertyName("Suspected")]
+        public bool Suspected;
+    }
+
+    /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65; docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §7.3) — how hard a squad goes into a room:
+    /// <see cref="Precision"/> (the default — a stun grenade into a suspected room, never fragmentation) or <see cref="HighIntensity"/>
+    /// (fragmentation into a suspected room with no civilian known, a stun when one is).</summary>
+    public enum ClearIntensity : byte
+    {
+        Precision = 0,
+        HighIntensity = 1,
     }
 
     /// <summary>
@@ -41,6 +59,16 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65) — how hard each room is gone into (the grenade before the entry).</summary>
+        [JsonPropertyName("Intensity")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ClearIntensity Intensity;
+
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65) — the order says the building is held (intelligence): EVERY room is suspected before anything is
+        /// seen in it.</summary>
+        [JsonPropertyName("Suspected")]
+        public bool Suspected;
     }
 
     /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — the authored contract of <c>BreachDoor</c>: walk to the door, open it, and when it refuses

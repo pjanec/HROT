@@ -12,6 +12,8 @@ using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Squad.Maneuvers;
 using Fdp.Toolkit.Squad.Primitives;
 using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.Perception.Events;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -46,6 +48,27 @@ namespace Hrot.AI.Behaviors.Brains
         /// bit once that entry man has crossed it.</summary>
         public byte Threshold;
         public ushort AtDoor, Crossed;
+
+        // ⭐ CE-2260 / CE-2261 (BC-4, BC-5 — §7.3) — the gate before the first man goes through the way in
+        /// <summary>The order's <c>ClearIntensity</c> · 1 when the order says the room is held · 1 once a man of the stack was fired on at it.</summary>
+        public byte Intensity, Ordered, FiredOn;
+        /// <summary>The entry is free to flow (the grenade is done or none, no contact holds it).</summary>
+        public byte GateOpen;
+        /// <summary>The grenade step (<see cref="RoomDrill.GrenadeUndecided"/> … <see cref="RoomDrill.GrenadeDone"/>) · 1 once one went into this room ·
+        /// the thrower's roster slot (−1 none) · his grenade mount · its rounds when the throw was asked.</summary>
+        public byte GrenadeStep, Thrown;
+        public sbyte Thrower;
+        public byte GrenadeMount;
+        public int RoundsBefore;
+        public Vector3 Aim;
+        public float Fuze;
+        public double StepSince, BangAt;
+        /// <summary>CB-72 — 1 while contact at the way in holds the entry · since when it has been quiet.</summary>
+        public byte Contact;
+        public double QuietSince;
+        /// <summary>CB-73 — the turn the stack was placed with · the roster slots that were live when it was.</summary>
+        public int Turn;
+        public ushort Placed;
     }
 
     /// <summary>
@@ -97,14 +120,31 @@ namespace Hrot.AI.Behaviors.Brains
                 ? RoomEntryPlan.PlanFrom(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.SillZ, inFight)
                 : RoomEntryPlan.Plan(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.Width, inFight,
                     stackRoom != null && stackRoom.Corners.Length >= 8 ? stackRoom.Corners : default);
+            d.Thrower = -1;
+            d.Turn = turn;
             Places(ref d, in ctx, inFight, turn);
+            d.Placed = LiveMask(in ctx);
+        }
+
+        /// <summary>⭐ <c>CE-2260</c> (CB-65) — the order's intensity and whether it says the room is held; after <see cref="Begin"/>.</summary>
+        public static void Arm(ref RoomDrillState d, ClearIntensity intensity, bool ordered)
+        {
+            d.Intensity = (byte)intensity;
+            d.Ordered = ordered ? (byte)1 : (byte)0;
         }
 
         /// <summary>Each frame: the flow while entering; RoomClear once the room is cleared (the drill's <see cref="RoomDrillState.Outcome"/>
         /// then reads <see cref="Cleared"/>).</summary>
         public static void Update(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
-            if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering) { Flow(ref d, ref ws, in ctx); Cross(ref d, ref ws, in ctx); }
+            ushort phase = ctx.Squad.PhaseId;
+            if (phase is StackAndRoomEntryManeuver.PhaseStacking or StackAndRoomEntryManeuver.PhaseBreaching or StackAndRoomEntryManeuver.PhaseEntering)
+                Restack(ref d, ref ws, in ctx);
+            if (phase == StackAndRoomEntryManeuver.PhaseEntering)
+            {
+                if (Gate(ref d, ref ws, in ctx)) Flow(ref d, ref ws, in ctx);
+                Cross(ref d, ref ws, in ctx);
+            }
             if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseCleared && d.Reported == 0)
             {
                 d.Reported = 1;
@@ -166,6 +206,17 @@ namespace Hrot.AI.Behaviors.Brains
                     return atStack;
                 case StackAndRoomEntryManeuver.PhaseEntering:
                 case StackAndRoomEntryManeuver.PhaseCleared:
+                    if (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering && d.GateOpen == 0)
+                    {
+                        // ⭐ CE-2261 (CB-72) — contact at the way in: the first two fight from pie points beside the doorway, leaning toward it
+                        if (d.Contact != 0 && k < 2 && d.Threshold != 0) return PiePoint(ref d, k, speed, role);
+                        // ⭐ CE-2260 (CB-68) — the thrower: to the door front, then the throw
+                        if (member == d.Thrower && d.GrenadeStep == GrenadeToDoor)
+                            return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = d.Plan.DoorFront, Speed = speed, RoleId = role, ArrivalRadius = ThresholdArrival };
+                        if (member == d.Thrower && d.GrenadeStep == GrenadeThrowing)
+                            return new MemberOrder { Kind = MemberOrderKind.FireAtPoint, Point = d.Aim, Mount = d.GrenadeMount, Rounds = 1, RoleId = role, Speed = speed };
+                        return atStack;
+                    }
                     if (k >= d.Plan.Entry || (ctx.Squad.PhaseId == StackAndRoomEntryManeuver.PhaseEntering && k >= d.Released)) return atStack;
                     // ⭐ CE-2334 — square to the way in, through it straight, firing on the way; then to his point
                     if (d.Threshold != 0 && (d.Crossed & (1 << member)) == 0)
@@ -183,6 +234,239 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return atStack;
             }
+        }
+
+        // ── ⭐ CE-2260 / CE-2261 (BC-4, BC-5) — the gate before the entry: contact at the way in, the grenade, a man down ──────────
+
+        /// <summary>The grenade steps (CB-68, CB-69).</summary>
+        public const byte GrenadeUndecided = 0, GrenadeToDoor = 1, GrenadeThrowing = 2, GrenadeThrown = 3, GrenadeDone = 4;
+        /// <summary>CB-69 — the thrower given up reaching the door (s) · the throw given up (s) · the entry released this long after the bang (s) ·
+        /// a hand grenade's speed for its flight time (m/s) · how far into the room it is thrown (m).</summary>
+        public const float ToDoorTimeoutSeconds = 8f, ThrowTimeoutSeconds = 6f, AfterBangSeconds = 0.3f, ThrowSpeed = 15f, ThrowInMetres = 3f;
+        /// <summary>CB-72 — fired on within this long holds the entry (s) · quiet this long releases it (s) · the pie points' distance (m) and
+        /// their angles off the doorway's line (°, #1 then #2).</summary>
+        public const float FiredOnSeconds = 3f, QuietSeconds = 3f, PieMetres = 1.8f, PieAngle0 = 60f, PieAngle1 = 30f;
+
+        /// <summary>
+        /// ⭐ The gate (CB-69, CB-72): true once the entry may flow. While no entry man has crossed, contact at the way in (a hostile SEEN in
+        /// the room, or a man of the stack fired on) holds it — the released go back, the first two pie; 3 s quiet releases it. Then the
+        /// grenade (once per room): chosen, carried, safe for every friend where he will stand at the bang ⇒ thrown from the door front,
+        /// the stack waiting out of the doorway, the entry 0.3 s after the bang.
+        /// </summary>
+        public static bool Gate(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (d.Crossed != 0) { d.GateOpen = 1; return true; }   // somebody is through: the room is fought from inside (BC-1)
+            var know = Knowledge(ref d, in ctx);
+            bool firedOn = FiredOnAtTheWayIn(ref d, in ctx);
+            if (firedOn) d.FiredOn = 1;
+            if (know.HostileSeen || firedOn)
+            {
+                if (d.Contact == 0 || d.GateOpen != 0)
+                {
+                    d.Contact = 1;
+                    d.GateOpen = 0;
+                    d.Released = 0;
+                    if (d.GrenadeStep is GrenadeToDoor or GrenadeThrowing) { d.GrenadeStep = GrenadeUndecided; d.Thrower = -1; }   // not into the fire
+                    ws.Reissue = 1;
+                }
+                d.QuietSince = 0;
+                return false;
+            }
+            if (d.Contact != 0)
+            {
+                if (d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
+                if (ctx.Now - d.QuietSince < QuietSeconds) return false;
+                d.Contact = 0;
+                if (d.Thrown == 0) d.GrenadeStep = GrenadeUndecided;   // the room is suspected now: decide again
+                ws.Reissue = 1;
+            }
+            if (d.GateOpen != 0) return true;
+            if (!Grenade(ref d, ref ws, in ctx, know)) return false;
+            d.GateOpen = 1;
+            d.EnterSince = ctx.Now;
+            d.Released = 0;
+            ws.Reissue = 1;
+            return true;
+        }
+
+        /// <summary>CB-66 — what the squad knows of the room now.</summary>
+        public static RoomKnowledge Knowledge(ref RoomDrillState d, in SquadPlayContext ctx)
+        {
+            Span<float> corners = stackalloc float[8];
+            for (int i = 0; i < 8; i++) corners[i] = Corner(ref d, i);
+            return RoomSuspicion.Of(ctx.World, ctx.Commander, corners, d.FloorZ, d.Ordered != 0, d.FiredOn != 0);
+        }
+
+        private static unsafe float Corner(ref RoomDrillState d, int i) => d.Corners[i];
+
+        /// <summary>CB-72 — a man of the stack (in it, not through) hit or near-missed within <see cref="FiredOnSeconds"/>.</summary>
+        private static unsafe bool FiredOnAtTheWayIn(ref RoomDrillState d, in SquadPlayContext ctx)
+        {
+            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+            {
+                if (d.OrderOf[i] == RoomDrillState.NotInIt || (d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out var m)) continue;
+                if (RecentSensesOf.Within(ctx.World, m, SensorChange.Hit, FiredOnSeconds)
+                    || RecentSensesOf.Within(ctx.World, m, SensorChange.NearMiss, FiredOnSeconds)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>CB-67…CB-70 — one step of the grenade; true once it is done (thrown and banged, or none to throw).</summary>
+        private static unsafe bool Grenade(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx, in RoomKnowledge know)
+        {
+            switch (d.GrenadeStep)
+            {
+                case GrenadeUndecided:
+                    if (d.Thrown != 0 || !Decide(ref d, in ctx, in know)) { d.GrenadeStep = GrenadeDone; return true; }
+                    d.GrenadeStep = GrenadeToDoor;
+                    d.StepSince = ctx.Now;
+                    ws.Reissue = 1;
+                    return false;
+                case GrenadeToDoor:
+                {
+                    if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ToDoorTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
+                    var at = ctx.At(man);
+                    if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(d.Plan.DoorFront.X, d.Plan.DoorFront.Y)) > DoorFrontMetres + 0.2f) return false;
+                    d.RoundsBefore = GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount);
+                    d.GrenadeStep = GrenadeThrowing;
+                    d.StepSince = ctx.Now;
+                    ws.Reissue = 1;
+                    return false;
+                }
+                case GrenadeThrowing:
+                {
+                    if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ThrowTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
+                    if (GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount) >= d.RoundsBefore) return false;
+                    float flight = Vector3.Distance(d.Plan.DoorFront, d.Aim) / ThrowSpeed;
+                    d.BangAt = ctx.Now + d.Fuze + flight;
+                    d.Thrown = 1;
+                    d.GrenadeStep = GrenadeThrown;
+                    ws.Reissue = 1;   // the thrower back to his stack point, out of the doorway
+                    return false;
+                }
+                case GrenadeThrown:
+                    if (ctx.Now < d.BangAt + AfterBangSeconds) return false;
+                    d.GrenadeStep = GrenadeDone;
+                    return true;
+                default:
+                    return true;
+            }
+        }
+
+        private static unsafe bool ThrowerLive(ref RoomDrillState d, in SquadPlayContext ctx, out Entity man)
+        {
+            man = Entity.Null;
+            return d.Thrower >= 0 && ctx.Live(d.Thrower, out man);
+        }
+
+        /// <summary>CB-67, CB-68, CB-70 — the grenade, the thrower and the aim point; false when none is to be thrown.</summary>
+        private static unsafe bool Decide(ref RoomDrillState d, in SquadPlayContext ctx, in RoomKnowledge know)
+        {
+            var kind = GrenadeCheck.Choose((ClearIntensity)d.Intensity, in know);
+            if (kind == RoomGrenadeKind.None) return false;
+            if (!FindThrower(ref d, in ctx, kind, out int slot, out int mount, out var warhead)
+                && !(kind == RoomGrenadeKind.Fragmentation && FindThrower(ref d, in ctx, RoomGrenadeKind.Stun, out slot, out mount, out warhead)))
+                return false;
+            // where every man will stand at the bang: his stack point (the thrower back at his), else where he is
+            Span<Vector3> men = stackalloc Vector3[RoomDrillState.Capacity];
+            int n = 0;
+            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+            {
+                if (!ctx.Live(i, out var m)) continue;
+                men[n++] = d.OrderOf[i] == RoomDrillState.NotInIt ? ctx.At(m) : d.Plan.Stack(d.OrderOf[i]);
+            }
+            var query = Fdp.Toolkit.World.WorldQuery.Of(ctx.World);
+            var scratch = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            float depth = Depth(ref d);
+            Span<float> ins = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f };
+            foreach (float into in ins)
+            {
+                var aim = new Vector3(d.Plan.Door + d.Plan.Into * into, d.FloorZ + 0.3f);
+                if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
+                d.Aim = aim;
+                d.Thrower = (sbyte)slot;
+                d.GrenadeMount = (byte)mount;
+                d.Fuze = warhead.FuzeDelayS > 0f ? warhead.FuzeDelayS : 1.5f;
+                return true;
+            }
+            return false;   // CB-70 — every aim point would hurt a friend
+        }
+
+        /// <summary>CB-68 — #2 when he carries it, else the first entry man who does, else any live man of the stack.</summary>
+        private static unsafe bool FindThrower(ref RoomDrillState d, in SquadPlayContext ctx, RoomGrenadeKind kind, out int slot, out int mount,
+                                               out Fdp.Toolkit.Tkb.Domain.WarheadDto warhead)
+        {
+            slot = -1; mount = -1; warhead = null!;
+            Span<int> byOrder = stackalloc int[RoomDrillState.Capacity];
+            int count = 0;
+            for (int k = 0; k < RoomDrillState.Capacity; k++)
+                for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
+                    if (d.OrderOf[i] == k) { byOrder[count++] = i; break; }
+            Span<int> pref = stackalloc int[count];
+            int p = 0;
+            if (count > 1) pref[p++] = byOrder[1];
+            for (int k = 0; k < count; k++) if (k != 1) pref[p++] = byOrder[k];
+            foreach (int i in pref[..p])
+            {
+                if (!ctx.Live(i, out var m)) continue;
+                if (GrenadeCheck.Carried(ctx.World, m, kind, out mount, out _, out warhead)) { slot = i; return true; }
+            }
+            return false;
+        }
+
+        /// <summary>How deep the room runs from its way in along <c>Into</c> (m).</summary>
+        private static unsafe float Depth(ref RoomDrillState d)
+        {
+            float deepest = 1f;
+            for (int c = 0; c < 4; c++)
+                deepest = MathF.Max(deepest, Vector2.Dot(new Vector2(d.Corners[c * 2], d.Corners[c * 2 + 1]) - d.Plan.Door, d.Plan.Into));
+            return deepest;
+        }
+
+        /// <summary>CB-72 — the <paramref name="k"/>-th man's pie point: on an arc <see cref="PieMetres"/> out from the doorway, on his own side of
+        /// it, a frame post leaning toward the opening (HoldWatch's lean, D-2l).</summary>
+        private static MemberOrder PiePoint(ref RoomDrillState d, int k, float speed, byte role)
+        {
+            var stack = d.Plan.Stack(k);
+            float s = Vector2.Dot(new Vector2(stack.X, stack.Y) - d.Plan.Door, d.Plan.Along) >= 0f ? 1f : -1f;
+            float a = (k == 0 ? PieAngle0 : PieAngle1) * MathF.PI / 180f;
+            Vector2 door = d.Plan.Door, into = d.Plan.Into, along = d.Plan.Along;
+            Vector2 At(float side) => door + PieMetres * (MathF.Cos(a) * -into + MathF.Sin(a) * side * along);
+            var point = new Vector3(At(s), d.Plan.StackZ);
+            var opening = new Vector3(d.Plan.Door, d.Plan.StackZ);
+            return new MemberOrder
+            {
+                Kind = MemberOrderKind.Watch, Point = point, Speed = speed, RoleId = role,
+                Sector = MemberArc.Around(LookAt.BearingTo(point, opening), StackArcHalfWidth),
+                Post = new MemberPost { Set = 1, Radius = 0.6f, Frame = 1, FrameA = point, FrameB = new Vector3(At(-s), d.Plan.StackZ), Opening = opening },
+            };
+        }
+
+        /// <summary>⭐ CE-2261 (CB-73) — a man of the stack down before anybody went through: the stack is placed again over the live men (the next
+        /// fills his place) and the entry starts again from the gate (a grenade already thrown is not thrown again).</summary>
+        private static unsafe void Restack(ref RoomDrillState d, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (d.Crossed != 0) return;
+            ushort live = LiveMask(in ctx);
+            if ((d.Placed & ~live) == 0) { d.Placed &= live; return; }
+            int inFight = 0;
+            for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) inFight++;
+            if (inFight == 0) return;
+            for (int i = 0; i < RoomDrillState.Capacity; i++) d.OrderOf[i] = RoomDrillState.NotInIt;
+            Places(ref d, in ctx, inFight, d.Turn);
+            d.Placed = live;
+            d.Released = 0;
+            d.GateOpen = 0;
+            d.AtDoor = 0;
+            if (d.GrenadeStep is GrenadeToDoor or GrenadeThrowing) { d.GrenadeStep = GrenadeUndecided; d.Thrower = -1; }
+            ws.Reissue = 1;
+        }
+
+        private static ushort LiveMask(in SquadPlayContext ctx)
+        {
+            ushort mask = 0;
+            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++) if (ctx.Live(i, out _)) mask |= (ushort)(1 << i);
+            return mask;
         }
 
         /// <summary>⭐ CE-2334 CB-64 — the room on the other side of <paramref name="way"/> from <paramref name="room"/> in

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (AQ99 built — §7.1b, §8.1 ③; CE-2337 §6a) · 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
+updated: 2026-10-21 (§7.3 BC-4 + BC-5 designed, CB-65…CB-74) · 2026-10-21 (AQ99 built — §7.1b, §8.1 ③; CE-2337 §6a) · 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
@@ -920,6 +920,121 @@ Rails: `SquadManeuverTests.CE2259_BC3_*` — the room order (pure) · a six-man 
 through the real brain with men that obey, the front door breached by the first man after the leader and the side door by the man the
 turn brings round, Foothold, BuildingClear, Success · a locked side door: RoomBlocked, the rest cleared, Success · no answer: Failure.
 The four BC-1 rails pass on the extracted drill unchanged. ✅ Red-proved by 8 compiling mutants, all killed (no loop back · the turn · Foothold · the storey order · the reach rule · a blocked door failing the run · the survey timeout · the stair's stack on its own floor). ⛔ Not live (the CQB house, BR-1).
+
+### 7.3 BC-4 + BC-5 in detail — the grenade before entry, and contact at the way in *(`CE-2260`, `CE-2261`, behaviors, 2026-10-21; build-state: BUILT (§7.3a) — leans CB-65…CB-74, built under the user's "do as much as you can autonomously")*
+
+📐 **Measured first (INVENTORY, 2026-10-21 — codebase-memory CLI `search_graph` / `search_code` + grep over `GrenadeCheck`, `SliceThePie`,
+`Suspected`, `Intensity`, `BuildingClearance`; `check_index_coverage` not run — CLI only):** none of the BC-4 / BC-5 pieces exist. What exists and is reused:
+the room drill (`RoomDrill`, §7.2a); the member order `FireAtPoint` with a mount (`SquadManeuverRunner.Fire`), which throws a grenade mount's round on its
+arc (`FireAtPointExecutor`, the stun grenade 6037 has `Indirect`, a 1.5 s time fuze, an 8 m stun reach and 8 s); the area effect's own laws, which are public
+(`AreaEffect.BlastFalloff`, `ClosedBarrierTransmission`) plus `WorldQuery.Of(repo).Trace`; the stun hold (BR-2); the lean (BR-5), already driven by
+`PostureNodes.HoldWatch` from a FRAME post (`MemberPost.Frame`, leaning toward `Opening`); per-man recent senses (`RecentSensesOf.Within`, Hit / NearMiss).
+⚠ **The room state the design names (`Suspected`) does not exist**: `RoomOrder` knows Unknown / Cleared / Blocked. ⚠ **The soldier type every clearing demo uses
+(InfantrySoldier 2002) carries no grenade**; the Grenadier (2004) carries M67 and the security types carry stun grenades.
+
+```mermaid
+classDiagram
+  direction LR
+  class RoomDrill { <<EXTENDED>> + Gate at the start of Entering: contact hold, then bang out · + re-stack on a man down }
+  class RoomDrillState { <<EXTENDED>> + Grenade (ammo, mount, thrower slot) · ThrowAt · BangAt · ContactSince · QuietSince }
+  class GrenadeCheck { <<NEW, pure + one prediction>> Choose(intensity, suspected, civilians) · Carried(men) · PredictStun / Lethal(friend) }
+  class RoomSuspicion { <<NEW, pure>> Of(room, squad pool, order flag) ⇒ suspected · civilians known · hostile seen }
+  class ClearRoomParams { <<EXTENDED>> + Intensity · + Suspected }
+  class ClearBuildingParams { <<EXTENDED>> + Intensity · a Cleared room with a hostile seen in it ⇒ Unknown again }
+  class AreaEffect { <<existing, FDP>> BlastFalloff · ClosedBarrierTransmission }
+  class WorldQuery { <<existing, FDP>> Trace(a, b) }
+  class FireAtPoint { <<existing member order>> mount · point · 1 round }
+  class HoldWatch { <<existing>> a FRAME post leans toward its opening }
+  class AssaultRifleman { <<NEW TKB type 2009>> InfantrySoldier + 2 stun grenades + 2 M67 }
+  RoomDrill --> RoomDrillState
+  RoomDrill ..> GrenadeCheck : which grenade, who throws, is a friend safe
+  RoomDrill ..> RoomSuspicion
+  GrenadeCheck ..> AreaEffect
+  GrenadeCheck ..> WorldQuery
+  RoomDrill ..> FireAtPoint : the throw
+  RoomDrill ..> HoldWatch : the pie points (Watch + Frame post)
+  ClearRoomParams --> RoomDrillState
+  ClearBuildingParams --> RoomDrillState
+```
+*What the picture shows that prose hid:* no new member behaviour and no new phase — the throw is the existing `FireAtPoint`, the lean is the existing frame
+post's, and both new steps live in ONE gate at the start of the drill's Entering phase (as built — §7.3a); the only new code is two pure helpers and the drill's extra clocks.
+
+```mermaid
+sequenceDiagram
+  participant D as RoomDrill
+  participant G as GrenadeCheck
+  participant T as thrower (#2)
+  participant S as the stack
+  Note over D: the door open - Entering begins with the GATE closed
+  D->>G: Choose(intensity, suspected, civilians) and who carries it
+  alt a grenade, and every friend safe
+    D->>T: AdvanceTo the door front
+    D->>T: FireAtPoint(the room, his grenade mount)
+    T-->>D: his mount's count drops - thrown at t
+    D->>T: back to his stack point
+    S->>S: wait OUT of the doorway, behind the wall
+    D->>D: bang at t + fuze + flight
+    D->>S: release the entry 0.3 s after the bang
+  else no grenade, none carried, or a friend would be hurt
+    D->>S: release the entry at once (BC-1)
+  end
+  Note over D: Entering - a hostile seen in the room or a man at the way in fired on
+  D->>S: no new man through the doorway, the first two to pie points (lean toward the door, fire)
+  D->>D: 3 s quiet - resume, the grenade first if the room is now suspected and none went in
+  Note over D: a man of the stack down before he crossed
+  D->>D: re-stack - the live men renumbered, the next fills his place
+```
+*What the picture shows that prose hid:* contact does not abort the room — it turns the drill back to the stack, and contact is itself what makes a room
+Suspected, so a contact before the entry leads to a grenade before the entry.
+
+```mermaid
+graph TD
+  CGF[CGF: the squad commander's brain] --> CR[ClearRoomPlay / ClearBuildingPlay on SquadManeuverRunner]
+  CR --> RD[RoomDrill]
+  RD -->|member orders| MEN[CombatPosture Watch + Frame post · AdvanceTo · FireAtPoint · BreachDoor]
+  MEN -->|the men's brains, CGF| EX[FireAtPointExecutor: throws on the arc]
+  EX -->|DetonationNotification| AE[AreaEffectSystem: stun, fragments]
+  RD -.->|reads, never writes| WQ[WorldQuery.Trace for the friend check]
+```
+*Caption:* nothing new is scheduled; the drill reads the world once per throw decision.
+
+| id | decision (⭐ lean) | rejected — one line each |
+|---|---|---|
+| **CB-65** | **the order**: `ClearRoom` and `ClearBuilding` gain `Intensity: Precision (0, default) \| HighIntensity`; `ClearRoom` gains `Suspected` (the order says the room is held — intelligence), and `ClearBuilding` too (the building is held: every room suspected — as built, for the high-intensity demo). ⚠ `Objective` (Arrest, CB-25) waits for its programme (`CE-2266`): its "flashbang before every room" is one more row of the same check | Objective now: no Arrest drill reads it — the silent-default pattern |
+| **CB-66** | **Suspected** = the order says so, OR the squad's pool holds a contact (seen or HEARD) inside the room's quad at its storey, OR a man of the stack was fired on while the door stood open; **civilians known** = a pooled neutral in the room | a room record written by hand: nobody would write it · every room suspected: wastes the grenades (CB-30) |
+| **CB-67** | **the choice** (CB-6 + CB-30, Eliminate): not Suspected ⇒ none · Precision ⇒ stun · HighIntensity ⇒ fragmentation, stun when civilians are known; none of that kind carried ⇒ the other kind only when it is the stun (never a fragmentation grenade in place of a stun) | the thrower decides: four men, four answers |
+| **CB-68** | **the thrower**: #2 when he carries it, else the first entry man who does, else any live man of the stack; he throws from the DOOR FRONT (from his stack point the arc meets the wall) at a point 3 m into the room along the way in (the room's middle when shallower), then returns to his stack point | #1 throws: he holds the door · from the stack point: the grenade bounces back off the wall |
+| **CB-69** | **bang out**: the stack waits at its stack points (beside the door, behind the wall); bang = the moment his mount's count drops + the warhead's fuze + flight (distance / 15 m/s); the entry is released 0.3 s after it (CB-30: within 1 s). The throw given up after 6 s ⇒ enter without | wait for the detonation event: the area effect runs where the round lands, not always on the brain's node · enter on the throw: into his own grenade |
+| **CB-70** | **the friend check**: for each live man of the squad, the predicted stun at his body = EffectSeconds × `BlastFalloff` × `ClosedBarrierTransmission`(the trace from the aim point) — more than 0.5 s ⇒ that aim point is refused; fragmentation: a man within the warhead's lethal radius with no closed barrier between ⇒ refused. Two aim points are tried (3 m in, then the room's far third); both refused ⇒ no grenade | the flat-radius friend test of `HiddenTargetThrow`: blind to the wall the stack stands behind · the terrain shadow too: smaller only, so leaving it out errs safe |
+| **CB-71** | **who carries them**: InfantrySoldier stays as is (every existing demo unchanged); a NEW type **AssaultRifleman (2009)** — the InfantrySoldier with 2 stun grenades and 2 M67 in place of the pistol (four mounts is all the replicated ammo carries) — is what the clearing demos field | grenades for every InfantrySoldier: every demo's weapon brain would start throwing (R-261) · `PersonHands.Give` from the scenario: no per-entity item field exists |
+| **CB-72** | **contact at the way in (CB-12 + CB-22)**: while a man of the entry has not crossed, a HOSTILE SEEN in the room, or a Hit / NearMiss on a man of the stack within 3 s, holds the entry — nobody new goes through the doorway, a released man not yet at the door goes back to his stack point, and the first two of the stack go to **pie points** (on an arc outside the doorway, 1.8 m out, 30° and 60° off its line, on their own side) as **frame posts** leaning toward the door, so they fight into the room from beside it. **3 s quiet** (none seen, none fired on) ⇒ the entry resumes — and as the room is now Suspected, a grenade goes in first when none has | enter under fire: the fatal funnel · abort the room: CB-12 says limited penetration · a new SliceThePie behaviour now: a Watch on a frame post already leans |
+| **CB-73** | **a man down before he crossed** (§6a): the stack is renumbered over the live men (`Places` again, same turn) — the next man fills his place — and the drill restarts its entry from Breaching (the door is open); inside, the room is finished (already: `AllAt` counts the live) | stop the building for him: CB-17 · carry him now: the doorway is the fatal funnel — the squad's SOP carries him in the lull after (its `CasualtyInALull` row) |
+| **CB-74** | **fire from a Cleared room** (§6a): `ClearBuildingPlay` returns a Cleared room to Unknown when the pool shows a hostile seen in it — `RoomOrder` then takes it again, Suspected | ignore it: the man behind is shot from a room the squad called clear |
+
+**Slice.** BC-4 + BC-5 = CB-65…CB-74; rails in `SquadManeuverTests.CE2260_*` / `CE2261_*` (the choice table and the friend check, pure; a stun thrown
+by #2 before a suspected room and the entry after the bang; none into an unsuspected room under Precision; a friend in the room ⇒ no grenade; contact at the
+door holds the entry and the pie points lean; quiet resumes; a man down re-stacks), the demos `bc-house-high-intensity` and `bc-house-defended` with their
+twins, and `bc-room-clear` re-run with AssaultRiflemen and a Suspected room (`CE-2341`). ⛔ Not in it: Arrest's flashbang before every room (`CE-2266`),
+carrying the casualty during the clearing (CB-17 — the SOP's lull row after), corners and stairs pied (CB-22 — BC-3's corners).
+
+#### 7.3a As built *(2026-10-21)*
+
+| piece | as built | where |
+|---|---|---|
+| the order (CB-65) | `ClearRoom {…, Intensity, Suspected}`, `ClearBuilding {…, Intensity, Suspected}`; `ClearIntensity` beside the DTOs (Hrot.Core); `RoomDrill.Arm` after `Begin` | `ClearRoomParamsJsonDto.cs`, `ClearRoomBehavior.cs`, `ClearBuildingBehavior.cs` |
+| suspicion (CB-66) | `RoomSuspicion.Of` over the squad pool: a heard (anonymous) contact in the room suspects it; an identified hostile suspects it and is SEEN when refreshed within 90 ticks; a neutral = civilians known | `RoomGrenade.cs` |
+| the choice and the carrier (CB-67, CB-68) | `GrenadeCheck.Choose` · `Carried` (the man's TKB weapon suite: a `Grenade` mount whose warhead is the kind, rounds left) · `RoomDrill.FindThrower` (#2, then the stack in order) | `RoomGrenade.cs`, `RoomDrill.cs` |
+| the friend check (CB-70) | `GrenadeCheck.Hurts` — stun: EffectSeconds × `BlastFalloff` × `ClosedBarrierTransmission` > 0.5 s; fragmentation: within max(blast lethal, ⅓ of the fragment reach) and `FragmentTransmission` > 0.05 — each man where he will stand at the bang (his stack point); aims 3 m in, then the far third | `RoomGrenade.cs`, `RoomDrill.Decide` |
+| the gate (CB-69, CB-72) | ⚠ **deviation:** the bang-out and the contact hold run as a GATE at the start of Entering (`RoomDrill.Gate`), not inside Breaching — the door opens, Entering begins, and nothing flows until the gate opens; the shell's phases are unchanged | `RoomDrill.cs` |
+| pie points (CB-72) | `Watch` on a FRAME post (`MemberPost.Frame`, `Opening` = the doorway): `PostureNodes.HoldWatch` leans toward it — no new behaviour | `RoomDrill.PiePoint` |
+| re-stack (CB-73) | `RoomDrill.Restack`: a placed man no longer live before anybody crossed ⇒ `Places` again over the live, the gate closes | `RoomDrill.cs` |
+| a Cleared room reopened (CB-74) | `ClearBuildingPlay.Reopen` before each next room | `ClearBuildingBehavior.cs` |
+| the carrier type (CB-71) | `UrbanCombatTkbCatalog.TkbAssaultRifleman = 2009` (rifle · 2 stun · 2 M67 · the hands at 3 — no pistol: four mounts is all `dtWeaponAmmo` carries) | `UrbanCombatTkbCatalog.cs` |
+
+Rails: `SquadManeuverTests.CE2260_BC4_*` ×3 (the choice and the friend check, pure · "bang out" by #2 from the door front, the far-third aim, the
+entry after the bang · no grenade into an unsuspected room or where it would stun the stack) and `CE2261_BC5_*` ×2 (contact holds the entry, the
+first two pie on frame posts, 3 s quiet resumes · a man down before the entry, the next takes his place); the nine BC-1 / BC-3 rails pass on the
+gate unchanged.
 
 ## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 

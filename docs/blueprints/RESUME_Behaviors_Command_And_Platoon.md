@@ -46,7 +46,9 @@ related-designs:
 |---|---|
 | ✅ built + rails | `PlatoonConvoy` — ride, contact (the squads' SOP fights), ~30 s quiet ⇒ secure at the vehicles, the wounded aboard, remount, carry on; a dead vehicle's squad takes another with room, else walks — [Defend and Attack §11a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md); rails `SquadManeuverTests.CE2347_*` |
 | ✅ scenario | `uc-urban-battle`'s Blue platoon runs it; the live check gains ⑤ (secure → remount → on the route again) |
-| ⏭ next | the live run with ⑤, then the long (10+ min) run for the aircraft beat with a probe of heard sounds, SPOTs and FireSupport requests — measure before changing anything |
+| ✅ measured live (four 30-min runs) | the aircraft beat happens (FireSupport → Apache, 255–458 s); ①–④ pass every run |
+| ⛔ ⑤ fails — waits on backend | the convoy secures and starts to remount, then own-side shots heard as one-man enemies 33 m off restart its contact — [`CE-2348`](Blueprint_Issues_Tracker.md) ③, handed to backend by the user. Fixed on the way (Squad Tactics §5b.2): an immobile carrier stands, the enemy must be near now (10 s), the dead aboard do not count |
+| ⏭ next | rerun `uc-urban-battle --timeout 900` once backend lands ③ |
 
 ### N.1b ✅ `pc-defend-house` fixes — R-2066 *(2026-10-21)*
 

@@ -72,6 +72,9 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-3220</c> part 2 (Civilians §7.2b) — an UNARMED FIGHTER: an Infantry-class person (3.1.*.1, a combatant by STATUS —
         /// AW-21) with no weapon and no brain. The stand-in the retired 1001 used to play by accident (an unclassed LandPerson), now explicit.</summary>
         public const int TkbUnarmedFighter     = 2008;
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-71) — an ASSAULT RIFLEMAN: the InfantrySoldier plus stun grenades (mount 1) and M67 (mount 2) — what
+        /// the clearing demos field, so the room drill can bang a room out. 📄 docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §7.3.</summary>
+        public const int TkbAssaultRifleman    = 2009;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         internal const float CivilianVisionRange  = 30f;
@@ -140,6 +143,8 @@ namespace Hrot.Core.Tkb
         //   the mount states only how it is fired: a THROW (15 m/s ⇒ ~23 m at 45°) and a mortar on a reduced charge (60 m/s ⇒ up to
         //   ~370 m, fired high). No DamagePerHit/Penetration: a direct hit is the flat default; the warhead does the work.
         private const int   GrenadeCount = 4;
+        /// <summary>⭐ CE-2260 (CB-71) — the assault rifleman's stun grenades and fragmentation grenades.</summary>
+        private const int   AssaultStunGrenades = 2, AssaultFragGrenades = 2;
         private const float GrenadeThrowSpeed = 15f, GrenadeRange = 25f;
         private const int   MortarBombs = 10;
         private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
@@ -269,6 +274,30 @@ namespace Hrot.Core.Tkb
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-2260 BC-4 (CB-71) — AssaultRifleman (2009): the InfantrySoldier, plus stun grenades (mount 1) and M67 (mount 2) for the room
+            //   drill's "bang out" (§7.3); the hands go to 3 — no pistol (four mounts is all dtWeaponAmmo carries). Only the clearing demos field him — the InfantrySoldier
+            //   stays grenade-free, so no other demo's weapon brain starts throwing (R-261).
+            {
+                var t = new TkbTemplate("AssaultRifleman", TkbAssaultRifleman);
+                Master(t, "AssaultRifleman", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new InjuryDefDto());
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    new WeaponMountDto { InitialAmmunition = AssaultStunGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade },
+                    new WeaponMountDto { InitialAmmunition = AssaultFragGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },
+                } });   // ⚠ no pistol: the hands make mount 3, the last the replicated per-mount ammo carries (dtWeaponAmmo, 0…3)
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());
                 tkb.Register(t);
             }
