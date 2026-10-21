@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <c>EntityRepository</c> cast every sibling system performs.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     internal sealed class BehaviorFrameSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

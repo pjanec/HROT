@@ -21,6 +21,7 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [UpdateAfter(typeof(RecorderTickSystem))]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class DataBreakpointSystem : IEcsModuleSystem
 {
     private readonly IDataBreakpointManager _manager;

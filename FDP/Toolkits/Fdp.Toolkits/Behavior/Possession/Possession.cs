@@ -161,6 +161,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class PossessionSystem : IEcsModuleSystem
     {
         private readonly string _operatorBehavior;

@@ -46,6 +46,7 @@ public readonly record struct TrafficHit(string Name, bool IsVehicle, Vector3 Fr
 /// driver gets out a civilian in panic (§8.7 G4).</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficPanicSystem : IEcsModuleSystem
 {
     /// <summary>Incidents of one frame closer than this (and no wider) are one incident: a burst of fire is one fright.</summary>

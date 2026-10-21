@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// reads <see cref="DebugState"/> in <c>SystemPhase.Simulation</c>.
     /// </remarks>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DebugStatePatchSystem : IEcsModuleSystem
     {
         public DebugStatePatchSystem()

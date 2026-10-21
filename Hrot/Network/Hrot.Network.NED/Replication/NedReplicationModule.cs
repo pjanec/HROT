@@ -52,6 +52,7 @@ namespace Hrot.Network.Replication;
 ///   </item>
 /// </list>
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class NedReplicationModule : INedReplicationModule
 {
     public string Name => "NedReplication";
@@ -702,6 +703,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [UpdateAfter(typeof(NetworkSpawningSystem))]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class LocalAuthorityYieldSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap    _entityMap;

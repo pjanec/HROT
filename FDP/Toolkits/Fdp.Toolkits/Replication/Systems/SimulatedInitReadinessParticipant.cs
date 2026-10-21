@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// completes as soon as each peer ghosts + reports — production behaviour is unchanged.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class SimulatedInitReadinessParticipant : DeferredConstructionParticipant
     {
         private readonly int _simulatedReadyFrames;

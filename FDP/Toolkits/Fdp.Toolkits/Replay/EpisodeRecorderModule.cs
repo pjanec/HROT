@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Replay
     /// affecting any other running recorder module.
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EpisodeRecorderModule : IEcsModule, IDisposable
     {
         private readonly RecordingModule _inner;

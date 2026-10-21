@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Motion
     /// every body with a <see cref="Locomotion"/>, so nothing is integrated twice.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AirMotionSystem : IEcsModuleSystem
     {
         /// <summary>⭐ Air Ops slice 2 — the routes a <c>FollowRoute</c> intent names (<see cref="NavigationIntent.RouteEntityId"/>); the

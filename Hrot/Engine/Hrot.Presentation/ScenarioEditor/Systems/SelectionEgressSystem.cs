@@ -41,6 +41,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⭐ The reason travels WITH the thing it describes.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionEgressSystem : IEcsModuleSystem
 {
     /// <summary>

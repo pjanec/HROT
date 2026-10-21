@@ -22,6 +22,7 @@ namespace Fdp.Network.Cyclone.Modules
     /// </summary>
     // Local implementation of Ingress System since it appears missing from Core
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CycloneNetworkIngressSystem : IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
     {
         private readonly Fdp.Interfaces.INetworkTranslator[] _translators;

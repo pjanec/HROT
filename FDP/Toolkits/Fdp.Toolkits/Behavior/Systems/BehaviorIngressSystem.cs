@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;

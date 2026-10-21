@@ -47,6 +47,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⛔ Not <c>Simulation</c>: that runs on background threads and this touches ImGui-adjacent host state.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class ToolActivationDrainSystem : IEcsModuleSystem
 {
     private readonly Func<ISelectionState?>       _selection;

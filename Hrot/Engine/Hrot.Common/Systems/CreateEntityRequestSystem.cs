@@ -63,6 +63,7 @@ namespace Hrot.Common.Systems
     /// all ECS spawning is delegated to NetworkSpawningSystem via the event bus.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CreateEntityRequestSystem : IEcsModuleSystem
     {
         /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>

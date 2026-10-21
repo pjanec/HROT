@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Terrain
     /// <see cref="NetworkAuthority"/> (one node, the editor) this node owns every door.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DoorCommandSystem : IEcsModuleSystem
     {
         /// <summary>

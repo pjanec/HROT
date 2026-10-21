@@ -29,6 +29,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class TerrainQueryResolutionSystem : IEcsModuleSystem
     {
         /// <summary>Maximum Z-delta (metres) that is accepted as a valid terrain hit.</summary>

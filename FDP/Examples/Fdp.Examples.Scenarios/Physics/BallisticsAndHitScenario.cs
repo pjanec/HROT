@@ -314,6 +314,7 @@ namespace Fdp.Examples.Scenarios.Physics
         /// Runs all ballistics pipeline systems in the required order and disposes
         /// the <see cref="RaycastBatchData"/> NativeArrays when the kernel shuts down.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class BallisticsModule : IEcsModule, IDisposable
         {
             private readonly IEcsModuleSystem[] _modSystems;

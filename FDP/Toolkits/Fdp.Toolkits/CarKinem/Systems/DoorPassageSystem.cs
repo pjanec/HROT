@@ -28,6 +28,7 @@ namespace CarKinem.Systems
     /// opened". ⛔ This system never writes the door — only its owner does (<see cref="DoorCommandSystem"/>).</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DoorPassageSystem : IEcsModuleSystem
     {
         /// <summary>How far ahead along the path (m) a door mark is considered.</summary>

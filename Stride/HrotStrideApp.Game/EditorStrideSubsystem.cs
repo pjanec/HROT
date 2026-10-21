@@ -1319,6 +1319,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     /// a single module so the kernel's "no global Simulation systems" constraint
     /// is honoured (mirrors EditorHarness.EditorSimulationModule pattern).
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     private sealed class EditorStrideSimulationModule : IEcsModule
     {
         private readonly IEnumerable<IEcsModuleSystem> _cgfSim;

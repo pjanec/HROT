@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// (<see cref="DetonationNotification.IsRemote"/>) gets no area effect here, as it gets no direct damage.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AreaEffectSystem : IEcsModuleSystem
     {
         private readonly ColliderOcclusion _occlusion = new();

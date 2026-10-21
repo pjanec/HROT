@@ -47,6 +47,7 @@ namespace CarKinem.Systems
     /// </remarks>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(CarKinematicsSystem))] -- ordering maintained by array position in GroundKinematicsModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class NavigationExecutionSystem : IEcsModuleSystem
     {
         // ── Constants ──────────────────────────────────────────────────────────────────────────

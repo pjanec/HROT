@@ -115,6 +115,7 @@ namespace Fdp.Toolkit.Combat
     /// <c>Interactions</c> capability on every node.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ChargeSystem : IEcsModuleSystem
     {
         /// <summary>Charges set off on this node (rails read it).</summary>

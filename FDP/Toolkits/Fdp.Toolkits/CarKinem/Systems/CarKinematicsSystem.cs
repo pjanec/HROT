@@ -21,6 +21,7 @@ namespace CarKinem.Systems
     [UpdateInPhase(SystemPhase.PostSimulation)]
     // [UpdateAfter(typeof(SpatialHashSystem))] -- ordering maintained by array position in GroundKinematicsModule.
     // [UpdateAfter(typeof(FormationTargetSystem))] -- ordering maintained by array position in GroundKinematicsModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class CarKinematicsSystem : IEcsModuleSystem
     {
         /// <summary>⭐ 5d-3 — below this speed (m/s) a held entity (<see cref="NavState.IsBlocked"/>) is standing.</summary>

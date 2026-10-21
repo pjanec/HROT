@@ -20,6 +20,7 @@ public sealed class SingleInstanceGuardTests
 {
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class SingletonSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -28,12 +29,14 @@ public sealed class SingleInstanceGuardTests
     /// <summary>A second copy in a DIFFERENT phase still ticks twice per frame, so it must also throw.</summary>
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class SingletonInInputPhase : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
 
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class OrdinarySystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -119,12 +122,14 @@ public sealed class SingleInstanceGuardTests
 public sealed class SharedCompositionPrimitivesTests
 {
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class SimSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
 
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class InputSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }

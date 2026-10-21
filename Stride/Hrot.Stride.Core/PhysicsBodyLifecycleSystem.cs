@@ -62,6 +62,7 @@ namespace Hrot.Stride.Core;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
 {
     // ── Diagnostics (DIAG-LC) ──────────────────────────────────────────────

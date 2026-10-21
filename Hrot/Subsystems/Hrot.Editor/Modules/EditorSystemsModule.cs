@@ -22,6 +22,7 @@ namespace Hrot.Editor.Modules;
 /// kernel.Initialize();
 /// </code>
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class EditorSystemsModule : IEcsModule
 {
     private readonly EditorPerceptionSetupSystem _perception;

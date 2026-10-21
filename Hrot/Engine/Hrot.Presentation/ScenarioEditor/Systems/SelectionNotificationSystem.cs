@@ -34,6 +34,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// implementations of one concept (ruling 9). 📄 §2.7.15.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionNotificationSystem : IEcsModuleSystem
 {
     private readonly Func<IInspectorContext?> _inspector;

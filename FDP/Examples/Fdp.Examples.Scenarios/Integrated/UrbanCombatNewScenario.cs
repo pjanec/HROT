@@ -849,6 +849,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// Uses <c>ExecutionPolicy.Synchronous()</c> so the kernel passes the live
         /// <see cref="EntityRepository"/> directly (no serialisation overhead).
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class UrbanCombatModule : IEcsModule
         {
             private readonly EntityRepository    _world;

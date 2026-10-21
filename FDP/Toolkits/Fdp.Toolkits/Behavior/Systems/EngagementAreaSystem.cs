@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// (the cross-node road is a tactical-intent kind, backend). 📄 Defend &amp; Attack §13c.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EngagementAreaSystem : IEcsModuleSystem
     {
         /// <summary>Refused changes since this system was built (a test / diagnostics probe).</summary>

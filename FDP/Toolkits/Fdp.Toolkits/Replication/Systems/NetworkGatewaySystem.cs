@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// Barrier design <c>docs/DESIGN_Cross_Node_Construction_Barrier.md</c> §1.1/§3a.4.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class NetworkGatewaySystem : DeferredConstructionParticipant
     {
         private readonly int _localNodeId;

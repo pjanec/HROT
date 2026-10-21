@@ -27,6 +27,7 @@ namespace Hrot.Common.EntityCreation
     /// Once per aircraft (a latch), and only while it is alive. Scheduled in the Interactions capability: every node, gated on what it owns.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EjectionSystem : IEcsModuleSystem
     {
         private readonly HashSet<Entity> _ejected = new();

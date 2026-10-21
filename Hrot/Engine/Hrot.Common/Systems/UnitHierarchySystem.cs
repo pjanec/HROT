@@ -31,6 +31,7 @@ namespace Hrot.Common.Systems
     // CmdAssignSubordinateRejected for LEGITIMATE assignments. Corrupted state, not a wasted tick.
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class UnitHierarchySystem : IEcsModuleSystem
     {
         // Literal ordinal for EntityInfo descriptor; avoids referencing Hrot.Network.NED

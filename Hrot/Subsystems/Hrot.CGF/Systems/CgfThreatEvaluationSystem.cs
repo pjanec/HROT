@@ -18,6 +18,7 @@ namespace Hrot.CGF.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CgfThreatEvaluationSystem : IEcsModuleSystem
     {
         private readonly ThreatEvaluationSystem _threatEvaluation = new ThreatEvaluationSystem();

@@ -19,6 +19,7 @@ namespace Fdp.ModuleHost.Time
     /// repository would write bytes that the restore then overwrites.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PreFrame)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ResumeAndDrainSystem : IEcsModuleSystem
     {
         private readonly IStagedWrites _staged;

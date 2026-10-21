@@ -11,6 +11,7 @@ namespace Fdp.ModuleHost.Tests
 {
     public class ConvoyAutoGroupingTests
     {
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";

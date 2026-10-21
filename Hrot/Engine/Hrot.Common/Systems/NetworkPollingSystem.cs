@@ -11,6 +11,7 @@ namespace Hrot.Common.Systems;
 /// hook, so they register this system instead. One per node.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class NetworkPollingSystem : IEcsModuleSystem
 {
     private readonly Action _poll;

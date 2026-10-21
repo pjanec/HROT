@@ -62,6 +62,7 @@ namespace Hrot.Stride.Core;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetLogger("VehicleNavigationIntentSystem");

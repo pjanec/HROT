@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Squad.Systems
     /// <para>⭐ Allocation-free per frame: the query is built once and cached.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class SquadCoordinationSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;

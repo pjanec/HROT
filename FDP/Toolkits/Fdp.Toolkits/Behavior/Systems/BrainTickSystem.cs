@@ -55,6 +55,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public unsafe class BrainTickSystem : IEcsModuleSystem, IProfiledSystem
     {
         private readonly BehaviorRegistry _registry;

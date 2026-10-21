@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// idempotent: calling it for an already-removed id is a safe no-op.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GlobalGizmoManager : IEcsModuleSystem
     {
         private static long _nextId = 0;

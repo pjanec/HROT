@@ -27,6 +27,7 @@ namespace Hrot.SimHost.Systems
     /// "empty". The <see cref="EqsResultPool"/> singleton is created on first Execute.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsSolverSystem : IEcsModuleSystem
     {
         // Query cached after first use.

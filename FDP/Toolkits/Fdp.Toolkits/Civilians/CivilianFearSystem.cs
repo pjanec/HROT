@@ -48,6 +48,7 @@ namespace Fdp.Toolkit.Civilians
     /// a unit that carries <see cref="CivilianState"/> (added by his <c>CivilianHsm</c>) is touched. The HSM reads the result.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CivilianFearSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

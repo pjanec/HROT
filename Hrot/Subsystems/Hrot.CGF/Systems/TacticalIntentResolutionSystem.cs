@@ -52,6 +52,7 @@ namespace Hrot.CGF.Systems
     /// immediately after <c>MissionAdapterSystem</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class TacticalIntentResolutionSystem : IEcsModuleSystem
     {
         private static readonly Logger s_aiLog = LogManager.GetLogger("AI.Behavior.TacticalIntent");

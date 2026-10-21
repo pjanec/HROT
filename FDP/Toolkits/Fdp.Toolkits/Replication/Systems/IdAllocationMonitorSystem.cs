@@ -7,6 +7,7 @@ using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Toolkit.Replication.Systems
 {
+    [TickMode(TickPolicy.EveryFrame)]
     public class IdAllocationMonitorSystem : IEcsModuleSystem, IDisposable
     {
         private BlockIdManager? _manager;

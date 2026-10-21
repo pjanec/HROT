@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Motion
     /// flies it, AI or an operator. Runs on the node that moves it (after <see cref="AirMotionSystem"/>).
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DroneImpactSystem : IEcsModuleSystem
     {
         /// <summary>Bodies farther than this from the flyer (plus their own radius) are not tested.</summary>

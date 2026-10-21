@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Perception.Survey
     /// </summary>
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WorldSurveyApplySystem : IEcsModuleSystem
     {
         /// <summary>Answers dropped for an old epoch (a re-pointed sensor) since this system was built (diagnostics / rails).</summary>

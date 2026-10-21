@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class DamageCalculationSystem : IEcsModuleSystem
     {
         public DamageCalculationSystem()

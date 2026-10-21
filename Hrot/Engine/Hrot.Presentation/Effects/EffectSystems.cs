@@ -37,6 +37,7 @@ namespace Hrot.UI.Common.Effects;
 /// (VE-J), and decals over <see cref="DecalCap"/> are removed oldest first (VE-H).</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class EffectSpawnSystem : IEcsModuleSystem
 {
     /// <summary>The most decals alive at once (VE-H).</summary>
@@ -341,6 +342,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class WreckSpawnSystem : IEcsModuleSystem
 {
     private readonly Dictionary<Entity, bool> _wasDestroyed = new();

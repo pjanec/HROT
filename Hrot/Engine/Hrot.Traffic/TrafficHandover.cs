@@ -21,6 +21,7 @@ public readonly record struct TrafficHandover(long NetworkId, uint IntentId, dou
 /// <remarks>⭐ The intent arrives here by NED ingress on the traffic node (a read-only translator, §14 G2) and is local in the
 /// embedded editor. ⛔ Ownership never moves: the body's owner FOLLOWS the shadow (<see cref="TrafficShadowFollowSystem"/>).</remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficHandoverSystem : IEcsModuleSystem
 {
     private readonly TrafficRuntime _runtime;

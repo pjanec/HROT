@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// like any other sensing change, and ROE <c>ReturnFire</c> answers it. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NearMissSensingSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

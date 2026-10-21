@@ -46,6 +46,7 @@ namespace Hrot.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class MissionControlExecutionSystem : IEcsModuleSystem, IIntentClearProvider
     {
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";

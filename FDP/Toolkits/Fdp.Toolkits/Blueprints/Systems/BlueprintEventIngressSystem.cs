@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 /// every mutation.  Events targeting dead entities are silently skipped.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class BlueprintEventIngressSystem : IEcsModuleSystem
 {
     private readonly BlueprintRegistry _registry;

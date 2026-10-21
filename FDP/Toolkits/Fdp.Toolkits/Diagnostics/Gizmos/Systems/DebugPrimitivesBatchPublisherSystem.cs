@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     // simulation locally. Runs in the Export phase after all gizmo projectors have populated
     // the buffer.
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DebugPrimitivesBatchPublisherSystem : IEcsModuleSystem
     {
         private readonly DebugPrimitiveBuffer _buffer;

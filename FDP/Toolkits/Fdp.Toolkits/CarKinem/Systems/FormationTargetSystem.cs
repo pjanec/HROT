@@ -14,6 +14,7 @@ namespace CarKinem.Systems
     /// Runs before CarKinematicsSystem.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class FormationTargetSystem : IEcsModuleSystem
     {
         private readonly FormationTemplateManager _templateManager;

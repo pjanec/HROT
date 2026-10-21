@@ -21,6 +21,7 @@ namespace Hrot.Presentation.Map;
 /// <c>IReadOnlyList</c>.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public class MapLayerAssignmentSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────

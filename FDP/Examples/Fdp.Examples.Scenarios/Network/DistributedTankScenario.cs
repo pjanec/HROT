@@ -691,6 +691,7 @@ namespace Fdp.Examples.Scenarios.Network
         /// on the Muscle <see cref="ModuleHostKernel"/> without depending on
         /// <c>SimulationLogicModule</c>.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class MuscleDirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;

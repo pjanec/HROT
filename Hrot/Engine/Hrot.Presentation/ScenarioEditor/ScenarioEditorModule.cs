@@ -29,6 +29,7 @@ namespace Hrot.ScenarioEditor;
 /// omits them is a wiring bug, ⭐ and a host that genuinely lacks them is stating a fact
 /// *(CLAUDE.md's silent-default rule — the caller that HAS a dependency must pass it)*.</para>
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class ScenarioEditorModule : IEcsModule
 {
     private readonly ScenarioFileService? _fileService;

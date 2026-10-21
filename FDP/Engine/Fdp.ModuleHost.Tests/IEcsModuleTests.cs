@@ -24,6 +24,7 @@ namespace Fdp.ModuleHost.Tests
             Assert.Contains(ModuleTier.Slow, Enum.GetValues<ModuleTier>());
         }
 
+        [TickMode(TickPolicy.EveryFrame)]
         private class TestModule : IEcsModule
         {
             public string Name => "Test";

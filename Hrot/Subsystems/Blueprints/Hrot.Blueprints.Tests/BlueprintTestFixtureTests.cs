@@ -173,6 +173,7 @@ public sealed class BlueprintTestFixtureTests
 }
 
 /// <summary>Helper: ECS system that counts Execute invocations.</summary>
+[TickMode(TickPolicy.EveryFrame)]
 internal sealed class CountingSystem : IEcsModuleSystem
 {
     public int ExecuteCount { get; private set; }

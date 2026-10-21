@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// are the unchanged chain. No new wire: the round, its target and the terrain are all on this node.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class GuidedRoundSystem : IEcsModuleSystem
     {
         /// <summary>The steering limit (D-D: ≤ 30°/s).</summary>

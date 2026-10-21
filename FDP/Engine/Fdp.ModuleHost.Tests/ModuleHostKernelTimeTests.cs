@@ -167,6 +167,7 @@ namespace Fdp.ModuleHost.Tests
 
         /// <summary>A 10 Hz background module that records the sim time of each run and, after <see cref="SleepMs"/>, writes
         /// its run count into the probe entity through its command buffer (applied at harvest).</summary>
+        [Fdp.ModuleHost.Abstractions.TickMode(Fdp.ModuleHost.Abstractions.TickPolicy.WhenTimeAdvances)]
         private sealed class SlotModule : Fdp.ModuleHost.Abstractions.IEcsModule
         {
             public string Name => "SlotModule";

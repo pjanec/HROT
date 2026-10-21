@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// Scheduled on every node (the Interactions capability) and gated on what this node owns, so whoever owns a cloud runs it.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AreaEffectCloudSystem : IEcsModuleSystem
     {
         /// <summary>How often a cloud steps — drifts, and irritates whoever is in it (s).</summary>

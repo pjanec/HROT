@@ -23,6 +23,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     ///           when the PlayMontage slot finishes, begin the first queued entry.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class MontageQueueAdvanceSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

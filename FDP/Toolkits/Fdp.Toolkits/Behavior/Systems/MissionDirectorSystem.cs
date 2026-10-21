@@ -61,6 +61,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateBefore(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in MissionControlModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>

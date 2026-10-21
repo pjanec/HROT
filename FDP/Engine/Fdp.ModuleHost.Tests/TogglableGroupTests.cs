@@ -170,6 +170,7 @@ namespace Fdp.ModuleHost.Tests
 
         // ── Helper ────────────────────────────────────────────────────────────
 
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class CountingSystem : IEcsModuleSystem
         {
             public string Name { get; }

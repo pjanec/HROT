@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             public void SeedState(GlobalTime state) { }
         }
 
+        [TickMode(TickPolicy.EveryFrame)]
         private class MockModule : IEcsModule
         {
             public int Id { get; set; }
@@ -55,6 +56,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
             
             [UpdateInPhase(SystemPhase.Input)]
+            [TickMode(TickPolicy.EveryFrame)]
             private class MockSystem : IEcsModuleSystem
             {
                 private MockModule _module;

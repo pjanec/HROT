@@ -3263,6 +3263,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
     // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     private sealed class CgfSimulationModule : IEcsModule
     {
         private readonly TogglableSimulationGroup _group;

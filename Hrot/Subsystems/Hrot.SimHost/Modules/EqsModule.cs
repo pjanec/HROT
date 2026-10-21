@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Modules
     /// <c>AiHotReloadCoordinator</c> picked templates up on assembly load — it has no EQS code; there is
     /// no EQS hot reload (<c>CE-465</c>, design §16).</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsModule : IEcsModule, IDisposable
     {
         /// <inheritdoc/>

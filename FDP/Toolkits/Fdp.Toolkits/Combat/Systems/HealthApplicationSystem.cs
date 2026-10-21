@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HealthApplicationSystem : IEcsModuleSystem
     {
         public HealthApplicationSystem()

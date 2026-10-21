@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// each across nodes (kinds 9 and 10); in one world both halves run here.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class RoundPickUpSystem : IEcsModuleSystem
     {
         /// <summary>Asks granted / grants put in a man's hands on this node (rails and diagnostics read them).</summary>
@@ -56,6 +57,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// brain's node (where his hands are), in the <c>Interactions</c> capability.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class HandsFuzeSystem : IEcsModuleSystem
     {
         /// <summary>A cooked-off round flies with this fuze (s): it bursts at once, at his hands.</summary>

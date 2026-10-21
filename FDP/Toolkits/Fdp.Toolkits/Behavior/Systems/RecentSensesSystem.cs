@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// condition sees last frame's changes. The event's producers are not touched.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class RecentSensesSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

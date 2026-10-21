@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Squad.Command
     /// 📄 docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md §3, §5, §8 CC-C.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StaffComposerSystem : IEcsModuleSystem
     {
         /// <summary>How long a composed report waits before it goes (R-2031: ~3 s, a leader's report).</summary>
@@ -385,6 +386,7 @@ namespace Fdp.Toolkit.Squad.Command
     /// a <c>Synthetic</c> fake always taken, CC-14).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StaffInboxSystem : IEcsModuleSystem
     {
         /// <summary>A sender's new SPOT replaces its element within this many metres; farther, it is another element.</summary>

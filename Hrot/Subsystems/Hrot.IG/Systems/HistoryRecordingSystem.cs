@@ -30,6 +30,7 @@ namespace Hrot.IG.Systems;
 /// (§CODE-STANDARDS §1).
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class HistoryRecordingSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>

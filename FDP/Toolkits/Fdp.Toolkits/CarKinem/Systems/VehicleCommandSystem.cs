@@ -16,6 +16,7 @@ namespace CarKinem.Systems
     /// Runs early to update NavState before physics.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class VehicleCommandSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

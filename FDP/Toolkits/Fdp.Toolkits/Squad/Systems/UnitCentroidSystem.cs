@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Squad.Systems
     /// it is. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.1 C-3.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class UnitCentroidSystem : IEcsModuleSystem
     {
         private EntityQuery? _units;

@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// 📄 docs/DESIGN_Entity_Interactions.md §7, §7.1a.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EmbarkationSystem : IEcsModuleSystem
     {
         /// <summary>Commands this node applied (a rail and a diagnostics counter read it).</summary>

@@ -61,6 +61,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Manual)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.

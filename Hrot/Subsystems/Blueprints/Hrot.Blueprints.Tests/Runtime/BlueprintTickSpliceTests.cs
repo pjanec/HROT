@@ -20,6 +20,7 @@ namespace Hrot.Blueprints.Tests.Runtime;
 /// </summary>
 public sealed class BlueprintTickSpliceTests
 {
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class DummySystem : IEcsModuleSystem
     {
         public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) { }

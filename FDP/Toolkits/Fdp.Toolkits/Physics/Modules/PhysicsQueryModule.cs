@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Physics.Modules
     /// <see cref="RegisterSystems(ISystemRegistry)"/> is a no-op and is provided only for
     /// API compliance.</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class PhysicsQueryModule : IEcsModule
     {
         /// <inheritdoc/>

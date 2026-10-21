@@ -56,6 +56,7 @@ namespace Hrot.Map.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class UpdateEntityAttributeRequestSystem : IEcsModuleSystem, IDisposable
     {
         private readonly IUpdateEntityAttributeRequestSource _requestSource;

@@ -30,6 +30,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class TerrainQuerySubmitSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

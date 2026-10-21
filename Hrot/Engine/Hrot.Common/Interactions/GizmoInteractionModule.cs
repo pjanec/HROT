@@ -25,6 +25,7 @@ namespace Hrot.Common.Interactions
     // The bus is injected directly into systems that need it (DataDrivenGizmoSystem,
     // GlobalGizmoManager, ContextActionIngressSystem, GlobalActionDispatchSystem)
     // so they read from the isolated bus without any view interception.
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GizmoInteractionModule : IEcsModule
     {
         public string Name => "GizmoInteraction";

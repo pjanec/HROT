@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Squad.Systems
     /// </summary>
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DangerAreaSensorSystem : IEcsModuleSystem
     {
         /// <summary>The next area ahead counts as threatened from this rating…</summary>

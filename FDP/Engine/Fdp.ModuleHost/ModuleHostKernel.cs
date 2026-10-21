@@ -428,6 +428,7 @@ namespace Fdp.ModuleHost
             var entry = new ModuleEntry
             {
                 Module = module,
+                TickPolicy = TickModes.OfModule(module.GetType()),   // CE-3293 (R-3036): no default
                 Provider = provider!, 
                 HasManualProvider = provider != null,
                 FramesSinceLastRun = 0,
@@ -1458,6 +1459,7 @@ namespace Fdp.ModuleHost
                 var newEntry = new ModuleEntry
                 {
                     Module = module,
+                    TickPolicy = TickModes.OfModule(module.GetType()),   // CE-3293 (R-3036): no default
                     Provider = null!,
                     FramesSinceLastRun = 0,
                     MaxExpectedRuntimeMs = policy.MaxExpectedRuntimeMs > 0 ? policy.MaxExpectedRuntimeMs : 1000,
@@ -1631,6 +1633,7 @@ namespace Fdp.ModuleHost
                     newEntries.Add(new ModuleEntry
                     {
                         Module = m,
+                        TickPolicy = TickModes.OfModule(m.GetType()),   // CE-3293 (R-3036): no default
                         Provider = null!,
                         FramesSinceLastRun = 0,
                         MaxExpectedRuntimeMs  = policy.MaxExpectedRuntimeMs  > 0 ? policy.MaxExpectedRuntimeMs  : 1000,
@@ -2019,6 +2022,9 @@ namespace Fdp.ModuleHost
         internal class ModuleEntry
         {
             public IEcsModule Module { get; set; } = null!;
+            /// <summary>⭐ CE-3293 (R-3036) — when the module's own Tick runs (and, for a background module, its dispatch). Read at
+            /// registration; gated from S5 on.</summary>
+            public TickPolicy TickPolicy { get; set; }
             public ISnapshotProvider Provider { get; set; } = null!;
             public int FramesSinceLastRun { get; set; }
             public ISimulationView? LastView { get; set; }

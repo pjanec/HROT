@@ -67,6 +67,7 @@ namespace Hrot.Stride.Core;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class BulletReverseSyncSystem : IEcsModuleSystem
 {
     private static readonly Logger Log = LogManager.GetCurrentClassLogger();

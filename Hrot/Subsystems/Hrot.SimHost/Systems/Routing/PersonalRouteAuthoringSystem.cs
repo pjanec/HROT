@@ -41,6 +41,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
 {
     /// <summary>

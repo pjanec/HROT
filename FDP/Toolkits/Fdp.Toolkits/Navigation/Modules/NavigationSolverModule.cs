@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Navigation.Modules
     /// Results are materialized on the main thread by
     /// <see cref="PathfindingResultMaterializationSystem"/>.</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NavigationSolverModule : IEcsModule
     {
         /// <inheritdoc/>

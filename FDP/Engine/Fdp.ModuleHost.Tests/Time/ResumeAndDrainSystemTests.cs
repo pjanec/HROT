@@ -161,6 +161,7 @@ namespace Fdp.ModuleHost.Tests.Time
         // ── W1, end to end: the KERNEL runs PreFrame, and runs it first ──────
 
         /// <summary>Records the order in which the kernel executed the phases.</summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class OrderSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;
@@ -170,6 +171,7 @@ namespace Fdp.ModuleHost.Tests.Time
         }
 
         [UpdateInPhase(SystemPhase.PreFrame)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class PreFrameSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;
@@ -178,6 +180,7 @@ namespace Fdp.ModuleHost.Tests.Time
         }
 
         [UpdateInPhase(SystemPhase.Input)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class InputSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;

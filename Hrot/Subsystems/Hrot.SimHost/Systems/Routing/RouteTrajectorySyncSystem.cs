@@ -28,6 +28,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 {
     private readonly TrajectoryPoolManager _pool;

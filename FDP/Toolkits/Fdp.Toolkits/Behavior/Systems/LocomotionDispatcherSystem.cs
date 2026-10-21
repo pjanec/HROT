@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in ActionDispatchModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LocomotionDispatcherSystem : DispatcherSystemBase<LocomotionChannel>
     {
         public override void Execute(ISimulationView view, float deltaTime)

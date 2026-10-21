@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.4.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class RoeSystem : IEcsModuleSystem
     {
         /// <summary>Refused changes since this system was built (a test / diagnostics probe).</summary>

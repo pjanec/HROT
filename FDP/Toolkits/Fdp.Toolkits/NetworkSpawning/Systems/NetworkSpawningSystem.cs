@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
     /// the ECS + ELM lifecycle machinery.
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class NetworkSpawningSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDb;

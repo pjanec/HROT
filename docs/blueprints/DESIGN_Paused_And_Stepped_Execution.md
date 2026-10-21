@@ -149,8 +149,17 @@ classDiagram
   direction LR
   class TickPolicy {
     <<enumeration>>
+    Forwarding
     WhenTimeAdvances
     EveryFrame
+  }
+  class TickModes {
+    <<new>>
+    +OfSystem(type) TickPolicy
+    +OfModule(type) TickPolicy
+  }
+  class IForwardingSystem {
+    <<interface>>
   }
   class TickModeAttribute {
     <<new>>
@@ -211,6 +220,8 @@ classDiagram
     +ReadManagedEvents() list
   }
   TickModeAttribute --> TickPolicy
+  TickModes ..> TickModeAttribute : reads, throws when absent
+  SystemScheduler ..> TickModes : at registration and first run
   IEcsModuleSystem ..> TickModeAttribute : exactly one
   IEcsModule ..> TickModeAttribute : exactly one
   ModuleHostKernel --> SystemScheduler : ExecuteSystem with advancing
@@ -310,7 +321,18 @@ paced vs HTTP stepping agree ·
 `ReadSince` over a 30-frame window + a flush to a replica, native and managed-struct events in every frame, is **0** — the
 precedent is `BlueprintAssetTickTests.cs:116`.
 
-## 8. ⚠ Open — leans, for the user
+## 7a. ⭐ AS-BUILT — S1 (`2026-10-21`)
+
+| | as built |
+|---|---|
+| the type | `TickPolicy { Forwarding = 0, WhenTimeAdvances, EveryFrame }` + `[TickMode]` (not inherited; declaring `Forwarding` throws) + `TickModes.OfSystem/OfModule` (`SystemAttributes.cs`) |
+| ⚠ deviation: `Forwarding` | a group (`ISystemGroup`) and the manual-system wrapper (new marker `IForwardingSystem`) answer `Forwarding` — they carry no mark; their members do. ⇒ the "4 GROUP" rows of Appendix A, made a type rule instead of a list |
+| the checks | `SystemScheduler.RegisterSystem` and the first `ExecuteSystem` of a type (`_tickPolicies`); the kernel's three module-entry sites (`RegisterModule`, `InstallModuleAsync`, the batch install) → `ModuleEntry.TickPolicy` |
+| the marks | 198 production systems + 40 modules exactly as Appendix A/B (the §8 leans as listed there) · test and example systems `EveryFrame` (today's behaviour) · test modules by their policy: background ⇒ `WhenTimeAdvances`, else `EveryFrame` · done by four parallel agents on disjoint files, then swept: every Roslyn-listed implementation resolved to its declaration, **0 unmarked** |
+| the rails | `TickModeGuardTests` (registration, first run of a group member, not inherited, the manual wrapper, the module, `Forwarding` refused) · `EverySystemDeclaresItsTickModeTests` in `Hrot.ClusterRunner.Tests` **and** `HrotStrideApp.Game.Tests` over the shared `FDP/TestShared/TickModeProbe.cs` (every concrete system and module in the production assemblies beside the test) |
+| ⛔ not yet | nothing reads the policy to gate — S5. The F2 producer→consumer rail is S1's remaining item |
+
+## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
 | question | lean |
 |---|---|

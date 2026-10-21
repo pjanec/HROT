@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 [UpdateBefore(typeof(LocomotionDispatcherSystem))]
 [UpdateBefore(typeof(WeaponDispatcherSystem))]
 [UpdateBefore(typeof(InteractionDispatcherSystem))]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 {
     private readonly BlueprintRegistry _registry;
