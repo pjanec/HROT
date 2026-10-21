@@ -21,7 +21,7 @@ namespace Hrot.UI.Common.Effects;
 /// <para>Bodies are drawn at least <see cref="MinPixels"/> tall so a 6 cm grenade is visible from map distances; everything is derived
 /// from the round's components and the sim clock (stateless), so a pause freezes it and a replay jump is right.</para>
 /// </summary>
-public sealed class ProjectileLayer : IMapLayer
+public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world: filmed
 {
     private readonly Func<EntityRepository?> _world;
     private readonly Func<ITkbDatabase?> _tkb;

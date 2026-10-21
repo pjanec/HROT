@@ -23,7 +23,7 @@ namespace Hrot.UI.Common.Map3D;
 /// toward the eye (<see cref="LitShader.SetDepthBias"/>): from afar a few centimetres are less than one depth step, so they fought our
 /// ground. The ambient ground is its own mesh, unbiased — it lies UNDER everything.
 /// </remarks>
-public sealed class TrafficLayer3D : IMapLayer, IDisposable
+public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     public static readonly Color AsphaltColor   = new(64, 66, 70, 255);
     public static readonly Color JunctionColor  = new(74, 76, 80, 255);

@@ -93,7 +93,9 @@ public sealed class WeatherSkyLayer : IMapLayer
     public void Update(float dt)
     {
         var camera = _view.Camera3D;
-        Vector3? at = !_view.Is3D ? null : camera.Driver is FpsCameraDriver ? camera.Eye : camera.Driver == null ? camera.LookAt : null;
+        // ⭐ CE-3289 — a driver that looks AT a point (the film director) reads the weather there, like the free camera
+        Vector3? at = !_view.Is3D ? null : camera.Driver is FpsCameraDriver ? camera.Eye
+                    : camera.Driver is null or { ViewsFromEye: false } ? camera.LookAt : null;
         camera.Atmosphere = at is { } point && _world() is { } world ? WeatherSky.Of(WeatherField.At(world, point)) : null;
     }
 

@@ -70,6 +70,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?MapViewSwitch\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]
+    [InlineData(@"new\s+([\w.]+\.)?FilmCaptureLayer\(")]   // ⭐ CE-3289 — the film is every map's, by construction
     public void NoHostBuildsAMapLayerOfItsOwn(string pattern)
     {
         var re = new Regex(pattern);

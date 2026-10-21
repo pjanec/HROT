@@ -6,6 +6,8 @@ current-answer: this whole file — how to run the GUI editor on a headless Linu
   measured status of the "null IconAtlas handle" blocker.
 stale-below: nothing.
 known-rot: none.
+related-designs:
+  - docs/DESIGN_Map_3D_Mode.md §6ab — OWNS filming the 3-D map headless (the director camera, the scene capture, scripts/film.py)
 -->
 # Running the editor on a headless Linux host (Xvfb)
 

@@ -526,7 +526,7 @@ namespace Fdp.Toolkit.Vis3D
         public const float FreeFogStartShare = 0.9f;
 
         /// <summary>⭐ CE-1146 — how far from the eye the fog starts (m): 0 while a driver looks out of a unit, else most of the look-at distance.</summary>
-        public float FogStart => Driver != null ? 0f : Distance * FreeFogStartShare;
+        public float FogStart => Driver is { ViewsFromEye: true } ? 0f : Distance * FreeFogStartShare;   // ⭐ CE-3289 — a director looks AT, like the free camera
 
         /// <summary>The far clip distance, m.</summary>
         public float FarClip => MathF.Max(2000f, Distance * 60f);

@@ -23,7 +23,7 @@ namespace Hrot.UI.Common.Effects;
 /// <para>⚠ Deviation, argued: ONE layer with both passes rather than <c>EffectLayer2D</c> + <c>EffectLayer3D</c> — the query, the TKB
 /// lookups and the muzzle are shared, as in the gizmo layer.</para>
 /// </summary>
-public sealed class EffectLayer : IMapLayer
+public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: filmed
 {
     private readonly Func<EntityRepository?> _world;
     private readonly Func<ITkbDatabase?> _tkb;

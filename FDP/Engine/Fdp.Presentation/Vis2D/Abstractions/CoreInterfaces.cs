@@ -108,4 +108,11 @@ public interface IMapLayer
     void DrawOverlay(RenderContext ctx) { }
 }
 
-
+/// <summary>
+/// ⭐ <c>CE-3289</c> (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ab, R-3032) — a layer that draws the WORLD itself (the ground, bodies, effects,
+/// rounds), not a tool or an overlay on it. A filmed frame (<see cref="MapCanvas.DrawScene"/>) draws only these, so a new overlay stays
+/// out of films unless it opts in.
+/// </summary>
+public interface ISceneLayer : IMapLayer
+{
+}
