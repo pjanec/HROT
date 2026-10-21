@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Rifleman' (Friend, TKB 2002, InertSop) at (295,285) in the alley between Block C and the Tower is ordered CombatPosture to advance to (325,300); 'Unarmed Hostile' (TKB 2008) stands at (360,320). Shows the utility step picking AdvanceAndAttack against a weaker, unarmed enemy. Judge: (1) the posture starts on the Rifleman; (2) he remembers the hostile and spends rounds at it while advancing; (3) he reaches within ~6 m of (325,300) and the posture ENDS there, having moved more than 10 m. Fail: no rounds fired, or he never arrives. Check: none (no live check); rail PostureScenarioTests (CE-2073, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2a950000-0000-4000-8000-000000000001": {

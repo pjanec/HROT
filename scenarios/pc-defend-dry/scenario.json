@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "cqb-village"
+    "terrainName": "cqb-village",
+    "description": "What: On cqb-village, 'Red Platoon' (Hostile) defends OBJ at (121,157) facing south (135-225 deg, 160 m): 'Red Squad 1' in OBJ, 'Red Squad 2' at (80,156), 'Red Reserve' at (105,208), four men each. No enemy; the check fakes the squads' PROGRESS Set and enemy SPOTs over HTTP. Judge: (1) every squad is ordered SquadDefend; line men hold fire, the reserve returns fire; (2) a SPOT north of OBJ, outside the engagement area, changes nothing; (3) a SPOT inside it at (120,60) puts every line man on FireAtWill within 1.5 s, the reserve still only returns fire; (4) the platoon SOP never pauses the defence. Fail: ROE changes on the outside SPOT, the line opens late, or the SOP pauses the defence. Check: python3 scripts/utility-demo-check.py --launch pc-defend-dry"
   },
   "entities": {
     "c2276d00-0000-4000-8000-000000009300": {

@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "cqb-village"
+    "terrainName": "cqb-village",
+    "description": "What: On cqb-village, 'Red Squad' (Hostile, 7 men: 'Red Leader', 'Red Rifleman 1-6') runs SquadDefend on the 3-storey OBJ house at (121,157), given a southern sector (150-210 deg, 90 m) by the check, fire held; four Friend riflemen 'Blue 1-4' walk north from y=46 toward y=128 at 1.5 m/s. Judge: (1) posts cover more than one storey, the roof is manned (z >= 5 m), window posts are set back; (2) no Red round before the first Blue enters the sector, then at least two Red men fire; (3) the squad reports PROGRESS Set (all at post); (4) a man under fire moves to his alternate (PROGRESS Displacing). Fail: Red fires before Blue is in the sector, all posts on one storey, or no Set / no Displacing. Check: python3 scripts/utility-demo-check.py --launch sq-defend-house"
   },
   "entities": {
     "c2275d00-0000-4000-8000-000000009310": {

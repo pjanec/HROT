@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: On the flat 'berlin' terrain, 'Squad A' and 'Squad B' (Friend riflemen, BasicInfantrySop) each walk 200 m east on a MoveToLocation order while 'Hostile A' and 'Hostile B', 60 m west of them, each fire up to 30 rounds at them. 'Squad B' carries ROE StayOnTask; 'Unit C' at (560,640) has the SOP and no order. Shows task, SOP and ROE layering (CE-2082). Judge: (1) Unit C idles on its SOP's idle choice (task Idle, origin Sop); (2) Squad A, when hit, reacts by taking cover and its move is PAUSED; (3) Squad B is hit but never reacts and keeps its MoveToLocation. Fail: C does not idle, A keeps walking under fire, or B reacts. Check: none (no live check); rail SopDemoScenarioTests (Hrot.ClusterRunner.Integration.Tests, CE-2082)."
   },
   "entities": {
     "5d0b0001-0000-4000-8000-000000000001": {

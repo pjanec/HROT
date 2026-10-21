@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: The empty seed scenario: header only, terrain basic-desert, and no entities at all. It is the starting point the editor's New Scenario offers, so it shows nothing but the terrain. Judge: (1) it loads on basic-desert with zero entities; (2) nothing moves or fires; (3) its header names the terrain and the Hrot.Scenario subsystem type. Fail: an entity appears, or the terrain name is missing. Check: none (no live check); tests: Hrot.Editor.Tests TheShippedScenarioSeedCarriesBothNamesTests, ScenarioNewAssetTests."
   },
   "entities": []
 }

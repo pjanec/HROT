@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302) with 'Leader' and 'Rifleman 1-4' is ordered SuppressAndManeuver (30 s phase timeout) and waits for contact with 'Hostile' (armed, idle, 100000 HP) at (360,320). Shows a base of fire plus a flank assault the terrain chooses. Judge: (1) on contact the squad splits into a base of fire and an assault; (2) base members fire (ammo falls) and hold within 5 m; (3) the assault takes a terrain-asked flank, at least 45 degrees off the base's bearing; (4) it goes through the enemy's position. Fail: no split, the base does not fire or wanders, or the assault attacks from the base's side. Check: none (no live check); rail SquadTacticsScenarioTests (CE-2123 S1, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2b123000-0000-4000-8000-0000000000c0": {

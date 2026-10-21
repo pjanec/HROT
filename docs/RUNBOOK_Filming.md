@@ -7,6 +7,7 @@ current-answer: this whole file — ⭐ §0 film in --mode editor; §1 the quick
 stale-below: nothing.
 known-rot: none.
 related-designs:
+  - PLAN_Feature_Films.md — OWNS what to film (the clip list, docs/films/clips.json) and the overnight pipeline proposal (CE-4034)
   - docs/DESIGN_Map_3D_Mode.md §6ab — OWNS the design (the director camera, the scene capture, the routes; UML; as-built and measured limits §6ab-i)
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) the films run under
   - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — OWNS the HTTP debug API and its traps (the localhost HOSTNAME, a paused cluster)

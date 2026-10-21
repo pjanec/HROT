@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302, BasicSquadSop) with 'Leader' and 'Rifleman 1-4' bounds (BoundingOverwatch, 20 m bounds) toward (340,300) while 'Hostile' (100000 HP) stands at (360,320). Shows contact reaction: the squad's SOP pauses the bound and runs a drill. Judge: (1) the squad bounds toward the objective; (2) on contact the bound is PAUSED and the squad holds and returns fire; (3) the leader decides (four against one, assault) and runs suppress-and-manoeuvre / fire-and-movement; (4) when the drill ends the bound RESUMES and the squad reaches the objective. Fail: the bound never pauses, no drill runs, or bounding does not resume. Check: none (no live check); rail SquadTacticsScenarioTests (CE-2123 S2, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2b123100-0000-4000-8000-0000000000c0": {

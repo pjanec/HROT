@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "cqb-village"
+    "terrainName": "cqb-village",
+    "description": "What: On cqb-village, 'Red Platoon' (Hostile; 'Red Squad 1', 'Red Squad 2', 'Red Reserve') defends OBJ, H1 and H4 against 'Blue Platoon' (Friend; 'Blue Squad 1-3', AttackPosition over OBJ, H1, H3) coming from ~150 m south; eight parked cars line the flanks. AI on both sides, nothing faked, 4x; no winner asserted. Judge: (1) Red runs PlatoonDefend, Blue PlatoonAttack; (2) Blue's base of fire goes up (a squad SquadDefends) and Red's line, holding fire first, opens FireAtWill on what it spots in its engagement area; (3) shots are fired; (4) Blue reaches its assault (ClearBuilding) or breaks off (BreakContact). Fail: no base of fire, Red never opens fire, no shots, or Blue neither assaults nor breaks off. Check: python3 scripts/utility-demo-check.py --launch pc-defend-house"
   },
   "entities": {
     "c2276d00-0000-4000-8000-000000009300": {

@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, a convoy ('Convoy APC' with 'Squad A', 'Convoy IFV' with 'Squad B') drives Avenue E over an IED at (652,150) and its covert 'Trigger man'; an insurgent fire team ('Insurgent RPG', 'Insurgent rifleman 1-2') waits round the Street S corner; a covert 'Spotter', mortar and ZU-23 sit in the north-east; six civilians; 'Blue HQ' holds 'Apache', 'A-10', 'Blue Reserve'. Nothing faked or timed. Judge: Beats to see: (1) the charge goes off with a vehicle in its 10 m kill zone and damages it; (2) squads dismount and fight the fire team; (3) mortar rounds land after the Spotter's call; (4) an aircraft is sent after a REQUEST (launch heard, SPOT, FireSupport, then Apache or A-10). Invariants (all the check asserts, plus both sides fire): no Blue round at a civilian, nothing sent without a report, the charge never fires without a vehicle near. Fail: a civilian is targeted, an HQ order precedes any REQUEST, the charge fires with no vehicle near, or a beat never happens. Check: python3 scripts/utility-demo-check.py --launch uc-urban-battle"
   },
   "entities": {
     "d0cf0000-0000-4000-8000-000000009800": {

@@ -23,9 +23,43 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   [README](../README.md).
 - **Films:** [PLAN_Feature_Films.md](PLAN_Feature_Films.md) lists the clips that show each chapter.
 
-@@ENGINE@@
+## 1. The engine — in one screen *(depth: [README](../README.md))*
 
-@@WORLD@@
+- **ECS core (FDP):** zero-allocation entities and components, a double-buffered event bus, phases, a module host. (README §2)
+- **A distributed cluster:** separate processes for the simulation host, the AI (CGF), the image generator (IG), the instructor station,
+  traffic, the editor and replay. They can run as one process (`--mode all`) or across machines. (README §3, §9)
+- **Brain and muscle are split:** the AI decides (intent), the simulation acts and reports back (status).
+- **Replication** over CycloneDDS with per-component translators, ownership transfer and dead reckoning, so every node sees the same
+  world. (README §6)
+- **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (README §10)
+- **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
+  environment query system (EQS). (README §4, §5, §7)
+- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8)
+- **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
+  diagnostics and an MCP server so an AI agent can drive the engine; **filming** to MP4 from planned camera shots
+  ([RUNBOOK_Filming.md](RUNBOOK_Filming.md)).
+
+## 2. The world
+
+- **Terrain with real height:** a height grid, bridges and road heights, a desert with ridges and wadis. ▶ `ua-hill-attack`
+- **Navmesh** (Recast) baked per tile and fine enough for doorways, cached on disk. ▶ `tt-nav-los`
+- **Buildings with interiors:** storeys, roofs, windows, and doors that open, close, lock, unlock and can be breached. Several templates
+  (two- and three-storey houses, an office, a market hall). ▶ `bc-house-clear`
+- **demo-city:** a generated city with a SUMO road network; residential, business and commercial quarters; a market square, a 400 m
+  battle street and a landing square. ▶ `uc-urban-battle`
+- **Weather and time of day:** a scenario start time; global weather plus weather regions that blend into each other; wind, four cloud
+  layers, fog, rain; a real sun position from the map's geographic origin. The 3-D map draws the sky, the sun, the clouds and the fog.
+  ▶ `ua-weather-regions` (no live check)
+- **Weather changes what units sense:** night and fog shorten sight, thermal ignores night but not fog, wind and rain cover sound,
+  parachutes drift on the wind. ⚠ No demo shows this yet.
+- **Background traffic (SUMO):** a traffic node drives hundreds of cars and pedestrians, mirrored to every node. A shot, a blast or a hit
+  turns the pedestrians and cars nearby into real frightened civilians. ▶ `demo-city` (a recipe scenario)
+- **Movement:** human gait (turns on the spot, never steps off a ledge); wheeled and tracked vehicles; helicopters and planes on routes,
+  taking off and landing; rope and parachute descent; formations; shared and personal routes. Vehicles never drive into buildings and
+  step over a man who is down.
+- **Visual effects:** muzzle flash, tracers, bursts, impact marks, wrecks, bodies, fire and smoke, gas clouds. **Sound** for the
+  operator, carried over the same ranges the AI hears.
+- **3-D map:** block figures with poses and gestures, vehicle and aircraft models, clothing by side, picking in 3-D.
 
 ## 3. Civilians and crowds
 
@@ -65,7 +99,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 ## 5. The soldier: sensing, threat, posture, weapons, injury
 
 - **Senses:** sight, radar, thermal and hearing, plus danger areas along his route. What he remembers fades when the contact is no longer
-  seen.
+  seen. A loud sound carries far: a shot is heard where the shooter cannot be seen. ▶ `tt-heard-shot` (recipe)
 - **Threat = danger × freshness.** Armed, visible and near contacts come first; a civilian counts 0. ▶ `ua-threat-ranking` ✅
 - **Posture by utility:** advance and attack, take cover, suppress, flee, hold prone or hold, chosen from health, threat and cover,
   without flicker. ▶ `ua-posture` ✅ · the same tree decides the same on every host ▶ `ua-three-hosts` ✅
@@ -78,6 +112,10 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Weapon choice per shot** from effectiveness, ammo and range band. ▶ `ua-weapon-choice` ✅
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
+- **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
+  fire stops. ▶ `uf-alone-under-fire` ✅
+- **Reflexes without orders:** a soldier with no task still reacts to fire by his type's standing orders (SOP); one stamped inert does
+  not. A civilian ordered to stand still is frightened all the same. ▶ `df-lone-soldier-reflex` · `df-civilian-ordered`
 - **Grenade or rifle:** against a man behind sandbags, the grenadier closes in and lobs a grenade while the rifleman fires.
   ▶ `ua-grenade-or-rifle` (in-process rail ✅, no live check)
 - **Sentry:** a sentry watches his sector, notices a man creeping up behind him and turns to face him. ▶ `ld-sentry-surprise-360` ✅
@@ -104,7 +142,9 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Succession:** a downed leader hands over command; the medic is skipped. ▶ `ua-casualty-care-leader` ✅
 - **Carry:** only the incapacitated are carried. The carrier is slow, cannot fire, and drops the casualty alive if he is hit himself.
 - **Embark and disembark** vehicles and helicopters. ▶ `uc-convoy-hit` ✅ · `ua-air-assault` ✅
-@@SQUAD_EXTRA@@
+- **Drills by recipe:** react to contact, suppress and flank, take cover, march in a wedge — small library scenarios that show one drill
+  each. ▶ `tt-suppress-flank` · `tt-react-contact` (recipes, in-process rails ✅)
+- **Standing orders (SOP):** the same fire makes one squad drop to cover and another march on through it, by their SOP. ▶ `sop-demo`
 
 ## 7. Platoon and command chain
 
@@ -130,7 +170,11 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   wounds a standing one. A roof burst spares the floor below. ▶ `bt-grenade-posture` ✅ · `bt-mortar-roof` ✅
 - **Throws and mortar rounds fly a real arc.** A door inside the lethal radius is breached.
 - **Window duel:** each side fights from windows and cover points on each storey. ▶ `bt-window-duel` ✅
-@@BUILDINGS_EXTRA@@
+- **Room entry:** the squad stacks beside the door out of the window's view, breaches, and enters one man at a time to its points of
+  domination. ▶ `bc-room-clear` ⚠ CE-2341 (about 1 run in 4 the entry team is lost)
+- **House clearing:** a squad clears a house room by room from its front door, the fire teams taking turns, the civilians inside spared.
+  ▶ `bc-house-clear` ✅
+- **Defending a house:** defenders take window and roof posts and open fire as the enemy crosses their sector. ▶ `sq-defend-house` ⚠ CE-2304
 
 ## 9. Vehicles and armour
 
@@ -185,4 +229,10 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Parachute:** a stick of eight jumps from a release point upwind, lands near their points and assembles. ▶ `ua-airborne-drop` ✅
 - **Falling hurts** above 6 m/s.
 
-@@NOTBUILT@@
+## 13. Built but not shown, and not built yet
+
+| | what |
+|---|---|
+| **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · navmesh rebake after a change · the Stride host (Windows only) |
+| **not built** | structure damage (walls, collapse, bridges; only door breach exists) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
+| **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |

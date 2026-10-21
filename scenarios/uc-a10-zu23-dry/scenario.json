@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, Blue HQ (SupportCommand) owns the 'Apache' AH-64 and an 'A-10' orbiting at (-500,-500); 'Blue Platoon' (PlatoonDefend, two squads) is at (8,8); an insurgent mortar cell is at (735,745) and a 'ZU-23' (Hostile) at (675,695). The check fakes two SPOTs from 'Blue Squad 1': AirDefence at the ZU-23, then IndirectFire at the tubes. Judge: (1) the platoon relays the air-defence SPOT up and sends REQUEST FireSupport to the HQ; (2) the HQ sends the A-10 off its orbit at the ZU-23 first; (3) the Apache stays without a task while the air defence stays reported. Fail: the Apache is sent first, the A-10 stays on its orbit, or no request is made. Check: python3 scripts/utility-demo-check.py --launch uc-a10-zu23-dry"
   },
   "entities": {
     "d0c70000-0000-4000-8000-000000009700": {

@@ -8,6 +8,10 @@ deliver a full multi-node simulation cluster with visual AI authoring, a Bluepri
 scripting language, a binary flight recorder, and a real-time 2D tactical image
 generator -- all over a CycloneDDS pub/sub backbone.
 
+> **What can it simulate?** See **[docs/CAPABILITIES.md](docs/CAPABILITIES.md)**: the features by chapter (world, civilians and
+> crowds, police, the soldier, squads, platoons, buildings, armour, air, indirect fire, airborne), each with the scenario that shows
+> it. This README covers the engine underneath.
+
 ---
 
 ## Table of Contents

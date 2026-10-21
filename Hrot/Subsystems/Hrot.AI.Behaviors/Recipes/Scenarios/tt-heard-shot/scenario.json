@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Rifleman' (Friend, BasicInfantrySop) stands at (315,215) south of the Tower; north of it 'Hidden Shooter' (Hostile, (315,290)) fires at 'Decoy' (Friend, unarmed, (345,295)). The Tower hides both from the Rifleman, so he only HEARS the shots. Judge: (1) the Hidden Shooter fires (his ammunition falls); (2) the Rifleman holds a heard, anonymous contact and never sees the shooter; (3) his SOP reacts with TakeCover aimed at a point (within 40 m of the shooter's position, not an entity); (4) he moves to cover and ends hidden from the shooter. Fail: he never hears the shots, reacts to a seen entity, or stays exposed. Check: none (no live check); rail HeardShotScenarioTests (CE-2106, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2a960000-0000-4000-8000-000000000001": {

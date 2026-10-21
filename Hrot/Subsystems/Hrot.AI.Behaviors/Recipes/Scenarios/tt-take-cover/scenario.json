@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Rifleman' (Friend, BasicInfantrySop, no task) at (295,285) in the open alley sees 'Hostile' (rifleman, InertSop, no orders) at (360,320). Shows the SOP's reaction to contact: the real TakeCover tree. Judge: (1) the Rifleman perceives the hostile; (2) his SOP reacts with TakeCover (under HoldFire the variant is FallBack); (3) he moves and ends at a spot the terrain hides from the hostile. Fail: he stays in the open, or no reaction starts. Check: none (no live check); rails TakeCoverScenarioTests (CE-2094, CE-2101, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2a940000-0000-4000-8000-000000000001": {

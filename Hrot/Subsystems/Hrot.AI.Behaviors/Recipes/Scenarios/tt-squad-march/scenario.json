@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302) with 'Leader' and 'Rifleman 1-4' is ordered SquadMarch in a wedge (Shape 1) to (340,300), about 50 m from (296,280). No enemy. Shows the squad march drill (S3). Judge: (1) the squad's leader runs SquadMarch; (2) every member reaches the objective (a slot that does not work falls back to the lead's trail); (3) members keep their spacing (closest pair >= 2.5 m); (4) the march costs at most 5 move orders per sim second. Fail: a member never arrives, men bunch under 2.5 m, or the order rate is above 5 per second. Check: none (no live check); rail SquadTacticsScenarioTests (CE-2123 S3; the Order.Move variant is CE-2141, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2b123300-0000-4000-8000-0000000000c0": {
