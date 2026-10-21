@@ -2777,7 +2777,19 @@ drops, rain ⇒ exactly `CountOf` and the frame differs from the dry one, then s
 | **CL** | cloud LAYERS | one flat, translucent quad per deck at its base height (`WeatherSample.Clouds`, the field's strongest deck), textured by ONE procedural noise texture made at start-up (256², tiled, scrolled by the wind at that height), its alpha from the octas; seen from below and from above (a helicopter) | ⭐ one draw per deck (≤ 3), one texture | the user wanting volume (puffy cumulus) — that is a raymarch, an order of magnitude more |
 | **MO** | the MOON | ⛔ the field has no lunar position ⇒ **a backend ask**: `MoonElevationDeg`, `MoonAzimuthDeg`, `MoonIllumination` on `WeatherSample` (a low-precision ephemeris, ~40 lines); ui then draws a disc and lifts the twilight floor by up to +0.1 under a full moon | backend ~½ day, ui an hour | the user content with the twilight floor alone (the scene is already never dark) |
 | **NL** | lights that light their SURROUNDINGS at night (a flare lighting the ground) | up to 8 nearest point lights from the live light-emitting effects (flare, fire, explosion, muzzle flash) as a uniform array in `LitShader`, added with a 1/(1+d²) fall-off, only while the light is under 0.5 | one loop of 8 in the fragment shader | Mesa / the Windows GL measuring too slow on the frame-rate telemetry (§6z) — then flares only |
-| **SW** | smoke drifting on the WIND | the effect smoke column's fixed breeze (`EffectLayer.Puffs`, *"a fixed light breeze until weather exists"*) reads `WeatherField.WindAt` at the column | ⭐ trivial | — (built next as PR-2, below, because the code itself names it as waiting on the weather) |
+| **SW** | smoke drifting on the WIND | the effect smoke column's fixed breeze (`EffectLayer.Puffs`, *"a fixed light breeze until weather exists"*) reads `WeatherField.WindAt` at the column | ⭐ trivial | — ✅ built as PR-2, below, because the code itself named it as waiting on the weather |
+
+#### 6aa.PR-2 — a wreck's smoke drifts on the world's wind — AS-BUILT `2026-10-21` (ui, overnight #35)
+
+Owning design for the column itself: [Visual Effects](DESIGN_Visual_Effects.md) W3 (VE-P, the stateless puffs); the weather design's S3 names
+*"smoke drifts on the wind"*. `EffectLayer.Resolve` reads `WeatherField.WindAt` half way up a smoke column (it rises six sizes) into
+`Resolved.Wind`; `Puffs` drifts the column by `SmokeDrift(wind)` = wind / 4 m/s, at most 3 — so a 4 m/s breeze is exactly the old look, calm
+rises straight, a gale leans three times as far. ⚠ **A world that models no weather** (`WeatherConditions` unregistered) keeps the old fixed
+north-east breeze — `Wind` is null there, never zero, so an old host does not silently change. The area clouds (CE-1165) are untouched: their
+owner already drifts them on the wind (CE-3219).
+
+Rail `EffectTests.CE1146_PR2_TheSmokeColumn_DriftsOnTheWorldsWind` through `Resolve` (a World Environment blowing 8 m/s west ⇒ the column's
+top leans west; calm ⇒ straight; no weather ⇒ the old breeze; a gale capped) — ✅ red-proved: `Resolve` not passing the wind ⇒ fails.
 
 ### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
 

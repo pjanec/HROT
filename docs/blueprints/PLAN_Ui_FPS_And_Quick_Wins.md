@@ -142,3 +142,4 @@ the next item (`R-106`).
 | `2026-10-21` | 32 | ✅ `CE-1201` the over-the-shoulder view — designed (Entity Control §8p, leans OS-1…OS-6 taken overnight) and built: View menu + O, his head drawn, aim unchanged; Presentation 816 / 0 |
 | `2026-10-21` | 34 | ✅ `CE-1119` U-2 the ejection seat (the seat, its rocket flame, the seat falling away) — Map 3-D §6w.U2; Presentation 817 / 0 |
 | `2026-10-21` | 35 | ✅ `CE-1146` PR-1 precipitation over the 3-D scene (rain streaks with the wind, snow flakes, from the same sample as the sky) — Map 3-D §6aa.PR-1; leans CL / MO / NL written in §6aa.next, not built; Presentation 818 / 0 |
+| `2026-10-21` | 35 | ✅ `CE-1146` PR-2 a wreck's smoke drifts on the world's wind (the code's own *"until weather exists"* placeholder) — Map 3-D §6aa.PR-2 |
