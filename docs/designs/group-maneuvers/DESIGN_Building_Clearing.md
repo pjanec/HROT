@@ -780,6 +780,14 @@ moved men by teleport, so three things only the real house showed:
 | the entry men barely fired: 5 rounds against the defenders' 20 (`bc-room-clear`, per-shooter count) | two men down in the doorway lay on every later man's line, and the friendly-line hold (CE-321) counted any friendly collider | **CE-2338** (FDP Combat, cross-lane): a friendly PERSON out of the fight no longer holds a shot — the round flies over him; a hull still does |
 | ⭐ **CB-64 (new, behaviors' own, 2026-10-20)** — in the house the unbounded stack for room A's inner door ran west along the hallway and put two men OUTSIDE the front wall, one in the front doorway, where the next entry man could never pass him | CB-50 knew only the TARGET room, not the room the stack stands in | **the stack stands inside the room it stands in** (`RoomEntryPlan.Plan(…, stackRoom)`, the portal's other room from the survey, `RoomDrill.StackRoom`): CB-50's side when it holds the entry men 0.35 m clear of its walls, else the other side; the men who do not fit take the far side of the door — a **split stack** (`Result.Fit`). From outside: unbounded, as before |
 
+📐 **The twins after AQ99 and the four fixes found on the way (`2026-10-21`; CE-2337 occupant stays · CE-2338 a friend lying down
+holds no shot · CE-2339 a civilian keeps no room uncleared · CE-2340 a man lying dead hides nobody):** both `ClearingScenarioTests`
+twins PASS and are un-skipped — `bc-house-clear` **3/3** on the final build: hall 10 s → A → C → D → B → E → **BuildingClear ~200 s**,
+both insurgents down, both civilians unhurt and still there, 0–3 men lost, no friend hit by a friend · `bc-room-clear` **3/4**: RoomClear A in
+38–50 s, both insurgents down, 2–3 entry men lost (reported); the fourth run lost all four entry men — AQ99 B's accepted cost, so that twin
+runs in the known-flaky lane (`CE-2341`, closes with BC-4/BC-5's grenade and contact drill). Each twin now writes `casualties`, the hits each way and the rounds each man
+FIRED (the count that exposed CE-2338: the entry men had fired 5 rounds against the defenders' 20).
+
 ✅ **[`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) approved and built (`2026-10-21`, R-2065):**
 A — soldiers, fighters and security forces stand at the navmesh body (TKB `AvoidanceRadius` 0.3 m; civilians keep 0.8 — a crowd keeps
 its distance); B — §8.1 ③ is "no friend hit BY A FRIEND", the casualties reported; C — a man down is stepped over where nothing lets a

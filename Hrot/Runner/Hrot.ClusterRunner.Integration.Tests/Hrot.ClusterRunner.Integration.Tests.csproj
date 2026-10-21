@@ -13,6 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ⭐ the known-flaky lane (CLAUDE.md T-tiers): [FlakyFact] skips by default; HROT_RUN_FLAKY=1 runs it -->
+    <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
