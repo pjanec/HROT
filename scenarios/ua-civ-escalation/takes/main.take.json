@@ -1,53 +1,63 @@
 {
- "title": "The escalation ladder",
- "caption": "Police warn first, use non-lethal force on the rioters, and lethal rounds only at the gunman",
- "clip": "F-13",
- "chapter": 4,
- "state": "ready",
- "anchors": {
-  "warn": {
-   "on": "gesture",
-   "who": "Police rifleman",
-   "is": "Warning"
+  "title": "The escalation ladder",
+  "caption": "Police warn first, use non-lethal force on the rioters, and lethal rounds only at the gunman",
+  "anchors": {
+    "warn": {
+      "on": "gesture",
+      "who": "Police rifleman",
+      "is": "Warning"
+    },
+    "lethal": {
+      "on": "shot",
+      "by": "Police rifleman",
+      "n": 1
+    }
   },
-  "lethal": {
-   "on": "shot",
-   "by": "Police rifleman",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": "warn-1",
-   "seconds": 4,
-   "over": "Police rifleman",
-   "toward": "Gunman",
-   "back": 4,
-   "height": 2,
-   "fov": 30,
-   "why": "the warning"
+  "baked": {
+    "times": {
+      "lethal": 0.9667
+    },
+    "tickHz": 60,
+    "scenarioHash": "30d5ad6e52f5e08e",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
+    "missing": [
+      "warn"
+    ]
   },
-  {
-   "at": "lethal-1",
-   "seconds": 3,
-   "follow": "Gunman",
-   "distance": 8,
-   "yaw": 200,
-   "pitch": -8,
-   "why": "the gunman raises his rifle — and is shot"
-  },
-  {
-   "at": "lethal+1",
-   "seconds": 4,
-   "lookAt": [
-    108.0,
-    200.0,
-    0.0
-   ],
-   "distance": 35,
-   "yaw": 0,
-   "pitch": -40,
-   "why": "high: the rioters stunned, not shot"
-  }
- ]
+  "shots": [
+    {
+      "at": "warn-1",
+      "seconds": 4,
+      "over": "Police rifleman",
+      "toward": "Gunman",
+      "back": 4,
+      "height": 2,
+      "fov": 30,
+      "why": "the warning"
+    },
+    {
+      "at": "lethal-1",
+      "seconds": 3,
+      "follow": "Gunman",
+      "distance": 8,
+      "yaw": 200,
+      "pitch": -8,
+      "why": "the gunman raises his rifle — and is shot"
+    },
+    {
+      "at": "lethal+1",
+      "seconds": 4,
+      "lookAt": [
+        108,
+        200,
+        0
+      ],
+      "distance": 35,
+      "pitch": -40,
+      "why": "high: the rioters stunned, not shot"
+    }
+  ],
+  "clip": "F-13",
+  "chapter": 4,
+  "state": "ready"
 }

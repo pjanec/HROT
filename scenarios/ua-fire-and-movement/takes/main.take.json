@@ -1,55 +1,63 @@
 {
- "title": "Fire and movement",
- "caption": "One half of the squad fires while the other rushes to cover, then they swap",
- "clip": "F-24",
- "chapter": 6,
- "state": "ready",
- "anchors": {
-  "contact": {
-   "on": "shot",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": "contact-1",
-   "seconds": 4,
-   "lookAt": [
-    200.0,
-    225.0,
-    0.0
-   ],
-   "distance": 150,
-   "yaw": 90,
-   "pitch": -50,
-   "why": "high: the squad and the enemy, the gap between"
+  "title": "Fire and movement",
+  "caption": "One half of the squad fires while the other rushes to cover, then they swap",
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "n": 1
+    }
   },
-  {
-   "at": "contact+10",
-   "seconds": 6,
-   "follow": "Leader",
-   "distance": 45,
-   "yaw": 45,
-   "pitch": -45,
-   "why": "three-quarter above the squad: halves alternate"
+  "baked": {
+    "times": {
+      "contact": 0.9833
+    },
+    "tickHz": 60,
+    "scenarioHash": "48838f1e3bae077b",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "contact+30",
-   "seconds": 4,
-   "follow": "Rifleman 3",
-   "distance": 10,
-   "yaw": 90,
-   "pitch": -12,
-   "why": "one rusher, close"
-  },
-  {
-   "at": "contact+60",
-   "seconds": 4,
-   "follow": "Leader",
-   "distance": 45,
-   "yaw": 45,
-   "pitch": -45,
-   "why": "the gap has closed"
-  }
- ]
+  "shots": [
+    {
+      "at": "contact-1",
+      "seconds": 4,
+      "lookAt": [
+        200,
+        225,
+        0
+      ],
+      "distance": 150,
+      "yaw": 90,
+      "pitch": -50,
+      "why": "high: the squad and the enemy, the gap between"
+    },
+    {
+      "at": "contact+10",
+      "seconds": 6,
+      "follow": "Leader",
+      "distance": 45,
+      "yaw": 45,
+      "pitch": -45,
+      "why": "three-quarter above the squad: halves alternate"
+    },
+    {
+      "at": "contact+30",
+      "seconds": 4,
+      "follow": "Rifleman 3",
+      "distance": 10,
+      "yaw": 90,
+      "pitch": -12,
+      "why": "one rusher, close"
+    },
+    {
+      "at": "contact+60",
+      "seconds": 4,
+      "follow": "Leader",
+      "distance": 45,
+      "yaw": 45,
+      "pitch": -45,
+      "why": "the gap has closed"
+    }
+  ],
+  "clip": "F-24",
+  "chapter": 6,
+  "state": "ready"
 }

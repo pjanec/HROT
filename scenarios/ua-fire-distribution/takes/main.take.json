@@ -1,41 +1,49 @@
 {
- "title": "Spread the fire",
- "caption": "The leader spreads the squad's fire over three targets, no more than two men on any one",
- "clip": "F-29",
- "chapter": 6,
- "state": "ready",
- "anchors": {
-  "contact": {
-   "on": "shot",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": "contact-1",
-   "seconds": 4,
-   "lookAt": [
-    300.0,
-    470.0,
-    1.5
-   ],
-   "distance": 25,
-   "yaw": 90,
-   "pitch": -15,
-   "why": "behind the line"
+  "title": "Spread the fire",
+  "caption": "The leader spreads the squad's fire over three targets, no more than two men on any one",
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "n": 1
+    }
   },
-  {
-   "at": "contact+2",
-   "seconds": 5,
-   "lookAt": [
-    300.0,
-    410.0,
-    0.0
-   ],
-   "distance": 130,
-   "yaw": 90,
-   "pitch": -55,
-   "why": "high: tracers fan out to three targets"
-  }
- ]
+  "baked": {
+    "times": {
+      "contact": 0.9167
+    },
+    "tickHz": 60,
+    "scenarioHash": "d00d1f2859e86006",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "contact-1",
+      "seconds": 4,
+      "lookAt": [
+        300,
+        470,
+        1.5
+      ],
+      "distance": 25,
+      "yaw": 90,
+      "pitch": -15,
+      "why": "behind the line"
+    },
+    {
+      "at": "contact+2",
+      "seconds": 5,
+      "lookAt": [
+        300,
+        410,
+        0
+      ],
+      "distance": 130,
+      "yaw": 90,
+      "pitch": -55,
+      "why": "high: tracers fan out to three targets"
+    }
+  ],
+  "clip": "F-29",
+  "chapter": 6,
+  "state": "ready"
 }

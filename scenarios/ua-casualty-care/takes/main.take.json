@@ -1,49 +1,58 @@
 {
- "title": "Casualty care",
- "caption": "A man goes down; the squad lays covering fire and the medic drags him to cover",
- "clip": "F-28",
- "chapter": 6,
- "state": "script",
- "needs": "the check makes Rifleman 3 fall (a health edit); film with that action in the plan, or (better) let a Hostile with ammo hit him — blocked by CE-2160",
- "anchors": {
-  "down": {
-   "on": "health",
-   "who": "Rifleman 3",
-   "below": 0.3
+  "title": "Casualty care",
+  "caption": "A man goes down; the squad lays covering fire and the medic drags him to cover",
+  "anchors": {
+    "down": {
+      "on": "health",
+      "who": "Rifleman 3",
+      "below": 0.3
+    },
+    "medic": {
+      "on": "task",
+      "who": "Medic",
+      "is": "Rescue"
+    }
   },
-  "medic": {
-   "on": "task",
-   "who": "Medic",
-   "is": "Rescue"
-  }
- },
- "shots": [
-  {
-   "at": "down-1",
-   "seconds": 3,
-   "follow": "Rifleman 3",
-   "distance": 8,
-   "yaw": 90,
-   "pitch": -10,
-   "why": "he falls"
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "9b7871b6b7f8c249",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
+    "missing": [
+      "down",
+      "medic"
+    ]
   },
-  {
-   "at": "down+1",
-   "seconds": 4,
-   "follow": "Leader",
-   "distance": 30,
-   "yaw": 90,
-   "pitch": -35,
-   "why": "covering fire starts"
-  },
-  {
-   "at": "medic-0.5",
-   "seconds": 6,
-   "follow": "Medic",
-   "distance": 10,
-   "yaw": 45,
-   "pitch": -15,
-   "why": "the medic goes out and drags him back"
-  }
- ]
+  "shots": [
+    {
+      "at": "down-1",
+      "seconds": 3,
+      "follow": "Rifleman 3",
+      "distance": 8,
+      "yaw": 90,
+      "pitch": -10,
+      "why": "he falls"
+    },
+    {
+      "at": "down+1",
+      "seconds": 4,
+      "follow": "Leader",
+      "yaw": 90,
+      "pitch": -35,
+      "why": "covering fire starts"
+    },
+    {
+      "at": "medic-0.5",
+      "seconds": 6,
+      "follow": "Medic",
+      "distance": 10,
+      "yaw": 45,
+      "pitch": -15,
+      "why": "the medic goes out and drags him back"
+    }
+  ],
+  "clip": "F-28",
+  "chapter": 6,
+  "state": "script",
+  "needs": "the check makes Rifleman 3 fall (a health edit); film with that action in the plan, or (better) let a Hostile with ammo hit him — blocked by CE-2160"
 }

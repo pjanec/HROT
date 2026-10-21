@@ -1,42 +1,50 @@
 {
- "title": "Bounding overwatch",
- "caption": "Half the squad watches while the other half moves; at contact the watchers open fire at once",
- "clip": "F-25",
- "chapter": 6,
- "state": "ready",
- "anchors": {
-  "contact": {
-   "on": "shot",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": 5,
-   "seconds": 5,
-   "follow": "Leader",
-   "distance": 50,
-   "yaw": 90,
-   "pitch": -55,
-   "why": "high: the leapfrog"
+  "title": "Bounding overwatch",
+  "caption": "Half the squad watches while the other half moves; at contact the watchers open fire at once",
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "n": 1
+    }
   },
-  {
-   "at": "contact-2",
-   "seconds": 4,
-   "follow": "Rifleman 4",
-   "distance": 12,
-   "yaw": 90,
-   "pitch": -12,
-   "why": "a watcher, ready"
+  "baked": {
+    "times": {
+      "contact": 17.7833
+    },
+    "tickHz": 60,
+    "scenarioHash": "7ee39425f48be767",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "contact+1",
-   "seconds": 4,
-   "follow": "Leader",
-   "distance": 40,
-   "yaw": 90,
-   "pitch": -40,
-   "why": "contact: the overwatch fires"
-  }
- ]
+  "shots": [
+    {
+      "at": 5,
+      "seconds": 5,
+      "follow": "Leader",
+      "distance": 50,
+      "yaw": 90,
+      "pitch": -55,
+      "why": "high: the leapfrog"
+    },
+    {
+      "at": "contact-2",
+      "seconds": 4,
+      "follow": "Rifleman 4",
+      "distance": 12,
+      "yaw": 90,
+      "pitch": -12,
+      "why": "a watcher, ready"
+    },
+    {
+      "at": "contact+1",
+      "seconds": 4,
+      "follow": "Leader",
+      "distance": 40,
+      "yaw": 90,
+      "pitch": -40,
+      "why": "contact: the overwatch fires"
+    }
+  ],
+  "clip": "F-25",
+  "chapter": 6,
+  "state": "ready"
 }

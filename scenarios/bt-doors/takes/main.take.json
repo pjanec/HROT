@@ -1,41 +1,47 @@
 {
- "title": "Doors",
- "caption": "A locked door is avoided, a closed one opened on the way; a locksmith unlocks the front",
- "clip": "F-35",
- "chapter": 8,
- "state": "ready",
- "anchors": {},
- "shots": [
-  {
-   "at": 2,
-   "seconds": 4,
-   "follow": "Visitor",
-   "distance": 10,
-   "yaw": 90,
-   "pitch": -15,
-   "why": "he walks round the locked front"
+  "title": "Doors",
+  "caption": "A locked door is avoided, a closed one opened on the way; a locksmith unlocks the front",
+  "anchors": {},
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "333beb8deec90cc3",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": 20,
-   "seconds": 4,
-   "lookAt": [
-    107.0,
-    108.0,
-    1.5
-   ],
-   "distance": 10,
-   "yaw": 270,
-   "pitch": -8,
-   "why": "the back door opens"
-  },
-  {
-   "at": 40,
-   "seconds": 4,
-   "follow": "Locksmith",
-   "distance": 6,
-   "yaw": 90,
-   "pitch": -8,
-   "why": "the locksmith at the front"
-  }
- ]
+  "shots": [
+    {
+      "at": 2,
+      "seconds": 4,
+      "follow": "Visitor",
+      "distance": 10,
+      "yaw": 90,
+      "pitch": -15,
+      "why": "he walks round the locked front"
+    },
+    {
+      "at": 20,
+      "seconds": 4,
+      "lookAt": [
+        107,
+        108,
+        1.5
+      ],
+      "distance": 10,
+      "yaw": 270,
+      "pitch": -8,
+      "why": "the back door opens"
+    },
+    {
+      "at": 40,
+      "seconds": 4,
+      "follow": "Locksmith",
+      "distance": 6,
+      "yaw": 90,
+      "pitch": -8,
+      "why": "the locksmith at the front"
+    }
+  ],
+  "clip": "F-35",
+  "chapter": 8,
+  "state": "ready"
 }

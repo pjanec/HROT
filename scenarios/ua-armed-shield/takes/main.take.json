@@ -1,51 +1,59 @@
 {
- "title": "No shot through bystanders",
- "caption": "Civilians in the line of fire hold the shot; the rifleman fires once the line is clear",
- "clip": "F-09",
- "chapter": 4,
- "state": "ready",
- "anchors": {
-  "fire": {
-   "on": "shot",
-   "by": "Rifleman",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": 2,
-   "seconds": 4,
-   "over": "Rifleman",
-   "toward": "Insurgent",
-   "back": 3,
-   "height": 1.7,
-   "ahead": 0.6,
-   "fov": 25,
-   "why": "through his sights: the insurgent behind a row of civilians"
+  "title": "No shot through bystanders",
+  "caption": "Civilians in the line of fire hold the shot; the rifleman fires once the line is clear",
+  "anchors": {
+    "fire": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 1
+    }
   },
-  {
-   "at": 10,
-   "seconds": 4,
-   "lookAt": [
-    80.0,
-    205.0,
-    1.0
-   ],
-   "distance": 50,
-   "yaw": 90,
-   "pitch": -30,
-   "why": "high side: the line, the row on it, the man walking off it"
+  "baked": {
+    "times": {
+      "fire": 41.6667
+    },
+    "tickHz": 60,
+    "scenarioHash": "5ebfd3f4e66765b8",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "fire-1.5",
-   "seconds": 3,
-   "over": "Rifleman",
-   "toward": "Insurgent",
-   "back": 3,
-   "height": 1.7,
-   "ahead": 0.9,
-   "fov": 20,
-   "why": "clear line — the shot"
-  }
- ]
+  "shots": [
+    {
+      "at": 2,
+      "seconds": 4,
+      "over": "Rifleman",
+      "toward": "Insurgent",
+      "back": 3,
+      "height": 1.7,
+      "ahead": 0.6,
+      "fov": 25,
+      "why": "through his sights: the insurgent behind a row of civilians"
+    },
+    {
+      "at": 10,
+      "seconds": 4,
+      "lookAt": [
+        80,
+        205,
+        1
+      ],
+      "distance": 50,
+      "yaw": 90,
+      "pitch": -30,
+      "why": "high side: the line, the row on it, the man walking off it"
+    },
+    {
+      "at": "fire-1.5",
+      "seconds": 3,
+      "over": "Rifleman",
+      "toward": "Insurgent",
+      "back": 3,
+      "height": 1.7,
+      "ahead": 0.9,
+      "fov": 20,
+      "why": "clear line — the shot"
+    }
+  ],
+  "clip": "F-09",
+  "chapter": 4,
+  "state": "ready"
 }

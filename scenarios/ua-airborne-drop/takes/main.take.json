@@ -1,46 +1,53 @@
 {
- "title": "Parachute drop",
- "caption": "A stick of eight jumps, one a second, lands near their points and assembles",
- "clip": "F-56",
- "chapter": 10,
- "state": "ready",
- "anchors": {
-  "jump": {
-   "on": "embark",
-   "who": "Paratrooper 1",
-   "is": false
-  }
- },
- "shots": [
-  {
-   "at": "jump-2",
-   "seconds": 4,
-   "follow": "UH-60 (doors off)",
-   "distance": 45,
-   "yaw": 90,
-   "pitch": 5,
-   "why": "the jump, from below"
+  "title": "Parachute drop",
+  "caption": "A stick of eight jumps, one a second, lands near their points and assembles",
+  "anchors": {
+    "jump": {
+      "on": "embark",
+      "who": "Paratrooper 1",
+      "is": false
+    }
   },
-  {
-   "at": "jump+6",
-   "seconds": 6,
-   "follow": "Paratrooper 4",
-   "distance": 25,
-   "yaw": 0,
-   "pitch": -5,
-   "to": {
-    "distance": 15
-   },
-   "why": "descending among the canopies"
+  "baked": {
+    "times": {
+      "jump": 26.0667
+    },
+    "tickHz": 60,
+    "scenarioHash": "e1d549da0eb29879",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "jump+60",
-   "seconds": 5,
-   "follow": "Paratrooper 1",
-   "distance": 90,
-   "yaw": 90,
-   "pitch": -50,
-   "why": "on the ground, assembling"
-  }
- ]
+  "shots": [
+    {
+      "at": "jump-2",
+      "seconds": 4,
+      "follow": "UH-60 (doors off)",
+      "distance": 45,
+      "yaw": 90,
+      "pitch": 5,
+      "why": "the jump, from below"
+    },
+    {
+      "at": "jump+6",
+      "seconds": 6,
+      "follow": "Paratrooper 4",
+      "distance": 25,
+      "pitch": -5,
+      "to": {
+        "distance": 15
+      },
+      "why": "descending among the canopies"
+    },
+    {
+      "at": "jump+60",
+      "seconds": 5,
+      "follow": "Paratrooper 1",
+      "distance": 90,
+      "yaw": 90,
+      "pitch": -50,
+      "why": "on the ground, assembling"
+    }
+  ],
+  "clip": "F-56",
+  "chapter": 10,
+  "state": "ready"
 }

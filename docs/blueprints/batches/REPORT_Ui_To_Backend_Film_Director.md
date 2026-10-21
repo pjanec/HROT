@@ -102,7 +102,8 @@ scout does not match (e.g. a `task` named differently from the registry's name).
 `dotnet test Hrot.SystemTests --no-build --filter DirectorIdentityRails` (now a GATE, `CE-1240`): ⭐ **3 / 0** — `ua-tank-ammo`,
 `bt-grenade-posture`, `ua-civ-melee`, **three fresh loads each, IDENTICAL at every cut**, one step per frame asked and taken, 0 waits.
 📐 S5 moved the beats (M1 rounds 9.150 / 17.883 → 8.933 / 17.667 s) ⇒ every seeded take is re-scouted and baked after it. The director's
-rails against S5: Presentation 34/0/3 · Editor 13/0 · GZH011 11/0.
+rails against S5: Presentation 34/0/3 · Editor 13/0 · GZH011 11/0. ⭐ **All 55 takes re-scouted after S5 and 54 baked** (`scout-all --bake --headless`, 1863 s): verdicts unchanged (40 · 14 · 1),
+14 takes' beat times moved. The 55th (ua-air-attack/door-gun) is refused for its missing unit (`CE-1241`). `CE-1240` closed.
 
 ## Ids allocated (ui block)
 

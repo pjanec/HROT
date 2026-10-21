@@ -1,66 +1,73 @@
 {
- "title": "Window duel",
- "caption": "Peek, fire, hide: one man moves between windows, the other bounds between vans",
- "clip": "F-20",
- "chapter": 5,
- "state": "ready",
- "anchors": {
-  "first": {
-   "on": "shot",
-   "n": 1
+  "title": "Window duel",
+  "caption": "Peek, fire, hide: one man moves between windows, the other bounds between vans",
+  "anchors": {
+    "first": {
+      "on": "shot",
+      "n": 1
+    },
+    "bound": {
+      "on": "near",
+      "who": "Street Rifleman",
+      "point": [
+        113,
+        76
+      ],
+      "within": 2
+    }
   },
-  "bound": {
-   "on": "near",
-   "who": "Street Rifleman",
-   "point": [
-    113,
-    76
-   ],
-   "within": 2
-  }
- },
- "shots": [
-  {
-   "at": "first-1",
-   "seconds": 4,
-   "lookAt": [
-    107.0,
-    90.0,
-    2.0
-   ],
-   "distance": 35,
-   "yaw": 0,
-   "pitch": -12,
-   "why": "establish: the facade and the street"
+  "baked": {
+    "times": {
+      "first": 5.8333,
+      "bound": 30.5
+    },
+    "tickHz": 60,
+    "scenarioHash": "5bcf075fcce05d71",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "first+3",
-   "seconds": 4,
-   "over": "Street Rifleman",
-   "toward": "Window Rifleman",
-   "back": 3,
-   "height": 1.5,
-   "ahead": 0.8,
-   "fov": 25,
-   "why": "from behind the van: the window"
-  },
-  {
-   "at": "bound-4",
-   "seconds": 4,
-   "follow": "Street Rifleman",
-   "distance": 9,
-   "yaw": 0,
-   "pitch": -15,
-   "why": "the bound to the next van"
-  },
-  {
-   "at": 60,
-   "seconds": 4,
-   "follow": "Window Rifleman",
-   "distance": 8,
-   "yaw": 270,
-   "pitch": -5,
-   "why": "the window man shifts to the other window"
-  }
- ]
+  "shots": [
+    {
+      "at": "first-1",
+      "seconds": 4,
+      "lookAt": [
+        107,
+        90,
+        2
+      ],
+      "distance": 35,
+      "pitch": -12,
+      "why": "establish: the facade and the street"
+    },
+    {
+      "at": "first+3",
+      "seconds": 4,
+      "over": "Street Rifleman",
+      "toward": "Window Rifleman",
+      "back": 3,
+      "height": 1.5,
+      "ahead": 0.8,
+      "fov": 25,
+      "why": "from behind the van: the window"
+    },
+    {
+      "at": "bound-4",
+      "seconds": 4,
+      "follow": "Street Rifleman",
+      "distance": 9,
+      "pitch": -15,
+      "why": "the bound to the next van"
+    },
+    {
+      "at": 60,
+      "seconds": 4,
+      "follow": "Window Rifleman",
+      "distance": 8,
+      "yaw": 270,
+      "pitch": -5,
+      "why": "the window man shifts to the other window"
+    }
+  ],
+  "clip": "F-20",
+  "chapter": 5,
+  "state": "ready"
 }

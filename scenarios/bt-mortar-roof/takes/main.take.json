@@ -1,54 +1,63 @@
 {
- "title": "A roof stops the blast",
- "caption": "A mortar round bursts on a roof: the man in the courtyard is hit, the man downstairs is not",
- "clip": "F-37",
- "chapter": 8,
- "state": "ready",
- "anchors": {
-  "tube": {
-   "on": "shot",
-   "n": 1
+  "title": "A roof stops the blast",
+  "caption": "A mortar round bursts on a roof: the man in the courtyard is hit, the man downstairs is not",
+  "anchors": {
+    "tube": {
+      "on": "shot",
+      "n": 1
+    },
+    "blast": {
+      "on": "blast",
+      "n": 1
+    }
   },
-  "blast": {
-   "on": "blast",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": "tube-0.5",
-   "seconds": 2,
-   "follow": "81mm Tube Roof",
-   "distance": 8,
-   "yaw": 90,
-   "pitch": -10,
-   "why": "the tube fires"
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "df6324d68cfd2a4e",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
+    "missing": [
+      "tube",
+      "blast"
+    ]
   },
-  {
-   "at": "blast-2",
-   "seconds": 4,
-   "lookAt": [
-    100.0,
-    100.0,
-    2.0
-   ],
-   "distance": 30,
-   "yaw": 45,
-   "pitch": -25,
-   "why": "the house; the round arrives"
-  },
-  {
-   "at": "blast+2",
-   "seconds": 4,
-   "lookAt": [
-    100.0,
-    100.0,
-    0.0
-   ],
-   "distance": 20,
-   "yaw": 45,
-   "pitch": -70,
-   "why": "after: who is down"
-  }
- ]
+  "shots": [
+    {
+      "at": "tube-0.5",
+      "seconds": 2,
+      "follow": "81mm Tube Roof",
+      "distance": 8,
+      "yaw": 90,
+      "pitch": -10,
+      "why": "the tube fires"
+    },
+    {
+      "at": "blast-2",
+      "seconds": 4,
+      "lookAt": [
+        100,
+        100,
+        2
+      ],
+      "yaw": 45,
+      "pitch": -25,
+      "why": "the house; the round arrives"
+    },
+    {
+      "at": "blast+2",
+      "seconds": 4,
+      "lookAt": [
+        100,
+        100,
+        0
+      ],
+      "distance": 20,
+      "yaw": 45,
+      "pitch": -70,
+      "why": "after: who is down"
+    }
+  ],
+  "clip": "F-37",
+  "chapter": 8,
+  "state": "ready"
 }

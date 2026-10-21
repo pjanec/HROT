@@ -1,59 +1,64 @@
 {
- "title": "Clear the house",
- "caption": "A squad clears a house room by room, fire teams taking turns, sparing the civilians inside",
- "clip": "F-33",
- "chapter": 8,
- "state": "ready",
- "anchors": {
-  "entry": {
-   "on": "near",
-   "who": "Blue Leader",
-   "point": [
-    40,
-    104
-   ],
-   "within": 3
-  }
- },
- "shots": [
-  {
-   "at": "entry-5",
-   "seconds": 4,
-   "lookAt": [
-    45.0,
-    105.0,
-    2.0
-   ],
-   "distance": 35,
-   "yaw": 0,
-   "pitch": -15,
-   "why": "the stack at the door"
+  "title": "Clear the house",
+  "caption": "A squad clears a house room by room, fire teams taking turns, sparing the civilians inside",
+  "anchors": {
+    "entry": {
+      "on": "near",
+      "who": "Blue Leader",
+      "point": [
+        40,
+        104
+      ],
+      "within": 3
+    }
   },
-  {
-   "at": "entry",
-   "seconds": 8,
-   "lookAt": [
-    47.0,
-    105.0,
-    0.0
-   ],
-   "distance": 30,
-   "yaw": 90,
-   "pitch": -75,
-   "why": "top-down through the roof: room by room"
+  "baked": {
+    "times": {
+      "entry": 17.8667
+    },
+    "tickHz": 60,
+    "scenarioHash": "91ffbc2b238b1d1a",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "entry+30",
-   "seconds": 6,
-   "lookAt": [
-    47.0,
-    105.0,
-    0.0
-   ],
-   "distance": 30,
-   "yaw": 90,
-   "pitch": -75,
-   "why": "the last rooms"
-  }
- ]
+  "shots": [
+    {
+      "at": "entry-5",
+      "seconds": 4,
+      "lookAt": [
+        45,
+        105,
+        2
+      ],
+      "distance": 35,
+      "pitch": -15,
+      "why": "the stack at the door"
+    },
+    {
+      "at": "entry",
+      "seconds": 8,
+      "lookAt": [
+        47,
+        105,
+        0
+      ],
+      "yaw": 90,
+      "pitch": -75,
+      "why": "top-down through the roof: room by room"
+    },
+    {
+      "at": "entry+30",
+      "seconds": 6,
+      "lookAt": [
+        47,
+        105,
+        0
+      ],
+      "yaw": 90,
+      "pitch": -75,
+      "why": "the last rooms"
+    }
+  ],
+  "clip": "F-33",
+  "chapter": 8,
+  "state": "ready"
 }

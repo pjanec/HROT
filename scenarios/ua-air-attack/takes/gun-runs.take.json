@@ -1,63 +1,71 @@
 {
- "title": "Gun and rocket runs",
- "caption": "An Apache attacks with rockets and gun; an A-10 strafes a column",
- "clip": "F-51",
- "chapter": 10,
- "state": "ready",
- "anchors": {
-  "apache": {
-   "on": "shot",
-   "by": "Apache",
-   "n": 1
+  "title": "Gun and rocket runs",
+  "caption": "An Apache attacks with rockets and gun; an A-10 strafes a column",
+  "anchors": {
+    "apache": {
+      "on": "shot",
+      "by": "Apache",
+      "n": 1
+    },
+    "gun": {
+      "on": "shot",
+      "by": "Gunship A-10",
+      "n": 1
+    }
   },
-  "gun": {
-   "on": "shot",
-   "by": "Gunship A-10",
-   "n": 1
-  }
- },
- "shots": [
-  {
-   "at": "apache-2",
-   "seconds": 4,
-   "over": "Apache",
-   "toward": "Position Truck",
-   "back": 25,
-   "height": 6,
-   "ahead": 0.5,
-   "why": "behind the Apache on its run"
+  "baked": {
+    "times": {
+      "gun": 22.85,
+      "apache": 23.8167
+    },
+    "tickHz": 60,
+    "scenarioHash": "2ca64698bae246af",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": "apache+1",
-   "seconds": 3,
-   "follow": "Position Truck",
-   "distance": 40,
-   "yaw": 270,
-   "pitch": -10,
-   "why": "the rockets arrive"
-  },
-  {
-   "at": "gun-2",
-   "seconds": 4,
-   "over": "Gunship A-10",
-   "toward": "Column Lead",
-   "back": 40,
-   "height": 8,
-   "ahead": 0.3,
-   "why": "the A-10's gun run"
-  },
-  {
-   "at": "gun+0.5",
-   "seconds": 3,
-   "lookAt": [
-    520.0,
-    -150.0,
-    0.0
-   ],
-   "distance": 80,
-   "yaw": 180,
-   "pitch": -15,
-   "why": "the column hit"
-  }
- ]
+  "shots": [
+    {
+      "at": "apache-2",
+      "seconds": 4,
+      "over": "Apache",
+      "toward": "Position Truck",
+      "back": 25,
+      "ahead": 0.5,
+      "why": "behind the Apache on its run"
+    },
+    {
+      "at": "apache+1",
+      "seconds": 3,
+      "follow": "Position Truck",
+      "distance": 40,
+      "yaw": 270,
+      "pitch": -10,
+      "why": "the rockets arrive"
+    },
+    {
+      "at": "gun-2",
+      "seconds": 4,
+      "over": "Gunship A-10",
+      "toward": "Column Lead",
+      "back": 40,
+      "height": 8,
+      "ahead": 0.3,
+      "why": "the A-10's gun run"
+    },
+    {
+      "at": "gun+0.5",
+      "seconds": 3,
+      "lookAt": [
+        520,
+        -150,
+        0
+      ],
+      "distance": 80,
+      "yaw": 180,
+      "pitch": -15,
+      "why": "the column hit"
+    }
+  ],
+  "clip": "F-51",
+  "chapter": 10,
+  "state": "ready"
 }

@@ -321,7 +321,8 @@ public sealed class FilmDirectorTests
         try
         {
             var store = new TakeStore(() => root, () => null);
-            store.Save(new Take { Scenario = "a", Name = "main", Shots = new[] { Shot("""{"at":1,"seconds":2,"follow":"X"}""") } });
+            var path = store.Save(new Take { Scenario = "a", Name = "main", Caption = "Fear — it's catching", Shots = new[] { Shot("""{"at":1,"seconds":2,"follow":"X"}""") } });
+            Assert.Contains("Fear — it's catching", File.ReadAllText(path));   // ⭐ a hand-edited file keeps its text (no \u2014, no \u0027)
             Assert.Equal(1, TakeStore.CopyTakes(root, "a", "b"));
             Assert.True(store.Load("b", "main").Ok);
             Assert.Equal(0, TakeStore.CopyTakes(root, "a", "b"));      // b has its own now

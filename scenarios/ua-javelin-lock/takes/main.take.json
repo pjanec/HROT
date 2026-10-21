@@ -1,35 +1,42 @@
 {
- "title": "The lock that never comes",
- "caption": "The tank stays exposed for less than the Javelin's lock time",
- "clip": "F-42",
- "chapter": 9,
- "state": "ready",
- "anchors": {
-  "hit": {
-   "on": "hit",
-   "target": "Tank Open"
-  }
- },
- "shots": [
-  {
-   "at": 5,
-   "seconds": 5,
-   "over": "Javelin A",
-   "toward": "Tank Cycling",
-   "back": 3,
-   "height": 1.6,
-   "ahead": 0.9,
-   "fov": 15,
-   "why": "through the Javelin's eyes: out, back, out"
+  "title": "The lock that never comes",
+  "caption": "The tank stays exposed for less than the Javelin's lock time",
+  "anchors": {
+    "hit": {
+      "on": "hit",
+      "target": "Tank Open"
+    }
   },
-  {
-   "at": "hit-3",
-   "seconds": 4,
-   "follow": "Tank Open",
-   "distance": 35,
-   "yaw": 0,
-   "pitch": -10,
-   "why": "the other tank, in the open, is hit"
-  }
- ]
+  "baked": {
+    "times": {
+      "hit": 9.3833
+    },
+    "tickHz": 60,
+    "scenarioHash": "e337df8b03bf5080",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": 5,
+      "seconds": 5,
+      "over": "Javelin A",
+      "toward": "Tank Cycling",
+      "back": 3,
+      "height": 1.6,
+      "ahead": 0.9,
+      "fov": 15,
+      "why": "through the Javelin's eyes: out, back, out"
+    },
+    {
+      "at": "hit-3",
+      "seconds": 4,
+      "follow": "Tank Open",
+      "distance": 35,
+      "pitch": -10,
+      "why": "the other tank, in the open, is hit"
+    }
+  ],
+  "clip": "F-42",
+  "chapter": 9,
+  "state": "ready"
 }

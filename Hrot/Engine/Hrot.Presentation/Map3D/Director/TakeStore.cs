@@ -26,7 +26,12 @@ public sealed class TakeStore
     public const string TakeSuffix = ".take.json";
     public const string ReelSuffix = ".reel.json";
 
-    private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+    /// <summary>Indented, and ⭐ text kept readable (a take is edited by hand: no <c>\u2014</c> for a dash, no <c>\u0027</c> for a quote).</summary>
+    private static readonly JsonSerializerOptions Indented = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     private readonly Func<string> _scenariosRoot;
     private readonly Func<string?> _filmsRoot;

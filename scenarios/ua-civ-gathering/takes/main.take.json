@@ -1,46 +1,50 @@
 {
- "title": "Onlookers",
- "caption": "A hurt man draws a crowd: onlookers come from every street and form a ring",
- "clip": "F-06",
- "chapter": 3,
- "state": "ready",
- "anchors": {},
- "shots": [
-  {
-   "at": 1,
-   "seconds": 4,
-   "lookAt": [
-    200.0,
-    200.0,
-    0.0
-   ],
-   "distance": 160,
-   "yaw": 45,
-   "pitch": -60,
-   "why": "high: four streets, one man down in the middle"
+  "title": "Onlookers",
+  "caption": "A hurt man draws a crowd: onlookers come from every street and form a ring",
+  "anchors": {},
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "9e6d6259681f55be",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
   },
-  {
-   "at": 12,
-   "seconds": 5,
-   "follow": "Onlooker 1",
-   "distance": 10,
-   "yaw": 0,
-   "pitch": -8,
-   "why": "with one of them as he walks up"
-  },
-  {
-   "at": 30,
-   "seconds": 6,
-   "lookAt": [
-    200.0,
-    200.0,
-    0.0
-   ],
-   "distance": 40,
-   "yaw": 0,
-   "pitch": -30,
-   "orbit": 12,
-   "why": "the ring, circling it"
-  }
- ]
+  "shots": [
+    {
+      "at": 1,
+      "seconds": 4,
+      "lookAt": [
+        200,
+        200,
+        0
+      ],
+      "distance": 160,
+      "yaw": 45,
+      "pitch": -60,
+      "why": "high: four streets, one man down in the middle"
+    },
+    {
+      "at": 12,
+      "seconds": 5,
+      "follow": "Onlooker 1",
+      "distance": 10,
+      "pitch": -8,
+      "why": "with one of them as he walks up"
+    },
+    {
+      "at": 30,
+      "seconds": 6,
+      "lookAt": [
+        200,
+        200,
+        0
+      ],
+      "distance": 40,
+      "pitch": -30,
+      "orbit": 12,
+      "why": "the ring, circling it"
+    }
+  ],
+  "clip": "F-06",
+  "chapter": 3,
+  "state": "ready"
 }
