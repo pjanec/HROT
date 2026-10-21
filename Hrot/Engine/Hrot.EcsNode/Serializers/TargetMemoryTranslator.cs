@@ -64,6 +64,7 @@ namespace Hrot.SimHost.Serializers
                     ["Score"]    = ptr->Freshness[i],
                     ["Tick"]     = (long)ptr->LastSeenTick[i],
                     ["Modality"] = (int)ptr->Modalities[i],
+                    ["Stance"]   = (int)ptr->SeenStance[i],   // ⭐ CE-2326 — StanceId + 1, 0 = none
                 });
             }
 
@@ -105,6 +106,7 @@ namespace Hrot.SimHost.Serializers
                     Score        = entry["Score"]?.GetValue<float>() ?? 0f,
                     LastSeenTick = (uint)(entry["Tick"]?.GetValue<long>()    ?? 0L),
                     Modality     = (byte)(entry["Modality"]?.GetValue<int>() ?? 0),
+                    SeenStance   = (byte)(entry["Stance"]?.GetValue<int>()   ?? 0),
                 });
             }
 

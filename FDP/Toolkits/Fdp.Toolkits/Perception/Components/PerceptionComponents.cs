@@ -103,6 +103,18 @@ namespace Fdp.Toolkit.Perception.Components
         /// follow ONE heard contact across ticks.</summary>
         public int AnonymousSerial;
 
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; DESIGN_Peek_And_Fire §11.6a) — the LOGICAL stance he was in when last SEEN, as
+        /// <c>StanceId + 1</c>; 0 = unknown (heard only, or never seen standing still). A blind burst at the spot is aimed as at that
+        /// body (<see cref="StanceSeen"/>).</summary>
+        public fixed byte SeenStance[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>CE-2326</c> — the stance slot <paramref name="slot"/> was last seen in, or null when unknown.</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId? StanceSeen(in TargetMemory mem, int slot)
+        {
+            fixed (byte* s = mem.SeenStance)
+                return (uint)slot < (uint)mem.Count && s[slot] != 0 ? (Fdp.Toolkit.Tkb.Domain.StanceId)(s[slot] - 1) : null;
+        }
+
         // ⛔ CE-2238 part 4 — the KNOWN COMBATANTS list moved OUT of this component to Fdp.Toolkit.Combat.KnownCombatantList: the
         //    ThreatEvaluationSystem copies this memory and writes the copy back through the command buffer, which erased a mark made
         //    later in the same frame (measured: ua-armed-blend-back). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1.
@@ -149,7 +161,8 @@ namespace Fdp.Toolkit.Perception.Components
             float scoreBoost,
             uint tick,
             SensorModality modality = SensorModality.Visual,
-            float posZ = 0f)
+            float posZ = 0f,
+            byte seenStance = 0)
         {
             // 1. Look for an existing slot with the same entity ID.
             int foundSlot = -1;
@@ -172,6 +185,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.LastSeenTick[foundSlot]  = tick;
                 // OR the new modality into the existing modality bitmask.
                 mem.Modalities[foundSlot]   |= (byte)modality;
+                if (seenStance != 0) mem.SeenStance[foundSlot] = seenStance;   // ⭐ CE-2326 — 0 keeps the last one seen
             }
             else if (mem.Count < PerceptionConstants.MaxTrackedTargets)
             {
@@ -187,6 +201,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[slot]    = 0;
                 mem.Radius[slot]       = 0f;
                 mem.SourceClass[slot]  = 0;
+                mem.SeenStance[slot]   = seenStance;
                 mem.Count++;
                 mem.ChangeEpoch++;
             }
@@ -216,6 +231,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.Anonymous[lowestIdx]    = 0;
                     mem.Radius[lowestIdx]       = 0f;
                     mem.SourceClass[lowestIdx]  = 0;
+                    mem.SeenStance[lowestIdx]   = seenStance;
                     mem.ChangeEpoch++;
                 }
             }
@@ -239,6 +255,7 @@ namespace Fdp.Toolkit.Perception.Components
                 byte   anonTmp  = mem.Anonymous[i];
                 float  radTmp   = mem.Radius[i];
                 byte   clsTmp   = mem.SourceClass[i];
+                byte   stTmp    = mem.SeenStance[i];
 
                 int j = i - 1;
                 while (j >= 0 && mem.Freshness[j] < scoreTmp)
@@ -253,6 +270,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.Anonymous[j + 1]    = mem.Anonymous[j];
                     mem.Radius[j + 1]       = mem.Radius[j];
                     mem.SourceClass[j + 1]  = mem.SourceClass[j];
+                    mem.SeenStance[j + 1]   = mem.SeenStance[j];
                     j--;
                 }
 
@@ -266,6 +284,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[j + 1]    = anonTmp;
                 mem.Radius[j + 1]       = radTmp;
                 mem.SourceClass[j + 1]  = clsTmp;
+                mem.SeenStance[j + 1]   = stTmp;
             }
         }
 
@@ -402,6 +421,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Anonymous[i]    = mem.Anonymous[i + 1];
                 mem.Radius[i]       = mem.Radius[i + 1];
                 mem.SourceClass[i]  = mem.SourceClass[i + 1];
+                mem.SeenStance[i]   = mem.SeenStance[i + 1];   // ⭐ CE-2326
             }
             mem.Count--;
             mem.ChangeEpoch++;

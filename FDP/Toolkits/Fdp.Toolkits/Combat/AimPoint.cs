@@ -107,10 +107,39 @@ namespace Fdp.Toolkit.Combat
             Entity target, StanceId stance, float hullHeight, float penetration, List<Vector3> scratch)
         {
             if (world == null) return middle;
-            bool middleSeen = !world.SightBlocked(eye, middle);
-            if (!middleSeen && ShootsThrough(world, eye, middle, penetration)) return middle;
-
+            if (world.SightBlocked(eye, middle) && ShootsThrough(world, eye, middle, penetration)) return middle;
             BodyProfile.Points(view, target, stance, hullHeight, scratch);   // ascending heights
+            return Resolve(world, eye, middle, penetration, scratch);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2326</c> (R-3030; DESIGN_Peek_And_Fire §11.6a) — where a round aims at a BODY REMEMBERED at <paramref name="feet"/> in
+        /// <paramref name="stance"/>: the man is no longer there, so his body is built from the stance — the pose's CHEST
+        /// (<see cref="Chest"/>, an armed man aiming, the reference size) and the sample heights the live rule uses
+        /// (<see cref="BodyProfile.Fractions"/> × the stance's default eye height) — then THE one rule (<see cref="Resolve"/>): the chest,
+        /// or the middle of the band that shows over a cover that stops a round (R-2064 ③). No world ⇒ the chest.
+        /// </summary>
+        public static Vector3 ForBodyAt(IWorldQuery? world, Vector3 eye, Vector3 feet, StanceId stance, float penetration, List<Vector3> scratch)
+        {
+            var pose = Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(stance, armed: true, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, down: false);
+            var middle = feet with { Z = feet.Z + Chest(pose).Z };
+            if (world == null) return middle;
+            if (world.SightBlocked(eye, middle) && ShootsThrough(world, eye, middle, penetration)) return middle;
+            scratch.Clear();
+            float eyeHeight = TerrainWorldLosStrategy.DefaultMount.For(stance);
+            foreach (float f in BodyProfile.Fractions(stance, hull: false))
+                scratch.Add(feet with { Z = feet.Z + f * eyeHeight });
+            return Resolve(world, eye, middle, penetration, scratch);
+        }
+
+        /// <summary>
+        /// THE band rule, for a live body (<see cref="For"/>) and a remembered one (<see cref="ForBodyAt"/>): <paramref name="scratch"/> holds the
+        /// body's samples, ascending. The chest when seen and nothing below it is hidden (or hidden only by what a round goes through); the
+        /// middle of what shows when the chest is at a cover that STOPS a round; the middle of the seen part when the chest is hidden.
+        /// </summary>
+        private static Vector3 Resolve(IWorldQuery world, Vector3 eye, Vector3 middle, float penetration, List<Vector3> scratch)
+        {
+            bool middleSeen = !world.SightBlocked(eye, middle);
             int lo = -1, hi = -1;
             for (int i = 0; i < scratch.Count; i++)
                 if (!world.SightBlocked(eye, scratch[i])) { if (lo < 0) lo = i; hi = i; }

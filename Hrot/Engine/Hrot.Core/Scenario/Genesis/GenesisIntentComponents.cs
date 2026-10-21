@@ -115,6 +115,9 @@ namespace Hrot.Common.Serializers
 
         /// <summary>Encoded sensor modality that detected this target.</summary>
         public byte  Modality;
+
+        /// <summary>⭐ <c>CE-2326</c> — the stance the target was last seen in, <c>StanceId + 1</c>; 0 = not seen in a stance.</summary>
+        public byte  SeenStance;
     }
 
     /// <summary>

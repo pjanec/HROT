@@ -67,6 +67,10 @@ namespace Hrot.NED.Messages
 
         // ⭐ Q94 A-1 (R-3018) — the brain's request id, echoed by the muscle's WeaponFire (fired or refused). APPENDED.
         public uint RequestId;
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030) — the point is the feet of a body remembered in this stance (<c>StanceId + 1</c>);
+        /// 0 = a plain point. Appended (R-169).</summary>
+        public byte BodyStance;
     }
 
     /// <summary>

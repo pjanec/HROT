@@ -2980,7 +2980,16 @@ CGF all systems **88.8** (was 338.0), 494 frames in 60 s (was 322). The cause wa
 CGF's next: `TogglableSimulationGroup` 17.4 (a group — its children's time), `CycloneEgressSystem` 11.3 (all egress translators;
 the costliest `EntityWeaponAmmo` 2.3, `EqsSensorConfig` 1.6, `EntityWeaponPosture` 1.3), `RecorderTickSystem` 8.8.
 
-⚠ **No budget is set yet** — the harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
+⭐ **THE CEILING — ✅ APPROVED `2026-10-21` (R-3029; 🔒 user: *"Those 3 approved"*)**: a REGRESSION ceiling, not a real-time target — at
+**300 civilians, ≤ 100 ms per frame per node** (each node's "all systems", the sum of recent averages) on the dev VM. The real-time budget
+is set separately on a release machine; 500 is not gated (CGF 88.8 ms after the grid — the next thing to profile).
+
+| run | command | result |
+|---|---|---|
+| ✅ **the gate, first green** `2026-10-21` | `python3 scripts/perf-civilians.py --gate` *(= `300 --node-budget-ms 100`; a node over it prints `ALL SYSTEMS` among the overs and exits 1)* | **PASS** — CGF **51.2**, SimHost **40.3**, IG **12.8** ms; 690 frames in 60 s |
+
+⛔ SUPERSEDED: *"No budget is set yet — the harness gates on `--budget-ms` once one is ruled"* — `--budget-ms` stays the per-SYSTEM bound;
+the ruled ceiling is per NODE (`--node-budget-ms`).
 
 ### 7.5 B-5 — the weapons *(CV-9)*
 
@@ -2989,10 +2998,7 @@ round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions i
 weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
 node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
 
-⭐ **THE CEILING — ✅ APPROVED `2026-10-21` (R-3029; 🔒 user: *"Those 3 approved"*)**: a REGRESSION ceiling, not a real-time target — at
-**300 civilians, ≤ 100 ms per frame per node** (CGF and SimHost "all systems", recent average) on the dev VM, `perf-civilians.py 300
---budget-ms 100`. The real-time budget is set separately on a release machine. 📐 Today: CGF 95.2, SimHost 71.4 (passes); 500 is not
-gated (CGF 338 ms — the next thing to profile).
+
 
 #### 7.5a AS-BUILT `CE-3223` part 1 *(2026-10-16)* — the rounds whose effect exists, and the security loadouts
 

@@ -70,6 +70,11 @@ namespace Fdp.Toolkit.Combat.Events
         /// <see cref="WeaponFireNotification.RequestId"/> (fired or REFUSED) so the brain's ledger matches the answer; 0 = untracked
         /// (APPENDED).</summary>
         public uint RequestId;
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — with <see cref="AtPoint"/>: <see cref="TargetPoint"/> is the FEET of a
+        /// body remembered in this stance (<c>StanceId + 1</c>), and the muscle aims as at that body (<c>AimPoint.ForBodyAt</c>).
+        /// <b>0 = a plain point</b>, as before.</summary>
+        public byte BodyStance;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────
