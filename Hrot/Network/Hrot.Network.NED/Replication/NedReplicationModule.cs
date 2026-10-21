@@ -385,6 +385,8 @@ public sealed class NedReplicationModule : INedReplicationModule
     {
         // ── Ghost lifecycle systems (all roles) ─────────────────────────────
         registry.RegisterSystem(GhostCreationSystem);
+        // ⭐ CE-3293 S2 — the lifecycle group's members (Tick runs them) go through the scheduler's one gate too.
+        NetworkLifecycleGroup.RouteThrough(registry);
 
         // ── Reliable-init barrier: the creator waiter runs in the sim loop (CE-283) ──
         if (_reliableGateway != null)

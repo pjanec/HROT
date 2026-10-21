@@ -348,6 +348,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         }
     }
 
+
+    // ⭐ CE-3293 S2 (DESIGN_Paused_And_Stepped_Execution.md rule 3) — this host runs no ModuleHostKernel and ticks its systems
+    //   itself; every one still goes through a scheduler's gate, which reads its TickMode and (from S5) the replay clock.
+    private readonly Fdp.ModuleHost.Scheduling.SystemScheduler _systemRunner = new();
+
+    private void RunSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem? system, float deltaTime)
+    {
+        if (system != null && _activeRepo != null) _systemRunner.Run(system, _activeRepo, deltaTime);
+    }
+
     public void Update(float deltaTime)
     {
         int pendingSeek = _pendingChangeSeekFrame;
@@ -436,12 +446,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 //    here because this host runs no ModuleHostKernel. ⚠ ORDER IS LOAD-BEARING:
                 //    requests apply, THEN the announcement is consumed, so a cause and its consequence
                 //    land in one frame (the order ScenarioEditorModule registers them in).
-                _selectionRequests?.Execute(_activeRepo, deltaTime);
-                _selectionNotifications?.Execute(_activeRepo, deltaTime);
-                _contextIngress?.Execute(_activeRepo, deltaTime);   // ⭐ CE-3179 — before the dispatch, the order every host keeps
-                _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
+                RunSystem(_selectionRequests, deltaTime);
+                RunSystem(_selectionNotifications, deltaTime);
+                RunSystem(_contextIngress, deltaTime);   // ⭐ CE-3179 — before the dispatch, the order every host keeps
+                RunSystem(_actionDispatchSystem, deltaTime);
                 // ⭐ CE-3123 — the order InteractionSystems gives: dispatch, patch, then the gizmos below.
-                _debugStatePatchSystem?.Execute(_activeRepo, deltaTime);
+                RunSystem(_debugStatePatchSystem, deltaTime);
                 // ⭐⭐⭐ CE-259am — the SHARED CenterOnEntitySystem, ticked directly like its five
                 //    neighbours here because this host runs no ModuleHostKernel
                 //    (DESIGN_Subsystem_Composition_Unification.md:1153 measures zero kernel references).
@@ -456,17 +466,17 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 //   host's shape ("the canvas is created during window registration"), so nothing had to
                 //   be adapted. ⚠ It also fixes the UI path: the entity-inspector context menu's
                 //   "Center on entity" published into a world that had never heard of the event.
-                _centerOnEntitySystem?.Execute(_activeRepo, deltaTime);
-                _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
-                _globalGizmoManager?.Execute(_activeRepo, deltaTime);
-                _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
+                RunSystem(_centerOnEntitySystem, deltaTime);
+                RunSystem(_dataDrivenGizmoSystem, deltaTime);
+                RunSystem(_globalGizmoManager, deltaTime);
+                RunSystem(_statelessGizmoSystem, deltaTime);
                 // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — the effects are IN the recording (with their Lifespan), so the layer draws
                 //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
                 //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
                 //   run-set is the map's whole set; IsReplayActive keeps them standing down.
-                _effectSpawn?.Execute(_activeRepo, deltaTime);
-                _wreckSpawn?.Execute(_activeRepo, deltaTime);
-                _lifespan?.Execute(_activeRepo, deltaTime);
+                RunSystem(_effectSpawn, deltaTime);
+                RunSystem(_wreckSpawn, deltaTime);
+                RunSystem(_lifespan, deltaTime);
             }
 
             // Swap the interaction bus so intent events are visible on the next frame

@@ -330,7 +330,21 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | the checks | `SystemScheduler.RegisterSystem` and the first `ExecuteSystem` of a type (`_tickPolicies`); the kernel's three module-entry sites (`RegisterModule`, `InstallModuleAsync`, the batch install) → `ModuleEntry.TickPolicy` |
 | the marks | 198 production systems + 40 modules exactly as Appendix A/B (the §8 leans as listed there) · test and example systems `EveryFrame` (today's behaviour) · test modules by their policy: background ⇒ `WhenTimeAdvances`, else `EveryFrame` · done by four parallel agents on disjoint files, then swept: every Roslyn-listed implementation resolved to its declaration, **0 unmarked** |
 | the rails | `TickModeGuardTests` (registration, first run of a group member, not inherited, the manual wrapper, the module, `Forwarding` refused) · `EverySystemDeclaresItsTickModeTests` in `Hrot.ClusterRunner.Tests` **and** `HrotStrideApp.Game.Tests` over the shared `FDP/TestShared/TickModeProbe.cs` (every concrete system and module in the production assemblies beside the test) |
-| ⛔ not yet | nothing reads the policy to gate — S5. The F2 producer→consumer rail is S1's remaining item |
+| the F2 chain gate | ⭐ `scripts/tickmode-chains.py --check` — modes read from the `[TickMode]` marks in source, per **enclosing class** (a file-level tag made `EditorSubsystem`'s orchestration-bus read look like a step-only reader); **36 chains, all on the reviewed `ALLOW` list** with a reason each; an unreviewed or stale one fails |
+| ⛔ not yet | nothing reads the policy to gate — S5 |
+
+## 7b. ⭐ AS-BUILT — S2 (`2026-10-21`)
+
+| | as built |
+|---|---|
+| ⚠ deviation: `RegisterManualSystem` | it registered into the system's OWN phase (so a manually ticked system would also run there); it now registers into `Manual` as its doc always said, keeps an existing registration, and its wrapper calls `ExecuteSystem` (no second profiler). It had no production caller before S2 |
+| `SystemScheduler.Run(system, view, dt)` | the gate for a host with no kernel phase: first sight reads the `TickPolicy`; from S5 it takes the host's advancing flag |
+| concurrency | `_profileData` and `_tickPolicies` are `ConcurrentDictionary` — a background module's systems pass `ExecuteSystem` on its worker thread |
+| modules (wrappers from `RegisterSystems`; the raw systems until a kernel registers the module, so a test driving `Tick` directly still works) | `PhysicsQueryModule` (raycast, hit resolution) · `NavigationSolverModule` (⚠ **one solver for the module's life** — it built a new one every tick, which would be "first seen" on the worker thread each time; the solver resolves its graph per run, so nothing goes stale) · `EqsModule` (grid, solver) · `EditorSystemsModule` (perception setup, zone authoring) · `GizmoInteractionModule` (ingress, context ingress, every interaction system incl. the post-simulation gizmo group, egress) |
+| `NetworkLifecycleSystemGroup` | `RouteThrough(registry)` from `NedReplicationModule.RegisterSystems`; `ExecuteGroup` runs the wrappers (the originals kept, so a second registration does not wrap wrappers) |
+| hosts outside the kernel | `ReplayBrowserSubsystem` — its 12 systems through a private `SystemScheduler.Run` · `StridePhysicsBracket` — lifecycle, vehicle navigation, reverse sync through `Run` (its `simRunning` hand gate stays until S5) |
+| ⚠ mark corrected | `PhysicsBodyLifecycleSystem` → **`EveryFrame`**: its host runs it ALWAYS so bodies follow a drag while paused (`StridePhysicsBracket`, CE-219) — the S1 reader had it step-only. Appendix A updated (STEP 115 · EVERY 83) |
+| left as they are, on purpose | `CgfThreatEvaluationSystem` calls its inner `ThreatEvaluationSystem` — both step-only, the outer call is gated · `IgApplication.TestHook_DirectCreationToolClick` — a test hook · the toggle groups' own `Execute` — reachable only by a direct call, and none remains in production |
 
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
@@ -517,7 +531,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 | PathfindingResultMaterializationSystem | Input | STEP | solver results to the BTree | PathfindingResultMaterializationSystem.cs:18 |
 | PathfindingSolverSystem | Simulation | STEP | sim requests only (bypass, §2) | NavigationSolverModule.cs:128-130 |
 | PersonalRouteAuthoringSystem | Input | EVERY edit | route authoring click (pairs with RouteTrajectorySync) | PersonalRouteAuthoringSystem.cs:91 |
-| PhysicsBodyLifecycleSystem | Simulation | STEP ⚠ | Bullet bodies; DestructionOrder (leak today) | PhysicsBodyLifecycleSystem.cs:64,166 |
+| PhysicsBodyLifecycleSystem | Simulation | EVERY edit (corrected in S2) | Bullet bodies must follow a drag while paused — its host runs it ALWAYS (`StridePhysicsBracket.cs`, CE-219); also frees bodies of deletes made while paused | StridePhysicsBracket.cs:192-199; PhysicsBodyLifecycleSystem.cs:64,166 |
 | PlaybackTickSystem | PostSimulation | EVERY rec | replay seek while paused | PlaybackTickSystem.cs:103 |
 | PossessionSystem | Input | STEP (lean, §8) | possess/release at the next step | Possession.cs:185,219 |
 | ProficiencyFillSystem | Simulation | STEP | proficiency copy | ProficiencyFillSystem.cs:15 |
@@ -583,7 +597,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 | WorldSurveyApplySystem | Simulation | STEP ⚠ | survey answers | WorldSurveyApplySystem.cs:33 |
 | WreckSpawnSystem | PostSimulation | STEP | flames at the health crossing | EffectSystems.cs:359-385 |
 
-**Totals:** STEP 116 · EVERY 82 (edit 29 · net 24 · ui 26 · rec 3; 4 of them leans, §8; 2 moved by §10 F2) · GROUP 4 = **202**. Plus `DispatcherSystemBase<TChannel>`
+**Totals:** STEP 115 · EVERY 83 (edit 30 · net 24 · ui 26 · rec 3; 4 of them leans, §8; 2 moved by §10 F2, 1 corrected in S2) · GROUP 4 = **202**. Plus `DispatcherSystemBase<TChannel>`
 (abstract; its subclasses are marked) and 48 test/example systems (S1 marks them too). ⚠ Same-mode sets: the three
 capability-interrupt systems · `PersonalRouteAuthoringSystem` + `RouteTrajectorySyncSystem` · the four terrain-query systems.
 

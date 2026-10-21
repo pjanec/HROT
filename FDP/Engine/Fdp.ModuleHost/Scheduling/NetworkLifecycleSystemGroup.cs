@@ -80,6 +80,7 @@ namespace Fdp.ModuleHost.Scheduling
     public sealed class NetworkLifecycleSystemGroup
     {
         private readonly IEcsModuleSystem[] _innerSystems;
+        private IEcsModuleSystem[] _runs;   // CE-3293 S2 — what ExecuteGroup runs: the systems, or the scheduler's wrappers of them
 
         /// <summary>
         /// When <c>false</c>, <see cref="ExecuteGroup"/> is a no-op — none of
@@ -101,6 +102,7 @@ namespace Fdp.ModuleHost.Scheduling
         public NetworkLifecycleSystemGroup(params IEcsModuleSystem[] innerSystems)
         {
             _innerSystems = innerSystems ?? System.Array.Empty<IEcsModuleSystem>();
+            _runs         = _innerSystems;
         }
 
         /// <summary>
@@ -111,8 +113,20 @@ namespace Fdp.ModuleHost.Scheduling
         public void ExecuteGroup(ISimulationView view, float deltaTime)
         {
             if (!Enabled) return;
-            foreach (var sys in _innerSystems)
+            foreach (var sys in _runs)
                 sys.Execute(view, deltaTime);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3293</c> S2 — hands each inner system to <paramref name="registry"/> as a manual system and runs the returned
+        /// wrappers from then on, so <see cref="ExecuteGroup"/> passes the scheduler's one gate. Called by the owning module's
+        /// <c>RegisterSystems</c>.
+        /// </summary>
+        public void RouteThrough(ISystemRegistry registry)
+        {
+            var runs = new IEcsModuleSystem[_innerSystems.Length];
+            for (int i = 0; i < runs.Length; i++) runs[i] = registry.RegisterManualSystem(_innerSystems[i]);
+            _runs = runs;
         }
     }
 }

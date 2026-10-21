@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -18,10 +19,11 @@ namespace Fdp.ModuleHost.Scheduling
         private readonly Dictionary<IEcsModuleSystem, SystemPhase> _systemPhases = new();
         
         // Profiling data
-        private readonly Dictionary<IEcsModuleSystem, SystemProfileData> _profileData = new();
+        // ⭐ CE-3293 S2 — concurrent: a background module's systems run through ExecuteSystem on its worker thread.
+        private readonly ConcurrentDictionary<IEcsModuleSystem, SystemProfileData> _profileData = new();
         // ⭐ CE-3293 (R-3036) — every system's declared TickPolicy, read once: at registration, or on its first ExecuteSystem
         //   (a group member or a manual system never passes RegisterSystem). An undeclared system throws there, by name.
-        private readonly Dictionary<IEcsModuleSystem, TickPolicy> _tickPolicies = new();
+        private readonly ConcurrentDictionary<IEcsModuleSystem, TickPolicy> _tickPolicies = new();
 
         // CE-165 — every [SingleInstance] type seen so far, including those found inside registered groups.
         private readonly HashSet<Type> _singleInstanceTypes = new();
@@ -31,11 +33,14 @@ namespace Fdp.ModuleHost.Scheduling
         /// System's phase is determined by [UpdateInPhase] attribute.
         /// </summary>
         public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
+            => RegisterSystemCore(system, phaseOverride: null);
+
+        private void RegisterSystemCore(IEcsModuleSystem system, SystemPhase? phaseOverride)
         {
             if (system == null)
                 throw new ArgumentNullException(nameof(system));
 
-            var phase = GetPhaseAttribute(system);
+            var phase = phaseOverride ?? GetPhaseAttribute(system);
 
             if (!_systemsByPhase.ContainsKey(phase))
                 _systemsByPhase[phase] = new List<IEcsModuleSystem>();
@@ -152,7 +157,7 @@ namespace Fdp.ModuleHost.Scheduling
         {
             if (!_tickPolicies.ContainsKey(system))
                 _tickPolicies[system] = TickModes.OfSystem(system.GetType());   // CE-3293: first sight of a system registered no other way
-            var profile = _profileData[system];
+            var profile = _profileData.GetOrAdd(system, static s => new SystemProfileData(GetSystemProfileName(s)));
             var sw = Stopwatch.StartNew();
             
             //try
@@ -436,10 +441,26 @@ namespace Fdp.ModuleHost.Scheduling
         /// Registers a system in the Manual phase for diagnostics tracking.
         /// Returns a profiled wrapper that records execution time on each call.
         /// </summary>
+        /// <remarks>⭐ <c>CE-3293</c> S2 — registered into <see cref="SystemPhase.Manual"/> whatever its own phase attribute says, so a
+        /// system its module ticks is never ALSO run by the kernel's phase; and the wrapper runs it through <see cref="ExecuteSystem"/>
+        /// — the one gate. A system already registered (in its own phase) keeps that registration and just gets the wrapper.</remarks>
         public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
         {
-            RegisterSystem(system);
+            if (system == null) throw new ArgumentNullException(nameof(system));
+            if (!_systemPhases.ContainsKey(system))
+                RegisterSystemCore(system, SystemPhase.Manual);
             return new ProfiledManualSystemWrapper(system, this);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3293</c> S2 (design rule 3) — runs a system through <see cref="ExecuteSystem"/> for a host that ticks systems
+        /// itself, outside any kernel phase (the replay browser, the Stride physics bracket). It is checked like any other
+        /// (its <see cref="TickPolicy"/> is read on first sight) and, from S5, gated on the host's own "time advances" flag.
+        /// </summary>
+        public void Run(IEcsModuleSystem system, ISimulationView view, float deltaTime)
+        {
+            if (system == null) throw new ArgumentNullException(nameof(system));
+            ExecuteSystem(system, view, deltaTime);
         }
 
         private sealed class ProfiledManualSystemWrapper : IForwardingSystem
@@ -453,20 +474,8 @@ namespace Fdp.ModuleHost.Scheduling
                 _scheduler = scheduler;
             }
 
-            public void Execute(ISimulationView view, float deltaTime)
-            {
-                var profile = _scheduler.GetProfileData(_inner);
-                var sw = Stopwatch.StartNew();
-                try
-                {
-                    _inner.Execute(view, deltaTime);
-                }
-                finally
-                {
-                    sw.Stop();
-                    profile?.RecordExecution(sw.Elapsed.TotalMilliseconds);
-                }
-            }
+            // ⭐ CE-3293 S2 — through the scheduler's one gate (it profiles the call too).
+            public void Execute(ISimulationView view, float deltaTime) => _scheduler.ExecuteSystem(_inner, view, deltaTime);
         }
     }
     

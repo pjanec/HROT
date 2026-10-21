@@ -30,18 +30,30 @@ namespace Fdp.Toolkit.Physics.Modules
 
         private readonly RaycastSolverSystem _raycastSolver = new();
         private readonly HitResolutionSystem  _hitResolution = new();
+        // ⭐ CE-3293 S2 — what Tick runs: the systems themselves until a kernel registers this module, then the scheduler's
+        //   wrappers, so every tick passes the one gate (DESIGN_Paused_And_Stepped_Execution.md rule 3).
+        private IEcsModuleSystem _raycastRun;
+        private IEcsModuleSystem _hitRun;
+
+        public PhysicsQueryModule()
+        {
+            _raycastRun = _raycastSolver;
+            _hitRun     = _hitResolution;
+        }
 
         /// <inheritdoc/>
         public void RegisterSystems(ISystemRegistry registry)
         {
             registry.RegisterSystem(new RaycastResultMaterializationSystem());
+            _raycastRun = registry.RegisterManualSystem(_raycastSolver);
+            _hitRun     = registry.RegisterManualSystem(_hitResolution);
         }
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float dt)
         {
-            _raycastSolver.Execute(view, dt);
-            _hitResolution.Execute(view, dt);
+            _raycastRun.Execute(view, dt);
+            _hitRun.Execute(view, dt);
         }
     }
 }
