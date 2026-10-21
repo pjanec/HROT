@@ -40,6 +40,13 @@ related-designs:
 | 🟡 **behaviors' half of Q95 — `CE-2315`** | E1 after backend's S3: `StaffSystems.IsLaunch` reads the signature, CE-2309's ≥ 1 km rule goes. **E2 (not blocked): measure why backend's run delivered 9 heard contacts to the brain and no SPOT came.** E3: L7 `uc-request-chain` with the guns 2–3 km OFF the terrain |
 | ⭐ **the user's live findings, filed 2026-10-20** | see N.2 — measured, leaned, not built |
 
+### N.1b ✅ `pc-defend-house` fixes — R-2066 *(2026-10-21)*
+
+| | |
+|---|---|
+| ✅ built + rails + live twin | A–E (`CE-2342`…`CE-2346`) and parked cars — [Defend and Attack Position §8f.3](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md); twin `PlatoonScenarioTests.R2066_PcDefendHouse_*` PASS (support on the berm's south face, 5–12 m apart, no restart) |
+| ⚠ not yet seen live | E (the lull rescue): no Blue man fell in the twin's 90 s — the user's visual run is the check |
+
 ### N.1a ⭐ The clearing demos *(2026-10-20/21 — start here for building clearing)*
 
 | | |

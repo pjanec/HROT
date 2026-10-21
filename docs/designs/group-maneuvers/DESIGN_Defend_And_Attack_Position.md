@@ -1794,10 +1794,10 @@ graph TD
 *What the picture shows that prose hid:* the post template is SOLVED on SimHost, not where the play runs — so `CoverTowardTest` reads the
 resident terrain there (no terrain ⇒ it does nothing, as every sight test). Every edge here is ticked each frame; none is new.
 
-📐 **As built** — rails (mutant red-proofs: the follow-up commit): `TerrainEqsTests.CE2342_FindCoverPosts_OnTheSbfBerm_*` (cqb-village: south face only,
+📐 **As built** — rails, each red under its mutant (measured `2026-10-21`: the filter inverted · the cover spacing ignored · `Exposed` skipped · `StillRunning` skipped · `CasualtyInALull` false — 6/6 red): `TerrainEqsTests.CE2342_FindCoverPosts_OnTheSbfBerm_*` (cqb-village: south face only,
 from a sector point in the open AND inside OBJ; control: `FindCoverFromTarget` keeps no south-face point) · `SquadManeuverTests.CE2345_*`,
 `CE2346_*`, `CE2344_BasicSquadSop_*` · `TacticsTreesTests.CE2343_*` · golden `FindCoverPosts` on flat ground · the twin
-`PlatoonScenarioTests.R2066_PcDefendHouse_*` (posts on the berm's south face, ≥ 5 m apart, no restart).
+`PlatoonScenarioTests.R2066_PcDefendHouse_*` (posts on the berm's south face, ≥ 5 m apart, no restart) — 📐 live `2026-10-21`: the support posted at (106.2, 38.2) (111.2, 38.2) (123.8, 38.2) (133.8, 38.2), no restart in 90 s; `sq-defend-house`'s twin still passes.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 
