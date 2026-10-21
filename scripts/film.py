@@ -13,6 +13,11 @@ Shots (one per run):
   --follow NAME   the camera looks at NAME (a name or a network id) from --distance at --yaw / --pitch; --orbit turns it (deg / s)
   --over NAME --toward NAME2   over NAME's shoulder at NAME2: --back metres behind, --height up, looking --ahead of the way to NAME2
   --look-at X,Y,Z  a fixed point, from --distance at --yaw / --pitch (--orbit turns it)
+
+A PLAN (--plan plan.json) cuts between shots: a list of segments, each {"at": sim seconds, "seconds": n, <the shot's options>}, e.g.
+  [{"at": 9.3, "seconds": 2, "over": "Tank", "toward": "Enemy Tank", "back": 16, "height": 5},
+   {"at": 18.9, "seconds": 2.4, "follow": "Enemy Tank", "distance": 24, "yaw": 180, "pitch": -10}]
+Between segments the sim runs in real time to the next "at" (a cut). Option names are the flags' without the dashes.
 """
 import argparse, importlib.util, json, math, os, shutil, subprocess, sys, time
 
@@ -55,6 +60,13 @@ def must(resp, what):
 
 def shot_for(args, t, follow, over, toward):
     """The shot at film time t (s)."""
+    shot = _shot_for(args, t, follow, over, toward)
+    if shot is not None and getattr(args, "fov", None):
+        shot["fovDeg"] = args.fov
+    return shot
+
+
+def _shot_for(args, t, follow, over, toward):
     yaw = args.yaw + args.orbit * t
     if follow is not None:
         return {"follow": follow, "distance": args.distance, "yawDeg": yaw, "pitchDeg": args.pitch, "lift": args.lift}
@@ -70,6 +82,40 @@ def shot_for(args, t, follow, over, toward):
         return {"eye": eye, "target": target}
     x, y, z = (float(v) for v in args.look_at.split(","))
     return {"lookAt": [x, y, z], "distance": args.distance, "yawDeg": yaw, "pitchDeg": args.pitch}
+
+
+SHOT_KEYS = ("follow", "over", "toward", "look_at", "distance", "yaw", "pitch", "orbit", "lift", "back", "height", "ahead", "fov")
+
+
+def run_to(t, step_fps):
+    """Lets the sim run in real time to sim time t, then pauses (a cut). Already past t: nothing."""
+    now = udc.sim_time() or 0.0
+    if now >= t - 0.5 / step_fps:
+        return
+    must(udc.call("POST", "/sim/play", {}), "play")
+    udc.wait_for(lambda: (udc.sim_time() or 0.0) >= t, (t - now) * 20 + 60, every=0.05)
+    must(udc.call("POST", "/sim/pause", {}), "pause")
+
+
+def segments_of(args):
+    if args.plan:
+        plan = json.load(open(args.plan))
+        segs = []
+        for raw in plan:
+            seg = argparse.Namespace(**vars(args))
+            for k, v in raw.items():
+                key = k.replace("-", "_")
+                if key not in SHOT_KEYS + ("at", "seconds"):
+                    sys.exit(f"unknown plan key {k!r}")
+                setattr(seg, key, v)
+            for k in ("follow", "over", "toward", "look_at"):
+                if k not in raw and k.replace("_", "-") not in raw:
+                    setattr(seg, k, None)
+            seg.at = float(raw.get("at", 0.0))
+            segs.append(seg)
+        return segs
+    args.at = args.warmup
+    return [args]
 
 
 def main():
@@ -90,17 +136,21 @@ def main():
     ap.add_argument("--pitch", type=float, default=-20.0)
     ap.add_argument("--orbit", type=float, default=0.0, help="degrees per second")
     ap.add_argument("--lift", type=float, default=1.5)
+    ap.add_argument("--fov", type=float, default=None, help="vertical field of view, degrees (default 45; narrow = telephoto)")
     ap.add_argument("--back", type=float, default=20.0)
     ap.add_argument("--height", type=float, default=6.0)
     ap.add_argument("--ahead", type=float, default=0.35, help="share of the way to --toward the camera looks at")
     ap.add_argument("--port", type=int, default=8111)
     ap.add_argument("--keep-frames", action="store_true")
     ap.add_argument("--attach", action="store_true", help="use a cluster already listening on --port (do not launch or load)")
+    ap.add_argument("--plan", help="a JSON list of segments (see above) instead of one shot")
     args = ap.parse_args()
-    if sum(x is not None for x in (args.follow, args.over, args.look_at)) != 1:
-        sys.exit("give exactly one shot: --follow, --over (with --toward) or --look-at")
-    if args.over and not args.toward:
-        sys.exit("--over needs --toward")
+    segments = segments_of(args)
+    for seg in segments:
+        if sum(x is not None for x in (seg.follow, seg.over, seg.look_at)) != 1:
+            sys.exit("each shot needs exactly one of: follow, over (with toward) or look-at")
+        if seg.over and not seg.toward:
+            sys.exit("over needs toward")
     if not shutil.which("ffmpeg"):
         sys.exit("ffmpeg is not installed")
     w, h = (int(v) for v in args.size.lower().split("x"))
@@ -116,27 +166,32 @@ def main():
             proc = udc.launch(args.port)
             udc.load(args.scenario)
         names = ids()
-        follow = resolve(args.follow, names)
-        over, toward = resolve(args.over, names), resolve(args.toward, names)
-
-        if args.warmup > 0:
-            must(udc.call("POST", "/sim/play", {}), "play")
-            t0 = udc.sim_time() or 0.0
-            udc.wait_for(lambda: (udc.sim_time() or 0.0) >= t0 + args.warmup, args.warmup * 20 + 60, every=0.5)
-        must(udc.call("POST", "/sim/pause", {}), "pause")
-
         steps = max(1, round(60 / args.fps))     # the sim runs 60 frames a second; one film frame = this many
-        count = int(args.seconds * args.fps)
-        started = time.time()
-        for i in range(count):
-            shot = shot_for(args, i / args.fps, follow, over, toward)
-            if shot is not None:
-                must(udc.call("POST", "/film/shot", shot), f"shot {i}")
-            path = os.path.join(frames_dir, f"{i:05d}.png")
-            must(udc.call("POST", "/film/capture", {"path": path, "width": w, "height": h, "supersample": args.supersample}), f"capture {i}")
-            must(udc.call("POST", "/sim/step", {"count": steps}), f"step {i}")
-            if i % args.fps == 0:
-                print(f"   frame {i}/{count}  sim {udc.sim_time()}  {time.time() - started:.0f} s", flush=True)
+        must(udc.call("POST", "/sim/pause", {}), "pause")
+        started, i = time.time(), 0
+        for seg in segments:
+            run_to(seg.at, args.fps)
+            follow = resolve(seg.follow, names)
+            over, toward = resolve(seg.over, names), resolve(seg.toward, names)
+            count = int(float(seg.seconds) * args.fps)
+            for k in range(count + 1):
+                shot = shot_for(seg, k / args.fps, follow, over, toward)
+                if shot is not None:
+                    must(udc.call("POST", "/film/shot", shot), f"shot {i}")
+                if k == 0:
+                    # ⚠ a NEW shot's first frame: the weather layer read the atmosphere before the director moved the camera this frame
+                    #   (the film layer updates last) — one throwaway capture lets it settle (Map 3D Mode §6ab as built)
+                    must(udc.call("POST", "/film/capture", {"path": os.path.join(frames_dir, "settle.png"), "width": 64, "height": 64}), "settle")
+                    continue
+                path = os.path.join(frames_dir, f"{i:05d}.png")
+                must(udc.call("POST", "/film/capture", {"path": path, "width": w, "height": h, "supersample": args.supersample}), f"capture {i}")
+                must(udc.call("POST", "/sim/step", {"count": steps}), f"step {i}")
+                i += 1
+                if i % args.fps == 0:
+                    print(f"   frame {i}  sim {udc.sim_time()}  {time.time() - started:.0f} s", flush=True)
+        count = i
+        if os.path.exists(os.path.join(frames_dir, "settle.png")):
+            os.remove(os.path.join(frames_dir, "settle.png"))
         udc.call("DELETE", "/film/shot")
 
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(args.fps), "-i", os.path.join(frames_dir, "%05d.png"),

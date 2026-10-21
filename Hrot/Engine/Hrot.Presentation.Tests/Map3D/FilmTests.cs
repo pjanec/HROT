@@ -76,6 +76,29 @@ public sealed class FilmTests : System.IDisposable
         Assert.True(camera.FogStart > 0f);
     }
 
+    /// <summary>
+    /// A shot may narrow the lens (a telephoto: a far target fills the frame); the camera gets its own lens back when the director
+    /// lets go. 🔴 Red-proof: drop the restore in <c>Detached</c> ⇒ the operator's map stays zoomed at 12°.
+    /// </summary>
+    [Fact]
+    public void CE3289_AShotsLens_IsGivenBack_WhenTheDirectorLetsGo()
+    {
+        using var world = new EntityRepository();
+        var camera = new MapCamera3D();
+        float own = camera.FovyDegrees;
+        var director = new FilmDirector(() => world) { Shot = new FilmShot { Pose = new CameraPose(Vector3.Zero, 200f, 0f, -0.2f), FovDeg = 12f } };
+        camera.Driver = director;
+        camera.Update(0.016f);
+        Assert.Equal(12f, camera.FovyDegrees);
+        director.Shot = director.Shot with { FovDeg = null };   // a shot without a lens: the camera's own
+        camera.Update(0.016f);
+        Assert.Equal(own, camera.FovyDegrees);
+        director.Shot = director.Shot with { FovDeg = 20f };
+        camera.Update(0.016f);
+        camera.Driver = null;
+        Assert.Equal(own, camera.FovyDegrees);
+    }
+
     /// <summary>The mailbox: captures wait in order; one the caller gave up on is skipped; nothing is taken twice.</summary>
     [Fact]
     public void CE3289_TheStudio_HandsOutWaitingCaptures_InOrder_SkippingAbandonedOnes()

@@ -446,8 +446,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "film_shot",
             Group:   "Y — node diagnostics",
             Summary: "⭐ CE-3289 — hold the 3-D map's camera on a shot (a pose, an eye and a target, or a unit to follow) until released; switches the map to 3-D. The operator's and the scenario's camera are left alone.",
-            Returns: "{ follow, lookAt[3], distance, yawDeg, pitchDeg } — the shot held",
-            Hint:    "One of: {follow, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}. Yaw from east counter-clockwise (90 = looking north), pitch negative looks down. Example: film_shot({follow:1000, distance:25, yawDeg:200, pitchDeg:-15})",
+            Returns: "{ follow, lookAt[3], distance, yawDeg, pitchDeg, fovDeg } — the shot held",
+            Hint:    "One of: {follow, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}. Yaw from east counter-clockwise (90 = looking north), pitch negative looks down; any shot may add fovDeg (a telephoto lens). Example: film_shot({follow:1000, distance:25, yawDeg:200, pitchDeg:-15})",
             Params: new RouteParam[]
             {
                 new("follow", "number", false, "Network id of the unit to follow (its position, every frame)"),
@@ -458,6 +458,7 @@ namespace Hrot.Editor.DebugApi
                 new("yawDeg", "number", false, "View heading, degrees from east counter-clockwise (default 0)"),
                 new("pitchDeg", "number", false, "View elevation, degrees, negative looks down (follow: -20, lookAt: -30)"),
                 new("lift", "number", false, "Follow: metres above the unit's position looked at (default 1)"),
+                new("fovDeg", "number", false, "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"),
             },
             Notes: new[] { "docs/DESIGN_Map_3D_Mode.md §6ab. The camera is a driver, like first person: never saved to the scenario." },
             ExampleArgsJson: "{\"follow\":1000,\"distance\":25,\"yawDeg\":200,\"pitchDeg\":-15}",

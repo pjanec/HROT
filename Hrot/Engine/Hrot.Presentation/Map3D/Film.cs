@@ -26,6 +26,9 @@ public sealed record FilmShot
     public float Pitch { get; init; } = -0.35f;
     public float Lift { get; init; } = 1f;
 
+    /// <summary>The vertical field of view (degrees); null keeps the camera's (45°). Narrow = a telephoto lens.</summary>
+    public float? FovDeg { get; init; }
+
     /// <summary>A camera at <paramref name="eye"/> looking at <paramref name="target"/>; null when the two coincide.</summary>
     public static FilmShot? Looking(Vector3 eye, Vector3 target)
     {
@@ -115,7 +118,16 @@ public sealed class FilmDirector : ICameraDriver
 
     public bool ViewsFromEye => false;
 
+    private float? _fovBefore;
+
     public void Update(MapCamera3D camera, float dt) => Place(camera);
+
+    /// <summary>Gives the lens back: the field of view the camera had before a shot changed it.</summary>
+    public void Detached(MapCamera3D camera)
+    {
+        if (_fovBefore is { } fov) camera.FovyDegrees = fov;
+        _fovBefore = null;
+    }
 
     public bool HandleInput(MapCamera3D camera, IInputProvider input) => false;
 
@@ -123,6 +135,8 @@ public sealed class FilmDirector : ICameraDriver
     public bool Place(MapCamera3D camera)
     {
         if (Shot is not { } shot) return false;
+        _fovBefore ??= camera.FovyDegrees;
+        camera.FovyDegrees = shot.FovDeg is { } fov ? Math.Clamp(fov, 1f, 120f) : _fovBefore.Value;
         if (shot.Pose is { } pose) { camera.Pose = pose; return true; }
         var world = _world();
         var unit = NetworkIdResolver.ResolveNetworkId(world, shot.Follow);

@@ -176,6 +176,7 @@ namespace Hrot.Editor.DebugApi
                     };
                 else
                     return Fail(400, "a shot needs one of: {follow: networkId, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}");
+                if (body?["fovDeg"] is JsonNode fov) shot = shot with { FovDeg = fov.GetValue<float>() };
                 Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
                 return Ok(new JsonObject
                 {
@@ -184,6 +185,7 @@ namespace Hrot.Editor.DebugApi
                     ["distance"] = shot.Pose?.Distance ?? shot.Distance,
                     ["yawDeg"] = MathF.Round((shot.Pose?.Yaw ?? shot.Yaw) * 180f / MathF.PI, 2),
                     ["pitchDeg"] = MathF.Round((shot.Pose?.Pitch ?? shot.Pitch) * 180f / MathF.PI, 2),
+                    ["fovDeg"] = shot.FovDeg,
                 });
             }
             catch (Exception ex) when (ex is FormatException or InvalidOperationException or ArgumentException)
