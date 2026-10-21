@@ -56,6 +56,10 @@ namespace Fdp.Toolkit.Perception.Signatures
         private long _head;
         private long _overflow;
         private double _now;
+        // ⭐ CE-3292 (R-3035) — the first serial of the CURRENT timeline. The ring is a node singleton that outlives a load and a preview
+        //   Stop; 📐 measured: after a reload every fresh sensor heard the previous runs' shots (the ring kept them, a cursorless sensor reads
+        //   "everything recent"), and each reload heard more. A sound from before the clock went back belongs to a world that no longer exists.
+        private long _firstOfTimeline = 1;
 
         /// <summary>The serial of the newest sound (0 = none yet).</summary>
         public long Head => Volatile.Read(ref _head);
@@ -67,8 +71,16 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>The writer's clock (sim seconds), moved every frame — what "old" is measured against (the snapshot has no clock).</summary>
         public double Now => Volatile.Read(ref _now);
 
-        /// <summary>The writer moves the clock (main thread).</summary>
-        public void Tick(double now) => Volatile.Write(ref _now, now);
+        /// <summary>The writer moves the clock (main thread). ⭐ CE-3292 — a clock that went BACK (a load, a preview Stop) starts a new
+        /// timeline: every sound made before it is never heard again.</summary>
+        public void Tick(double now)
+        {
+            if (now < Volatile.Read(ref _now) - 1e-6) Volatile.Write(ref _firstOfTimeline, Head + 1);
+            Volatile.Write(ref _now, now);
+        }
+
+        /// <summary>⭐ CE-3292 — the first serial a reader may hear: sounds before it belong to an earlier timeline.</summary>
+        public long FirstOfTimeline => Volatile.Read(ref _firstOfTimeline);
 
         /// <summary>Appends one sound (the ONE writer: the main thread); returns its serial.</summary>
         public long Append(SoundEmission e)
@@ -102,6 +114,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                 if (after > 0) Interlocked.Add(ref _overflow, head - Capacity + 1 - first);
                 first = head - Capacity + 1;
             }
+            first = Math.Max(first, FirstOfTimeline);   // ⭐ CE-3292 — never a sound from an earlier timeline
+            if (first > head) { last = head; return 0; }
             double oldest = Math.Max(Now - MaxAgeSeconds, notBefore);
             int n = 0;
             for (long s = first; s <= head; s++)

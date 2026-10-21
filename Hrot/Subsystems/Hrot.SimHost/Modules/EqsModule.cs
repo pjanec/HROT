@@ -122,7 +122,9 @@ namespace Hrot.SimHost.Modules
                 gs.AccurateRaysSubmittedThisTick = 0;
             }
             if (deltaTime > 0f) _gridBuilder.Execute(view, deltaTime);   // the grid first: the visual template reads it
-            _solver.Execute(view, deltaTime);
+            // ⭐ CE-3292 (R-3035) — perception runs in SIM time: nothing is sensed on a frame where time does not move.
+            //   📐 Measured before: paused 3 s ⇒ 70 senses, and the count depended on the wall clock.
+            if (deltaTime > 0f) _solver.Execute(view, deltaTime);
         }
 
         /// <summary>

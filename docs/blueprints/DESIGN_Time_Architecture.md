@@ -1569,6 +1569,24 @@ classDiagram
 | sim time goes back ⇒ epoch + 1, every slot and accumulator reset; a job dispatched in an older epoch is discarded at harvest | the kernel, once per frame |
 | **perception's clock is `GlobalTime.FrameNumber`** (counts steps; reset by the load/Stop snap) and every perception system skips `dt = 0` | `DESIGN_Sensors_And_Doctrine.md` known-rot (CE-3292) |
 
+### ✅ §17 AS-BUILT (`2026-10-21`, CE-3292) — and what it measured
+
+| built | where | rail (red-proved) |
+|---|---|---|
+| stepped/advancing per frame; slot cadence; harvest held to the step and waited for; epoch on a clock going back, older runs discarded | `ModuleHostKernel` (`_steppedFrame`, `SlotOf`, `WaitForRun`, `_timelineEpoch`, `ModuleEntry.LastRunSlot/DispatchEpoch`) | `ModuleHostKernelTimeTests.Stepped_*` ×3 (red with stepped mode off) · `TheClockGoingBack_*` (red with the discard off) · `Continuous_TheCadenceStaysFrameCounted` |
+| perception's clock = `GlobalTime.FrameNumber` (`PerceptionClock.Now`) at every `LastSeenTick` writer and reader; the EQS solver skips dt = 0 | solver, acoustic seed, threat evaluation, squad merge, `LookNodes`, `PostureNodes`, `VehicleFightFromCoverNodes`, `KnownCombatants`, the editor's perception layer | via the live measurement below |
+| ⭐ **found while measuring:** the sound ring (a node singleton) outlived a load — every fresh sensor heard the PREVIOUS runs' shots, and each reload heard more. A clock going back now starts a new timeline in the ring; a short sound's mishearing is seeded by its place in the timeline, not the node-wide serial | `SoundEmissionRing.Tick/FirstOfTimeline`, `AcousticPerception.HearRing` | `SoundEmissionRingTests.CE3292_*` (red with the marker removed) |
+
+📐 **Measured** (`ua-tank-ammo`, `--mode editor`, 15 Hz HTTP steps, three loads in one process, cuts every 5 s to 30 s): before — the first
+load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every
+health, every shot). Byte-identical components still differ only in labels (`SopInstanceId`, route/trajectory handles) and — fixed last —
+the heard positions.
+
+⚠ **OPEN (not built — a decision for the user): event visibility across paused frames.** An event is visible the frame after it is
+published. In HTTP stepping that is a paused frame, in paced stepping the next step ⇒ a dt-gated consumer (`HsmRunner`'s sensor events in
+the brain tick) misses events in HTTP stepping, and a consumer that stamps "now" stamps differently in the two. Determinism holds WITHIN
+one way of stepping; live (paced) vs scout (HTTP) can differ in event timing.
+
 ⛔ **Rejected:** sim-time cadence in LIVE play (the CPU cost would follow the time scale — the user: the rates are for the CPU) · the
 world tick counting steps (`ScenarioLoadStep:214` and the replication timeouts need it to move while paused) · synchronous background
 modules always (live play loses its threading) · harvest on paused frames (a finished job would land BEFORE step N+1's early phases or AT

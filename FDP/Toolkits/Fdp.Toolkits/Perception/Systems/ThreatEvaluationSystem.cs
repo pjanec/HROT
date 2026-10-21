@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Perception.Systems
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             var ecb  = view.GetCommandBuffer();
-            uint tick = view.Tick;
+            uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
 
             // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.

@@ -416,7 +416,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = now;
-            ws.ExposedTick = world.SimulationTick;
+            ws.ExposedTick = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — compared with LastSeenTick
             ws.ExposuresHere++;
             ws.Exposures++;
             PositionHeat.Add(ref mem, ws.FiringPoint, 1f, now, Rules(in p), exposure: true);

@@ -162,7 +162,7 @@ namespace Hrot.AI.Behaviors.Brains
             at = default;
             if (!world.HasComponent<TargetMemory>(self)) return false;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-            uint now = world.SimulationTick;
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — LastSeenTick's clock (sim steps)
             for (int i = 0; i < mem.Count; i++)
             {
                 if (!TargetMemory.IsAnonymous(in mem, i) || now - mem.LastSeenTick[i] > HeardWindowTicks) continue;

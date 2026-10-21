@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .Build();
 
-            uint tick = view.Tick;
+            uint tick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the clock LastSeenTick is stamped in
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
             foreach (var commander in _commanders)
             {

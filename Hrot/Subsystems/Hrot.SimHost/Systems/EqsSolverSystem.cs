@@ -112,7 +112,7 @@ namespace Hrot.SimHost.Systems
 
             _currentView = view;
             _currentCmd  = view.GetCommandBuffer();
-            _currentTick = view.Tick;
+            _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
             _currentRepo = repo;
             _memory.Begin(repo);
             _lastSchedule.Clear();

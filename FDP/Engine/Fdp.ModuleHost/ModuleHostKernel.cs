@@ -101,6 +101,13 @@ namespace Fdp.ModuleHost
         private ITimeController? _timeController;
         private float _initialTimeScale = 1.0f;
         private volatile bool _globalTimePushSuspended;
+
+        // ⭐ CE-3292 (R-3035; DESIGN_Time_Architecture.md §17) — stepped mode is deterministic: per-frame facts the scheduler reads.
+        private bool   _steppedFrame;      // the clock is Deterministic (stepping) this frame
+        private bool   _advancingFrame;    // sim time moves this frame (dt > 0) — a step, not a paused frame
+        private double _frameSimTime;
+        private double _lastFrameSimTime = double.NegativeInfinity;
+        private int    _timelineEpoch;     // + 1 whenever sim time goes back (a load, a preview Stop)
         
         // Public Accessor for GlobalTime
         public GlobalTime CurrentTime { get; private set; }
@@ -566,11 +573,38 @@ namespace Fdp.ModuleHost
                 entry.Provider?.Update();
             }
             
+            // ⭐⭐ CE-3292 (R-3035) — STEPPED MODE IS DETERMINISTIC (DESIGN_Time_Architecture.md §17). How many frames are drawn between
+            //   two steps is the wall clock's; nothing a step computes may depend on it. ⇒ in stepped mode a slow or asynchronous module
+            //   is dispatched only on a step (on a sim-time slot), and a background job is applied only at the next step, after waiting
+            //   for it. Live (continuous) play keeps its frame-counted, CPU-easing cadence.
+            _steppedFrame   = _timeController?.GetMode() == TimeMode.Deterministic;
+            _advancingFrame = deltaTime > 0f;
+            _frameSimTime   = globalTime.TotalTime;
+            if (_frameSimTime < _lastFrameSimTime - 1e-9)
+            {
+                // a load or a preview Stop snapped the clock back: a new timeline. Nothing of the old one may land in it.
+                _timelineEpoch++;
+                foreach (var entry in topology.Modules)
+                {
+                    entry.LastRunSlot          = long.MinValue;
+                    entry.AccumulatedDeltaTime = 0f;
+                    entry.FramesSinceLastRun   = 0;
+                }
+            }
+            _lastFrameSimTime = _frameSimTime;
+
             // ═══════════ HARVEST PHASE (active modules) ═══════════
             foreach (var entry in topology.Modules)
             {
+                if (entry.CurrentTask == null) continue;
+                if (_steppedFrame && entry.Module.Policy.Mode == RunMode.Asynchronous)
+                {
+                    // ⭐ CE-3292 — held over paused frames, applied at the step: the step it lands on cannot depend on the pause.
+                    if (!_advancingFrame) continue;
+                    WaitForRun(entry.CurrentTask);
+                }
                 // Harvest completed async tasks
-                if (entry.CurrentTask != null && entry.CurrentTask.IsCompleted)
+                if (entry.CurrentTask.IsCompleted)
                 {
                     HarvestEntry(entry);
                 }
@@ -732,6 +766,8 @@ namespace Fdp.ModuleHost
                     }
                     
                     entry.FramesSinceLastRun = 0;
+                    entry.LastRunSlot   = SlotOf(entry);   // ⭐ CE-3292 — the sim-time slot this run covers
+                    entry.DispatchEpoch = _timelineEpoch;
                     entry.LastRunTick = _liveWorld.GlobalVersion > 0 ? _liveWorld.GlobalVersion - 1 : 0; 
                     
                     // Check Policy: If FrameSynced, we must wait
@@ -921,8 +957,12 @@ namespace Fdp.ModuleHost
                 return;
             }
 
-            // 1. Playback commands
-            PlaybackCommands(entry);
+            // 1. Playback commands — ⭐ CE-3292: unless the run belongs to an older timeline (dispatched before a load or a Stop
+            //    snapped the clock back): its answers are about a world that no longer exists, so they are discarded.
+            if (entry.DispatchEpoch == _timelineEpoch) PlaybackCommands(entry);
+            else if (entry.LeasedView is EntityRepository staleRepo && staleRepo._perThreadCommandBuffer != null)
+                foreach (var cmdBuffer in staleRepo._perThreadCommandBuffer.Values)
+                    cmdBuffer.Clear();
             
             // 2. Release view — always use the provider that issued the view (LeasedProvider),
             //    NOT entry.Provider. The two can diverge when AssignProviderForDynamicInstall
@@ -1149,6 +1189,11 @@ namespace Fdp.ModuleHost
         private bool ShouldRunThisFrame(ModuleEntry entry)
         {
             var policy = entry.Module.Policy;
+
+            // ⭐ CE-3292 (R-3035) — stepped mode: a slow or asynchronous module runs only on a step, and a slow one only when the step
+            //   enters a new sim-time slot. ⛔ Not on a paused frame: the number of those is the wall clock's.
+            bool steppedRule = _steppedFrame && IsSlowOrAsync(policy);
+            if (steppedRule && !_advancingFrame) return false;
             
             // 1. Reactive Check (Batch-02)
             bool triggered = false;
@@ -1184,6 +1229,9 @@ namespace Fdp.ModuleHost
             if (targetHz <= 0) targetHz = 60; // 0 means every frame
             
             if (targetHz >= 60) return true;
+
+            // ⭐ CE-3292 — a slot of 1/targetHz s of SIM time, anchored at t = 0: the same steps run it in every run of a timeline.
+            if (steppedRule) return SlotOf(entry) != entry.LastRunSlot;
             
             int framesToSkip = 60 / targetHz;
             if (framesToSkip < 1) framesToSkip = 1;
@@ -1191,6 +1239,25 @@ namespace Fdp.ModuleHost
             return (entry.FramesSinceLastRun + 1) >= framesToSkip;
         }
         
+        /// <summary>⭐ CE-3292 — slow (below 60 Hz) or asynchronous: the modules whose timing stepped mode pins to sim time.</summary>
+        private static bool IsSlowOrAsync(ExecutionPolicy policy)
+            => policy.Mode == RunMode.Asynchronous || policy.TargetFrequencyHz is > 0 and < 60;
+
+        /// <summary>⭐ CE-3292 — which 1/Hz-second slot of sim time this frame is in (<see cref="long.MinValue"/> for a 60 Hz+ module).</summary>
+        private long SlotOf(ModuleEntry entry)
+        {
+            int hz = entry.Module.Policy.TargetFrequencyHz;
+            if (hz <= 0 || hz >= 60) return long.MinValue;
+            return (long)Math.Floor(_frameSimTime * hz + 1e-6);
+        }
+
+        /// <summary>⭐ CE-3292 — waits for a background run; bounded by the run's own timeout (<c>ExecuteModuleSafe</c> always completes).</summary>
+        private static void WaitForRun(Task task)
+        {
+            try { task.Wait(); }
+            catch (AggregateException) { /* a faulted run is reported by HarvestEntry */ }
+        }
+
         private Action<EntityRepository>? _schemaSetup;
 
         /// <summary>
@@ -1978,6 +2045,11 @@ namespace Fdp.ModuleHost
 
             public float AccumulatedDeltaTime { get; set; }
             public uint LastRunTick { get; set; }  // For reactive scheduling prep
+
+            /// <summary>⭐ CE-3292 — the sim-time slot of the last run (stepped mode decides the next by it); reset with a new timeline.</summary>
+            public long LastRunSlot { get; set; } = long.MinValue;
+            /// <summary>⭐ CE-3292 — the timeline the current run was dispatched in; a run from an older one is discarded at harvest.</summary>
+            public int DispatchEpoch { get; set; }
             
             // Caching
             public BitMask512 ComponentMask; 
