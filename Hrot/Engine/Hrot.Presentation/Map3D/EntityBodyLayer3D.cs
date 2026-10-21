@@ -1202,7 +1202,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         else if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
         {
             var (t1, t2, t3) = Outfits.CamoTones(o.Camo);
-            _surface.Camouflage(shader, o.Camo == CamoPattern.Woodland ? SurfaceKind.Woodland : SurfaceKind.Fleck, t1, t2, t3, camoSeed);
+            _surface.Camouflage(shader, o.Camo switch
+            {
+                CamoPattern.Woodland => SurfaceKind.Woodland,
+                CamoPattern.Desert => SurfaceKind.Desert,   // ⭐ CE-1235
+                _ => SurfaceKind.Fleck,
+            }, t1, t2, t3, camoSeed);
             CamoPainted++;
         }
         else _surface.Plain(shader);
