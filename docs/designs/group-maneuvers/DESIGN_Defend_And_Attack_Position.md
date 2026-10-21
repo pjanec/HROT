@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§8f.2 DECIDED + BUILT: R-2066 A–E, the base of fire on a low berm, CE-2342…CE-2346; pc-defend-house gains parked cars) · 2026-10-21 (§8f.2 measured: the base of fire on a low berm, CE-2342…CE-2346) · 2026-10-19
-build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 ✅ APPROVED 2026-10-19, R-2054) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
-current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
+updated: 2026-10-21 (§11a PlatoonConvoy DECIDED + BUILT: R-2069, DA-99…DA-103, CE-2347) · 2026-10-21 (§8f.2 DECIDED + BUILT: R-2066 A–E, the base of fire on a low berm, CE-2342…CE-2346; pc-defend-house gains parked cars) · 2026-10-21 (§8f.2 measured: the base of fire on a low berm, CE-2342…CE-2346) · 2026-10-19
+build-state: BUILDING — §11a PlatoonConvoy ✅ BUILT 2026-10-21 (CE-2347, R-2069) · DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 ✅ APPROVED 2026-10-19, R-2054) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
+current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander (§11a the mounted convoy, built) · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
 known-conflict: none — the Building Clearing platoon play is RESOLVED as the ClearBuilding preset (§10, R-2035).
@@ -1867,6 +1867,151 @@ So the platoon's resumed task re-issues the legs to the squads from where they n
 |---|---|---|---|
 | **DA-17** | the town movement | a platoon task **`UrbanMovement`**: the route as legs in the play's own params *(not a `MissionPlanQueue` — Command Chain §7b)*; one squad leads in travelling overwatch, one bounds behind it, one is the reserve; each squad marches in a file along the building lines, each man given a **watch sector** (front, left windows, right windows, rear, upper storeys) by his place in the file (§13); intersections and open stretches go through the existing danger-area drill | one big "patrol" behaviour holding every reaction: the user's own SOP ruling (Decision Layer §4) forbids embedding reactions in tasks |
 | **DA-18** | after fire from a building | the platoon SOP decides once from its picture: **clear** when the building is within 50 m of the remaining route, or the task says "secure the route" · **bypass** (suppress + smoke + cross out of its arcs) when it is off the route and the tier is Regular+ · Untrained and Militia always assault it head-on. Then the reaction ends and the task resumes | always clear: a unit would spend the day on every window that fires once · always bypass: leaves an enemy behind the column |
+
+### 11a. `PlatoonConvoy` — the mounted variant of DA-17 *(behaviors, `CE-2347`, R-2069, `2026-10-21`)*
+
+🔒 **User, `2026-10-21`:** *"yes"* — to the proposal, quoted: *"Move: the squads ride, and the vehicles keep following the convoy route as
+they do now. Contact: the squads' own standing orders do the fighting, as now: dismount, contact drill, casualty care. The platoon's hold no
+longer interrupts a fight, and when it ends the task re-orders the squads instead of leaving them with nothing. Clear: once the platoon's
+picture holds no live enemy for about 30 s, the squads secure the ambush site around their vehicles, report Set (in position), and carry
+their wounded. Remount and continue: each squad boards its own vehicle again with the existing embark drill, and the convoy resumes its
+route. A vehicle that can no longer move is left behind, and its squad boards the other vehicle if there is room or follows on foot."*
+— and the calls: 30 s quiet · a destroyed vehicle's squad boards another when there is room · the mounted variant first, the on-foot
+`UrbanMovement` later.
+
+📌 **Why it is needed (measured on `uc-urban-battle`, CE-4032):** the platoon had no task; `PlatoonHold` (its SOP's reaction) replaced each
+squad's authored `SquadHold`, and the hold's release left every squad with **nothing** after ~33 s. A reaction cannot re-order a plan it
+never had — only a TASK resumes and orders again (§11's catch).
+
+**INVENTORY** *(codebase-memory CLI `search_graph` `.*Convoy.*` (50 rows: the ModuleHost "convoy pattern" snapshots, `ConvoyConditions`
+(CE-2307), and `ConvoyEscort` — an FDP-example NAME for one APC, `NoParams`, no body (Squad Tactics §5b) — none a platoon task); grep +
+reading for the rest; `check_index_coverage` is CLI-unavailable, so no completeness claim)* — everything below is REUSED:
+
+| piece | reused for | where |
+|---|---|---|
+| the HSM + one order writer + roles per slot | the form of the task | `PlatoonAttackBehavior` (`KeepAttack`, `StillRunning`) |
+| abstract / concrete orders, recorded and released per run | vehicles and squads | `CommandOrders.Order` / `Assign` / `Stands` / `StillRunning` |
+| a vehicle on a route, resuming where it stands | Move | `FollowRoute` + CE-4032 `NavigationIntentBridgeSystem.StartProgress` |
+| a vehicle stopped | Contact · Secure · Remount | `Order.Hold` → `PlatformHold` (class orders, CC-9) |
+| the dismount on a halted carrier | Contact | squad SOP rows `ContactWhileHalted` / `SensedFreshAboard` → `SquadDismount` (CE-4032) |
+| the squad's fight and its lull rescue | Contact · Secure | `BasicSquadSop` → `ReactToContact`, `CasualtyCare` (R-2066 E) |
+| a post around a point | Secure | `SquadDefend` |
+| carry a casualty and keep him | Remount | `SquadRecover { PutDown: false }` (Air Ops §9j) |
+| board one vehicle, a carried casualty seated first | Remount | `SquadEmbark` (`AboardIt`) |
+| seats, mobility | the vehicle swap | `Embarkation.CapacityOf`, `ConvoyConditions.CanMove` |
+| the route's waypoints | the end of the route | `HrotRouteSource.TryGetRoute` |
+| the platoon SOP's hold, leaving a fight alone | Contact — it pauses the task; the task picks up when it ends | `PlatoonHold` + `Fighting` (CE-4032) — unchanged |
+| a carrier pushing through a kill zone | Contact — the vehicles drive on as they do | `BasicVehicleSop` → `PushThrough` (CE-2307, Squad Tactics §5b) — unchanged |
+
+```mermaid
+classDiagram
+  class PlatoonConvoyBehavior {
+    <<HSM task, new>>
+    +Resolve(PlatoonConvoyParamsJsonDto)
+    +Plan() records each slot's vehicle
+    +KeepConvoy() the ONE order writer
+    +InContact() Quiet() ContactAgain() Secured() Mounted() Arrived()
+  }
+  class ConvoyPlan {
+    <<blackboard, new>>
+    RouteNet, RouteEnd, Speed, ClearSeconds
+    Phase, PhaseAt
+    Vehicle[6] OnFoot[6] Dirty[6] VehicleOrder[6] Recovers[6]
+  }
+  class PlatoonConvoyParamsJsonDto { <<ParamsDto, new>> Route: EntityRef; Speed; ClearSeconds }
+  class CommandOrders { <<existing>> Order() Assign() Stands() StillRunning() }
+  class FollowRoute { <<existing, vehicle>> }
+  class PlatformHold { <<existing, Order.Hold on a vehicle>> }
+  class SquadDefend { <<existing>> }
+  class SquadRecover { <<existing>> }
+  class SquadEmbark { <<existing>> }
+  class BasicSquadSop { <<existing>> ContactWhileHalted to SquadDismount; ReactToContact; CasualtyCare }
+  class PlatoonHold { <<existing platoon SOP reaction>> pauses the task, leaves a fight alone }
+  PlatoonConvoyBehavior --> ConvoyPlan
+  PlatoonConvoyBehavior ..> PlatoonConvoyParamsJsonDto : resolves
+  PlatoonConvoyBehavior --> CommandOrders : every order
+  CommandOrders ..> FollowRoute : vehicles, Move
+  CommandOrders ..> PlatformHold : vehicles, halted
+  CommandOrders ..> SquadDefend : squads, Secure
+  CommandOrders ..> SquadRecover : squads, Remount
+  CommandOrders ..> SquadEmbark : squads, Remount
+  PlatoonHold ..> PlatoonConvoyBehavior : pauses, then it picks up
+```
+*What the picture shows that prose hid:* the task adds **one** blackboard and **one** order writer; every behaviour it orders already
+exists. The vehicles are **not** in the platoon's roster — the plan finds each squad's vehicle by where its men ride and orders it
+directly (an authored vehicle runs at Superior, so the platoon's Superior order replaces it — `InitialBrainIntent.Origin`).
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> CPlan
+  CPlan --> CMove : the route is known, the vehicles recorded
+  CMove --> CContact : a man out of his vehicle / a vehicle stopped dead / a squad in its contact drill / an element seen within 10 s, 300 m
+  CMove --> CDone : every vehicle that can move is at the route's end
+  CContact --> CSecure : no element seen for ClearSeconds (30) within 300 m, no squad fighting
+  CSecure --> CContact : a new element or a squad fighting
+  CSecure --> CRemount : every dismounted squad Set, or 60 s
+  CRemount --> CContact : a new element or a squad fighting
+  CRemount --> CMove : every squad aboard its vehicle, or on foot
+  CDone --> [*]
+```
+*What the picture shows that prose hid:* contact can come back in **Secure** and **Remount**, so both go back to Contact — the cycle is a
+loop, not a line; and Move is re-entered, so the vehicles are re-ordered onto the route from where they stand.
+
+```mermaid
+sequenceDiagram
+  participant P as PlatoonConvoy (platoon task)
+  participant V as vehicles
+  participant Q as squads (SOP)
+  P->>V: FollowRoute(route, speed)
+  Note over Q: ride (SquadRide reaction)
+  Note over V: hit while driving, its own SOP pushes through (CE-2307) · stopped, it stands
+  Q->>Q: SOP: carrier standing, enemy near: SquadDismount, then ReactToContact
+  Note over P: the platoon SOP's hold may pause the task, it leaves a fighting squad alone (CE-4032)
+  P->>V: CContact — Order.Hold only the vehicle whose squad got out, the rest drive on
+  Note over P: 30 s nothing seen, nobody fighting
+  P->>V: Order.Hold every vehicle (CSecure, CRemount)
+  P->>Q: SquadDefend at its vehicle (dismounted squads)
+  Q-->>P: PROGRESS Set
+  P->>Q: SquadRecover(casualty, to vehicle, keep him), then SquadEmbark(vehicle)
+  Note over P: a dead vehicle: another with room, else Order.Move to the route's end on foot
+  Q-->>P: all aboard
+  P->>V: FollowRoute again (starts where it stands, CE-4032)
+  V-->>P: at the route's end: task Success
+```
+
+```mermaid
+graph TD
+  SOPP[BasicPlatoonSop, platoon SOP slot] -->|PlatoonHold reaction pauses it, it resumes in its state| CONV[PlatoonConvoy, platoon task slot]
+  BT[BrainTickSystem: ticks the platoon's task each frame on the node owning its brain] --> CONV
+  CONV -->|AssignTacticalIntentEvent, Superior| ING[BehaviorIngressSystem]
+  ING --> VEH[vehicle task: FollowRoute / PlatformHold]
+  ING --> SQ[squad task: SquadDefend / SquadRecover / SquadEmbark / Order.Move]
+  SOPS[BasicSquadSop, squad SOP slot] -->|reactions pause the squad task| SQ
+  NAV[NavigationIntentBridgeSystem] -->|route start where it stands| VEH
+  STAFF[StaffInboxSystem: squad reports to the platoon picture] --> CONV
+```
+*What the picture shows that prose hid:* nothing new is scheduled and no SOP changes — the task runs in the platoon's existing task slot,
+ticked by the existing brain tick; the platoon's hold still pauses it, and because the task re-orders from its state when it resumes, the
+hold no longer leaves the squads with nothing.
+
+| id | decision | ⭐ lean (approved, R-2069) | rejected — one line each |
+|---|---|---|---|
+| **DA-99** | the task | `PlatoonConvoy { Route, Speed, ClearSeconds }` on the platoon; at plan each roster slot's vehicle is the one its men ride; vehicles get concrete `FollowRoute`, squads ride and are not ordered while they do | the vehicles' own authored routes keep driving: nothing stops them on contact or waits for a remount |
+| **DA-100** | contact | the squads are NOT ordered — their SOP dismounts and fights (CE-4032 rows); the vehicles drive on as they do (a carrier pushes through a kill zone itself, CE-2307 CH-1/CH-2) — only a vehicle whose squad has a man out is held, so it waits for them; a vehicle or squad running its own reaction is never ordered; the platoon SOP's hold still pauses the task (it leaves a fight alone), and the task re-orders from its state when it resumes | halt every vehicle: stops the carrier pushing through, inside the kill zone (CH-2) · a `NotConvoying` guard on the hold row (as AT-13): not what was approved ("the hold no longer interrupts a fight, and when it ends the task re-orders") · the platoon orders the squads out: a superior order replaces each squad's own fight (the CE-4032 defect) |
+| **DA-101** | clear | `ClearSeconds` (30) with no live element seen within 300 m and no squad in `ReactToContact` / `SquadDismount` ⇒ each squad with a man out `SquadDefend`s at its vehicle (25 m); Set, or 60 s, ⇒ remount | wait for the picture to empty: a dead enemy's element stays until it is stale, so "fresh" is the test |
+| **DA-102** | remount | its wounded first (`SquadRecover`, kept carried, to the vehicle — at most 4 tries a squad), then `SquadEmbark`; a vehicle that cannot move is left and its squad takes the first vehicle that can move with seats for all its live men, else `Order.Move` on foot to the route's end; 120 s without everyone aboard ⇒ the rest follow on foot | leave the wounded: the user's "carry their wounded" · split a squad over two vehicles: the embark drill boards one vehicle |
+| **DA-103** | carry on | Move again: `FollowRoute` re-sent (it starts where the vehicle stands — CE-4032); done when every vehicle that can move is within 15 m of the route's end and every squad on foot reports Set or is within 30 m of it | a fresh route from the start: the CE-4032 defect |
+
+**As built** *(`2026-10-21`, `CE-2347`)*:
+
+| piece | as built | where |
+|---|---|---|
+| the task | `PlatoonConvoy { Route, Speed, ClearSeconds }`, HSM `CPlan → CMove ⇄ CContact → CSecure → CRemount → CMove → CDone` | `Brains/PlatoonConvoyBehavior.cs`, `PlatoonConvoyParamsJsonDto.cs` |
+| the order writer | `KeepConvoy`: a vehicle gets `FollowRoute` (CMove) or `Order.Hold`, re-sent only when the run's last order to it differs or no longer stands; a squad gets a concrete order only when it is not the run's last one (`CommandOrders.Gave`, new and shared) — a finished embark is never restarted; a recovery is retried only after the squad REPORTS it ended (Set / TaskFailed), at most 4 times; neither a vehicle nor a squad running its own reaction is ordered | the same file; `CommandOrders.Gave` in `CommandNodes.cs` |
+| a dead vehicle | at CRemount its squad takes the first vehicle that can move with free passenger seats (seats promised in the same pass counted; a dead man's seat is free), else follows on foot; a reassigned slot inherits the order its new vehicle already has | `EnterRemount`, `FreePassengerSeats` |
+| ⚠ what it does not do | a vehicle with nobody out drives on during contact, and while the platoon's hold pauses the task NO vehicle is held — an empty carrier may drive on before the task picks up (measure live) · a squad split over two vehicles rides as one (the embark drill boards one vehicle) | — |
+| rails | `SquadManeuverTests.CE2347_*` — the cycle; the dead vehicle (room / no room); the wounded first + the retry. Mutants: `CarriesDismounted` always true, seats ignoring occupants, `Casualty` → Null each turn a rail red; `Quiet` ignoring a fighting squad stays green — `ContactAgain` checks the same squad, so CSecure hands straight back to CContact before any order (a redundant guard) | `Hrot.SimHost.Tests` |
 
 ## 12. Roles in the squad *(✅ approved R-2036 — DA-19)*
 

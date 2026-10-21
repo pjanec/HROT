@@ -61,11 +61,17 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Run(ref SquadDismountParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
             => SquadManeuverRunner.Tick<SquadDismountPlay, SquadDismountParams>(ref p, ref ws, self, world);
 
+        /// <summary>⭐ <c>CE-2347</c> — a man dead or down does not keep his squad "aboard": he cannot get out, so a dismount waiting for him
+        /// never ends and the rows that start one fire again. 📌 Live on <c>uc-urban-battle</c>: Squad B, its dead still seated in the wrecked
+        /// IFV, started a dismount every ~9 s for 25 minutes. A unit member (a squad under a platoon) is judged by its own men.</summary>
+        public static bool OutOfTheFight(EntityRepository world, Entity member)
+            => !SquadManeuverRunner.IsUnit(world, member) && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, member);
+
         /// <summary>True when <paramref name="member"/> is aboard a vehicle — for a member that is a UNIT, when any of ITS members is
         /// (a platoon's squad rides as soldiers).</summary>
         public static bool Aboard(EntityRepository world, Entity member, int depth = 0)
         {
-            if (!world.IsAlive(member)) return false;
+            if (!world.IsAlive(member) || OutOfTheFight(world, member)) return false;
             if (world.IsComponentTypeRegistered<IsEmbarkedTag>() && world.HasComponent<IsEmbarkedTag>(member)) return true;
             if (depth >= 4 || !SquadManeuverRunner.IsUnit(world, member) || !world.HasComponent<UnitRoster>(member)) return false;
             var roster = world.GetComponentRO<UnitRoster>(member);
@@ -214,6 +220,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-4032</c> — how near an enemy must be for a squad in a halted carrier to get out (m).</summary>
         public const float HaltedContactMetres = 300f;
 
+        /// <summary>⭐ <c>CE-2347</c> — how recently the enemy must have been perceived (ticks, 10 s at 60 Hz; the clock perception stamps
+        /// <c>LastSeenTick</c> with): "an enemy near NOW". 📌 Live on <c>uc-urban-battle</c> a squad remounting after 30 s of quiet was put out
+        /// again by contacts minutes old (heard ones, with no entity id, placed at the convoy's own guns and the mortar bursts).</summary>
+        public const uint HaltedContactFreshTicks = 600;
+
+        private static bool Fresh(uint lastSeen, uint now) => lastSeen > now || now - lastSeen <= HaltedContactFreshTicks;
+
         /// <summary>
         /// ⭐⭐ <c>CE-4032</c> — the squad sits in a carrier that has STOPPED on the ground (standing, not pushing through, not the stop that
         /// picks it up — the dismount row's own test) and an enemy is known within <see cref="HaltedContactMetres"/> of it — by the squad,
@@ -236,6 +249,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var e = new Entity((ulong)mem.EntityIds[i]);
                     if (mem.EntityIds[i] <= 0 || !world.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, carrier, e)) continue;
+                    if (!Fresh(mem.LastSeenTick[i], world.SimulationTick)) continue;
                     if (new Vector2(mem.PositionsX[i] - at.X, mem.PositionsY[i] - at.Y).LengthSquared() <= r2) return true;
                 }
             }
@@ -247,6 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
             {
                 if (pool[i].EntityId > 0 && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, new Entity((ulong)pool[i].EntityId))) continue;
+                if (!Fresh(pool[i].LastSeenTick, world.SimulationTick)) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
                 if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
             }
             return false;
@@ -290,7 +305,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static bool AboardWhereIs(EntityRepository world, Entity member, AboardWhere where, int depth)
         {
-            if (!world.IsAlive(member)) return false;
+            if (!world.IsAlive(member) || SquadDismountBehavior.OutOfTheFight(world, member)) return false;
             var carrier = AirHolds.CarrierOf(world, member);
             if (!carrier.IsNull)
             {
@@ -303,8 +318,11 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐ CE-2307 (CH-3, §5b) — and STANDING: a carrier that drives on (PushThrough) carries its squad out of the kill zone
                     //   ⭐ CE-2313 — and NOT pushing through: the carrier slows near a stop as PushThrough issues its move (measured live,
                     //   uc-convoy-hit-ifv: 0.6 m/s), and the squad got out in that dip; a carrier driving on has decided to drive on
+                    //   ⭐ CE-2347 — and a carrier that CANNOT move stands, whatever its velocity says: a destroyed APC's replicated velocity
+                    //   froze at its last sample (0.33 m/s for 140 s, measured live on uc-urban-battle) and its squad sat in the wreck
                     AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
-                                               && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier) && !PushingThrough(world, carrier),
+                                               && (Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier) || !ConvoyConditions.CanMove(world, carrier))
+                                               && !PushingThrough(world, carrier),
                     AboardWhere.Roping      => phase == Fdp.Toolkit.Navigation.NavigationPhase.Roping,     // ⭐ CE-1118 H-1
                     AboardWhere.Dropping    => phase == Fdp.Toolkit.Navigation.NavigationPhase.Dropping,   // ⭐ CE-1118 H-1
                     _                       => phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading,

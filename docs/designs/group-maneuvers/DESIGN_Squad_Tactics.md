@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
+updated: 2026-10-21 (§5b.2 amended: a carrier that cannot move stands for its squad, CE-2347/CE-2348) · 2026-10-13 (§7.8 the three demos and their HTTP checks; §7.5–§7.7 approved, not built)
 build-state: S1 BUILT 2026-10-11 (as-built §3.6) · S2 BUILT 2026-10-11 (as-built §4.7) · S3 §6.1 SquadMarch BUILT 2026-10-12 (as-built §6.1a) · embark §5 and formations §6 are MEASUREMENTS
 current-answer: §5a the squad Dismount drill (I-2d, BUILT 2026-10-12, as built §5a.1) · §3.6 S1 as built · §2a the squad's shared contacts (where, who writes, who reads) · §3 S1 (the generic squad manoeuvre runner + suppress-and-manoeuvre) · §4 S2 (react to contact — §4.0 claims, §4.1–§4.3 diagrams, §4.4 the alert hop by hop, §4.5 decisions, §4.6 acceptance) · §5 embark/disembark as measured · §6 formations as measured + §6.1 the simple squad formation (SquadMarch) + §6.1a as built · §7 the unit commander (R-272 (behaviors)): §7.1 the build, §7.2 leader down (approved), §7.3 as built, §7.4 L4 casualty care (K1–K6 ruled, R-2012) · §7.5 casualty care coordination + the rescue decision (DESIGN, approved R-2013, not built) · §7.6 fire and movement (DESIGN, approved, not built) · §7.7 danger-area crossing (DESIGN, approved R-2014, not built) · §7.8 the three demos and their HTTP success checks (DESIGN, not built)
 stale-below: nothing
@@ -1797,6 +1797,21 @@ may be empty while the crew sees the enemy.
 
 Rail `SquadManeuverTests.CE4032_BasicSquadSop_AnEnemyNearAHaltedCarrier_TheSquadGetsOut` (drives ⇒ rides · stopped, enemy 400 m ⇒ rides ·
 stopped, 50 m ⇒ dismounts), red under its mutant.
+
+⭐ **Amended `2026-10-21` (`CE-2347` / `CE-2348`) — a carrier that CANNOT move stands.** 📐 Measured live: the Convoy APC lost `CanMove` at
+~21 s and was destroyed at ~31 s, but its replicated velocity froze at its last sample (0.33 m/s) for ~140 s, so the standing test read the
+wreck as driving and Squad A sat in it, 55 m from the enemy, stalling the convoy. ⇒ the dismount rows' "on the ground" test is now
+*standing* **or** `!ConvoyConditions.CanMove` (destroyed or a mobility kill) — still not pushing through, still not a pickup stop. Rail
+`CE2347_BasicSquadSop_ACarrierThatCannotMove_StandsForItsSquad_WhateverItsVelocity`, red under its mutant. ⚠ The frozen velocity and the
+passengers surviving the wreck (R-2011 C9) are backend's ([`CE-2348`](../../blueprints/batches/NOTE_Behaviors_To_Backend_Passengers_Survive_A_Wreck.md)).
+⭐ **And the enemy must be near NOW** (`CE-2347`): a contact counts only when perceived within `HaltedContactFreshTicks` (600 ticks,
+10 s). 📐 Measured live: the convoy's squads, remounting after 30 s of quiet, were put out again every ~70 s by contacts minutes old —
+heard ones with no entity id, placed at the convoy's own guns and the mortar bursts. Rail
+`CE2347_BasicSquadSop_AnOldContactNearAHaltedCarrier_DoesNotPutTheSquadOut`, red under its mutant.
+⭐ **And the dead left aboard do not keep the squad "aboard"** (`CE-2347`): the dismount drill and every carrier row (fast rope, jump,
+unload, under fire, halted carrier) skip a man dead or down — he cannot get out, so a dismount waiting for him never ended. 📐 Measured live:
+Squad B's dead, still seated in the wrecked IFV, started a dismount every ~9 s for 25 minutes and kept the convoy in contact. Rail
+`CE2347_TheDeadLeftInAHaltedCarrier_DoNotKeepTheSquadAboard`, red under its mutant.
 
 ## 6. Formations — as measured *(2026-10-11)*
 

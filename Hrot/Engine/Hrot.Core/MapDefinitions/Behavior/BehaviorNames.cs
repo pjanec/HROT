@@ -244,5 +244,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2277</c> DA-F (Defend &amp; Attack §8f) — the platoon attacks an AREA: base of fire, approach, assault, objective by
         /// objective, then consolidates.</summary>
         public const string PlatoonAttack = "PlatoonAttack";
+        /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
+        /// contact, secure when it is quiet, remount and carry on.</summary>
+        public const string PlatoonConvoy = "PlatoonConvoy";
     }
 }

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§6a.1 CE-4032 fixed — danger close, the route start, the halted-carrier dismount, the hold leaves a fight) · 2026-10-20 (§5 steps 1–7 built; §6 the ladder, step 8)
+updated: 2026-10-21 (§6a.1 the Blue platoon runs PlatoonConvoy, CE-2347; check ⑤) · 2026-10-21 (§6a.1 CE-4032 fixed — danger close, the route start, the halted-carrier dismount, the hold leaves a fight) · 2026-10-20 (§5 steps 1–7 built; §6 the ladder, step 8)
 build-state: PLANNED — §5 is the approved order (R-2060, 2026-10-19); still the infrastructure first (R-2051), the demos after it
 current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order · §6 the ladder (step 8)
 stale-below: nothing.
@@ -265,6 +265,11 @@ Casevac). A per-2-s probe (180 sim s): **the APC leads all the way** (y 40 → 1
 carries its casualty. ⚠ Still open: once the contact reaction ends (~33 s) both squads have NO task — the platoon is task-less in this
 scene, so nobody orders a consolidation and the men stand; the aircraft beat was not reached in 180 s (it needs a Blue ear to hear the
 launch and SPOT it).
+
+⭐ **`CE-2347` (R-2069) — the task-less platoon, cured:** the Blue platoon now runs **`PlatoonConvoy`** (route 9811, 8 m/s — [Defend and
+Attack §11a](DESIGN_Defend_And_Attack_Position.md)): after the contact and ~30 s of quiet the dismounted squads secure at their vehicles,
+bring their wounded aboard, remount and the convoy carries on; a vehicle that cannot move is left and its squad takes the other if it has
+room, else walks. The live check gains **⑤** *("after the contact the squads secure, remount and the convoy moves on")*.
 
 
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records

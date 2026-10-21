@@ -4688,6 +4688,77 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2347</c> — the dead left in a halted carrier do not keep the squad "aboard": with an enemy near, the SOP does
+        /// not start a dismount for them, and a dismount ends once every man who can act is out. 📌 Live on <c>uc-urban-battle</c>: Squad B's
+        /// dead, still seated in the wrecked IFV, started a dismount every ~9 s for 25 minutes. ✅ Red-proof: <c>OutOfTheFight</c> always
+        /// false ⇒ the dismount never ends.</summary>
+        [Fact]
+        public void CE2347_TheDeadLeftInAHaltedCarrier_DoNotKeepTheSquadAboard()
+        {
+            var s = new Squad(members: 3);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });
+            Down(s, s.Members[0], 0f);                                                                               // dead in his seat
+            s.Order("{}", BehaviorNames.SquadDismount);
+            Ticks(s, 3);
+            Embarkation.Disembark(s.Repo, s.Members[1]);
+            Assert.Null(RunUntilFinished(s, 5));                                                                     // one who can act is aboard
+            Embarkation.Disembark(s.Repo, s.Members[2]);
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));                                            // only the dead remain: done
+            Assert.False(SquadDismountBehavior.AnyMemberAboard(s.Repo, s.Commander));
+        }
+
+        /// <summary>⭐ <c>CE-2347</c> — the enemy near a halted carrier must be NEAR NOW: a contact last perceived more than
+        /// <see cref="SquadSopConditions.HaltedContactFreshTicks"/> ago does not put the squad out (📌 live: a squad remounting after 30 s of
+        /// quiet was put out again by contacts minutes old). ✅ Red-proof: the freshness test dropped ⇒ it gets out.</summary>
+        [Fact]
+        public void CE2347_BasicSquadSop_AnOldContactNearAHaltedCarrier_DoesNotPutTheSquadOut()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });                                     // it stands
+            if (!s.Repo.HasComponent<Fdp.Core.EntityInfo>(apc)) s.Repo.AddComponent(apc, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            s.Repo.AddComponent(apc, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            uint seen = s.Repo.SimulationTick;
+            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Repo.Tick();                 // 11 s pass
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, seen);
+            Ticks(s, 20);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // old news: ride on
+        }
+
+        /// <summary>⭐ <c>CE-2347</c> — a carrier that cannot move (destroyed, or a mobility kill) STANDS for its squad, whatever velocity it
+        /// still shows: 📌 live on <c>uc-urban-battle</c> the APC was destroyed at ~31 s, its replicated velocity froze at 0.33 m/s for 140 s,
+        /// and Squad A sat in the wreck 55 m from the enemy. ✅ Red-proof: the <c>CanMove</c> term dropped ⇒ it rides on.</summary>
+        [Fact]
+        public void CE2347_BasicSquadSop_ACarrierThatCannotMove_StandsForItsSquad_WhateverItsVelocity()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = new Vector3(8f, 0f, 0f) });                       // it still "drives"
+            if (!s.Repo.HasComponent<Fdp.Core.EntityInfo>(apc)) s.Repo.AddComponent(apc, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            s.Repo.AddComponent(apc, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, s.Repo.SimulationTick);
+            Ticks(s, 20);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // it drives: ride on
+            s.Repo.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.None });           // dead in the water
+            Ticks(s, 20);
+            Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                                   // the wreck stands: get out
+        }
+
         // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
 
         private static Entity Helicopter(Squad s, Vector3 at, long networkId)
@@ -6142,6 +6213,201 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Fdp.Toolkit.Combat.RecentDetonations.Since(s.Repo, -1.0, got));
             Assert.Equal(new Vector3(10f, 20f, 1f), got[0].At);
             Assert.Equal(s.Members[0], got[0].Shooter);
+        }
+
+        // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────
+
+        private static Entity ConvoyVehicle(Squad s, Vector3 at, long networkId, int passengerSeats, params Entity[] aboard)
+        {
+            var v = s.Repo.CreateEntity();
+            s.Repo.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(v, new PassengerBuffer());
+            s.Repo.AddComponent(v, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            if (passengerSeats > 0)
+            {
+                var seats = new CarrierSeats { SeatCount = (byte)passengerSeats };
+                for (int i = 0; i < passengerSeats; i++) seats.Roles[i] = SeatRole.Passenger;
+                s.Repo.AddComponent(v, seats);
+            }
+            foreach (var m in aboard) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, m, v));
+            return v;
+        }
+
+        private static void ConvoyRoute(Squad s, long networkId, params Vector3[] points)
+        {
+            var route = s.Repo.CreateEntity();
+            s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            var plan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false };
+            plan.Mutate(w => { foreach (var at in points) w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = at, TargetSpeed = 8f }); });
+            s.Repo.SetManagedComponent(route, plan);
+        }
+
+        private static void Convoy(Platoon p) => p.S.Order("{\"Route\":9811,\"Speed\":8}", BehaviorNames.PlatoonConvoy);
+
+        private static void Reacting(Squad s, Entity squad, string behaviour)
+        {
+            var state = new BehaviorState { ActiveBehaviorHash = behaviour == null ? 0 : BehaviorHash.FromName(behaviour), Origin = behaviour == null ? default : BehaviorOrigin.Reaction };
+            if (s.Repo.HasComponent<BehaviorState>(squad)) s.Repo.SetComponent(squad, state); else s.Repo.AddComponent(squad, state);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2347</c> (R-2069 DA-99…DA-103) — the whole cycle: the vehicles are put on the route and the riding squads are
+        /// not ordered; a reported enemy starts the platoon SOP's hold (the task pauses) and no vehicle is stopped; when the hold ends the
+        /// task picks up: the vehicle whose squad got out waits for it, the other drives on; the squad fighting its own drill is never
+        /// ordered; quiet ⇒ only the dismounted squad secures at its vehicle and both vehicles wait; its Set ⇒ it boards its own vehicle;
+        /// aboard ⇒ both vehicles back on the route; at the route's end the task succeeds. ✅ Red-proof: <c>CarriesDismounted</c> always
+        /// true ⇒ the IFV stopped in contact. ⚠ <c>Quiet</c> ignoring <c>Engaged</c> stays GREEN (measured): CSecure's own
+        /// <c>ContactAgain</c> sees the fighting squad and sends the task straight back before any order goes — a redundant guard.</summary>
+        [Fact]
+        public void CE2347_PlatoonConvoy_Rides_HaltsOnContact_SecuresWhenQuiet_RemountsAndCarriesOn()
+        {
+            var p = new Platoon();
+            var apc = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            p.S.StartSop("BasicPlatoonSop");
+            Convoy(p);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
+            Assert.Contains("9811", p.S.Orders.Last(o => o.Entity.Equals(apc)).JsonParams);
+            p.Ticks(30);
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // it stands
+            Assert.Equal(0, p.S.Orders.Count(o => o.Entity.Equals(p.Alpha) || o.Entity.Equals(p.Bravo)));                     // riders: none
+
+            p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);                                                          // the SOP's hold pauses it
+            Assert.Equal((0, 0), (p.OrdersTo(apc, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                           // the vehicles drive on
+
+            Embarkation.Disembark(p.S.Repo, p.Alpha);                                                                      // its SOP got it out
+            Reacting(p.S, p.Alpha, BehaviorNames.ReactToContact);                                                          // and it fights
+            p.Ticks(3);
+            p.S.Pause(PlatoonConvoyBehavior.DefaultClearSeconds + 1);
+            p.Ticks(15);
+            Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);                                                        // the hold ended: on
+            Assert.Equal((1, 0), (p.OrdersTo(apc, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                           // Alpha's vehicle waits,
+                                                                                                                            // and no secure yet
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));                                                // still fighting
+
+            Reacting(p.S, p.Alpha, null);                                                                                  // its fight ended
+            p.Ticks(3);
+            Assert.Equal((1, 0), (p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend), p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend)));
+            Assert.Equal((1, 1), (p.OrdersTo(apc, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                           // secure: all wait
+            var defend = System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(new Vector3(0f, 40f, 0f), defend.Position);                                                        // at its vehicle
+
+            p.ReportSet(p.Alpha);
+            p.Ticks(3);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
+            Assert.Contains("9001", p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams);
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // not yet
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(p.S.Repo, p.Alpha, apc));
+            p.Ticks(3);
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carry on
+
+            p.S.Repo.GetComponentRW<SimTransform>(apc).Position = new Vector3(0f, 375f, 0f);
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Null(result);                                                                                          // the IFV is not there
+            p.S.Repo.GetComponentRW<SimTransform>(ifv).Position = new Vector3(2f, 370f, 0f);
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2347</c> (DA-102) — a vehicle that cannot move halts the convoy and is left at the remount: its squad boards the
+        /// first vehicle that can move with seats for all its men; with none it follows on foot (an abstract Move to the route's end) and
+        /// the others drive on. ✅ Red-proof: the seat count ignoring occupants ⇒ Alpha sent to the full IFV.</summary>
+        [Theory]
+        [InlineData(8, true)]
+        [InlineData(1, false)]
+        public void CE2347_PlatoonConvoy_AVehicleThatCannotMove_ItsSquadBoardsAnotherWithRoom_ElseFollowsOnFoot(int truckSeats, bool boards)
+        {
+            var p = new Platoon(squads: 3);
+            var apc = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 1, p.Bravo);                                      // full
+            var truck = ConvoyVehicle(p.S, new Vector3(0f, -10f, 0f), 9003, truckSeats, p.Charlie);
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            Convoy(p);
+            p.Ticks(3);
+
+            p.S.Repo.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.None });                // a mobility kill
+            p.Ticks(8);
+            Assert.Equal((1, 1), (p.OrdersTo(ifv, "Order.Hold"), p.OrdersTo(truck, "Order.Hold")));
+            Assert.Equal(0, p.OrdersTo(apc, "Order.Hold"));                                                                // a wreck is not ordered
+            if (boards)
+            {
+                Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
+                Assert.Contains("9003", p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams);
+                Embarkation.Disembark(p.S.Repo, p.Alpha);
+                Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(p.S.Repo, p.Alpha, truck));
+                p.Ticks(3);
+                Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Move"));
+            }
+            else
+            {
+                Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
+                Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));                                                       // on foot
+            }
+            Assert.Equal((2, 2), (p.OrdersTo(ifv, BehaviorNames.FollowRoute), p.OrdersTo(truck, BehaviorNames.FollowRoute)));
+            Assert.Equal(1, p.OrdersTo(apc, BehaviorNames.FollowRoute));
+        }
+
+        /// <summary>⭐ <c>CE-2347</c> (DA-102, the user's "carry their wounded") — at the remount a squad with a man down that nobody carries
+        /// is first sent to bring him to its vehicle and KEEP him (<c>SquadRecover</c>, PutDown false — the embark drill seats a carried man
+        /// first), then to board; a recovery the squad reports FAILED is tried again, one still under way is not re-sent. ✅ Red-proof:
+        /// <c>Casualty</c> returning Null ⇒ SquadEmbark at once, the man left lying.</summary>
+        [Fact]
+        public void CE2347_PlatoonConvoy_AtTheRemount_TheSquadBringsItsWoundedFirst_ThenBoards()
+        {
+            var p = new Platoon();
+            var down = p.S.Repo.CreateEntity();
+            var rifleman = p.S.Repo.CreateEntity();
+            foreach (var m in new[] { down, rifleman })
+            {
+                p.S.Repo.AddComponent(m, new SimTransform { Position = new Vector3(0f, 40f, 0f), Rotation = Quaternion.Identity });
+                p.S.Repo.AddComponent(m, new UnitSubordinate { Commander = p.Alpha });
+            }
+            p.S.Repo.AddComponent(down, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7001 });
+            var roster = new UnitRoster();
+            UnitRoster.Add(ref roster, down);
+            UnitRoster.Add(ref roster, rifleman);
+            p.S.Repo.AddComponent(p.Alpha, roster);
+            p.S.Repo.AddComponent(p.Alpha, new UnitEntity());
+            var apc = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, down, rifleman);
+            ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            Convoy(p);
+            p.Ticks(3);
+
+            Embarkation.Disembark(p.S.Repo, down);
+            Embarkation.Disembark(p.S.Repo, rifleman);
+            Down(p.S, down, 20f);
+            p.Ticks(3);                                                                                                   // a man out: halt
+            Assert.Equal(1, p.OrdersTo(apc, "Order.Hold"));
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadDefend));                                              // quiet at once: secure
+            p.ReportSet(p.Alpha);
+            p.Ticks(3);
+            Assert.Equal((1, 0), (p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover), p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark)));
+            var recover = System.Text.Json.JsonSerializer.Deserialize<SquadRecoverParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(7001L, recover.Casualty.NetworkId);
+            Assert.False(recover.PutDown);
+            Assert.Equal(new Vector3(0f, 40f, 0f), recover.To);
+            p.Ticks(5);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover));                                             // not re-sent
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+            });
+            p.Ticks(3);
+            Assert.Equal(2, p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover));                                             // it failed: again
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(p.S.Repo, down, apc));                               // brought in
+            p.Ticks(3);
+            Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
+            Assert.Equal(2, p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover));
         }
     }
 }

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+updated: 2026-10-21 (N.1c PlatoonConvoy built, CE-2347) · 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
 current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
 stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2347`** · rulings next free **`R-2068`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **101** (AQ100 APPROVED 2026-10-21, R-2067: the platoon clears a building, `CE-2264` — build ON HOLD until the user says go) (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
+| ⭐ ids | tracker next free **`CE-2348`** · rulings next free **`R-2070`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **101** (AQ100 APPROVED 2026-10-21, R-2067: the platoon clears a building, `CE-2264` — build ON HOLD until the user says go) (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -39,6 +39,14 @@ related-designs:
 | ✅ **Q95 approved (A–E + B3)** | [Q95](Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) §5 — a sound signature per weapon (the emitter's TKB type; the ear's proficiency decides how much is named); hearing bounded by DISTANCE, never by the high-resolution terrain (guns stand 2–20 km off it); a lossless emission ring (per-sensor serial cursor, overflow counted); demo-city bounds over its road net for perf tests; a TKB `Band` (Low/Mid/High) scaling WQ-E's future obstacle loss. ⭐ Dispatched to backend: [handoff](batches/HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md) (S1 ring · S2 CE-3279 timeouts · S3 signature · S4 carries · S5 the rule · S6 Band) |
 | 🟡 **behaviors' half of Q95 — `CE-2315`** | E1 after backend's S3: `StaffSystems.IsLaunch` reads the signature, CE-2309's ≥ 1 km rule goes. **E2 (not blocked): measure why backend's run delivered 9 heard contacts to the brain and no SPOT came.** E3: L7 `uc-request-chain` with the guns 2–3 km OFF the terrain |
 | ⭐ **the user's live findings, filed 2026-10-20** | see N.2 — measured, leaned, not built |
+
+### N.1c ✅ `uc-urban-battle` — CE-4032 fixes (R-2068) and the platoon's convoy task `PlatoonConvoy` (R-2069, `CE-2347`) *(2026-10-21)*
+
+| | |
+|---|---|
+| ✅ built + rails | `PlatoonConvoy` — ride, contact (the squads' SOP fights), ~30 s quiet ⇒ secure at the vehicles, the wounded aboard, remount, carry on; a dead vehicle's squad takes another with room, else walks — [Defend and Attack §11a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md); rails `SquadManeuverTests.CE2347_*` |
+| ✅ scenario | `uc-urban-battle`'s Blue platoon runs it; the live check gains ⑤ (secure → remount → on the route again) |
+| ⏭ next | the live run with ⑤, then the long (10+ min) run for the aircraft beat with a probe of heard sounds, SPOTs and FireSupport requests — measure before changing anything |
 
 ### N.1b ✅ `pc-defend-house` fixes — R-2066 *(2026-10-21)*
 
