@@ -26,6 +26,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         public Vector3 Point;
         public float Speed;
+        /// <summary>⭐ CE-2260 (CB-65) — the order's intensity, for every room.</summary>
+        public ClearIntensity Intensity;
         /// <summary>1 once the survey was asked · when · 1 once the building is known · 1 once it failed · 1 once the building is clear.</summary>
         public byte Asked, Planned, Failed, Done;
         public double AskedAt;
@@ -103,7 +105,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.ClearBuilding)]
         public static void Resolve(in ClearBuildingParamsJsonDto authored, ref ClearBuildingBlackboard block, EntityRepository world, Entity self)
         {
-            block.Order = new ClearBuildingParams { Point = authored.Building, Speed = authored.Speed > 0f ? authored.Speed : 2f, Current = -1 };
+            block.Order = new ClearBuildingParams { Point = authored.Building, Speed = authored.Speed > 0f ? authored.Speed : 2f, Current = -1, Intensity = authored.Intensity };
             block.State = default;
         }
 
@@ -251,13 +253,30 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static unsafe bool Begin(ref ClearBuildingParams p, in SquadPlayContext ctx, WorldSurveyPayload answer)
         {
+            Reopen(ref p, in ctx, answer);   // ⭐ CE-2261 (CB-74)
             fixed (byte* rooms = p.Rooms)
             {
                 if (!RoomOrder.Next(answer, p.Building, new ReadOnlySpan<byte>(rooms, ClearBuildingParams.MaxRooms), RoomDrill.SquadCentre(in ctx),
                                     out var room, out var way)) return false;
                 p.Current = room.Index;
                 RoomDrill.Begin(ref p.Drill, in ctx, room, way, p.Turn, RoomDrill.StackRoom(answer, room, way));
+                RoomDrill.Arm(ref p.Drill, p.Intensity, ordered: false);   // ⭐ CE-2260 (CB-65)
                 return true;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2261</c> (CB-74, §6a) — a Cleared room with a hostile SEEN in it again goes back to Unknown: the order takes it
+        /// again (it is suspected — the contact makes it so).</summary>
+        private static unsafe void Reopen(ref ClearBuildingParams p, in SquadPlayContext ctx, WorldSurveyPayload answer)
+        {
+            Span<float> corners = stackalloc float[8];
+            for (int i = 0; i < ClearBuildingParams.MaxRooms; i++)
+            {
+                if (p.Rooms[i] != RoomOrder.Cleared) continue;
+                var r = RoomOrder.RoomOf(answer, p.Building, i);
+                if (r == null || r.Corners.Length < 8) continue;
+                for (int c = 0; c < 8; c++) corners[c] = r.Corners[c];
+                if (RoomSuspicion.Of(ctx.World, ctx.Commander, corners, r.FloorZ, false, false).HostileSeen) p.Rooms[i] = RoomOrder.Unknown;
             }
         }
 

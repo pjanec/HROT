@@ -27,6 +27,9 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public Vector3 Room;
         public float Speed;
+        /// <summary>⭐ CE-2260 (CB-65) — the order's intensity · 1 when it says the room is held.</summary>
+        public ClearIntensity Intensity;
+        public byte Suspected;
         /// <summary>1 once the survey was asked · when · 1 once the plan is made · 1 once it failed (no room, no door, no answer).</summary>
         public byte Asked, Planned, Failed;
         public double AskedAt;
@@ -51,7 +54,11 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.ClearRoom)]
         public static void Resolve(in ClearRoomParamsJsonDto authored, ref ClearRoomBlackboard block, EntityRepository world, Entity self)
         {
-            block.Order = new ClearRoomParams { Room = authored.Room, Speed = authored.Speed > 0f ? authored.Speed : 2f };
+            block.Order = new ClearRoomParams
+            {
+                Room = authored.Room, Speed = authored.Speed > 0f ? authored.Speed : 2f,
+                Intensity = authored.Intensity, Suspected = authored.Suspected ? (byte)1 : (byte)0,
+            };
             block.State = default;
         }
 
@@ -166,6 +173,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (room == null || door == null) { Fail(ref p, in ctx, child); return; }
 
             RoomDrill.Begin(ref p.Drill, in ctx, room, door, turn: 0, RoomDrill.StackRoom(answer, room, door));
+            RoomDrill.Arm(ref p.Drill, p.Intensity, p.Suspected != 0);   // ⭐ CE-2260 (CB-65)
             p.Drill.RoomAt = p.Room;   // its reports name the point it was ordered to
             p.Planned = 1;
             WorldSurveyChildSensor.Release(ctx.World, child);
