@@ -4475,7 +4475,8 @@ def run_uc_urban_battle(c, timeout):
             name = next(k for k, x in ids.items() if x == v)
             if last.get(("task", name)) != tk:
                 last[("task", name)] = tk
-                note(t, f"{name}: {tk}")
+                at = position(v) if name.startswith("Convoy") else None
+                note(t, f"{name}: {tk}" + (f" at {[round(x) for x in at][:2]}" if at else ""))
                 # ⑤ CE-2347 — secure, then remount, then the convoy on the route again
                 if name.startswith("Squad") and tk == "SquadDefend" and "secured" not in last:
                     last["secured"] = t
