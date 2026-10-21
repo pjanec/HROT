@@ -180,7 +180,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             => new(
                 OverTerrain(TerrainWorldSource.Live(world)),   // CE-3018 — the one live source, shared with the perception grid; ⭐ Q2 — asked through IWorldQuery
                 PhysicsColliderReaders.Radius,
-                PhysicsColliderReaders.Height,
+                PhysicsColliderReaders.BlockerHeight,   // ⭐ CE-2340 — a man lying down blocks only up to a lying body
                 stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of,    // ⭐ Stage 4 — the logical stance (§3f)
                 PhysicsColliderReaders.HullHeight,                                              // ⭐ CE-3116 — a person by posture
                 TerrainWorldSource.Pending(world));                                             // ⭐ CE-2244 — no sight while the terrain loads

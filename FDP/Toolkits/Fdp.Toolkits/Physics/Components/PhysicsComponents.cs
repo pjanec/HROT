@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -45,6 +46,23 @@ namespace Fdp.Toolkit.Physics.Components
 
         public static float Height(ISimulationView view, Entity e)
             => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Height : 0f;
+
+        /// <summary>⭐ <c>CE-2340</c> — the height a man lying on the floor blocks a line up to (m): a prone body.</summary>
+        public const float LyingBlockerHeight = 0.4f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2340</c> — what a body BLOCKS a line up to, for sight and for fragments (<c>ColliderOcclusion</c>): its collider height
+        /// (<see cref="Height"/>), except a PERSON down — dead or incapacitated (<c>Injury.IsInTheFight</c> false) — who lies on the floor:
+        /// <see cref="LyingBlockerHeight"/> (CE-2318: a man down is Prone for aim, sight and the round). 📌 <c>bc-house-clear</c>: a soldier
+        /// lying dead between his comrade and the insurgent 2 m away hid each from the other for ~4 minutes. ⚠ <see cref="Height"/> itself
+        /// is unchanged — <c>AimPoint</c> scales a body by it.
+        /// </summary>
+        public static float BlockerHeight(ISimulationView view, Entity e)
+        {
+            float h = Height(view, e);
+            if (!IsPedestrian(view, e) || global::Fdp.Toolkit.Combat.Injury.IsInTheFight(view, e)) return h;
+            return h > 0f ? MathF.Min(h, LyingBlockerHeight) : LyingBlockerHeight;
+        }
 
         /// <summary>
         /// ⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by: its collider height for a vehicle, ⛔ 0 for a person

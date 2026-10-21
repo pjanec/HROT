@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     doors = terrain is { Doors.Count: > 0 } ? DoorStates.Of(repo, terrain) : null;
                     world = WorldQuery.Of(repo);
                     bool bullets = repo.IsComponentTypeRegistered<BallisticProjectile>();
-                    _occlusion.Build(repo, PhysicsColliderReaders.Radius, PhysicsColliderReaders.Height,
+                    _occlusion.Build(repo, PhysicsColliderReaders.Radius, PhysicsColliderReaders.BlockerHeight,   // ⭐ CE-2340 — a man lying down shields only his lying height
                         bullets ? static (v, e) => !v.HasComponent<BallisticProjectile>(e) : null);   // a round in flight is not cover
                     built = true;
                 }
