@@ -55,7 +55,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
                                            bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
-                                           bool Elderly = false);
+                                           bool Elderly = false, bool Toy = false);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -173,6 +173,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             HeldLook inHands = HeldLook.Rifle, slung = HeldLook.Rifle;
             var heldPosture = WeaponPostureKind.AtEase;
             bool mortarFired = false;
+            var heldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.None;   // ⭐ CE-1169 (U7) — a phone, binoculars or a throwable shown
             if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
             {
                 parts = descending;                 // ⭐ CE-1119 (§6w) — on a rope or under a canopy: the phase's figure, no gait
@@ -204,10 +205,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                     if (HeldWeapons.IsTube(inHands) && heldPosture == WeaponPostureKind.Aimed) _shouldering.Add(e);
                     else if (!heldLoad.IsNull) _loadInHands.Add(e);   // his carried launcher is in his hands: not drawn on his back
                 }
+                // ⭐ CE-1169 (People Display U7) — a pocket item or a throwable in his hand: the phone to his ear (in front while he
+                //   walks), the binoculars at his eyes, a stone or grenade low and ready; a gesture, a throw or a blow below wins
+                (parts, heldItem) = HeldItemShown(world, e, look.Soldier, carriage, parts, motion);
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
                 parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
+                var unstruck = parts;
                 parts = Struck(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1171 — the arm of a blow just struck
+                // ⭐ CE-1172 (People Display U11) — the baton man's baton in his hand, the shield man's shield on his arm (from his type until
+                //   G4 makes them items); while he strikes, the swing draws the baton
+                if (ReferenceEquals(parts, unstruck)) parts = PoliceKit(world, e, type, carriage, parts);
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -267,6 +275,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                                      look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
                 if (look.Soldier) BlockFigure.WeaponDetails(inHands, slung, heldPosture, _details);   // ⭐ CE-1236
+                if (look.Soldier && heldItem == Fdp.Toolkit.Combat.Components.HeldItemKind.None)       // ⭐ CE-1173 / CE-1174 — a toy, a baton launcher
+                    BlockFigure.MarkingDetail(HeldWeapons.MarkingOf(world, HeldWeapons.OwnMountInHands(world, e)), _details);
+                if (heldItem == Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable
+                    && ThrowableDetail(world, e, tkb, parts) is { } round) _details.Add(round);   // ⭐ CE-1169 — the round in his hand
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
@@ -396,6 +408,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             var model = HrotToRaylib.ModelFromHrot(placed);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+            if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
             Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
             _surface.Plain(shader);
@@ -539,6 +552,48 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         var m = Matrix4x4.Identity;
         m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
         return m;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1172</c> (docs/DESIGN_People_Display.md §5 U11) — the police kit a man of a security type carries by his TYPE (G4 has not made
+    /// them items): the baton man (<c>SecurityBaton</c>) a baton in his right hand, the shield man (<c>SecurityShield</c>) a riot shield on his
+    /// left arm. Standing or crouched and free, not cowering; otherwise the parts as they are.
+    /// </summary>
+    public static KitPart[] PoliceKit(EntityRepository world, Entity e, long type, in FigureCarriage carriage, KitPart[] parts)
+    {
+        bool baton = type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, shield = type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield;
+        if ((!baton && !shield) || carriage.Kind != CarriageKind.Free || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return baton ? BlockFigure.BatonInHand(parts) : BlockFigure.ShieldOnArm(parts, stance == StanceId.Crouched);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1169</c> (docs/DESIGN_People_Display.md §5 U7) — what a man HOLDS that is not his weapon: the replicated
+    /// <c>WeaponPosture.HeldItem</c> when it is a phone, binoculars or a throwable (<see cref="BlockFigure.HeldItemArms"/>). Standing or
+    /// crouched, free, alive and not cowering; otherwise the parts as they are and <c>None</c>. Walking = his gait is moving.
+    /// </summary>
+    public static (KitPart[] Parts, Fdp.Toolkit.Combat.Components.HeldItemKind Item) HeldItemShown(EntityRepository world, Entity e, bool soldier,
+        in FigureCarriage carriage, KitPart[] parts, in MotionPose motion)
+    {
+        var none = Fdp.Toolkit.Combat.Components.HeldItemKind.None;
+        var item = Fdp.Toolkit.Combat.HeldItems.Of(world, e);
+        if (!BlockFigure.IsPocketOrThrowable(item) || carriage.Kind != CarriageKind.Free) return (parts, none);
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return (parts, none);
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return (parts, none);
+        return (BlockFigure.HeldItemArms(parts, item, stance == StanceId.Crouched, soldier, walking: motion.Moving > 0.1f), item);
+    }
+
+    /// <summary>⭐ <c>CE-1169</c> — the round a throwable's hand holds, as its munition looks (its <c>Munition.Visual</c>: a grey stone,
+    /// a dark green grenade, a canister); null when his hands hold none.</summary>
+    public static PartDetail? ThrowableDetail(EntityRepository world, Entity e, ITkbDatabase? tkb, KitPart[] parts)
+    {
+        Fdp.Toolkit.Tkb.Domain.MunitionVisualDto? visual = null;
+        bool holds = Fdp.Toolkit.Combat.PersonHands.Holding(world, e, ammo => (visual = Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, ammo)) != null);
+        if (!holds) return null;
+        var colour = ParseHex(visual?.ColorHex) ?? new Color(120, 118, 112, 255);
+        return BlockFigure.ThrowableDetail(parts, visual?.Length ?? 0.08f, visual?.Diameter ?? 0.07f, colour);
     }
 
     /// <summary>
@@ -1275,7 +1330,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader, Outfit? outfit = null)
     {
-        foreach (var d in BlockFigure.FaceParts(soldier))
+        // ⭐ CE-1172 (People Display U11) — a police officer's cap, or the shield man's riot helmet, instead of hair or a soldier's helmet
+        var heads = outfit is { Police: true } police ? BlockFigure.PoliceHead(police.Riot) : BlockFigure.FaceParts(soldier);
+        foreach (var d in heads)
         {
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
             Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Hair)),
@@ -1375,6 +1432,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static Color FaceColour(FaceShade shade, Color uniform, Color? hair = null) => shade switch
     {
         FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
+        FaceShade.Cap => Outfits.PoliceUniform,          // ⭐ CE-1172 (U11)
+        FaceShade.CapBand => Outfits.CapBand,
+        FaceShade.Peak => new Color(16, 16, 18, 255),
+        FaceShade.Visor => new Color(150, 172, 196, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
     };
 
@@ -1496,7 +1557,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                             TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight,
                             Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
                             // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
-                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly);
+                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
+                            // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
+                            Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true);
     }
 
     /// <summary>

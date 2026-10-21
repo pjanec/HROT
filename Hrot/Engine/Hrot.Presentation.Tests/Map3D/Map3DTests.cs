@@ -1761,6 +1761,144 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1169 (People Display §5 U7) — what he holds that is not his weapon (the replicated <c>HeldItem</c>): the phone at his ear while
+    /// he stands and in front of him while he walks (a slab in the hand), the binoculars up at his eyes in both hands (a box between them),
+    /// a throwable low in the right hand with its round as its munition looks; a soldier's rifle slung meanwhile; a carried or cowering man,
+    /// or nothing held, draws the figure as it is. ✅ Red-proof: <c>HeldItemShown</c> returning the parts untouched.
+    /// </summary>
+    [Fact]
+    public void CE1169_APhoneAtTheEar_BinocularsAtTheEyes_AStoneInTheHand()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 HandR(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre * new Vector3(0.35f, 0.55f, 1.8f);   // metres
+        Vector3 HandL(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 3].Centre * new Vector3(0.35f, 0.55f, 1.8f);
+        var Phone = Fdp.Toolkit.Combat.Components.HeldItemKind.Phone;
+        var Bino = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars;
+        var Stone = Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable;
+
+        var call = BlockFigure.HeldItemArms(plain, Phone, crouched: false, soldier: false, walking: false);
+        var look = BlockFigure.HeldItemArms(plain, Phone, crouched: false, soldier: false, walking: true);
+        Assert.True(HandR(call).Z > 1.35f, $"at his ear: the forearm up by his head ({HandR(call)})");
+        Assert.True(HandR(look).Z < 1.25f && HandR(look).X > 0.1f, $"walking: in front of him, low ({HandR(look)})");
+        Assert.Equal(plain.Length + 1, call.Length);                                                             // the phone
+        var bino = BlockFigure.HeldItemArms(plain, Bino, false, false, false);
+        Assert.True(HandR(bino).Z > 1.4f && HandL(bino).Z > 1.4f, $"both hands up at his eyes ({HandL(bino)}, {HandR(bino)})");
+        Assert.Equal(plain.Length + 1, bino.Length);                                                             // the binoculars
+        var stone = BlockFigure.HeldItemArms(plain, Stone, false, false, false);
+        Assert.True(HandR(stone).Z < 1.3f && HandR(stone).X > 0.05f, $"low and ready ({HandR(stone)})");
+        Assert.Equal(plain.Length, stone.Length);                                                                // its round is a detail
+        var round = BlockFigure.ThrowableDetail(stone, 0.08f, 0.07f, new Raylib_cs.Color(130, 128, 120, 255));
+        Assert.NotNull(round);
+        Assert.Equal(BlockFigure.TorsoIndex + 5, round!.Value.Part);
+        Assert.True(round.Value.Centre.X > 0.5f, "beyond the end of the forearm: in the hand");
+        Assert.Same(plain, BlockFigure.HeldItemArms(plain, Fdp.Toolkit.Combat.Components.HeldItemKind.None, false, false, false));
+
+        var armed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var slung = BlockFigure.HeldItemArms(armed, Bino, false, soldier: true, walking: false)[BlockFigure.WeaponIndex];
+        Assert.True(slung.Centre.X < 0f, $"a soldier's rifle slung on his back ({slung.Centre})");
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var man = Man(world, Vector3.Zero);
+            world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { HeldItem = Phone });
+            var (shown, item) = EntityBodyLayer3D.HeldItemShown(world, man, false, FigureCarriage.Free, plain, MotionPose.Still);
+            Assert.Equal(Phone, item);
+            Assert.NotEqual(plain, shown);
+            Assert.Same(plain, EntityBodyLayer3D.HeldItemShown(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, MotionPose.Still).Parts);   // busy
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(man).HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Weapon;
+            Assert.Same(plain, EntityBodyLayer3D.HeldItemShown(world, man, false, FigureCarriage.Free, plain, MotionPose.Still).Parts);         // his weapon: Held's
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1173 / CE-1174 (People Display §5 U12, U13) — a held weapon's colour tells the truth: a mount that LOOKS like a rifle or pistol
+    /// and names no round is a toy (orange — covered whole), one that fires only non-lethal rounds (the baton launcher) wears a yellow band;
+    /// a rifle, the hands and a grenade wear nothing; a weapon-system TYPE with a toy mount is drawn orange. ✅ Red-proof: <c>IsToy</c> ⇒
+    /// false.
+    /// </summary>
+    [Fact]
+    public void CE1173_CE1174_AToyIsOrange_ABatonLauncherHasAYellowBand()
+    {
+        var toy = new WeaponMountDto { Category = WeaponCategory.SmallArms, Appearance = new ItemAppearanceDto { Look = ItemLook.Rifle, Lethal = true } };
+        var oldMount = new WeaponMountDto { Category = WeaponCategory.SmallArms };   // names no round, states no look: a weapon
+        Assert.True(HeldWeapons.IsToy(toy));
+        Assert.False(HeldWeapons.IsToy(oldMount));
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);   // the rounds' warheads (production registers them with every catalogue)
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            Assert.Equal(HeldMarking.Toy, HeldWeapons.MarkingOf(world, toy));
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, oldMount));
+            var launcher = new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbBatonRound };
+            Assert.Equal(HeldMarking.LessLethal, HeldWeapons.MarkingOf(world, launcher));
+            var rifle = new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball };
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, rifle));
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, Fdp.Toolkit.Combat.PersonHands.Mount()));
+        }
+        var into = new List<PartDetail>();
+        BlockFigure.MarkingDetail(HeldMarking.Toy, into);
+        BlockFigure.MarkingDetail(HeldMarking.LessLethal, into);
+        BlockFigure.MarkingDetail(HeldMarking.None, into);
+        Assert.Equal(2, into.Count);
+        Assert.All(into, d => Assert.Equal(BlockFigure.WeaponIndex, d.Part));
+        Assert.Equal(BlockFigure.ToyOrange, into[0].Colour);
+        Assert.True(into[0].Extent.X > 1f, "the toy covered whole");
+        Assert.Equal(BlockFigure.LessLethalYellow, into[1].Colour);
+        Assert.True(into[1].Extent.X < 0.3f, "a band, not a cover");
+
+        Assert.True(db.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
+        var toyType = new TkbTemplate("Toy rifle", 99_616) { DisType = pickUp!.DisType };
+        toyType.AddDescriptor(new WeaponSuiteDto { Mounts = { toy } });
+        Assert.True(EntityBodyLayer3D.Resolve(toyType).Toy);
+        Assert.False(EntityBodyLayer3D.Resolve(pickUp).Toy);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1172 (People Display §5 U11) — the police look: a police officer's head wears a peaked cap (crown, white band, black peak), the
+    /// shield man a riot helmet with a visor; his outfit carries a vest, two pouches and a belt; the baton man holds a baton, the shield man
+    /// a shield — from his type. 🔒 Live, 2026-10-20: <i>"Police officer not rendered with baton even if he is hittingn someone."</i>
+    /// ✅ Red-proof: <c>PoliceKit</c> returning the parts untouched.
+    /// </summary>
+    [Fact]
+    public void CE1172_ThePoliceLook_CapOrRiotHelmet_VestAndBelt_BatonOrShield()
+    {
+        Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.Peak);
+        Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.CapBand);
+        Assert.Contains(BlockFigure.PoliceHead(riot: true), p => p.Shade == FaceShade.Visor);
+        Assert.Equal(Outfits.CapBand, EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform));
+
+        var baton = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
+        var shield = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
+        Assert.True(baton.Police && !baton.Riot);
+        Assert.True(shield.Police && shield.Riot);
+        var details = new List<PartDetail>();
+        Outfits.Details(baton, 7, details);
+        Assert.Contains(details, d => d.Colour.Equals(Outfits.PoliceBelt));
+        Assert.Contains(details, d => d.Colour.Equals(Outfits.PoliceVest));
+        var civilian = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, false, false, null, ForceId.Neutral);
+        Assert.False(civilian.Police);
+
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            var man = Man(world, Vector3.Zero, type: Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton);
+            var withBaton = EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, FigureCarriage.Free, plain);
+            Assert.Equal(plain.Length + 1, withBaton.Length);
+            var stick = withBaton[^1].Centre * new Vector3(0.35f, 0.55f, 1.8f);
+            Assert.True(stick.Z < 0.9f && stick.Y < 0f, $"the baton hangs from his right hand ({stick})");
+            var withShield = EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, FigureCarriage.Free, plain);
+            Assert.True(withShield[^1].Centre.X > 0f && withShield[^1].Centre.Y > 0f, "the shield in front of his left side");
+            Assert.Same(plain, EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, FigureCarriage.Free, plain));
+            Assert.Same(plain, EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, new FigureCarriage(CarriageKind.Carrying), plain));
+        }
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

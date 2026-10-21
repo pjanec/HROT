@@ -139,6 +139,19 @@ public static partial class BlockFigure
             into.Add(new PartDetail(TorsoIndex, new(-0.62f, 0f, -0.30f), new(0.12f, 0.95f, 0.55f), metal));
     }
 
+    /// <summary>⭐ CE-1173 (U12) — a toy's orange; ⭐ CE-1174 (U13) — a less-lethal weapon's yellow band.</summary>
+    public static readonly Color ToyOrange = new(255, 120, 20, 255), LessLethalYellow = new(245, 205, 30, 255);
+
+    /// <summary>
+    /// ⭐ CE-1173 / CE-1174 — the held weapon's marking as a detail on the weapon part: a toy covered in orange (a shell a hair larger than
+    /// the part), a less-lethal weapon a yellow band a third of the way from its muzzle. None adds nothing.
+    /// </summary>
+    public static void MarkingDetail(HeldMarking marking, List<PartDetail> into)
+    {
+        if (marking == HeldMarking.Toy) into.Add(new PartDetail(WeaponIndex, Vector3.Zero, new Vector3(1.04f, 1.12f, 1.12f), ToyOrange));
+        else if (marking == HeldMarking.LessLethal) into.Add(new PartDetail(WeaponIndex, new(0.18f, 0f, 0f), new(0.12f, 1.25f, 1.25f), LessLethalYellow));
+    }
+
     /// <summary>The two ends (body metres) of a part drawn by <see cref="Limb"/>: A its start, B its end.</summary>
     public static (Vector3 A, Vector3 B) Ends(in KitPart part)
     {

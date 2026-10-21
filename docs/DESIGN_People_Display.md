@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
+updated: 2026-10-21 (§7c — the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
 current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
@@ -81,8 +81,10 @@ classDiagram
   class HandItems { <<BUILT as HeldWeapons, pure, CE-1236>> +Of(world, man, tkb) (InHands, Slung) · +LookOf(tkb, mount) · reads ActiveMount, Category, Appearance, scope, the round's shape }
   class StrikeTracker { <<BUILT CE-1171, RecentShots shape>> last blow per striker · StruckWithin }
   class AimLineGizmo { <<BUILT CE-1170, IStatelessGizmo>> WeaponPosture Aimed at a person: muzzle to chest, UnitDetails }
+  class HeldItemArms { <<BUILT CE-1169, BlockFigure partial>> phone ear or front · binoculars at the eyes · throwable ready · ThrowableDetail }
+  class HeldMarking { <<BUILT CE-1173/1174>> None Toy LessLethal · HeldWeapons.IsToy · MarkingOf · BlockFigure.MarkingDetail }
   class GestureMotion { <<BUILT as GestureClock + GestureArms t, no class>> t = simTime + seed offset, sin(t x rate) }
-  class PoliceKit { <<NEW in Outfits + BodySurface>> cap or riot helmet · vest and belt painted }
+  class PoliceKit { <<BUILT CE-1172 in Outfits + BlockFigure>> PoliceHead cap or riot helmet · vest belt pouches as details · baton or shield by type }
   class OverheadMarkLayer { <<NEW IMapLayer, 2-D + 3-D>> one small mark per person, above the head }
   class MarkKind { <<NEW>> Insult Warning Order Talk · Fear Anger Pain Alarm · HandsUp }
   class Marks { <<NEW, pure>> +Of(world, man, now) MarkKind? · the one priority rule }
@@ -281,6 +283,10 @@ sequenceDiagram
 
 | item | as built | rails |
 |---|---|---|
+| `CE-1169` U7 — what is in his hand (rest) | `EntityBodyLayer3D.HeldItemShown` (one step before `Gestured`, so a gesture, a throw or a blow wins) reads the replicated `HeldItem`: **Phone** to his ear while still, in front of him while he walks (a dark slab), **Binoculars** up at his eyes in both hands (a dark box), **Throwable** low and ready in the right hand with its round as its `Munition.Visual` looks (colour and size — `ThrowableDetail`, through `PersonHands.Holding`); a soldier's rifle slung meanwhile (`BlockFigure.HeldItemArms`, the `GestureArms` shape). ⭐ The data is LIVE now: behaviors set Phone (routine, the IED trigger), Throwable (a stone in hand), Binoculars (the operator, leaders). ⏳ Still open: the ExCon "Concealed" layer | `Map3DTests.CE1169_*` · frame `people-overnight-1-*.png` |
+| `CE-1172` U11 — the police look | `Outfit.Police` / `.Riot` (from `PersonKit.Security`; Riot = the `SecurityShield` type): the head draws `BlockFigure.PoliceHead` — a PEAKED CAP (navy crown, white band, black peak), the shield man a RIOT HELMET with a visor — instead of hair or a helmet; the vest (darker), two pouches and the black belt are torso details. ⚠ **Deviation:** details, not a `BodySurface` shader parameter (the suit's shirt and tie are drawn the same way; a fifth parameter for a flat panel buys nothing). `EntityBodyLayer3D.PoliceKit` by TYPE until G4: the baton man's baton hanging from his right hand (the swing draws it while he strikes, CE-1171), and ⭐ round-out: the shield man's riot SHIELD upright in front of his left side | `Map3DTests.CE1172_*` · frame `people-overnight-2-*.png` |
+| `CE-1173` U12 — the toy gun | `HeldWeapons.IsToy`: a mount that STATES a Rifle / Pistol appearance and names no round (G6's "looks like a rifle and fires nothing"; an old mount naming no round stays a weapon). A weapon-system TYPE with such a mount draws orange (`TypeLook.Toy`, every part); a toy in a soldier figure's hands is covered orange (`MarkingDetail`). ⚠ No catalogue toy type exists yet (G6) — the rail and the frame register one | `Map3DTests.CE1173_CE1174_*` |
+| `CE-1174` U13 — non-lethal weapons | `HeldWeapons.MarkingOf` ⇒ `LessLethal` when every round the held mount names is non-lethal (`ItemAppearances.FiresLethal`): the baton launcher (`SecurityLauncher`) wears a YELLOW BAND a third of the way from its muzzle; the stun / gas grenade in hand is U7's Throwable. ⏳ Taser and pepper spray wait on G5 | same rail · frame `people-overnight-2-*.png` |
 | `CE-1170` U9 — the aim line | `AimLineGizmo` (Hrot.Common, `[GizmoProjector(WeaponPosture)]`, auto-discovered on every map host): `Aimed` at a living PERSON (`PhysicsColliderReaders.IsPerson`) ⇒ a thin red-orange line from `Muzzle.TryOf(ActiveMount)` — or, with no muzzle data (a rifleman), his shoulder (1.4 m) half a metre toward the target — to the target's chest (1.2 m); on `UnitDetails`. ⭐ A non-zero Z is drawn at its height in 3-D, never draped (`GizmoRenderer3D`); 2-D draws it flat. None when ready, at a vehicle, at a dead man | `Map3DTests.CE1170_*` (red-proof: the person check removed ⇒ the vehicle case draws) |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*

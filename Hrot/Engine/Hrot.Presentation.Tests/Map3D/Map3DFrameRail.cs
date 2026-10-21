@@ -2658,6 +2658,98 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1169 / CE-1172 / CE-1173 / CE-1174 (docs/DESIGN_People_Display.md §5 U7, U11, U12, U13) — the (V) acceptance for the people
+    /// items of the overnight list: a man on his phone, one with binoculars up, one with a stone ready; the three police officers — the baton
+    /// man (cap, vest, belt, baton), the shield man (riot helmet, visor, shield), the launcher man (his launcher's yellow band); and a TOY
+    /// rifle lying on the ground, orange. Screenshots <c>people-overnight-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void PeopleOvernight_V_HeldItems_ThePoliceLook_TheToy_TheBand()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        Assert.True(tkb.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
+        var toyType = new Fdp.Interfaces.TkbTemplate("Toy rifle", 99_616) { DisType = pickUp!.DisType };
+        toyType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto {
+            Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms,
+            Appearance = new Fdp.Toolkit.Tkb.Domain.ItemAppearanceDto { Look = Fdp.Toolkit.Tkb.Domain.ItemLook.Rifle } } } });
+        tkb.Register(toyType);
+        Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // the baton round's warhead: the launcher's band
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Person(long type, float dx, Fdp.Toolkit.Combat.Components.HeldItemKind held = default,
+                      Fdp.Toolkit.Combat.Components.WeaponPostureKind posture = default)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, HeldItem = held, Point = new Vector3(x + 50f, y, G(x, y) + 1.4f) });
+            return e;
+        }
+        long civ = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
+        Person(civ, -6.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Phone);
+        Person(civ, -4.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+        var thrower = Person(civ, -2.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable);
+        Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(tkb);   // as HrotEnvironment.CreateTkb does: every person has hands
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        int hands = Fdp.Toolkit.Combat.PersonHands.MountIndex(world, thrower);
+        var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = (byte)(hands + 1) };   // the stone in his hand, as a viewer node reads it
+        switch (hands)
+        {
+            case 0: ammo.Load0 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds0 = 3; break;
+            case 1: ammo.Load1 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds1 = 3; break;
+            case 2: ammo.Load2 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds2 = 3; break;
+        }
+        world.AddComponent(thrower, ammo);
+        Assert.NotNull(EntityBodyLayer3D.ThrowableDetail(world, thrower, tkb, BlockFigure.Parts(StanceId.Standing, false)));
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, 0.5f);
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, 2.5f);
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, 4.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        var lying = world.CreateEntity();   // the toy, lying on the ground in front of them
+        world.AddComponent(lying, new SimTransform { Position = new Vector3(spot.X + 6.5f, spot.Y - 0.6f, G(spot.X + 6.5f, spot.Y - 0.6f)), Rotation = Quaternion.Identity });
+        world.AddComponent(lying, new TkbIdentity { TkbType = 99_616 });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 4.0f, spot.Y, ground + 1.3f), 4.6f, -3f * MathF.PI / 4f, -0.10f);   // the civilians, from their front-right
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-1-phone-binoculars-stone.png"));
+        Assert.True(LitShader.Shared.IsValid, "the shader compiled");
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 4.0f, spot.Y - 0.3f, ground + 1.0f), 5.4f, -3f * MathF.PI / 4f, -0.14f);   // police + the toy, from their front
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-2-police-toy.png"));
+        Assert.True(bodies.DetailsDrawn > 0, "the vests, belts and the band are drawn");
+    }
+
+    /// <summary>
     /// ⭐ CE-1236 (docs/DESIGN_People_Display.md §5 U7a) — the (V) acceptance for the held weapons: a row of soldiers, each with his weapon
     /// up as the weapon brain would have it — the rifleman, his pistol, the PKM gunner, the sniper, the insurgent's RPG (aimed, then at ease
     /// on his rifle with the RPG on his back), the Javelin at ease, the MortarTeam firing (his mortar in front of him) and at ease (on his
