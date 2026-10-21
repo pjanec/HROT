@@ -595,8 +595,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "director_status",
             Group:   "Y — node diagnostics",
             Summary: "⭐ CE-4038 — what the director does: phase (Idle · Loading · Entering · Playing · Encoding · Done · Stopped), the reel item, the shot, sim time, the realtime factor, and a report per item.",
-            Returns: "{ phase, mode, reel, item, items, paused, speed, shot, simTime, realtimeFactor, tickHz, frames, movie, error, reports[{ scenario, take, status, problems[], missing[], mismatches[], skippedReplays[], unresolved[], found{}, tickHz, usedBake, realtimeFactor, steps, lateFrames, unretiredSteps, maxStepsInAFrame, frames, simEnd, wallSeconds }], anchorsSeen?, mismatches? }",
-            Hint:    "maxStepsInAFrame is 1 by construction (the stepping rule); unretiredSteps counts frames whose step the master had not taken yet. Example: director_status({})",
+            Returns: "{ phase, mode, reel, item, items, paused, speed, shot, simTime, realtimeFactor, tickHz, frames, movie, error, reports[{ scenario, take, status, problems[], missing[], mismatches[], skippedReplays[], unresolved[], found{}, tickHz, usedBake, realtimeFactor, steps, lateFrames, waitFrames, maxStepsInAFrame, maxRetiredInAFrame, frames, simEnd, wallSeconds, cuts[{ shot, t, rounds, units{ name: [x, y, z, health] } }] }], anchorsSeen?, mismatches? }",
+            Hint:    "maxStepsInAFrame is 1 by construction (the stepping rule); maxRetiredInAFrame is what the master took in one frame (1 when the rule holds at the kernel); waitFrames counts frames with two steps still outstanding. Example: director_status({})",
             ExampleArgsJson: "{}",
             ExampleGist: "read the director's status"),
         [("GET", "/map/layers")] = new RouteDoc(

@@ -638,7 +638,8 @@ classDiagram
   }
   class ItemReport {
     +status found missing mismatches
-    +realtimeFactor steps unretiredSteps
+    +realtimeFactor steps waitFrames
+    +maxStepsInAFrame maxRetiredInAFrame
     +maxStepsInAFrame frames
     +CutSnapshot[] Cuts
   }
@@ -725,10 +726,10 @@ sequenceDiagram
   participant K as kernel (MasterSyncController)
   U->>U: debug jobs drain (a /director/play lands here)
   U->>R: Tick()
-  R->>H: SimTime — did LAST frame's step land?
-  alt not yet
-    R-->>U: no step this frame (counted: unretiredSteps)
-  else landed
+  R->>H: SimTime — how many steps has the master taken? (it takes each ONE frame after it is asked)
+  alt two still outstanding (the master fell behind)
+    R-->>U: no step this frame (counted: waitFrames)
+  else at most one in flight
     R->>R: AnchorBook.Observe (component state, the combat logs) · replan if a live beat arrived
     R->>F: Direct(ShotEvaluator.Evaluate(shot at t))
     alt live, in a shot
@@ -742,8 +743,11 @@ sequenceDiagram
   U->>K: kernel update retires the step
 ```
 
-*What the picture shows: a step is never asked for twice in a frame, and never while the previous one is outstanding — so the master
-cannot retire two in one frame (§0's rule holds whatever the master does). A capture is taken in the same frame BEFORE that frame's step
+*What the picture shows: a step is never asked for twice in a frame, and never with two already outstanding — so the master cannot be
+handed two to take at once (§0's rule holds whatever the master does). 📐 **Measured in the editor, `2026-10-21`: the master takes a step
+ONE FRAME after it is asked for** (the step intent crosses the orchestration bus); keeping one in flight makes the KERNEL step every frame.
+⛔ SUPERSEDED the same day: "wait for each step to land before the next" — with that lag it stepped every OTHER frame (109 of 109 steps
+waited on the first live run), a paused frame between every two steps — the very interleaving §0 forbids. A capture is taken in the same frame BEFORE that frame's step
 lands, so the picture is the state at the film frame's sim time.*
 
 ### 8.3 Deviations from §2 — each SUPERSEDES the §2 box it names
@@ -769,7 +773,7 @@ Director: reel or take, Play / Prepare / Stop / Next / Pause, speed, a row per t
 
 | claim | as built — how it IS | status |
 |---|---|---|
-| one step per rendered frame | `StepOnce` throws on a second; `maxStepsInAFrame` reported; rail `CE4038_AReelOfThreeScenarios_PlaysLive_OneStepPerFrame_HeldToRealTime` (🔴 red-proven) | ✅ |
+| one step per rendered frame | `StepOnce` throws on a second; `maxStepsInAFrame` and the kernel's own `maxRetiredInAFrame` reported; rails `CE4038_AReelOfThreeScenarios_PlaysLive_OneStepPerFrame_HeldToRealTime` (🔴 red-proven) and `CE4038_WithTheMasterOneFrameBehind_TheKernelStillStepsEveryFrame` (the editor's measured lag) | ✅ |
 | live play holds real time | the same rail: ×1.00 ± 5 % on a 120 fps fake renderer, the frame held | ✅ (rails) · the live editor measurement: the CE-4038 report |
 | a take's layers never reach the user's file | `GZH011_Tests.CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick` (🔴 red-proven) | ✅ |
 | FPS always sounds | `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice` (🔴 red-proven) | ✅ |

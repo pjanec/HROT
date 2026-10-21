@@ -37,10 +37,28 @@ def wait_done(limit_s):
     return st
 
 
+def set_rate(reel, hz):
+    """Re-writes every take of the reel at hz in the editor's working copy (PUT /director/take — the scenarios root, not git)."""
+    items = json.load(open(os.path.join(udc.REPO, "films", reel + ".reel.json")))["items"]
+    for it in items:
+        s, t = it["scenario"], it.get("take", "main")
+        take = must(udc.call("GET", f"/director/take/{s}/{t}"), "director/take")["json"]
+        take["tickHz"] = hz
+        take.pop("baked", None)
+        must(udc.call("PUT", f"/director/take/{s}/{t}", take), "put take")
+
+
+def render_sample(label):
+    """The map view's frame rate now (GET /diagnostics/render: ~2 s window)."""
+    r = udc.data(udc.call("GET", "/diagnostics/render")) or {}
+    print(f"   {label}: {r.get('fps')} fps, {r.get('frameMsMean')} ms mean, p95 {r.get('frameMsP95')} ms, mode {r.get('mode')}", flush=True)
+    return r
+
+
 def report(st):
     for r in st.get("reports") or []:
         print(f"   {r['scenario']}/{r['take']:<6} {r['status']:<12} steps {r['steps']:>5}  ×{r['realtimeFactor']:<6} "
-              f"max/frame {r['maxStepsInAFrame']}  unretired {r['unretiredSteps']}  late {r['lateFrames']}  frames {r['frames']}  "
+              f"max/frame {r['maxStepsInAFrame']}  kernel/frame {r['maxRetiredInAFrame']}  waits {r['waitFrames']}  late {r['lateFrames']}  frames {r['frames']}  "
               f"found {r['found']}  missing {r['missing']}  {('problems ' + str(r['problems'])) if r['problems'] else ''}", flush=True)
     if st.get("error"):
         print(f"   ERROR {st['error']}")
@@ -70,6 +88,20 @@ def scout_all(args):
     print(f"   {len(rows)} takes: {counts} — table in {args.out}")
 
 
+def launch_headless(port):
+    """ClusterRunner --mode editor --headless (no window, no Xvfb): the frames cost only the sim — for scouting."""
+    import subprocess
+    log = open(os.path.join("/tmp", f"director-check-{port}.log"), "w")
+    env = dict(os.environ, HROT_DEBUG_API_PORT=str(port))
+    proc = subprocess.Popen(["dotnet", udc.RUNNER, "--mode", "editor", "--headless"], cwd=udc.REPO, env=env,
+                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    if not udc.wait_for(lambda: udc.data(udc.call("GET", "/status")), 180, every=1):
+        udc.stop(proc)
+        sys.exit(f"the editor did not answer within 180 s — see {log.name}")
+    print(f"   launched ClusterRunner --mode editor --headless (pid {proc.pid}, log {log.name})")
+    return proc
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("what", choices=["live", "capture", "scout-all"])
@@ -82,9 +114,13 @@ def main():
     ap.add_argument("--bake", action="store_true", help="scout-all: write the found times into the takes")
     ap.add_argument("--limit", type=float, default=900, help="seconds to wait for one run")
     ap.add_argument("--out", default="/tmp/director-scout.json")
+    ap.add_argument("--tick-hz", type=int, nargs="*", default=None,
+                    help="live/capture: play the reel once per rate (60 20 15), each take re-written at that rate in the editor's WORKING copy "
+                         "of the scenarios (never git) — the R-4063 fallback measured")
+    ap.add_argument("--headless", action="store_true", help="launch the editor with no window (scouting needs none; live and capture do)")
     args = ap.parse_args()
     udc.BASE = f"http://localhost:{args.port}"
-    proc = None if args.attach else udc.launch(args.port, "editor")
+    proc = None if args.attach else (launch_headless(args.port) if args.headless else udc.launch(args.port, "editor"))
     try:
         started = time.time()
         if args.what == "scout-all":
@@ -95,8 +131,18 @@ def main():
             body = {"reel": args.reel}
             if args.what == "capture":
                 body["capture"] = {"dir": args.dir, "fps": args.fps, "size": args.size}
-            must(udc.call("POST", "/director/play", body), "director/play")
-            report(wait_done(args.limit))
+            for hz in args.tick_hz or [None]:
+                if hz:
+                    set_rate(args.reel, hz)
+                    print(f"   --- the reel at {hz} Hz", flush=True)
+                before = render_sample("panels on (before the reel)")
+                must(udc.call("POST", "/director/play", body), "director/play")
+                time.sleep(8)
+                during = render_sample("panels off (cinema, during the reel)")
+                report(wait_done(args.limit))
+                if before and during and during.get("frameMsMean"):
+                    print(f"   B9 per-frame time: {before.get('frameMsMean')} ms with panels → {during.get('frameMsMean')} ms in cinema "
+                          f"(×{before.get('frameMsMean', 0) / during['frameMsMean']:.2f})")
         print(f"   {time.time() - started:.0f} s")
     finally:
         if proc is not None:

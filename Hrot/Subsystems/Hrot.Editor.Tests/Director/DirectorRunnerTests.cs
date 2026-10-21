@@ -40,6 +40,12 @@ public sealed class DirectorRunnerTests : IDisposable
         public readonly EntityRepository Repo = new();
         public readonly List<string> Loads = new();
         public readonly List<int> StepsPerFrame = new();
+        /// <summary>Steps the KERNEL took in each frame (after the lag).</summary>
+        public readonly List<int> RetiredPerFrame = new();
+        /// <summary>Frames between a step being asked for and the kernel taking it: 0, or 1 as the editor's master measured.</summary>
+        public int Lag;
+        private readonly Queue<(int Frame, float Seconds)> _inFlight = new();
+        private int _frame;
         public readonly List<double> Holds = new();
         public readonly List<FilmShot?> Shots = new();
         public int Exits, Enters;
@@ -66,7 +72,7 @@ public sealed class DirectorRunnerTests : IDisposable
         public int? EntityCount => Repo.EntityCount;
         public bool InPreview { get; private set; }
         public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; Enters++; }
-        public void ExitPreview() { InPreview = false; Exits++; SimTime = 0d; }
+        public void ExitPreview() { InPreview = false; Exits++; SimTime = 0d; _inFlight.Clear(); }
         public bool Paused { get; private set; }
         public void Pause() => Paused = true;
         public void StepBy(float seconds) { _askedStep = seconds; _askedSteps++; }
@@ -80,14 +86,19 @@ public sealed class DirectorRunnerTests : IDisposable
         public void EndFrame()
         {
             Shots.Add(FilmStudio.Shot);
-            if (_askedSteps > 0)
-            {
-                StepsPerFrame.Add(_askedSteps);
-                for (int i = 0; i < _askedSteps; i++) SimTime += _askedStep;
-                if (Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
-                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
-            }
+            if (_askedSteps > 0) StepsPerFrame.Add(_askedSteps);
+            for (int i = 0; i < _askedSteps; i++) _inFlight.Enqueue((_frame, _askedStep));
             _askedSteps = 0;
+            int retired = 0;
+            while (_inFlight.Count > 0 && _inFlight.Peek().Frame + Lag <= _frame)
+            {
+                SimTime += _inFlight.Dequeue().Seconds;
+                retired++;
+            }
+            RetiredPerFrame.Add(retired);
+            if (retired > 0 && Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
+                Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+            _frame++;
             if (_loadFrames > 0 && --_loadFrames == 1)
             {
                 var all = new List<Entity>();
@@ -203,6 +214,27 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(host.Shots, s => s?.Pose?.LookAt == new Vector3(1, 2, 3));
         Assert.Null(FilmStudio.Shot);                                                  // released at the end
         Assert.Equal((1, 1), (cinema.Enters, cinema.Exits));
+    }
+
+    /// <summary>
+    /// ⭐⭐ B3 — the editor's master takes a step ONE FRAME after it is asked for (measured `2026-10-21`): the director keeps one in flight, so
+    /// the KERNEL still takes exactly one step in every frame of a shot — never a paused frame between two, never two at once — and the
+    /// report says so (<c>maxRetiredInAFrame</c> 1, no wait frames). 🔴 Red-proof: the old guard (wait for each step to land before the
+    /// next) leaves a 0 between every two 1s in <c>RetiredPerFrame</c>.
+    /// </summary>
+    [Fact]
+    public void CE4038_WithTheMasterOneFrameBehind_TheKernelStillStepsEveryFrame()
+    {
+        var host = new FakeEditor(Store()) { Lag = 1 };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, host);
+        var r = runner.Reports[0];
+        Assert.Equal("ok", r.Status);
+        Assert.Equal((1, 1, 0L), (r.MaxStepsInAFrame, r.MaxRetiredInAFrame, r.WaitFrames));
+        var steps = host.RetiredPerFrame.SkipWhile(n => n == 0).Reverse().SkipWhile(n => n == 0).Reverse().ToList();
+        Assert.All(steps, n => Assert.Equal(1, n));                 // ⭐ one step EVERY frame, from the first to the last
+        Assert.True(steps.Count > 90, $"{steps.Count} frames stepped");
     }
 
     /// <summary>B1 — a take naming a unit the scenario lacks is refused WITH the name; the reel goes on to the next item (R-106).</summary>

@@ -47,7 +47,10 @@ namespace Hrot.Editor.Director
         public double RealtimeFactor { get; set; } = 1d;
         public long Steps { get; set; }
         public long LateFrames { get; set; }
-        public long UnretiredSteps { get; set; }
+        /// <summary>Frames with no step because the master had not taken the last TWO (it fell behind; 0 on a healthy run).</summary>
+        public long WaitFrames { get; set; }
+        /// <summary>⭐ The most steps the master took in one frame, measured from the clock — 1 when the stepping rule holds at the KERNEL.</summary>
+        public int MaxRetiredInAFrame { get; set; }
         public int MaxStepsInAFrame { get; set; }
         public int Frames { get; set; }
         public double SimEnd { get; set; }
@@ -68,7 +71,7 @@ namespace Hrot.Editor.Director
                 ["skippedReplays"] = new JsonArray(SkippedReplays.Select(x => (JsonNode?)x).ToArray()), ["unresolved"] = A(Unresolved),
                 ["found"] = found, ["tickHz"] = TickHz, ["usedBake"] = UsedBake,
                 ["realtimeFactor"] = Math.Round(RealtimeFactor, 3), ["steps"] = Steps, ["lateFrames"] = LateFrames,
-                ["unretiredSteps"] = UnretiredSteps, ["maxStepsInAFrame"] = MaxStepsInAFrame, ["frames"] = Frames,
+                ["waitFrames"] = WaitFrames, ["maxStepsInAFrame"] = MaxStepsInAFrame, ["maxRetiredInAFrame"] = MaxRetiredInAFrame, ["frames"] = Frames,
                 ["simEnd"] = Math.Round(SimEnd, 3), ["wallSeconds"] = Math.Round(WallSeconds, 2),
                 ["cuts"] = new JsonArray(Cuts.Select(c => (JsonNode?)c.ToJson()).ToArray()),
             };
@@ -113,8 +116,11 @@ namespace Hrot.Editor.Director
     /// <para>⭐⭐⭐ <b>THE STEPPING RULE (§0): exactly one step per rendered frame — never zero, never two.</b> <see cref="Tick"/> is called once
     /// per frame (<c>EditorSubsystem.Update</c>, after the debug jobs drain) and takes at most one step through the ONE place that steps
     /// (<see cref="StepOnce"/>, which throws on a second). Live, the frame is HELD to real time (<see cref="PacedClock"/>) instead of skipping
-    /// or doubling a step. ⚠ A step the master has not retired by the next frame is not followed by another (two would land in one frame); it
-    /// is counted (<see cref="ItemReport.UnretiredSteps"/>).</para>
+    /// or doubling a step. 📐 <b>Measured in the editor (`2026-10-21`): the master takes a step ONE FRAME after it is asked for</b> (the intent
+    /// crosses the orchestration bus), so one step is always in flight; a frame that finds TWO outstanding takes none (counted,
+    /// <see cref="ItemReport.WaitFrames"/>), so the master can never be handed two to take at once. The most it took in one frame is measured
+    /// from the clock (<see cref="ItemReport.MaxRetiredInAFrame"/>). ⛔ SUPERSEDED: "a step not retired by the next frame is not followed by
+    /// another" — with the editor's one-frame lag that stepped every OTHER frame, a paused frame between every two steps.</para>
     ///
     /// <para>⭐ Every system it adds runs every frame, paused or not (it is the director, and the preview is paused): intended
     /// <c>[TickMode(EveryFrame)]</c> once CE-3293 S1 lands — it is not a kernel system today, it is called by the editor's update.</para>
@@ -146,7 +152,7 @@ namespace Hrot.Editor.Director
         private TimelineShot? _shot;
         private bool _inGap = true;
         private int _stepsThisTick;
-        private double? _simAtLastStep;
+        private long _issued, _retiredSeen;
         private bool _paused;
         private int _liveCount;
         // capture
@@ -288,7 +294,7 @@ namespace Hrot.Editor.Director
         {
             _item = index;
             _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
-            _exitedForLoad = false; _enterFrames = 0; _simAtLastStep = null; _pendingCapture = null; _liveCount = 0;
+            _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -374,12 +380,11 @@ namespace Hrot.Editor.Director
             var mode = _request!.Mode;
             double rel = Rel;
 
-            // ⭐ the step taken last frame must have landed before the next is asked for (two would be retired in one frame)
-            if (_simAtLastStep is { } before && _host.SimTime <= before + 1e-9)
-            {
-                Report.UnretiredSteps++;
-                return;
-            }
+            // ⭐ the master takes a step a frame after it is asked (one is in flight); with TWO outstanding it would take both at once
+            long retired = (long)Math.Round(rel / _clock!.StepSeconds);
+            Report.MaxRetiredInAFrame = Math.Max(Report.MaxRetiredInAFrame, (int)(retired - _retiredSeen));
+            _retiredSeen = retired;
+            bool masterBehind = _issued - retired >= 2;
 
             _book!.Observe(_host.World!, _units, rel);
             if (_book.Live.Count != _liveCount)
@@ -395,6 +400,7 @@ namespace Hrot.Editor.Director
             DirectUpcoming(rel);
 
             if (_paused) return;
+            if (masterBehind) { Report.WaitFrames++; return; }
 
             if (mode == DirectorMode.Capture)
             {
@@ -413,7 +419,7 @@ namespace Hrot.Editor.Director
         private void StepOnce()
         {
             if (++_stepsThisTick > 1) throw new DirectorSteppingException($"two steps in one frame (frame {Frames})");
-            _simAtLastStep = _host.SimTime;
+            _issued++;
             _host.StepBy(_clock!.StepSeconds);
             if (_shot != null && _request!.Mode == DirectorMode.Live) _clock.Stepped(_host.WallNow);
             Report.Steps++;
