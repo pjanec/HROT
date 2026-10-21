@@ -1,12 +1,21 @@
 {
   "title": "Hull-down platoon",
   "caption": "Pairs creep to the crest, fire one round each and reverse out of sight",
+  "endAt": 270,
   "anchors": {
     "first": {
       "on": "shot",
       "by": "*Tank",
       "n": 1
     }
+  },
+  "baked": {
+    "times": {
+      "first": 210.6833
+    },
+    "tickHz": 60,
+    "scenarioHash": "0d5a41ee5ed7207e",
+    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
   },
   "shots": [
     {
@@ -47,6 +56,5 @@
   ],
   "clip": "F-46",
   "chapter": 9,
-  "state": "ready",
-  "endAt": 270
+  "state": "ready"
 }
