@@ -268,6 +268,13 @@ sequenceDiagram
 | rails | `Map3DTests.CE1236_EveryWeapon_IsDrawnAsWhatItIs` (red-proved); frame `Map3DFrameRail.CE1236_V_EveryWeapon_IsDrawnAsWhatItIs` |
 | deviation | ⚠ §2 named the classes `HandItems` / `HandItemLook`; built as `HeldWeapons` / `HeldLook` — the weapon half; the pocket items and the hands round join `HeldLook` when built (`CE-1169`) |
 
+| | |
+|---|---|
+| ![rifle, pistol, MG, sniper, RPG](assets/map-3d/weapons-1-rifle-pistol-mg-sniper-rpg.png) | ![slung RPG, Javelin, mortars](assets/map-3d/weapons-2-slung-javelin-mortars.png) |
+| *right to left: the rifle, the pistol (both hands), the PKM at Ready (box, bipod), the sniper (scope), the RPG on the shoulder (warhead)* | *right to left: the insurgent on his rifle with the RPG on his back, the Javelin at ease (sight), the MortarTeam firing (the mortar at his right side), the MortarTeam at ease (tube and baseplate on his back)* |
+| ![the mortarman](assets/map-3d/weapons-3-mortar-close.png) | |
+| *the firing mortarman from his front: his right hand at the tube's mouth (measured on the first frame and moved: 0.62 m ahead and 0.28 m right put the tube a metre from either shoulder)* | |
+
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 
 | # | gap | lean | owner |
