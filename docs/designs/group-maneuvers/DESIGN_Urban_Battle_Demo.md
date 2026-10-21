@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5 steps 1–7 built; §6 the ladder, step 8)
+updated: 2026-10-21 (§6a.1 CE-4032 fixed — danger close, the route start, the halted-carrier dismount, the hold leaves a fight) · 2026-10-20 (§5 steps 1–7 built; §6 the ladder, step 8)
 build-state: PLANNED — §5 is the approved order (R-2060, 2026-10-19); still the infrastructure first (R-2051), the demos after it
 current-answer: §1 the scene · §2 INVENTORY (measured) · §3 the two routes · §4 the infrastructure it needs · §4a the stage · §4b the quarter plan (UI-8, built) · §5 the order · §6 the ladder (step 8)
 stale-below: nothing.
@@ -242,6 +242,21 @@ HAPPENED and was visible.
 | ② the men stand round the vehicle | ⭐ Squad A **never dismounts**: its APC is never hit, so neither SOP row fires (under fire while mounted / carrier hit) — they sit in a wedged APC. Squad B dismounts at 18 s, closes and suppresses briefly, carries a casualty — then the **platoon's `PlatoonHold` at ~126 s** puts it back to a hold; **13 rounds fired by the whole squad in 10 minutes** (the IFV fired 242) | run 3 per-man tasks: `ReactToContact` → `AdvanceTo` → `Suppress`/`CarryCasualty` → `InfantrySquadHold` → none |
 
 ⚠ Also measured, not explained: ① the cold navmesh bake of demo-city with the quarters takes **27.6 s on SimHost and its heartbeat lapses — the node is EJECTED** during the load (`CE-4033`); a warm cache loads; ② one run at 2× timescale froze both vehicles at y ≈ 85 for 575 s while the clock ran — not reproduced at 1×. ⇒ each run differs; four runs are not a distribution.
+
+#### 6a.1 ✅ Fixed `2026-10-21` (behaviors, `CE-4032`, R-2068)
+
+🔒 User, `2026-10-21`, forwarding the coordinator's three asks: *"Let the insurgent spotter call danger-close fire, or move the fire team.
+That unlocks the mortar, which in turn unlocks the aircraft."* · *"Make the APC actually lead: same speed or fixed spacing, so the Bradley
+can't overtake."* · *"Find out why a squad sitting in a stuck vehicle under nearby contact never gets out, and why the platoon's hold stops a
+fight that's going on."*
+
+| finding | root cause, measured in code | fix | owning design |
+|---|---|---|---|
+| ③④ mortar, aircraft | the spotter never declared danger close (SP-5) and an ambush always has friends within 600 m | the spotter says danger close when his side is within 600 m; the battery still refuses an undeclared one | Indirect Fire §3.11 SP-5 (amended) |
+| ① the IFV leads | every `FollowRoute` started at progress 0; the APC, 10 m past the route's first waypoint, turned back to it while the IFV drove on | a one-shot route starts at the point nearest the vehicle | Navigation v2 §3.1 (`CE-4032` note) |
+| ② Squad A stays aboard | the APC was never hit, and the riding row outranks the contact rows | a squad in a STOPPED carrier with an enemy known within 300 m (by it or the crew) dismounts | Squad Tactics §5b.2 |
+| ② Squad B stops fighting | `PlatoonHold` ordered every squad to hold, and a superior order replaces a running reaction | the hold leaves a squad fighting its own reaction, and holds it when that ends | Command Chain §6 (the `PlatoonHold` row) |
+| the APC wedging beside the IFV | a consequence of the overtaking (it tried to pass the stopped IFV) — not reproduced once the APC leads; ⚠ the vehicle avoidance itself is backend's | — | — |
 
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.

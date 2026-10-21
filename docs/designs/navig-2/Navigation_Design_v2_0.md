@@ -275,6 +275,13 @@ the braking envelope's basis · `docs/DESIGN_Terrain_World.md` §8 — does not 
 > residue: a path driven at 10 m/s comes to rest 4.3 m past its end — inside the 5 m arrival radius, the same standard as
 > Direct mode (controller lag). Rails in `PathfindingSolverSystemTests` and `CarKinematicsSystemTests` (`CE2059_*`, `CE2060_*`).
 >
+> ⭐ **`CE-4032` (`2026-10-21`, behaviors, cross-lane) — a route STARTS where the vehicle stands along it.** `ProgressS` began at 0 for
+> every `FollowRoute`, and steering aims a few metres past the progress point, so a vehicle authored past the route's first waypoint turned
+> back to it (📌 `uc-urban-battle`: the lead APC, 10 m past the start, turned round while the IFV behind drove on and took the lead, every
+> run). `NavigationIntentBridgeSystem.StartProgress` now starts a one-shot route at the arc length of its point nearest the vehicle — from
+> the trajectory pool when the bridge has one, else from the route entity's waypoints (`IRouteSource.TryGetRoute`; SimHost passes no pool).
+> A looped route starts at 0 as before. Rail `NavigationIntentBridgeSystemTests.CE4032_*`.
+
 > ⚠ **DEVIATION found by the live run — arrival is now confirmed by POSITION.** `ProgressS` is DEAD-RECKONED (`+= speed·dt`),
 > so the Return leg's turn-around counted as progress and the tank "arrived" 23 m short of home. Two changes in
 > `CarKinematicsSystem`: ① only motion ALONG the path counts (`speed·dt·max(0, fwd·tangent)`); ② at progress-end, a vehicle

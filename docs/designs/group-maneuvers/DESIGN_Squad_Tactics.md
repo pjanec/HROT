@@ -1713,7 +1713,7 @@ classDiagram
   class PushThroughParamsJsonDto { <<NEW>> Metres · Speed · TimeoutSeconds }
   class ConvoyConditions { <<NEW SharedAiCondition>> CanPushThrough(self) — carries a live passenger, moving, can move }
   class BasicVehicleSop { <<EXTENDED recipe>> + row: Hit AND CanPushThrough → React PushThrough, before "Hit → fight from cover" }
-  class SquadSopConditions { <<EXTENDED>> SensedFreshAboard: the carrier on the ground AND STANDING }
+  class SquadSopConditions { <<EXTENDED>> SensedFreshAboard: the carrier on the ground AND STANDING · ContactWhileHalted (CE-4032) }
   class LocomotionMoveTo { <<existing>> Issue · Status · Stop }
   class VehicleCover { <<existing>> IsStanding }
   class ReplicatedMotion { <<existing>> the velocity this node knows }
@@ -1740,6 +1740,7 @@ sequenceDiagram
   E->>V: a second carrier: mobility kill (CanMove gone) ⇒ it stops
   V->>V: CanPushThrough false ⇒ "Hit → fight from cover" (it cannot move: it fights where it stands)
   S->>S: under fire AND the carrier standing ⇒ SquadDismount ⇒ then the battle drill
+  S->>S: CE-4032 — not fired at, the carrier stopped, an enemy known within 300 m ⇒ SquadDismount
 ```
 *What the picture shows that prose hid:* the same squad row both rides on and gets out — the carrier's speed picks which — so a
 carrier that is stopped by the hit, or was already stopped, unloads as before.
@@ -1781,6 +1782,21 @@ Rails `BasicVehicleSopTests.CE2307_*` (the vehicle's own suite) and a CE-2307 as
 `SquadManeuverTests.CE1056_BasicSquadSop_UnderFireWhileMounted_*` (the dismount row's rail) — mutants 6/6 killed.
 
 📐 **Live, `uc-convoy-hit` (Urban Battle §6 L2, demo-city, 2026-10-20):** the trigger man's 8 kg charge hit the moving `MilitaryApc` (2001) 3.7 m off (500 → 457); the APC sensed the Hit — but ⚠ **this APC loses `CanMove` on ANY hit** (`MobilityKillBelowFraction = 1`, `CE-3092`, user-approved, PACK-M002), so `CanPushThrough` is false, the carrier stands, and the squad's gated row dismounts it — the CH-3 branch, as designed. ⇒ the push-through branch needs a carrier that survives a hit mobile (the Bradley, 0.6) — ⛔ not this APC; changing its data is backend's and the user's call. ⭐⭐ **And `CE-2313`, found on the Bradley variant (`uc-convoy-hit-ifv`):** on the brain node `VehicleCover.IsStanding` read the vehicle's stale `VehicleState` (Speed 0) before its replicated velocity (8 m/s), so EVERY moving carrier read as standing there — no push-through ever, and the squad's gated row let it out at speed. Fixed in `IsStanding` (a replica reads its replicated motion first; [Peek & Fire §9.7](../../DESIGN_Peek_And_Fire.md)); rail `BasicVehicleSopTests.CE2313_*`. ⭐ And the squad's gate: a carrier running `PushThrough` is not "on the ground" even in the moment it slows near a stop to issue its move (measured ~0.6 m/s; the squad got out in that dip) — `SquadSopConditions` `OnTheGround` + `!PushingThrough`; the CE1056 rail holds the case. ✅ `uc-convoy-hit-ifv` live 9/9.
+
+### 5b.2 ⭐ A halted carrier near the enemy — the squad gets out *(`CE-4032`, behaviors, `2026-10-21`; user: *"Find out why a squad sitting in a stuck vehicle under nearby contact never gets out"*)*
+
+📐 **Measured:** Squad A sat in a wedged APC for ten minutes 50 m from the ambush on `uc-urban-battle` (Urban Battle §6a). Its APC was never
+hit, so the only dismount row (under fire while mounted) never fired, and the riding row (`SquadRide`, above the contact rows so a squad
+shot at in the AIR rides on) kept it aboard. A passenger sees nothing from a closed cabin (`PhysicalPresence.IsHidden`), so its own pool
+may be empty while the crew sees the enemy.
+
+| decision | as built |
+|---|---|
+| a squad whose carrier STANDS on the ground (the dismount row's own test — not pushing through, not the stop that picks it up) and that knows — or whose carrier's crew knows — a live enemy within **300 m** gets out (React `SquadDismount`, urgency Contact) | `SquadSopConditions.ContactWhileHalted` · `BasicSquadSop` row "Enemy near a halted carrier → dismount", after "under fire while mounted", before "riding" |
+| a carrier that DRIVES carries its squad on (CH-3 unchanged) | the standing test |
+
+Rail `SquadManeuverTests.CE4032_BasicSquadSop_AnEnemyNearAHaltedCarrier_TheSquadGetsOut` (drives ⇒ rides · stopped, enemy 400 m ⇒ rides ·
+stopped, 50 m ⇒ dismounts), red under its mutant.
 
 ## 6. Formations — as measured *(2026-10-11)*
 

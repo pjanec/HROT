@@ -199,6 +199,53 @@ namespace Fdp.Toolkit.Navigation.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4032</c> — a vehicle starting a one-shot route where it already stands PART WAY along it starts at its own place on
+        /// it, not at the first waypoint behind it: 📌 live on <c>uc-urban-battle</c> the lead APC, 10 m past the route's start, turned
+        /// back to it while the IFV behind drove on and took the lead, every run. One standing before the start starts at 0; a looped
+        /// route starts at 0. ✅ Red-proof: the start progress back to 0 ⇒ 10 expected, 0 seen.
+        /// </summary>
+        [Fact]
+        public void CE4032_AFollowRoute_StartsWhereTheVehicleStandsAlongIt_NotBehindIt()
+        {
+            float Start(Vector3 at, bool loop = false)
+            {
+                var repo = CreateWorld();
+                repo.RegisterComponent<SimTransform>();
+                var system = new NavigationIntentBridgeSystem { RouteSource = new OneRoute(loop) };
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.FollowRoute, RouteEntityId = 9811, IntentId = 1u });
+                repo.AddComponent(e, new NavState());
+                repo.Bus.SwapBuffers();
+                system.Execute(repo, 0.016f);
+                var nav = repo.GetComponent<NavState>(e);
+                Assert.Equal(KinematicsMode.CustomTrajectory, nav.Mode);
+                repo.Dispose();
+                return nav.ProgressS;
+            }
+
+            Assert.Equal(10f, Start(new Vector3(652, 40, 0)), 3);     // the APC, 10 m past the start
+            Assert.Equal(0f, Start(new Vector3(652, 15, 0)), 3);      // the IFV, 15 m before it
+            Assert.Equal(350f, Start(new Vector3(653, 390, 0)), 3);   // past the end: the end (350 m long)
+            Assert.Equal(0f, Start(new Vector3(652, 40, 0), loop: true));
+        }
+
+        private sealed class OneRoute : IRouteSource
+        {
+            private readonly bool _loop;
+            public OneRoute(bool loop) => _loop = loop;
+            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 5; return true; }
+            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            {
+                into.Clear();
+                into.Add(new NavRouteWaypoint(new Vector3(652, 30, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
+                into.Add(new NavRouteWaypoint(new Vector3(652, 380, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
+                loop = _loop; version = 1;
+                return true;
+            }
+        }
+
+        /// <summary>
         /// None intent halts navigation — NavState.Mode = KinematicsMode.None, TargetSpeed = 0.
         /// </summary>
         [Fact]

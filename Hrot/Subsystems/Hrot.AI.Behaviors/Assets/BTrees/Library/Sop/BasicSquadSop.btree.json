@@ -32,6 +32,7 @@
         "c2123000-0000-0000-0000-000000000093",
         "c2123000-0000-0000-0000-000000000070",
         "c2123000-0000-0000-0000-000000000040",
+        "c2123000-0000-0000-0000-0000000000b0",
         "c2123000-0000-0000-0000-000000000080",
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
@@ -296,6 +297,56 @@
         "X": 40,
         "Y": 400,
         "Comment": "Everyone out beside the hull; done when nobody is aboard.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-0000000000b0",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-0000000000b1",
+        "c2123000-0000-0000-0000-0000000000b2"
+      ],
+      "DisplayLabel": "Enemy near a halted carrier → dismount",
+      "EditorMetadata": {
+        "X": -140,
+        "Y": 600,
+        "Comment": "CE-4032: the squad sits in a carrier that has stopped on the ground and an enemy is known within 300 m (by the squad, or by the carrier's crew) — get out and fight. Above the riding row: a squad in a carrier that DRIVES rides on. Measured live on uc-urban-battle: Squad A sat in a wedged APC for ten minutes, 50 m from the fight.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.SquadSopConditions.ContactWhileHalted"
+      },
+      "VisualId": "c2123000-0000-0000-0000-0000000000b1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Enemy within 300 m, the carrier stopped",
+      "EditorMetadata": {
+        "X": -220,
+        "Y": 740,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "SquadDismount",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2123000-0000-0000-0000-0000000000b2",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: SquadDismount",
+      "EditorMetadata": {
+        "X": -60,
+        "Y": 740,
+        "Comment": null,
         "Collapsed": false,
         "Color": null
       }
