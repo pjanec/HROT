@@ -98,6 +98,59 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         /// <summary>⭐ CE-2171 — the trajectory a FollowRoute intent drives on THIS node: the route entity's own compiled one when the
         /// intent names a route and this node compiled it, else the intent's local <see cref="NavigationIntent.TrajectoryId"/>.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-4032</c> (behaviors, cross-lane) — where a route starts for <paramref name="entity"/>: the point of a one-shot route
+        /// nearest to where it stands, so a vehicle authored partway along its route drives ON. ⛔ Was always 0: steering aims a few metres
+        /// past the progress point, so a vehicle standing past the route's first waypoint turned back to it — 📌 measured live on
+        /// <c>uc-urban-battle</c>: the lead APC (10 m past the start) turned round while the IFV behind it drove on and took the lead, every
+        /// run. A looped route, an unknown trajectory or no position ⇒ 0, as before.
+        /// </summary>
+        private float StartProgress(EntityRepository repo, Entity entity, in NavigationIntent intent, int trajectory)
+        {
+            if (!repo.HasComponent<SimTransform>(entity)) return 0f;
+            var at3 = repo.GetComponentRO<SimTransform>(entity).Position;
+            var at = new Vector2(at3.X, at3.Y);
+            if (_trajectoryPool != null && _trajectoryPool.TryGetTrajectory(trajectory, out var traj)) return NearestProgress(in traj, at);
+            // the host's route source (SimHost passes no pool): the route entity's own waypoints — the polyline its trajectory is compiled from
+            if (RouteSource == null || intent.RouteEntityId == 0) return 0f;
+            _routePoints.Clear();
+            if (!RouteSource.TryGetRoute(repo, intent.RouteEntityId, _routePoints, out bool loop, out _) || loop) return 0f;
+            float best = float.MaxValue, progress = 0f, cumulative = 0f;
+            for (int k = 0; k < _routePoints.Count - 1; k++)
+            {
+                var pa = new Vector2(_routePoints[k].Position.X, _routePoints[k].Position.Y);
+                var ab = new Vector2(_routePoints[k + 1].Position.X, _routePoints[k + 1].Position.Y) - pa;
+                float len = ab.Length();
+                float along = len < 1e-4f ? 0f : Math.Clamp(Vector2.Dot(at - pa, ab / len), 0f, len);
+                float d = Vector2.DistanceSquared(at, len < 1e-4f ? pa : pa + ab / len * along);
+                if (d < best) { best = d; progress = cumulative + along; }
+                cumulative += len;
+            }
+            return progress;
+        }
+
+        private readonly List<NavRouteWaypoint> _routePoints = new();
+
+        /// <summary>⭐ <c>CE-4032</c> — the arc length (XY) of the point of a one-shot <paramref name="traj"/> nearest <paramref name="at"/>
+        /// (0 for a looped one); public for the rails.</summary>
+        public static float NearestProgress(in CustomTrajectory traj, Vector2 at)
+        {
+            int n = traj.Waypoints.Length;
+            if (traj.IsLooped != 0 || n < 2) return 0f;
+            float best = float.MaxValue, progress = 0f;
+            for (int k = 0; k < n - 1; k++)
+            {
+                var a = traj.Waypoints[k];
+                var pa = new Vector2(a.Position.X, a.Position.Y);
+                var ab = new Vector2(traj.Waypoints[k + 1].Position.X, traj.Waypoints[k + 1].Position.Y) - pa;
+                float len = ab.Length();
+                float along = len < 1e-4f ? 0f : Math.Clamp(Vector2.Dot(at - pa, ab / len), 0f, len);
+                float d = Vector2.DistanceSquared(at, pa + (len < 1e-4f ? Vector2.Zero : ab / len * along));
+                if (d < best) { best = d; progress = a.CumulativeDistance + along; }
+            }
+            return progress;
+        }
+
         private int ResolveRouteTrajectory(EntityRepository repo, in NavigationIntent intent)
         {
             if (intent.RouteEntityId != 0 && RouteSource != null && RouteSource.TryGetTrajectory(repo, intent.RouteEntityId, out int own))
@@ -243,7 +296,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.TrajectoryId = trajectory;
                         nav.TargetSpeed  = intent.TargetSpeed;   // ⭐ CE-2060 — caps the route's speeds (0 = uncapped); was left from the previous move
                         nav.HasArrived   = 0;
-                        nav.ProgressS    = 0f; 
+                        nav.ProgressS    = StartProgress(repo, entity, in intent, trajectory);   // ⭐ CE-4032
                         break;
 
                     default:
@@ -287,7 +340,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                     nav.TrajectoryId = trajectory;
                     nav.TargetSpeed  = pendingIntent.TargetSpeed;
                     nav.HasArrived   = 0;
-                    nav.ProgressS    = 0f;
+                    nav.ProgressS    = StartProgress(repo, pending, in pendingIntent, trajectory);   // ⭐ CE-4032
                     repo.SetComponent(pending, nav);
                     _lastAppliedIntentId[pending] = pendingIntent.IntentId;
                     _pendingRoute.Remove(pending);

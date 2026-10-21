@@ -211,6 +211,67 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-4032</c> — how near an enemy must be for a squad in a halted carrier to get out (m).</summary>
+        public const float HaltedContactMetres = 300f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4032</c> — the squad sits in a carrier that has STOPPED on the ground (standing, not pushing through, not the stop that
+        /// picks it up — the dismount row's own test) and an enemy is known within <see cref="HaltedContactMetres"/> of it — by the squad,
+        /// or by the carrier's crew (a cabin hides its passengers' eyes). ⇒ the squad gets out and fights. 📌 Live on
+        /// <c>uc-urban-battle</c>: Squad A sat in a wedged APC for ten minutes while the ambush fought on 50 m away — never shot at, so the
+        /// under-fire row never fired, and the riding row above the contact rows kept it aboard. A carrier that DRIVES carries it on.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static unsafe bool ContactWhileHalted(Entity self, EntityRepository world)
+        {
+            var carrier = HaltedCarrier(world, self, 0);
+            if (carrier.IsNull || !world.HasComponent<SimTransform>(carrier)) return false;
+            var at = world.GetComponentRO<SimTransform>(carrier).Position;
+            float r2 = HaltedContactMetres * HaltedContactMetres;
+            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()
+                && world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(carrier))
+            {
+                ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(carrier);
+                for (int i = 0; i < mem.Count && i < 32; i++)
+                {
+                    var e = new Entity((ulong)mem.EntityIds[i]);
+                    if (mem.EntityIds[i] <= 0 || !world.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, carrier, e)) continue;
+                    if (new Vector2(mem.PositionsX[i] - at.X, mem.PositionsY[i] - at.Y).LengthSquared() <= r2) return true;
+                }
+            }
+            if (!world.HasComponent<SquadCognitiveState>(self)) return false;
+            ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(self);
+            var pool = MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
+            {
+                if (pool[i].EntityId > 0 && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, new Entity((ulong)pool[i].EntityId))) continue;
+                if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The carrier a member of <paramref name="commander"/> is aboard, when it stands on the ground (<see cref="AboardWhere.OnTheGround"/>).</summary>
+        private static Entity HaltedCarrier(EntityRepository world, Entity commander, int depth)
+        {
+            if (!world.HasComponent<UnitRoster>(commander)) return Entity.Null;
+            var roster = world.GetComponentRO<UnitRoster>(commander);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (!world.IsAlive(m)) continue;
+                var carrier = AirHolds.CarrierOf(world, m);
+                if (!carrier.IsNull && AboardWhereIs(world, m, AboardWhere.OnTheGround, 0)) return carrier;
+                if (carrier.IsNull && depth < 4 && SquadManeuverRunner.IsUnit(world, m))
+                {
+                    var inner = HaltedCarrier(world, m, depth + 1);
+                    if (!inner.IsNull) return inner;
+                }
+            }
+            return Entity.Null;
+        }
+
         private enum AboardWhere : byte { OnTheGround, Unloading, Roping, Dropping }
 
         private static readonly int PushThroughHash = BehaviorHash.FromName(BehaviorNames.PushThrough);

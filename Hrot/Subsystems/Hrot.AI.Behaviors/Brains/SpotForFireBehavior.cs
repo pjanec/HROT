@@ -88,6 +88,10 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Target = at, Battery = battery, Rounds = p.Observe.Rounds, Sheaf = p.Observe.Sheaf, SheafWidthM = p.Observe.SheafWidthM,
                 Control = p.Observe.Control, Locating = p.Observe.Locating,
+                // ⭐ CE-4032 (SP-5 amended, R-2068) — the observer SAYS danger close when his own side is within the battery's 600 m: in an
+                //   ambush it always is (📌 uc-urban-battle: the fire team ~60 m off the call ⇒ every mission refused, 0 rounds in 589 s).
+                //   The battery still owns the rule — it refuses an undeclared one (FM-5).
+                DangerClose = IndirectFireNodes.DangerClose(world, self, at) ? (byte)1 : (byte)0,
             };
             p.Observing = 1;
             p.Missions++;

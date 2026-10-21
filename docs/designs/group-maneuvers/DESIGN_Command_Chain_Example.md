@@ -217,7 +217,7 @@ public struct SetReportingEvent                      // the SetRoeEvent twin
 
 | the platoon's SOP `BasicPlatoonSop` (BTree, the `BasicSquadSop` shape) | |
 |---|---|
-| `Sequence( SensedFresh(reportReceived) , ElementReported(size ≥ team, within 400 m) , SopOrder{React PlatoonHold, Contact} )` | `PlatoonHold` orders both squads `Order.SquadHold` and ends when no element is fresh for 30 s; the task resumes at its state |
+| `Sequence( SensedFresh(reportReceived) , ElementReported(size ≥ team, within 400 m) , SopOrder{React PlatoonHold, Contact} )` | `PlatoonHold` orders both squads `Order.SquadHold` and ends when no element is fresh for 30 s; the task resumes at its state · ⭐ `CE-4032` (`2026-10-21`): a squad running its OWN reaction (origin Reaction — its SOP answered a contact, fire, a casualty) is left to fight and held once that ends — a superior's order replaces a reaction, and live on `uc-urban-battle` the hold ended Squad B's contact drill at ~126 s (13 rounds in 10 min). Rail `CE4032_ThePlatoonHold_*` |
 
 ## 7. Decisions *(⭐ leans — for the user)*
 

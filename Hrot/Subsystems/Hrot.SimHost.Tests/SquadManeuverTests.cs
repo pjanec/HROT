@@ -2810,6 +2810,30 @@ namespace Hrot.SimHost.Tests
         /// ordered to hold (once — the order stands); the lost SPOT ends the hold, its orders are released, and the task RESUMES in its state
         /// and orders its leg's squad (Alpha) again — Bravo, whose leg is behind it, is not re-ordered. ✅ Red-proof: <c>MoveLeg</c> never
         /// re-ordering (orders given once per state) ⇒ Alpha left un-ordered after the hold.</summary>
+        /// <summary>⭐⭐ <c>CE-4032</c> — the platoon's hold leaves a squad that is fighting its OWN reaction (here Bravo's ReactToContact)
+        /// alone, holds the other at once, and holds Bravo once its reaction ends. 📌 Live on <c>uc-urban-battle</c> the hold replaced Squad
+        /// B's contact drill at ~126 s (a reaction yields to any new order). ✅ Red-proof: <c>Fighting</c> dropped ⇒ Bravo held at once.</summary>
+        [Fact]
+        public void CE4032_ThePlatoonHold_LeavesASquadFightingItsOwnReaction_AndHoldsItWhenThatEnds()
+        {
+            var p = new Platoon();
+            p.S.StartSop("BasicPlatoonSop");
+            p.Bound();
+            p.Ticks(3);
+            p.S.Repo.AddComponent(p.Bravo, new BehaviorState
+            {
+                ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact), Origin = BehaviorOrigin.Reaction,
+            });
+            p.ReportSpot(p.Alpha, new Vector3(0f, 250f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
+            Assert.Equal((1, 0), (p.OrdersTo(p.Alpha, "Order.Hold"), p.OrdersTo(p.Bravo, "Order.Hold")));
+
+            p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo).Origin = BehaviorOrigin.Superior;   // its reaction ended, its task resumed
+            p.Ticks(3);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, "Order.Hold"));
+        }
+
         [Fact]
         public void CE2294_ASpotPausesTheTask_BothSquadsHold_ThenTheTaskResumesAndReordersItsLeg()
         {
@@ -4626,6 +4650,44 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐⭐ <c>CE-4032</c> — a squad in a carrier that has STOPPED gets out when an enemy is known within 300 m (here by the
+        /// carrier's crew — the cabin hides its passengers' eyes), though nobody fired at it; while the carrier drives, or with the enemy
+        /// farther, it rides. 📌 Live on <c>uc-urban-battle</c>: Squad A sat in a wedged APC for ten minutes 50 m from the fight. ✅ Red-proof:
+        /// the row's condition false ⇒ it rides on.</summary>
+        [Fact]
+        public void CE4032_BasicSquadSop_AnEnemyNearAHaltedCarrier_TheSquadGetsOut()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = new Vector3(8f, 0f, 0f) });
+            if (!s.Repo.HasComponent<Fdp.Core.EntityInfo>(apc)) s.Repo.AddComponent(apc, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            s.Repo.AddComponent(apc, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(400f, 0f, 0f), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            void Seen(float x)
+            {
+                ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, x, 0f, 1f, s.Repo.SimulationTick);
+            }
+
+            Seen(50f);
+            Ticks(s, 20);   // the SOP re-evaluates every 0.2 s (nothing wakes it: no fire)
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // it drives: ride on
+            s.Repo.GetComponentRW<SimVelocity>(apc).Linear = Vector3.Zero;                           // it stops
+            Seen(400f);
+            Ticks(s, 20);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // the enemy 400 m off: ride on
+            Seen(50f);
+            Ticks(s, 20);   // the SOP re-evaluates every 0.2 s (nothing wakes it: no fire)
+            Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                   // 50 m off and stopped: get out
+            Assert.Equal(ReactionUrgency.Contact, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
 
         private static Entity Helicopter(Squad s, Vector3 at, long networkId)
@@ -6041,6 +6103,29 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++) s.Tick();
             Assert.Equal(2, Calls(s).Count);
             Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, Calls(s)[^1].Order.Method);
+        }
+
+        /// <summary>⭐⭐ <c>CE-4032</c> (SP-5 amended, R-2068) — the spotter SAYS danger close when a man of his own side stands within the
+        /// battery's 600 m of his target (an ambush: the fire team 60 m off the convoy), and does not when none does. 📌 Live on
+        /// <c>uc-urban-battle</c> every mission was refused "danger close" and no round fell in 589 s. ✅ Red-proof: the declaration dropped
+        /// ⇒ the first call carries no danger close.</summary>
+        [Fact]
+        public void CE4032_TheSpotter_SaysDangerClose_WhenHisOwnSideIsWithin600mOfTheTarget()
+        {
+            var s = Battery(new Vector3(0f, 0f, 0f));
+            var spotter = Spotter(s, new Vector3(5000f, -1500f, 0f));
+            for (int i = 0; i < 3; i++) Seen(s, spotter, new Vector3(5000f + i * 5f, 0f, 0f));
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.False(Assert.Single(Calls(s)).Order.DangerClose);   // nobody of his near it
+
+            var t = Battery(new Vector3(0f, 0f, 0f));
+            var spotter2 = Spotter(t, new Vector3(5000f, -1500f, 0f));
+            var team = t.Repo.CreateEntity();                            // his fire team, 60 m off the target
+            t.Repo.AddComponent(team, new SimTransform { Position = new Vector3(5060f, 0f, 0f), Rotation = Quaternion.Identity });
+            t.Repo.AddComponent(team, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            for (int i = 0; i < 3; i++) Seen(t, spotter2, new Vector3(5000f + i * 5f, 0f, 0f));
+            for (int i = 0; i < 3; i++) t.Tick();
+            Assert.True(Assert.Single(Calls(t)).Order.DangerClose);
         }
 
         /// <summary>⭐ <c>CE-2176</c> IF-3 — <c>DetonationMemorySystem</c> keeps each burst the node sees (where, whose); the bracket reads

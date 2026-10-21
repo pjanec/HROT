@@ -120,8 +120,16 @@ namespace Hrot.AI.Behaviors.Brains
             => new BTreeBuilder<PlatoonHoldBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
 
+        /// <summary>⭐ <c>CE-4032</c> — <paramref name="member"/> runs its OWN reaction (its SOP answered a contact, a casualty, fire): a
+        /// superior's order would replace it (a reaction yields to any new order), so the hold leaves it to fight and holds it once the
+        /// reaction ends. 📌 Live on <c>uc-urban-battle</c>: Squad B, closing on the ambush and carrying a casualty, was ordered to hold at
+        /// ~126 s — 13 rounds from the whole squad in ten minutes.</summary>
+        public static bool Fighting(EntityRepository world, Entity member)
+            => world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(member)
+               && world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(member).Origin == Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Reaction;
+
         /// <summary>Hold every squad (re-ordering one whose hold another run replaced) while the element is reported; Success once it
-        /// is not.</summary>
+        /// is not. A squad fighting its own reaction is left to it (<see cref="Fighting"/>).</summary>
         public static NodeStatus Run(ref ElementReportedParams p, ref PlatoonHoldState ws, Entity self, EntityRepository world)
         {
             if (!PictureConditions.ElementReported(ref p, self, world)) return NodeStatus.Success;
@@ -131,6 +139,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var member = CommandPictureOps.Subordinate(world, self, slot);
                 if (member.IsNull || !world.IsAlive(member) || CommandOrders.Stands(world, self, member)) continue;
+                if (Fighting(world, member)) continue;   // ⭐ CE-4032 — it is in its own fight: the hold waits for that to end
                 CommandOrders.Order(world, self, member, "Hold", "{}");
                 ws.Orders++;
             }
