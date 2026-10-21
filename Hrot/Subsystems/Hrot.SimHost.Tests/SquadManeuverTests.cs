@@ -4688,6 +4688,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2347</c> — the enemy near a halted carrier must be NEAR NOW: a contact last perceived more than
+        /// <see cref="SquadSopConditions.HaltedContactFreshTicks"/> ago does not put the squad out (📌 live: a squad remounting after 30 s of
+        /// quiet was put out again by contacts minutes old). ✅ Red-proof: the freshness test dropped ⇒ it gets out.</summary>
+        [Fact]
+        public void CE2347_BasicSquadSop_AnOldContactNearAHaltedCarrier_DoesNotPutTheSquadOut()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });                                     // it stands
+            if (!s.Repo.HasComponent<Fdp.Core.EntityInfo>(apc)) s.Repo.AddComponent(apc, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            s.Repo.AddComponent(apc, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            uint seen = s.Repo.SimulationTick;
+            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Repo.Tick();                 // 11 s pass
+            ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, seen);
+            Ticks(s, 20);
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // old news: ride on
+        }
+
         /// <summary>⭐ <c>CE-2347</c> — a carrier that cannot move (destroyed, or a mobility kill) STANDS for its squad, whatever velocity it
         /// still shows: 📌 live on <c>uc-urban-battle</c> the APC was destroyed at ~31 s, its replicated velocity froze at 0.33 m/s for 140 s,
         /// and Squad A sat in the wreck 55 m from the enemy. ✅ Red-proof: the <c>CanMove</c> term dropped ⇒ it rides on.</summary>

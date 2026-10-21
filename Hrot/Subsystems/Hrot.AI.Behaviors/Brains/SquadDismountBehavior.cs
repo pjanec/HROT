@@ -214,6 +214,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-4032</c> — how near an enemy must be for a squad in a halted carrier to get out (m).</summary>
         public const float HaltedContactMetres = 300f;
 
+        /// <summary>⭐ <c>CE-2347</c> — how recently the enemy must have been perceived (ticks, 10 s at 60 Hz; the clock perception stamps
+        /// <c>LastSeenTick</c> with): "an enemy near NOW". 📌 Live on <c>uc-urban-battle</c> a squad remounting after 30 s of quiet was put out
+        /// again by contacts minutes old (heard ones, with no entity id, placed at the convoy's own guns and the mortar bursts).</summary>
+        public const uint HaltedContactFreshTicks = 600;
+
+        private static bool Fresh(uint lastSeen, uint now) => lastSeen > now || now - lastSeen <= HaltedContactFreshTicks;
+
         /// <summary>
         /// ⭐⭐ <c>CE-4032</c> — the squad sits in a carrier that has STOPPED on the ground (standing, not pushing through, not the stop that
         /// picks it up — the dismount row's own test) and an enemy is known within <see cref="HaltedContactMetres"/> of it — by the squad,
@@ -236,6 +243,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var e = new Entity((ulong)mem.EntityIds[i]);
                     if (mem.EntityIds[i] <= 0 || !world.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, carrier, e)) continue;
+                    if (!Fresh(mem.LastSeenTick[i], world.SimulationTick)) continue;
                     if (new Vector2(mem.PositionsX[i] - at.X, mem.PositionsY[i] - at.Y).LengthSquared() <= r2) return true;
                 }
             }
@@ -247,6 +255,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
             {
                 if (pool[i].EntityId > 0 && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, new Entity((ulong)pool[i].EntityId))) continue;
+                if (!Fresh(pool[i].LastSeenTick, world.SimulationTick)) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
                 if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
             }
             return false;
