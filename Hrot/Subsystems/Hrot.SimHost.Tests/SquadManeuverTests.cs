@@ -2473,7 +2473,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
             s.Tick();
 
-            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); }
+            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); s.Tick(); }   // ⭐ CE-2283 — the count is the sensor's: one frame more
             s.Orders.Clear();
             RoundAt(first); RoundAt(first);
             Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(first));
@@ -2505,7 +2505,7 @@ namespace Hrot.SimHost.Tests
         private static void RoundAt(Squad s, Entity m)
         {
             s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the round → PositionUntenable (the sensor) → the play: one frame more than the play's own count
         }
 
         /// <summary>
@@ -2614,7 +2614,7 @@ namespace Hrot.SimHost.Tests
             var flanker = new Vector3(20, -10, 0);   // 25 m behind and beside the posts, outside every arc
             var enemy = s.Repo.CreateEntity();
             s.Pool(enemy, flanker, reporters: 1);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the pool → ContactOutsideSector → the play
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(first);
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(new Vector3(0, 9, 0), arc.LeftBearing, arc.RightBearing, 0f, 0f, flanker),
