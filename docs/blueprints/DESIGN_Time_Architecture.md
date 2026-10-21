@@ -24,6 +24,8 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run on a paused frame (an explicit TickMode on every
+    system and module, no default) and the step event window that settles §17's OPEN event-visibility item (CE-3293, R-3036)
   - docs/DESIGN_Film_Director.md — a CONSUMER: paces fixed steps (StepOneTick) against the wall clock for deterministic real-time playback (D-1)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-D: the step-barrier slave roster becomes the AUTHORITATIVE
     (simulation-role) nodes instead of a name match, and a departed node leaves the pending-ACK set.
@@ -1581,6 +1583,10 @@ classDiagram
 load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every
 health, every shot). Byte-identical components still differ only in labels (`SopInstanceId`, route/trajectory handles) and — fixed last —
 the heard positions.
+
+⭐ **DESIGNED `2026-10-21` → [`DESIGN_Paused_And_Stepped_Execution.md`](DESIGN_Paused_And_Stepped_Execution.md)** *(CE-3293, R-3036: every system declares
+whether it runs on a paused frame; a step-only system's plain event read returns every event since the previous step).* ⛔ The item below is
+the problem statement it settles — not built yet.
 
 ⚠ **OPEN (not built — a decision for the user): event visibility across paused frames.** An event is visible the frame after it is
 published. In HTTP stepping that is a paused frame, in paced stepping the next step ⇒ a dt-gated consumer (`HsmRunner`'s sensor events in

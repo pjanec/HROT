@@ -7,6 +7,7 @@ stale-below: none
 known-rot: §2/§6 still name the scout pass, `AnchorBook` and baked anchors as exact, and B0/B3 acceptance as "same run" — read them through R-3034 and D-3 (revised) until the classes are redrawn with B3
 known-conflict: ⚠ OPEN 2026-10-21 — the user and backend are investigating whether runs CAN be made deterministic (user: "I still believe we could make this deterministic"); §3d is written to work either way, and if determinism lands, D-3 may cut on baked times again (exact leads, replays by re-run) · R-3032 ("the scene alone") is amended by R-4060 for takes that turn layers on; R-1004 / AU-3 (sound only while possessed) by R-4059
 related-designs:
+  - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
   - RUNBOOK_Filming.md — OWNS film.py / film-events.py as built (CE-3289); D-9 makes them thin clients of this
   - PLAN_Feature_Films.md — OWNS WHAT to film (the clip list, the director's grammar §1a, the gaps); its clips.json is the seed of the takes here
