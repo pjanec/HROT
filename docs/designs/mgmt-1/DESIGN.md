@@ -21,7 +21,7 @@ known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of th
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run while time is paused; editing while paused (:431) and
-    Always Recording (:1941) here are why ~40 % of systems carry EveryFrame there (CE-3293)
+    Always Recording (:1941) here are why ~40 % of systems carry EveryFrame there (CE-3293); its rule 10: replay stays with §8.10's gates here, and a replayed frame with dt > 0 counts as advancing
   - docs/DESIGN_Terrain_Combat_Tuning.md — §5a: the terrain NAME in the recording metadata (CE-3118) and the user ruling
     behind §13.3a's scenario copy (CE-3119).
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — reuses §12.5/§12.6's gateway push for a ONE-node late-join catch-up (§4-E2 there), and records that the as-built gateway copies into a shared staging tree rather than into each node. ⚠ Its §4-E/§4-I choose a MASTER-DRIVEN join where §5 here designs a node-driven one, and keep §4.2's `TransactionEpoch` (never written as-built) as telemetry only — OPEN until §4-I is approved.
