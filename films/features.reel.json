@@ -4,37 +4,6 @@
  "note": "every ready clip in CAPABILITIES chapter order; a chapter card opens each chapter",
  "items": [
   {
-   "scenario": "ua-civ-shelter",
-   "take": "main",
-   "title": "Panic, then shelter",
-   "clip": "F-03",
-   "chapterCard": "3 · Civilians and crowds"
-  },
-  {
-   "scenario": "ua-civ-cower",
-   "take": "main",
-   "title": "Nowhere to run",
-   "clip": "F-04"
-  },
-  {
-   "scenario": "ua-civ-contagion",
-   "take": "main",
-   "title": "Fear spreads",
-   "clip": "F-05"
-  },
-  {
-   "scenario": "ua-civ-gathering",
-   "take": "main",
-   "title": "Onlookers",
-   "clip": "F-06"
-  },
-  {
-   "scenario": "ua-civ-provocation",
-   "take": "main",
-   "title": "Protest, provocation, riot",
-   "clip": "F-07"
-  },
-  {
    "scenario": "ua-armed-draw-aim",
    "take": "main",
    "title": "Drawn is not hostile, aimed is",
@@ -196,12 +165,6 @@
    "clip": "F-36"
   },
   {
-   "scenario": "bt-mortar-roof",
-   "take": "main",
-   "title": "A roof stops the blast",
-   "clip": "F-37"
-  },
-  {
    "scenario": "bc-room-clear",
    "take": "main",
    "title": "Into the room",
@@ -317,6 +280,32 @@
    "title": "Crew weapons",
    "clip": "F-60",
    "chapterCard": "12 · Weapon systems and airborne"
+  }
+ ],
+ "waiting": [
+  {
+   "clip": "F-03",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-04",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-05",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-06",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-07",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-37",
+   "why": "not ready (see PLAN_Feature_Films §1)"
   }
  ]
 }

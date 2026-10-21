@@ -43,11 +43,11 @@ it is found the same night.*
 | F-01 | weather | `ua-weather-regions` | an IFV drives east from clear weather into a fog bank, then under overcast | 🔧 the IFV has no order. Give it a move east (it now waits for an operator) |
 | F-02 | city traffic turns to panic | `demo-city` (recipe) | cars and pedestrians flow; a burst of fire; nearby pedestrians become civilians and flee | 🔧 needs a shooter in the recipe, or a plan action that fires one |
 | | **3 · Civilians** | | | |
-| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ✅ |
-| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ✅ |
-| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ✅ |
-| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ✅ (live re-run pending — the scout pass decides) |
-| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ✅ |
+| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
 | | **4 · Armed people, riots, police** | | | |
 | F-08 | drawn is not hostile; aimed is | `ua-armed-draw-aim` | a man draws a hidden pistol (~8 s) — no shot; he aims (~20–30 s) — shot | ✅ |
 | F-09 | no shot through bystanders | `ua-armed-shield` | civilians in the line; the rifleman waits; the insurgent steps clear; shot | ✅ |
@@ -82,7 +82,7 @@ it is found the same night.*
 | | **8 · Buildings** | | | |
 | F-35 | doors | `bt-doors` | a visitor skips the locked front, opens the back door; the locksmith unlocks the front | ✅ |
 | F-36 | prone saves | `bt-grenade-posture` | a grenade between a standing and a prone man; only the standing one is hurt | ✅ |
-| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | ✅ |
+| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | 🟡 the scenario has no missions — the check orders both rounds. 🔧 put the FireAtPoint missions in the file |
 | F-33 | clear a house | `bc-house-clear` | the stack at the door, then room by room seen from above, civilians spared | ✅ |
 | F-62 | into the room | `bc-room-clear` | stack beside the door, breach, entry one man at a time | ✅ (⚠ CE-2341: ~1 run in 4 the entry fails) |
 | F-38 | defend a house | `sq-defend-house` | defenders take window and roof posts and open fire as Blue crosses the sector | 🔧 CE-2304: posted defenders stall inside (Set in 4 of 5 runs) |
@@ -111,6 +111,24 @@ it is found the same night.*
 | F-59 | time on target | `ua-indirect-fire` | rounds from several guns land together | 🟡 as F-58 |
 | | **12 · Weapon systems, airborne** | | | |
 | F-60 | crew weapons | `ua-weapon-systems` | a sentry gun fires on its own; a crew sets up and mans an M2; a man picks up a Javelin | ✅ (⚠ the M2 is not checked to fire) |
+
+## 1b. What the scout saw — 2026-10-21 (editor preview, real time, one run each)
+
+48 clips scouted (all but the civilian ones, blocked, and F-01 / F-02, which need their change). Each clip's observed anchor times are in
+`clips.json` as `scouted` — ⚠ one run: another run differs (R-4064), so they order the shots, they do not time them.
+
+| outcome | clips |
+|---|---|
+| ✅ every beat happened | 37 of 48 — e.g. the TOW kills the T-72 at 7.2 s (F-40), the bomb lands 7.9 s after release (F-49), the IED goes off under the Bradley at 22.4 s (F-47), Red opens fire at 42 s and the house is entered at 291 s (F-32) |
+| 🔧 my anchor, fixed | missile / drone hits are not marked `hit` in the shot log ⇒ the target's health is the anchor (F-40, F-42, F-44, F-48) · weapons fire as themselves ("Celebrant's rifle", F-14) · no `Set` / `Scavenge` state exists (F-32, F-12) · no named door gunner (F-50) |
+| 🟡 the check drives the beat | F-28 casualty care, F-37 mortar on the roof, F-58 indirect fire |
+| ⚠ not observable yet | F-18: the danger-crossing tree shows no state change for the hold or the rush — needs position anchors |
+| ⛔ regressions found | **CE-4039** civilians no longer hear gunfire (bisected to `2abbb0c89`) · **CE-4040** panicking civilians no longer shelter (bisected to `f1f4c89ba`) |
+
+⭐ **Leads rewritten (R-4064).** No cut is placed BEFORE its event by a negative offset any more: the establishing shot starts at 0.5 s and
+holds; "before a shot" became `engage` (the shooter's aim phase begins); "before a blast" became a same-run precursor or offset (the throw
++ the fuse, the release + the fall, the bomber's `DetonateCharge`, the convoy closing on the charge); arrivals became `near` with a wider
+radius. Four clips keep negative leads until their change lands (F-18, F-28, F-37, F-58).
 
 ## 1a. The director's grammar — how every clip is cut
 
@@ -191,6 +209,7 @@ notes are [NOTE_Coordinator_To_Behaviors_Demo_Sweep.md](blueprints/batches/NOTE_
 | ⚠ **no live check at all** | `ua-grenade-or-rifle`, `ua-weather-regions`, `test-fire`, `test-move`, `tt-nav-los`, `mission-demo-bp`, `hsm-channel-e2e`, the `tt-*` recipes (rails only), `demo-city` |
 | ⚠ **doc says more than the file** | `ua-weapon-systems` (no Kornet team, the M2 never fires) · `ua-air-strike` ("untouched": the check only asks "not destroyed") · CE-2247 still shown open in the overview, DONE in the tracker · `uc-convoy-hit-ifv`'s Bradley is named "Convoy APC" |
 | ⚠ **missing from the overview** | `ua-grenade-or-rifle`, `sl0-platoon-march`, `cc-platoon-bound`, `ld-sentry-surprise(-360)`, `bc-*`, `df-*`, `uf-*` |
+| ⛔ **regressions (bisected)** | CE-4039 civilians no longer hear gunfire (`2abbb0c89`, CE-3283) · CE-4040 civilians no longer shelter (`f1f4c89ba`, CE-2304) |
 | ⚠ **cluster load** | CE-4033: on a fresh cluster the cold demo-city navmesh bake (27.6 s) gets SimHost ejected — every demo-city clip needs a warm cache |
 
 ## 5. The reels — `films/*.reel.json`

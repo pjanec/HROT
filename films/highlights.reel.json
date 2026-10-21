@@ -4,18 +4,6 @@
  "note": "the strongest beat of each area; trims keep it near 3 min",
  "items": [
   {
-   "scenario": "ua-civ-shelter",
-   "take": "main",
-   "title": "Panic, then shelter",
-   "clip": "F-03"
-  },
-  {
-   "scenario": "ua-civ-provocation",
-   "take": "main",
-   "title": "Protest, provocation, riot",
-   "clip": "F-07"
-  },
-  {
    "scenario": "ua-armed-bomber",
    "take": "main",
    "title": "Suicide bomber",
@@ -80,6 +68,16 @@
    "take": "main",
    "title": "Parachute drop",
    "clip": "F-56"
+  }
+ ],
+ "waiting": [
+  {
+   "clip": "F-03",
+   "why": "not ready (see PLAN_Feature_Films §1)"
+  },
+  {
+   "clip": "F-07",
+   "why": "not ready (see PLAN_Feature_Films §1)"
   }
  ]
 }
