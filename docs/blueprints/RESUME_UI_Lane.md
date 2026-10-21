@@ -166,7 +166,7 @@ related-designs:
 | ✅ built | B0′–B12 — the runner (one step per frame, held to real time), takes + reels (55 seeded), the shot math (film.py its client), the ready probe, `/director/*` + `/map/layers` + `/audio`, View › Director, cinema, a take's transient layers, the 2-D ear, the film's sound track |
 | 📐 measured | the editor's master takes a step ONE FRAME after it is asked for ⇒ the runner keeps one in flight (§8.2; the first guard stepped every other frame) |
 | ⏭ next | the gate rows of the REPORT (live reel, capture on the VM, the 55-take scout table, 60/20/15 Hz) · then `CE-1240` after CE-3293 S5 (re-scout all takes, B0′ becomes a gate) · `CE-1239` (OGG in the film's track) |
-| ⏭ earlier ui work still open | CE-1235…CE-1238's Windows visual checks (uniform cloth, weapon looks, Blueprint Tools panel, the crouching mortarman) |
+| ✅ visually confirmed on Windows (user, `2026-10-21`) | CE-1235 uniform cloth · CE-1236 the machine gun (⚠ the other weapon looks not yet named as seen) · CE-1237 Blueprint Tools panel · CE-1238 the crouching mortarman |
 
 ## ⭐⭐⭐ SESSION `2026-10-20` — RESUME HERE
 
