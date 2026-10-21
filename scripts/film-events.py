@@ -20,9 +20,10 @@ def main():
     ap.add_argument("scenario")
     ap.add_argument("--seconds", type=float, default=40.0, help="sim seconds to watch")
     ap.add_argument("--port", type=int, default=8111)
+    ap.add_argument("--mode", default="all", help="the ClusterRunner mode: all or editor")
     args = ap.parse_args()
     udc.BASE = f"http://localhost:{args.port}"
-    proc = udc.launch(args.port)
+    proc = udc.launch(args.port, args.mode)
     try:
         udc.load(args.scenario)
         ids = udc.ids_by_name()
@@ -33,9 +34,11 @@ def main():
             print(f"   {nid:>6}  {n:<24} {[round(float(v), 1) for v in p] if isinstance(p, list) else p}")
         udc.call("POST", "/sim/play", {})
         seen = set()
-        while (udc.sim_time() or 0.0) < args.seconds:
+        give_up = time.time() + args.seconds * 6 + 120   # a sim that never advances must not hang the probe
+        while (udc.sim_time() or 0.0) < args.seconds and time.time() < give_up:
             t = udc.sim_time() or 0.0
-            for x in udc._if_shots_all():
+            shots = udc._if_shots_all() if args.mode == "all" else (udc.data(udc.call("GET", "/combat/shots?last=64")) or {}).get("shots") or []
+            for x in shots:
                 if x.get("seq") in seen:
                     continue
                 seen.add(x.get("seq"))

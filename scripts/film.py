@@ -141,6 +141,7 @@ def main():
     ap.add_argument("--height", type=float, default=6.0)
     ap.add_argument("--ahead", type=float, default=0.35, help="share of the way to --toward the camera looks at")
     ap.add_argument("--port", type=int, default=8111)
+    ap.add_argument("--mode", default="all", help="the ClusterRunner mode: all (the cluster, one process) or editor (the editor's own world, no network)")
     ap.add_argument("--keep-frames", action="store_true")
     ap.add_argument("--attach", action="store_true", help="use a cluster already listening on --port (do not launch or load)")
     ap.add_argument("--plan", help="a JSON list of segments (see above) instead of one shot")
@@ -163,7 +164,7 @@ def main():
     proc = None
     try:
         if not args.attach:
-            proc = udc.launch(args.port)
+            proc = udc.launch(args.port, args.mode)
             udc.load(args.scenario)
         names = ids()
         steps = max(1, round(60 / args.fps))     # the sim runs 60 frames a second; one film frame = this many
