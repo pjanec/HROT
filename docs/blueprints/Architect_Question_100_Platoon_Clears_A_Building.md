@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — ⏳ ASKED 2026-10-21, awaiting the user
-updated: 2026-10-21
-build-state: DESIGN — PL-1 (CE-2264); builds after the answer
+state: LIVE — ✅ APPROVED 2026-10-21 (R-2067) — user: "Approved" (A1 · B2 · C1 · D1 · E1 · F1, the leans as written)
+updated: 2026-10-21 (approved)
+build-state: DESIGN — PL-1 (CE-2264); approved, the build is ON HOLD at the user's word ("Pls hold on just record approval")
 current-answer: §0 the decision · §2 the sub-questions with leans
 stale-below: nothing
 known-rot: none yet
@@ -16,6 +16,8 @@ related-designs:
 # Architect Question 100 — the platoon clears a building (PL-1)
 
 ## 0. The decision, in under a page
+
+🔒 **User, `2026-10-21`:** *"Approved"* — every lean below as written (R-2067). The build waits for the user's go.
 
 The platoon attack's **ClearBuilding** preset (R-2035) exists as code: `PlatoonAttack` with `Preset: ClearBuilding` sends the assault squad
 `ClearBuilding` and relieves a Black assault with a reserve (AT-9). 📐 Measured what is missing for PL-1:
