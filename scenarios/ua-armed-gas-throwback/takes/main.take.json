@@ -8,6 +8,14 @@
       "n": 1
     }
   },
+  "baked": {
+    "times": {
+      "throw": 4.3
+    },
+    "tickHz": 60,
+    "scenarioHash": "7823ae933fba393f",
+    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
+  },
   "shots": [
     {
       "at": 1,

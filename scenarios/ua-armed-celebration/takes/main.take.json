@@ -13,6 +13,15 @@
       "n": 1
     }
   },
+  "baked": {
+    "times": {
+      "volley": 3.0833,
+      "fire": 20.5833
+    },
+    "tickHz": 60,
+    "scenarioHash": "a6ab67284974b0cb",
+    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
+  },
   "shots": [
     {
       "at": "volley-1",

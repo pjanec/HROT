@@ -256,4 +256,8 @@ change the render cost per film frame.)
 unit closing on a point — and a shot is held until the next event. A capture whose required beat does not happen is re-run (a retake).
 Leads, slow motion and instant replays become exact only when films are later edited from a recording (DESIGN_Film_Director §3e).
 
+⚠ **A bake lands in the editor's WORKING copy** (`/tmp/FDP_Temp/shared/scenarios/<s>/takes/…`), and the next editor launch copies the
+repo's scenarios over it — ⇒ copy a baked take into the repo before launching again (ui's CE-1240 bakes were copied by hand; measured
+2026-10-21: a later launch wiped two bakes). The writer's file is canonical (it drops default values) — copy it as is.
+
 ⭐ **Review before render.** Watch a reel live (②) before rendering it (④): a wrong camera costs seconds live and hours overnight.
