@@ -64,6 +64,7 @@ namespace Fdp.Core
 
         private uint _currentKey;
         private uint _previousKey;
+        private uint _timelineStart;   // the key the current timeline began after (a Restart's current key; 0 for a new one)
         private bool _any;
         private long _stamp;
 
@@ -290,7 +291,8 @@ namespace Fdp.Core
                     _seen[r]  = _currentKey;
                     _state[r] = ReaderActive;
                 }
-                _previousKey = _currentKey;
+                _previousKey   = _currentKey;
+                _timelineStart = _currentKey;
                 _stamp++;
             }
         }
@@ -306,7 +308,7 @@ namespace Fdp.Core
                 _state[r] = ReaderActive;
             }
             _any = false;
-            _currentKey = _previousKey = 0;
+            _currentKey = _previousKey = _timelineStart = 0;
         }
 
         // ───────────────────────────── readers ─────────────────────────────
@@ -343,6 +345,16 @@ namespace Fdp.Core
         public int RegisterReaderAtCurrentFrame()
         {
             lock (_lock) return RegisterReader(_any ? _previousKey : 0);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 — registers a reader that is owed every event of the CURRENT TIMELINE (since the last
+        /// <see cref="Restart"/>, or all of it): a step-only system. Registered the same way on every run of a scenario, so
+        /// what its first step reads does not depend on whether it ran before (a reload) or not (the first run after boot).
+        /// </summary>
+        public int RegisterReaderAtTimelineStart()
+        {
+            lock (_lock) return RegisterReader(_timelineStart);
         }
 
         /// <summary>Unregisters a reader (a removed module); it no longer holds the history.</summary>

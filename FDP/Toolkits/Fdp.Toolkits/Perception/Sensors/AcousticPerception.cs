@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Core;
@@ -149,10 +149,16 @@ namespace Fdp.Toolkit.Perception.Sensors
             bool cursors = view is EntityRepository repo && repo.IsComponentTypeRegistered<AcousticCursor>();
             bool known = cursors && view.HasComponent<AcousticCursor>(sensorEntity);
             long after = known ? view.GetComponentRO<AcousticCursor>(sensorEntity).LastSerial : 0L;
+            // ⭐ CE-3293 — read as of THIS view's time (a background solve's snapshot carries its frame's clock), never the writer's: the
+            //   main thread goes on appending the dispatching step's sounds while the solve runs, so only what came before it is fixed
+            //   (a view with no clock reads everything, as before)
+            double asOf = view is EntityRepository clockRepo && clockRepo.HasSingleton<GlobalTime>()
+                ? clockRepo.GetSingleton<GlobalTime>().TotalTime : double.PositiveInfinity;
             // a sensor with no cursor yet hears only what is still ringing (the old linger), never the minutes before it existed
-            double notBefore = known ? double.MinValue : ring.Now - SoundEmissionSystem.SoundLingerSeconds;
+            double notBefore = known ? double.MinValue
+                : (double.IsPositiveInfinity(asOf) ? ring.Now : asOf) - SoundEmissionSystem.SoundLingerSeconds;
             Span<SoundEmission> sounds = stackalloc SoundEmission[MaxSoundsPerSolve];
-            int k = ring.ReadAfter(after, sounds, out long last, notBefore);
+            int k = ring.ReadAfter(after, sounds, out long last, notBefore, asOf);
             byte ourForce = view.HasComponent<EntityInfo>(unit) ? (byte)view.GetComponentRO<EntityInfo>(unit).ForceId : (byte)0;
             for (int i = 0; i < k; i++)
             {

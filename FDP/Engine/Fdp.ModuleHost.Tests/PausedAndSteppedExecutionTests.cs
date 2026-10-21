@@ -136,6 +136,40 @@ namespace Fdp.ModuleHost.Tests
             Assert.Equal(backToBack, Run(1));
         }
 
+        /// <summary>
+        /// ⭐ The FIRST run after boot reads what every later run reads: events published on paused frames BEFORE a step-only
+        /// system's first step (a scenario load) reach that first step, whether the system has run before (a reload — its reader
+        /// already exists) or never (the first run). 🔴 Measured live (ua-tank-ammo, four loads): the first run's systems registered
+        /// their window at their first step and missed the load's events, so it differed from every reload from the first cut.
+        /// </summary>
+        [Fact]
+        public void TheFirstRun_ReadsTheLoadsEvents_LikeEveryLaterRun()
+        {
+            int[] FirstStep(bool ranBefore)
+            {
+                var step = new StepReader();
+                var (kernel, world, clock) = Kernel(step);
+                if (ranBefore)
+                {
+                    Frame(kernel, clock, 1f / 60f);
+                    Frame(kernel, clock, 1f / 60f);
+                    clock.Epoch++;                                 // the load snaps the clock: a new timeline
+                    step.Calls.Clear();
+                }
+                for (int i = 0; i < 3; i++)                        // the load publishes while paused
+                {
+                    world.Bus.Publish(new Ping { Value = 10 + i });
+                    Frame(kernel, clock, 0f);
+                }
+                Frame(kernel, clock, 1f / 60f);                    // the first step of the run
+                kernel.Dispose(); world.Dispose();
+                return step.Calls[0].Values;
+            }
+
+            Assert.Equal(new[] { 10, 11, 12 }, FirstStep(ranBefore: true));
+            Assert.Equal(new[] { 10, 11, 12 }, FirstStep(ranBefore: false));
+        }
+
         /// <summary>⭐ Rule 7 — a SnapAndPause (the clock's timeline epoch) forgets every event from before it.</summary>
         [Fact]
         public void ASnap_ForgetsTheEventsBeforeIt()

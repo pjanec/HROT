@@ -213,5 +213,36 @@ namespace Fdp.Toolkit.Perception.Tests
             w.SetComponent(unit, new Health { Current = 90f, Max = 100f });
             Assert.Empty(Run(w, sys));                                   // healing is not a hit
         }
+
+        /// <summary>⭐⭐ <c>CE-3293</c> — a reload starts a new world: last run's threat counts and health are not this run's. 📐 Measured
+        /// live (ua-tank-ammo, four loads): every reload's first step published AllClear for a tank that had seen nothing — the
+        /// editor's reload (<c>SoftClear</c>) brings the units back under the SAME handles, so the system's own maps matched them.</summary>
+        [Fact]
+        public unsafe void AReload_StartsTheEdgesAfresh_NoAllClearOrHitFromTheLastRun_CE3293()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            w.AddComponent(unit, new Health { Current = 100f, Max = 100f });
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = (long)target.PackedValue;
+            tracks.Count = 1;
+            w.AddComponent(unit, tracks);
+            var sys = new ThreatEvaluationSystem();
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);   // last run: a threat held, health 100
+
+            w.SoftClear();                                                                   // the editor's reload
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(w);
+            var again = w.CreateEntity();
+            w.CreateEntity();
+            Assert.Equal(unit, again);                                                       // ⚠ the same handle comes back
+            w.AddComponent(again, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(again, new TargetMemory());
+            w.AddComponent(again, new Health { Current = 60f, Max = 100f });
+
+            Assert.Empty(Run(w, sys, 1f));                                                   // nothing seen, nothing lost, not hit
+        }
     }
 }

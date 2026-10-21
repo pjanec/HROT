@@ -74,6 +74,19 @@ namespace Hrot.AI.Behaviors.Brains
             });
         }
 
+        /// <summary>⭐ <c>CE-2347</c> — the commander's ticking run's LAST order to <paramref name="member"/> was exactly this one
+        /// (<paramref name="behaviour"/> with <paramref name="json"/>), whether he still runs it or has finished it. A play whose next order
+        /// differs (a squad brought its wounded in, now it boards) gives it; one whose order is unchanged does not restart a finished task.</summary>
+        public static bool Gave(EntityRepository world, Entity commander, Entity member, string behaviour, string json)
+        {
+            uint run = BehaviorOwnedParts.OwnerOf(world, commander);
+            var held = SubordinateOrders.Of(world, commander);
+            if (run == 0 || held == null) return false;
+            foreach (var e in held.Orders)
+                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
+            return false;
+        }
+
         /// <summary>⭐ <c>CE-2304</c> — the commander's ticking run already gave <paramref name="member"/> exactly this order
         /// (<paramref name="behaviour"/> with <paramref name="json"/>) and he still runs it from his superior: sending it again would only
         /// restart him — measured live, every re-send stopped a posted defender and started him again. False whenever anything differs, or

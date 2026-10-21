@@ -143,6 +143,7 @@ namespace Fdp.Toolkit.Tests.Perception
                 // ⭐ CE-3282 — a shot is heard from the lossless ring (Sensing §8.3), no longer from the emitter's linger
                 SoundEmissionRing.Of(w).Append(new SoundEmission { Source = shooter.PackedValue, Force = (byte)ForceId.Hostile,
                     Kind = (byte)SoundKind.Shot, At = new Vector3(80f, 0f, 0f), Carry = 400f });
+                w.SetSingleton(new GlobalTime { TotalTime = 0.1 });   // ⭐ CE-3293 — a solve hears what was made BEFORE its own time: the next step
                 var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
                 try
                 {

@@ -127,8 +127,10 @@ namespace Fdp.Core
         /// gate and the step windows: a <c>[TickMode(WhenTimeAdvances)]</c> system (and module) is not run on a frame that does not
         /// advance, and reads every event since its own last run. ON by default; turn it off only to bisect a red to this change.
         /// ⚠ Off is not byte-for-byte the old behaviour: the eight hand-written <c>deltaTime &lt;= 0</c> returns it replaced are gone.
+        /// The environment variable <c>FDP_TICKMODE_GATE=0</c> turns it off for a whole process (an editor or a node).
         /// </summary>
-        public static bool TickModeGate { get; set; } = true;
+        public static bool TickModeGate { get; set; } =
+            Environment.GetEnvironmentVariable("FDP_TICKMODE_GATE") != "0";   // ⭐ FDP_TICKMODE_GATE=0 bisects a LIVE run too
 
         /// <summary>
         /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a

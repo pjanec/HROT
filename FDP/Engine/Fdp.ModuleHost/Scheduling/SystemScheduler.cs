@@ -31,7 +31,44 @@ namespace Fdp.ModuleHost.Scheduling
         {
             public readonly Fdp.Core.EventAccumulator History;
             public readonly int Id;
-            public EventReader(Fdp.Core.EventAccumulator history) { History = history; Id = history.RegisterReaderAtCurrentFrame(); }
+            public EventReader(Fdp.Core.EventAccumulator history) { History = history; Id = history.RegisterReaderAtTimelineStart(); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S5 (R-3036 rule 6) — registers the step window of every step-only system this scheduler runs on the live world
+        /// (each kernel phase, group members included — not the Manual phase) and of <paramref name="extra"/> (a direct module's simulation systems) BEFORE any of them runs:
+        /// the history then keeps the whole timeline for them from its start — the same on every run of a scenario. A reader
+        /// registered lazily at a system's first run (the 📐 measured case: a reload's first step read the load's events, the
+        /// first run after boot's did not) would make the first run differ from every later one.
+        /// </summary>
+        public void RegisterStepReaders(Fdp.Core.EventAccumulator history, IEnumerable<IEcsModuleSystem>? extra = null)
+        {
+            if (!Fdp.Core.FdpConfig.TickModeGate) return;
+            foreach (var (phase, systems) in _systemsByPhase)
+            {
+                // ⛔ Not the Manual phase: a manual system runs on whatever view its module hands it — a background module's
+                //   SNAPSHOT has no step window, so a reader registered for it would never read, pin the live history and expire
+                //   (📐 measured: three EQS readers expired every run, and the pinned ring made the drops depend on paused frames).
+                //   One that does run on the live world registers at its first run, owed the timeline from its start.
+                if (phase == SystemPhase.Manual) continue;
+                foreach (var s in systems) RegisterStepReader(s, history);
+            }
+            if (extra != null)
+                foreach (var s in extra) RegisterStepReader(s, history);
+        }
+
+        private void RegisterStepReader(IEcsModuleSystem system, Fdp.Core.EventAccumulator history)
+        {
+            if (system is ISystemGroup group)
+            {
+                foreach (var member in group.GetSystems()) RegisterStepReader(member, history);
+                return;
+            }
+            if (!_tickPolicies.TryGetValue(system, out var policy))
+                _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());
+            if (policy != TickPolicy.WhenTimeAdvances) return;
+            if (_eventReaders.TryGetValue(system, out var have) && ReferenceEquals(have.History, history)) return;
+            _eventReaders[system] = new EventReader(history);
         }
 
         // CE-165 — every [SingleInstance] type seen so far, including those found inside registered groups.
