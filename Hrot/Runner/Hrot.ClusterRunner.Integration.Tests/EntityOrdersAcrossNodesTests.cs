@@ -395,6 +395,135 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1158</c> (docs/DESIGN_Entity_Control.md §8h U-4, §8h.9) — the use key's DRIVE and GET OUT across the cluster, with a pure
+    /// IG as the station (the user's "CGF + IG" run): the IG possesses a soldier brained on CGF; one use press (Drive, the IFV) boards him in
+    /// the technical's driver seat through his brain; the IG then follows <c>PossessionStation</c>'s hand-over exactly — Riding the soldier once
+    /// <see cref="Hrot.UI.Common.Map3D.PossessionStation.InDriverSeat"/> says so on the IG, then possessing the IFV — and drives it on SimHost
+    /// with the rider still held; Get out reverses it (possess the rider back as Fps, which releases the IFV; one press). Scenario
+    /// <c>ua-tank-ammo</c> (Rifleman 1 and the Technical, one force; the pickup has a real, empty Driver seat — the Bradley does NOT: its crew
+    /// is abstract, R-2009 B5, so E there offers Board).
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE1158_DriveAndGetOut_FromAnIgStation_AcrossTheCluster()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-tank-ammo", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        const string Man = "Rifleman 1", Ifv = "Technical";
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, Man).IsNull && !ByName(sim, Man).IsNull && !ByName(ig, Man).IsNull
+            && !ByName(sim, Ifv).IsNull && !ByName(ig, Ifv).IsNull, timeoutFrames: 2000), "Rifleman 1 and the Technical must exist on every node");
+        var manOnBrain = ByName(cgf, Man);
+        var manOnSim = ByName(sim, Man);
+        var manOnIg = ByName(ig, Man);
+        var ifvOnSim = ByName(sim, Ifv);
+        var ifvOnIg = ByName(ig, Ifv);
+        var igMap = harness.Ig.App.TestHook_EntityMap;
+        Assert.True(igMap.TryGetNetworkId(manOnIg, out long manId), "the Rifleman's network id on the IG");
+        Assert.True(igMap.TryGetNetworkId(ifvOnIg, out long ifvId), "the IFV's network id on the IG");
+        var station = new EntityOrders(ig, igMap, geo: null);
+        int operatorControl = BehaviorHash.FromName("OperatorControl");
+
+        Assert.True(station.Possess(manId).Accepted);
+        Assert.True(harness.PumpUntil(() =>
+        {
+            var bs = cgf.GetComponentRO<BehaviorState>(manOnBrain);
+            return bs.ActiveBehaviorHash == operatorControl && bs.Origin == BehaviorOrigin.Possession && station.HolderOf(manId) is not null;
+        }, timeoutFrames: 600), "the IG's possession must reach the CGF brain and come back to the IG");
+
+        // beside the IFV (SimHost owns his pose), until the brain's copy is within the rule's reach
+        var ifvAt = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
+        var beside = ifvAt + new System.Numerics.Vector3(Fdp.Toolkit.Behavior.Possession.OperatorUseActions.VehicleReach - 1f, 0f, 0f);
+        uint seq = 1;
+        Assert.True(harness.PumpUntil(() =>
+        {
+            sim.GetComponentRW<SimTransform>(manOnSim).Position = beside;
+            station.Control(manId, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++ });
+            var a = cgf.GetComponentRO<SimTransform>(manOnBrain).Position;
+            return System.Numerics.Vector2.Distance(new(a.X, a.Y), new(ifvAt.X, ifvAt.Y)) <= Fdp.Toolkit.Behavior.Possession.OperatorUseActions.VehicleReach - 0.5f;
+        }, timeoutFrames: 600), "the brain must see the Rifleman beside the IFV");
+
+        // ONE Drive press — the station's frame carries counter + verb + target — and the IG sees him in the driver seat
+        bool boarded = harness.PumpUntil(() =>
+        {
+            if (!ig.IsComponentTypeRegistered<IsEmbarkedTag>() || !ig.HasComponent<IsEmbarkedTag>(manOnIg))
+                sim.GetComponentRW<SimTransform>(manOnSim).Position = beside;
+            station.Control(manId, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
+            {
+                Seq = seq++, UseSeq = 1, UseVerb = 0, UseTarget = ifvId,   // the PRIMARY verb (an index into OperatorUseActions.For): Drive, the driver seat being free
+            });
+            return Hrot.UI.Common.Map3D.PossessionStation.InDriverSeat(ig, manOnIg, ifvOnIg);
+        }, timeoutFrames: 900);
+        var status = cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(manOnBrain)
+            ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(manOnBrain) : default;
+        _out.WriteLine($"verdict on CGF {status.UseSeq}/{status.ActionId}/{status.Outcome}/{status.Reason}; embarked on IG {ig.HasComponent<IsEmbarkedTag>(manOnIg)}");
+        foreach (var (node, w, man, ifv) in new[] { ("IG", ig, manOnIg, ifvOnIg), ("SimHost", sim, manOnSim, ifvOnSim), ("CGF", cgf, manOnBrain, ByName(cgf, Ifv)) })
+        {
+            string tag = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(man)
+                ? $"vehicle {w.GetComponentRO<IsEmbarkedTag>(man).VehicleEntity} (ifv {ifv}) seat {w.GetComponentRO<IsEmbarkedTag>(man).Seat}" : "none";
+            string seats = w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>(ifv)
+                ? string.Join(",", Enumerable.Range(0, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(ifv).SeatCount).Select(i => w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(ifv).Roles[i].ToString())) : "no CarrierSeats";
+            _out.WriteLine($"  {node}: tag {tag}; seats {seats}");
+        }
+        Assert.True(boarded, "one Drive press must board the Rifleman in the Technical's driver seat, seen on the IG");
+
+        // the station's hand-over: ride him, then — only once he rides — drive the IFV (one Fps unit per station)
+        Assert.True(station.Possess(manId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding).Accepted);
+        Assert.True(harness.PumpUntil(() => ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
+            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
+            "the Riding hold must come back to the IG");
+        var ifvPossessed = station.Possess(ifvId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps);
+        _out.WriteLine($"possess the vehicle: {ifvPossessed.Accepted} {ifvPossessed.Detail}");
+        Assert.True(ifvPossessed.Accepted, $"the Technical must be possessable: {ifvPossessed.Detail}");
+        Assert.True(harness.PumpUntil(() => station.HolderOf(ifvId) is not null
+            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
+            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
+            "the IG holds the Technical and still holds its rider");
+
+        var start = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
+        bool drove = harness.PumpUntil(() =>
+        {
+            station.Control(ifvId, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, Forward = 1f, Yaw = 0f });
+            var p = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
+            return System.Numerics.Vector2.Distance(new(p.X, p.Y), new(start.X, start.Y)) > 3f;
+        }, timeoutFrames: 1500);
+        var end = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
+        _out.WriteLine($"vehicle {start} -> {end} after {seq} frames");
+        Assert.True(drove, $"the Technical must drive on SimHost from the IG's frames: {start} -> {end}");
+
+        // Get out: the rider back as Fps (it releases the IFV), then ONE press
+        Assert.True(station.Possess(manId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps).Accepted);
+        Assert.True(harness.PumpUntil(() => station.HolderOf(ifvId) is null
+            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
+            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, timeoutFrames: 600),
+            "the Technical is let go and the rider is driven again");
+        bool out_ = harness.PumpUntil(() =>
+        {
+            station.Control(manId, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
+            {
+                Seq = seq++, UseSeq = 2, UseVerb = 0, UseTarget = ifvId,   // aboard, the one action is Get out
+            });
+            return !sim.HasComponent<IsEmbarkedTag>(manOnSim) && !ig.HasComponent<IsEmbarkedTag>(manOnIg);
+        }, timeoutFrames: 900);
+        Assert.True(out_, "one Get-out press must take him out of the Technical, on SimHost and the IG");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>C3</c> (handoff 2; DESIGN_FPV_Drone §6, Motion Domains §5; R-3005) — an FPV DRONE possessed from another node flies there:
     /// SimHost is the station; its frames cross to CGF as <c>ControlFrameInteractionPayload</c> (with the B10 <c>Vertical</c> axis);
     /// CGF's <c>OperatorControl</c> writes <c>ManualDrive</c> + <c>NavigationIntent.Manual</c>, which come back as dtManualDrive /

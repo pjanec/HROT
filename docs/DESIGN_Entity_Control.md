@@ -1303,9 +1303,25 @@ is acted on.
 [greyed, too far](assets/map-3d/fps-use-2-greyed.png) · [hold-E list](assets/map-3d/fps-use-3-list.png) ·
 [verdict](assets/map-3d/fps-use-4-verdict.png).
 
-⚠ **Owed:** the live cluster run (open a door, drag, man a ZU-23, drive a BMP and get out, from a CGF and an IG station). The brain half
-(`CE-1154` / `CE-1155` / `CE-1157`) is delivered; behaviors' `EntityOrdersAcrossNodesTests.CE1154_…` already shows a station press toggling a
-door through the CGF brain with the verdict on SimHost and the pure IG.
+⭐ **The cluster run — `2026-10-21` (ui, overnight #33):** `EntityOrdersAcrossNodesTests.CE1158_DriveAndGetOut_FromAnIgStation_AcrossTheCluster`
+— a four-node cluster in process (SimHost, IG, ExCon, CGF), ⭐ **a pure IG as the station** (the user's "CGF + IG"), `ua-tank-ammo`: the IG
+possesses Rifleman 1 (brained on CGF) · ONE use press (`UseVerb` 0 = the primary, Drive) seats him in the Technical's DRIVER seat on all three
+nodes (verdict `Done/Ok` on CGF) · the IG follows ⑥'s hand-over exactly — `Possess(soldier, Riding)`, then, once Riding is back on the IG,
+`Possess(vehicle, Fps)` — and keeps its rider · the IG's frames drive the Technical ~3 m on SimHost · Get out: the rider back as Fps (the
+vehicle is let go) and ONE press takes him out on SimHost and the IG. ✅ Passes (12 s). ✅ Red-proved in production code: `EntityOrders`
+releasing a Riding unit too ⇒ the rider is dropped and the rail fails. With behaviors' `CE1154_…` (a door through the CGF brain, the verdict
+on SimHost and the IG) this closes the owed run; ⏳ dragging and manning a ZU-23 across nodes are not in a cluster rail (each is rail-covered
+on one node, `CE-1155`).
+
+⚠ **Found on the way — a ruling meeting a verb, NOT a defect:** an **abstract-crew** vehicle has no Driver seat at all — the Bradley
+(`BdcTkbCatalog.cs:713`, *"six dismounts; the crew stay abstract (R-2009 B5)"*), and the same for any `PassengerSeats(n)` carrier — so
+`OperatorUseActions.Vehicle` offers no Drive there and **`E` boards him as a PASSENGER** (measured: seat 0, all six seats Passenger, on every
+node). ⭐ **Lean, not built (the user decides):** keep it — the rule is honest about the data — but make the prompt say it (`E  Board M2
+Bradley IFV`, which it already does by the verb's label) and let the operator drive such a vehicle by possessing it from the menu, as today.
+⚠ What would change the lean: the user wanting `E` on an abstract-crew vehicle to mean "drive it" — then `Drive` there = board as a passenger
++ the same hand-over (Riding, possess the vehicle), a change to `OperatorUseActions.Vehicle` (backend) and no new data.
+⚠ **And a rail-writing trap, measured:** `UseVerb` is an INDEX into `OperatorUseActions.For`'s list (`OperatorControlBehavior.cs:164-169`),
+not a `UseVerbKind` — sending `(byte)UseVerbKind.Drive` (9) is refused `NothingToDo`.
 
 Rails (`PossessionStationTests`, `CE1158_…`): the tap counts one press with the primary verb and the target · hold-E, 1-4 pick a verb
 not a weapon · the prompt for a door (open, closed, locked, far), a man down and standing, a vehicle (near, far) and a weapon, drawn in its
