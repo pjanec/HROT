@@ -12,7 +12,7 @@
         -350,
         300
       ],
-      "within": 150
+      "within": 400
     }
   },
   "shots": [
@@ -53,5 +53,6 @@
       "fov": 30,
       "why": "the orbit reverses after a gunner is hit — by time: the door gunners are seat presets with no names of their own"
     }
-  ]
+  ],
+  "endAt": 330
 }

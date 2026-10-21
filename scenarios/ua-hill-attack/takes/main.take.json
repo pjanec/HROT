@@ -8,15 +8,6 @@
       "n": 1
     }
   },
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "0d5a41ee5ed7207e",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "first"
-    ]
-  },
   "shots": [
     {
       "at": "first-6",
@@ -56,5 +47,6 @@
   ],
   "clip": "F-46",
   "chapter": 9,
-  "state": "ready"
+  "state": "ready",
+  "endAt": 270
 }

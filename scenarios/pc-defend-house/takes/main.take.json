@@ -11,11 +11,6 @@
       "on": "shot",
       "by": "*Red",
       "n": 1
-    },
-    "clear": {
-      "on": "task",
-      "who": "*Blue Squad",
-      "is": "ClearBuilding"
     }
   },
   "shots": [
@@ -52,7 +47,7 @@
       "why": "from the house: the defenders open up"
     },
     {
-      "at": "clear-6",
+      "at": "set+45",
       "seconds": 6,
       "lookAt": [
         121,
@@ -62,11 +57,10 @@
       "distance": 90,
       "yaw": 90,
       "pitch": -40,
-      "why": "the assault reaches the house"
+      "why": "the assault bounds toward the house (in a stepped run the clearing comes after 330 s — too late for a clip)"
     }
   ],
   "clip": "F-32",
   "chapter": 7,
-  "state": "ready",
-  "endAt": 330
+  "state": "ready"
 }
