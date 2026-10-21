@@ -246,5 +246,22 @@ namespace Hrot.SimHost.Tests
             foreach (long civ in new long[] { 1101, 1102, 1103, 1104 })
                 Assert.Equal("CivilianSop", SopOf(civ));
         }
+
+        /// <summary>⭐ <c>CE-2336</c> (AQ99 A, R-2065) — the TKB names how close a person stands: soldiers, fighters and the security forces
+        /// the navmesh's body (0.3 m — a stack, a line); civilians and the unarmed crowd fighter state nothing, so they keep the Pedestrian
+        /// preset's distance (a crowd is not a horde).</summary>
+        [Fact]
+        public void CE2336_TheTkb_NamesWhoStandsClose_SoldiersAndSecurity_NotCrowds()
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(db);
+            float? Radius(long type) => db.GetByType(type)?.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>()?.AvoidanceRadius;
+            const float close = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;
+            foreach (long t in new long[] { 2002, 2003, 2004, 2005, 2006, 2007, 1201, 1202, 1203 })
+                Assert.True(Radius(t) == close, $"type {t}: {Radius(t)}");
+            foreach (long t in new long[] { 1101, 1102, 1103, 1104, 2008 })
+                Assert.True(Radius(t) == 0f, $"type {t}: {Radius(t)}");   // unstated ⇒ the preset's
+        }
     }
 }

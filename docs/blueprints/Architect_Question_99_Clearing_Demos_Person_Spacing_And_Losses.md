@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — ASKED 2026-10-20 (behaviors, overnight); leans written, NOT built
+state: LIVE — ✅ APPROVED 2026-10-21 (R-2065) — user: "Aq99 Approved. You build it."; build: CE-2336
 updated: 2026-10-21 (A revised per type after the user's crowd question)
-build-state: DESIGN
+build-state: BUILDING
 current-answer: §0 the decision · §2 the sub-questions with leans
 stale-below: nothing
 known-rot: none yet

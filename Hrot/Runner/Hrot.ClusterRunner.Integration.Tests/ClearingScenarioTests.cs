@@ -107,6 +107,29 @@ public sealed class ClearingScenarioTests : IDisposable
             => _seen.Values.Where(r => r.Kind == ReportKind.Progress).Select(r => ((ProgressKind)r.Subtype, r.At)).ToList();
     }
 
+    /// <summary>
+    /// ⭐ Every round that struck a person, by name: who was hit, by whom (SimHost fires every round, and its <see cref="ShotLog"/> names
+    /// the shooter). Sampled often, each kept once (by its sequence number) — the log is a ring.
+    /// </summary>
+    private sealed class Hits
+    {
+        private readonly SortedDictionary<long, (string Hit, string By, string Text)> _seen = new();
+        public void Collect(EntityRepository sim)
+        {
+            var log = ShotLog.Peek(sim);
+            if (log == null) return;
+            foreach (var r in log.Recent(ShotLog.Capacity))
+            {
+                if (_seen.ContainsKey(r.Seq) || r.HitEntity.IsNull || !sim.IsAlive(r.HitEntity) || !sim.HasComponent<EntityInfo>(r.HitEntity)) continue;
+                var hit = sim.GetComponent<EntityInfo>(r.HitEntity).Name.ToString();
+                var by = !r.Shooter.IsNull && sim.IsAlive(r.Shooter) && sim.HasComponent<EntityInfo>(r.Shooter) ? sim.GetComponent<EntityInfo>(r.Shooter).Name.ToString() : "?";
+                _seen[r.Seq] = (hit, by, $"{hit}<-{by}@{r.Tick}({r.ArrivingDamage:F0})");
+            }
+        }
+        public List<(string Hit, string By, string Text)> Where(Func<string, string, bool> hitBy) => _seen.Values.Where(h => hitBy(h.Hit, h.By)).ToList();
+        public static string Text(IEnumerable<(string Hit, string By, string Text)> hits) => string.Join(" ", hits.Select(h => h.Text));
+    }
+
     /// <summary>Pumps <paramref name="frames"/> in one-second steps, collecting the squad's reports after each.</summary>
     private static void Pump(HrotRunnerHarness harness, EntityRepository cgf, Entity squad, Reports reports, int frames)
     {
@@ -171,7 +194,7 @@ public sealed class ClearingScenarioTests : IDisposable
     /// <summary>
     /// ⭐⭐ <c>CE-2257</c> BC-1 — <c>bc-room-clear</c> in-process: a six-man squad at room A's north side door of the CQB house
     /// (<c>bt-range</c>, SW corner (40,100)) is ordered <c>ClearRoom</c> A; two insurgents (<c>CombatPosture</c>, staying) hold its south
-    /// corners. ③ both insurgents down · ④ a <c>RoomClear</c> report for A (its point inside A), after them · no friend lost.
+    /// corners. ③ both insurgents down, no friend hit BY A FRIEND (AQ99 B, R-2065 — the casualties are reported) · ④ a <c>RoomClear</c> report for A (its point inside A).
     /// </summary>
     [Fact(Timeout = 600_000, Skip = "CE-2257: bc-room-clear clears room A (RoomClear, both insurgents down) but loses 1–2 entry men against ③ \"no friend hit\" — AQ99 B awaits the user (CE-2336)")]
     public async Task CE2257_BcRoomClear_TheSquadClearsRoomA_BothInsurgentsDown_RoomClearReported()
@@ -193,15 +216,23 @@ public sealed class ClearingScenarioTests : IDisposable
                         + $"squad {Runs(squad)} cgf {Doors(cgf, "north", "a")} sim {Doors(harness.SimHost.World!, "north", "a")} drill {Drill(cgf, squad)} progress [{string.Join(" ", reports.Progress().Select(p => $"{p.Kind}@({p.At.X:F1},{p.At.Y:F1})"))}]";
 
         bool RoomAClear() => reports.Progress().Any(p => p.Kind == ProgressKind.RoomClear && p.At.X is > 40f and < 47f && p.At.Y is > 106f and < 110f);
+        var sim = harness.SimHost.World!;
+        var hits = new Hits();
+        static bool Blue(string name) => name.StartsWith("Blue");
         for (int f = 0; f < 60 * 240 && !RoomAClear(); f += 600)
         {
-            Pump(harness, cgf, squad, reports, 600);
+            for (int g = 0; g < 600; g += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); hits.Collect(sim); }
             _out.WriteLine($"f{f}: {State()}");
         }
         _out.WriteLine("end: " + State());
+        // ⭐ AQ99 B (R-2065) — the casualties are REPORTED, not asserted: two alert defenders aimed at the door cost the entry men (BC-4's
+        //   grenade and BC-5's contact drill are what make it bloodless); what BC-1 owns is that no friend is hit BY A FRIEND
+        var lost = blue.Where(e => !InTheFight(cgf, e)).Select(e => cgf.IsAlive(e) ? cgf.GetComponent<EntityInfo>(e).Name.ToString() : "gone").ToList();
+        _out.WriteLine($"casualties: {lost.Count} [{string.Join(", ", lost)}] · hits on blue [{Hits.Text(hits.Where((h, _) => Blue(h)))}]");
         Assert.True(insurgents.All(e => !InTheFight(cgf, e)), $"③ both insurgents down; {State()}");
         Assert.True(RoomAClear(), $"④ RoomClear for room A; {State()}");
-        Assert.True(blue.All(e => InTheFight(cgf, e)), $"no friend lost; {State()}");
+        var friendlyFire = hits.Where((h, by) => Blue(h) && Blue(by));
+        Assert.True(friendlyFire.Count == 0, $"③ no friend hit by a friend: [{Hits.Text(friendlyFire)}]; {State()}");
     }
 
     // ── bc-house-clear (BC-3, CE-2259; §8.1) ───────────────────────────────────────────────────────────────────────────────
@@ -250,26 +281,15 @@ public sealed class ClearingScenarioTests : IDisposable
                         + $"blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] nav [{string.Join(" ", new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4" }.Select(n => Nav(harness.SimHost.World!, n)))}] squad {Runs(squad)} cgf {Doors(cgf, "front", "a", "c", "d", "e")} sim {Doors(harness.SimHost.World!, "front")} drill {Drill(cgf, squad)} progress [{Rooms()}]";
 
         bool Done() => reports.Progress().Any(p => p.Kind is ProgressKind.BuildingClear);
-        // ⭐ who hit a civilian (SimHost fires every round: its shot log names the shooter)
+        // ⭐ who hit whom (SimHost fires every round: its shot log names the shooter)
         var sim = harness.SimHost.World!;
-        var civilianHits = new SortedDictionary<long, string>();
-        void CivilianHits()
-        {
-            var log = ShotLog.Peek(sim);
-            if (log == null) return;
-            foreach (var r in log.Recent(ShotLog.Capacity))
-            {
-                if (r.HitEntity.IsNull || !sim.IsAlive(r.HitEntity) || !sim.HasComponent<EntityInfo>(r.HitEntity)) continue;
-                var hit = sim.GetComponent<EntityInfo>(r.HitEntity).Name.ToString();
-                if (!hit.StartsWith("Civilian")) continue;
-                var by = !r.Shooter.IsNull && sim.IsAlive(r.Shooter) && sim.HasComponent<EntityInfo>(r.Shooter) ? sim.GetComponent<EntityInfo>(r.Shooter).Name.ToString() : "?";
-                civilianHits.TryAdd(r.Seq, $"{hit}<-{by}@{r.Tick}({r.ArrivingDamage:F0})");
-            }
-        }
+        var hits = new Hits();
+        List<(string Hit, string By, string Text)> CivilianHits() => hits.Where((h, _) => h.StartsWith("Civilian"));
+        static bool Blue(string name) => name.StartsWith("Blue");
         for (int f = 0; f < 60 * 480 && !Done(); f += 600)
         {
-            for (int g = 0; g < 600; g += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); CivilianHits(); }
-            _out.WriteLine($"f{f}: {State()} civhits [{string.Join(" ", civilianHits.Values)}]");
+            for (int g = 0; g < 600; g += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); hits.Collect(sim); }
+            _out.WriteLine($"f{f}: {State()} civhits [{Hits.Text(CivilianHits())}]");
         }
         _out.WriteLine("end: " + State());
         var progress = reports.Progress();
@@ -277,7 +297,11 @@ public sealed class ClearingScenarioTests : IDisposable
         Assert.True(insurgents.All(e => !InTheFight(cgf, e)), $"③ both insurgents down; {State()}");
         // ⭐ unhurt = no round struck him, and if he is still here his health is full. ⚠ A civilian panicked INSIDE the house hides and
         //   then deletes himself (CE-2236, R-4035 — the crowd model): "gone" is not "hurt" — BC-2 owns holding him (CE-2337)
-        Assert.True(civilianHits.Count == 0 && Enumerable.Range(0, 2).All(i => Hp(default, i) is < 0f or >= 100f), $"③ both civilians unhurt; {State()} civhits [{string.Join(" ", civilianHits.Values)}]");
+        Assert.True(CivilianHits().Count == 0 && Enumerable.Range(0, 2).All(i => Hp(default, i) is < 0f or >= 100f), $"③ both civilians unhurt; {State()} civhits [{Hits.Text(CivilianHits())}]");
+        var lost = blue.Where(e => !InTheFight(cgf, e)).Select(e => cgf.IsAlive(e) ? cgf.GetComponent<EntityInfo>(e).Name.ToString() : "gone").ToList();
+        _out.WriteLine($"casualties: {lost.Count} [{string.Join(", ", lost)}] · hits on blue [{Hits.Text(hits.Where((h, _) => Blue(h)))}]");
+        var friendlyFire = hits.Where((h, by) => Blue(h) && Blue(by));
+        Assert.True(friendlyFire.Count == 0, $"③ (AQ99 B) no friend hit by a friend: [{Hits.Text(friendlyFire)}]; {State()}");
         foreach (var room in new[] { "hall", "A", "B", "C", "D", "E" })
             Assert.True(cleared.Count(r => r == room) == 1, $"① {room} cleared exactly once; {State()}");
         Assert.True(cleared.IndexOf("E") > cleared.IndexOf("D"), $"① E (reached only through D) after D; {State()}");

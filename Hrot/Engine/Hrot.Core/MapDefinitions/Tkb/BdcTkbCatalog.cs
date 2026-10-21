@@ -75,7 +75,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.MaxSpeed = PersonRunSpeed;   // ⭐ CE-1208 (R-265 A) — his RUN; was 2.5 "walking", so Shift ran at a walk
                     p.Acceleration = PersonAcceleration;
                     p.TurnRate = 90.0f;
-                    p.Mobility = TerrainMobility.Infantry;
+                    p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
                 .WithCombat(type, c =>
                 {
@@ -105,7 +105,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
                 .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); c.SensorRange = 500; })
                 .WithFaction(type, faction)
@@ -278,7 +278,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
                 .WithCombat(type, c =>
                 {
@@ -309,7 +309,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
-                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                    p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
                 .WithCombat(type, c =>
                 {

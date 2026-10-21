@@ -300,6 +300,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StanceId.Prone, w.Stance);
         }
 
+        /// <summary>⭐ <c>CE-2337</c> (Building Clearing §6a) — an OCCUPANT, panicked while already inside a house (bt-range's House A),
+        /// neither runs out nor hides-and-vanishes: he cowers where he stands, at once (no shelter is asked for), and stays — never
+        /// <c>Inside</c>, never deleted. 🔴 Red-proof: drop the occupant arm ⇒ he flees (a move is issued) and waits on a shelter query.</summary>
+        [Fact]
+        public void CE2337_AnOccupant_PanickedIndoors_CowersWhereHeIs_AndStays()
+        {
+            var w = new World();
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            w.Repo.SetSingletonManaged(terrain);
+            var house = terrain.Buildings.Single(b => b.Label == "House A").Footprint;
+            var mid = new Vector2(house.Average(v => v.X), house.Average(v => v.Y));
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(mid.X, mid.Y, 0f);
+            Assert.True(CivilianBehavior.IsIndoors(w.Repo, w.Unit), "the premise: he stands inside House A");
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4243));
+            w.Start();
+            for (int i = 0; i < 4; i++) w.Tick();
+
+            w.Fear(1f);
+            int ticks = 0;
+            while (w.State() != "Cower" && ticks < 30) { w.Tick(); ticks++; }
+            Assert.Equal("Cower", w.State());
+            Assert.True(ticks < 15, $"he cowers at once, no shelter wait ({ticks} ticks)");
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+
+            int destroys = 0;
+            for (int i = 0; i < 400; i++)
+            {
+                w.Tick();
+                destroys += w.Repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>().Count();
+                Assert.Equal("Cower", w.State());
+            }
+            Assert.Equal(0, destroys);
+            Assert.True(Effects.IsCowering(w.Repo, w.Unit));
+            var at = w.Repo.GetComponentRO<SimTransform>(w.Unit).Position;
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), mid) < 0.01f, "he stays where he stood");
+        }
+
         /// <summary>⭐ <c>CE-2236</c> (R-4035) — inside, he hides for a time drawn from [HideMin, HideMax], then deletes himself: ONE
         /// <c>DestroyEntityCommand</c> naming his network id, not one per frame.</summary>
         [Fact]

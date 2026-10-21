@@ -124,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public EqsSensorHandle Sensor;
             public double Since;
-            public byte Answered, Found, Moving, Arrived, Failed, Deleted;
+            public byte Answered, Found, Moving, Arrived, Failed, Deleted, Occupant;   // ⭐ CE-2337 Occupant — panicked already indoors (fits the padding before Shelter)
             public Vector3 Shelter;
             public double HideUntil;
         }
@@ -422,9 +422,15 @@ namespace Hrot.AI.Behaviors.Brains
                 ws = default;
                 ws.Sensor = sensor;
                 ws.Since = now > 0 ? now : 1e-6;
+                // ⭐⭐ CE-2337 (AQ99, Building Clearing §6a) — an OCCUPANT (panicked already indoors) has his shelter: he neither runs out
+                //   nor searches — no shelter is asked for, so NoShelter sends him to COWER where he is, and he stays (never Inside, never
+                //   deleted). R-4035's hide-then-disappear is the panicking PEDESTRIAN's; 📌 bc-house-clear: the occupant of room C hid,
+                //   then deleted himself before the squad reached him.
+                if (IsIndoors(world, self)) { ws.Answered = 1; ws.Occupant = 1; return NodeStatus.Running; }
                 StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);
                 Flee(in p, self, world);
             }
+            if (ws.Occupant != 0) return NodeStatus.Running;
             var cfg = new PostureSensorsParams { SearchRadius = p.ShelterSearchRadius, ScoreDeltaThreshold = 0.05f };
             ws.Sensor = PostureNodes.Keep(ws.Sensor, world, self, ShelterSite, FindEnterableShelter.BlueprintId, in cfg,
                                           new ThreatAim(Entity.Null, 0, default), retarget: false);

@@ -249,5 +249,26 @@ namespace CarKinem.Tkb.Tests
             Assert.Equal(0f, repo.GetComponent<VehicleParams>(unstated).WalkSpeed);
             Assert.Equal(CarKinem.Controllers.HumanGait.WalkSpeed, CarKinem.Controllers.HumanGait.WalkOf(repo.GetComponent<VehicleParams>(unstated)));
         }
+
+        /// <summary>⭐ <c>CE-2336</c> (R-2065, AQ99 A) — a type's stated avoidance radius reaches <c>VehicleParams.AvoidanceRadius</c> (a soldier's close
+        /// order); unstated, a person keeps the preset's 0.8 m (a crowd keeps its distance). ✅ Red-proof: the override dropped ⇒ 0.8.</summary>
+        [Fact]
+        public void CE2336_ATypesAvoidanceRadius_ReachesTheParams_AndUnstatedKeepsThePresets()
+        {
+            var repo = MakeWorldWithComponents();
+            var soldier = repo.CreateEntity();
+            var t = new TkbTemplate("Soldier", 2336L);
+            t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, MaxSpeedFwd = 6f,
+                AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius });
+            new VehicleKinematicsTkbTranslator().Inject(repo, soldier, t);
+            Assert.Equal(0.3f, repo.GetComponent<VehicleParams>(soldier).AvoidanceRadius);
+
+            var civilian = repo.CreateEntity();
+            var c = new TkbTemplate("Civilian", 2337L);
+            c.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, MaxSpeedFwd = 5f });
+            new VehicleKinematicsTkbTranslator().Inject(repo, civilian, c);
+            Assert.Equal(VehiclePresets.GetPreset(VehicleClass.Pedestrian).AvoidanceRadius, repo.GetComponent<VehicleParams>(civilian).AvoidanceRadius);
+            Assert.Equal(0.8f, repo.GetComponent<VehicleParams>(civilian).AvoidanceRadius);
+        }
     }
 }
