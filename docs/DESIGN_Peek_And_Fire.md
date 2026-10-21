@@ -593,7 +593,7 @@ squad. ⛔ **No new node** — R-256: one implementation per concept. Audit: [`R
 | the result has room to carry the kind | ✅ `EqsResult` = 29 B used of 32 (`EqsComponents.cs:18`) | §6 D5 precedent: stance in a padding byte, *"extending wire is no issue"* |
 | no cover ⇒ silent forever | ✅ `:237` Running, no fire, no Failure | ⛔ searched, no design says what should happen |
 | bursts obey ROE, not the friendly line | ✅ `FireAtPointExecutor.cs:61` ROE; no friendly check | `BS-1-DESIGN.md` §5.1a: the friendly guard was written for aimed fire only |
-| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` |
+| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` — ⭐ `CE-2338` (`2026-10-21`): a friendly PERSON out of the fight (lying down) no longer holds it — the round flies over him (CE-2318); a hull, alive or wrecked, still does |
 | indirect fire is known per warhead | ✅ `WarheadDto.Indirect` (`Tkb/Domain/WarheadDto.cs:77`) | R-217 |
 | the fire step re-ranks its own target | ✅ `PostureNodes.cs:301` `TopThreat(.., ws.Threat ..)` with `ws.Fire = default` (`PeekAndFireNodes.cs:350`) | R-174: ONE aimed step |
 | target distribution exists, reaches the node as a bias only | ✅ `ThreatRankingDecision` considers `IsAssignedTarget` (0.9, threshold); `StandardInputs.cs:317` | Utility demo §11 (U6), Squad design §1 "fire allocation — Done" |

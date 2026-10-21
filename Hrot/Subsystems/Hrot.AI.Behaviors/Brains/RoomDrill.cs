@@ -300,7 +300,7 @@ namespace Hrot.AI.Behaviors.Brains
             return s == TerrainDoorState.Open || s == TerrainDoorState.Destroyed;
         }
 
-        /// <summary>CB-55 — a pooled contact inside the room's quad at its storey, alive and still in the fight.</summary>
+        /// <summary>CB-55 — a pooled HOSTILE inside the room's quad at its storey, alive and still in the fight (a neutral is not one).</summary>
         private static unsafe bool HostileInRoom(ref RoomDrillState d, in SquadPlayContext ctx)
         {
             ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
@@ -315,7 +315,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (pool[c].PositionZ < d.FloorZ - 1f || pool[c].PositionZ > d.FloorZ + 2.8f) continue;
                 if (!RoomEntryPlan.Inside(corners, new Vector2(pool[c].PositionX, pool[c].PositionY))) continue;
                 var e = new Entity((ulong)pool[c].EntityId);
-                if (ctx.World.IsAlive(e) && !ThreatDanger.IsOutOfTheFight(ctx.World, e)) return true;
+                // ⭐ CB-55 says HOSTILE: a neutral (a civilian cowering in the corner — CE-2337's occupant stays) does not keep the room
+                //   uncleared; BC-2 controls him. 📌 bc-house-clear: room C never cleared with its occupant in it.
+                if (ctx.World.IsAlive(e) && !ThreatDanger.IsOutOfTheFight(ctx.World, e) && !ThreatDanger.IsNeutral(ctx.World, e)) return true;
             }
             return false;
         }

@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2338`** · rulings next free **`R-2066`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **100** (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
+| ⭐ ids | tracker next free **`CE-2340`** · rulings next free **`R-2066`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **100** (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 

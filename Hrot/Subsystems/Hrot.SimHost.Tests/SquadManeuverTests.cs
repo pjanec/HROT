@@ -4096,6 +4096,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             s.ClearPool();
+            // ⭐ CB-55 — a CIVILIAN cowering in the corner is not a hostile: the room clears with him in it (BC-2 controls him).
+            //   📌 bc-house-clear: an occupant who stays (CE-2337) held room C uncleared for good. 🔴 Red-proof: the neutral skip dropped.
+            var civilian = s.PoolMany(1, new Vector3(4f, 15f, 0f))[0];
+            s.Repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
             TickFor(s, RoomDrill.ClearSeconds + 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
