@@ -1071,6 +1071,92 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the "Save All" callback (PU-603).</summary>
         internal Action? SaveAllCallback => _saveAllCallback;
 
+        /// <summary>
+        /// ⭐ CE-1237 — what the Blueprint Tools window shows (MVE-BATCH-03/04/05 + PU-603 merged, CF-5's debug controls): run the open
+        /// blueprint on the selected entity, save, compile / reload, save all, step a debug session. Drawn by
+        /// <see cref="Hrot.Editor.Windows.EditorBlueprintToolsWindow"/> — a managed window with a close box, in the Blueprint perspective.
+        /// </summary>
+        internal void DrawBlueprintToolsContent()
+        {
+            bool any = _blueprintRunButtonCallback != null || _blueprintSaveCallback != null || _blueprintCompileCallback != null
+                       || _saveAllCallback != null || _blueprintDebugSession != null;
+            if (!any)
+            {
+                ImGuiNET.ImGui.TextDisabled("Open a blueprint to run, save or compile it.");
+                return;
+            }
+
+            // -- 1. Run Blueprint --
+            if (_blueprintRunButtonCallback != null)
+            {
+                if (ImGuiNET.ImGui.Button(
+                        Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
+                    _blueprintRunButtonCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_blueprintRunStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
+                }
+            }
+
+            // -- 2. Save Blueprint (hotkey via shell.save command, §20) --
+            if (_blueprintSaveCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Save Blueprint"))
+                    _blueprintSaveCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_blueprintSaveStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
+                }
+            }
+
+            // -- 3. Compile / Reload Blueprint --
+            if (_blueprintCompileCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Compile / Reload"))
+                    _blueprintCompileCallback.Invoke();
+
+                if (_blueprintFullRebuildCallback != null)
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    if (ImGuiNET.ImGui.Button("Full Rebuild"))
+                        _blueprintFullRebuildCallback.Invoke();
+                }
+
+                if (!string.IsNullOrEmpty(_blueprintCompileStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
+                }
+            }
+
+            // -- 4. Save All (hotkey via shell.saveAll command, §20) --
+            if (_saveAllCallback != null)
+            {
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Save All"))
+                    _saveAllCallback.Invoke();
+
+                if (!string.IsNullOrEmpty(_saveAllStatus))
+                {
+                    ImGuiNET.ImGui.SameLine();
+                    ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
+                }
+            }
+
+            // -- 5. Debug step controls (when session is available) --
+            if (_blueprintDebugSession != null)
+            {
+                ImGuiNET.ImGui.Separator();
+                Hrot.Blueprints.Editor.Debug.DebugStepControls.Draw(_blueprintDebugSession);
+            }
+        }
+
         /// <summary>Internal test hook: exposes the BlueprintRegistry instance (MVE-BATCH-05).</summary>
         internal Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry => _blueprintRegistry;
 
@@ -2842,93 +2928,8 @@ namespace Hrot.Editor
             }
             // ───────────────────────────────────────────────────────────────────────────────────
 
-            // ── Unified Blueprint Tools Panel ──────────────────────────────────────────────────
-            // Merges MVE-BATCH-03/04/05 + PU-603 into a single "Blueprint Tools" window.
-            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
-            if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-            {
-                bool showBlueprintTools = _blueprintRunButtonCallback != null
-                    || _blueprintSaveCallback != null
-                    || _blueprintCompileCallback != null
-                    || _saveAllCallback != null
-                    || _blueprintDebugSession != null;
-
-                if (showBlueprintTools && ImGuiNET.ImGui.Begin("Blueprint Tools"))
-                {
-                    // -- 1. Run Blueprint --
-                    if (_blueprintRunButtonCallback != null)
-                    {
-                        if (ImGuiNET.ImGui.Button(
-                                Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
-                            _blueprintRunButtonCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_blueprintRunStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
-                        }
-                    }
-
-                    // -- 2. Save Blueprint (hotkey via shell.save command, §20) --
-                    if (_blueprintSaveCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Save Blueprint"))
-                            _blueprintSaveCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_blueprintSaveStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
-                        }
-                    }
-
-                    // -- 3. Compile / Reload Blueprint --
-                    if (_blueprintCompileCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Compile / Reload"))
-                            _blueprintCompileCallback.Invoke();
-
-                        if (_blueprintFullRebuildCallback != null)
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            if (ImGuiNET.ImGui.Button("Full Rebuild"))
-                                _blueprintFullRebuildCallback.Invoke();
-                        }
-
-                        if (!string.IsNullOrEmpty(_blueprintCompileStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
-                        }
-                    }
-
-                    // -- 4. Save All (hotkey via shell.saveAll command, §20) --
-                    if (_saveAllCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Save All"))
-                            _saveAllCallback.Invoke();
-
-                        if (!string.IsNullOrEmpty(_saveAllStatus))
-                        {
-                            ImGuiNET.ImGui.SameLine();
-                            ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
-                        }
-                    }
-
-                    // -- 5. Debug step controls (when session is available) --
-                    if (_blueprintDebugSession != null)
-                    {
-                        ImGuiNET.ImGui.Separator();
-                        Hrot.Blueprints.Editor.Debug.DebugStepControls.Draw(_blueprintDebugSession);
-                    }
-                }
-
-                if (showBlueprintTools)
-                    ImGuiNET.ImGui.End();
-            }
+            // ⭐ CE-1237 — the Blueprint Tools window is a managed window now (EditorBlueprintToolsWindow, registered in RegisterWindows):
+            //   it had no close box and drew in EVERY perspective (a raw ImGui.Begin here). Its content is DrawBlueprintToolsContent.
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // Render hover tooltip with entity info (label, health, cognitive state).
@@ -5010,6 +5011,9 @@ namespace Hrot.Editor
 
             if (_zoneEditorPanel  != null && _zoneAdapter       != null)
                 windowManager.RegisterWindow(new EditorZoneEditorWindow(_zoneEditorPanel, _zoneAdapter));
+
+            // ⭐ CE-1237 — Blueprint Tools: a normal panel (close box, View menu), bound to the Blueprint perspective
+            windowManager.RegisterWindow(new EditorBlueprintToolsWindow(DrawBlueprintToolsContent));
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
