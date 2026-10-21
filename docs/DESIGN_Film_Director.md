@@ -45,6 +45,18 @@ feature so i would avoid it for now. we do not want instant replay in slice 1 so
 **Words used here.** A **take** is one scenario's camera script: its shots, cuts, anchors and captions. A **reel** is a playlist of
 takes. The **director** is the editor feature that plays them: on screen in real time, or frame by frame to a film.
 
+**Two modes, one runner** — 🔒 *"the frame by frame feature is usefull for ai driven mode while running in the cloud VM, i need also the
+live mode with no saving screenshot images, jus rendering on the screen"*:
+
+| | ⭐ **live** (the default) | **capture** |
+|---|---|---|
+| for | you, watching in the editor on your machine | an AI or the overnight run, headless on a cloud VM (Xvfb) |
+| clock | paced fixed steps, real time (D-1) | one fixed step per film frame, as fast as the renderer allows |
+| output | the screen only — ⛔ **no images saved** | PNG frames + sound cues → one MP4 per take or reel |
+| started by | the panel's Play, or `POST /director/play` with **no** `capture` | `POST /director/play` with `capture: {dir, fps, size, …}` |
+
+Both play the same take with the same cuts, so a live run is the preview of the film.
+
 ## 1. The picture
 
 ```mermaid
@@ -402,7 +414,7 @@ them):
 |---|---|
 | `GET /director/takes?scenario=` · `GET /director/reels` | list |
 | `GET` / `PUT /director/take/{scenario}/{take}` | read / save a take (authoring by an agent) |
-| `POST /director/play` `{scenario, take}` or `{reel}` + `{speed?, loop?, capture?: {dir, fps, size, supersample, captions}}` | start |
+| `POST /director/play` `{scenario, take}` or `{reel}` + `{speed?, loop?, capture?: {dir, fps, size, supersample, captions}}` | start — **without `capture` it plays live on screen and saves nothing**; with it, it renders frame by frame to files |
 | `POST /director/stop` · `/next` · `/pause` · `/resume` | transport |
 | `GET /director/status` | state, reel item, shot index, sim time, realtime factor, missing beats, anchor mismatches |
 | `POST /director/scout` `{scenario, take}` | bake the anchors; the report doubles as a scenario health check |
