@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-21
-current-answer: ⭐⭐⭐ 2026-10-21 NIGHT — THE WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md §3a (#21–#35, every open ui point up to
-  CE-1197, the user's "work autonomously overnight"); its §4 log says how far it got. The film director's state is below.
+current-answer: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
+  this STATUS block: every item #21–#35 of PLAN_Ui_FPS_And_Quick_Wins.md §3a is done or recorded blocked, and the leans taken
+  overnight wait for the user. The film director's state is the section under it.
+  ⛔ OLDER: 2026-10-21 NIGHT — THE WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md §3a (#21–#35, every open ui point up to
+  CE-1197, the user's "work autonomously overnight"); its §4 log says how far it got.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-21 — START AT "SESSION 2026-10-21 — THE FILM DIRECTOR (CE-4038)" below this STATUS block (built; what is left:
   the integration gate rows, then CE-1240 after CE-3293 S5). The 2026-10-20 section under it still holds the lane's standing list.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-20 — START AT "SESSION 2026-10-20 — RESUME HERE" directly below this STATUS block (state at ui@f40f72ba3,
@@ -157,6 +160,34 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ OVERNIGHT `2026-10-21 → 22` — RESULTS AND WHAT THE USER CONFIRMS
+
+Work list: [PLAN §3a #21–#35](PLAN_Ui_FPS_And_Quick_Wins.md) (its §4 log has a row per item). Presentation suite at the end: 820 / 0.
+
+| # | item | state |
+|---|---|---|
+| 21 | `CE-1197` sidewalks | ✅ (cross-lane doc: AQ93 §11.1) |
+| 22 | `CE-1170` aim line | ✅ |
+| 23 | `CE-1173` toy gun orange | ✅ |
+| 24 | `CE-1174` less-lethal band | ✅ band · ⏳ taser / pepper spray wait on G5 (measured `2026-10-22`: no such type on any lane) |
+| 25 | `CE-1172` police look | ✅ · ⚠ deviation: the kit as DETAILS, not a shader parameter |
+| 26 | `CE-1179` laid-down weapon, charge blink | ✅ |
+| 27 | `CE-1169` held items + ExCon Concealed layer | ✅ DONE (layer 26, Units ▸ Concealed, off by default) |
+| 28 / 29 | `CE-1176` / `CE-1177` speech marks, mood | ✅ · ⚠ deviation: the mark is a CARD ROW · ⏳ the 300 m cut not built · G1/G2 data has no production writers yet |
+| 30 | `CE-1202` gunner turns | ✅ |
+| 31 | `CE-1200` own vehicle drawn, crew eye | ✅ · leans CR-1…CR-3 (Entity Control §8o) |
+| 32 | `CE-1201` over the shoulder (View menu, O) | ✅ · leans OS-1…OS-6 (§8p) |
+| 33 | `CE-1158` use key — cluster run | ✅ DONE (pure IG station; `EntityOrdersAcrossNodesTests.CE1158_…`) · ⚠ finding: an abstract-crew Bradley offers Board, not Drive — lean KEEP (§8h.9) |
+| 34 | `CE-1119` U-2 ejection seat | ✅ |
+| 35 | `CE-1146` weather | ✅ PR-1 rain / snow · ✅ PR-2 smoke on the wind · leans CL / MO / NL (Map 3-D §6aa.next) NOT built |
+
+⭐ **For the user to confirm** (each taken overnight as a lean): CR-1…CR-3 · OS-1…OS-6 · the police-look and card-row deviations ·
+the abstract-crew Board lean · CL (cloud layers) / MO (the moon — needs a backend ephemeris) / NL (night lights) for CE-1146.
+⭐ **FYI from backend:** [NOTE_Backend_To_Ui_Stepped_Runs_Repeat](batches/NOTE_Backend_To_Ui_Stepped_Runs_Repeat.md) — after
+merging `backend`, a film take where hearing decides a beat may move by one step ⇒ re-scout it (not a regression).
+⚠ **Measured trap:** the ClusterRunner integration project needed `dotnet restore` (types moved to `Hrot.EcsNode`) — the third
+stale-binary trap.
 
 ## ⭐⭐⭐ SESSION `2026-10-21` — THE FILM DIRECTOR (`CE-4038`), dispatched by backend (R-3038)
 
