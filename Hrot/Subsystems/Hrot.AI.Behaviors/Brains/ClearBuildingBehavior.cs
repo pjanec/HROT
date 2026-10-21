@@ -256,7 +256,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!RoomOrder.Next(answer, p.Building, new ReadOnlySpan<byte>(rooms, ClearBuildingParams.MaxRooms), RoomDrill.SquadCentre(in ctx),
                                     out var room, out var way)) return false;
                 p.Current = room.Index;
-                RoomDrill.Begin(ref p.Drill, in ctx, room, way, p.Turn);
+                RoomDrill.Begin(ref p.Drill, in ctx, room, way, p.Turn, RoomDrill.StackRoom(answer, room, way));
                 return true;
             }
         }
