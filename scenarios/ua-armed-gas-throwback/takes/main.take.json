@@ -2,27 +2,11 @@
   "title": "Gas thrown back",
   "caption": "A hardened rioter picks up the gas canister and throws it back at the police",
   "anchors": {
-    "pick": {
-      "on": "task",
-      "who": "Hardened rioter",
-      "is": "Scavenge"
-    },
     "throw": {
       "on": "shot",
       "by": "Hardened rioter",
       "n": 1
     }
-  },
-  "baked": {
-    "times": {
-      "throw": 4.3
-    },
-    "tickHz": 60,
-    "scenarioHash": "7823ae933fba393f",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "pick"
-    ]
   },
   "shots": [
     {
@@ -39,7 +23,7 @@
       "why": "establish"
     },
     {
-      "at": "pick-1",
+      "at": "throw-3",
       "seconds": 4,
       "follow": "Hardened rioter",
       "distance": 6,

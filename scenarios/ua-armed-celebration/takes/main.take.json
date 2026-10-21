@@ -4,24 +4,14 @@
   "anchors": {
     "volley": {
       "on": "shot",
-      "by": "Celebrant",
+      "by": "Celebrant's rifle",
       "n": 1
     },
     "fire": {
       "on": "shot",
-      "by": "Police patrol",
+      "by": "Patrol rifle",
       "n": 1
     }
-  },
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "a6ab67284974b0cb",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "volley",
-      "fire"
-    ]
   },
   "shots": [
     {

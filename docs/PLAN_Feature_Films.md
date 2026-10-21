@@ -114,6 +114,10 @@ it is found the same night.*
 
 ## 1b. What the scout saw — 2026-10-21 (editor preview, real time, one run each)
 
+⭐ **Superseded as the timing source** by the director's own stepped scout (CE-4038, R-3038): the takes in `scenarios/<s>/takes/` carry
+BAKED anchor times from a run that repeats, so their timed leads (`fire-0.5`) are exact. This real-time scout's value is what it found:
+the anchor mistakes (ported into the takes, CE-1241) and the two civilian regressions (CE-4039, CE-4040).
+
 48 clips scouted (all but the civilian ones, blocked, and F-01 / F-02, which need their change). Each clip's observed anchor times are in
 `clips.json` as `scouted` — ⚠ one run: another run differs (R-4064), so they order the shots, they do not time them.
 
@@ -236,12 +240,12 @@ A reel is one movie made of several clips (DESIGN_Film_Director §4a). Each item
 
 ## 6. How to produce them
 
-| step | with the director (CE-4038, being built) | ⚠ until it lands |
+| step | ⭐ with the director (CE-4038, BUILT by ui) | (before it, for the record) |
 |---|---|---|
-| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, or `POST /director/scout {scenario, take}` | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
-| **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · or `POST /director/play {"reel": "highlights"}` | — |
+| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, `POST /director/scout {scenario, take, bake}`, or `scripts/director-check.py scout-all --bake --headless` (every take) | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
+| **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · `POST /director/play {"reel": "highlights"}` · `scripts/director-check.py live highlights` | — |
 | **③ fix** — a framing, a time, a name | edit the take (`scenarios/<s>/takes/<take>.take.json`), re-run ① if an anchor moved | edit `clips.json` |
-| **④ render** — overnight, on the cloud VM | `POST /director/play {"reel": "features", "capture": {"dir": "<out>", "fps": 30, "size": "1280x720"}}` → one MP4 per reel, with sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
+| **④ render** — overnight, on the cloud VM | `scripts/director-check.py capture features --dir <out> --size 1280x720` (or `POST /director/play {reel, capture}`) → one MP4 per reel, chapters, title cards, captions, sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
 | **⑤ check** — without watching it all | the run's report: per item filmed / flat (nothing moved on screen) / beat missing, plus a contact sheet | `ffmpeg` scene scores (RUNBOOK §5) |
 
 📐 **Render budget** (today's ~0.8 s per frame in the editor; CinemaMode should cut it): `highlights` ≈ 184 s × 30 fps × 0.8 s ≈ **1.2 h**;

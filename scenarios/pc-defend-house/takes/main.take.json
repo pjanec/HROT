@@ -5,7 +5,7 @@
     "set": {
       "on": "task",
       "who": "Blue Squad 1",
-      "is": "Set"
+      "is": "BoundingOverwatch"
     },
     "lift": {
       "on": "shot",
@@ -17,18 +17,6 @@
       "who": "*Blue Squad",
       "is": "ClearBuilding"
     }
-  },
-  "baked": {
-    "times": {
-      "lift": 11.1667
-    },
-    "tickHz": 60,
-    "scenarioHash": "3cdcb8725ecabfcd",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "set",
-      "clear"
-    ]
   },
   "shots": [
     {
@@ -79,5 +67,6 @@
   ],
   "clip": "F-32",
   "chapter": 7,
-  "state": "ready"
+  "state": "ready",
+  "endAt": 330
 }
