@@ -247,6 +247,8 @@ namespace Hrot.UI.Common.Map3D
                 var vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit)
                     ? w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity : Entity.Null;
                 if (!vehicle.IsNull && HeldByThis(w, vehicle, out var vehicleMode) && vehicleMode != PossessionMode.Riding) continue;
+                // ⭐ CE-1210 (§8n MS-7) — the station plays a GUN of his vehicle (seat switching): he stays held for the way back
+                if (!vehicle.IsNull && HeldHere(w, out _) is var fps && !fps.IsNull && SeatSwitch.VehicleOf(w, fps) == vehicle) continue;
                 if (map.TryGetNetworkId(unit, out long id)) orders.Unpossess(id);
             }
         }
@@ -374,7 +376,7 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
-                                  _driver.Scheme, _driver.Running, _driver.LookFree);
+                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit));
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
             foreach (var line in lines) width = Math.Max(width, (int)HudText.Measure(font, line));
@@ -745,7 +747,8 @@ namespace Hrot.UI.Common.Map3D
 
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
-                                         ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false)
+                                         ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false,
+                                         string? seat = null)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -775,6 +778,7 @@ namespace Hrot.UI.Common.Map3D
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
                 if (lookFree && !vehicle && !flyer) lines.Add(LookFreeLine);   // ⭐ CE-1204 (§8l LK-4)
+                if (seat != null) lines.Add(seat);                             // ⭐ CE-1210 (§8n MS-3)
                 lines.Add(scheme switch
                 {
                     ControlScheme.FixedWing => "mouse: fly where you look  W/S throttle  Esc release",          // ⭐ CE-1095
@@ -787,6 +791,15 @@ namespace Hrot.UI.Common.Map3D
                 });
                 lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
+            }
+
+            /// <summary>⭐ <c>CE-1210</c> (§8n MS-3) — the seat line of a vehicle with manned guns: <c>SEAT driver  (G: next seat)</c> or
+            /// <c>SEAT M134  (G: next seat)</c>; null when there is no other seat to go to.</summary>
+            public static string? SeatLine(EntityRepository w, Entity unit)
+            {
+                if (SeatSwitch.Seats(w, SeatSwitch.VehicleOf(w, unit)).Count < 2) return null;
+                string name = SeatSwitch.StationOf(w, unit, out _, out _, out var weapon) ? TypeName(w, weapon)?.ToUpperInvariant() ?? "GUN" : "DRIVER";
+                return $"SEAT {name}  (G: next seat)";
             }
 
             /// <summary>⭐ <c>CE-1204</c> (§8l LK-4) — the HUD's line while a person's look is free of his body.</summary>
@@ -1077,6 +1090,20 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1143 — Shift is held: the person runs (the frame's gait 0).</summary>
         public bool Running { get; private set; }
 
+        /// <summary>⭐ <c>CE-1210</c> — is he in a seat (a crew seat of a vehicle)? Then W/A/S/D move nothing (MS-1) and his eye is the seat's.</summary>
+        public bool Aboard => Scheme == ControlScheme.Person && _world() is { } aw && aw.IsComponentTypeRegistered<IsEmbarkedTag>()
+                              && aw.HasComponent<IsEmbarkedTag>(Unit);
+
+        private static Fdp.Interfaces.ITkbDatabase? Tkb(EntityRepository w)
+            => w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+
+        /// <summary>⭐ <c>CE-1210</c> (§8n MS-5, LK-6) — the look held in the arc of the gun his seat operates (off the hull's heading).</summary>
+        private void ClampToGun()
+        {
+            if (_world() is not { } w || !SeatSwitch.StationOf(w, Unit, out var vehicle, out var gun, out _) || !w.HasComponent<SimTransform>(vehicle)) return;
+            (_yaw, _pitch) = SeatSwitch.Clamp(gun, HullYaw(w.GetComponentRO<SimTransform>(vehicle).Rotation), _yaw, _pitch);
+        }
+
         /// <summary>⭐ CE-1073 — where the eye is this frame (world metres).</summary>
         public Vector3 Eye => _eye;
 
@@ -1085,11 +1112,17 @@ namespace Hrot.UI.Common.Map3D
             if (_world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             float hullYaw = HullYaw(tf.Rotation);
-            if (!_lookInitialised) { _yaw = hullYaw; _bodyYaw = hullYaw; _pitch = 0f; _lookInitialised = true; }
+            if (!_lookInitialised)
+            {
+                _yaw = hullYaw; _bodyYaw = hullYaw; _pitch = 0f; _lookInitialised = true;
+                // ⭐ CE-1210 (§8n MS-5) — a gunner starts looking down the middle of his gun's arc
+                if (SeatSwitch.StationOf(w, Unit, out _, out var gun, out _) && gun.HasArc != 0)
+                    _yaw = hullYaw + (gun.TraverseMin + gun.TraverseMax) / 2f;
+            }
             _dt = dt;
             bool vehicle = IsVehicle;
             if (vehicle && HullLocked) _yaw = hullYaw;
-            _eye = EyeOf(w, tf, vehicle);
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
             _eyeKnown = true;
             StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
             // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
@@ -1168,6 +1201,8 @@ namespace Hrot.UI.Common.Map3D
         public const KeyboardKey TeamSwitchKey = KeyboardKey.Tab;
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1; key approved, R-1010) — the 2-D map and back.</summary>
         public const KeyboardKey MapKey = KeyboardKey.M;
+        /// <summary>⭐ <c>CE-1210</c> (§8n MS-3, R-1018) — the next seat of the vehicle: driver / pilot, then each manned gun.</summary>
+        public const KeyboardKey SeatKey = KeyboardKey.G;
 
         /// <summary>⭐ <c>CE-1218</c> — the input this driver reads (its cursor lock), for the station to watch M while the 2-D map is up.</summary>
         internal IInputProvider? Input => _locked;
@@ -1303,6 +1338,12 @@ namespace Hrot.UI.Common.Map3D
                 _station.SwitchTo(next);
                 return true;
             }
+            // ⭐ CE-1210 (§8n MS-3) — G: the next seat (the vehicle's own seat, then each manned gun); one possession, as Tab
+            if (input.IsKeyPressed((MapKeyboardKey)SeatKey) && _world() is { } gw && SeatSwitch.Next(gw, Unit) is { IsNull: false } seat)
+            {
+                _station.SwitchTo(seat);
+                return true;
+            }
             bool vehicle = IsVehicle;
             var delta = input.MouseDelta;
             // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
@@ -1321,9 +1362,11 @@ namespace Hrot.UI.Common.Map3D
             if (vehicle && HullLocked) _mouseSteer = Math.Clamp(_mouseSteer - delta.X * MouseSteerPerPixel, -1f, 1f);
             else _yaw -= delta.X * look;
             _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
+            ClampToGun();   // ⭐ CE-1210 (§8n MS-5) — a gunner's look stays in his gun's arc
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
+            if (Aboard) forward = side = 0f;   // ⭐ CE-1210 (§8n MS-1) — a man in a seat is held by it
             if (lookFree)
             {
                 // ⭐ CE-1204 (LK-2, LK-4) — A/D turn him (his view turns with him); the look stays within his neck, dragging the body past it

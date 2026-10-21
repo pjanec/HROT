@@ -42,6 +42,10 @@ public sealed record SharedOrbatPanelViewModel(
 /// </summary>
 public sealed class SharedOrbatPanel
 {
+    /// <summary>⭐ <c>CE-1230</c> (canvas context menu §11 OM-1, R-1019) — the map's entity menu, shown on a row's right-click; set by a host
+    /// with a map (its inspector state finds it, as the entity inspector's menu does). Null ⇒ no row menu (OM-5).</summary>
+    public Hrot.UI.Common.Menus.MapEntityMenuHandler? RowMenu { get; set; }
+
     // ── State ─────────────────────────────────────────────────────────────────
 
     private string _filterText = string.Empty;
@@ -137,11 +141,12 @@ public sealed class SharedOrbatPanel
                 ImGui.EndDragDropTarget();
             }
 
-            // Right-click context menu — "Disembark" item
-            if (ImGui.BeginPopupContextItem($"##ctx_{node.EntityId}"))
+            // ⭐ CE-1230 (canvas context menu §11 OM-1, OM-4, R-1019) — the row's right-click menu IS the map's entity menu (the inspector's
+            //   route); the panel's own one-item "Disembark" popup is gone (Disembark / Embark… are in the shared menu). A host with no map
+            //   (ExCon) has no row menu (OM-5).
+            if (RowMenu is { } rowMenu && ImGui.BeginPopupContextItem($"##ctx_{node.EntityId}"))
             {
-                if (ImGui.MenuItem("Disembark"))
-                    ctrl.RequestDisembark(node.EntityId);
+                rowMenu.PopulateMenuFor(node.EntityId, new Fdp.Presentation.Utils.ContextMenuBuilder());
                 ImGui.EndPopup();
             }
 

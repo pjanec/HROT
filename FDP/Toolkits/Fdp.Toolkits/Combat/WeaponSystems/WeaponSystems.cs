@@ -46,8 +46,12 @@ namespace Fdp.Toolkit.Combat
             {
                 ref readonly var tag = ref world.GetComponentRO<IsEmbarkedTag>(weapon);
                 var host = tag.VehicleEntity;
-                if (!world.IsAlive(host) || !IsStation(world, host, tag.Seat, out _)) return Entity.Null;   // cargo: nobody fires it
+                if (!world.IsAlive(host) || !IsStation(world, host, tag.Seat, out var station)) return Entity.Null;   // cargo: nobody fires it
                 if (Has<PersonCarrier>(world, host)) return p.FireWhileCarried != 0 ? host : Entity.Null;   // carried
+                // ⭐ CE-1210 (DESIGN_Entity_Control §8n MS-2, R-1018; amends W-H for POSSESSED gunners only) — the man in the station's
+                //   operating seat controls it while a station possesses HIM (seat switching: the vehicle is released and flies its order)
+                if (station.OperatedBy >= 0 && Occupant(world, host, station.OperatedBy) is var seated && !seated.IsNull
+                    && IsPossessed(world, seated) && !IsPossessed(world, host)) return seated;
                 return host;
             }
             var gunner = GunnerOf(world, weapon);
@@ -150,8 +154,35 @@ namespace Fdp.Toolkit.Combat
             {
                 var manned = world.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity;
                 if (IsWeaponSystem(world, manned) && ControllerOf(world, manned) == unit) dest[n++] = manned;
+                else n += StationsOperatedBy(world, unit, manned, dest.Slice(n));   // ⭐ CE-1210 (MS-2) — a possessed gunner's station
             }
             return n;
+        }
+
+        /// <summary>⭐ <c>CE-1210</c> (§8n MS-2) — the station weapons of <paramref name="vehicle"/> whose operating seat <paramref name="man"/>
+        /// sits in and which he controls (<see cref="ControllerOf"/> — only while he is possessed).</summary>
+        private static int StationsOperatedBy(EntityRepository world, Entity man, Entity vehicle, Span<Entity> dest)
+        {
+            if (!world.IsAlive(vehicle) || !Has<PassengerBuffer>(world, vehicle) || !Has<CarrierStations>(world, vehicle)) return 0;
+            int mySeat = world.GetComponentRO<IsEmbarkedTag>(man).Seat, n = 0;
+            ref readonly var list = ref world.GetComponentRO<PassengerBuffer>(vehicle);
+            ref readonly var stations = ref world.GetComponentRO<CarrierStations>(vehicle);
+            for (int i = 0; i < PassengerBuffer.Capacity && n < dest.Length; i++)
+            {
+                var w = list.Passengers[i];
+                if (!stations.IsStation(i) || w.IsNull || stations.Seats[i].OperatedBy != mySeat || ControllerOf(world, w) != man) continue;
+                dest[n++] = w;
+            }
+            return n;
+        }
+
+        /// <summary>⭐ <c>CE-1210</c> (§8n MS-2) — does <paramref name="man"/> fire a station weapon as its possessed gunner? Then he may shoot
+        /// aboard though boarding took his <c>CanShoot</c> (a crew seat's man fires nothing for the AI, W-I).</summary>
+        public static bool OperatesAStation(EntityRepository world, Entity man)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponSystemParams>() || !Has<IsEmbarkedTag>(world, man) || !IsPossessed(world, man)) return false;
+            Span<Entity> one = stackalloc Entity[1];
+            return StationsOperatedBy(world, man, world.GetComponentRO<IsEmbarkedTag>(man).VehicleEntity, one) > 0;
         }
 
         /// <summary>The weapon of <paramref name="unit"/>'s mount list at <paramref name="mountIndex"/> when it is a controlled one

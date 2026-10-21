@@ -269,6 +269,39 @@ public sealed class MenuOrdersTests : IDisposable
         _ = mi;
     }
 
+    /// <summary>⭐ CE-1230 (docs/designs/gizmos-1/canvas-context-menu-design.md §11 OM-2, OM-3, R-1019) — the map's (and so the ORBAT
+    /// tree's) menu embarks and disembarks: a man on foot offers "Embark…", which picks the vehicle on the map and boards him; aboard, he
+    /// offers "Disembark", which sends him out of the vehicle he is in; a vehicle offers neither. ✅ Red-proof: the Embark handler not
+    /// registered ⇒ the click finds no action.</summary>
+    [Fact]
+    public void CE1230_TheSharedMenu_EmbarksOnAVehiclePick_AndDisembarksAUnitAboard()
+    {
+        var (mi, pick) = Live();
+        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        var bmp = Add(99);
+        _w.AddComponent(bmp, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+        string Item(int id) => $"\"id\":{id},";
+        Assert.Contains(Item(GlobalActionIds.Embark), ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+        Assert.DoesNotContain(Item(GlobalActionIds.Embark), ContextMenuProjectorGizmo.MenuJsonFor(_w, bmp));   // a vehicle is boarded, it does not board
+
+        Click(mi, GlobalActionIds.Embark);
+        pick.Enemy!.SetResult(99);
+        mi.MenuOrders.Execute(_w, 0.016f);
+        _w.Bus.SwapBuffers();
+        var board = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray());
+        Assert.Equal((_unit, bmp), (board.Passenger, board.Vehicle));
+
+        _w.AddComponent(_unit, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bmp });   // aboard now
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.Contains(Item(GlobalActionIds.Disembark), menu);
+        Assert.DoesNotContain(Item(GlobalActionIds.Embark), menu);
+        Click(mi, GlobalActionIds.Disembark);
+        _w.Bus.SwapBuffers();
+        var leave = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>().ToArray());
+        Assert.Equal((_unit, bmp), (leave.Passenger, leave.Vehicle));
+    }
+
     [Fact]
     public void CE3169_AHostWithNoPick_IssuesNothing_SoARelayedMenuActionIsNotOrderedTwice()
     {
