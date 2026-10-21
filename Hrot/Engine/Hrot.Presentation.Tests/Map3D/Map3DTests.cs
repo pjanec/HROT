@@ -2109,6 +2109,36 @@ public sealed class Map3DTests
         Assert.Equal(256, Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView);
     }
 
+    /// <summary>
+    /// ⭐ CE-1119 U-2 (Map 3-D §6w; airborne §7 U-2) — the EJECTION: on the seat he sits (the seat's pan under him, its back behind), its
+    /// rocket's flame under it for the first second, shrinking; once his canopy deploys the empty seat falls away beneath him, tumbling,
+    /// then is gone; no seat for any other descent. ✅ Red-proof: the flame's condition dropped ⇒ a flame after burn-out.
+    /// </summary>
+    [Fact]
+    public void CE1119_U2_TheEjectionSeat_ItsFlame_ThenTheSeatFallingAway()
+    {
+        var seat = new List<(PartShape Shape, Matrix4x4 Local, bool Flame)>();
+        Fdp.Toolkit.Motion.Descent D(Fdp.Toolkit.Motion.DescentPhase phase, double since)
+            => new() { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = 100.0 - since, Canopy = Fdp.Toolkit.Motion.CanopyKind.Round };
+
+        Assert.Equal(DescentPose.SittingOut, DescentDraw.PoseOf(Fdp.Toolkit.Motion.DescentKind.Ejection, Fdp.Toolkit.Motion.DescentPhase.Exit));
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Exit, 0.2), 100.0, seat);
+        Assert.Equal(4, seat.Count);
+        Assert.Single(seat, p => p.Flame);
+        var flame = seat.Single(p => p.Flame).Local;
+        Assert.True(Vector3.Transform(new Vector3(0f, 0f, 1f), flame).Z < -0.5f, "the flame points down from under the seat");
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Exit, 1.3), 100.0, seat);
+        Assert.Equal(3, seat.Count);                                               // burnt out: the seat alone
+        Assert.DoesNotContain(seat, p => p.Flame);
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Deploying, 0.6), 100.0, seat);
+        Assert.Equal(3, seat.Count);
+        Assert.True(seat[0].Local.Translation.Z < -1.5f, $"falling away beneath him ({seat[0].Local.Translation})");
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Deploying, 2.0), 100.0, seat);
+        Assert.Empty(seat);                                                        // gone
+        DescentDraw.EjectionSeat(new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit, PhaseSince = 99.8 }, 100.0, seat);
+        Assert.Empty(seat);                                                        // a paratrooper has no seat
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

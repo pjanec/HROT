@@ -43,6 +43,7 @@ public static class DescentDraw
     {
         if (kind == DescentKind.FastRope)
             return phase is DescentPhase.Landed ? null : phase == DescentPhase.Falling ? DescentPose.Arch : DescentPose.RopeSlide;
+        if (kind == DescentKind.Ejection && phase == DescentPhase.Exit) return DescentPose.SittingOut;   // ⭐ CE-1119 U-2 — strapped in his seat
         return phase switch
         {
             DescentPhase.Exit => kind == DescentKind.FreeFall ? DescentPose.Arch : DescentPose.Tuck,
@@ -58,7 +59,7 @@ public static class DescentDraw
     /// <summary>The figure of the phase before <paramref name="phase"/> (what it blends from), or null.</summary>
     public static DescentPose? Before(DescentKind kind, DescentPhase phase) => phase switch
     {
-        DescentPhase.Deploying => kind == DescentKind.FreeFall ? DescentPose.Arch : DescentPose.Tuck,
+        DescentPhase.Deploying => kind == DescentKind.FreeFall ? DescentPose.Arch : kind == DescentKind.Ejection ? DescentPose.SittingOut : DescentPose.Tuck,
         DescentPhase.Canopy => DescentPose.UnderCanopy,
         DescentPhase.Flare => DescentPose.UnderCanopy,
         DescentPhase.Landing => kind == DescentKind.FreeFall ? DescentPose.Flare : DescentPose.UnderCanopy,
@@ -86,6 +87,38 @@ public static class DescentDraw
         };
         float t = Math.Clamp(since / over, 0f, 1f);
         return t >= 1f ? parts : BlockFigure.BlendDescent(BlockFigure.Descending(before, soldier), parts, t * t * (3f - 2f * t));
+    }
+
+    /// <summary>⭐ <c>CE-1119</c> U-2 — how long the seat's rocket burns (s), and how long the empty seat is drawn falling away (s).</summary>
+    public const float RocketSeconds = 1f, SeatAwaySeconds = 1.2f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1119</c> U-2 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7 U-2, Map 3-D §6w) — the EJECTION seat in the man's BODY
+    /// frame (metres): on the seat (the Exit phase) its pan under him and its back and headrest behind him, the rocket's flame under it for
+    /// <see cref="RocketSeconds"/> (flickering, shrinking as it burns out); once the canopy deploys, the empty seat falling away beneath and
+    /// behind him, tumbling, for <see cref="SeatAwaySeconds"/>. Nothing for any other descent. Pure — the rail runs it.
+    /// </summary>
+    public static void EjectionSeat(in Descent d, double now, List<(PartShape Shape, Matrix4x4 Local, bool Flame)> into)
+    {
+        into.Clear();
+        if (d.Kind != DescentKind.Ejection) return;
+        float t = (float)Math.Max(0.0, now - d.PhaseSince);
+        Matrix4x4 away;
+        if (d.Phase == DescentPhase.Exit) away = Matrix4x4.Identity;
+        else if (d.Phase == DescentPhase.Deploying && t < SeatAwaySeconds)
+            away = Matrix4x4.CreateRotationY(3f * t) * Matrix4x4.CreateTranslation(-0.6f * t, 0f, -0.5f * DescentRules.Gravity * t * t - 0.3f);
+        else return;
+        Matrix4x4 Box(float cx, float cy, float cz, float ex, float ey, float ez)
+            => Matrix4x4.CreateScale(ex, ey, ez) * Matrix4x4.CreateTranslation(cx, cy, cz) * away;
+        into.Add((PartShape.Box, Box(0.02f, 0f, 0.05f, 0.55f, 0.52f, 0.10f), false));    // the pan, under him
+        into.Add((PartShape.Box, Box(-0.22f, 0f, 0.48f, 0.10f, 0.52f, 0.86f), false));   // the back
+        into.Add((PartShape.Box, Box(-0.20f, 0f, 0.98f, 0.12f, 0.36f, 0.18f), false));   // the headrest
+        if (d.Phase != DescentPhase.Exit || t >= RocketSeconds) return;
+        float burn = 1f - t / RocketSeconds;
+        float length = (0.9f + 0.5f * burn) * (0.85f + 0.15f * MathF.Sin(t * 60f));   // flickering as it burns out
+        // a cone along −Z under the pan: the unit cone runs +Z 0→1 with radius 0.5, turned upside down
+        into.Add((PartShape.Cone, Matrix4x4.CreateScale(0.30f * burn + 0.08f, 0.30f * burn + 0.08f, length)
+                                   * Matrix4x4.CreateRotationX(MathF.PI) * Matrix4x4.CreateTranslation(-0.05f, 0f, 0f), true));
     }
 
     /// <summary>How open the canopy is (0..1), or −1 when there is none out (a rope, the exit, free fall, a man who lost it).</summary>

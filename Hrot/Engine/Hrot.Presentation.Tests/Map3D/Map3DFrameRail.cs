@@ -2295,6 +2295,60 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1119 U-2 (docs/DESIGN_Map_3D_Mode.md §6w) — the ejection: three pilots in the sky — on the seat with its rocket burning, on the
+    /// seat burnt out, and under an opening canopy with the empty seat falling away beneath him. Screenshot <c>airborne-5-ejection.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1119_V_U2_TheEjectionSeat()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        const double Now = 100.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        void Pilot(float dx, float up, Fdp.Toolkit.Motion.DescentPhase phase, double since)
+        {
+            var m = world.CreateEntity();
+            world.AddComponent(m, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, ground + up), Rotation = Quaternion.Identity });
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Pilot });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(m, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = Now - since,
+                                                                   Canopy = Fdp.Toolkit.Motion.CanopyKind.Round });
+        }
+        Pilot(-4f, 40f, Fdp.Toolkit.Motion.DescentPhase.Exit, 0.3);
+        Pilot(0f, 40f, Fdp.Toolkit.Motion.DescentPhase.Exit, 1.3);
+        Pilot(5f, 38f, Fdp.Toolkit.Motion.DescentPhase.Deploying, 0.45);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.5f, spot.Y, ground + 38.5f), 13f, -MathF.PI / 2f, -0.05f);   // from the south, level
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-5-ejection.png"));
+        Assert.Equal(3, bodies.EjectionSeatsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a doors-off UH-60 hovering 12 m up, ROPING, two SF men on its ropes; a stick of
     /// paratroopers in every phase (the exit tuck, a free-fall arch, a canopy opening, round canopies — one banked —, a ram-air wing banked
     /// in a spiral, the flare, the landing roll, sitting up landed). Then the hold ends: the ropes are cut and lie where they fell, and a man

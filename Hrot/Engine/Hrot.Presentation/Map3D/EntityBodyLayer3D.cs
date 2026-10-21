@@ -104,6 +104,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _loadInHands.Clear();
         MortarsDrawn = 0;
         ChargeLightsDrawn = 0;
+        EjectionSeatsDrawn = 0;
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -310,6 +311,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 ChargeLightsDrawn++;
             }
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
+            if (look.Family == VisualFamily.Person) DrawEjectionSeat(world, e, body, shader, simTime);   // ⭐ CE-1119 U-2
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
                 _tops[net] = look.Family == VisualFamily.Person ? LabelTop(parts, size)   // ⭐ CE-1178 — above a raised sign or hands
@@ -789,6 +791,25 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             DrawPart(piece.Shape switch { PartShape.Cone => _cone, PartShape.Cylinder => _cylinder, _ => _cube }, piece.Local, colour, body, shader);
         foreach (var (a, b) in _lines) DrawPart(_cube, DescentDraw.Stick(a, b, LineThickness), Line, body, shader);
         CanopiesDrawn++;
+    }
+
+    /// <summary>⭐ <c>CE-1119</c> U-2 — the ejection seat's grey and its rocket's flame (unlit-bright: an emitter, VE's rule).</summary>
+    public static readonly Color EjectionSeatColour = new(58, 60, 62, 255), RocketFlame = new(255, 170, 50, 255);
+
+    /// <summary>Ejection seats drawn by the last frame (rails).</summary>
+    public int EjectionSeatsDrawn { get; private set; }
+
+    private readonly List<(PartShape Shape, Matrix4x4 Local, bool Flame)> _seat = new(4);
+
+    /// <summary>⭐ <c>CE-1119</c> U-2 (§6w) — an ejecting man's seat and its flame, in his frame (<see cref="DescentDraw.EjectionSeat"/>).</summary>
+    private void DrawEjectionSeat(EntityRepository world, Entity e, Matrix4x4 body, LitShader shader, double simTime)
+    {
+        if (!TryDescent(world, e, out var d) || d.Kind != Fdp.Toolkit.Motion.DescentKind.Ejection) return;
+        DescentDraw.EjectionSeat(d, simTime, _seat);
+        if (_seat.Count == 0) return;
+        foreach (var (shape, local, flame) in _seat)
+            DrawPart(shape == PartShape.Cone ? _cone : _cube, local, flame ? RocketFlame : EjectionSeatColour, body, shader);
+        EjectionSeatsDrawn++;
     }
 
     /// <summary>
