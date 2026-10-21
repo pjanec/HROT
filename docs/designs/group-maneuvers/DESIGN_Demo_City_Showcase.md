@@ -30,6 +30,17 @@ related-designs:
 > civilians that are hiding weapons … suicide bombers, house clearing … the ideas might not be meaningful. They just should demonstrate
 > the possibilities."*
 
+## 0. What the user saw in the existing urban demo *(🔒 2026-10-21 — a report, not a fix request)*
+
+> *"I have never seen the IED explosive to explode, harming the front vehicle. If the car with the soldiers is hit, they go out and they
+> just stand there around the vehicle. I could not see the mortar attacking. I could not see the aircraft attacking the mortars. So the
+> ideas were big, but the actual interpretation and demonstration of them was not really what I was expecting."*
+
+⭐ **The lesson this design takes from it (D-3):** a check that only asserts *"X happens only when Y"* passes when X never happens — the
+flagship's ①–③ are all of that shape, and its recorded PASS says so itself (*"no REQUEST was made, so the HQ sent nothing"*,
+[Urban Battle](DESIGN_Urban_Battle_Demo.md) §6). ⇒ every act here asserts its beat happened and was visible. ⚠ Why the dismounted men
+stood by their vehicle was not measured here — the owning lane's question.
+
 ## 1. The map — seven stages on demo-city
 
 ![the showcase stages on demo-city](img/demo-city-showcase.svg)
@@ -89,7 +100,7 @@ actually shot down, with its pilot ejecting (G-1).**
 |---|---|---|---|
 | **D-1** | one scenario, or several? | ⭐ **both, in that order**: each act is first its own scenario (`uc-show-1-market` … `uc-show-7-clearing`, most of them ports of passing demos), each with its own live check; then **`uc-showcase`** loads them all on demo-city at once | one big file built directly: when a beat fails nobody can tell which act broke · separate scenarios only: not "one single place" |
 | **D-2** | how the acts follow each other | ⭐ **a timetable between acts, no script inside one**: each act's lead unit holds, then a `TimerElapsed` phase starts it; acts 3–4 keep route B (the HQ sends on a report) with a timed fallback | fully report-driven (the flagship's route B): a run may never show the A-10 at all — it is sent only if a ZU-23 is reported, and the mortar's SPOT is a coin flip here · everything timed: the AI's decisions would no longer show |
-| **D-3** | the side that wins | ⭐ **nobody** — each act's check asserts what must hold whatever happens (no civilian targeted, the charge only with a vehicle in its zone, nothing sent without a report or its fallback time), and the run prints which way each fight went | asserting outcomes: fights here are not deterministic, by design (R-2060) |
+| **D-3** | what an act's check asserts | ⭐ **that its beat HAPPENED and could be SEEN, plus the rules that must always hold** — e.g. act 2: the charge went off AND the lead vehicle took damage; the dismounted men left the vehicle's side for cover AND fired; act 3: rounds landed AND an aircraft fired at the tubes. The winner is never asserted (R-2060) | ⛔ invariants alone — the Urban Battle flagship's way: *"the charge only with a vehicle in its zone"*, *"nothing sent without a report"* both HOLD when nothing happens, so a run in which the IED never hurts the lead vehicle and no aircraft ever attacks the mortar passes 6/6 (§0 below, the user's own viewing) |
 | **D-4** | how big | ⭐ **≈ 165 entities + ≈ 20 cover obstacles + the traffic** (200 cars, 160 walkers): act 1 ≈ 50 (crowd, police, wedding, gunman, bomber), act 2 ≈ 40, acts 3–4 ≈ 18, act 5 ≈ 28, act 6 ≈ 20, act 7 ≈ 7 — inside the 300-civilian ceiling (R-3029) and the 500-a-tick creation limit; load ≈ 30 s like `uc-urban-battle` | a bigger battle: the civilian ceiling is a measured per-frame budget, not a guess |
 | **D-5** | who builds it | ⭐ **behaviors** owns the acts (it owns the Urban Battle ladder and every behaviour used); the coordinator builds act 7's traffic side and the assembly (`uc-showcase`) and closes G-1 with backend; ui closes G-4 (flares seen) | one lane building every act: the acts reuse four lanes' behaviours |
 
@@ -97,7 +108,7 @@ actually shot down, with its pilot ejecting (G-1).**
 
 | # | gap | ⭐ lean | lane |
 |---|---|---|---|
-| **G-1** | an aircraft **shot down**, the pilot ejecting on the hit (today only a timer ejects him; auto-eject at 20 % health is unit-tested only) | measure first: can a ZU-23 or an Igla bring an A-10 to 20 % live, after CE-2185's aircraft armour? if yes, a rung `uc-show-eject` asserts *hit → eject → canopy → lands → evades*; if not, the Igla's warhead is the lever, not the armour | backend (damage), behaviors (the rung) |
+| **G-1** | an aircraft **shot down**, its pilot ejecting — 🔒 user, 2026-10-21: *"the pilot ejecting from a destroyed aircraft falling down should be some kind of natural behavior of the aircraft not something I need to script"* | ✅ **it already is natural, by design**: the aircraft TYPE carries an ejection seat (`EjectionDto`) and `EjectionSystem` fires it by itself at ≤ 20 % health or on a catastrophic one-blow wreck (`EjectionSystem.cs:50`, CE-3215); a dead plane falls (`FixedWingModel.cs:19`). ⛔ The scenario must NOT script it. What is missing: ① only the A-10 type has a seat (`BdcTkbCatalog.cs:1212`) — every crewed fixed-wing type should; ② no live run has ever brought an aircraft down (`ua-eject` uses a timed "malfunction"): measure whether a ZU-23 / Igla can, after CE-2185's aircraft armour | backend (seats, damage) · behaviors (the act) |
 | **G-2** | grenades in the live check; grenades in room clearing | port `ua-grenade-or-rifle` to the live script; CE-2260 (grenade before entry) is the clearing half | behaviors |
 | **G-3** | the mortar's SPOT is a coin flip on this terrain (CE-3018) | the timed fallback of D-2: the HQ's air asset also has a late timer phase; the report still decides when it comes in time | behaviors |
 | **G-4** | flares are released but not seen; the Igla is in no scenario | draw the flare (Visual Effects); put the Igla gunner on the office roof | ui · behaviors |

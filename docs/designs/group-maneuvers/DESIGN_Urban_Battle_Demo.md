@@ -225,6 +225,13 @@ Street S east, hidden from the avenue). ✅ **PASS live 6/6** (2026-10-20, 1200 
 pushes through and resumes; the immobilised APC's squad SPOTs the team round the corner, dismounts under an RPG and fights it (Blue 34 / Red
 24 rounds); 0 rounds at civilians; no REQUEST was made, so the HQ sent nothing — the story the fight chose this time.
 
+⚠ **User's viewing, `2026-10-21`** *(reported by the user to the coordinator, recorded here as the owning design; a report, not a fix
+request)*: *"I have never seen the IED explosive to explode, harming the front vehicle. If the car with the soldiers is hit, they go out
+and they just stand there around the vehicle. I could not see the mortar attacking. I could not see the aircraft attacking the mortars."*
+⭐ The check's ①–③ hold vacuously when their event never happens (the 6/6 run made no REQUEST, so nothing was sent); only ④ needs
+anything to happen. The showcase design ([DESIGN_Demo_City_Showcase.md](DESIGN_Demo_City_Showcase.md) §0, D-3) asserts each beat
+HAPPENED and was visible.
+
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.
 
