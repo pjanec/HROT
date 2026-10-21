@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (approved 2026-10-21, R-4062; dispatched to backend: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Film_Director.md)
-updated: 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
-current-answer: §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
+build-state: READY-TO-BUILD (approved 2026-10-21, R-4062) · ⭐ RE-DISPATCHED 2026-10-21 to the UI lane (R-3038): docs/blueprints/batches/HANDOFF_Backend_To_Ui_Film_Director.md — the backend dispatch (HANDOFF_Coordinator_To_Backend_Film_Director.md) is superseded
+updated: 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+current-answer: §0 FIRST (R-3038 overrides §3d and D-3 for stepped runs) · §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
-known-rot: §2/§6 still name the scout pass, `AnchorBook` and baked anchors as exact, and B0/B3 acceptance as "same run" — read them through R-3034 and D-3 (revised) until the classes are redrawn with B3
-known-conflict: ⚠ OPEN 2026-10-21 — the user and backend are investigating whether runs CAN be made deterministic (user: "I still believe we could make this deterministic"); §3d is written to work either way, and if determinism lands, D-3 may cut on baked times again (exact leads, replays by re-run) · R-3032 ("the scene alone") is amended by R-4060 for takes that turn layers on; R-1004 / AU-3 (sound only while possessed) by R-4059
+known-rot: §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
+known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
@@ -51,6 +51,29 @@ takes. The **director** is the editor feature that plays them: on screen in real
 🔒 **User, 2026-10-21 (fifth pass):** *"scenarios are not deterministic by design. this might be quite an issue for planning clips"* ·
 *"which might lead to the replay from recording path"*. ⭐ Canon since 2026-09-04: *"the scenario is not deterministic, entities do not
 go the same ways"* (`RUNBOOK_Cluster_Debugging_Over_Http.md` §8).
+
+## 0. ⭐⭐⭐ SIXTH PASS — R-3038: a take is scripted in TIME, on a stepped run that repeats
+
+🔒 **User, `2026-10-21`:** *"it needs to rely on determinism, otherwise we could not specify when what cut should take place and at which
+time the camera should be at what direction or not."* · *"Yes, write it and write a handoff to the UI line."*
+
+| | fifth pass (R-4064, superseded for stepped runs) | ⭐ **sixth pass (R-3038)** |
+|---|---|---|
+| when a cut happens | on a live cue in the run being shown | ⭐ **at the script's time** — anchors baked by the scout are exact, because the filmed run IS the scouted run |
+| the scout | a reliability measurement over N differing runs | ⭐ **one run, stepped like the film**, that bakes the anchor times; a second scout run that differs is a **determinism defect** to report, not a statistic |
+| retakes | repeat a run whose beat is missing | ⛔ not a remedy — a missing beat on a repeated run is a defect (report it with both runs' state) |
+| live cues and precursors | the cut mechanism | ⭐ kept as the **verification**: capture checks each baked anchor fires at its time and the report names any that drift |
+| the stepping cadence | paced, up to 2 steps per frame | ⭐⭐ **EXACTLY ONE STEP PER RENDERED FRAME, for every run that must repeat — the scout, the live show, the capture.** Never zero, never two. Real time is kept by **holding the frame** until the step is due, not by skipping or doubling steps |
+| the step size | 1/60 s, or 20 / 15 Hz when 60 cannot keep up (R-4063) | the same — ⚠ **but one take keeps ONE step size across its scout and every film of it**; a step-size change is a new scout |
+| every run | loads from the file (R-3034) | unchanged |
+
+⭐ **Why the cadence rule** (`DESIGN_Paused_And_Stepped_Execution.md` §10 F1): a system that runs every frame reacts on the frame after a
+step, so whether a paused frame comes before the next step changes the run. ⛔ Rejected: the kernel forbidding two steps on consecutive
+frames — it halves the top step rate (a 60 Hz live show would need 120 fps).
+
+⭐ **What it depends on:** stepped runs repeat only once **CE-3293 S5** lands (step-only systems receive every event since the last step).
+Until then the director is built and tested on single runs; *"the filmed run equals the scouted run"* is accepted after S5 — measured on
+three loads stepped once per frame, identical at every cut.
 
 🔒 **User, 2026-10-21 (approval):** *"lets write a note to backend to implement that"* — the design as summarized, slice 1 = phases 1–3.
 
@@ -512,9 +535,9 @@ call.
 
 | # | question | ⭐ lean | rejected, one line each |
 |---|---|---|---|
-| **D-1** | how real time plays | ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time; live, scout and capture use the same rate | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
+| **D-1** | how real time plays | ⛔ **SUPERSEDED IN PART by §0 (R-3038): exactly one step per rendered frame, the frame held to real time — never 2 per frame.** ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time; live, scout and capture use the same rate | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
 | **D-2** | where takes live | ⭐ **beside the scenario**, `takes/*.take.json` — a variant carries its own | in `scenario.json`: presentation in the replicated world document, and the R-260 camera entity is adopted once at load · one central manifest: variants lose their takes |
-| **D-3** | when a cut happens | ⭐ **REVISED `2026-10-21` (R-3034), lean for approval: LIVE CUES in the run being shown.** A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate  ⭐ **Coordinator, R-4064:** a shot is held **`until`** its next event; the scout measures **reliability** (N runs: k of N, time spread) and drafts; capture **retakes** a run whose required beat is missing (§3d) | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
+| **D-3** | when a cut happens | ⛔ **SUPERSEDED for stepped runs by §0 (R-3038): at the script's time, anchors baked by a scout stepped like the film; live cues verify.** ~~REVISED `2026-10-21` (R-3034): LIVE CUES in the run being shown.~~ A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate  ⭐ **Coordinator, R-4064:** a shot is held **`until`** its next event; the scout measures **reliability** (N runs: k of N, time spread) and drafts; capture **retakes** a run whose required beat is missing (§3d) | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
 | **D-4** | instant replays | ✅ **RULED (R-4061): none in slice 1; later, from the live run's recording** (§3c), after measuring that playback is faithful; the in-memory bookmark is the fallback | — |
 | **D-5** | overlays per shot — backend tip 4 | ✅ **RULED (R-4060):** off by default; a take or a shot turns layers on and off by name, as a transient override (§4b) | — |
 | **D-6** | titles, captions, sound — tip 5 | ⭐ captions **drawn by `CinemaMode`**, on screen and burned into captured frames. ⭐ **Sound** in every view when Sound is on (R-4059); the films get a track **rendered offline from the mixer's cue log** (§4c) | `ffmpeg drawtext` only: the live show would have none · recording the device: a captured frame takes ~0.8 s, so the sound would be stretched ~50× |
@@ -555,7 +578,9 @@ call.
 | the user's layer set is saved to their file | ✅ `LayerControlSets` (`LayerControlGizmo.cs:230-290`) ⇒ a take's layers must not be written there | ✅ `DESIGN_Terrain_Combat_Tuning.md` §5e |
 | no HTTP route reaches the layers or the sound | ✅ the editor's route list: only `/panels*` touch the UI | — |
 
-## 6. Phases and acceptance — for backend
+## 6. Phases and acceptance — for the ui lane (R-3038)
+
+⚠ **Read through §0:** phase 1's first item becomes *"two runs stepped once per frame are identical at every cut"* — a REPORT now, a GATE once CE-3293 S5 lands; phase 2's scout bakes exact times; retakes give way to a determinism report.
 
 | phase | builds | accepted when |
 |---|---|---|
