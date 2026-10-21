@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -10,7 +10,7 @@ verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - 
   ClusterRunner.Integration suite is un-gateable (pre-existing DDS crash) - gate via the filtered runs.
 current-answer: the whole file. §2-§6 AS-IS (measured) - §7 findings - §8 probes - §9 root cause
   - §10 target/AS-BUILT - §11 replay - §12 the regression net - §13 verification - §15 the two remote
-  caches (T7) - §16 the pause-notion roll, site by site (T5).
+  caches (T7) - §16 the pause-notion roll, site by site (T5) - §17 stepped mode is deterministic (CE-3292).
   The ORDER lives in PLAN_Time_System_Refactor.md.
 stale-below: nothing above HISTORY.
 known-rot: none. Claims corrected by later measurement are marked CORRECTED inline and keep the
@@ -1488,6 +1488,91 @@ hangs off it.**
 ---
 
 ---
+
+## 17. ⭐⭐⭐ STEPPED MODE IS DETERMINISTIC — **the scheduler counts sim time, a step waits for its background jobs** *(CE-3292, R-3035, `2026-10-21`)*
+
+> 🔒 **User, `2026-10-21`:** *"perception must run in simtime, for sure"* · *"determinism is only required in stepped mode … the 10Hz
+> and such were meant to be wall clock to ease the CPU"* · (the step wait) *"ok accepted"*.
+
+📐 **Why** (CE-3291/CE-3292, measured on `ua-tank-ammo`, `--mode editor`): two reloads stepped alike drifted, because ① the world tick
+(`view.Tick`) counts RENDERED frames — paused 3 s at sim 2.0 s ⇒ perception sensed 70 times; one step ≈ 6 frames — ② a module below
+60 Hz is dispatched every `60/Hz` RENDERED frames (`ShouldRunThisFrame`), and ③ an `Asynchronous` module's results land on whatever frame
+its thread finishes (harvest checks `IsCompleted`). In stepped mode the number of frames between two steps is the wall clock's.
+
+```mermaid
+graph TD
+  K["ModuleHostKernel.UpdateInternal — every rendered frame"]
+  K -->|"stepped AND dt = 0 (a paused frame)"| H0["async jobs HELD; slow/async modules NOT dispatched"]
+  K -->|"stepped AND dt > 0 (a step)"| H1["HARVEST: wait for each async job, then apply it"]
+  H1 --> D1["DISPATCH: a slow module runs when the step crosses its sim-time slot (10 Hz = every 0.1 s of sim time)"]
+  K -->|"continuous (live play)"| L["unchanged: frame-counted cadence, async harvest when done"]
+  K -->|"sim time went BACK (load, Stop)"| E["new epoch: slots and accumulators reset; older jobs' results DISCARDED"]
+  D1 --> M1["EqsModule (perception, 10 Hz)"]
+  D1 --> M2["NavigationSolverModule (10 Hz)"]
+  D1 --> M3["Traffic (20 Hz)"]
+  D1 --> M4["any legacy Tier-slow module (SlowBackground by default)"]
+```
+
+*What the picture shows that the prose hid: the rule is by POLICY (asynchronous, or below 60 Hz), not a list of modules — a legacy
+`Tier` module is `SlowBackground` by default (`IEcsModule.Policy`) — and live play takes none of the new edges.*
+
+```mermaid
+sequenceDiagram
+  participant M as Master clock
+  participant K as Kernel
+  participant J as EqsModule job (worker)
+  M->>K: step N (dt = 1/60, crosses a 0.1 s slot)
+  K->>J: dispatch on the snapshot of step N
+  loop paused frames (any number — the wall clock)
+    M->>K: dt = 0
+    K-->>J: job HELD even if finished
+  end
+  M->>K: step N+1 (dt > 0)
+  K->>J: wait until done (bounded by the run's own timeout)
+  J-->>K: results applied at step N+1's harvest — every run, same step
+  M->>K: load / Stop snaps sim time back
+  K->>K: epoch + 1 — a job from the old epoch is discarded at harvest, never applied
+```
+
+*What it shows: the result of a job lands at the first STEP after its dispatch — never on a paused frame — so the step it lands on does
+not depend on how long the pause was. That is live play's minimum latency (one frame); live play only lands later when a job overruns.*
+
+```mermaid
+classDiagram
+  class ModuleHostKernel {
+    -bool _steppedFrame
+    -bool _advancingFrame
+    -double _frameSimTime
+    -double _lastFrameSimTime
+    -int _timelineEpoch
+    -ShouldRunThisFrame(entry) bool
+    -HarvestEntry(entry)
+  }
+  class ModuleEntry {
+    +long LastRunSlot
+    +int DispatchEpoch
+    +float AccumulatedDeltaTime
+    +int FramesSinceLastRun
+  }
+  ModuleHostKernel "1" o-- "*" ModuleEntry
+  class ITimeController {
+    +GetMode() TimeMode
+  }
+  ModuleHostKernel --> ITimeController : stepped = Deterministic
+```
+
+| ⭐ the rule | where |
+|---|---|
+| **stepped** = `ITimeController.GetMode() == Deterministic`; **advancing** = `dt > 0` | the kernel, once per frame |
+| a slow (< 60 Hz) or asynchronous module, stepped: dispatched only on an advancing frame; a slow one when `floor(simTime / period)` differs from its last run's slot | `ShouldRunThisFrame` |
+| an asynchronous job, stepped: harvested only on an advancing frame, after waiting for it | the harvest phase |
+| sim time goes back ⇒ epoch + 1, every slot and accumulator reset; a job dispatched in an older epoch is discarded at harvest | the kernel, once per frame |
+| **perception's clock is `GlobalTime.FrameNumber`** (counts steps; reset by the load/Stop snap) and every perception system skips `dt = 0` | `DESIGN_Sensors_And_Doctrine.md` known-rot (CE-3292) |
+
+⛔ **Rejected:** sim-time cadence in LIVE play (the CPU cost would follow the time scale — the user: the rates are for the CPU) · the
+world tick counting steps (`ScenarioLoadStep:214` and the replication timeouts need it to move while paused) · synchronous background
+modules always (live play loses its threading) · harvest on paused frames (a finished job would land BEFORE step N+1's early phases or AT
+its harvest depending on the pause length).
 
 ## ⭐ WHERE THE TASKS WENT
 
