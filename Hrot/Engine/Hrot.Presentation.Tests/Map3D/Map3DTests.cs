@@ -1126,6 +1126,60 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐ CE-1169 (People Display §5 U8) — the exercise-control layer "Concealed (ExCon)": a pistol in a man's HIDDEN station is outlined at
+    /// his hip on the Concealed layer only (gone with the layer hidden); the same pistol in his HANDS is not (the figure draws it); the layer
+    /// is OFF by default and inside the toggled range. ✅ Red-proof: the gizmo asking <c>IsStowed</c> instead of <c>IsConcealed</c> ⇒ the
+    /// pistol on his back is outlined too, and the rail fails.
+    /// </summary>
+    [Fact]
+    public void CE1169_TheConcealedLayer_OutlinesOnlyWhatIsCarriedHidden()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            var man = Man(world, new Vector3(10f, 20f, 0f));
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(world, man, ((TkbDatabase)db).GetByType(TkbEntityTypes.Infantry_Rifleman)!);
+            var pistol = world.CreateEntity();
+            world.AddComponent(pistol, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(pistol, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_PickUpPistol });
+            void CarryIn(int seat)
+            {
+                var list = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(man);
+                for (int i = 0; i < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity; i++) if (list.Passengers[i] == pistol) list.Passengers[i] = Entity.Null;
+                list.Passengers[seat] = pistol;
+                list.Count = 1;
+                world.SetComponent(man, list);
+                var tag = new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man, Exposed = 1, Seat = (byte)seat };
+                if (world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(pistol)) world.SetComponent(pistol, tag);
+                else world.AddComponent(pistol, tag);
+            }
+            var gizmo = new Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo();
+
+            int hidden = Fdp.Toolkit.Behavior.CarryStations.Hidden(world, man);
+            Assert.True(hidden >= 0, "a rifleman has a hidden station");
+            CarryIn(hidden);
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out var carrier, out var at));
+            Assert.Equal(man, carrier);
+            Assert.Equal(new Vector3(10f, 20f, Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.HipZ), at);
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(world, pistol, d), Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed);
+
+            CarryIn(Fdp.Toolkit.Behavior.CarryStations.Back(world, man));
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out _, out _), "slung on his back: seen, not concealed");
+            CarryIn(Fdp.Toolkit.Behavior.CarryStations.Hands(world, man));
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out _, out _), "in his hands: the figure draws it");
+
+            var all = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto().ToMask();
+            Assert.False(all.IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed), "off by default");
+            Assert.True(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed < Hrot.Common.Diagnostics.Gizmos.LayerControlDto.FirstUntoggledLayer, "inside the toggled range");
+            Assert.True(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Units = { Concealed = true } }.ToMask().IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed));
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1091 (§6n N-6) — the smoke trail follows the REMEMBERED path (it bends as the round did — a top-attack climb and dive), not a
     /// straight line back to the muzzle; a shell or a bomb draws only a faint streak of its last two seconds; a bullet nothing.
     /// </summary>

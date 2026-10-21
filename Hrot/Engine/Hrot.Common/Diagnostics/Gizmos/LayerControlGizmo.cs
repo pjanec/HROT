@@ -60,7 +60,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 26;
+        public const int FirstUntoggledLayer = 27;
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -109,6 +109,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.Labels) mask.SetBit(DebugTraceLayers.Labels);
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
+            if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
             if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
             if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
@@ -150,6 +151,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool UnitDetails { get; set; }
         [EditDisplayName("Rounds"), EditDoc("Rounds and grenades in flight or lying on the ground.")]
         public bool Rounds { get; set; } = true;
+        [EditDisplayName("Concealed (ExCon)"), EditDoc("Exercise control: outline what each person carries HIDDEN (a worn charge, a concealed pistol) and name it on his card. Off by default (CE-1169).")]
+        public bool Concealed { get; set; }
     }
 
     /// <summary>⭐ CE-1203 — the Command group.</summary>

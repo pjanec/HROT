@@ -144,3 +144,4 @@ the next item (`R-106`).
 | `2026-10-21` | 35 | ✅ `CE-1146` PR-1 precipitation over the 3-D scene (rain streaks with the wind, snow flakes, from the same sample as the sky) — Map 3-D §6aa.PR-1; leans CL / MO / NL written in §6aa.next, not built; Presentation 818 / 0 |
 | `2026-10-21` | 35 | ✅ `CE-1146` PR-2 a wreck's smoke drifts on the world's wind (the code's own *"until weather exists"* placeholder) — Map 3-D §6aa.PR-2 |
 | `2026-10-21` | 33 | ✅ `CE-1158` the use key's cluster run — Drive and Get out from a pure IG station across SimHost / IG / ExCon / CGF (`EntityOrdersAcrossNodesTests.CE1158_…`, red-proved); found: an abstract-crew Bradley offers Board, not Drive (lean: keep) — Entity Control §8h.9 |
+| `2026-10-21` | 27 | ✅ `CE-1169` the last piece — U8's ExCon "Concealed" layer (`ConcealedItemGizmo`, layer 26, Units ▸ Concealed, off by default) — People Display §7c; CE-1169 DONE |
