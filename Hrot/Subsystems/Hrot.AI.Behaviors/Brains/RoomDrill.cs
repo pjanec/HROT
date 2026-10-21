@@ -65,7 +65,9 @@ namespace Hrot.AI.Behaviors.Brains
         public double StepSince, BangAt;
         /// <summary>CB-72 — 1 while contact at the way in holds the entry · since when it has been quiet.</summary>
         public byte Contact;
-        public double QuietSince;
+        public double QuietSince, ContactSince;
+        /// <summary>CB-72 — the pie slice last issued (0 = the first, widest off the doorway's line).</summary>
+        public byte PieStepIssued;
         /// <summary>CB-73 — the turn the stack was placed with · the roster slots that were live when it was.</summary>
         public int Turn;
         public ushort Placed;
@@ -254,6 +256,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>CB-72 — fired on within this long holds the entry (s) · quiet this long releases it (s) · the pie points' distance (m) and
         /// their angles off the doorway's line (°, #1 then #2).</summary>
         public const float FiredOnSeconds = 3f, QuietSeconds = 3f, PieMetres = 1.8f, PieAngle0 = 60f, PieAngle1 = 30f;
+        /// <summary>CB-72 — a pie slice every this long (s), this much nearer the doorway's line each (°), never nearer than these (°, #1, #2).</summary>
+        public const float PieStepSeconds = 2f, PieStepDegrees = 15f, PieMinAngle0 = 10f, PieMinAngle1 = 5f;
+
+        private static int PieStep(ref RoomDrillState d, double now)
+            => Math.Min(8, (int)((now - d.ContactSince) / PieStepSeconds));
 
         /// <summary>
         /// ⭐ The gate (CB-69, CB-72): true once the entry may flow. While no entry man has crossed, contact at the way in (a hostile SEEN in
@@ -267,10 +274,15 @@ namespace Hrot.AI.Behaviors.Brains
             var know = Knowledge(ref d, in ctx);
             bool firedOn = FiredOnAtTheWayIn(ref d, in ctx);
             if (firedOn) d.FiredOn = 1;
-            if (know.HostileSeen || firedOn)
+            // ⭐ CB-72 (as built) — once in contact, it lasts while a hostile the squad still holds in the room is alive: 📐 live
+            //   (bc-house-defended), a defender down the hallway's axis was unseen from behind the wall, the 3 s "quiet" came, the next
+            //   man went in and was shot
+            if (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown))
             {
                 if (d.Contact == 0 || d.GateOpen != 0)
                 {
+                    d.ContactSince = ctx.Now;
+                    d.PieStepIssued = 0;
                     d.Contact = 1;
                     d.GateOpen = 0;
                     d.Released = 0;
@@ -278,6 +290,8 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.Reissue = 1;
                 }
                 d.QuietSince = 0;
+                int step = PieStep(ref d, ctx.Now);
+                if (step != d.PieStepIssued) { d.PieStepIssued = (byte)step; ws.Reissue = 1; }   // the next slice
                 return false;
             }
             if (d.Contact != 0)
@@ -478,7 +492,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var stack = d.Plan.Stack(k);
             float s = Vector2.Dot(new Vector2(stack.X, stack.Y) - d.Plan.Door, d.Plan.Along) >= 0f ? 1f : -1f;
-            float a = (k == 0 ? PieAngle0 : PieAngle1) * MathF.PI / 180f;
+            // ⭐ CB-22 / CB-72 (as built) — SLICE THE PIE: each slice steps toward the doorway's line, so the leaning man comes to see down it
+            float swing = d.PieStepIssued * PieStepDegrees;
+            float a = MathF.Max(k == 0 ? PieMinAngle0 : PieMinAngle1, (k == 0 ? PieAngle0 : PieAngle1) - swing) * MathF.PI / 180f;
             Vector2 door = d.Plan.Door, into = d.Plan.Into, along = d.Plan.Along;
             Vector2 At(float side) => door + PieMetres * (MathF.Cos(a) * -into + MathF.Sin(a) * side * along);
             var point = new Vector3(At(s), d.Plan.StackZ);

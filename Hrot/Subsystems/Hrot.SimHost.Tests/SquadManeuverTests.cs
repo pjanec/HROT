@@ -4207,6 +4207,13 @@ namespace Hrot.SimHost.Tests
             }
             Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 holds the stack");
 
+            // ⭐ slice the pie: each slice (2 s) nearer the doorway's line — the leaning man comes to see down it
+            float Off(Entity m) => Vector2.Dot(new Vector2(PostureOf(s, m).Post.Point.X, PostureOf(s, m).Post.Point.Y) - plan.Door, plan.Along);
+            float first = Off(s.Members[0]);
+            TickFor(s, RoomDrill.PieStepSeconds + 0.1);
+            Assert.True(Off(s.Members[0]) < first - 0.2f, $"#1's next slice is nearer the doorway's line ({first:F2} → {Off(s.Members[0]):F2})");
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // still held
+
             s.ClearPool();
             TickFor(s, RoomDrill.QuietSeconds - 0.5);
             Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not released again yet
