@@ -196,7 +196,8 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 1. ⚠ `CE-1210` (seat switching, Entity Control §8n.5) and `CE-1230` (shared ORBAT menu, canvas context menu §11.4) — BUILT `2026-10-21`; a Windows visual check is owed (G in a technical / UH-60, right-click an ORBAT row, Embark… then pick a vehicle).
 2. ⚠ `CE-1235` (uniform cloth by side, Map 3-D §6q.1) — BUILT `2026-10-21`, and the side cloth beats a TYPE colour (R-1021); Windows check in `pc-defend-house`'s house.
-3. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
+3. ⚠ `CE-1236` (every soldier's weapon + the MortarTeam's mortar, People Display §7b) — BUILT `2026-10-21`; Windows check in `bt-mortar-roof` and `pc-defend-house`. The rest of `CE-1169` (phone, binoculars, stone / grenade in hand, the ExCon concealed layer) stays open.
+4. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
 
 ### The standing rules of this lane (the user's, still binding)
 

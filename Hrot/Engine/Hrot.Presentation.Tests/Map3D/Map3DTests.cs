@@ -1341,6 +1341,82 @@ public sealed class Map3DTests
         Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, police));
     }
 
+    /// <summary>
+    /// ⭐ CE-1236 (docs/DESIGN_People_Display.md §5 U7a, R-1022; 🔒 User, `2026-10-21`: "The soldiers can have different type of weapons …
+    /// they all have a single rifle-like rod" · "the mortar shells are coming from two soldiers standing and there is no mortar rendered") —
+    /// each weapon's look from the data the type already has: the sidearm (its Pistol appearance), the PKM (MachineGun), the sniper (a scope),
+    /// the insurgent's RPG (its rocket), the Javelin (Atgm), the MortarTeam's 81 mm (its bomb); the figure reshaped for it, its details, and a
+    /// launcher he is not using on his back.
+    /// </summary>
+    [Fact]
+    public void CE1236_EveryWeapon_IsDrawnAsWhatItIs()
+    {
+        var db = BuiltIn();
+        HeldLook Mount(long type, int i) => HeldWeapons.LookOf(db, db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[i]);
+        Assert.Equal((HeldLook.Rifle, HeldLook.Pistol), (Mount(UrbanCombatTkbCatalog.TkbInfantrySoldier, 0), Mount(UrbanCombatTkbCatalog.TkbInfantrySoldier, 1)));
+        Assert.Equal((HeldLook.Rpg, HeldLook.Rifle), (Mount(UrbanCombatTkbCatalog.TkbInsurgent, 0), Mount(UrbanCombatTkbCatalog.TkbInsurgent, 1)));
+        Assert.Equal(HeldLook.MissileTube, Mount(UrbanCombatTkbCatalog.TkbJavelinTeam, 0));
+        Assert.Equal(HeldLook.Mortar, Mount(UrbanCombatTkbCatalog.TkbMortarTeam, 0));
+        Assert.Equal(HeldLook.MachineGun, Mount(TkbEntityTypes.Infantry_MachineGunnerPkm, 0));
+        Assert.Equal(HeldLook.ScopedRifle, Mount(TkbEntityTypes.Infantry_Sniper, 0));
+        Assert.Equal(HeldLook.Manpads, HeldWeapons.LookOf(WeaponKind.Manpads));   // a carried Igla / Stinger
+
+        // what he holds is the SELECTED mount (replicated); a launcher of his own he is not using is slung
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var rpg = Man(world, Vector3.Zero, type: UrbanCombatTkbCatalog.TkbInsurgent);
+            world.AddComponent(rpg, new Fdp.Toolkit.Combat.Components.WeaponPosture { ActiveMount = 1 });
+            Assert.Equal((HeldLook.Rifle, HeldLook.Rpg), HeldWeapons.Of(world, rpg, db, out _));
+            world.SetComponent(rpg, new Fdp.Toolkit.Combat.Components.WeaponPosture { ActiveMount = 0 });
+            Assert.Equal((HeldLook.Rpg, HeldLook.Rifle), HeldWeapons.Of(world, rpg, db, out _));
+        }
+
+        // the figure: the parts keep their count and order; only the weapon (and for a pistol / a mortar, the hands) change
+        static float Length(KitPart p) { var (a, b) = BlockFigure.Ends(p); return Vector3.Distance(a, b); }
+        var aimed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Aimed);
+        float rifle = Length(aimed[BlockFigure.WeaponIndex]);
+        var pistol = BlockFigure.Held(aimed, HeldLook.Pistol, WeaponPostureKind.Aimed);
+        Assert.Equal(aimed.Length, pistol.Length);
+        Assert.InRange(Length(pistol[BlockFigure.WeaponIndex]), 0.18f, 0.26f);
+        Assert.True(Vector3.Distance(BlockFigure.Ends(pistol[7]).B, BlockFigure.Ends(pistol[9]).B) < 0.10f, "both hands on the pistol");
+        Assert.True(Length(BlockFigure.Held(aimed, HeldLook.MachineGun, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex]) > rifle + 0.2f, "a machine gun is longer");
+        Assert.Equal(PartShape.Cylinder, BlockFigure.Held(aimed, HeldLook.Rpg, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex].Shape);
+        var atEase = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);
+        Assert.Equal(PartShape.Cylinder, BlockFigure.Held(atEase, HeldLook.Manpads, WeaponPostureKind.AtEase)[BlockFigure.WeaponIndex].Shape);   // not only aimed
+        Assert.Same(atEase, BlockFigure.Held(atEase, HeldLook.Rifle, WeaponPostureKind.AtEase));
+
+        // the mortar: nothing in his hands; fired, the hands go to the mouth of the tube standing in front of him; at ease they hang
+        Assert.InRange(EntityBodyLayer3D.MortarMouth.X, 0.2f, 1.2f);
+        Assert.InRange(EntityBodyLayer3D.MortarMouth.Z, 0.7f, 1.4f);
+        var ready = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var firing = BlockFigure.Held(ready, HeldLook.Mortar, WeaponPostureKind.Ready, EntityBodyLayer3D.MortarMouth);
+        Assert.Equal(Vector3.Zero, firing[BlockFigure.WeaponIndex].Extent);
+        float right = Vector3.Distance(BlockFigure.Ends(firing[9]).B, EntityBodyLayer3D.MortarMouth);
+        Assert.True(right < 0.12f, $"his right hand at the tube's mouth ({right:F2} m)");
+        var shoulderL = BlockFigure.Ends(firing[6]).A;   // the left arm reaches out toward it, as far as it goes
+        Assert.True(Vector3.Distance(BlockFigure.Ends(firing[7]).B, EntityBodyLayer3D.MortarMouth)
+                    < Vector3.Distance(shoulderL, EntityBodyLayer3D.MortarMouth) - 0.5f, "his left hand reaches toward it");
+        var carrying = BlockFigure.Held(atEase, HeldLook.Mortar, WeaponPostureKind.AtEase);
+        Assert.True(BlockFigure.Ends(carrying[7]).B.Z < 0.95f && BlockFigure.Ends(carrying[9]).B.Z < 0.95f, "at ease his hands hang");
+
+        // the details: a machine gun's box and bipod, the slung launcher on his back, the mortar on his back at ease (and not when fired)
+        var d = new List<PartDetail>();
+        BlockFigure.WeaponDetails(HeldLook.MachineGun, HeldLook.Rifle, WeaponPostureKind.Ready, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.WeaponIndex));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Rifle, HeldLook.Rpg, WeaponPostureKind.AtEase, d);
+        Assert.Single(d, x => x.Part == BlockFigure.TorsoIndex);
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Mortar, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.TorsoIndex));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Mortar, HeldLook.Rifle, WeaponPostureKind.Ready, d);
+        Assert.Empty(d);
+    }
+
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
     /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
     [Fact]
