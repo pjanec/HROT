@@ -774,7 +774,8 @@ Director: reel or take, Play / Prepare / Stop / Next / Pause, speed, a row per t
 | claim | as built — how it IS | status |
 |---|---|---|
 | one step per rendered frame | `StepOnce` throws on a second; `maxStepsInAFrame` and the kernel's own `maxRetiredInAFrame` reported; rails `CE4038_AReelOfThreeScenarios_PlaysLive_OneStepPerFrame_HeldToRealTime` (🔴 red-proven) and `CE4038_WithTheMasterOneFrameBehind_TheKernelStillStepsEveryFrame` (the editor's measured lag) | ✅ |
-| live play holds real time | the same rail: ×1.00 ± 5 % on a 120 fps fake renderer, the frame held | ✅ (rails) · the live editor measurement: the CE-4038 report |
+| live play holds real time | the same rail: ×1.00 ± 5 % on a 120 fps fake renderer, the frame held · 📐 the editor on the cloud VM (Xvfb + llvmpipe, ~20–25 fps): **×0.27–0.41 at 60 Hz · ×0.72–1.00 at 20 Hz · ×0.86–1.00 at 15 Hz**, one step per frame at the kernel in every take, 0 waits — ⇒ R-4063's fallback is what the VM needs | ✅ (rails, VM) · ⚠ a desktop not measured |
+| B9 — the panels' cost | 📐 VM, live: 65 → 46 ms per frame with the panels off (×1.4); the renderer, not the panels, is the cost there | ✅ measured (VM) |
 | a take's layers never reach the user's file | `GZH011_Tests.CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick` (🔴 red-proven) | ✅ |
 | FPS always sounds | `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice` (🔴 red-proven) | ✅ |
 | filmed = scouted (B0′) | `Hrot.SystemTests.DirectorIdentityRails` — two scouts, every cut compared; a REPORT now, `HROT_DIRECTOR_IDENTITY_GATE=1` after CE-3293 S5 | ⏳ S5 |

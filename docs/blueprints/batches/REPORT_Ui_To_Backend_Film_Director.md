@@ -33,6 +33,23 @@ places, each folded into [DESIGN_Film_Director.md §8.3](../../DESIGN_Film_Direc
 
 ## Gates
 
+### Gate 5 — the measurements (cloud VM: Xvfb + llvmpipe, a 2200×1200 window; `scripts/director-check.py live director-check --tick-hz 60 20 15`)
+
+| reel `director-check` (3 scenarios, 64 s of sim) | 60 Hz | 20 Hz | 15 Hz |
+|---|---|---|---|
+| status | ok · ok · ok | ok · ok · ok | ok · ok · ok |
+| realtime factor (bt-doors · ua-civ-gathering · ua-fast-rope-roof) | ×0.41 · ×0.27 · ×0.28 | ×1.00 · ×0.75 · ×0.72 | ×1.00 · ×0.97 · ×0.86 |
+| ⭐ steps asked in one frame (max) | 1 | 1 | 1 |
+| ⭐ steps the KERNEL took in one frame (max, from the clock) | 1 | 1 | 1 |
+| frames waiting on the master | 0 | 0 | 0 |
+| frame time, panels on → cinema | (boot-skewed: 454 → 40 ms) | 65 → 46 ms (×1.42) | 67 → 50 ms (×1.34) |
+
+⇒ ⭐ **two steps per frame: NO** — the master takes a step ONE FRAME after it is asked (measured on the first run: the first guard
+stepped every other frame; fixed in `0adef0cb6`, design §8.2). ⭐ **`tickHz` on this VM: 15** (20 where a scene is light); a desktop at
+60 fps keeps 60 Hz — ⚠ not measured here (no desktop). B9's gain: **~1.4× with the panels off** on the VM, where the renderer, not the
+panels, is the cost — ⚠ D-7's "~0.8 s per frame, mostly the panels" was a capture-mode figure. R-106: B3's "within 5 % on a desktop"
+is not measurable from the cloud — reported, not claimed.
+
 GATES-PLACEHOLDER
 
 ## Ids allocated (ui block)
