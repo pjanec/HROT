@@ -77,6 +77,27 @@ available through the codebase-memory CLI; the counts above come from Roslyn, no
 - **When the window is only the current frame** (live play, and a step with no paused frame before it), it returns **the bus span itself**: zero copy.
 - **Otherwise** it concatenates the window into the stream history's **reusable contiguous buffer** (`T[]` for native events, a reused `List<T>` for managed), once per type per frame. Every step-only reader of that type shares it.
 
+### 1b. ⭐⭐ Systems that run while paused AND on steps — **where their events come from**
+
+| | `EveryFrame` system | `WhenTimeAdvances` system |
+|---|---|---|
+| called | every frame, paused or not (`dt` = 0 while paused) | only on a frame that advances |
+| `view.ReadEvents<T>()` returns | ⭐ **the current frame only** — the bus's read buffer, exactly as today; the step window is never open for it | everything since the previous step |
+| an event published at step N is read | once, on frame N+1 — whether N+1 is paused or a step | once, at the next step |
+
+⭐ An `EveryFrame` system runs on every frame, so it never misses an event and never sees one twice — it needs no accumulator. On a
+step frame both kinds read the same frame's events; the step-only one also gets the paused frames before it.
+⚠ It still receives `dt` = 0 while paused, so its `dt`-scaled work stands still exactly as today.
+
+⚠ **A system whose work is HALF paused-time, half sim-time is split, not given a third mode.** The readers found three, all
+`WhenTimeAdvances`, each with a small duty an operator expects to see while paused (§8):
+
+| system | the paused-time duty it carries today | split into |
+|---|---|---|
+| `CarKinematicsSystem` | ground-clamps Z after a vehicle is dragged (`CarKinematicsSystem.cs:623-624`) | an `EveryFrame` clamp of moved entities |
+| `AirMotionSystem` | recompiles the `AirPath` when a route is edited (`AirMotionSystem.cs:48`) | an `EveryFrame` route compile, beside `RouteTrajectorySyncSystem` |
+| `UnitCentroidSystem` | moves a commander to his members' centroid after a drag (`UnitCentroidSystem.cs:20-45`) | an `EveryFrame` centroid on a member's move |
+
 ⭐ **In live play every frame advances** ⇒ the window is always the current frame ⇒ `ReadEvents` returns the bus span itself
 (zero-copy). Nothing changes for live play.
 
@@ -295,6 +316,7 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | `UnitHierarchySystem`, `TacticalIntentResolutionSystem` are fed by the operator while paused AND by the simulation on steps | **`EveryFrame`** — each event applied once before the next step (§1 determinism note); the ORBAT shows the change at once |
 | `AnimationRuntimeBridgeSystem` — must a character placed while paused register and show its pose before the first step? | **`EveryFrame`** |
 | `PossessionSystem` — must a possess/release clicked while paused take effect before Resume? | **`WhenTimeAdvances`** — the window delivers the click at the next step |
+| the three half-and-half systems of §1b — split, or leave their paused duty undone until the next step? | **split** — each paused duty becomes its own small `EveryFrame` system; the sim work stays `WhenTimeAdvances`. ⛔ Not a third mode: a mode that means "partly" brings back the per-system `dt` checks |
 | `HierarchyOrderSystem` has no production registration | **`EveryFrame`** (map ordering, UI) — marked so the rule holds when it is registered |
 | frame-counted service timeouts in `EveryFrame` systems (`NetworkGatewaySystem`, `DeferredConstructionParticipant`, `LifecycleSystem`, `MissionControlExecutionSystem`) and `GhostPromotionSystem`'s 2 ms budget | **keep** — service plumbing, not simulation; they already must move while paused |
 
