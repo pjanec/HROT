@@ -9,6 +9,7 @@ known-conflict: none. ⚠ Relation to DESIGN_Urban_Battle_Demo.md — CONSISTENT
   here (act 2–4); its route B (assets sent only on a report) stays the rule INSIDE an act; this design adds a timetable BETWEEN acts so
   every feature is seen in one run (D-2).
 related-designs:
+  - docs/DESIGN_Film_Director.md — OWNS how the showcase is played and filmed: each act becomes a take, the acts a reel
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — OWNS the urban battle, its ladder (§6) and demo-city's quarters (§4a/§4b); acts 2–4 are its flagship
   - docs/OVERVIEW_Rules_And_Demos.md — OWNS the index of every built rule and demo this showcase is assembled from
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS act 1 (protest, police, covert armed, bomber) and the shelter every act's civilians use

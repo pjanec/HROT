@@ -24,6 +24,7 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - docs/DESIGN_Film_Director.md — a CONSUMER: paces fixed steps (StepOneTick) against the wall clock for deterministic real-time playback (D-1)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-D: the step-barrier slave roster becomes the AUTHORITATIVE
     (simulation-role) nodes instead of a name match, and a departed node leaves the pending-ACK set.
 -->

@@ -9,6 +9,8 @@ current-answer: the whole file. §4/§5 carry the UML **as built** — the four 
 stale-below: nothing. §9 is the as-built delta; where §3a and §9 disagree, **§9 wins**.
 known-conflict: extends CgfSubsystem.cs + EditorSubsystem.cs + ScenarioMenuCommands.cs (UI/CGF lane) and
   moves EditorApplication's scenario half into Hrot.Editor.AiShared ⇒ UI/CGF lane; rule-4 re-pull.
+related-designs:
+  - DESIGN_Film_Director.md — a CONSUMER: loads each reel item through IScenarioSession and waits on the extracted ScenarioReadyProbe (D-11)
 -->
 # DESIGN — **CGF scenario session: the shared facade + distinct File/Scenario menu** *(AQ60 Slice A = Axis-C E1)*
 

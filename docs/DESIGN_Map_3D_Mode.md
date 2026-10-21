@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Film_Director.md — OWNS who holds a camera SCRIPT and when the shot changes (takes, reels, paced real-time play, the /director routes); drives §6ab's FilmStudio
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
   - docs/RUNBOOK_Filming.md — OWNS HOW to film (film.py, plans, finding the moments, the traps); §6ab here is the design
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits

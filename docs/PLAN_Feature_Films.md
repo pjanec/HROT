@@ -5,6 +5,7 @@ current-answer: §1 the clip list · §2 the gaps (features no clip can show yet
 stale-below: none
 known-rot: event times are from the scenario docs and the description sweep (2026-10-21) — the scout pass (§3) re-measures every one before filming
 related-designs:
+  - DESIGN_Film_Director.md — OWNS HOW the clips are played and filmed (the editor's director: takes, reels, live and capture); supersedes §3's film-batch runner shape
   - CAPABILITIES.md — OWNS the feature list this plan films (one clip per chapter bullet that can be seen)
   - RUNBOOK_Filming.md — OWNS how film.py / film-events.py work (shots, plans, traps)
   - designs/group-maneuvers/DESIGN_Demo_City_Showcase.md — OWNS the big all-in-one demo; these clips come first and feed its acts
@@ -150,6 +151,10 @@ caused.* The shot list in `clips.json` follows these rules; the `why` of each sh
 | G-11 | an M2 firing, a Kornet team | `ua-weapon-systems` sets the M2 up but never fires it; there is no Kornet team (the overview says there is) | an intruder in the M2's arc; a Kornet team, or fix the overview row | behaviors | ⭐ add the intruder; the Kornet team only if wanted |
 
 ## 3. The overnight pipeline — proposal
+
+⭐ **Superseded in shape by [DESIGN_Film_Director.md](DESIGN_Film_Director.md) (CE-4038):** the same pieces live INSIDE the editor —
+takes and reels instead of one manifest, `/director/play {reel, capture}` instead of `film-batch.py`, played live in real time as well as
+to film. The table below stays as the list of what the pipeline must do.
 
 📐 **The budget:** `--mode editor` costs ~0.8 s per film frame (RUNBOOK §6). At 30 fps that is ~24 s of wall time per second of film.
 A 20 s clip takes ~8 min, plus ~2 min of scouting. **The ~40 clips in §1 fit in one night (~6–7 h).** At 24 fps it is ~20 % less.
