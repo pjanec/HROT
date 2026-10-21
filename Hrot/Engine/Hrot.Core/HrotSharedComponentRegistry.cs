@@ -117,6 +117,8 @@ public static class HrotSharedComponentRegistry
         //    parsed terrain definition starts being written into flight recordings, silently, despite
         //    carrying NoReplay. Pinned by SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy.
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        // ⭐ CE-3288 — the loaded scenario's description (§4d), a managed singleton with the same policy as the terrain definition
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ScenarioDescriptionResident>();
         // ⭐ Buildings Stage 5b — door entities: the replicated state and the terrain-object key (§3j). Shared: every node mirrors them.
         world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();

@@ -19,18 +19,20 @@ namespace Fdp.Toolkit.Scenario.Tests
             IEnumerable<string> entityGuids,
             string? tkbName = null,
             int schemaVersion = 2,
-            string? terrainName = null)
+            string? terrainName = null,
+            string? description = null)
         {
             var entities = new JsonObject();
             foreach (var g in entityGuids)
                 entities[g] = new JsonObject { ["EntityInfo"] = new JsonObject { ["Name"] = g } };
 
             var dom = new JsonObject { ["Entities"] = entities };
-            if (tkbName != null || terrainName != null)
+            if (tkbName != null || terrainName != null || description != null)
             {
                 var header = new JsonObject();
                 if (tkbName != null)     header["TkbName"]     = JsonValue.Create(tkbName);
                 if (terrainName != null) header["TerrainName"] = JsonValue.Create(terrainName);
+                if (description != null) header["Description"] = JsonValue.Create(description);
                 dom["Header"] = header;
             }
             JsonEnvelope.Write(dom, new DocumentMeta(OurType, schemaVersion));
@@ -240,6 +242,47 @@ namespace Fdp.Toolkit.Scenario.Tests
                 ScenarioMergeCore.Merge(new[] { a, b }, OurType));
 
             Assert.Contains("TerrainName", ex.Message);
+        }
+    
+        // ── CE-3288: the scenario's DESCRIPTION rides the merge (§4d) ─────────────────────────────
+
+        /// <summary>⭐ <c>CE-3288</c> — the Brain's slice carries the description; the canonical header keeps it, with or without a
+        /// terrain. 🔴 Red-proof: drop the description arm in the merge ⇒ the canonical header loses it.</summary>
+        [Fact]
+        public void CE3288_TheDescription_SurvivesTheMerge_WithOrWithoutATerrain()
+        {
+            const string text = "What: a test. · Judge: it passes.";
+            var withTerrain = ScenarioMergeCore.Merge(new[]
+            {
+                Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar", description: text)),
+                Compatible(1,   Dom(new[] { "g-b" })),
+            }, OurType);
+            Assert.Equal(text, (string)((JsonObject)withTerrain.CanonicalDom!["Header"]!)["Description"]!);
+
+            var noTerrain = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" }, description: text)) }, OurType);
+            var header = (JsonObject)noTerrain.CanonicalDom!["Header"]!;
+            Assert.Equal(text, (string)header["Description"]!);
+            Assert.False(header.ContainsKey("TerrainName"));
+        }
+
+        /// <summary>⭐ <c>CE-3288</c> — two different texts do not fail the save (unlike the terrain): the first slice's is kept.</summary>
+        [Fact]
+        public void CE3288_TwoDifferentDescriptions_KeepTheFirst_AndDoNotFail()
+        {
+            var result = ScenarioMergeCore.Merge(new[]
+            {
+                Compatible(400, Dom(new[] { "g-a" }, description: "first")),
+                Compatible(1,   Dom(new[] { "g-b" }, description: "second")),
+            }, OurType);
+            Assert.Equal("first", (string)((JsonObject)result.CanonicalDom!["Header"]!)["Description"]!);
+        }
+
+        /// <summary>⭐ <c>CE-3288</c> — no description anywhere ⇒ none written (and no empty header).</summary>
+        [Fact]
+        public void CE3288_NoDescription_WritesNoHeader()
+        {
+            var result = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" })) }, OurType);
+            Assert.Null(result.CanonicalDom!["Header"]);
         }
     }
 }

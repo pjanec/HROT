@@ -96,7 +96,8 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
         // ⭐ CE-3015 — the terrain is stamped from what this node has RESIDENT. ⛔ R-4018: never a TKB name.
         var header = new ScenarioHeader(ScenarioDocType,
-            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world));
+            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world),
+            Description: Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(_world));   // ⭐ CE-3288 — the loaded scenario's text (§4d)
         ScenarioSaveCore.Write(_serializer, _world, localFile, header);
 
         // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.

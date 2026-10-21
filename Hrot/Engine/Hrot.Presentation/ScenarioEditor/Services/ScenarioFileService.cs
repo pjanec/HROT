@@ -102,7 +102,8 @@ public sealed class ScenarioFileService
         //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
         //   writer), so collapsing it here is behaviour-preserving.
         var header = new ScenarioHeader("Hrot.Scenario",   // ⛔ R-4018: never a TKB name
-            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo));   // CE-3015
+            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo),   // CE-3015
+            Description: Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(repo));   // ⭐ CE-3288 (§4d)
         ScenarioSaveCore.Write(_serializer, repo, filePath, header);
     }
 

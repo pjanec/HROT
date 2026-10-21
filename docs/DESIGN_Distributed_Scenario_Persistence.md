@@ -677,6 +677,12 @@ disagreement is a warning, not a failure — unlike the terrain (I4), two texts 
 | D4 rails | load → save keeps the text; no text still loads and saves; the merge carries it and warns on a mismatch | — |
 | D5 / D6 | behaviors writes the texts; ui shows them later | — |
 
+⭐ **As built `2026-10-20`** — matches the diagrams, with one addition the class diagram did not show: `ScenarioDescriptionResident` needs
+a `[ComponentId]` (440) to be a managed singleton at all, and carries `[DataPolicy(NoScenario | NoReplay)]` like `TerrainDefinition` —
+applied only through `RegisterManagedComponent`, so it is registered in `HrotSharedComponentRegistry` (`R-254`). 📌 Without the id every
+`ScenarioLoadStep.Commit` with a world threw (four existing door/readiness rails went red before the fix). Rails:
+`ScenarioMergeCoreTests.CE3288_*`, `ScenarioLoadStepTests.CE3288_*`.
+
 ## 5. ⭐⭐ LOAD — per-node file, brain canonical  ✅ R-A (ruled §8.1)
 
 ```mermaid
