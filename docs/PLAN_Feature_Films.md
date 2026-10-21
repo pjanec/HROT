@@ -214,7 +214,7 @@ A reel is one movie made of several clips (DESIGN_Film_Director §4a). Each item
 
 | step | with the director (CE-4038, being built) | ⚠ until it lands |
 |---|---|---|
-| **① prepare** — measure when each beat happens; the report names every missing beat or unknown name | panel *Prepare*, or `POST /director/scout {scenario, take}` | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
+| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, or `POST /director/scout {scenario, take}` | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
 | **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · or `POST /director/play {"reel": "highlights"}` | — |
 | **③ fix** — a framing, a time, a name | edit the take (`scenarios/<s>/takes/<take>.take.json`), re-run ① if an anchor moved | edit `clips.json` |
 | **④ render** — overnight, on the cloud VM | `POST /director/play {"reel": "features", "capture": {"dir": "<out>", "fps": 30, "size": "1280x720"}}` → one MP4 per reel, with sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
@@ -223,5 +223,9 @@ A reel is one movie made of several clips (DESIGN_Film_Director §4a). Each item
 📐 **Render budget** (today's ~0.8 s per frame in the editor; CinemaMode should cut it): `highlights` ≈ 184 s × 30 fps × 0.8 s ≈ **1.2 h**;
 `features` ≈ 632 s × 30 × 0.8 ≈ **4.2 h** — one night. (The 20 / 15 Hz step fallback, R-4063, is for real-time LIVE play; it does not
 change the render cost per film frame.)
+
+⚠ **Runs differ (R-4064).** A clip's cuts follow the events of the run being shown — a weapon starting to aim, a behaviour beginning, a
+unit closing on a point — and a shot is held until the next event. A capture whose required beat does not happen is re-run (a retake).
+Leads, slow motion and instant replays become exact only when films are later edited from a recording (DESIGN_Film_Director §3e).
 
 ⭐ **Review before render.** Watch a reel live (②) before rendering it (④): a wrong camera costs seconds live and hours overnight.
