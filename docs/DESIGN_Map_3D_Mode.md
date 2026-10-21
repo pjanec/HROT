@@ -2821,7 +2821,8 @@ edge, red) — so the film is of what is on screen, and a hidden host's map neve
 | ⚠ the first frame of a new shot | `WeatherSkyLayer` updates BEFORE the film layer, so the frame a shot first takes effect has the previous pose's atmosphere (📐 the first frame of the first take was the default sky, brighter). `film.py` throws that frame away |
 | 📐 cost | `--mode all`, 1280×720, Xvfb + llvmpipe: **~1.85 s per film frame** at 30 fps (2 sim steps + 1 capture; each step is a gated frame of the whole editor window) ⇒ 13 s of film in 12 min, 7 s in 7 min — run in the background |
 | rails | `FilmTests` ×6 (shot geometry, follow, fog, mailbox, layer takes / gives back the camera + undrawn map films nothing, the lens) · `FilmFrameRail` (Xvfb: the scene alone at the asked size, no clutter, sky on top) · the shared-layers pin · `EveryRouteIsDocumented` — 7/7 mutants caught |
-| ⏭ not built | a frame-exact cut (step, not play, to the next segment — slow but exact) · a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
+| ⭐ **`--mode editor` — the demo host** *(user, `2026-10-21`)* | a cut STEPS to the next segment (frame-exact, the same every run — CE-202); 📐 ~0.8 s per film frame (vs 1.85 on the cluster); the first editor film caught the T-72 impact on the planned frame. `RUNBOOK_Filming.md` §0 |
+| ⏭ not built | a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
 
 ## 7. NOT VERIFIED — say so before it is built on
 

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-10-21
-current-answer: this whole file — §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
+updated: 2026-10-21 (§0 --mode editor, frame-exact cuts — measured)
+current-answer: this whole file — ⭐ §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
 known-rot: none.
@@ -27,6 +27,29 @@ graph LR
 
 *Caption:* filming is a loop — find the moments, place the cameras, film, look, adjust. A film costs minutes, so look at a few frames of
 a short take before filming the whole plan.
+
+## 0. ⭐ Film in `--mode editor` — the preferred host for demos *(user, `2026-10-21`)*
+
+> 🔒 *"pls try the filming on the clusterrunner --mode editor (this is preferred for demos — might hide some network related engine
+> bugs)"* · *"stepping in the editor is more 'deterministic' (no network included, faster)"*
+
+| 📐 measured on `ua-tank-ammo`, `2026-10-21` | `--mode editor` | `--mode all` |
+|---|---|---|
+| one world / network | ⭐ one world, no wire | five nodes over DDS |
+| a cut | ⭐ **STEPS** to the next `at` — frame-exact, the same frame every run (CE-202: two stepped editor runs byte-identical) | plays in real time, overshoots ~0.1 s, runs differ |
+| a film frame | ⭐ **~0.8 s** | ~1.85 s |
+| stepping to a cut | ~20 s per sim second skipped | (plays in real time) |
+| the M1's shots on the T-72 | **8.85 s, 17.58 s** (`film-events.py --mode editor`) | ~10, ~20, ~30 s |
+
+```bash
+python3 scripts/film-events.py ua-tank-ammo --mode editor --seconds 35      # exact shot times (each shot's own firedAt)
+python3 scripts/film.py ua-tank-ammo --mode editor --plan plan.json --out /tmp/film.mp4 --keep-frames   # background
+```
+
+⭐ The editor's times are the FILM's times: `film-events.py --mode editor` steps exactly as `film.py` does, so a plan can put a cut
+a few frames before an event and catch it. 📐 The first editor film caught the second round's impact on the T-72 on the frame the plan
+aimed at (`at` 17.3 for a shot fired at 17.58). ⚠ A muzzle flash shows ~0.1 s after `firedAt` (the effect spawns a few frames later).
+⚠ An editor result says nothing about the wire — a demo that must prove the CLUSTER films `--mode all`.
 
 ## 1. Quick start
 
@@ -99,8 +122,8 @@ composition. 📐 A muzzle flash scores ~0.01, a cut ~0.07–0.17.
 
 | trap | what to do |
 |---|---|
-| ⚠ **~1.85 s per film frame** (1280×720, `--mode all`, llvmpipe) — each sim step is a full frame of the whole editor window | run film.py in the background; film a 1–2 s take of a shot first and look at it |
-| ⚠ **a cut overshoots ~0.1 s, and the AI is not frame-identical between runs** | put `at` ≥ 0.5 s before the event (📐 the first plan's cut landed just AFTER the T-72 was hit) |
+| ⚠ **~0.8 s per film frame in the editor, ~1.85 s in `--mode all`** (1280×720, llvmpipe) — each sim step is a full frame of the window | run film.py in the background; film a 1–2 s take of a shot first and look at it |
+| ⚠ **`--mode all`: a cut overshoots ~0.1 s, and the AI is not frame-identical between runs** | film in the editor (§0); on the cluster put `at` ≥ 0.5 s before the event (📐 the first plan's cut landed just AFTER the T-72 was hit) |
 | ⚠ **far is tiny** — 45° makes a tank 240 m away a speck | `--fov 10…25` (telephoto) or a closer camera |
 | ⚠ **the first frame of a new shot has the previous camera's sky** | film.py throws it away (a 64-px capture) — keep that if you script the routes yourself |
 | ⚠ **buildings between camera and subject** are drawn | move the camera (yaw / distance) — 📐 a wide shot east of ua-tank-ammo's T-72 crossed a roof |
@@ -116,5 +139,5 @@ composition. 📐 A muzzle flash scores ~0.01, a cut ~0.07–0.17.
 | `POST /film/capture` | `{path, width?, height?, supersample?}` → `{path, width, height, simTime}` |
 | `POST /sim/pause` · `POST /sim/step {count}` | one sim step = 1/60 s; 2 per frame at 30 fps |
 
-⚠ **Not yet measured:** `--mode editor` under Xvfb — every map host carries the film layer, so it should film the same way; only `--mode all` has been filmed. The code:
+⭐ `--mode editor` films the same way (§0) — every map host carries the film layer. The code:
 `Hrot/Engine/Hrot.Presentation/Map3D/Film.cs`, `MapCanvas.DrawScene`, the routes in `DebugApiHost`; rails `FilmTests`, `FilmFrameRail`.
