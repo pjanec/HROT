@@ -143,7 +143,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     public int DoorOf(long polyRef) => _doorPolys.TryGetValue(polyRef, out int d) ? d : -1;
 
     private TerrainDoorState StateOf(int door)
-        => _doors != null && door < _doors.Count ? _doors[door] : TerrainDoorState.Open;
+        => _doors != null && door < _doors.Count ? _doors[door] : TerrainDoorState.Closed;   // ⭐ CE-3290 — an unknown door is closed (passable, at its cost)
 
     public bool PassFilter(long refs, DtMeshTile tile, DtPoly poly)
     {
