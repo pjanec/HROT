@@ -248,7 +248,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e), look.Kit,
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
                                      look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
@@ -1276,9 +1276,26 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         => world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
 
     /// <summary>⭐ CE-1099 (§6q O-1) — true when his colour is HIS (authored on the entity, or named by his type), not the family default.</summary>
-    private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look)
+    private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look) => look.TypeColoured || HasEntityColour(world, e);
+
+    /// <summary>
+    /// ⭐ CE-1099 (§6q O-1) / ⭐ CE-1235 (O-4a, R-1020) — the colour a person's OUTFIT takes as his own, or null for none. A civilian (and a
+    /// police officer): his entity's or his type's. A SOLDIER: only one HE names — a type colour is per type, never per side (one type serves
+    /// both sides), so it could only make the sides alike, and his side picks the cloth instead. ⚠ The type's colour is stamped onto every
+    /// spawned entity (<c>PresentationTkbTranslator</c>), so his own is one that DIFFERS from the type's.
+    /// </summary>
+    public static Color? OwnColourOf(EntityRepository world, Entity e, in TypeLook look)
     {
-        if (look.TypeColoured) return true;
+        var colour = ColourOf(world, e, look.Colour);
+        if (!look.Soldier || look.Kit == PersonKit.Security) return HasOwnColour(world, e, look) ? colour : null;
+        return HasEntityColour(world, e) && !(look.TypeColoured && SameColour(colour, look.Colour)) ? colour : null;
+    }
+
+    private static bool SameColour(Color a, Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
+
+    /// <summary>⭐ CE-1235 — true when the ENTITY itself names a colour (authored appearance or visual data), whatever his type says.</summary>
+    private static bool HasEntityColour(EntityRepository world, Entity e)
+    {
         if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e) && world.GetComponentRO<EntityAppearance>(e).HasColour)
             return true;
         return world.IsComponentTypeRegistered<VisualData>() && world.HasComponent<VisualData>(e)

@@ -195,7 +195,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 ✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built) · `CE-1207` + `CE-1205` (Entity Control §8m — the leans PK-2…PK-7 are the build's; the user may overturn any).
 
 1. ⚠ `CE-1210` (seat switching, Entity Control §8n.5) and `CE-1230` (shared ORBAT menu, canvas context menu §11.4) — BUILT `2026-10-21`; a Windows visual check is owed (G in a technical / UH-60, right-click an ORBAT row, Embark… then pick a vehicle).
-2. ⚠ `CE-1235` (uniform cloth by side, Map 3-D §6q.1) — BUILT `2026-10-21`; ⏸ the user's call: let the side cloth beat a TYPE colour (the BDC soldiers' olive `#556B2F`); Windows check in `pc-defend-house`'s house.
+2. ⚠ `CE-1235` (uniform cloth by side, Map 3-D §6q.1) — BUILT `2026-10-21`, and the side cloth beats a TYPE colour (R-1021); Windows check in `pc-defend-house`'s house.
 3. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
 
 ### The standing rules of this lane (the user's, still binding)

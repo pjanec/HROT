@@ -1316,6 +1316,31 @@ public sealed class Map3DTests
         Assert.Contains("bodyPattern == 4", BodySurface.Glsl);
     }
 
+    /// <summary>⭐ CE-1235 (§6q O-4a, R-1020; 🔒 User, `2026-10-21`: "Yes") — a SOLDIER's type colour does not make his cloth: the type's colour is
+    /// stamped onto every spawned entity, so the BDC riflemen (olive `#556B2F` on the type) would wear olive on both sides. His own is one that
+    /// DIFFERS from his type's; a civilian keeps his type's colour (O-1), and a police officer his.</summary>
+    [Fact]
+    public void CE1235_ASoldiersTypeColour_DoesNotMakeHisCloth_AColourHeNamesStillDoes()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<EntityAppearance>();
+        var olive = new Raylib_cs.Color(0x55, 0x6B, 0x2F, 255);
+        var soldier = new EntityBodyLayer3D.TypeLook(VisualFamily.Person, Vector3.One, olive, Soldier: true, TypeColoured: true);
+        var stamped = w.CreateEntity();
+        w.AddComponent(stamped, EntityAppearance.FromHex("#556B2F"));      // what PresentationTkbTranslator stamps from his type
+        var named = w.CreateEntity();
+        w.AddComponent(named, EntityAppearance.Of(40, 60, 90));           // a colour the scenario gave HIM
+        var plain = w.CreateEntity();
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, stamped, soldier));
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, plain, soldier));
+        Assert.Equal(new Raylib_cs.Color(40, 60, 90, 255), EntityBodyLayer3D.OwnColourOf(w, named, soldier));
+
+        var civilian = soldier with { Soldier = false };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, civilian));   // O-1 — a civilian wears his type's colour
+        var police = soldier with { Kit = PersonKit.Security };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, police));
+    }
+
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
     /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
     [Fact]
