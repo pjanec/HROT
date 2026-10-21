@@ -2013,6 +2013,108 @@ hold no longer leaves the squads with nothing.
 | ⚠ what it does not do | a vehicle with nobody out drives on during contact, and while the platoon's hold pauses the task NO vehicle is held — an empty carrier may drive on before the task picks up (measure live) · a squad split over two vehicles rides as one (the embark drill boards one vehicle) | — |
 | rails | `SquadManeuverTests.CE2347_*` — the cycle; the dead vehicle (room / no room); the wounded first + the retry. Mutants: `CarriesDismounted` always true, seats ignoring occupants, `Casualty` → Null each turn a rail red; `Quiet` ignoring a fighting squad stays green — `ContactAgain` checks the same squad, so CSecure hands straight back to CContact before any order (a redundant guard) | `Hrot.SimHost.Tests` |
 
+### 11b. `UrbanMovement` — DA-17 on foot *(behaviors, `CE-2284`, `2026-10-21`; build-state: BUILDING — slice U-1; leans UM-1…UM-9 under DA-17 / DA-18 (approved R-2036), built under the user's "do as much as you can autonomously")*
+
+**INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*Platoon.*` over Class / Method, the `[Behavior]` table of every platoon task;
+one read-only sweep: `SquadMarch`, `PlatoonConvoy`, `CommandOrders`, `BasicPlatoonSop`, `PlatoonAttack`, the picture, the scenarios. `check_index_coverage`
+is CLI-unavailable — no completeness claim)*
+
+| what exists | where | ⭐ used as |
+|---|---|---|
+| no on-foot platoon route task; the "platoon march" is `SquadMarch` ON the platoon (one objective, squads as members 5 m apart, no roles) | `SquadMarchBehavior.cs`; rail `CE2262_*` | ⛔ not reused for the platoon: no route, no roles |
+| `SquadMarch` on a SQUAD — File / Wedge, starts from where the squad stands, `DangerAreas` = the crossing drill at intersections | `SquadMarchBehavior.cs:113-137, 214-225` | ⭐ every squad's order |
+| `Order.Move` → `InfantrySquadMove` = a `SquadMarch` with `DangerAreas` never set | `SquadOrderBehaviors.cs:19-46` | ⛔ not used: the lead must cross with the drill |
+| `PlatoonConvoy`: an HSM + ONE order writer, `CommandOrders.Assign / Gave / StillRunning`, `PlatoonHoldBehavior.Fighting`, re-orders on resume | `PlatoonConvoyBehavior.cs:103-364` | ⭐ the task's form, copied |
+| `HrotRouteSource.TryGetRoute` → the route's waypoints | `HrotRouteSource.cs:31-44` | ⭐ the legs when a route entity is given |
+| `BasicPlatoonSop`'s one row (`ElementReported` → `PlatoonHold`, urgency Contact) pauses any task; a new order drops a squad's paused task | `BasicPlatoonSop.btree.json`; `BehaviorIngressSystem.cs:418` | ⭐ unchanged — the task re-orders when it resumes (§11's catch) |
+| `cqb-village`: Main Street y 184..196, no road graph | Platoon Attack design :506-511 | ⭐ the demo — so legs may be POINTS |
+
+```mermaid
+classDiagram
+  class UrbanMovementBehavior {
+    <<HSM task, NEW>>
+    +Resolve(UrbanMovementParamsJsonDto)
+    +PlanRoute() the legs, from the route entity or the points
+    +KeepMoving() the ONE order writer
+    +LegDone() Arrived()
+  }
+  class UrbanPlan {
+    <<blackboard, NEW>>
+    Points[16] Count Leg Lead
+    Speed Spacing ArrivalRadius
+    Given[6] (the point last ordered per slot)
+  }
+  class UrbanMovementParamsJsonDto { <<ParamsDto, NEW>> Route: EntityRef; Legs: Vector3[]; Speed; Spacing; ArrivalRadius }
+  class SquadMarch { <<existing, squad>> Objective Shape DangerAreas }
+  class CommandOrders { <<existing>> Assign() Gave() StillRunning() }
+  class HrotRouteSource { <<existing>> TryGetRoute() }
+  class PlatoonHold { <<existing platoon SOP reaction>> }
+  class RoutePath { <<NEW, pure>> Project() PointAt() Length() }
+  UrbanMovementBehavior --> UrbanPlan
+  UrbanMovementBehavior ..> UrbanMovementParamsJsonDto : resolves
+  UrbanMovementBehavior ..> HrotRouteSource : a route entity's waypoints
+  UrbanMovementBehavior ..> RoutePath : where each squad stands on the route
+  UrbanMovementBehavior --> CommandOrders : every order
+  CommandOrders ..> SquadMarch : each squad, concrete
+  PlatoonHold ..> UrbanMovementBehavior : pauses, it re-orders on resume
+```
+*What the picture shows that prose hid:* one blackboard, one order writer and one pure helper are new; every squad still marches with the
+EXISTING `SquadMarch` — the lead with its crossing drill on, the followers on points that trail it along the route.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> UPlan
+  UPlan --> UMove : the legs are known
+  UMove --> UMove : the lead within ArrivalRadius of its leg's end, the next leg
+  UMove --> UDone : the last leg done and every squad at its point
+  UDone --> [*]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as UrbanMovement (platoon task)
+  participant L as lead squad
+  participant F as follow / reserve squads
+  participant H as platoon SOP (PlatoonHold)
+  U->>L: SquadMarch(leg end, File, DangerAreas)
+  U->>F: SquadMarch(the route point Spacing x k behind the lead, File)
+  Note over L: an intersection: its own SOP crosses it (SquadDangerCrossing), the march waits
+  U->>F: a new point each time the lead moves 10 m on (their march restarts from where they stand)
+  L-->>U: (polled) within ArrivalRadius of the leg's end
+  U->>L: SquadMarch(the next leg's end)
+  H-->>U: an element reported: the task pauses, every squad holds
+  Note over U: the hold ends: the task resumes at its leg, and re-orders every squad (none still runs its march)
+  U-->>U: last leg, everyone at his point: Success
+```
+
+```mermaid
+graph TD
+  SOPP[BasicPlatoonSop, platoon SOP slot] -->|PlatoonHold pauses it| UM[UrbanMovement, platoon task slot]
+  BT[BrainTickSystem, the node owning the platoon brain] --> UM
+  UM -->|AssignTacticalIntentEvent, Superior| ING[BehaviorIngressSystem]
+  ING --> SQ[squad task: SquadMarch]
+  SOPS[BasicSquadSop, squad SOP slot] -->|ReactToContact / SquadDangerCrossing pause the squad's march| SQ
+  RT[HrotRouteSource: a route entity] -.->|when Route is set| UM
+```
+*What it shows:* nothing new is scheduled — the task runs in the platoon's existing task slot; a squad's own reactions (contact, the
+crossing drill) pause ITS march, and the platoon leaves a squad in its own reaction alone.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **UM-1** | the route | `Legs` (points, ≤ 16) or `Route` (a route entity's waypoints) — the points win when both are set; the first leg starts where the lead stands | a route entity only: `cqb-village` has no road graph |
+| **UM-2** | who leads | slot order: the first live squad leads, the next follows, the rest are the reserve (DA-17's lead / bound / reserve); a dead lead hands over to the next live squad | by distance: the lead would change as squads overtake |
+| **UM-3** | the lead's order | concrete `SquadMarch { Objective = leg end, File, DangerAreas }` — the existing crossing drill at intersections and open stretches (DA-17) | `Order.Move`: its march never runs the danger-area drill |
+| **UM-4** | the others | `SquadMarch { File }` to the route point **`Spacing` × k (30 m)** behind where the lead stands on the route; re-sent when that point moved ≥ 10 m — travelling overwatch, the follower one bound behind (DA-17); the reserve trails it | a full bounding overwatch per leg: halves the pace on every street; the existing `BoundingOverwatch` covers an open objective, not a route |
+| **UM-5** | a leg's end | the lead within `ArrivalRadius` (8 m) of it ⇒ the next leg; after the last ⇒ done when every live squad is within 2 × `ArrivalRadius` of its point | the lead's PROGRESS Set: `SquadMarch` reports it only after its settle time (20 s) |
+| **UM-6** | a squad in its own reaction | never ordered (`PlatoonHoldBehavior.Fighting`), re-ordered when it ends (`StillRunning` no longer true) | order through it: a superior order replaces the squad's fight (the CE-4032 defect) |
+| **UM-7** | after a platoon reaction | the task resumes at its leg and every squad gets its order again from where it stands (§11's catch: squads never resume on their own) | a fresh route from the start: the CE-4032 defect |
+| **UM-8** | the squads' watch sectors (§13a "platoon commander (`UrbanMovement`)") | ⏭ not in U-1 — the men's own look direction runs (LD-3) | — |
+| **UM-9** | fire from a building | ⏭ slice **U-2**: §14a SC-8 `FiredOnFromStructure` on the squad ⇒ the platoon SOP row ⇒ `ReactToFireFromBuilding` (the attack play's preset, §10) with DA-18's clear / bypass; ⚠ bypass's smoke waits on `CE-2278` | — |
+
+**Slices.** **U-1** = UM-1…UM-7 (the task, rails `SquadManeuverTests.CE2284_*`, a dry demo on `cqb-village`). **U-2** = UM-9 + §14a M-2.
+**U-3** = the ambush demos `pc-urban-ambush` / `pc-ambush-bypass` (Platoon Attack design §stage C).
+
 ## 12. Roles in the squad *(✅ approved R-2036 — DA-19)*
 
 **Measured:** roles exist as **`TacticalDesignation`** — `Commander · SquadLeader · Wingman · Support · TeamLeader · Medic`

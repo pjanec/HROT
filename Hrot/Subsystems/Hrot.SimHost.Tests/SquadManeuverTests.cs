@@ -4257,6 +4257,39 @@ namespace Hrot.SimHost.Tests
             Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "sliced, then quiet: #1 goes although he is still known");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2261</c> BC-5 (CB-72, as built) — a stack kept under fire: the entry is held, but no longer than
+        /// <see cref="RoomDrill.HoldLimitSeconds"/>; then #1 goes in under fire (📐 live bc-house-clear: a defender firing at the stack renewed
+        /// the hold for ever and the house was never cleared). ✅ Red-proofs: the limit dropped ⇒ still held at 25 s; the limit not latched ⇒
+        /// the next round holds it again.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_AStackKeptUnderFire_IsHeldNoLongerThanTheHoldLimit()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+            void UnderFireFor(double seconds)
+            {
+                for (double t = 0; t < seconds; t += 1.0)
+                {
+                    s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = s.Members[2], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+                    TickFor(s, 1.0);
+                }
+            }
+            UnderFireFor(RoomDrill.HoldLimitSeconds - 5);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "under fire: #1 pies, the entry is held");
+            UnderFireFor(7);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "the hold ran out: #1 goes in under fire");
+            UnderFireFor(3);
+            Assert.Equal(BehaviorNames.AdvanceTo, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not held again
+        }
+
         private static bool Sensed(Squad s, Entity unit, Fdp.Toolkit.Perception.Events.SensorChange kind, out double at)
         {
             at = double.NegativeInfinity;
@@ -6604,6 +6637,111 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Fdp.Toolkit.Combat.RecentDetonations.Since(s.Repo, -1.0, got));
             Assert.Equal(new Vector3(10f, 20f, 1f), got[0].At);
             Assert.Equal(s.Members[0], got[0].Shooter);
+        }
+
+        // ── CE-2284 U-1 — UrbanMovement: a platoon on foot along legs, the lead with its crossing drill, the others trailing it (§11b) ──
+
+        private static SquadMarchParamsJsonDto MarchOf(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<SquadMarchParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.SquadMarch).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static Platoon OnTheMove(string legs = "[[0,100,0],[100,100,0]]")
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Teleport(p.Alpha, Vector3.Zero);
+            p.S.Teleport(p.Bravo, new Vector3(0f, -30f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -60f, 0f));
+            p.S.Order("{\"Legs\":" + legs + ",\"Spacing\":30}", BehaviorNames.UrbanMovement);
+            p.Ticks(5);
+            return p;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2284</c> U-1 (UM-2…UM-5) — the first squad leads to each leg's end WITH its crossing drill; the others march in file
+        /// to the route point 30 m × k behind where the lead stands, re-ordered only when that point moved ≥ 10 m; the lead within 8 m of a
+        /// leg's end takes the next; after the last leg the task succeeds once every squad stands at its point. ✅ Red-proofs: the followers
+        /// ordered to the lead's own point ⇒ Bravo's march is not 30 m behind; the ≥ 10 m guard dropped ⇒ a new order every metre the lead
+        /// walks; the leg never advancing ⇒ the lead is never sent down the second leg.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_TheLeadMarchesLegByLeg_TheOthersTrailItOnTheRoute_DoneAtTheEnd()
+        {
+            var p = OnTheMove();
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
+            var lead = MarchOf(p, p.Alpha);
+            Assert.Equal((new Vector3(0f, 100f, 0f), true, 0), (lead.Objective, lead.DangerAreas, lead.Shape));
+            Assert.False(MarchOf(p, p.Bravo).DangerAreas);
+            Assert.Equal(Vector3.Zero, MarchOf(p, p.Bravo).Objective);   // the lead has not moved on yet: the route's start
+
+            p.S.Teleport(p.Alpha, new Vector3(1f, 50f, 0f));
+            p.Ticks(3);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(0f, 20f, 0f)), 0f, 0.01f);   // 30 m behind him
+            Assert.Equal(Vector3.Zero, MarchOf(p, p.Charlie).Objective);                                           // 60 m behind: the start
+            int bravoOrders = p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch);
+            p.S.Teleport(p.Alpha, new Vector3(1f, 55f, 0f));
+            p.Ticks(3);
+            Assert.Equal(bravoOrders, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                // moved 5 m: kept
+
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            Assert.Equal(new Vector3(100f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                // the next leg
+            Assert.True(MarchOf(p, p.Alpha).DangerAreas);
+
+            p.S.Teleport(p.Alpha, new Vector3(100f, 100f, 0f));
+            p.Ticks(3);
+            Assert.False(p.S.Finished(out _), "the others are not at their points yet");
+            p.S.Teleport(p.Bravo, new Vector3(70f, 100f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(40f, 100f, 0f));
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-6, UM-7) — a squad in its OWN reaction is never ordered and is ordered when it ends; a platoon reaction
+        /// (the SOP's hold on a reported enemy) pauses the task, and when it ends the task picks up at its leg and orders every squad again —
+        /// the hold dropped their marches. ✅ Red-proof: orders kept on "given once" (not this run's LAST order) ⇒ after the hold nobody is
+        /// re-ordered.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_ASquadInItsOwnReactionIsLeftAlone_AndAfterThePlatoonHoldEverySquadIsOrderedAgain()
+        {
+            var p = OnTheMove();
+            p.S.StartSop("BasicPlatoonSop");
+            Reacting(p.S, p.Bravo, BehaviorNames.ReactToContact);
+            int before = p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch);
+            p.S.Teleport(p.Alpha, new Vector3(1f, 60f, 0f));
+            p.Ticks(3);
+            Assert.Equal(before, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                     // it fights: left alone
+            Reacting(p.S, p.Bravo, null);
+            p.Ticks(3);
+            Assert.Equal(before + 1, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                 // its fight ended
+
+            int alpha = p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), charlie = p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch);
+            p.ReportSpot(p.Charlie, new Vector3(30f, 120f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
+            p.S.Pause(31);   // the spot goes stale: the hold ends
+            p.Ticks(15);
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
+            Assert.Equal((alpha + 1, charlie + 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch)));
+            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                  // the same leg
+        }
+
+        /// <summary>⭐ <c>CE-2284</c> U-1 (UM-2) — the lead squad wiped out: the next live squad leads, with the crossing drill, to the same
+        /// leg's end. ✅ Red-proof: the lead fixed at slot 0 ⇒ nobody leads.</summary>
+        [Fact]
+        public void CE2284_UrbanMovement_TheLeadWipedOut_TheNextSquadLeads()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 40f, 0f));
+            p.Ticks(3);
+            Down(p.S, p.Alpha, 0f);
+            p.S.Repo.DestroyEntity(p.Alpha);
+            p.Ticks(3);
+            var lead = MarchOf(p, p.Bravo);
+            Assert.Equal((new Vector3(0f, 100f, 0f), true), (lead.Objective, lead.DangerAreas));
         }
 
         // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────

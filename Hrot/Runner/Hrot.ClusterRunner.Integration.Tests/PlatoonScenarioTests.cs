@@ -317,4 +317,38 @@ public sealed class PlatoonScenarioTests : IDisposable
         Assert.False(cgf.HasComponent<PausedTask>(platoon), "④ the platoon's SOP did not pause the defence (DA-55)");
         Assert.True(squads.All(s => Task(ByName(cgf, s)) == defend), "④ …no squad was pulled off to hold");
     }
+    /// <summary>
+    /// ⭐⭐ <c>CE-2284</c> U-1 — <c>pc-urban-move</c>: a Blue platoon on <c>UrbanMovement</c> along Main Street, then south down the Cross Road,
+    /// no enemy. ① the lead squad marches with its crossing drill · ② the others trail it along the route (never with it) · ③ all three
+    /// end in order at the route's end and the task ends. 📄 Defend and Attack §11b.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2284_PcUrbanMove_TheLeadWalksTheLegs_TheOthersTrailIt_AndTheTaskEnds()
+    {
+        using var harness = await Live("pc-urban-move");
+        var cgf = harness.Cgf!.World!;
+        string[] squads = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && squads.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the platoon and its squads must spawn");
+        var platoon = ByName(cgf, "Blue Platoon");
+        int urban = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.UrbanMovement);
+        int march = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadMarch);
+        int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+        Vector3 At(string n) => StaffComposerSystem.CentreOf(cgf, ByName(cgf, n));
+        string Where() => string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}({At(n).X:F0},{At(n).Y:F0})"));
+
+        Assert.True(harness.PumpUntil(() => squads.All(n => Task(ByName(cgf, n)) == march), timeoutFrames: 1200),
+            "① every squad is ordered to march");
+        float closest = float.MaxValue;
+        bool ended = harness.PumpUntil(() =>
+        {
+            closest = MathF.Min(closest, Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(At(squads[1]).X, At(squads[1]).Y)));
+            return Task(platoon) != urban;
+        }, timeoutFrames: 24000);
+        _out.WriteLine($"end: {Where()} · platoon task {Task(platoon)} · closest lead–follower {closest:F1} m");
+        Assert.True(ended, $"③ the task ends; {Where()}");
+        Assert.True(Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(200f, 120f)) < 16f, $"③ the lead at the route's end; {Where()}");
+        Assert.True(At(squads[1]).Y > At(squads[0]).Y + 15f && At(squads[2]).Y > At(squads[1]).Y + 15f, $"③ in order down the Cross Road; {Where()}");
+        Assert.True(closest > 12f, $"② the follower never walked with the lead (closest {closest:F1} m)");
+    }
 }

@@ -247,6 +247,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
         /// contact, secure when it is quiet, remount and carry on.</summary>
         public const string PlatoonConvoy = "PlatoonConvoy";
+        /// <summary>⭐ <c>CE-2284</c> (DA-17) — a platoon moves through town on foot along legs (Defend and Attack §11b).</summary>
+        public const string UrbanMovement = "UrbanMovement";
         /// <summary>⭐ <c>CE-2331</c> (AQ98 A/B, R-2070) — the soldier's cover REACTION: fights from cover (<c>PeekAndFire</c>) and ends once he is
         /// in cover with no hit or near miss on him for a quiet lapse, so his task resumes.</summary>
         public const string FightFromCover = "FightFromCover";

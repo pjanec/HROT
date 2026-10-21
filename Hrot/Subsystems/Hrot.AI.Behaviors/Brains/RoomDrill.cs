@@ -68,6 +68,9 @@ namespace Hrot.AI.Behaviors.Brains
         public double QuietSince, ContactSince;
         /// <summary>CB-72 — the pie slice last issued (0 = the first, widest off the doorway's line).</summary>
         public byte PieStepIssued;
+        /// <summary>⭐ CB-72 (as built) — 1 once this room's contact hold ran its <see cref="RoomDrill.HoldLimitSeconds"/>: the entry goes, under
+        /// fire or not, and the hold is not taken again for this room.</summary>
+        public byte HoldSpent;
         /// <summary>CB-73 — the turn the stack was placed with · the roster slots that were live when it was.</summary>
         public int Turn;
         public ushort Placed;
@@ -258,6 +261,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FiredOnSeconds = 3f, QuietSeconds = 3f, PieMetres = 1.8f, PieAngle0 = 60f, PieAngle1 = 30f;
         /// <summary>CB-72 — a pie slice every this long (s), this much nearer the doorway's line each (°), never nearer than these (°, #1, #2).</summary>
         public const float PieStepSeconds = 2f, PieStepDegrees = 15f, PieMinAngle0 = 10f, PieMinAngle1 = 5f;
+        /// <summary>⭐ CB-72 (as built) — the longest the contact hold keeps the stack out of a room (s): 📐 live (bc-house-clear) a defender
+        /// kept firing at the stack, every round renewed the hold, the pie men never got him, and the house was never cleared.</summary>
+        public const float HoldLimitSeconds = 20f;
 
         private static int PieStep(ref RoomDrillState d, double now)
             => Math.Min(8, (int)((now - d.ContactSince) / PieStepSeconds));
@@ -284,7 +290,8 @@ namespace Hrot.AI.Behaviors.Brains
             //   until the pie is sliced: 📐 live (bc-house-defended), a defender down the hallway's axis was unseen from behind the wall,
             //   the 3 s "quiet" came, the next man went in and was shot. ⛔ Not for as long as he is known: 📐 live (bc-room-clear), the
             //   pie men were shot, nobody else could see in, and the stack waited at the door for ever
-            if (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown && !PieSliced(ref d, ctx.Now)))
+            if (d.Contact != 0 && ctx.Now - d.ContactSince >= HoldLimitSeconds) d.HoldSpent = 1;   // the hold ran out: in, under fire or not
+            if (d.HoldSpent == 0 && (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown && !PieSliced(ref d, ctx.Now))))
             {
                 if (d.Contact == 0 || d.GateOpen != 0)
                 {
@@ -303,8 +310,8 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (d.Contact != 0)
             {
-                if (d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
-                if (ctx.Now - d.QuietSince < QuietSeconds) return false;
+                if (d.HoldSpent == 0 && d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
+                if (d.HoldSpent == 0 && ctx.Now - d.QuietSince < QuietSeconds) return false;
                 d.Contact = 0;
                 if (d.Thrown == 0) d.GrenadeStep = GrenadeUndecided;   // the room is suspected now: decide again
                 ws.Reissue = 1;
