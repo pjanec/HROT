@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ASKED 2026-10-20 (behaviors, overnight); leans written, NOT built
-updated: 2026-10-20
+updated: 2026-10-21 (A revised per type after the user's crowd question)
 build-state: DESIGN
 current-answer: §0 the decision · §2 the sub-questions with leans
 stale-below: nothing
@@ -30,13 +30,14 @@ remain, and both are yours:
    insurgents down in 4, friends lost 2, 2, 2, 3, 3, 3 — whatever the drill does: they are aimed at the door when it opens. The demo's
    acceptance ③ says "no friend hit".
 
-**Decision (recommended): A + B + C** — the person radius becomes the body the navmesh is baked for (0.3 m), and BC-1's ③ becomes "no friend
+**Decision (recommended): A + B + C** — soldiers and security forces get the body the navmesh is baked for (0.3 m) while civilians
+keep their 1.6 m (A, per type), and BC-1's ③ becomes "no friend
 hit BY A FRIEND" with the casualties reported; "no friend hit at all" stays the target of BC-4 (a grenade before entry) and BC-5; and a man down is stepped over where nothing lets
 the others walk round him (C).
 
 **Rejected:**
+- *0.3 m for every person* — packs protesters and rioters into one horde (user, 2026-10-21); per type instead.
 - *drill-side workarounds for 1.6 m* (wider stacks, men standing off) — a 2 m hallway cannot hold a 1.6 m shell; it moves the jam, not removes it.
-- *a per-type TKB avoidance field for soldiers only* — a civilian and a soldier in one doorway still fight the spring; a schema change for a preset bug.
 - *making insurgents unaware* — hides the drill's real weakness (no suppression of the doorway) instead of naming it.
 
 **Design docs checked:** car-kinem design §2 — applies: it OWNS RVO-Lite and gives no reason for 0.8 m for a person · Building Interiors
@@ -59,7 +60,7 @@ not run — CLI only)*
 
 | # | question | ⭐ lean | blast radius |
 |---|---|---|---|
-| **A** | how close may two men stand? | ⭐ Pedestrian `AvoidanceRadius` 0.8 → **0.3** (the navmesh body); the CE-2304 rail's men move to 0.45 m beside him. 📐 Measured with it: the room stack forms in 5 s (was 11 s) | every person on every map: closer crowds, tighter formations; the suites above green; ⚠ cross-lane (FDP CarKinem) |
+| **A** | how close may two men stand? | ⭐ **per person TYPE, not one preset** *(revised 2026-10-21 — 🔒 user: "could we avoid applying the tight spacing for people crowds? Rioting and protesting people taking distance? I am afraid 0.3m would make them one tight hord")*: the TKB kinematics DTO gains an optional `AvoidanceRadius` (guarded `> 0`, like every field beside it, `VehicleKinematicsTkbTranslator.BuildVehicleParams`), set **0.3** on soldier and security-force person types; **civilians keep the preset's 0.8** (1.6 m apart — what the crowd demos were measured on). ⭐ A police line (`HoldTheLine`, security types) stands shoulder to shoulder, as it should. ⏭ A crowd whose spacing follows its MOOD is the crowd's designed `Density` (Civilians §2.1, not built) — a later knob, not this one. ~~Pedestrian preset 0.8 → 0.3 for everyone~~ — rejected: it packs crowds into one horde. 📐 Measured with 0.3 for all (local, not committed): room stack 11 s → 5 s; suites green bar one rail premise | soldiers and security only; a pair of different types is asymmetric (each keeps ITS radius: a civilian steps 1.6 m from a soldier, the soldier only 0.6 m from him) — fine; ⚠ cross-lane (backend: the DTO and translator; BdcTkbBuilder per type) |
 | **C** | a man DOWN in a doorway? | ⭐ walk round him where there is room (R-3027 as it stands), **step over him where there is not** — a doorway, a corridor: he is stepped over when no way round fits. ⛔ Not decided here: a one-night step-over (skip him as a neighbour) was built and REVERTED, because R-3027 / CE-2321 (backend) keeps him a neighbour, and the user's words there were about him not moving, not about others walking round | 📐 one body 0.9 m inside room A's door walled it off for every man behind; FDP CarKinem, backend's lane |
 | **B** | what may a cleared room cost (BC-1 ③)? | ⭐ "**no friend hit by a friend**" + the casualties in the report; "no friend hit" moves to BC-4 (a grenade before a Suspected room) and BC-5 (contact at the doorway) | the §8.1 table; the twin's ③ assert |
 
