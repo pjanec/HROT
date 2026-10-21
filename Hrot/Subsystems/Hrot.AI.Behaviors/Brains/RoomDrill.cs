@@ -210,9 +210,12 @@ namespace Hrot.AI.Behaviors.Brains
                     {
                         // ⭐ CE-2261 (CB-72) — contact at the way in: the first two fight from pie points beside the doorway, leaning toward it
                         if (d.Contact != 0 && k < 2 && d.Threshold != 0) return PiePoint(ref d, k, speed, role);
-                        // ⭐ CE-2260 (CB-68) — the thrower: to the door front, then the throw
+                        // ⭐ CE-2260 (CB-68, as built) — the thrower steps to the JAMB on his side (the opening's edge, 0.4 m out), throws across
+                        //   through the far half of the opening, and is back on his stack point for the bang. 📐 live, a throw from the door
+                        //   front put him in the doorway the defenders were aimed at and he was shot there; from the stack point the line
+                        //   through the opening runs along the wall and no aim in the room is reachable
                         if (member == d.Thrower && d.GrenadeStep == GrenadeToDoor)
-                            return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = d.Plan.DoorFront, Speed = speed, RoleId = role, ArrivalRadius = ThresholdArrival };
+                            return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = ThrowFrom(ref d), Speed = speed, RoleId = role, ArrivalRadius = JambArrival };
                         if (member == d.Thrower && d.GrenadeStep == GrenadeThrowing)
                             return new MemberOrder { Kind = MemberOrderKind.FireAtPoint, Point = d.Aim, Mount = d.GrenadeMount, Rounds = 1, RoleId = role, Speed = speed };
                         return atStack;
@@ -240,8 +243,10 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The grenade steps (CB-68, CB-69).</summary>
         public const byte GrenadeUndecided = 0, GrenadeToDoor = 1, GrenadeThrowing = 2, GrenadeThrown = 3, GrenadeDone = 4;
-        /// <summary>CB-69 — the thrower given up reaching the door (s) · the throw given up (s) · the entry released this long after the bang (s) ·
+        /// <summary>CB-69 — the thrower given up reaching his throwing point (s) · the throw given up (s) · the entry released this long after the bang (s) ·
         /// a hand grenade's speed for its flight time (m/s) · how far into the room it is thrown (m).</summary>
+        /// <summary>CB-68 — the jamb point lies this far out from the wall (m) · reached within this (m).</summary>
+        public const float JambBackMetres = 0.4f, JambArrival = 0.3f;
         public const float ToDoorTimeoutSeconds = 8f, ThrowTimeoutSeconds = 6f, AfterBangSeconds = 0.3f, ThrowSpeed = 15f, ThrowInMetres = 3f;
         /// <summary>CB-72 — fired on within this long holds the entry (s) · quiet this long releases it (s) · the pie points' distance (m) and
         /// their angles off the doorway's line (°, #1 then #2).</summary>
@@ -326,7 +331,8 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ToDoorTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
                     var at = ctx.At(man);
-                    if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(d.Plan.DoorFront.X, d.Plan.DoorFront.Y)) > DoorFrontMetres + 0.2f) return false;
+                    var from = ThrowFrom(ref d);
+                    if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(from.X, from.Y)) > JambArrival + 0.2f) return false;
                     d.RoundsBefore = GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount);
                     d.GrenadeStep = GrenadeThrowing;
                     d.StepSince = ctx.Now;
@@ -337,7 +343,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ThrowTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
                     if (GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount) >= d.RoundsBefore) return false;
-                    float flight = Vector3.Distance(d.Plan.DoorFront, d.Aim) / ThrowSpeed;
+                    float flight = Vector3.Distance(ThrowFrom(ref d), d.Aim) / ThrowSpeed;
                     d.BangAt = ctx.Now + d.Fuze + flight;
                     d.Thrown = 1;
                     d.GrenadeStep = GrenadeThrown;
@@ -351,6 +357,20 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return true;
             }
+        }
+
+        /// <summary>CB-68 — the jamb he throws from: the opening's edge on his side, <see cref="JambBackMetres"/> out from the wall.</summary>
+        private static unsafe Vector3 ThrowFrom(ref RoomDrillState d)
+            => d.Thrower >= 0 && d.OrderOf[d.Thrower] != RoomDrillState.NotInIt
+                ? new Vector3(Jamb(ref d, JambSide(ref d, d.OrderOf[d.Thrower])), d.Plan.StackZ) : d.Plan.DoorFront;
+
+        private static Vector2 Jamb(ref RoomDrillState d, float side) => d.Plan.Door + d.Plan.Along * side * d.Plan.Half - d.Plan.Into * JambBackMetres;
+
+        /// <summary>+1 when the <paramref name="k"/>-th stack point is on the <c>Along</c> side of the way in, −1 on the far side (a split stack).</summary>
+        private static float JambSide(ref RoomDrillState d, int k)
+        {
+            var at = d.Plan.Stack(k);
+            return Vector2.Dot(new Vector2(at.X, at.Y) - d.Plan.Door, d.Plan.Along) >= 0f ? 1f : -1f;
         }
 
         private static unsafe bool ThrowerLive(ref RoomDrillState d, in SquadPlayContext ctx, out Entity man)
@@ -378,10 +398,20 @@ namespace Hrot.AI.Behaviors.Brains
             var query = Fdp.Toolkit.World.WorldQuery.Of(ctx.World);
             var scratch = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
             float depth = Depth(ref d);
+            // ⭐ CB-68 (as built) — thrown from the jamb on his side, ACROSS through the far half of the opening
+            float side = JambSide(ref d, d.OrderOf[slot]);
+            var jamb = Jamb(ref d, side);
+            var farHalf = d.Plan.Door - d.Plan.Along * side * d.Plan.Half * 0.5f;
+            var line = farHalf - jamb;
+            line = line.LengthSquared() > 1e-6f ? Vector2.Normalize(line) : d.Plan.Into;
+            Span<float> corners = stackalloc float[8];
+            for (int c = 0; c < 8; c++) corners[c] = d.Corners[c];
             Span<float> ins = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f };
             foreach (float into in ins)
             {
-                var aim = new Vector3(d.Plan.Door + d.Plan.Into * into, d.FloorZ + 0.3f);
+                float reach = into;
+                while (reach > 0.5f && !RoomEntryPlan.Inside(corners, farHalf + line * reach)) reach -= 0.25f;   // stay inside the room
+                var aim = new Vector3(farHalf + line * reach, d.FloorZ + 0.3f);
                 if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
                 d.Aim = aim;
                 d.Thrower = (sbyte)slot;

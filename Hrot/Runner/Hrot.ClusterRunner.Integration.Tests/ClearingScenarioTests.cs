@@ -220,7 +220,9 @@ public sealed class ClearingScenarioTests : IDisposable
         var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
         string Runs(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<BehaviorState>(e)
             && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var n) ? n + Moving(cgf, e) : "-";
-        string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e) + ":" + Runs(e)))}] blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] "
+        // ⭐ CE-2260 — whether the stun reached them (the brain's node stores it)
+        string Stunned(Entity e) => !e.IsNull && cgf.IsAlive(e) && Fdp.Toolkit.Combat.Effects.IsStunned(cgf, e) ? " STUNNED" : "";
+        string State() => $"insurgents [{string.Join(" ", insurgents.Select(e => Where(cgf, e) + ":" + Runs(e) + Stunned(e)))}] blue [{string.Join(" ", blue.Select(e => Where(cgf, e) + ":" + Runs(e)))}] "
                         + $"nav [{string.Join(" ", new[] { "Blue Leader", "Blue Rifleman 1", "Blue Rifleman 2", "Blue Rifleman 3", "Blue Rifleman 4" }.Select(n => Nav(harness.SimHost.World!, n)))}] "
                         + $"squad {Runs(squad)} cgf {Doors(cgf, "north", "a")} sim {Doors(harness.SimHost.World!, "north", "a")} drill {Drill(cgf, squad)} progress [{string.Join(" ", reports.Progress().Select(p => $"{p.Kind}@({p.At.X:F1},{p.At.Y:F1})"))}]";
 
@@ -230,7 +232,11 @@ public sealed class ClearingScenarioTests : IDisposable
         static bool Blue(string name) => name.StartsWith("Blue");
         for (int f = 0; f < 60 * 240 && !RoomAClear(); f += 600)
         {
-            for (int g = 0; g < 600; g += 60) { harness.PumpFrames(60); reports.Collect(cgf, squad); hits.Collect(sim); }
+            for (int g = 0; g < 600; g += 60)
+            {
+                harness.PumpFrames(60); reports.Collect(cgf, squad); hits.Collect(sim);
+                if (insurgents.Any(e => Stunned(e).Length > 0)) _out.WriteLine($"  f{f + g}: stunned [{string.Join(" ", insurgents.Select(e => Where(cgf, e) + Stunned(e)))}]");
+            }
             _out.WriteLine($"f{f}: {State()}");
         }
         _out.WriteLine("end: " + State());
