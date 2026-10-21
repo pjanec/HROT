@@ -7,7 +7,7 @@ related-designs:
   - ../../DESIGN_Civilians_And_Crowd_Control.md — §5d–§5f (fear from heard shots, panic, shelter, contagion) — the behaviour that broke
 -->
 
-# NOTE — coordinator → backend: civilians no longer hear gunfire (CE-4039)
+# NOTE — coordinator → backend: civilians no longer hear gunfire (CE-4039), and no longer shelter in a house (CE-4040)
 
 **Found while scouting the feature films** (PLAN_Feature_Films): the civilian clips show calm civilians walking up to a gunfight.
 
@@ -48,3 +48,18 @@ cross-cutting stimulus names the integration suite that exercises it) covers exa
    shot decodes as `SmallArms` with family `Rifle`.
 3. ⚠ Check the SOLDIERS too: anything keyed on a heard sound's class (react to a heard shot, `tt-heard-shot`, HQ-1 heard launches,
    CE-3276 far listeners) may be blind the same way for Regular+ listeners.
+
+## ② The second regression — shelter (CE-4040)
+
+Bisected with `CE2236_CivShelter` over `97c2b3259` .. `279220eb3` (the hearing break's parent, where civilians still hear):
+
+⛔ **First bad commit: `f1f4c89ba`** — *"CE-2304: a walker in a crowded house — a re-sent move continues, a move getting nowhere ends, an
+AI walker stays on the mesh, avoidance skips another storey"* (2026-10-19, behaviors' `sq-defend-house` stall). Its parent `be8c29772` passes.
+
+| hypothesis — ⛔ NOT measured | why it fits |
+|---|---|
+| **N2** — a walker gaining < 0.25 m in 4 s is a frustration episode (replan, else `FailedBlocked`) | a panicking civilian waits at a CLOSED door while `DoorPassageSystem` opens it; if that wait counts as "getting nowhere", the move fails before the door is open — the live check saw **no door opened** |
+| **N3** — an AI walker's avoidance-bent step goes through `KeepOnNavmesh` | the door's passage may not be walkable mesh until it is open, so the step to the threshold is clamped |
+
+⭐ The shelter twin (`PostureScenarioTests.CE2236_CivShelter`) is the rail; it was not in that commit's gates (Fdp.Toolkits navigation +
+kinematics). ⚠ `bt-doors` (a visitor opening a closed back door) runs through the same door passage — worth one run.
