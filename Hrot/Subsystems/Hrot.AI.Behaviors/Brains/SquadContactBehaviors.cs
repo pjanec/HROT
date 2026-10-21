@@ -370,11 +370,12 @@ namespace Hrot.AI.Behaviors.Brains
                 && SquadCasualties.Count(world, self) > 0
                 && (now - ws.DecidedAt >= RedecideSeconds
                     || NothingToFight(world, self)   // the enemy is gone: the hold would end "clear" and leave him — decide now
+                    || SquadSopConditions.InALull(world, self)   // ⭐ CE-2344 (R-2066 E) — nobody fires at the squad: bring him in now
                     || Fdp.Toolkit.Behavior.Components.RecentSensesOf.WithinSince(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadMemberDown, 3600d, ws.DecidedAt)))
             {
                 byte was = ws.Choice.Winner;
                 var fresh = new UtilityChoice();
-                if (NothingToFight(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight: bring him in
+                if (NothingToFight(world, self) || SquadSopConditions.InALull(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight, or a lull: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
                 ws.DecidedAt = now;
                 if (fresh.Winner != 0 && fresh.Winner != was)

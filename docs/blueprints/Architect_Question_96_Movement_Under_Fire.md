@@ -259,9 +259,11 @@ C3 added), and a demo scenario — ✅ **APPROVED** (R-2061). Built the same day
 
 ## 6. As built *(2026-10-20, behaviors)*
 
-⚠ **Known gap, measured `2026-10-21` (`CE-2343`, not yet decided):** `Rise` re-paces to the ORIGINAL destination — when that destination is
-itself exposed (a post on a berm's enemy face, `CE-2342`), the man crawls to the safe face and then walks straight back out. See
-[Defend and Attack Position §8f.2](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md).
+✅ **Closed `2026-10-21` (`CE-2343`, R-2066 C):** after a crawl, a lapse whose move ends ≤ 10 m away and > 1.5 m past the cover on the side
+it faces (`UnderFire.Exposed`, the cover's facing kept on `UnderFireMove.CoverFacing`) ends the move AT the cover, crouched — he no longer
+walks back out to a post on a berm's enemy face; any other destination keeps the side step and the rise below. See
+[Defend and Attack Position §8f.3](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md). *(Was: a known gap — `Rise` re-paced to
+the ORIGINAL destination, so the man crawled to the safe face and then walked straight back out.)*
 
 As §2a–§2c, with these differences (each measured during the build):
 

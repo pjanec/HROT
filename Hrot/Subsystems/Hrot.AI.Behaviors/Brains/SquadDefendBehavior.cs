@@ -175,21 +175,32 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// ⭐ <c>CE-2275</c> D-1 (DA-34, DA-38) — pure: one post per man from the terrain's ranked points, and a man's alternate. Spacing is 3-D, so
     /// the same window on two storeys is two posts (⚠ <see cref="SquadCover.Pick"/> spaces in 2-D, which would merge them).
+    /// ⭐ <c>CE-2345</c> (R-2066 B) — two COVER posts (in the open, behind a wall or a berm) are spread wider: <see cref="CoverSpacingMetres"/>,
+    /// or <see cref="CoverSpacingShortMetres"/> where the cover is too short for every man (§9's "posts spread ≥ 8 m"); windows, roof and
+    /// authored posts keep <see cref="SpacingMetres"/> — a room's two windows are its posts.
     /// </summary>
     public static class DefencePostPicker
     {
         /// <summary>Two posts at least this far apart (m) — 3-D.</summary>
         public const float SpacingMetres = 2.5f;
 
+        /// <summary>⭐ <c>CE-2345</c> — two cover posts at least this far apart (m), first pass.</summary>
+        public const float CoverSpacingMetres = 8f;
+
+        /// <summary>⭐ <c>CE-2345</c> — the second pass, for the men the first left without a post (m): never closer.</summary>
+        public const float CoverSpacingShortMetres = 5f;
+
         /// <summary>
         /// Each candidate in rank order goes to the nearest live man still without a post, unless it is within <see cref="SpacingMetres"/> of
-        /// a post already held. A man who holds one (<paramref name="postOf"/> ≠ -1) keeps it.
+        /// a post already held (<paramref name="coverSpacing"/> when both are cover posts, <paramref name="spread"/>). A man who holds one
+        /// (<paramref name="postOf"/> ≠ -1) keeps it.
         /// </summary>
-        public static void Pick(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<Vector3> men, ReadOnlySpan<bool> live, Span<int> postOf)
+        public static void Pick(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<Vector3> men, ReadOnlySpan<bool> live, Span<int> postOf,
+                                ReadOnlySpan<bool> spread = default, float coverSpacing = SpacingMetres)
         {
             for (int k = 0; k < candidates.Length; k++)
             {
-                if (Taken(candidates, postOf, k) || Crowded(candidates, postOf, candidates[k], skipMan: -1)) continue;
+                if (Taken(candidates, postOf, k) || Crowded(candidates, postOf, k, skipMan: -1, spread, coverSpacing)) continue;
                 int best = -1;
                 float bestDistance = float.MaxValue;
                 for (int i = 0; i < men.Length; i++)
@@ -205,7 +216,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The candidate nearest <paramref name="man"/>'s post that no one holds and that keeps the spacing from every OTHER post;
         /// -1 when there is none.</summary>
-        public static int Alternate(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<int> postOf, int man)
+        public static int Alternate(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<int> postOf, int man,
+                                    ReadOnlySpan<bool> spread = default, float coverSpacing = SpacingMetres)
         {
             if (postOf[man] < 0) return -1;
             var from = candidates[postOf[man]];
@@ -213,7 +225,7 @@ namespace Hrot.AI.Behaviors.Brains
             float bestDistance = float.MaxValue;
             for (int k = 0; k < candidates.Length; k++)
             {
-                if (k == postOf[man] || Taken(candidates, postOf, k) || Crowded(candidates, postOf, candidates[k], skipMan: man)) continue;
+                if (k == postOf[man] || Taken(candidates, postOf, k) || Crowded(candidates, postOf, k, skipMan: man, spread, coverSpacing)) continue;
                 float d = Vector3.Distance(from, candidates[k]);
                 if (d < bestDistance) { bestDistance = d; best = k; }
             }
@@ -226,10 +238,15 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        private static bool Crowded(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<int> postOf, Vector3 at, int skipMan)
+        private static bool Crowded(ReadOnlySpan<Vector3> candidates, ReadOnlySpan<int> postOf, int k, int skipMan, ReadOnlySpan<bool> spread,
+                                    float coverSpacing)
         {
             for (int i = 0; i < postOf.Length; i++)
-                if (i != skipMan && postOf[i] >= 0 && Vector3.Distance(candidates[postOf[i]], at) < SpacingMetres) return true;
+            {
+                if (i == skipMan || postOf[i] < 0) continue;
+                bool wide = k < spread.Length && postOf[i] < spread.Length && spread[k] && spread[postOf[i]];
+                if (Vector3.Distance(candidates[postOf[i]], candidates[k]) < (wide ? coverSpacing : SpacingMetres)) return true;
+            }
             return false;
         }
     }
@@ -469,7 +486,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Posts.CoverStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))
             {
                 if (p.Posts.CoverStage == 0) { p.Posts.CoverStage = 1; p.Posts.StageSince = ctx.Now; }
-                bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverFromTarget.BlueprintId, CoverSite, p.SearchRadius, from, ea, out var buffer);
+                bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverPosts.BlueprintId, CoverSite, p.SearchRadius, from, ea, out var buffer);   // ⭐ CE-2342 (R-2066 A)
                 if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: false)) return;
                 p.Posts.CoverStage = 2;
                 PickAll(ref p, in ctx);
@@ -638,8 +655,19 @@ namespace Hrot.AI.Behaviors.Brains
                 men[i] = live[i] ? ctx.At(m) : default;
                 postOf[i] = p.Posts.PostOf[i] == DefencePosts.None ? -1 : p.Posts.PostOf[i];
             }
-            DefencePostPicker.Pick(candidates[..p.Posts.Count], men[..n], live[..n], postOf[..n]);
+            Span<bool> spread = stackalloc bool[DefencePosts.Capacity];
+            CoverPosts(ref p, spread);
+            // ⭐ CE-2345 (R-2066 B) — cover posts 8 m apart; the men still without one then take them 5 m apart, never closer
+            DefencePostPicker.Pick(candidates[..p.Posts.Count], men[..n], live[..n], postOf[..n], spread[..p.Posts.Count], DefencePostPicker.CoverSpacingMetres);
+            DefencePostPicker.Pick(candidates[..p.Posts.Count], men[..n], live[..n], postOf[..n], spread[..p.Posts.Count], DefencePostPicker.CoverSpacingShortMetres);
             for (int i = 0; i < n; i++) p.Posts.PostOf[i] = postOf[i] < 0 ? DefencePosts.None : (byte)postOf[i];
+        }
+
+        /// <summary>⭐ <c>CE-2345</c> — which posts are COVER posts (not a window, the roof, or authored): those are spread wider.</summary>
+        private static unsafe void CoverPosts(ref SquadDefendParams p, Span<bool> spread)
+        {
+            for (int k = 0; k < p.Posts.Count; k++)
+                spread[k] = p.Posts.Window[k] == 0 && p.Posts.Roof[k] == 0 && p.Posts.Authored[k] == 0;
         }
 
         private static unsafe bool AnyWithoutPost(ref SquadDefendParams p, in SquadPlayContext ctx)
@@ -734,7 +762,9 @@ namespace Hrot.AI.Behaviors.Brains
             for (int k = 0; k < p.Posts.Count; k++) candidates[k] = p.Posts.Point(k);
             Span<int> postOf = stackalloc int[DefencePosts.Capacity];
             for (int i = 0; i < n; i++) postOf[i] = p.Posts.PostOf[i] == DefencePosts.None || !ctx.Live(i, out _) ? -1 : p.Posts.PostOf[i];
-            return DefencePostPicker.Alternate(candidates[..p.Posts.Count], postOf[..n], man);
+            Span<bool> spread = stackalloc bool[DefencePosts.Capacity];
+            CoverPosts(ref p, spread);
+            return DefencePostPicker.Alternate(candidates[..p.Posts.Count], postOf[..n], man, spread[..p.Posts.Count], DefencePostPicker.CoverSpacingShortMetres);
         }
 
         /// <summary>

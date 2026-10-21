@@ -1255,6 +1255,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(UnderFirePhase.Shifting, Reflex(w).Phase);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2343</c> (R-2066 C) — he drops short of his post, crawls to the cover point near him (a berm's safe face, facing the
+        /// enemy to the north) and, when the fire lapses, does NOT rise and walk back to a post just past the berm in the enemy's view: the
+        /// move ends at his cover, crouched. 📌 Live on <c>pc-defend-house</c>: crawl round the corner to safety, up, back, down — again.
+        /// The control: a destination on his side of the cover ⇒ the side step and the rise as before. ✅ Red-proof: the
+        /// <c>Exposed</c> check dropped ⇒ he shifts and rises back toward the post.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2343_AfterACrawlToCover_HeDoesNotRiseBackIntoTheEnemysView()
+        {
+            World Crawled(Vector3 post)
+            {
+                var w = new World();
+                w.Repo.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+                {
+                    new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 2f, PositionY = 2.25f, DirectionX = 0f, DirectionY = 1f, Quality = 1f, StanceHeight = 1 },
+                }));
+                w.Contact(armed: true);
+                ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+                mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;   // the enemy, north
+                Mover(w, post);
+                ShotAt(w, 20.0);
+                StepAt(w, 20.1);
+                StepAt(w, 20.2);
+                Assert.Equal(UnderFirePhase.Crawling, Reflex(w).Phase);
+                w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(2f, 2.25f, 0f);
+                StepAt(w, 21.0);
+                Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+                StepAt(w, 23.2);   // 3 s without a round
+                return w;
+            }
+
+            var w = Crawled(new Vector3(0f, 6f, 0f));   // the post: past the berm, in the enemy's view
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+            Assert.Equal(new Vector3(2f, 2.25f, 0f), Intent(w).FinalDestination);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+
+            var c = Crawled(new Vector3(6f, 0f, 0f));   // the post: on his side of it
+            Assert.Equal(UnderFirePhase.Shifting, Reflex(c).Phase);
+        }
+
         /// <summary>AQ96 C — no drop while arriving at his point (within 3 m — he is getting into his cover), and a civilian's upright run
         /// is never kept by the reflex.</summary>
         [Fact]

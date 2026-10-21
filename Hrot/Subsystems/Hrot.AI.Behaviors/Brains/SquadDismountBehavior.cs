@@ -157,6 +157,22 @@ namespace Hrot.AI.Behaviors.Brains
         [Fbt.Kernel.SharedAiCondition]
         public static bool CarrierUnloading(Entity self, EntityRepository world) => AnyMemberAboard(world, self, AboardWhere.Unloading);
 
+        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no round at the squad for this long (s) is a LULL: the squad brings its wounded in itself.</summary>
+        public const double LullSeconds = 10d;
+
+        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/>.</summary>
+        public static bool InALull(EntityRepository world, Entity self)
+            => !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, LullSeconds);
+
+        /// <summary>
+        /// ⭐ <c>CE-2344</c> (R-2066 E; Squad Tactics §7.5.4) — the lull row: a man down still to care for (<see cref="Fdp.Toolkit.Squad.SquadCasualties"/>)
+        /// and <see cref="InALull"/> ⇒ the squad drags him to cover itself (<c>CasualtyCare</c>). Under fire the row above reacts and the
+        /// care waits. 📌 Live on <c>pc-defend-house</c>: four men down by 60 s, one carried in six minutes.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool CasualtyInALull(Entity self, EntityRepository world)
+            => Fdp.Toolkit.Squad.SquadCasualties.Count(world, self) > 0 && InALull(world, self);
+
         /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6) — the squad's helicopter holds at a <c>Rope</c> stop
         /// (<see cref="Fdp.Toolkit.Navigation.NavigationPhase.Roping"/>) with a member aboard: the fast-rope row.</summary>
         [Fbt.Kernel.SharedAiCondition]

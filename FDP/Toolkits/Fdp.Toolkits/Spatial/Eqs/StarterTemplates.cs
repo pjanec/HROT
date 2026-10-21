@@ -162,6 +162,27 @@ namespace Fdp.Toolkit.Spatial.Eqs
         };
     }
 
+    /// <summary>⭐ <c>CE-2342</c> (R-2066 A) — a squad's COVER POSTS facing the engagement area's point (slot 1): the cover points near the self
+    /// with an obstacle between them and that point (<see cref="CoverTowardTest"/> — low cover counts, the man fires over it crouched), nearer
+    /// scoring more, then hidden from every known threat, then path cost. ⛔ Not <see cref="FindCoverFromTarget"/>: its crouched-eye check
+    /// keeps neither face of a 1 m berm from a point in the open. 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8f.2.</summary>
+    [EqsTemplate(AssetId)]
+    public static class FindCoverPosts
+    {
+        public const string AssetId = "3907f5ee-9ba0-401e-b238-48fe8312c318";
+        public const uint BlueprintId = 0x61F46F45u;   // EqsTemplateRegistry.BlueprintIdOf(AssetId)
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b) => new EqsQueryTemplate
+        {
+            BlueprintId    = BlueprintId,
+            Generator      = new CoverPointsGenerator(),
+            FilterCheap    = new IEqsTest[] { new CoverTowardTest() },
+            ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }, new PathCostScoreTest() },
+            MaxCandidates  = 48,
+        };
+    }
+
     /// <summary>⭐ A flank on the target: ring points around the TARGET that see it, scored by bearing — side-on to the
     /// target→self line scores most — then exposure and path cost.</summary>
     [EqsTemplate(AssetId)]

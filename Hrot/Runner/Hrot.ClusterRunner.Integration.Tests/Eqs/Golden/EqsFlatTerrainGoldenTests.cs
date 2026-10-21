@@ -87,6 +87,10 @@ public sealed class EqsFlatTerrainGoldenTests
             [FindRoofPosts.BlueprintId] = (nameof(FindRoofPosts),
                 () => CaptureOnFlatGround(nameof(FindRoofPosts), FindRoofPosts.BlueprintId, 25f, terrainCover: true,
                     terrain: OneHouse("cqb-village", "house-3f", new Vector2(0, 12)))),
+            // ⭐ CE-2342 (R-2066 A) — COVER posts facing the target: the terrain's own cover round the one wall; only the points with
+            //   the wall between them and the target (its near face) may answer.
+            [FindCoverPosts.BlueprintId] = (nameof(FindCoverPosts),
+                () => CaptureOnFlatGround(nameof(FindCoverPosts), FindCoverPosts.BlueprintId, 25f, terrainCover: true)),
             // ⭐ WL-4 W-12f — where to throw from: a donut round the target's last-known point at the ~18 m radius the node sets.
             [FindThrowingPosition.BlueprintId] = (nameof(FindThrowingPosition),
                 () => CaptureOnFlatGround(nameof(FindThrowingPosition), FindThrowingPosition.BlueprintId, 18f)),
@@ -201,6 +205,7 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindWindowSetBackPostsAllRound))]
     [InlineData(nameof(FindWindowSetBackPosition))]
     [InlineData(nameof(FindRoofPosts))]
+    [InlineData(nameof(FindCoverPosts))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
