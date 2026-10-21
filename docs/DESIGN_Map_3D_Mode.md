@@ -15,6 +15,7 @@ known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current appro
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
+  - docs/RUNBOOK_Filming.md — OWNS HOW to film (film.py, plans, finding the moments, the traps); §6ab here is the design
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: the sun, the sky, fog and cloud layers come from WeatherField
   - designs/audio/DESIGN_FPS_Audio.md — OWNS the AudioLayer the pack attaches beside PossessionStation, and the audio files' CC0 licence table (AU-8)
@@ -2809,6 +2810,8 @@ edge, red) — so the film is of what is on screen, and a hidden host's map neve
 | `POST /film/capture {path, width?, height?}` | the next drawn frame's scene to `path` (PNG); answers `{path, width, height, simTime}`; 504 after 30 s (no map drawn) |
 
 #### 6ab-i As built `2026-10-21` — matches the diagrams above; two additions, measured on the first films
+
+📄 **How to film:** [`RUNBOOK_Filming.md`](RUNBOOK_Filming.md).
 
 | | |
 |---|---|

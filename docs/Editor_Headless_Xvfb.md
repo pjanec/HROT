@@ -8,6 +8,7 @@ stale-below: nothing.
 known-rot: none.
 related-designs:
   - docs/DESIGN_Map_3D_Mode.md §6ab — OWNS filming the 3-D map headless (the director camera, the scene capture, scripts/film.py)
+  - docs/RUNBOOK_Filming.md — OWNS how to film (the recipe, plans, traps)
 -->
 # Running the editor on a headless Linux host (Xvfb)
 
