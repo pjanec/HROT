@@ -4,14 +4,13 @@ using Xunit.Abstractions;
 namespace Hrot.SystemTests;
 
 /// <summary>
-/// ⭐⭐ <c>CE-4038</c> B0′ (docs/DESIGN_Film_Director.md §0, R-3038; HANDOFF_Backend_To_Ui_Film_Director.md) — <b>the two-run identity
-/// rail</b>: one seeded take run twice by the director, stepped once per frame (a scout with nothing baked, so the file is not changed), and
+/// ⭐⭐ <c>CE-4038</c> B0′ / <c>CE-1240</c> (docs/DESIGN_Film_Director.md §0, R-3038) — <b>the identity rail: filmed = scouted</b>. A seeded take
+/// run THREE times by the director (each a fresh load, stepped once per frame; a scout with nothing baked, so the file is not changed), and
 /// the world compared at EVERY CUT — each named unit's position and health, the rounds fired — and every beat's time.
 ///
-/// <para>⭐ <b>A REPORT now, a GATE after CE-3293 S5.</b> Until step-only systems receive every event since the last step, stepped runs are
-/// not guaranteed to repeat (🔒 R-3034 measured them differing, CE-3291), so this prints the differences and passes. ⭐ Set
-/// <c>HROT_DIRECTOR_IDENTITY_GATE=1</c> once S5 lands and it FAILS on any difference — then "the filmed run equals the scouted run" is
-/// accepted (§0).</para>
+/// <para>⭐ <b>A GATE since CE-3293 S5</b> (step-only systems receive every event since the last step, so stepped runs repeat). ⛔ SUPERSEDED:
+/// "a REPORT until S5, a gate behind <c>HROT_DIRECTOR_IDENTITY_GATE=1</c>". ⚠ <c>HROT_DIRECTOR_IDENTITY_REPORT=1</c> turns it back into a
+/// report (the differences printed, the rail green) — for measuring a regression, never for a gate.</para>
 /// </summary>
 [Trait("Category", "SystemSmoke")]
 [Trait("Category", "SystemDirector")]
@@ -19,14 +18,13 @@ public sealed class DirectorIdentityRails : SystemTestBase
 {
     public DirectorIdentityRails(EditorProcessFixture fixture, ITestOutputHelper output) : base(fixture, output) { }
 
-    /// <summary>The take every identity claim is made against: two tank rounds, cut on each (F-45).</summary>
-    private const string Scenario = "ua-tank-ammo";
+    private const int Runs = 3;
 
-    private async Task<JsonObject> ScoutOnceAsync()
+    private async Task<JsonObject> ScoutOnceAsync(string scenario)
     {
-        var started = await Mcp.DirectorScoutAsync(new JsonObject { ["scenario"] = Scenario, ["take"] = "main", ["bake"] = false });
+        var started = await Mcp.DirectorScoutAsync(new JsonObject { ["scenario"] = scenario, ["take"] = "main", ["bake"] = false });
         Assert.True(started.Ok, $"director/scout: {started.StatusCode} {started.Error}");
-        var until = DateTime.UtcNow.AddMinutes(4);
+        var until = DateTime.UtcNow.AddMinutes(6);
         while (DateTime.UtcNow < until)
         {
             var st = (await Mcp.DirectorStatusAsync()).EnsureOk().DataOrThrow().AsObject();
@@ -35,23 +33,32 @@ public sealed class DirectorIdentityRails : SystemTestBase
             await Task.Delay(500);
         }
         await Mcp.DirectorStopAsync();
-        throw new TimeoutException("the scout did not finish in 4 min");
+        throw new TimeoutException("the scout did not finish in 6 min");
     }
 
-    [Fact]
-    public async Task CE4038_ATakeRunTwice_IsTheSameAtEveryCut_ReportNowGateAfterS5()
+    /// <summary>Three takes whose beats are different cues: rounds fired (the M1's two shots), a blast, a melee blow.</summary>
+    [Theory]
+    [InlineData("ua-tank-ammo")]
+    [InlineData("bt-grenade-posture")]
+    [InlineData("ua-civ-melee")]
+    public async Task CE1240_ATakeRunThreeTimes_IsTheSameAtEveryCut(string scenario)
     {
-        var a = await ScoutOnceAsync();
-        var b = await ScoutOnceAsync();
-        Output.WriteLine($"run 1: {a["status"]} steps {a["steps"]} found {a["found"]?.ToJsonString()} · max steps in a frame {a["maxStepsInAFrame"]}");
-        Output.WriteLine($"run 2: {b["status"]} steps {b["steps"]} found {b["found"]?.ToJsonString()}");
-        Assert.Equal(1, a["maxStepsInAFrame"]!.GetValue<int>());   // ⭐ the stepping rule held in both — a GATE today
-        Assert.Equal(1, b["maxStepsInAFrame"]!.GetValue<int>());
+        var runs = new List<JsonObject>();
+        for (int i = 0; i < Runs; i++) runs.Add(await ScoutOnceAsync(scenario));
+        foreach (var (r, i) in runs.Select((r, i) => (r, i)))
+        {
+            Output.WriteLine($"run {i + 1}: {r["status"]} steps {r["steps"]} found {r["found"]?.ToJsonString()} cuts {r["cuts"]?.AsArray().Count} · "
+                           + $"max steps in a frame {r["maxStepsInAFrame"]}, the kernel {r["maxRetiredInAFrame"]}, waits {r["waitFrames"]}");
+            Assert.Equal(1, r["maxStepsInAFrame"]!.GetValue<int>());    // ⭐ the stepping rule, asked …
+            Assert.Equal(1, r["maxRetiredInAFrame"]!.GetValue<int>());  // … and taken
+        }
 
-        var diffs = Compare(a, b);
+        var diffs = new List<string>();
+        for (int i = 1; i < runs.Count; i++)
+            diffs.AddRange(Compare(runs[0], runs[i]).Select(d => $"run 1 vs {i + 1}: {d}"));
         foreach (var d in diffs) Output.WriteLine("DIFF " + d);
-        Output.WriteLine(diffs.Count == 0 ? "IDENTICAL at every cut" : $"{diffs.Count} difference(s) between the two runs (a REPORT until CE-3293 S5)");
-        if (Environment.GetEnvironmentVariable("HROT_DIRECTOR_IDENTITY_GATE") == "1")
+        Output.WriteLine(diffs.Count == 0 ? $"IDENTICAL at every cut, {Runs} runs" : $"{diffs.Count} difference(s) across {Runs} runs");
+        if (Environment.GetEnvironmentVariable("HROT_DIRECTOR_IDENTITY_REPORT") != "1")
             Assert.True(diffs.Count == 0, string.Join("\n", diffs));
     }
 
