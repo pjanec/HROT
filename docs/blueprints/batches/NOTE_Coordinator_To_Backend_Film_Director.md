@@ -14,8 +14,10 @@ overnight filming … follows the loaded scenario, waits for it being loaded, th
 in the list; also allowing each scenario to be replayed … maybe it could be a feature of the editor itself"* · *"controlled via ai debug
 http of course"* · *"and also from some ui panel"* · *"it will be implemented by the backend"*.
 
-**The design:** [DESIGN_Film_Director.md](../../DESIGN_Film_Director.md) — `build-state: DESIGN`. ⛔ **Do not build until the user approves
-§5.** It needs your measurements first: the per-frame cost with the panels hidden (D-7), and whether the master retires 2 steps in one frame
+⭐ **SUPERSEDED for building by [HANDOFF_Coordinator_To_Backend_Film_Director.md](HANDOFF_Coordinator_To_Backend_Film_Director.md)** — the user approved it (R-4062). This note is the history of how the design got there.
+
+**The design:** [DESIGN_Film_Director.md](../../DESIGN_Film_Director.md). ~~Do not build until the user approves
+§5.~~ It needs your measurements first: the per-frame cost with the panels hidden (D-7), and whether the master retires 2 steps in one frame
 (D-1).
 
 **Your five tips, and where each landed:**

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: READY-TO-BUILD (approved 2026-10-21, R-4062; dispatched to backend: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Film_Director.md)
 updated: 2026-10-21 (fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
 current-answer: §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
@@ -44,6 +44,8 @@ feature so i would avoid it for now. we do not want instant replay in slice 1 so
 
 **Words used here.** A **take** is one scenario's camera script: its shots, cuts, anchors and captions. A **reel** is a playlist of
 takes. The **director** is the editor feature that plays them: on screen in real time, or frame by frame to a film.
+
+🔒 **User, 2026-10-21 (approval):** *"lets write a note to backend to implement that"* — the design as summarized, slice 1 = phases 1–3.
 
 **Two modes, one runner** — 🔒 *"the frame by frame feature is usefull for ai driven mode while running in the cloud VM, i need also the
 live mode with no saving screenshot images, jus rendering on the screen"*:
