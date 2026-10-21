@@ -19,6 +19,7 @@ related-designs:
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the FPV drone (launch by an operator is "later", R-263)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS civilians, covert armed men, charges (AW-12 remote trigger)
   - docs/OVERVIEW_Rules_And_Demos.md — the index of every demo this one is assembled from
+  - docs/designs/group-maneuvers/DESIGN_Demo_City_Showcase.md — OWNS the showcase: seven acts on demo-city, of which this design's flagship is acts 2–4, started by a timetable between acts (coordinator, 2026-10-21)
 -->
 
 # The urban battle — one unscripted combined-arms fight in demo-city *(an idea, recorded)*
