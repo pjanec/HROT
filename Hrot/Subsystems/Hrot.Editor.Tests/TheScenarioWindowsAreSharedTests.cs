@@ -243,4 +243,18 @@ public sealed class TheScenarioWindowsAreSharedTests
             @"EntityList = Hrot\.Presentation\.Orders\.EntityListSource\.Opener\(").Count;
         Assert.Equal(forms, passed);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1230</c> (docs/designs/gizmos-1/canvas-context-menu-design.md §11 OM-1, R-1019) — the silent-default rule for the ORBAT row's
+    /// menu: a host with a map gives its ORBAT panel the map's entity menu (<c>RowMenu</c>), found through the same inspector state the
+    /// inspector's menu uses. ⛔ Forgetting it leaves the tree with no menu at all — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    public void EveryMapHostGivesTheOrbatRowTheMapsMenu(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+        Assert.Contains("RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState)", text);
+    }
 }

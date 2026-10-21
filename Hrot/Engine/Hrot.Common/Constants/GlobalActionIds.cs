@@ -27,6 +27,10 @@ namespace Hrot.Common.Constants
         public const int Reinforce      = 22;
         public const int Resupply       = 23;
         public const int Transfer       = 24;
+        /// <summary>⭐ CE-1230 (canvas context menu §11 OM-3, R-1019) — the unit boards a vehicle the operator then picks on the map.</summary>
+        public const int Embark         = 25;
+        /// <summary>⭐ CE-1230 (OM-2) — the unit leaves the vehicle it is aboard.</summary>
+        public const int Disembark      = 26;
 
         // --- Editor / overlay actions ---
         public const int EditOverlay       = 100;

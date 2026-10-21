@@ -185,11 +185,7 @@ namespace Hrot.UI.Common.Adapters
                 !_indexCache.TryGetValue(vehicleEntityId,   out var vehicle))
                 return;
 
-            _bus.Publish(new EmbarkEntityCommand
-            {
-                Passenger = passenger,
-                Vehicle   = vehicle,
-            });
+            Hrot.Common.Orders.EmbarkOrders.Embark(_world, passenger, vehicle);   // ⭐ CE-1230 (OM-3) — the one embark path
         }
 
         /// <inheritdoc/>
@@ -198,15 +194,8 @@ namespace Hrot.UI.Common.Adapters
             if (!_indexCache.TryGetValue(passengerEntityId, out var passenger))
                 return;
 
-            // ⭐ CE-3110 I-2a — name the vehicle: it is the interaction's TARGET (the command goes to that vehicle's owner).
-            var vehicle = _world.IsComponentTypeRegistered<IsEmbarkedTag>() && _world.HasComponent<IsEmbarkedTag>(passenger)
-                ? _world.GetComponentRO<IsEmbarkedTag>(passenger).VehicleEntity
-                : Entity.Null;
-            _bus.Publish(new DisembarkEntityCommand
-            {
-                Passenger = passenger,
-                Vehicle   = vehicle,
-            });
+            // ⭐ CE-3110 I-2a — the vehicle is named (the command goes to its owner); ⭐ CE-1230 — through the one disembark path
+            Hrot.Common.Orders.EmbarkOrders.Disembark(_world, passenger);
         }
 
         /// <inheritdoc/>

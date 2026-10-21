@@ -2957,6 +2957,37 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1210</c> (docs/DESIGN_Entity_Control.md §8n MS-2, R-1018; amends W-H for POSSESSED gunners only) — the man in a
+        /// technical's gunner seat controls its M2 while a station possesses HIM: it is on his keys (<c>Controlled</c>), he may fire though
+        /// boarding took his CanShoot (<c>OperatesAStation</c>); released, or while the PICKUP itself is possessed (the driver seat), the
+        /// pickup controls it again, as for the AI. ✅ Red-proof: the possessed-gunner branch in ControllerOf removed ⇒ the pickup ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1210_APossessedGunner_ControlsTheStationHisSeatOperates_TheAIRuleUnchanged()
+        {
+            var (pickup, m2, gunner, _, _) = Technical(rounds: 1);
+            Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));                   // the AI's rule (W-H)
+            Assert.False(WeaponSystems.OperatesAStation(_world, gunner));
+
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });
+            Assert.Equal(gunner, WeaponSystems.ControllerOf(_world, m2));                   // seat switching: the gunner's gun
+            Span<Entity> keys = stackalloc Entity[4];
+            Assert.Equal(1, WeaponSystems.Controlled(_world, gunner, keys));
+            Assert.Equal(m2, keys[0]);
+            Assert.Equal(0, WeaponSystems.Controlled(_world, pickup, keys));
+            Assert.True(WeaponSystems.OperatesAStation(_world, gunner));
+            Assert.True(WeaponSystems.CanFire(_world, m2, out var why), $"held by {why}");
+
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });   // the driver seat too
+            Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
+            _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(pickup);
+            _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(gunner);                         // released
+            Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
+        }
+
+        /// <summary>
         /// ⭐⭐ WS-3 (W-E; §4c) — an AUTOMATIC weapon system nobody operates is its own controller: its own brain fires its mount 0. A
         /// MANUAL one nobody mans has no controller: its brain holds (W-D — a brain on the weapon never fights its operator's).
         /// ✅ Red-proof: ControllerOf returning the weapon for a manual one too ⇒ the manual sentry fires ⇒ red.

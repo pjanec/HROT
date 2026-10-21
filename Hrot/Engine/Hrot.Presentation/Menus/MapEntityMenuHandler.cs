@@ -59,6 +59,18 @@ public sealed class MapEntityMenuHandler : IEntityContextMenuHandler
     /// <inheritdoc/>
     public void PopulateMenu(IReadOnlyCollection<Entity> entities, IContextMenuBuilder builder) { }
 
+    /// <summary>⭐ <c>CE-1230</c> (canvas context menu §11 OM-1, R-1019) — the map's menu for the unit with network id
+    /// <paramref name="networkId"/> (the ORBAT tree's row id). False when this host's map does not know it.</summary>
+    public bool PopulateMenuFor(long networkId, IContextMenuBuilder builder)
+    {
+        if (Map is not { } map || networkId <= 0) return false;
+        var world = map.World;
+        if (!world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
+            || !world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!.TryGetEntity(networkId, out var entity)) return false;
+        PopulateMenu(entity, builder);
+        return true;
+    }
+
     /// <summary>The map's menu for <paramref name="entity"/> on this node — what this node's map binds for it
     /// (<see cref="Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor"/>). Null for an entity the map gives no menu
     /// (dead, or no network id).</summary>

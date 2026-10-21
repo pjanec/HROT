@@ -171,7 +171,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `R-1014` | ✅ the 3-D near plane back to 0.1 % (user: "as it was before"); `CE-1196` road flicker REOPENED — fix without moving the near plane | [Map 3-D](../DESIGN_Map_3D_Mode.md) CA-3 |
 | `CE-1233` | ✅ routes draw as waypoints joined by lines (circles per waypoint, 2.5 px, selected highlight) | [routes-1 §8.1](../designs/routes-1/ROUTES1-DESIGN.md) |
 | `CE-1231` · `CE-1232` | ✅ BUILT (`R-1016`): a burst with no damage sized by its explosive mass — "Explosion huge" + dust cloud + crater + huge bang for the IED / vest / car bomb / 155 mm / Mk-82; and EVERY off-target or remote burst (they carry no damage) now sized right; the placed IED a 2-D "IED" diamond, a two-shell kit in 3-D | [Visual Effects §11.3](../DESIGN_Visual_Effects.md) |
-| `CE-1230` | ⛔ OPEN, recorded only (`R-1015`): the ORBAT tree's right-click menu = the map's entity menu, one shared menu, Embark/Disembark in it — design first | tracker |
+| `CE-1230` | ✅ DONE `2026-10-21` (`R-1015`, `R-1019`): the ORBAT row's menu IS the map's entity menu; Embark… / Disembark in it (canvas context menu §11.4) — ⚠ Windows visual check owed | tracker |
 | `CE-1229` | ✅ CLOSED — not a defect: a stale restore (the serializers kept their namespace); `Hrot.SimHost.Tests` builds after `dotnet restore` | tracker |
 | `CE-1228` | ✅ DONE — one triangle in the winding raylib keeps (`WorldYUp`) | North Up as-built |
 | `CE-1196` | ✅ DONE — one ground depth bias (roads + gizmo fills; fills without depth writes) | Map 3-D §6z CA-4 |
@@ -194,9 +194,8 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 ✅ done tonight: `CE-1196` (Map 3-D §6z CA-4) · `CE-1228` (North Up as-built) · `CE-1207` + `CE-1205` (Entity Control §8m — the leans PK-2…PK-7 are the build's; the user may overturn any).
 
-1. ⏸ `CE-1210` — seat switching DESIGNED (Entity Control §8n) — build when the user rules MS-1…MS-7 (⚠ MS-2 amends W-H).
-2. ⏸ `CE-1230` — the shared ORBAT menu DESIGNED (canvas context menu §11) — build when the user rules OM-1…OM-5.
-3. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
+1. ⚠ `CE-1210` (seat switching, Entity Control §8n.5) and `CE-1230` (shared ORBAT menu, canvas context menu §11.4) — BUILT `2026-10-21`; a Windows visual check is owed (G in a technical / UH-60, right-click an ORBAT row, Embark… then pick a vehicle).
+2. Windows visual check owed for tonight's work: CE-1204 free look (V), CE-1196 roads/fills from afar, CE-1207 F on a stone / rifle, CE-1205 greyed Possess.
 
 ### The standing rules of this lane (the user's, still binding)
 
