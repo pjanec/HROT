@@ -52,5 +52,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public double ReactedFireAt;
         /// <summary>⭐ C3 — his half of the squad is covered by the other half's fire until then (stamped by the play that checks the gate).</summary>
         public double CoveredUntil;
+        /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — the way the cover he crawled to faces (toward its obstacle; zero = none).</summary>
+        public Vector2 CoverFacing;
     }
 }

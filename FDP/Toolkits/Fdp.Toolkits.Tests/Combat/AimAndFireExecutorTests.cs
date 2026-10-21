@@ -401,6 +401,42 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2338</c> — a friend LYING DOWN on the line (dead or incapacitated) does not hold the shot: the round flies over him. The same
+        /// friend standing (in the fight) holds it, and a wrecked friendly HULL still does (CE-321). 🔴 Red-proof: the down-person skip dropped
+        /// ⇒ the lying friend holds the shot.
+        /// </summary>
+        [Fact]
+        public void CE2338_AFriendLyingDownOnTheLine_DoesNotHoldTheShot_AStandingOneAndAWreckDo()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            var target = SpawnTarget(new Vector3(20f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+
+            var friend = _world.CreateEntity();
+            _world.AddComponent(friend, new SimTransform { Position = new Vector3(2f, 0f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(friend, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(friend, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.3f });
+            _world.AddComponent(friend, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
+            _world.AddComponent(friend, new Health { Current = 100f, Max = 100f });
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend standing on the line holds it");
+            _world.GetComponentRW<Health>(friend).Current = 0f;
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend lying dead on the line: the round flies over him");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, new Vector3(20f, 0f, 0f)), "…a burst at the point too");
+
+            var wreck = _world.CreateEntity();
+            _world.AddComponent(wreck, new SimTransform { Position = new Vector3(8f, 0f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(wreck, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(wreck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f });
+            _world.AddComponent(wreck, new Health { Current = 0f, Max = 1000f });
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a wrecked friendly hull still stops the round");
+        }
+
         // ── AW-20 — a neutral in the line or the spread holds the shot ─────────────────────────────────────────────────────
 
         /// <summary>A NEUTRAL entity at <paramref name="at"/> with a collider; a PERSON (pedestrian kinematics) when <paramref name="person"/>.</summary>

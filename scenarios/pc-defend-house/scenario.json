@@ -1106,6 +1106,198 @@
         "CommanderGuid": "c2277d00-0000-4000-8000-000000009430",
         "Designation": "Wingman"
       }
+    },
+    "c2276d00-0000-4000-8000-000000009500": {
+      "SimTransform": {
+        "Position": [
+          100,
+          64,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.087156,
+          0.996195
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9500
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car W1"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009501": {
+      "SimTransform": {
+        "Position": [
+          93,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.069756,
+          0.997564
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9501
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car W2"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009502": {
+      "SimTransform": {
+        "Position": [
+          97,
+          126,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.043619,
+          0.999048
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9502
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car W3"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009503": {
+      "SimTransform": {
+        "Position": [
+          101,
+          141,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.104528,
+          0.994522
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9503
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car W4"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009504": {
+      "SimTransform": {
+        "Position": [
+          146,
+          62,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.087156,
+          0.996195
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9504
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car E1"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009505": {
+      "SimTransform": {
+        "Position": [
+          149,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.052336,
+          0.99863
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9505
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car E2"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009506": {
+      "SimTransform": {
+        "Position": [
+          157,
+          122,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.043619,
+          0.999048
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9506
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car E3"
+      }
+    },
+    "c2276d00-0000-4000-8000-000000009507": {
+      "SimTransform": {
+        "Position": [
+          152,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.104528,
+          0.994522
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9507
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Parked Car E4"
+      }
     }
   }
 }

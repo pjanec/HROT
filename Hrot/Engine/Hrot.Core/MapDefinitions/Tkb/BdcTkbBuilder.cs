@@ -166,6 +166,7 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxAccel    = physicsDef.Acceleration,
                 WalkSpeed   = physicsDef.WalkSpeed,   // ⭐ CE-1208
                 TurnRate    = physicsDef.TurnRate,
+                AvoidanceRadius = physicsDef.AvoidanceRadius,   // ⭐ CE-2336 (R-2065)
                 VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });
             // ⭐ B8 (M6, DESIGN_Armour_Hit_Model §2) — the hull's SIZE, engine-neutral (Body.Geometry, ground-centred): it gives the

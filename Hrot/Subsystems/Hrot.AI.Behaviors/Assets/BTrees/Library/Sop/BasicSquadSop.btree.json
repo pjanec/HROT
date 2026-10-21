@@ -36,6 +36,7 @@
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
         "c2123000-0000-0000-0000-000000000050",
+        "c2123000-0000-0000-0000-0000000000a0",
         "c2123000-0000-0000-0000-000000000020",
         "c2123000-0000-0000-0000-000000000060"
       ],
@@ -499,6 +500,56 @@
         "X": 720,
         "Y": 400,
         "Comment": "CE-2152 C-c (R-2013): a man is down — the reaction scores Rescue against the fight (and with nothing to fight, brings him in).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2123000-0000-0000-0000-0000000000a0",
+      "ChildVisualIds": [
+        "c2123000-0000-0000-0000-0000000000a1",
+        "c2123000-0000-0000-0000-0000000000a2"
+      ],
+      "DisplayLabel": "Man down, a lull → bring him in",
+      "EditorMetadata": {
+        "X": 640,
+        "Y": 260,
+        "Comment": "CE-2344 (R-2066 E, Squad Tactics §7.5.4): a man down still to care for and no round at the squad for 10 s — the squad drags him to cover itself (the care play: the others cover, the medic carries). Under fire the rows above react and the care waits.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.SquadSopConditions.CasualtyInALull"
+      },
+      "VisualId": "c2123000-0000-0000-0000-0000000000a1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "A man down to care for, no fire for 10 s",
+      "EditorMetadata": {
+        "X": 560,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "CasualtyCare",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2123000-0000-0000-0000-0000000000a2",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: CasualtyCare",
+      "EditorMetadata": {
+        "X": 720,
+        "Y": 520,
+        "Comment": null,
         "Collapsed": false,
         "Color": null
       }

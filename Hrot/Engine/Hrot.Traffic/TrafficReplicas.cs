@@ -89,9 +89,10 @@ public sealed class TrafficReplicas
         _released.Add(networkId);
         foreach (var kv in _peds.ToArray())
             if (kv.Key.NetworkId == networkId) DestroyPed(kv.Key, kv.Value);
-        foreach (var kv in _replicas.ToArray())
-            if (_world.IsAlive(kv.Value) && _world.HasComponent<NetworkIdentity>(kv.Value)
-                && _world.GetComponentRO<NetworkIdentity>(kv.Value).Value == networkId) Destroy(kv.Key, kv.Value);
+        // the car replica: resolved through the node's map (it is registered there at Create), never by reading ids inline
+        if (_entityMap != null && _entityMap.TryGetEntity(networkId, out var car))
+            foreach (var kv in _replicas.ToArray())
+                if (kv.Value == car) Destroy(kv.Key, kv.Value);
     }
 
     /// <summary>Is this car a replica now (so a car layer skips drawing it: the entity layer draws it)?</summary>

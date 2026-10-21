@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
+updated: 2026-10-21 (AQ99 built — §7.1b, §8.1 ③; CE-2337 §6a) · 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
@@ -614,7 +614,7 @@ Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `Request
 | a friend within the grenade's lethal radius of the aim point | no grenade |
 | a door that cannot be opened or breached | the room Blocked, skipped, `RoomBlocked` report; the platoon decides (explosive breach later) |
 | the report sender is down | nothing goes up until succession; the platoon sees the silence as the squad's status age |
-| ⚠ **a civilian panicked INSIDE the house** *(measured 2026-10-20, `CE-2337` — NOT yet designed)* | today CE-2236's `Inside` (R-4035) hides him for a random time and then DELETES him — right for a street crowd, wrong for an occupant the squad must find and hold. ⭐ Lean for BC-2: an occupant's Inside cowers and stays |
+| ⭐ **a civilian panicked INSIDE the house — an OCCUPANT** *(measured 2026-10-20, `CE-2337`; ✅ BUILT 2026-10-21)* | ⭐ he has his shelter: `CivilianBehavior.Panic` asks no shelter and does not flee when he is already indoors (`IsIndoors`, `PanicState.Occupant`) ⇒ `NoShelter` ⇒ **Cower where he stands, and stays** — never `Inside`, never deleted; the squad finds him (BC-2's Comply, CB-7, extends from there). R-4035's hide-then-disappear stays the panicking PEDESTRIAN's (Civilians §5e). Rail `CivilianHsmTests.CE2337_AnOccupant_PanickedIndoors_CowersWhereHeIs_AndStays`. ~~today CE-2236's `Inside` hides him and then DELETES him~~ (SUPERSEDED) |
 
 ## 7. Slices *(owners; behaviors ids `CE-2257`…`CE-2261`, `CE-2262`…`CE-2264`)*
 
@@ -776,17 +776,29 @@ moved men by teleport, so three things only the real house showed:
 | four men released 0.6 s apart onto ONE door-front point and ONE threshold — a jam at the doorway; and a body 0.9 m inside it walled it off | humans move by `CarKinematicsSystem` with RVO avoidance (no navmesh crowd): converging agents block each other, and a downed man was still an obstacle | **one man in the doorway at a time**: the next entry man is released only once every man ahead is across (or down) — and never sooner than CB-54's 0.6 s. ⛔ ~~cross-lane (FDP `CarKinem`): avoidance steps over a person who is not in the fight~~ — **SUPERSEDED the same night, reverted**: it contradicts backend's R-3027 / CE-2321 (*"keeps him as a neighbour, so others walk round him"*, rail `CE2321_AWalker_StillStepsRoundAManDown`); the doorway case went to [`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) C |
 | with the threshold, two men still wedged beside the jamb, their `AdvanceTo` Running for 3 min, at y = 110.1 | 📐 a probe of the bt-range bake: the mesh outside the north wall ends at **y = 110.55**; the stack points stood at 110.6 — ON the edge — and the men were pushed 0.45 m off it; the planner's path from there runs along the wall to the doorway's corridor (x 45.75) and straight through | the stack stands **0.8 m** off the wall (`StackOffWallMetres`, was 0.6), and a released man goes to the **door front** first — 1 m outside, square to the way in (`Result.DoorFront`, `RoomDrillState.AtDoor`) — then straight to the threshold: the path's own line |
 
+| a squad at its points in a room holding a cowering civilian never reported it clear (`bc-house-clear`, room C — the occupant stays since CE-2337) | `HostileInRoom` counted ANY pooled contact, where CB-55 says HOSTILE | **CE-2339**: a neutral (`ThreatDanger.IsNeutral`) does not hold the room uncleared — BC-2 controls him |
+| the entry men barely fired: 5 rounds against the defenders' 20 (`bc-room-clear`, per-shooter count) | two men down in the doorway lay on every later man's line, and the friendly-line hold (CE-321) counted any friendly collider | **CE-2338** (FDP Combat, cross-lane): a friendly PERSON out of the fight no longer holds a shot — the round flies over him; a hull still does |
 | ⭐ **CB-64 (new, behaviors' own, 2026-10-20)** — in the house the unbounded stack for room A's inner door ran west along the hallway and put two men OUTSIDE the front wall, one in the front doorway, where the next entry man could never pass him | CB-50 knew only the TARGET room, not the room the stack stands in | **the stack stands inside the room it stands in** (`RoomEntryPlan.Plan(…, stackRoom)`, the portal's other room from the survey, `RoomDrill.StackRoom`): CB-50's side when it holds the entry men 0.35 m clear of its walls, else the other side; the men who do not fit take the far side of the door — a **split stack** (`Result.Fit`). From outside: unbounded, as before |
 
-⚠ **Still open — yours, [`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md):** a person's
-avoidance shell is 1.6 m (Pedestrian `AvoidanceRadius` 0.8, RVO's hard shell ×2) — most of the stalls' common cause; and two alert posted
-defenders kill the first one or two entry men in most runs, against §8.1 ③ "no friend hit".
+📐 **The twins after AQ99 and the four fixes found on the way (`2026-10-21`; CE-2337 occupant stays · CE-2338 a friend lying down
+holds no shot · CE-2339 a civilian keeps no room uncleared · CE-2340 a man lying dead hides nobody):** both `ClearingScenarioTests`
+twins PASS and are un-skipped — `bc-house-clear` **3/3** on the final build: hall 10 s → A → C → D → B → E → **BuildingClear ~200 s**,
+both insurgents down, both civilians unhurt and still there, 0–3 men lost, no friend hit by a friend · `bc-room-clear` **3/4**: RoomClear A in
+38–50 s, both insurgents down, 2–3 entry men lost (reported); the fourth run lost all four entry men — AQ99 B's accepted cost, so that twin
+runs in the known-flaky lane (`CE-2341`, closes with BC-4/BC-5's grenade and contact drill). Each twin now writes `casualties`, the hits each way and the rounds each man
+FIRED (the count that exposed CE-2338: the entry men had fired 5 rounds against the defenders' 20).
+
+✅ **[`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) approved and built (`2026-10-21`, R-2065):**
+A — soldiers, fighters and security forces stand at the navmesh body (TKB `AvoidanceRadius` 0.3 m; civilians keep 0.8 — a crowd keeps
+its distance); B — §8.1 ③ is "no friend hit BY A FRIEND", the casualties reported; C — a man down is stepped over where nothing lets a
+walker round him (Motion Domains §5h.1). ~~Still open — a person's avoidance shell is 1.6 m … against §8.1 ③ "no friend hit"~~ (SUPERSEDED).
 
 ⚠ **Two deviations of the DEMO from §8.1's cast** (recorded, not silent): `bc-room-clear` stacks on room A's **north side door** from
 outside, not at the hallway's front door (that cast needs the hallway cleared first — it is `bc-house-clear`'s first room); and its
 insurgents hold A's **south** corners — the far side from that door.
 
-⚠ **Found on the way, not fixed here — `CE-2335` (backend's replication):** in one of two identical runs CGF read the north door
+⚠ **Found on the way — `CE-2335` (backend's replication; one defect fixed 2026-10-21: a ghost no longer publishes the door's state, the
+split itself not yet measured):** in one of two identical runs CGF read the north door
 `Open` for the whole run while it was closed (`TerrainDoorState.Open = 0` — a door whose state sample never applied reads open), so the
 drill skipped the breach. CB-53 reads the door live on the brain's node; that read is only as true as the replica.
 
@@ -1008,9 +1020,9 @@ squad has four exits to watch. Placed in `bt-range` on open ground, 60 m from th
 
 | demo | slice | cast | must end with *(the live check, read over HTTP)* |
 |---|---|---|---|
-| `bc-room-clear` | BC-1 | one squad at the front door of the hallway; 2 insurgents (`CombatPosture`) in room A's far corners | ① nobody stands in a doorway longer than 1 s (positions vs the room graph) · ② each entry man reaches his point of domination (drill trace) · ③ both insurgents down, no friend hit (`/combat/shots`) · ④ `RoomClear` A in `/squad/reports` |
+| `bc-room-clear` | BC-1 | one squad at the front door of the hallway; 2 insurgents (`CombatPosture`) in room A's far corners | ① nobody stands in a doorway longer than 1 s (positions vs the room graph) · ② each entry man reaches his point of domination (drill trace) · ③ both insurgents down, ⭐ **no friend hit BY A FRIEND** (`/combat/shots`; the casualties REPORTED — AQ99 B, R-2065: two alert defenders aimed at the door cost the entry men; a bloodless entry is BC-4's grenade and BC-5's contact drill) · ④ `RoomClear` A in `/squad/reports` |
 | `bc-room-civilians` | BC-2 | the same squad; room C: 1 insurgent, a civilian who complies, one who refuses and shouts (`Attitude` +0.8, no `Instigator`), one who attacks (`Attitude` +1, `Instigator`), a covert insurgent (hidden pistol, B3 draw on the search) | ① the insurgent down · ② the complier `Comply`, searched, `held`, unhurt · ③ the refuser standing, never struck, never shot · ④ the attacker knocked down by ONE blunt blow from a soldier (`Melee.Strike`, Blunt) then held · ⑤ the covert one `Detained` (report) — or shot only after `WeaponPosture` Aimed at a soldier |
-| `bc-house-clear` | BC-3 | one squad, the whole house; insurgents in A and E (the closet), civilians in B and C | ① a `RoomClear` for hallway, A, B, C, D, E — each ONCE, each from a room reachable from a Cleared one (E after D) · ② the two fire teams swap at least once (drill trace) · ③ every insurgent down, every civilian unhurt and held · ④ `BuildingClear` last |
+| `bc-house-clear` | BC-3 | one squad, the whole house; insurgents in A and E (the closet), civilians in B and C | ① a `RoomClear` for hallway, A, B, C, D, E — each ONCE, each from a room reachable from a Cleared one (E after D) · ② the two fire teams swap at least once (drill trace) · ③ every insurgent down, every civilian unhurt and held, no friend hit by a friend (casualties reported, as BC-1) · ④ `BuildingClear` last |
 | ⭐ `bc-platoon-house` | PL-1 | **a platoon**: a body-less `Unit_InfantryPlatoon` commander over three `Unit_InfantrySquad`s (support · assault · reserve), the same house and people as `bc-house-clear` | ① the support squad on four watch points covering the four exits before the assault squad reaches the door · ② the same `RoomClear` sequence as above · ③ ⭐ **each `RoomClear` arrives 3 s (± 1 frame) after the drill trace's "room clear"** (`receivedAt − ` the trace time) · ④ ⭐ **the report log is identical on CGF, SimHost and IG** · ⑤ the platoon's `clearance` = all Cleared · ⑥ no support-squad round crosses a window of a room the platoon then held as Cleared (`/combat/shots` crossings × the report times) · ⑦ the support squad enters only after `BuildingClear` |
 | `bc-platoon-house-relief` | PL-1 | the same, with three assault-squad men made incapacitated by the scenario script after room B | ① `Casualty` ×3 then `CombatIneffective` from the assault squad · ② the reserve is ordered `ClearBuilding` within 1 s of the report arriving · ③ the reserve clears only C, D, E — no room cleared twice · ④ the casualties carried to the casualty point after a room is clear, never mid-room |
 | `bc-house-high-intensity` | BC-4 | one squad, `Intensity: HighIntensity`, no civilians, insurgents heard in A and D | a fragmentation grenade before A and D (Suspected); none before B, C, E (Unknown); none with a friend inside its lethal radius |

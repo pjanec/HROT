@@ -338,6 +338,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         public int Rounds;
         public byte Mount;
+        /// <summary>⭐ <c>CE-2326</c> (R-3030) — the point is a remembered body's FEET, seen in this stance (<c>StanceId + 1</c>): the muscle
+        /// aims each round as at that body. 0 = a plain point. (Fits the padding after <see cref="Mount"/>: the layout is unchanged.)</summary>
+        public byte BodyStance;
         [System.Text.Json.Serialization.JsonIgnore] public uint Started;
         /// <summary>⭐ Indirect fire IF-2 (FM-2, IF-C) — the arc a fire solution prefers (Auto: low when it clears, else high).</summary>
         public ArcPreference Arc;
@@ -375,6 +378,7 @@ namespace Fdp.Toolkit.Combat
             {
                 Point = p.Point, CooldownSeconds = p.CooldownSeconds, Rounds = p.Rounds, Mount = p.Mount,
                 Arc = p.Arc, FireAt = p.FireAt,   // ⭐ IF-2 (FM-2, FM-4)
+                BodyStance = p.BodyStance,        // ⭐ CE-2326
             };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;

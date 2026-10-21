@@ -83,6 +83,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(TerrainDoorState.Open, replica.GetComponentRO<DoorState>(ghost).State);
             Assert.False(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));   // the owner's OPEN reached this node's view
 
+            // ⭐ CE-2335 — the replica holds only a GHOST of the door (no NetworkAuthority): it never publishes the door's state as if it
+            //   owned it. 🔴 Red-proof: drop the ghost exclusion in the egress ⇒ the replica sends one sample.
+            var replicaEgress = new EntityDoorStateEgressTranslator(participant);
+            replicaEgress.ScanAndPublish(replica);
+            Assert.Equal(0, replicaEgress.SentSampleCount);
+
             owner.SetComponent(door, new DoorState { State = TerrainDoorState.Locked });
             Tick();
             Assert.True(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));    // …and so did its LOCK

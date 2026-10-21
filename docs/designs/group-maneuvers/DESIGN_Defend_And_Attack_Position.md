@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-10-21 (§8f.2 DECIDED + BUILT: R-2066 A–E, the base of fire on a low berm, CE-2342…CE-2346; pc-defend-house gains parked cars) · 2026-10-21 (§8f.2 measured: the base of fire on a low berm, CE-2342…CE-2346) · 2026-10-19
 build-state: BUILDING — DA-A ✅ BUILT 2026-10-19 (§8a, CE-2273) · DA-C ✅ BUILT 2026-10-19 (§8b, CE-2274) · DA-L ✅ BUILT 2026-10-19 (§13c, CE-2282; leans DA-26…DA-30 ✅ APPROVED 2026-10-19, R-2054) · READY-TO-BUILD — DA-1…DA-16 ✅ APPROVED 2026-10-18 (R-2035; DA-9 amended: ClearBuilding stays its own order, §10) · DA-17…DA-23 ✅ APPROVED 2026-10-18 (R-2036); DA-24 ✅ APPROVED (R-2038); DA-25 (§13b, the WorldSurvey sensor) amended by the user (R-2038: standing sensor, rooms derived by the sensor) — taken as approved as amended; R-2037 (the brain never reads world geometry) ruled; tracker CE-2273…CE-2285; backend frame docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Defend_And_Attack.md (BR-6…BR-11); nothing built
 current-answer: §1 doctrine · §2 INVENTORY · §3–§5 the diagrams · §6 decisions · §7 edge cases · §8 slices · §9 demos · §10 presets · §11 composing the commander · §12 roles · §13 sectors · §14 sensors · §15 every behaviour · §16 the roof · §17 test scenarios
 stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
@@ -1664,6 +1664,140 @@ live `pc-attack-dry` and `pc-defend-house` (step 7's demos). ⛔ Not in it: smok
 | ⭐ **AT-13** *(new, found live)* | ⭐ **the platoon SOP does not hold an attack** — `BasicPlatoonSop`'s hold row gains `PlatoonAttackBehavior.NotAttacking` beside DA-55's `NotDefending`. 📐 Measured live (`pc-defend-house`, first run): at the first SPOT the SOP paused the attack for `PlatoonHold` and every squad held at its start — the attack never began. An attack expects contact: its base of fire answers it, its control region relieves and breaks off. Rail `CE2277_WithItsSop_AReportedEnemy_DoesNotPauseTheAttack` |
 
 Rails `SquadManeuverTests.CE2277_*` ×5 — mutants: see the tracker row. ✅ **`pc-attack-dry` 12/12 live** (`scripts/utility-demo-check.py pc-attack-dry`, cqb-village: a Blue platoon 150 m south of OBJ; the live area survey returned OBJ as the one objective; the support went to (124, 37) — the SBF berm — and each faked report moved one phase). ✅ **`pc-defend-house` live** (`2026-10-20`, nothing faked, AI on both sides; `--timeout 600`): Blue's support Set at 47 s ⇒ the bound; Red's line, hit while still displacing, lifts its hold (DA-98) at 72 s; Blue's assault `ClearBuilding`s OBJ with the lift at 341 s. Two runs before it found AT-13 and DA-98.
+
+#### 8f.2 ⚠ Measured `2026-10-21` — the base of fire on a low berm *(behaviors; the user's live report on `pc-defend-house`; ✅ DECIDED and BUILT — R-2066, §8f.3)*
+
+🔒 User, `2026-10-21` (live): *"soldiers coming on the left side trying to go around the left side of the wall… then they go back to
+the left side of the wall but to the side towards the house… crawl around the corner of the wall back to safety… then they immediately
+turn back"* · *"I haven't seen much of casualty rescuing"* · *"the attack team in the middle of the wall is standing very close to each other."*
+
+📐 Two in-process runs with a per-man trace (positions, orders, sector point) and a sight probe of the SBF berm (60 m × 2 m × 1 m, y 39–41):
+
+| finding | measured | row |
+|---|---|---|
+| AT-4's posts cannot use a 1 m berm | the cover filter needs the sector point NOT to see a crouched eye (1.1 m) — neither face qualifies (south face hidden ≤ 0.8 m only); from a sector point inside a building every point qualifies ⇒ run 1: posts on the enemy face · run 2: none, the men held in a 0.9 m clump short of the berm | `CE-2342` |
+| a man sent to an exposed post and shot at oscillates | the AQ96 crawl finds the safe face (direction test), then rises and walks back to the exposed destination | `CE-2343` |
+| wounded lie through a lull | 4 down by 60 s; one 4 m carry (the reserve, AT-11) in 6 min | `CE-2344` |
+| no dispersion | 2.5 m post spacing vs §9's "posts spread ≥ 8 m" | `CE-2345` |
+| a re-issued support order restarts the move | t16: back to Moving, the leader walked back round the berm | `CE-2346` |
+
+#### 8f.3 ✅ Decided `2026-10-21` (R-2066) and built — the base of fire behind the berm
+
+🔒 User, `2026-10-21`, on A–E: *"approved."* · and: *"the sandbag walls are now scarce. And the attacking team needs to cover a long
+distance without any protection. What about adding some more obstacles in front of the building, like parked cars or something that can
+work as a cover for the advancing men?"*
+
+| fix | the rule | where |
+|---|---|---|
+| **A** `CE-2342` | a cover post has the obstacle BETWEEN it and the sector point: a low line (0.5 m) 3 m toward it is blocked. The man is low behind it and fires over it crouched; where the far point lands (open, or inside a house) no longer matters | `CoverTowardTest` · `FindCoverPosts` (FDP EQS) · `SquadDefendPlay` cover stage |
+| **B** `CE-2345` | cover posts 8 m apart, then 5 m for the men left over, never closer; windows, roof and authored posts keep 2.5 m; the gun still takes the longest view (D-2h) | `DefencePostPicker` |
+| **C** `CE-2343` | after a crawl to cover, a move ending ≤ 10 m away and > 1.5 m past the cover on the side it faces is not resumed: he rises crouched and the move ends at the cover | `UnderFire.Step` · `UnderFire.Exposed` |
+| **D** `CE-2346` | a phase change re-sends no order the squad still runs unchanged from this run | `PlatoonAttackBehavior.KeepAttack` → `CommandOrders.StillRunning` |
+| **E** `CE-2344` | a man down still to care for and no round at the squad for 10 s ⇒ the squad's SOP pauses the task and runs `CasualtyCare`; a running `ReactToContact` re-decides to Rescue in the same lull; under fire the care waits | `SquadSopConditions.CasualtyInALull` · `BasicSquadSop` row · `ReactToContactBehavior.Run` |
+| **cars** | eight parked cars (TKB `Car` 8806, 4.5 × 1.8 × 1.5 m) on the two flank lanes of `pc-defend-house`, at x ≤ 101 and x ≥ 146 — the support's fire lane to OBJ (x 110–140) stays clear | `scenarios/pc-defend-house` |
+
+```mermaid
+classDiagram
+  direction LR
+  class SquadDefendPlay {
+    Plan() cover stage
+    PickAll()
+  }
+  class DefencePostPicker {
+    SpacingMetres 2.5
+    CoverSpacingMetres 8
+    CoverSpacingShortMetres 5
+    Pick(..., spread, coverSpacing)
+    Alternate(..., spread, coverSpacing)
+  }
+  class FindCoverPosts {
+    <<new EQS template>>
+  }
+  class CoverTowardTest {
+    <<new IEqsTest>>
+    HeightMetres 0.5
+    ReachMetres 3
+  }
+  class FindCoverFromTarget {
+    <<existing, unchanged>>
+  }
+  class CoverPointsGenerator
+  class UnderFire {
+    Step()
+    CoverNear(out facing)
+    Exposed(dest, cover, facing)
+  }
+  class UnderFireMove {
+    Crawled
+    SubTarget
+    CoverFacing
+  }
+  class PlatoonAttackBehavior {
+    KeepAttack()
+  }
+  class CommandOrders {
+    StillRunning()
+  }
+  class SquadSopConditions {
+    InALull()
+    CasualtyInALull()
+  }
+  class ReactToContactBehavior {
+    Run() re-decide
+  }
+  class SquadCasualties
+  SquadDefendPlay --> FindCoverPosts : cover stage asks
+  SquadDefendPlay --> DefencePostPicker : 8 m then 5 m
+  FindCoverPosts --> CoverPointsGenerator
+  FindCoverPosts --> CoverTowardTest : filter
+  UnderFire --> UnderFireMove : keeps
+  PlatoonAttackBehavior --> CommandOrders : skip an unchanged order
+  SquadSopConditions --> SquadCasualties
+  ReactToContactBehavior --> SquadSopConditions : InALull
+```
+*What the picture shows that prose hid:* every fix lands in an EXISTING owner. The one new type pair is `FindCoverPosts` + `CoverTowardTest`,
+next to `FindCoverFromTarget`, which keeps its callers (casualty care, take cover): only the defence's cover stage changed template.
+
+```mermaid
+sequenceDiagram
+  participant P as PlatoonAttack (KeepAttack)
+  participant S as support SquadDefend
+  participant E as EQS FindCoverPosts
+  participant M as a man (UnderFire)
+  participant Q as squad SOP
+  P->>S: SquadDefend(SupportAt) once
+  S->>E: cover posts, slot 1 = sector point
+  E-->>S: points with the berm between them and OBJ
+  S->>S: PickAll 8 m, then 5 m
+  S->>M: Watch(post)
+  Note over P: support Set, phase Approach, slots dirty
+  P->>P: StillRunning(support, same order) so no re-send
+  M->>M: near miss, down, crawl to the cover point
+  M->>M: lapse 3 s, destination past the cover, stays at it crouched
+  Q->>Q: every 0.2 s, a man down and 10 s without a round
+  Q->>S: React CasualtyCare (urgency Contact) pauses the task
+```
+*What the picture shows that prose hid:* C and E never reach the platoon — C is the man's reflex under the play's move, E is the squad's
+SOP over its task, and the task resumes in place when the care ends (§11, CE-2081).
+
+```mermaid
+graph TD
+  CGF[CGF brain host] --> BT[BrainTickSystem]
+  BT --> PA[PlatoonAttack KeepAttack]
+  BT --> SD[SquadDefend runner]
+  BT --> SOP[TickSopSlots every 0.2 s: BasicSquadSop]
+  SOP --> CC[CasualtyCare reaction]
+  CGF --> UF[UnderFireMoveSystem after LocomotionDispatcherSystem]
+  SIM[SimHost] --> EQS[EqsSolverSystem: FindCoverPosts]
+  SD -. child sensor .-> EQS
+```
+*What the picture shows that prose hid:* the post template is SOLVED on SimHost, not where the play runs — so `CoverTowardTest` reads the
+resident terrain there (no terrain ⇒ it does nothing, as every sight test). Every edge here is ticked each frame; none is new.
+
+📐 **As built** — rails, each red under its mutant (measured `2026-10-21`: the filter inverted · the cover spacing ignored · `Exposed` skipped · `StillRunning` skipped · `CasualtyInALull` false — 6/6 red): `TerrainEqsTests.CE2342_FindCoverPosts_OnTheSbfBerm_*` (cqb-village: south face only,
+from a sector point in the open AND inside OBJ; control: `FindCoverFromTarget` keeps no south-face point) · `SquadManeuverTests.CE2345_*`,
+`CE2346_*`, `CE2344_BasicSquadSop_*` · `TacticsTreesTests.CE2343_*` · golden `FindCoverPosts` on flat ground · the twin
+`PlatoonScenarioTests.R2066_PcDefendHouse_*` (posts on the berm's south face, ≥ 5 m apart, no restart) — 📐 live `2026-10-21`: the support posted at (106.2, 38.2) (111.2, 38.2) (123.8, 38.2) (133.8, 38.2), no restart in 90 s; `sq-defend-house`'s twin still passes.
 
 ## 9. Demos *(each with an HTTP live check and an in-process twin; `bt-range` and its two `house-2f`, a roof stair added for the roof demos)*
 

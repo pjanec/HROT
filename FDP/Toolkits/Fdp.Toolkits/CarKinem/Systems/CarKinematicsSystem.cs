@@ -412,7 +412,7 @@ namespace CarKinem.Systems
             Vector2 avoidanceVelocity = (@params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f) || down
                 ? desiredVelocity
                 : ApplyCollisionAvoidance(desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
-                                          spatialGrid, @params, repo);
+                                          spatialGrid, @params, repo, entity);
             
             // Speed control
             float targetSpeedAfterAvoidance = avoidanceVelocity.Length();
@@ -904,9 +904,29 @@ namespace CarKinem.Systems
         /// </summary>
         public const float AvoidanceStoreyGapM = 1.5f;
 
+        /// <summary>
+        /// ⭐ AQ99 C (R-2065) — no way round a man down at <paramref name="down"/>: on NEITHER side of him, across the walker's way, does
+        /// the walkable mesh hold the strip a walker needs to pass him (<paramref name="clear"/> — his own hard shell — and half of it). A
+        /// host without a navmesh answers false (there is always room in the open), so R-3027's walk-round stands there.
+        /// </summary>
+        private static bool NoWayRound(EntityRepository repo, Entity self, Vector2 down, Vector2 selfPos, float z, Vector2 preferredVel, float clear)
+        {
+            if (!repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()) return false;
+            var mesh = repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!;
+            uint layer = (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, self, 0);
+            Vector2 way = preferredVel.LengthSquared() > 1e-6f ? preferredVel : down - selfPos;
+            if (way.LengthSquared() < 1e-6f) return false;
+            way = Vector2.Normalize(way);
+            var side = new Vector2(-way.Y, way.X);
+            for (int s = -1; s <= 1; s += 2)
+                if (ManualMotion.IsOnMesh(mesh, layer, down + side * (s * clear * 0.5f), z) && ManualMotion.IsOnMesh(mesh, layer, down + side * (s * clear), z))
+                    return false;
+            return true;
+        }
+
         // THREAD-SAFE: Read-only access to neighbors, writes only to local stack vars
         private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, float selfZ,
-            Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo)
+            Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo, Entity self)
         {
             // Query neighbors within avoidance radius
             Span<(Entity, Vector2)> neighbors = stackalloc (Entity, Vector2)[32];
@@ -927,6 +947,14 @@ namespace CarKinem.Systems
                 // ⭐ CE-2304 — another storey is not a neighbour
                 if (!neighborEntity.IsNull && repo.HasComponent<SimTransform>(neighborEntity)
                     && MathF.Abs(repo.GetComponentRO<SimTransform>(neighborEntity).Position.Z - selfZ) > AvoidanceStoreyGapM) continue;
+                // ⭐⭐ AQ99 C (R-2065; Motion Domains §5h) — a MAN DOWN is walked round where there is room (R-3027) and STEPPED OVER
+                //   where there is not: a walker skips him as a neighbour when the walkable mesh beside him holds no way past on either
+                //   side (a doorway, a narrow corridor). 📌 bc-room-clear: one body 0.9 m inside room A's door walled it off for every man
+                //   behind him. With no navmesh the walker always walks round, as before.
+                if (@params.Class == VehicleClass.Pedestrian && _health && !neighborEntity.IsNull
+                    && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)
+                    && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, neighborEntity)
+                    && NoWayRound(repo, self, pos, selfPos, selfZ, preferredVel, @params.AvoidanceRadius * 2f)) continue;
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)

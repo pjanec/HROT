@@ -593,7 +593,7 @@ squad. ⛔ **No new node** — R-256: one implementation per concept. Audit: [`R
 | the result has room to carry the kind | ✅ `EqsResult` = 29 B used of 32 (`EqsComponents.cs:18`) | §6 D5 precedent: stance in a padding byte, *"extending wire is no issue"* |
 | no cover ⇒ silent forever | ✅ `:237` Running, no fire, no Failure | ⛔ searched, no design says what should happen |
 | bursts obey ROE, not the friendly line | ✅ `FireAtPointExecutor.cs:61` ROE; no friendly check | `BS-1-DESIGN.md` §5.1a: the friendly guard was written for aimed fire only |
-| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` |
+| the friendly check is entity-to-entity, 2-D, whole force | ✅ `LineOfFire.cs:18-44` | `CE-321` — ⭐ `CE-2338` (`2026-10-21`): a friendly PERSON out of the fight (lying down) no longer holds it — the round flies over him (CE-2318); a hull, alive or wrecked, still does |
 | indirect fire is known per warhead | ✅ `WarheadDto.Indirect` (`Tkb/Domain/WarheadDto.cs:77`) | R-217 |
 | the fire step re-ranks its own target | ✅ `PostureNodes.cs:301` `TopThreat(.., ws.Threat ..)` with `ws.Fire = default` (`PeekAndFireNodes.cs:350`) | R-174: ONE aimed step |
 | target distribution exists, reaches the node as a bias only | ✅ `ThreatRankingDecision` considers `IsAssignedTarget` (0.9, threshold); `StandardInputs.cs:317` | Utility demo §11 (U6), Squad design §1 "fire allocation — Done" |
@@ -1068,7 +1068,7 @@ graph TD
 | the aim | `FireProcessingSystem` — `AimPoint.ForBodyAt` before the muzzle mask; `AimPoint.For` and `ForBodyAt` share `Resolve` (③) |
 | ⭐ also: backend's own blind round | `AimAndFireExecutor.FireBlind` (AQ89 A — Suppress at a hidden target): `HiddenTargetThrow.LastKnown(…, out seenStance)`; a known stance ⇒ the feet + `BodyStance`, else the spot + `BlindAimHeightMetres` as before (its own checks still judge the line to the raised spot). ⚠ Beyond §11.6a's diagram, same rule: R-3030 names *a blind burst at a remembered spot*, and this is one |
 | rails | `TargetMemoryModalityTests.CE2326_TheSeenStance_FollowsItsContact` · `ThreatEvaluationSystemTests.CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot` · `FireProcessingSystemTests.CE2326_ABlindBurstAtARememberedMan_IsAimedAsAtTheBodyLastSeenThere` · `AimAndFireExecutorTests.CE2326_ABurstAtARememberedBody_CarriesItsStance_ToTheMuscle`, `CE2326_ABlindRoundAtAManSeenCrouched_NamesHisBody` · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+ `BodyStance`) · `TargetMemoryTranslatorTests` (save → load + inject); ⭐ 6/6 mutants caught (Sort carry · stamp · `Resolve` in `ForBodyAt` · the executor's copy · the blind round's copy · the egress mapping). Gates: Toolkits 3989/0, SimHost 1785/0, NED 149/0 — the one red met, `WeaponFireIntent`'s size pin, moved 70 → 71 (the appended byte) |
-| ⏭ behaviors | `PeekAndFireNodes`' blind burst: `FireAtPoint` at the slot's spot with `BodyStance` = `StanceSeen` + 1, instead of the spot + `BlindAimHeight` — `NOTE_Backend_To_Behaviors_Blind_Burst_Body.md` |
+| ✅ behaviors *(`2026-10-21`)* | `PeekAndFireNodes.StartBurst`: the freshest evidence's slot (`FreshestEvidence(…, out slotId)`) → `SeenStanceOf` (`StanceSeen` + 1) → `FireAtPointNodeParams.BodyStance` (new, the padding after `Mount`: layout unchanged) → `FireAtPointNodes.FireAtPoint` forwards it; a known stance fires at the FEET, unknown keeps the spot + `BlindAimHeight`. Rail `PeekAndFireNodesTests.CE2326_ABlindBurstAtABodySeenCrouched_*` |
 
 ### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -1941,13 +1941,15 @@ kit and its part order do not change — the outfit only colours the parts and a
 | **O-1 a civilian's colours** | his TYPE's colour when it has one (each man a little lighter or darker, the hue nudged); a type with none picks from a palette of everyday clothes — tops in many colours, trousers in jeans blue, khaki, grey, black, brown |
 | **O-2 what a civilian wears** | per man: long or short sleeves (short = skin-coloured forearms); trousers, shorts (skin shins) or — for a woman — a skirt to the knee; sometimes a dark suit with a white shirt and a tie; hair short, long or none, in a natural colour; skin in one of several tones |
 | **O-3 children** | a new type `CivilianChild` (1003): a pedestrian 1.25 m tall, slower; drawn smaller with a larger head, in brighter clothes |
-| **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — fleck (many small tan, brown and green spots); Neutral — plain |
+| **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — ~~fleck (many small tan, brown and green spots)~~ ⛔ SUPERSEDED by O-4a: desert; Neutral — plain |
+| **O-4a the side picks the CLOTH** (`CE-1235`, `2026-10-21`, R-1020, R-1021) | with no colour of his own (none authored on HIM — ⭐ R-1021: a TYPE colour no longer counts for a soldier), a soldier's cloth is his SIDE's: Friend green-olive `(96,110,72)` + woodland (denser than O-4's), Hostile desert khaki `(190,170,125)` + a desert pattern (large tan, brown and pale-sand patches), Neutral plain olive. A colour authored on him still wins; police keep navy (Civilians U-1). See the note below the table |
 | **O-5 the same everywhere** | every choice is seeded by the network id (the entity index where there is none) and the type id |
 | **O-6 personal cars** (`CE-1100`, user *"And we need personal car with similar color variety"*) | a car (the `WheeledCar` family) with no colour of its own gets a street paint by its seed — mostly white, black, silver and grey, then blue and red, a few green, beige, yellow, brown; one with its own colour keeps its hue, lighter or darker per car. Glass and wheels keep their shades |
 
 **Rejected — one line each:** *a real texture on the uniform* — the bodies are lit flat-coloured cubes with no texture binding in the shader;
 patches in the block style need no shader change and read the same at every distance the boxes do; *colour by side for the whole uniform* —
-the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier; *the outfit stored as a component* —
+the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier *(⚠ narrowed by O-4a, not
+reversed: the side now picks a real uniform's cloth — woodland or desert — never the map's blue or red)*; *the outfit stored as a component* —
 nothing would write it on a replica, and the seed already makes it the same everywhere.
 
 **AS-BUILT (`CE-1099`, `CE-1100`)** — as drawn above. Measured on the first frames and changed: dark camouflage patches on olive vanished
@@ -1963,6 +1965,37 @@ lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (
 | ![dress front](assets/map-3d/dress-1-front.png) | ![soldiers](assets/map-3d/dress-2-soldiers.png) |
 | *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
 | ![above](assets/map-3d/dress-3-above.png) | |
+
+#### 6q.1 O-4a — the side picks the cloth (`CE-1235`, `2026-10-21`, ui) — DESIGN + AS-BUILT
+
+🔒 **User, `2026-10-21`:** *"In the PC House Defend demo, there are two teams, blue one and red one. They are identified by the label card on
+top of their head, but their uniforms looks pretty same. … Maybe one team could have a European uniform and the other could have desert
+uniforms or something. This could be made generic, like by affiliation. Enemies could could wear a desert uniform?"* — on the lean: *"Yes"*.
+
+📐 **Why they looked alike** (measured): `pc-defend-house` is 18 Friend + 18 Hostile, all soldiers type 2002 with no colour of their own
+(`UrbanCombatTkbCatalog.cs:222`), so both wore the default olive; only the pattern differed, and the hostile fleck (S-2: *"small and
+sparse"*) covered ~10 % of the cloth in ~6 cm spots — invisible at room distance. O-4 changed the PATTERN by side, never the CLOTH.
+
+```mermaid
+graph TD
+  EI["EntityInfo.ForceId (scenario)"] --> L3["EntityBodyLayer3D.SideOf"]
+  OWN["own colour: entity VisualData / EntityAppearance, or the TKB type"] --> OF
+  L3 --> OF["Outfits.For (soldier)"]
+  OF -->|"own ?? side cloth"| TOP["Outfit.Top / Bottom"]
+  OF -->|"Friend Woodland · Hostile Desert · Neutral None"| CAMO["Outfit.Camo"]
+  CAMO --> BS["BodySurface.Camouflage: SurfaceKind.Woodland / Desert (bodyPattern 1 / 4)"]
+```
+
+*Caption:* the one input that changed is the cloth's default — `own ?? side cloth` — so an authored or type colour (and the police kit) is
+untouched, and a scenario that wants a desert-clad friendly force names the colour on the type or the entity.
+
+| as built | |
+|---|---|
+| cloth | `Outfits.WoodlandCloth (96,110,72)` for Friend and Neutral, `Outfits.DesertCloth (190,170,125)` for Hostile; trousers ×0.85 as before |
+| pattern | `CamoPattern.Desert` / `SurfaceKind.Desert` (shader `bodyPattern 4`): tan / pale sand / brown at a 4.5 per-metre scale (larger than woodland's 5.5); woodland's thresholds lowered 0.60/0.62/0.64 → 0.56/0.58/0.60 (denser). `Fleck` stays a pattern, no longer any side's |
+| rails | `Map3DTests.CE1235_ASoldiersSide_PicksHisCloth_*` (cloth gap > 90, trousers > 70, own colour wins, police navy); `CE1099_ASoldiersSide_*` now expects Desert |
+| not measured | ⚠ the look in a real dim room — a Windows visual check is owed |
+| ~~⚠ found while building~~ ✅ resolved `2026-10-21` (R-1021) | the BDC catalogue's soldier types carry a TYPE colour, olive `#556B2F` (`BdcTkbCatalog.cs:105,281,313`) ⇒ under "the type's colour wins" their men kept olive cloth. A type colour is per type, never per side (one type serves both sides), so it can only make the sides alike. 🔒 User, `2026-10-21`, on the lean to let the side beat it: *"Yes. Another topic."* ⇒ **a SOLDIER's cloth ignores his type's colour; only a colour HE names wins** (`EntityBodyLayer3D.OwnColourOf`). ⚠ The type's colour is stamped onto every spawned entity (`PresentationTkbTranslator.cs:59-69`, `VisualData` + `EntityAppearance`), so "his own" is an entity colour that DIFFERS from his type's. Civilians (O-1) and police keep their type's colour. Rail `Map3DTests.CE1235_ASoldiersTypeColour_*` |
 
 ### 6r. CE-1101 — camouflage and faces drawn by the SHADER, not by boxes — DESIGN + AS-BUILT `2026-10-15` (ui)
 

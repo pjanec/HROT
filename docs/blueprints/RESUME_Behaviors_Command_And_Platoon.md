@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (clearing demos N.1a, AQ99) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+updated: 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
 current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
 stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2338`** · rulings next free **`R-2065`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **100** (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
+| ⭐ ids | tracker next free **`CE-2347`** · rulings next free **`R-2068`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **101** (AQ100 APPROVED 2026-10-21, R-2067: the platoon clears a building, `CE-2264` — build ON HOLD until the user says go) (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -40,16 +40,23 @@ related-designs:
 | 🟡 **behaviors' half of Q95 — `CE-2315`** | E1 after backend's S3: `StaffSystems.IsLaunch` reads the signature, CE-2309's ≥ 1 km rule goes. **E2 (not blocked): measure why backend's run delivered 9 heard contacts to the brain and no SPOT came.** E3: L7 `uc-request-chain` with the guns 2–3 km OFF the terrain |
 | ⭐ **the user's live findings, filed 2026-10-20** | see N.2 — measured, leaned, not built |
 
-### N.1a ⭐ The clearing demos *(overnight 2026-10-20/21 — start here for building clearing)*
+### N.1b ✅ `pc-defend-house` fixes — R-2066 *(2026-10-21)*
 
 | | |
 |---|---|
-| ✅ built + rails | CE-2334 (the drill on the real house: entry team stacks, one "there", door front → threshold → point, one man in the doorway at a time, stack 0.8 m off the wall) · CB-64 (the stack inside the room it stands in, split stack) — [Building Clearing §7.1b](../designs/group-maneuvers/DESIGN_Building_Clearing.md) |
-| 🟡 `bc-room-clear` | RoomClear + both insurgents down in 4 of 6 runs, 2–3 friends lost every run ⇒ twin skipped on ③ "no friend hit" |
-| 🟡 `bc-house-clear` | hallway every run, room A in some, then a jam in the 2 m hallway ⇒ twin skipped |
-| ⏳ yours | [`AQ99`](Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) (`CE-2336`): A person shell 1.6 m → 0.3 m · B ③ "no friend hit by a friend" · C step over a body where there is no way round |
-| 📋 filed | `CE-2335` a door can read Open on CGF while closed (backend) · `CE-2337` an occupant hides then deletes himself (BC-2) · NOTE to backend: `batches/NOTE_Behaviors_To_Backend_Doorways_And_Person_Spacing.md` |
-| ⏭ next | after AQ99: rerun both twins (traces already in `ClearingScenarioTests`), unskip, then PL-1 (`CE-2264`, `bc-platoon-house`) |
+| ✅ built + rails + live twin | A–E (`CE-2342`…`CE-2346`) and parked cars — [Defend and Attack Position §8f.3](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md); twin `PlatoonScenarioTests.R2066_PcDefendHouse_*` PASS (support on the berm's south face, 5–12 m apart, no restart) |
+| ⚠ not yet seen live | E (the lull rescue): no Blue man fell in the twin's 90 s — the user's visual run is the check |
+
+### N.1a ⭐ The clearing demos *(2026-10-20/21 — start here for building clearing)*
+
+| | |
+|---|---|
+| ✅ built + rails | CE-2334 (the drill on the real house) · CB-64 (the stack inside its room) — [Building Clearing §7.1b](../designs/group-maneuvers/DESIGN_Building_Clearing.md) |
+| ✅ [`AQ99`](Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) approved (R-2065) + BUILT (`CE-2336`) | A: TKB `AvoidanceRadius` 0.3 for soldiers / fighters / security, civilians keep 0.8 · B: ③ = no friend hit by a friend, casualties reported · C: a man down stepped over only where no way round (Motion Domains §5h.1) |
+| ✅ fixed on the way | `CE-2337` an occupant cowers and stays · `CE-2338` a friend lying down holds no shot · `CE-2339` a civilian keeps no room uncleared · `CE-2340` a man lying dead hides nobody (sight, fragments) · `CE-2335` one defect (a door ghost no longer publishes) · `CE-2326` behaviors half (blind burst names the body) |
+| ✅ twins PASS, un-skipped | `bc-house-clear` 3/3 on the final build (BuildingClear ~200 s, 0–3 lost, civilians unhurt) · `bc-room-clear` 3/4 (RoomClear 38–50 s, 2–3 lost) — the fourth lost all four entry men ⇒ in the flaky lane, `CE-2341` (closes with BC-4/BC-5) |
+| ⏳ open | `CE-2335` the door split itself — backend (ddsmonitor + a repair re-send, lean in the row) |
+| ⏭ next | PL-1 (`CE-2264`, `bc-platoon-house`); BC-2 (civilians controlled, Comply) now has an occupant to control |
 
 ### N.2 The user's live findings *(tracker rows, all with file:line and a lean)*
 

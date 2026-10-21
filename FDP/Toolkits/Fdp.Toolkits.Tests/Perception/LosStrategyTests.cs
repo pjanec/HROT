@@ -314,6 +314,33 @@ namespace Fdp.Toolkit.Perception.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2340</c> — a FRIEND LYING DOWN between two men no longer hides one from the other: on the live composition a person down
+        /// (dead or incapacitated) blocks only up to a lying body (<see cref="PhysicsColliderReaders.LyingBlockerHeight"/>); the same man
+        /// standing hides the target (the control). 🔴 Red-proof: the live composition back on <c>Height</c> ⇒ the body hides him.
+        /// </summary>
+        [Fact]
+        public void CE2340_AManLyingDownBetween_DoesNotHideTheTarget_StandingHeDoes()
+        {
+            var open = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            var (world, obs, tgt) = TwoSoldiers(4f);
+            world.RegisterManagedComponent<TerrainWorld>();
+            world.SetSingletonManaged(open);
+            world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var between = world.CreateEntity();
+            world.AddComponent(between, new SimTransform { Position = new Vector3(2f, 0f, 0f) });
+            world.AddComponent(between, new PhysicsCollider { Radius = 0.3f, Height = 1.8f });
+            world.AddComponent(between, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
+            world.AddComponent(between, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var live = TerrainWorldLosStrategy.ForLiveWorld(world);
+            Assert.False(Sees(world, live, obs, tgt));                     // standing between them: he hides the target
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(between).Current = 0f;
+            Assert.True(Sees(world, live, obs, tgt));                      // lying dead: the eye sees over him
+            Assert.Equal(PhysicsColliderReaders.LyingBlockerHeight, PhysicsColliderReaders.BlockerHeight(world, between));
+            Assert.Equal(1.8f, PhysicsColliderReaders.Height(world, between));   // the body's own height (AimPoint) unchanged
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-1032</c> — the collider test shared with fragments (<see cref="ColliderOcclusion"/>) skips by INDEX: the observer's
         /// and the target's own 1.8 m colliders never block their own line, and the "no entity" sentinel
         /// (<see cref="ColliderOcclusion.Nobody"/>) skips nothing — not even entity index 0 (a terrain burst has no struck entity).

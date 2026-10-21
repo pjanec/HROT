@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
 related-designs:
+  - docs/blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md — (behaviors) RULES §5h.1 (C: step over a man down where there is no way round) and a person's avoidance radius per type (A) — R-2065
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS two new air classes (Rope, Parachute), their models (RopeSlideModel, ParachuteModel) and the replicated Descent component that makes a Pedestrian TYPE an air body for a descent (D-1…D-3)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft route follower (AirRoute / AirPath), FixedWingModel (this file's MD-H row, now designed) and RotorcraftModel's route, tilt, take-off and landing (R-2015)
   - docs/designs/navig-2/Navigation_Design_v2_0.md — OWNS NavigationIntent, the bridge, the path providers (ground navmesh, volumetric) and layer selection; this file decides which MOTION MODEL consumes the intent
@@ -539,3 +540,42 @@ and the only way he moves is the carry (`CE-2152`), which this system never driv
 | take him out of the spatial grid | then walkers would walk over him |
 | strip the push inside `RVOAvoidance` | shared with every standing person, who must keep parting |
 | ⏭ an operator possessing a man down (`KinematicsMode.Manual`) | not changed here — the possession path reads its own drive; not reported |
+
+### 5h.1 …and is stepped over where there is no way round him — AQ99 C (`2026-10-21`, behaviors — cross-lane; R-2065)
+
+🔒 User, `2026-10-21`: *"Aq99 Approved. You build it."* — AQ99 C: *a man down is walked round where there is room (R-3027) and stepped
+over where there is not.* 📐 `bc-room-clear`: one body 0.9 m inside room A's door walled it off for every man behind him.
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a walker's tick)
+    participant A as ApplyCollisionAvoidance
+    participant N as INavmeshProvider (ManualMotion.IsOnMesh)
+    K->>A: neighbours in reach
+    loop each neighbour
+      alt a PERSON, not in the fight (Injury.IsInTheFight false)
+        A->>N: NoWayRound — the strip beside him, across the walker's way: ±½ shell and ±1 shell on the mesh?
+        alt neither side holds it (a doorway, a narrow corridor)
+          A->>A: skip him — stepped over
+        else a side holds it (or no navmesh on this host)
+          A->>A: keep him — walked round (R-3027)
+        end
+      else anyone else
+        A->>A: keep (as before)
+      end
+    end
+```
+
+*Caption:* what the picture shows — the man down stays a NEIGHBOUR by default (§5h's rule is untouched); only the geometry around HIM,
+read on the walker's own layer, can take him out of one walker's avoidance, and a host with no navmesh never does.
+
+| rule | rail (`CarKinematicsSystemTests`) |
+|---|---|
+| a corridor whose walkable strip (±0.3 m) cannot hold a soldier's shell (0.6 m) beside the body: the walker steps over him and passes | `AQ99C_AManDown_IsSteppedOver_OnlyWhereThereIsNoWayRound(0.3, over)` |
+| a 4 m corridor: he still walks round (never within 0.3 m), the body never pushed | `AQ99C_…(2.0, round)` · `CE2321_AWalker_StillStepsRoundAManDown` (no navmesh) unchanged |
+
+| rejected | the one fact |
+|---|---|
+| skip every man down as a neighbour (built once, reverted) | contradicts R-3027 — in the open he is walked round |
+| step over when the bent step leaves the mesh (`KeepOnNavmesh` clamped) | a body ahead mostly repels the walker BACKWARDS, on the mesh — the clamp never fires and he stalls |
+

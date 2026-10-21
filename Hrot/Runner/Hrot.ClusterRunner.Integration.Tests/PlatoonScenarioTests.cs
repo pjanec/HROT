@@ -202,6 +202,70 @@ public sealed class PlatoonScenarioTests : IDisposable
         Assert.True(surveyAt > 0, "D-2h — the machine gunner's visibility fan was answered by the real solver (SurveyReady on the commander)");
     }
 
+    // ── pc-defend-house (R-2066; DESIGN_Defend_And_Attack_Position §8f.2, CE-2342…CE-2346) ────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ R-2066 — the twin of <c>pc-defend-house</c>: Blue's platoon attacks OBJ on <c>cqb-village</c>; its support squad's base of fire is
+    /// the 1 m SBF berm (x 90–150, faces at y 39 / 41). A (<c>CE-2342</c>): every support post on the berm is on its SOUTH face, the berm
+    /// between the man and OBJ · B (<c>CE-2345</c>): the posts at least 5 m apart · D (<c>CE-2346</c>): once posting, the support squad is
+    /// never sent back to "move to the point" when the attack's phase changes. Casualties and the cared-for count are logged (E,
+    /// <c>CE-2344</c>, is pinned by its unit rail — a live lull is not deterministic). 📌 Before: posts on the enemy face (run 1), or none and
+    /// the men in a 0.9 m clump (run 2); the leader sent back round the berm at t16.
+    /// </summary>
+    [Fact(Timeout = 420_000)]
+    public async Task R2066_PcDefendHouse_TheBaseOfFirePostsBehindTheBerm_Spread_AndIsNotRestarted()
+    {
+        using var harness = await Live("pc-defend-house");
+        var cgf = harness.Cgf!.World!;
+        string[] blues = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && blues.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the Blue platoon and its squads must spawn");
+        int defend = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadDefend);
+        int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+        Entity support = Entity.Null;
+        Assert.True(harness.PumpUntil(() => (support = blues.Select(n => ByName(cgf, n)).FirstOrDefault(e => Task(e) == defend)) != default
+                                             && !support.IsNull, timeoutFrames: 4000), "the support squad is ordered to SquadDefend");
+        SquadCognitiveState Squad() => cgf.GetComponent<SquadCognitiveState>(support);
+        bool Posting() => cgf.HasComponent<SquadCognitiveState>(support) && Squad().ManeuverKind == SquadDefendManeuver.ManeuverKind
+                          && Squad().PhaseId == SquadDefendManeuver.PhasePosting;
+        Assert.True(harness.PumpUntil(Posting, timeoutFrames: 6000), "the support reaches the berm and starts posting");
+
+        var posts = new Dictionary<Entity, Vector3>();
+        int restarts = 0;
+        bool wasPosting = true;
+        for (int frame = 0; frame < 5400; frame++)   // 90 s
+        {
+            harness.PumpFrames(1);
+            foreach (var o in Fdp.Toolkit.Squad.SquadDrillTrace.Of(cgf, support).Orders)
+                if (o.Kind == 5) posts[o.Member] = o.Point;   // Watch: his post
+            bool posting = Posting();
+            bool moving = cgf.HasComponent<SquadCognitiveState>(support) && Squad().ManeuverKind == SquadDefendManeuver.ManeuverKind
+                          && Squad().PhaseId == SquadDefendManeuver.PhaseMoving;
+            if (wasPosting && moving) restarts++;
+            wasPosting = posting;
+        }
+
+        int down = 0, cared = 0;
+        foreach (var n in blues)
+        {
+            var squad = ByName(cgf, n);
+            down += Fdp.Toolkit.Squad.SquadCasualties.Count(cgf, squad);
+            cared += System.Numerics.BitOperations.PopCount(Fdp.Toolkit.Squad.SquadCasualties.CaredFor(cgf, squad));
+        }
+        _out.WriteLine($"support posts: {string.Join(" ", posts.Values.Select(p => $"({p.X:F1},{p.Y:F1})"))} · restarts {restarts} · down {down} · cared for {cared}");
+
+        static bool OnBerm(Vector3 p) => p.X is > 89f and < 151f && p.Y is > 36f and < 44f;
+        Assert.True(posts.Count >= 3, $"the support posted its men: {posts.Count} posts");
+        Assert.True(posts.Values.Count(OnBerm) >= 2, "A — the support's posts are on the berm");
+        Assert.All(posts.Values.Where(OnBerm), p => Assert.True(p.Y < 40f, $"A — ({p.X:F1},{p.Y:F1}) is on the berm's enemy face"));
+        var at = posts.Values.ToArray();
+        for (int i = 0; i < at.Length; i++)
+            for (int j = i + 1; j < at.Length; j++)
+                Assert.True(Vector3.Distance(at[i], at[j]) >= Hrot.AI.Behaviors.Brains.DefencePostPicker.CoverSpacingShortMetres - 0.01f,
+                    $"B — posts ({at[i].X:F1},{at[i].Y:F1}) and ({at[j].X:F1},{at[j].Y:F1}) are under 5 m apart");
+        Assert.Equal(0, restarts);
+    }
+
     // ── pc-defend-dry (§12.2 stage A; DESIGN_Defend_And_Attack_Position §8d, CE-2276) ──────────────────────────────────────
 
     /// <summary>

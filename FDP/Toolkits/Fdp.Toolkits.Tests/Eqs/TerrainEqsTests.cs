@@ -591,6 +591,37 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             for (int i = 0; i < n; i++) Assert.Equal(6f, generated[i].PositionZ, 1);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2342</c> (R-2066 A) — the base of fire on <c>pc-defend-house</c>'s SBF berm (cqb-village, 60 m × 2 m × 1 m, faces at
+        /// y 39 and 41): asked from just south of it with the sector point to the north, <see cref="FindCoverPosts"/> answers points on the
+        /// berm's SOUTH face only — the berm between the man and the enemy — whether the sector point is in the open or INSIDE the house
+        /// (where every line ends in its walls). 📌 The control, measured: <see cref="FindCoverFromTarget"/> from the point in the open keeps
+        /// no south-face point (the crouched eye clears a 1 m berm). ✅ Red-proof: <see cref="CoverTowardTest"/> keeping when the line is
+        /// CLEAR ⇒ north-face answers.
+        /// </summary>
+        [Theory]
+        [InlineData(120.3f, 147f)]   // run 2's sector point, in the open
+        [InlineData(125f, 151f)]     // run 1's, inside house-3f
+        public void CE2342_FindCoverPosts_OnTheSbfBerm_AnswersItsFaceAwayFromTheSector(float eaX, float eaY)
+        {
+            var w = Recipe("cqb-village");
+            _repo.SetSingletonManaged(w);
+            _repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(w));
+            var sensor = new EqsSensor { SearchRadius = 25f, ContextSlot0 = At(125f, 37.5f), ContextSlot1 = At(eaX, eaY) };
+
+            var answer = Run(FindCoverPosts.Build(new EqsTemplateBuilder()), sensor);
+
+            bool OnBerm(EqsResult r) => r.PositionX is > 89f and < 151f && r.PositionY is > 37f and < 43f;
+            Assert.True(answer.Count(OnBerm) >= 6, $"{answer.Count(OnBerm)} berm answers of {answer.Length}");
+            Assert.All(answer.Where(OnBerm), r => Assert.True(r.PositionY < 40f, $"({r.PositionX:F1},{r.PositionY:F1}) is on the enemy's face"));
+
+            if (eaY < 150f)
+            {
+                var old = Run(FindCoverFromTarget.Build((IEqsTemplateBuilder)new EqsTemplateBuilder()), sensor);
+                Assert.DoesNotContain(old, r => OnBerm(r) && r.PositionY < 40f);
+            }
+        }
+
         /// <summary>Solid prisms and free walls are read exactly as before Stage 7a: test-town and basic-desert (no building
         /// templates) produce the same database, point for point (count + checksum measured on the pre-7a code).
         /// ⭐ RE-PINNED `2026-10-09` by <c>CE-3143</c> (deliberate): a side now gets a point per STARTED 2.5 m (rounded up) — basic-desert
@@ -1183,6 +1214,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [InlineData(typeof(FindThreatsInView))]
         [InlineData(typeof(FindWindowFiringPosition))]
         [InlineData(typeof(FindRoofPosts))]
+        [InlineData(typeof(FindCoverPosts))]
         public void StarterTemplate_BlueprintIdIsTheHashOfItsAssetId(Type template)
         {
             string assetId = (string)template.GetField("AssetId")!.GetValue(null)!;

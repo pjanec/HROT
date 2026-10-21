@@ -125,6 +125,8 @@ namespace CarKinem.Tkb
                 p.WalkSpeed = dto.WalkSpeed;   // ⭐ CE-1208
             if (dto.TurnRate > 0f)
                 p.MaxSteerRate = dto.TurnRate * (MathF.PI / 180f);
+            if (dto.AvoidanceRadius > 0f)
+                p.AvoidanceRadius = dto.AvoidanceRadius;   // ⭐ CE-2336 (R-2065) — a soldier's close order; a civilian keeps the preset's
 
             return p;
         }

@@ -106,7 +106,7 @@ namespace Hrot.Core.Tkb
         {
             var t = new TkbTemplate(name, type);
             UrbanCombatTkbCatalog.Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = DisCategorySecurityForce });
-            Person(t, height: 1.80f, radius: 0.30f, runSpeed: 5.5f);   // the class template's helmet and vest stay
+            Person(t, height: 1.80f, radius: 0.30f, runSpeed: 5.5f, avoidance: VehicleParametersDto.CloseOrderAvoidanceRadius);   // ⭐ R-2065 — a line stands close; the class template's helmet and vest stay
             t.AddDescriptor(new PersonDto { Age = AgeBand.Adult });
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree,
                                                     CanMove = true, CanShoot = true, CanInteract = true,
@@ -129,12 +129,14 @@ namespace Hrot.Core.Tkb
 
         /// <summary>The body every person here shares: the mannequin, a pedestrian mover, health, injury, a person carrier, the person
         /// poses and footsteps.</summary>
-        private static void Person(TkbTemplate t, float height, float radius, float runSpeed)
+        /// <param name="avoidance">⭐ <c>CE-2336</c> (R-2065) — how far he keeps from others: 0 = a civilian's (the preset's; a crowd keeps
+        /// its distance), <see cref="VehicleParametersDto.CloseOrderAvoidanceRadius"/> for the security forces (a line, shoulder to shoulder).</param>
+        private static void Person(TkbTemplate t, float height, float radius, float runSpeed, float avoidance = 0f)
         {
             t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton",
                                                          ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = radius, ShapeHeight = height });
             t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = radius * 2f, Width = radius * 1.4f,
-                                                      MaxSpeedFwd = runSpeed, MaxAccel = 2.5f });
+                                                      MaxSpeedFwd = runSpeed, MaxAccel = 2.5f, AvoidanceRadius = avoidance });
             t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = CivilianMaxHealth });
             t.AddDescriptor(new InjuryDefDto());
             t.AddDescriptor(CarrierDefDto.PersonCarrier());

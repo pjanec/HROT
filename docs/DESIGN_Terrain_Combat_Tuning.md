@@ -263,7 +263,7 @@ not layer 3 after five minutes with an opaque "target still alive".
 | `bt-storeys` | rifleman reaches the 2nd storey by the stairs: Z within 0.3 m of storey 2 | stair slope ≤ 60°, storey clearance ≥ 1.8 m |
 | `bt-doors` | locked front door → path uses the back door; after `OpenDoor` the next path uses the front; closed door blocks sight | — (state, not tuning) |
 | `bt-grenade-posture` | grenade 8 m beyond a 0.5 m wall: standing target damaged, prone target undamaged | exposure standing ≥ 0.5; prone ≤ 0.1 |
-| `bt-mortar-roof` | 81 mm on the house: roof occupant damaged, ground-floor occupant not | slab resistance vs fragment penetration ≤ 0.6 |
+| `bt-mortar-roof` | 81 mm on the house: roof occupant damaged, ground-floor occupant not — ⭐ `2026-10-21` (CE-1238): fired by two CREWED 81 mm tubes 250 m south (was two MortarTeam 2005 men at 84 m, inside the tube's minimum range), live PASS | slab resistance vs fragment penetration ≤ 0.6 |
 | `bt-spawn-levels` | Add Entity at level 0 / +1 / +2 inside the house → Z = ground / storey 2 / roof ± 0.3 m | — |
 | `bt-window-duel` *(CE-3136 P-8)* | A upstairs in House A rotates its south windows (stance peek), B in the street steps out from behind Van 1, fires, and when the van is used up suppresses and bounds to Van 2; both fire, A uses ≥ 2 windows — 📄 `DESIGN_Peek_And_Fire.md` §2, §8 | both upstairs windows see B's step-out point; a rifle round goes through the window; the brick between them hides |
 

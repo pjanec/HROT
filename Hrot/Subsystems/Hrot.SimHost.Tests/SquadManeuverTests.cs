@@ -1060,6 +1060,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐⭐ <c>CE-2344</c> (R-2066 E) — the shipped squad SOP's LULL row: a man down still to care for and no round at the squad
+        /// for 10 s ⇒ the squad pauses its task and brings him in itself (<c>CasualtyCare</c>, urgency Contact); a round at the squad ⇒ the
+        /// under-fire row replaces it (<c>ReactToContact</c>, UnderFire) — under fire the care waits. 📌 Live on <c>pc-defend-house</c>: four
+        /// down by 60 s, one carried in six minutes. ✅ Red-proof: <c>CasualtyInALull</c> false ⇒ the task runs on and he lies there.</summary>
+        [Fact]
+        public void CE2344_BasicSquadSop_AManDownInALull_TheSquadBringsHimIn_UnderFireItWaits()
+        {
+            var (s, _, _, _) = CareSquad();
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.CasualtyCare, s.TaskName);
+            Assert.Equal(ReactionUrgency.Contact, s.Repo.GetComponent<BehaviorState>(s.Commander).Urgency);
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────
 
         private static void Walk(Squad s, Entity m, Vector3 to, float step = 2f)
@@ -1854,6 +1874,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { 0, 1, 3 }, postOf);   // the 1 m neighbour of post 0 is skipped
             Assert.Equal(2, DefencePostPicker.Alternate(candidates, postOf, 0));
             Assert.Equal(-1, DefencePostPicker.Alternate(candidates, new[] { 0, 2, 3, 1 }, 0));   // every point is held
+        }
+
+        /// <summary>⭐⭐ <c>CE-2345</c> (R-2066 B) — COVER posts along a berm are spread: 8 m apart while the cover is long enough, then
+        /// 5 m for the men left over — never closer; window posts keep 2.5 m (a room's windows). 📌 Live on <c>pc-defend-house</c> the
+        /// support squad stood in a 0.9 m clump. ✅ Red-proofs: the cover spacing ignored ⇒ posts 2.5 m apart · the 5 m pass dropped ⇒ the
+        /// fourth man has no post.</summary>
+        [Fact]
+        public void CE2345_CoverPosts_AreSpread8mApart_Then5m_WindowsKeep2point5m()
+        {
+            var candidates = Enumerable.Range(0, 9).Select(k => new Vector3(k * 2.5f, 0, 0)).ToArray();   // a berm face, a point per 2.5 m
+            var men = Enumerable.Repeat(Vector3.Zero, 4).ToArray();
+            var live = new[] { true, true, true, true };
+            var cover = Enumerable.Repeat(true, 9).ToArray();
+
+            var postOf = new[] { -1, -1, -1, -1 };
+            DefencePostPicker.Pick(candidates, men, live, postOf, cover, DefencePostPicker.CoverSpacingMetres);
+            Assert.Equal(new[] { 0f, 10f, 20f }, postOf.Where(k => k >= 0).Select(k => candidates[k].X).OrderBy(x => x).ToArray());
+            DefencePostPicker.Pick(candidates, men, live, postOf, cover, DefencePostPicker.CoverSpacingShortMetres);
+            Assert.All(postOf, k => Assert.True(k >= 0, "every man has a post"));
+            for (int i = 0; i < 4; i++)
+                for (int j = i + 1; j < 4; j++)
+                    Assert.True(Vector3.Distance(candidates[postOf[i]], candidates[postOf[j]]) >= DefencePostPicker.CoverSpacingShortMetres - 1e-3f);
+
+            var windows = new[] { -1, -1, -1, -1 };
+            DefencePostPicker.Pick(candidates, men, live, windows, new bool[9], DefencePostPicker.CoverSpacingMetres);
+            Assert.Equal(new[] { 0f, 2.5f, 5f, 7.5f }, windows.Select(k => candidates[k].X).OrderBy(x => x).ToArray());
         }
 
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
@@ -3102,6 +3148,37 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2346</c> (R-2066 D) — the support squad still RUNNING its <c>SquadDefend</c> is not sent it again when the phase
+        /// changes (its Set ⇒ Approach re-dirties every slot, and the order is the same): 📌 live on <c>pc-defend-house</c> the re-send
+        /// restarted the squad from "move to the point" and the men walked back round the berm. A squad no longer running it (a reaction
+        /// took it) still gets it. ✅ Red-proof: the <c>StillRunning</c> skip dropped ⇒ a second order.
+        /// </summary>
+        [Fact]
+        public void CE2346_ThePhaseChange_DoesNotResendTheSupportItsUnchangedOrder_WhileItStillRunsIt()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
+            p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SquadDefend), Origin = BehaviorOrigin.Superior });
+
+            p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch) > 0, "the approach began");
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
+
+            p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            p.ReportSet(p.Alpha);   // the assault phase re-dirties again
+            p.Ticks(4);
+            Assert.Equal(2, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2277</c> (AT-2, AT-7, R-2060's area rule) — the AREA holds an enemy inside building 7 and another in the open 50 m
         /// beyond it: two objectives, nearest first — building 7 is CLEARED (`ClearBuilding` on its centre), its BuildingClear takes the
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
@@ -4096,6 +4173,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             s.ClearPool();
+            // ⭐ CB-55 — a CIVILIAN cowering in the corner is not a hostile: the room clears with him in it (BC-2 controls him).
+            //   📌 bc-house-clear: an occupant who stays (CE-2337) held room C uncleared for good. 🔴 Red-proof: the neutral skip dropped.
+            var civilian = s.PoolMany(1, new Vector3(4f, 15f, 0f))[0];
+            s.Repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
             TickFor(s, RoomDrill.ClearSeconds + 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));

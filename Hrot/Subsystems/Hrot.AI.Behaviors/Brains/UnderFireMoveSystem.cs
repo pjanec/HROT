@@ -39,6 +39,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const float ShiftMetres = 1.5f;
         /// <summary>A cover point this near (m) is worth crawling to while the fire goes on.</summary>
         public const float CrawlCoverMetres = 10f;
+        /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — a move ending this far (m) past the cover he crawled to, on the enemy's side of it, is one
+        /// he does not rise back to: he stays at the cover. Past the stand-off and the obstacle's depth.</summary>
+        public const float PastCoverMetres = 1.5f;
+        /// <summary>⭐ <c>CE-2343</c> — only a destination this near his cover (m) is given up: a far one is an advance, and he rushes on.</summary>
+        public const float StayNearMetres = CrawlCoverMetres;
         /// <summary>A side step or a crawl gives up after this long (s).</summary>
         public const double ShiftSeconds = 3.0, CrawlSeconds = 12.0;
         /// <summary>⭐ C3 — how long one stamp of "your half is covered" lasts (s): the covering gate's own window.</summary>
@@ -152,14 +157,23 @@ namespace Hrot.AI.Behaviors.Brains
                     bool covered = u.CoveredUntil > now;
                     if (lapsed || covered)
                     {
+                        // ⭐ CE-2343 (R-2066 C) — he crawled to cover and his move ends just past it, in the enemy's view: he does not
+                        //   rise back into it (📌 live, pc-defend-house: crawl to the berm's safe face, up, back to the enemy face, down…)
+                        if (u.Crawled != 0 && Exposed(move.Destination, u.SubTarget, u.CoverFacing))
+                        {
+                            move.Destination = u.SubTarget;
+                            Rise(world, self, ref u, ref move, now, threatened: true);   // crouched, low behind it: the move ends where he is
+                            return;
+                        }
                         u.SubTarget = SideStep(at, move.Destination, self);
                         Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Shifting, now);
                         return;
                     }
-                    if (u.Crawled == 0 && CoverNear(world, self, at, out var cover))
+                    if (u.Crawled == 0 && CoverNear(world, self, at, out var cover, out var facing))
                     {
                         u.Crawled = 1;
                         u.SubTarget = cover;
+                        u.CoverFacing = facing;
                         Sub(world, self, ref u, in move, cover, UnderFirePhase.Crawling, now);
                     }
                     return;   // still under fire, nothing near: he stays down (his play keeps firing where it fires on the move)
@@ -236,9 +250,14 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The nearest cover point within <see cref="CrawlCoverMetres"/> that faces his nearest remembered threat (any, when he
         /// knows none), not where he lies.</summary>
-        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover)
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover) => CoverNear(world, self, at, out cover, out _);
+
+        /// <summary><see cref="CoverNear(EntityRepository, Entity, Vector3, out Vector3)"/>, with the way the point's cover faces
+        /// (<see cref="CoverPoint.DirectionX"/>: toward the obstacle).</summary>
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover, out Vector2 facing)
         {
             cover = default;
+            facing = default;
             if (!world.HasSingletonManaged<ICoverProvider>()) return false;
             var provider = world.GetSingletonManaged<ICoverProvider>();
             if (provider == null) return false;
@@ -259,8 +278,18 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 best = d;
                 cover = p;
+                facing = new Vector2(points[i].DirectionX, points[i].DirectionY);
             }
             return best < float.MaxValue;
+        }
+
+        /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — <paramref name="destination"/> lies past the cover at <paramref name="cover"/> on the side it
+        /// faces (the enemy's), and near it: rising back to it would walk him out of his cover into the fire.</summary>
+        public static bool Exposed(Vector3 destination, Vector3 cover, Vector2 facing)
+        {
+            if (facing.LengthSquared() < 1e-4f) return false;
+            var off = Flat(destination - cover);
+            return off.Length() <= StayNearMetres && off.X * facing.X + off.Y * facing.Y > PastCoverMetres;
         }
 
         private static unsafe bool NearestThreat(EntityRepository world, Entity self, Vector3 at, out Vector3 threat)

@@ -121,6 +121,10 @@ namespace Fdp.Toolkit.Combat
             {
                 if (e == shooter || e == target || RidesWith(world, shooter, e)) continue;
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                // ⭐ CE-2338 — a friendly PERSON down (dead or incapacitated) lies on the floor: the round flies over him (CE-2318 — he is
+                //   Prone for the round). A hull, alive or wrecked, still holds it. 📌 bc-room-clear: two men down in room A's doorway
+                //   held every man behind them while the defenders shot them (entry men 5 rounds, defenders 20).
+                if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) continue;
                 float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
                 if (r <= 0f) continue;
                 var p3 = world.GetComponentRO<SimTransform>(e).Position;

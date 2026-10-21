@@ -80,6 +80,17 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float HeadYawLimitDeg { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-2336</c> (R-2065, AQ99 A) — how far this type keeps from others when it walks round them (m; RVO's hard shell is twice
+        /// it). <c>0</c> = not authored ⇒ the preset's (a person's 0.8: a crowd keeps its distance). Soldier and security-force types
+        /// author <see cref="CloseOrderAvoidanceRadius"/> — they stack at a door, pass in a hallway, stand in a line.
+        /// </summary>
+        [EditUnit("m")]
+        public float AvoidanceRadius { get; init; }
+
+        /// <summary>⭐ R-2065 — the close order of soldiers and security forces: the body the navmesh is baked for (m).</summary>
+        public const float CloseOrderAvoidanceRadius = 0.3f;
+
+        /// <summary>
         /// Kinematic vehicle class, selecting the <see cref="VehiclePresets"/> baseline
         /// (steer limits, accel gain, lookahead, avoidance radius).  <c>null</c> means the
         /// template did not author a class, and the translator falls back to

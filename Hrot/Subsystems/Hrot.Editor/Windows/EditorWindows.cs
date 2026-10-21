@@ -150,3 +150,27 @@ internal sealed class EditorZoneEditorWindow : ManagedWindow
         _panel.DrawContent(_ctrl);
     }
 }
+
+/// <summary>
+/// ⭐ CE-1237 (🔒 User, `2026-10-21`: "the imgui panel showing blueprint attach button … has no close button, i can not close it, could
+/// it become a normal panel with close box?") — the Blueprint Tools window (run on the selected entity · save · compile / reload · save
+/// all · debug step) as a managed window: a close box and a View-menu entry like every other panel, bound to the Blueprint perspective
+/// (its buttons act on the open blueprint); pin it to keep it elsewhere. It was a raw <c>ImGui.Begin</c> drawn in every perspective.
+/// </summary>
+internal sealed class EditorBlueprintToolsWindow : ManagedWindow
+{
+    /// <summary>The window's id (layout files, rails).</summary>
+    public const string WindowId = "editor_blueprint_tools";
+
+    private readonly System.Action _drawContent;
+
+    public EditorBlueprintToolsWindow(System.Action drawContent)
+        : base(WindowId, "Blueprint Tools", "Blueprint", WindowScope.PerspectiveBound)
+    {
+        _drawContent  = drawContent;
+        IsOpen        = true;
+        TitleBarColor = EditorWindowColor.TitleBar;
+    }
+
+    protected override void DrawClientArea() => _drawContent();
+}

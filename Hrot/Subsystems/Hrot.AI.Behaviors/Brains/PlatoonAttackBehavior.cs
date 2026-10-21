@@ -404,6 +404,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
+                // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
+                //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
+                if (CommandOrders.StillRunning(world, self, squad, behaviour, order)) continue;
                 CommandOrders.Assign(world, self, squad, behaviour, order, newOrder: true);
                 if (behaviour == BehaviorNames.SquadDefend) Sector(ref p, slot, world, squad);
                 ws.Orders++;

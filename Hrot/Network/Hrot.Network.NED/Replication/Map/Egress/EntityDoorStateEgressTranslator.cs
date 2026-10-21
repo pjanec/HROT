@@ -54,6 +54,11 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var entity in query)
             {
                 if (!view.HasAuthority(entity, packedKey)) continue;
+                // ⭐ CE-2335 — a GHOST (a replica whose master has not arrived: no NetworkAuthority yet) is never the owner, though
+                //   HasAuthority reads "no record" as owned (right for a node with no network). The same exclusion as
+                //   DoorCommandSystem.OwnsDoor — the test this egress was meant to share. 📌 Before, a replica node published the door
+                //   as if it owned it: several writers on one door, a stale value able to overwrite a newer one on another replica.
+                if (!view.HasComponent<NetworkAuthority>(entity) && view.HasComponent<GhostStateTracker>(entity)) continue;
 
                 long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
                 var state = view.GetComponentRO<DoorState>(entity).State;

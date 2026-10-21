@@ -1278,7 +1278,7 @@ public sealed class Map3DTests
         Assert.Equal(olive, friend.Top);
         Assert.Equal(olive, Outfits.ColourOfPart(friend, 7));
         Assert.True(friend.Bottom.G < olive.G && friend.Bottom.G > friend.Bottom.R, "his trousers are the uniform's green, darker");
-        Assert.Equal((CamoPattern.Woodland, CamoPattern.Fleck, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));   // ⭐ CE-1235: desert, was fleck
 
         // ⭐ CE-1101 (§6r) — the pattern is the SHADER's: no patch boxes; its tones differ by side — fleck reads paler than woodland
         var d = new List<PartDetail>();
@@ -1287,9 +1287,134 @@ public sealed class Map3DTests
         Outfits.Details(hostile, 9, d);
         Assert.Empty(d);
         static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
-        Assert.True(Light(Outfits.CamoTones(CamoPattern.Fleck)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's fleck reads paler");
+        Assert.True(Light(Outfits.CamoTones(CamoPattern.Desert)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's desert reads paler");
         Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
         Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
+    }
+
+    /// <summary>⭐ CE-1235 (docs/DESIGN_Map_3D_Mode.md §6q O-4a, R-1020) — with no colour of his own, a soldier's SIDE picks his cloth, not only
+    /// his pattern: a friend green-olive woodland, a hostile khaki desert, a neutral plain olive — so blue and red read apart in a dim room
+    /// (📌 the pc-defend-house complaint: both sides wore the same olive under sparse spots). His own (or his type's) colour still wins,
+    /// and the shader paints the desert pattern as its own kind.</summary>
+    [Fact]
+    public void CE1235_ASoldiersSide_PicksHisCloth_FriendWoodland_HostileDesert_HisOwnColourStillWins()
+    {
+        var friend = Outfits.For(9, 2002, soldier: true, child: false, own: null, Fdp.Core.ForceId.Friend);
+        var hostile = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile);
+        var neutral = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Neutral);
+        Assert.Equal((Outfits.WoodlandCloth, Outfits.DesertCloth, Outfits.WoodlandCloth), (friend.Top, hostile.Top, neutral.Top));
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+        static float Gap(Raylib_cs.Color a, Raylib_cs.Color b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
+        Assert.True(Gap(friend.Top, hostile.Top) > 90f, $"the two sides' cloth reads apart ({Gap(friend.Top, hostile.Top):F0})");
+        Assert.True(Gap(friend.Bottom, hostile.Bottom) > 70f, "and so do their trousers");
+        Assert.True(hostile.Top.R > hostile.Top.B + 40 && hostile.Top.R + hostile.Top.G > friend.Top.R + friend.Top.G + 100, "desert is khaki: warm and pale");
+
+        var own = new Raylib_cs.Color(40, 60, 90, 255);
+        Assert.Equal(own, Outfits.For(9, 2002, true, false, own, Fdp.Core.ForceId.Hostile).Top);   // an authored / type colour still wins
+        Assert.Equal(Outfits.PoliceUniform, Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile, PersonKit.Security).Top);
+        Assert.Equal((int)SurfaceKind.Desert, 4);
+        Assert.Contains("bodyPattern == 4", BodySurface.Glsl);
+    }
+
+    /// <summary>⭐ CE-1235 (§6q O-4a, R-1020; 🔒 User, `2026-10-21`: "Yes") — a SOLDIER's type colour does not make his cloth: the type's colour is
+    /// stamped onto every spawned entity, so the BDC riflemen (olive `#556B2F` on the type) would wear olive on both sides. His own is one that
+    /// DIFFERS from his type's; a civilian keeps his type's colour (O-1), and a police officer his.</summary>
+    [Fact]
+    public void CE1235_ASoldiersTypeColour_DoesNotMakeHisCloth_AColourHeNamesStillDoes()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<EntityAppearance>();
+        var olive = new Raylib_cs.Color(0x55, 0x6B, 0x2F, 255);
+        var soldier = new EntityBodyLayer3D.TypeLook(VisualFamily.Person, Vector3.One, olive, Soldier: true, TypeColoured: true);
+        var stamped = w.CreateEntity();
+        w.AddComponent(stamped, EntityAppearance.FromHex("#556B2F"));      // what PresentationTkbTranslator stamps from his type
+        var named = w.CreateEntity();
+        w.AddComponent(named, EntityAppearance.Of(40, 60, 90));           // a colour the scenario gave HIM
+        var plain = w.CreateEntity();
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, stamped, soldier));
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, plain, soldier));
+        Assert.Equal(new Raylib_cs.Color(40, 60, 90, 255), EntityBodyLayer3D.OwnColourOf(w, named, soldier));
+
+        var civilian = soldier with { Soldier = false };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, civilian));   // O-1 — a civilian wears his type's colour
+        var police = soldier with { Kit = PersonKit.Security };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, police));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1236 (docs/DESIGN_People_Display.md §5 U7a, R-1022; 🔒 User, `2026-10-21`: "The soldiers can have different type of weapons …
+    /// they all have a single rifle-like rod" · "the mortar shells are coming from two soldiers standing and there is no mortar rendered") —
+    /// each weapon's look from the data the type already has: the sidearm (its Pistol appearance), the PKM (MachineGun), the sniper (a scope),
+    /// the insurgent's RPG (its rocket), the Javelin (Atgm), the MortarTeam's 81 mm (its bomb); the figure reshaped for it, its details, and a
+    /// launcher he is not using on his back.
+    /// </summary>
+    [Fact]
+    public void CE1236_EveryWeapon_IsDrawnAsWhatItIs()
+    {
+        var db = BuiltIn();
+        HeldLook Mount(long type, int i) => HeldWeapons.LookOf(db, db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[i]);
+        Assert.Equal((HeldLook.Rifle, HeldLook.Pistol), (Mount(UrbanCombatTkbCatalog.TkbInfantrySoldier, 0), Mount(UrbanCombatTkbCatalog.TkbInfantrySoldier, 1)));
+        Assert.Equal((HeldLook.Rpg, HeldLook.Rifle), (Mount(UrbanCombatTkbCatalog.TkbInsurgent, 0), Mount(UrbanCombatTkbCatalog.TkbInsurgent, 1)));
+        Assert.Equal(HeldLook.MissileTube, Mount(UrbanCombatTkbCatalog.TkbJavelinTeam, 0));
+        Assert.Equal(HeldLook.Mortar, Mount(UrbanCombatTkbCatalog.TkbMortarTeam, 0));
+        Assert.Equal(HeldLook.MachineGun, Mount(TkbEntityTypes.Infantry_MachineGunnerPkm, 0));
+        Assert.Equal(HeldLook.ScopedRifle, Mount(TkbEntityTypes.Infantry_Sniper, 0));
+        Assert.Equal(HeldLook.Manpads, HeldWeapons.LookOf(WeaponKind.Manpads));   // a carried Igla / Stinger
+
+        // what he holds is the SELECTED mount (replicated); a launcher of his own he is not using is slung
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var rpg = Man(world, Vector3.Zero, type: UrbanCombatTkbCatalog.TkbInsurgent);
+            world.AddComponent(rpg, new Fdp.Toolkit.Combat.Components.WeaponPosture { ActiveMount = 1 });
+            Assert.Equal((HeldLook.Rifle, HeldLook.Rpg), HeldWeapons.Of(world, rpg, db, out _));
+            world.SetComponent(rpg, new Fdp.Toolkit.Combat.Components.WeaponPosture { ActiveMount = 0 });
+            Assert.Equal((HeldLook.Rpg, HeldLook.Rifle), HeldWeapons.Of(world, rpg, db, out _));
+        }
+
+        // the figure: the parts keep their count and order; only the weapon (and for a pistol / a mortar, the hands) change
+        static float Length(KitPart p) { var (a, b) = BlockFigure.Ends(p); return Vector3.Distance(a, b); }
+        var aimed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Aimed);
+        float rifle = Length(aimed[BlockFigure.WeaponIndex]);
+        var pistol = BlockFigure.Held(aimed, HeldLook.Pistol, WeaponPostureKind.Aimed);
+        Assert.Equal(aimed.Length, pistol.Length);
+        Assert.InRange(Length(pistol[BlockFigure.WeaponIndex]), 0.18f, 0.26f);
+        Assert.True(Vector3.Distance(BlockFigure.Ends(pistol[7]).B, BlockFigure.Ends(pistol[9]).B) < 0.10f, "both hands on the pistol");
+        Assert.True(Length(BlockFigure.Held(aimed, HeldLook.MachineGun, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex]) > rifle + 0.2f, "a machine gun is longer");
+        Assert.Equal(PartShape.Cylinder, BlockFigure.Held(aimed, HeldLook.Rpg, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex].Shape);
+        var atEase = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);
+        Assert.Equal(PartShape.Cylinder, BlockFigure.Held(atEase, HeldLook.Manpads, WeaponPostureKind.AtEase)[BlockFigure.WeaponIndex].Shape);   // not only aimed
+        Assert.Same(atEase, BlockFigure.Held(atEase, HeldLook.Rifle, WeaponPostureKind.AtEase));
+
+        // the mortar: nothing in his hands; fired, the hands go to the mouth of the tube standing in front of him; at ease they hang
+        Assert.InRange(EntityBodyLayer3D.MortarMouth.X, 0.2f, 1.2f);
+        Assert.InRange(EntityBodyLayer3D.MortarMouth.Z, 0.7f, 1.4f);
+        var ready = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var firing = BlockFigure.Held(ready, HeldLook.Mortar, WeaponPostureKind.Ready, EntityBodyLayer3D.MortarMouth);
+        Assert.Equal(Vector3.Zero, firing[BlockFigure.WeaponIndex].Extent);
+        float right = Vector3.Distance(BlockFigure.Ends(firing[9]).B, EntityBodyLayer3D.MortarMouth);
+        Assert.True(right < 0.12f, $"his right hand at the tube's mouth ({right:F2} m)");
+        var shoulderL = BlockFigure.Ends(firing[6]).A;   // the left arm reaches out toward it, as far as it goes
+        Assert.True(Vector3.Distance(BlockFigure.Ends(firing[7]).B, EntityBodyLayer3D.MortarMouth)
+                    < Vector3.Distance(shoulderL, EntityBodyLayer3D.MortarMouth) - 0.5f, "his left hand reaches toward it");
+        var carrying = BlockFigure.Held(atEase, HeldLook.Mortar, WeaponPostureKind.AtEase);
+        Assert.True(BlockFigure.Ends(carrying[7]).B.Z < 0.95f && BlockFigure.Ends(carrying[9]).B.Z < 0.95f, "at ease his hands hang");
+
+        // the details: a machine gun's box and bipod, the slung launcher on his back, the mortar on his back at ease (and not when fired)
+        var d = new List<PartDetail>();
+        BlockFigure.WeaponDetails(HeldLook.MachineGun, HeldLook.Rifle, WeaponPostureKind.Ready, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.WeaponIndex));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Rifle, HeldLook.Rpg, WeaponPostureKind.AtEase, d);
+        Assert.Single(d, x => x.Part == BlockFigure.TorsoIndex);
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Mortar, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.TorsoIndex));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Mortar, HeldLook.Rifle, WeaponPostureKind.Ready, d);
+        Assert.Empty(d);
     }
 
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
