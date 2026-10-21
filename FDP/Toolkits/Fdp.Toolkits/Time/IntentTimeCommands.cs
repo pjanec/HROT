@@ -47,8 +47,16 @@ namespace Fdp.Toolkit.Time
         public void SnapTo(Fdp.Core.GlobalTime position) => _bus.PublishManaged(new SnapTimeIntent { Position = position });
 
         /// <inheritdoc />
-        public void StepOneTick() =>
-            _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = _fixedStepSeconds });
+        public void StepOneTick() => StepBy(_fixedStepSeconds);
+
+        /// <inheritdoc />
+        public void StepBy(float seconds)
+        {
+            if (!(seconds > 0f))
+                throw new ArgumentOutOfRangeException(nameof(seconds),
+                    "a step must advance time; a zero, negative or NaN step is not a step.");
+            _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = seconds });
+        }
 
         /// <inheritdoc />
         public void SetTimeScale(float scale)

@@ -10,6 +10,8 @@
 #   scripts/run-system-tests.sh                     # the whole suite (SystemSmoke + SystemModes)
 #   scripts/run-system-tests.sh Playing_hill_attack # only cases matching a name
 #   scripts/run-system-tests.sh --no-build          # skip the build (only when nothing changed)
+#   scripts/run-system-tests.sh --film              # ONLY the film-take determinism lane (CE-4038 B0; ~minutes per
+#                                                   #   step rate — background it). The default run excludes it.
 #
 set -uo pipefail
 
@@ -19,10 +21,12 @@ export PATH="$PATH:$HOME/.dotnet"
 PROJECT="Hrot/Runner/Hrot.SystemTests/Hrot.SystemTests.csproj"
 BUILD=1
 NAME_FILTER=""
+FILM=0
 
 for arg in "$@"; do
   case "$arg" in
     --no-build) BUILD=0 ;;
+    --film)     FILM=1 ;;
     *)          NAME_FILTER="$arg" ;;
   esac
 done
@@ -66,11 +70,14 @@ fi
 # Cost, measured: SystemSmoke 44 cases ~29 s; SystemModes 8 cases ~62 s (each boots a runner in a
 # different mode). ~90 s total. This is the slow lane on purpose (D10) -- scripts/quick-check.sh is the
 # per-edit gate -- so covering both is the right trade.
-FILTER='Category=SystemSmoke|Category=SystemModes'
+# CE-4038 B0: the film-take determinism theory steps a 30 s demo three times per rate (one rendered frame per step) —
+# minutes, not seconds — so the default run excludes it and --film runs it alone (HN-009: a lane the runner can reach).
+FILTER='(Category=SystemSmoke|Category=SystemModes)&Category!=SystemFilmDeterminism'
+[[ $FILM -eq 1 ]] && FILTER='Category=SystemFilmDeterminism'
 if [[ -n "$NAME_FILTER" ]]; then
   # A name filter applies to both categories, so it must distribute over the OR rather than bind to the
   # last clause: "A|B&Name~x" would filter only B.
-  FILTER="(Category=SystemSmoke|Category=SystemModes)&FullyQualifiedName~$NAME_FILTER"
+  FILTER="($FILTER)&FullyQualifiedName~$NAME_FILTER"
 fi
 
 echo "== running: $FILTER =="

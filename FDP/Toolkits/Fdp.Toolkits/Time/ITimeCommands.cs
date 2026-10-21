@@ -29,6 +29,13 @@ namespace Fdp.Toolkit.Time
         /// </summary>
         void StepOneTick();
 
+        /// <summary>
+        /// Requests one deterministic step of <paramref name="seconds"/> instead of the configured tick — the
+        /// film director's coarser rates (1/20 s, 1/15 s) when 60 Hz cannot keep up in real time
+        /// (`DESIGN_Film_Director.md` D-1). The master already honours the intent's delta.
+        /// </summary>
+        void StepBy(float seconds);
+
         /// <summary>Requests a new speed multiplier. Independent of whether time is advancing.</summary>
         void SetTimeScale(float scale);
 

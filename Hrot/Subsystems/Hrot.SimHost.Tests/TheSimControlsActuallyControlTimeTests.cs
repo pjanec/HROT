@@ -31,6 +31,7 @@ public class TheSimControlsActuallyControlTimeTests
 
         public void TogglePlayPause()      => ToggleCount++;
         public void Step()                 => StepCount++;
+        public void StepBy(float seconds)  => StepCount++;
         public void Stop()                 => StopCount++;
         public void SetTimeScale(float s)  { LastScaleSet = s; TimeScale = s; }
     }
