@@ -52,6 +52,13 @@ CE-4034 (the overnight batch runner) becomes phase 3 of this design: the batch i
 
 | | |
 |---|---|
-| **a LIVE run, not the preview** | each reel item is `LoadForLive` (from the saved file, a new exercise, paused at t=0, recorded), then paced steps. ⭐ **Phase 1's first rail: two live loads stepped alike are identical** — CE-202 measured PREVIEW runs only, and a live load allocates its ids (§3b-i) |
+| ~~a LIVE run, not the preview~~ | ⛔ **reversed in the fourth pass below** |
 | **no instant replays in slice 1** | a take's replay shots are skipped and named in the report |
 | **later: replays from the recording** | the replay slice first measures record → playback fidelity (§3c questions); the in-memory bookmark is the fallback |
+
+## Fourth pass, same day — R-4061 amended: the PREVIEW
+
+🔒 *"live play from saved worls snapshot is even more untested feature so i would avoid it for now. we do not want instant replay in slice
+1 so preview mode will do just fine."* ⇒ each reel item is **`OpenForEdit` (from the saved file) → `EnterPreviewMode(startPaused)` → paced
+steps → `ExitPreviewMode`**. A re-run (the scout, "replay this take") is the preview's rewind. The first rail: two previews of one take,
+stepped alike, cut at the same frames. Live runs return only with the later replay slice (§3b-i, §3c).
