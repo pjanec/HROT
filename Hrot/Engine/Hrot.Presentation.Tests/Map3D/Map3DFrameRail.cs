@@ -2721,6 +2721,14 @@ public sealed class Map3DFrameRail
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, 0.5f);
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, 2.5f);
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, 4.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        // ⭐ CE-1179 (U18) — a surrendered soldier, his rifle laid at his feet, hands up; a placed charge beside the toy, its light on
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        var surrendered = Person(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier, 8.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, surrendered, 0);
+        world.AddComponent(surrendered, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
+        var placed = world.CreateEntity();
+        world.AddComponent(placed, new SimTransform { Position = new Vector3(spot.X + 7.4f, spot.Y - 0.9f, G(spot.X + 7.4f, spot.Y - 0.9f)), Rotation = Quaternion.Identity });
+        world.AddComponent(placed, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_ExplosiveCharge });
         var lying = world.CreateEntity();   // the toy, lying on the ground in front of them
         world.AddComponent(lying, new SimTransform { Position = new Vector3(spot.X + 6.5f, spot.Y - 0.6f, G(spot.X + 6.5f, spot.Y - 0.6f)), Rotation = Quaternion.Identity });
         world.AddComponent(lying, new TkbIdentity { TkbType = 99_616 });
@@ -2747,6 +2755,39 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "people-overnight-2-police-toy.png"));
         Assert.True(bodies.DetailsDrawn > 0, "the vests, belts and the band are drawn");
+        Assert.Equal(1, bodies.ChargeLightsDrawn);   // the placed charge's light, on at t = 0
+
+        // ⭐ CE-1177 (U16) — four faces close up: calm, afraid, angry, in pain
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        float fy = spot.Y + 6f;
+        Entity Face(float dx)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, fy, G(x, fy)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });   // facing the camera
+            world.AddComponent(e, new TkbIdentity { TkbType = civ });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            return e;
+        }
+        Face(-1.2f);                                                                                                  // calm
+        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
+        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
+        var hurt = Face(1.2f);
+        world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 100f });
+        world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
+        float fg = G(spot.X, fy);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, fy, fg + 1.55f), 3.4f, -MathF.PI / 2f, -0.02f);   // eye level
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-3-faces-calm-afraid-angry-pain.png"));
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 8.0f, spot.Y - 0.5f, ground + 0.4f), 5.0f, -3f * MathF.PI / 4f, -0.42f);   // CE-1179
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-4-laid-down-and-a-placed-charge.png"));
     }
 
     /// <summary>

@@ -1899,6 +1899,93 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1176 / CE-1177 (People Display §5 U15, U16) — ONE mark per person, by the priority rule: what he says (G1's Utterance, fading
+    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Demeanour,
+    /// from the second quarter); calm and silent shows nothing. His FACE shows the feeling whatever he says. ✅ Red-proof: speech checked
+    /// after the mood ⇒ the insult case shows anger.
+    /// </summary>
+    [Fact]
+    public void CE1176_CE1177_OneMarkPerPerson_SpeechFirst_ThenHowHeFeels_AndHisFace()
+    {
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var M = Hrot.Common.Diagnostics.Gizmos.MarkKind.None;
+            var man = Man(world, Vector3.Zero);
+            Assert.Equal(M, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);                      // calm and silent
+
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);   // anger before fear
+
+            Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.Insult, Entity.Null, now: 10.0, seconds: 2f);
+            var (kind, alpha) = Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.5);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Insult, kind);                                     // speech wins
+            Assert.Equal(1f, alpha);
+            Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 11.75).Alpha, 3);               // fading its last half second
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 12.0).Kind);   // over: his mood again
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.MoodOf(world, man));       // the face, whatever he says
+
+            Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.CmdHandsUp, Entity.Null, now: 20.0, seconds: 2f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Order, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 20.5).Kind);  // a command is an order
+
+            var officer = Man(world, new Vector3(5f, 0f, 0f));
+            world.AddComponent(officer, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.Warning });
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Warning, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, officer, 10.0).Kind);
+
+            var hurt = Man(world, new Vector3(10f, 0f, 0f), health: 50f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Pain, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, hurt, 10.0).Kind);
+        }
+        foreach (var k in Enum.GetValues<Hrot.Common.Diagnostics.Gizmos.MarkKind>())
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.Marks.Glyph(k).Length <= 3, $"{k}: a small mark");
+        Assert.Equal(Vector3.Zero, BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.None));
+        var afraid = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear);
+        var angry = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger);
+        var pain = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Pain);
+        Assert.True(afraid.X > 0f && afraid.Y > 0f, "afraid: brows raised, mouth open");
+        Assert.True(angry.X < 0f && angry.Y < 0f, "angry: brows knitted, mouth tight");
+        Assert.True(pain.Z > 0f, "in pain: eyes squeezed");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1179 (People Display §5 U18) — the rest of the items on the ground: a weapon LAID DOWN (surrender) lies at his feet, across his
+    /// path, its length kept; a PLACED charge blinks red a quarter second each second, the same on every node, and a carried or stationed one
+    /// does not. ✅ Red-proof: <c>LaidDownInHands</c> ⇒ false.
+    /// </summary>
+    [Fact]
+    public void CE1179_ALaidDownWeapon_LiesAtHisFeet_APlacedChargeBlinks()
+    {
+        var armed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var laid = BlockFigure.LaidAtFeet(armed);
+        var (a, b) = BlockFigure.Ends(laid[BlockFigure.WeaponIndex]);
+        Assert.True(a.Z < 0.1f && b.Z < 0.1f, $"on the ground ({a}, {b})");
+        var (ra, rb) = BlockFigure.Ends(armed[BlockFigure.WeaponIndex]);
+        Assert.Equal(Vector3.Distance(ra, rb), Vector3.Distance(a, b), 2);   // its length kept
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var man = Man(world, Vector3.Zero);
+            world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            Assert.False(EntityBodyLayer3D.LaidDownInHands(world, man));
+            Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, man, 0);
+            Assert.True(EntityBodyLayer3D.LaidDownInHands(world, man));
+
+            var charge = world.CreateEntity();
+            Assert.True(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.1));
+            Assert.False(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.5));
+            world.AddComponent(charge, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man });
+            Assert.False(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.1));   // worn or carried: dark
+        }
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

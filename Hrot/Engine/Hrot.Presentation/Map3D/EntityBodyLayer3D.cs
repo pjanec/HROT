@@ -103,6 +103,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _shouldering.Clear();
         _loadInHands.Clear();
         MortarsDrawn = 0;
+        ChargeLightsDrawn = 0;
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -173,6 +174,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             HeldLook inHands = HeldLook.Rifle, slung = HeldLook.Rifle;
             var heldPosture = WeaponPostureKind.AtEase;
             bool mortarFired = false;
+            bool chargeBlink = false;   // ⭐ CE-1179 (U18) — a placed charge's red light, on this frame
             var heldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.None;   // ⭐ CE-1169 (U7) — a phone, binoculars or a throwable shown
             if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
             {
@@ -216,6 +218,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 // ⭐ CE-1172 (People Display U11) — the baton man's baton in his hand, the shield man's shield on his arm (from his type until
                 //   G4 makes them items); while he strikes, the swing draws the baton
                 if (ReferenceEquals(parts, unstruck)) parts = PoliceKit(world, e, type, carriage, parts);
+                // ⭐ CE-1179 (People Display U18) — his weapon LAID DOWN (surrender, WeaponAmmo.LaidDown) lies at his feet — after the
+                //   gestures, which would sling it (a surrender is hands up)
+                if (look.Soldier && carriage.Kind == CarriageKind.Free && LaidDownInHands(world, e)) parts = BlockFigure.LaidAtFeet(parts);
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -239,6 +244,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
                     && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) parts = WeaponKits.Mounted(look.Weapon, parts);
                 if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon));
+                // ⭐ CE-1179 (People Display U18) — a PLACED charge (lying, not carried, not on a vehicle) blinks red, a quarter second each second
+                chargeBlink = look.Weapon == WeaponKind.Charge && ChargeLightOn(world, e, simTime);
             }
             else
             {
@@ -274,6 +281,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
                                      look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
+                // ⭐ CE-1177 (People Display U16) — his face shows how he feels (pain, anger, fear, alarm), close up
+                _expression = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.Marks.MoodOf(world, e));
                 if (look.Soldier) BlockFigure.WeaponDetails(inHands, slung, heldPosture, _details);   // ⭐ CE-1236
                 if (look.Soldier && heldItem == Fdp.Toolkit.Combat.Components.HeldItemKind.None)       // ⭐ CE-1173 / CE-1174 — a toy, a baton launcher
                     BlockFigure.MarkingDetail(HeldWeapons.MarkingOf(world, HeldWeapons.OwnMountInHands(world, e)), _details);
@@ -284,8 +293,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             int details = outfit != null ? _details.Count : 0;
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader);
+            _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
+            if (chargeBlink)   // ⭐ CE-1179 — the detonator's light, over the bundle
+            {
+                DrawPart(_cube, Matrix4x4.CreateScale(ChargeLightSize) * Matrix4x4.CreateTranslation(ChargeLightAt), ChargeLightColour, body, shader);
+                ChargeLightsDrawn++;
+            }
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
@@ -967,6 +982,33 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     }
 
     /// <summary>⭐ CE-1236 — a man's own mortar, deployed at <see cref="MortarAt"/>; its tube's mouth is his weapon's tip (the shot's flash).</summary>
+    /// <summary>⭐ <c>CE-1179</c> (U18) — is the weapon in his hands one he has LAID DOWN (his active own mount, <c>WeaponLaying</c>,
+    /// replicated in <c>WeaponAmmo.LaidDown</c>)?</summary>
+    public static bool LaidDownInHands(EntityRepository world, Entity man)
+    {
+        int active = world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(man)
+            ? world.GetComponentRO<WeaponPosture>(man).ActiveMount : 0;
+        return !Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active) && Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(world, man, active);
+    }
+
+    /// <summary>⭐ CE-1179 (U18) — the charge's blinking light: where it sits on the bundle (body metres), its size and colour, its rhythm.</summary>
+    public static readonly Vector3 ChargeLightAt = new(0f, 0f, 0.105f);
+    public const float ChargeLightSize = 0.03f, BlinkPeriod = 1f, BlinkOn = 0.25f;
+    public static readonly Color ChargeLightColour = new(255, 30, 20, 255);
+
+    /// <summary>Charge lights drawn since the last frame began (a rail reads it).</summary>
+    public int ChargeLightsDrawn { get; private set; }
+
+    /// <summary>⭐ <c>CE-1179</c> — is a charge's light on at <paramref name="simTime"/>: it is PLACED (not carried by a man, not in a vehicle's
+    /// station — no <c>IsEmbarkedTag</c>) and the blink is in its lit quarter. Every node sees the same rhythm (sim time).</summary>
+    public static bool ChargeLightOn(EntityRepository world, Entity charge, double simTime)
+    {
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+            && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(charge)) return false;
+        double t = simTime % BlinkPeriod;
+        return t >= 0 && t < BlinkOn;
+    }
+
     private void DrawMortar(Entity man, Matrix4x4 body, Color colour, LitShader shader)
     {
         var kit = WeaponKits.Kit(WeaponKind.Mortar, deployed: true);
@@ -1305,7 +1347,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (outfit is not { } o) { _surface.Plain(shader); return; }
         if (face != FaceOn.None)
         {
-            _surface.Face(shader, face, o.Face, o.Hair);
+            _surface.Face(shader, face, o.Face, o.Hair, _expression);
             FacesPainted++;
         }
         else if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
@@ -1414,6 +1456,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     }
 
     private readonly List<PartDetail> _details = new(8);
+
+    /// <summary>⭐ CE-1177 — the face expression of the man being drawn (zero = calm; every other body draws calm).</summary>
+    private Vector3 _expression;
 
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);

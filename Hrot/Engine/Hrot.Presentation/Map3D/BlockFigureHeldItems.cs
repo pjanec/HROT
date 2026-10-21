@@ -70,6 +70,19 @@ public static partial class BlockFigure
         };
     }
 
+    /// <summary>⭐ <c>CE-1179</c> (People Display §5 U18) — <paramref name="parts"/> with the weapon part LAID on the ground at his feet, a
+    /// step in front of him and across his path, its length kept; his arms are left to whoever shapes them (a surrender's hands up).</summary>
+    public static KitPart[] LaidAtFeet(KitPart[] parts)
+    {
+        if (parts.Length <= WeaponIndex) return parts;
+        var weapon = parts[WeaponIndex];
+        var (a, b) = Ends(weapon);
+        float half = MathF.Max(0.1f, Vector3.Distance(a, b) / 2f);
+        var laid = (KitPart[])parts.Clone();
+        laid[WeaponIndex] = Limb(new Vector3(0.45f, half, 0.04f), new Vector3(0.45f, -half, 0.04f), 0.05f, 0.08f, weapon.Colour);
+        return laid;
+    }
+
     /// <summary>⭐ CE-1172 (People Display U11) — a police baton (m): long and thick.</summary>
     public const float BatonLength = 0.60f, BatonThickness = 0.035f;
 
