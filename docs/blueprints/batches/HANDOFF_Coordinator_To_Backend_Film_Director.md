@@ -10,6 +10,8 @@ related-designs:
 
 # HANDOFF — coordinator → backend: build the film director, slice 1 (CE-4038)
 
+⚠ **Items B0, B3 (acceptance), B7, B8 and B12 are WITHDRAWN AND REPLACED** by [STEER_Coordinator_To_Backend_Film_Director_Nondeterminism.md](STEER_Coordinator_To_Backend_Film_Director_Nondeterminism.md) (2026-10-21, R-4064: runs are not deterministic — cut on events, not on times). The rest is unchanged.
+
 **Dispatched at `751d89899`** (re-dispatched under rule 1a: the first stamp `d4f406cd9` was never merged by backend; the amendment adds the 20 / 15 Hz step fallback to B0, B3 and the gates). ⛔ **Your scope is FROZEN at this sha.**
 Documents that change after it are FYI only. If a later document invalidates an item, stop and report it; do not adapt.
 

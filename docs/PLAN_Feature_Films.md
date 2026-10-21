@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-21 (first version — coordinator; the clip list per CAPABILITIES chapter, what each needs, and the overnight pipeline proposal)
-current-answer: §1 the clip list · §2 the gaps (features no clip can show yet) · §3 the overnight pipeline (proposal, leans) · §4 what the sweep found broken
+current-answer: §1 the clip list · §2 the gaps (features no clip can show yet) · §3 the overnight pipeline (proposal, leans) · §4 what the sweep found broken · §5 the reels · §6 how to produce them
 stale-below: none
 known-rot: event times are from the scenario docs and the description sweep (2026-10-21) — the scout pass (§3) re-measures every one before filming
 related-designs:
@@ -192,3 +192,40 @@ notes are [NOTE_Coordinator_To_Behaviors_Demo_Sweep.md](blueprints/batches/NOTE_
 | ⚠ **doc says more than the file** | `ua-weapon-systems` (no Kornet team, the M2 never fires) · `ua-air-strike` ("untouched": the check only asks "not destroyed") · CE-2247 still shown open in the overview, DONE in the tracker · `uc-convoy-hit-ifv`'s Bradley is named "Convoy APC" |
 | ⚠ **missing from the overview** | `ua-grenade-or-rifle`, `sl0-platoon-march`, `cc-platoon-bound`, `ld-sentry-surprise(-360)`, `bc-*`, `df-*`, `uf-*` |
 | ⚠ **cluster load** | CE-4033: on a fresh cluster the cold demo-city navmesh bake (27.6 s) gets SimHost ejected — every demo-city clip needs a warm cache |
+
+## 5. The reels — `films/*.reel.json`
+
+A reel is one movie made of several clips (DESIGN_Film_Director §4a). Each item names `scenario` + `take` (the clip's `take` in
+`clips.json`), its `clip` id, and optionally a `chapterCard` shown before it.
+
+| reel | what | clips | film |
+|---|---|---|---|
+| [`highlights`](../films/highlights.reel.json) | ⭐ HROT in three minutes: the strongest beat of each area | 13 | ~3 min |
+| [`features`](../films/features.reel.json) | every ready clip, in CAPABILITIES order, a chapter card per chapter | 51 | ~10.5 min |
+| [`civilians`](../films/civilians.reel.json) | civilians, crowds, armed people, riots and police | 15 | ~3 min |
+| [`infantry`](../films/infantry.reel.json) | the soldier and the squad | 11 | ~2.5 min |
+| [`platoon-and-buildings`](../films/platoon-and-buildings.reel.json) | platoon, house clearing, doors, blast in buildings | 7 | ~1.5 min |
+| [`armour`](../films/armour.reel.json) | vehicles and armour | 8 | ~1.5 min |
+| [`air`](../films/air.reel.json) | drones, aircraft, air defence, airborne, crew weapons | 10 | ~2 min |
+
+⚠ Only READY clips are in reels; a 🔧 / 🟡 clip joins once its change lands (§2).
+
+## 6. How to produce them
+
+| step | with the director (CE-4038, being built) | ⚠ until it lands |
+|---|---|---|
+| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, or `POST /director/scout {scenario, take}` | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
+| **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · or `POST /director/play {"reel": "highlights"}` | — |
+| **③ fix** — a framing, a time, a name | edit the take (`scenarios/<s>/takes/<take>.take.json`), re-run ① if an anchor moved | edit `clips.json` |
+| **④ render** — overnight, on the cloud VM | `POST /director/play {"reel": "features", "capture": {"dir": "<out>", "fps": 30, "size": "1280x720"}}` → one MP4 per reel, with sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
+| **⑤ check** — without watching it all | the run's report: per item filmed / flat (nothing moved on screen) / beat missing, plus a contact sheet | `ffmpeg` scene scores (RUNBOOK §5) |
+
+📐 **Render budget** (today's ~0.8 s per frame in the editor; CinemaMode should cut it): `highlights` ≈ 184 s × 30 fps × 0.8 s ≈ **1.2 h**;
+`features` ≈ 632 s × 30 × 0.8 ≈ **4.2 h** — one night. (The 20 / 15 Hz step fallback, R-4063, is for real-time LIVE play; it does not
+change the render cost per film frame.)
+
+⚠ **Runs differ (R-4064).** A clip's cuts follow the events of the run being shown — a weapon starting to aim, a behaviour beginning, a
+unit closing on a point — and a shot is held until the next event. A capture whose required beat does not happen is re-run (a retake).
+Leads, slow motion and instant replays become exact only when films are later edited from a recording (DESIGN_Film_Director §3e).
+
+⭐ **Review before render.** Watch a reel live (②) before rendering it (④): a wrong camera costs seconds live and hours overnight.

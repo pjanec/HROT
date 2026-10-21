@@ -2,7 +2,7 @@
   "$doc": "Clip manifest for the overnight film run — docs/PLAN_Feature_Films.md §1 (the list) and §3 (the pipeline). Each clip is a director's shot list. 'at' is sim seconds, or '<anchor>[+-offset]' resolved by the scout pass. Camera keys are film.py's plan keys (yaw = the direction the camera LOOKS, degrees from east counter-clockwise; pitch negative = down). PROPOSED keys that film.py does not read yet (§3 P-7): 'to' (values reached at the end of the shot: a push-in, pan or zoom), 'speed' (sim seconds per film second; 0.5 = slow motion), 'replay' (the shot goes back in time; filmed in a second deterministic pass and spliced), 'why' (the director's note; not read by any tool).",
   "defaults": {"mode": "editor", "fps": 30, "size": "1280x720", "supersample": 1, "check_first": true},
   "clips": [
-    {"id": "F-01", "chapter": 2, "title": "Into the weather", "scenario": "ua-weather-regions", "state": "fix",
+    {"id": "F-01", "take": "main", "chapter": 2, "title": "Into the weather", "scenario": "ua-weather-regions", "state": "fix",
      "needs": "the IFV has no order: give 'IFV (drive east)' a move to (560,300) in the file",
      "caption": "Weather regions blend into each other: clear sky, a fog bank, then overcast",
      "anchors": {"fog": {"on": "near", "who": "IFV (drive east)", "point": [140, 300], "within": 6}, "cloud": {"on": "near", "who": "IFV (drive east)", "point": [330, 300], "within": 6}},
@@ -12,7 +12,7 @@
        {"at": "cloud-1", "seconds": 4, "follow": "IFV (drive east)", "distance": 40, "yaw": 90, "pitch": -4, "lift": 3, "to": {"yaw": 60}, "why": "side on: the light drops under the overcast"}
      ]},
 
-    {"id": "F-02", "chapter": 2, "title": "City traffic turns to panic", "scenario": "demo-city", "state": "fix",
+    {"id": "F-02", "take": "main", "chapter": 2, "title": "City traffic turns to panic", "scenario": "demo-city", "state": "fix",
      "needs": "a burst of fire in the recipe (a shooter with a short ShootAt task at ~20 s), or a plan action that fires one",
      "caption": "SUMO drives the city's cars and people; a burst of fire turns the people nearby into frightened civilians",
      "anchors": {"burst": {"on": "shot", "n": 1}},
@@ -22,7 +22,7 @@
        {"at": "burst+2", "seconds": 5, "look_at": "400,400,1", "distance": 70, "yaw": 225, "pitch": -25, "why": "reverse angle: people running away from the shooter"}
      ]},
 
-    {"id": "F-03", "chapter": 3, "title": "Panic, then shelter", "scenario": "ua-civ-shelter", "state": "ready",
+    {"id": "F-03", "take": "main", "chapter": 3, "title": "Panic, then shelter", "scenario": "ua-civ-shelter", "state": "ready",
      "caption": "Gunfire panics the civilians; they run to the open house, open its door and hide inside",
      "anchors": {"fire": {"on": "shot", "n": 1}, "door": {"on": "near", "who": "Civilian 1", "point": [105, 100], "within": 3}},
      "shots": [
@@ -32,7 +32,7 @@
        {"at": "door-1", "seconds": 4, "look_at": "105,100,1.5", "distance": 14, "yaw": 90, "pitch": -6, "why": "the door: they open it and disappear"}
      ]},
 
-    {"id": "F-04", "chapter": 3, "title": "Nowhere to run", "scenario": "ua-civ-cower", "state": "ready",
+    {"id": "F-04", "take": "main", "chapter": 3, "title": "Nowhere to run", "scenario": "ua-civ-cower", "state": "ready",
      "caption": "With no building near, civilians cower where they are, and recover only after the threat is gone",
      "anchors": {"fire": {"on": "shot", "n": 1}, "down": {"on": "health", "who": "Hostile", "below": 0.01}},
      "shots": [
@@ -41,7 +41,7 @@
        {"at": "down+5", "seconds": 4, "follow": "Civilian 1", "distance": 12, "yaw": 200, "pitch": -12, "why": "after: slowly up again — Alarmed, not Panic"}
      ]},
 
-    {"id": "F-05", "chapter": 3, "title": "Fear spreads", "scenario": "ua-civ-contagion", "state": "ready",
+    {"id": "F-05", "take": "main", "chapter": 3, "title": "Fear spreads", "scenario": "ua-civ-contagion", "state": "ready",
      "caption": "Fear travels through a crowd, reaching people who never heard a shot",
      "anchors": {"fire": {"on": "shot", "n": 1}, "far": {"on": "task", "who": "Civilian 15", "is": "Alarmed"}},
      "shots": [
@@ -50,7 +50,7 @@
        {"at": "far-1", "seconds": 4, "follow": "Civilian 15", "distance": 8, "yaw": 180, "pitch": -6, "why": "the last man, who heard nothing, turns and goes"}
      ]},
 
-    {"id": "F-06", "chapter": 3, "title": "Onlookers", "scenario": "ua-civ-gathering", "state": "ready",
+    {"id": "F-06", "take": "main", "chapter": 3, "title": "Onlookers", "scenario": "ua-civ-gathering", "state": "ready",
      "caption": "A hurt man draws a crowd: onlookers come from every street and form a ring",
      "anchors": {},
      "shots": [
@@ -59,7 +59,7 @@
        {"at": 30, "seconds": 6, "look_at": "200,200,0", "distance": 40, "yaw": 0, "pitch": -30, "orbit": 12, "why": "the ring, circling it"}
      ]},
 
-    {"id": "F-07", "chapter": 3, "title": "Protest, provocation, riot", "scenario": "ua-civ-provocation", "state": "ready",
+    {"id": "F-07", "take": "main", "chapter": 3, "title": "Protest, provocation, riot", "scenario": "ua-civ-provocation", "state": "ready",
      "caption": "Police facing a crowd make it angry; after a baton charge some — never the friendly ones — riot",
      "anchors": {"arrive": {"on": "near", "who": "Police shield", "point": [194, 259], "within": 4}, "charge": {"on": "task", "who": "Police baton 1", "is": "BatonCharge"}, "riot": {"on": "side", "who": "*Protester", "is": "Hostile"}},
      "shots": [
@@ -70,7 +70,7 @@
        {"at": "riot-1", "seconds": 5, "look_at": "190,265,1", "distance": 60, "yaw": 0, "pitch": -35, "why": "wide: a few break out, most stand"}
      ]},
 
-    {"id": "F-08", "chapter": 4, "title": "Drawn is not hostile, aimed is", "scenario": "ua-armed-draw-aim", "state": "ready",
+    {"id": "F-08", "take": "main", "chapter": 4, "title": "Drawn is not hostile, aimed is", "scenario": "ua-armed-draw-aim", "state": "ready",
      "caption": "A hidden pistol drawn is not a threat; the rifleman fires only when it is aimed at him",
      "anchors": {"aim": {"on": "side", "who": "Covert insurgent", "is": "Hostile"}, "fire": {"on": "shot", "by": "Rifleman", "n": 1}},
      "shots": [
@@ -80,7 +80,7 @@
        {"at": "fire-0.3", "seconds": 3, "over": "Rifleman", "toward": "Covert insurgent", "back": 3, "height": 1.7, "ahead": 0.9, "fov": 30, "why": "the shot"}
      ]},
 
-    {"id": "F-09", "chapter": 4, "title": "No shot through bystanders", "scenario": "ua-armed-shield", "state": "ready",
+    {"id": "F-09", "take": "main", "chapter": 4, "title": "No shot through bystanders", "scenario": "ua-armed-shield", "state": "ready",
      "caption": "Civilians in the line of fire hold the shot; the rifleman fires once the line is clear",
      "anchors": {"fire": {"on": "shot", "by": "Rifleman", "n": 1}},
      "shots": [
@@ -89,7 +89,7 @@
        {"at": "fire-1.5", "seconds": 3, "over": "Rifleman", "toward": "Insurgent", "back": 3, "height": 1.7, "ahead": 0.9, "fov": 20, "why": "clear line — the shot"}
      ]},
 
-    {"id": "F-10", "chapter": 4, "title": "Only the witness remembers", "scenario": "ua-armed-blend-back", "state": "ready",
+    {"id": "F-10", "take": "main", "chapter": 4, "title": "Only the witness remembers", "scenario": "ua-armed-blend-back", "state": "ready",
      "caption": "A man aims, hides his rifle and walks off: the patrol that saw it engages him, the one that did not, never does",
      "anchors": {"aim": {"on": "side", "who": "Insurgent", "is": "Hostile"}, "fire": {"on": "shot", "by": "Patrol A", "n": 1}},
      "shots": [
@@ -99,7 +99,7 @@
        {"at": "fire+1", "seconds": 3, "over": "Patrol B", "toward": "Insurgent", "back": 3, "height": 1.7, "ahead": 0.9, "fov": 25, "why": "B sees an unarmed walker — and holds"}
      ]},
 
-    {"id": "F-11", "chapter": 4, "title": "Stones and a police line", "scenario": "ua-civ-police-line", "state": "ready",
+    {"id": "F-11", "take": "main", "chapter": 4, "title": "Stones and a police line", "scenario": "ua-civ-police-line", "state": "ready",
      "caption": "Rioters throw stones; the police line answers with non-lethal force only, and the riot breaks",
      "anchors": {"force": {"on": "shot", "by": "Police launcher", "n": 1}},
      "shots": [
@@ -109,7 +109,7 @@
        {"at": "force+4", "seconds": 5, "look_at": "108,200,0", "distance": 45, "yaw": 0, "pitch": -45, "why": "high: the crowd scatters"}
      ]},
 
-    {"id": "F-12", "chapter": 4, "title": "Gas thrown back", "scenario": "ua-armed-gas-throwback", "state": "ready",
+    {"id": "F-12", "take": "main", "chapter": 4, "title": "Gas thrown back", "scenario": "ua-armed-gas-throwback", "state": "ready",
      "caption": "A hardened rioter picks up the gas canister and throws it back at the police",
      "anchors": {"pick": {"on": "task", "who": "Hardened rioter", "is": "Scavenge"}, "throw": {"on": "shot", "by": "Hardened rioter", "n": 1}},
      "shots": [
@@ -118,7 +118,7 @@
        {"at": "throw-0.5", "seconds": 4, "follow": "Policeman", "distance": 12, "yaw": 0, "pitch": -10, "why": "it lands among the police"}
      ]},
 
-    {"id": "F-13", "chapter": 4, "title": "The escalation ladder", "scenario": "ua-civ-escalation", "state": "ready",
+    {"id": "F-13", "take": "main", "chapter": 4, "title": "The escalation ladder", "scenario": "ua-civ-escalation", "state": "ready",
      "caption": "Police warn first, use non-lethal force on the rioters, and lethal rounds only at the gunman",
      "anchors": {"warn": {"on": "gesture", "who": "Police rifleman", "is": "Warning"}, "lethal": {"on": "shot", "by": "Police rifleman", "n": 1}},
      "shots": [
@@ -127,7 +127,7 @@
        {"at": "lethal+1", "seconds": 4, "look_at": "108,200,0", "distance": 35, "yaw": 0, "pitch": -40, "why": "high: the rioters stunned, not shot"}
      ]},
 
-    {"id": "F-14", "chapter": 4, "title": "Celebratory fire", "scenario": "ua-armed-celebration", "state": "ready",
+    {"id": "F-14", "take": "main", "chapter": 4, "title": "Celebratory fire", "scenario": "ua-armed-celebration", "state": "ready",
      "caption": "A wedding guest fires into the air and is only warned; when he aims at the patrol, he is shot",
      "anchors": {"volley": {"on": "shot", "by": "Celebrant", "n": 1}, "fire": {"on": "shot", "by": "Police patrol", "n": 1}},
      "shots": [
@@ -136,7 +136,7 @@
        {"at": "fire-1", "seconds": 3, "follow": "Celebrant", "distance": 7, "yaw": 180, "pitch": -6, "why": "he turns the rifle on them — shot"}
      ]},
 
-    {"id": "F-15", "chapter": 4, "title": "Surrender, then a feint", "scenario": "ua-armed-surrender", "state": "ready",
+    {"id": "F-15", "take": "main", "chapter": 4, "title": "Surrender, then a feint", "scenario": "ua-armed-surrender", "state": "ready",
      "caption": "Hands up and weapon down hold fire; when he picks the rifle up again he is engaged",
      "anchors": {"fire": {"on": "shot", "by": "Rifleman", "n": 1}},
      "shots": [
@@ -145,7 +145,7 @@
        {"at": "fire-2", "seconds": 4, "follow": "Enemy Soldier", "distance": 9, "yaw": 135, "pitch": -8, "why": "he reaches for it — and is shot"}
      ]},
 
-    {"id": "F-16", "chapter": 4, "title": "Suicide bomber", "scenario": "ua-armed-bomber", "state": "ready",
+    {"id": "F-16", "take": "main", "chapter": 4, "title": "Suicide bomber", "scenario": "ua-armed-bomber", "state": "ready",
      "caption": "The vest stays hidden until he sets it off; the casualties fall with the distance from the blast",
      "anchors": {"blast": {"on": "blast", "n": 1}},
      "shots": [
@@ -156,7 +156,7 @@
        {"at": "blast+3", "seconds": 4, "look_at": "200,200,0", "distance": 35, "yaw": 0, "pitch": -60, "why": "overhead: who fell, by distance"}
      ]},
 
-    {"id": "F-17", "chapter": 4, "title": "A blow", "scenario": "ua-civ-melee", "state": "ready",
+    {"id": "F-17", "take": "main", "chapter": 4, "title": "A blow", "scenario": "ua-civ-melee", "state": "ready",
      "caption": "A protester strikes a policeman down — and that act makes him hostile",
      "anchors": {"blow": {"on": "side", "who": "Rioter", "is": "Hostile"}},
      "shots": [
@@ -164,7 +164,7 @@
        {"at": "blow-0.5", "seconds": 2, "follow": "Policeman", "distance": 4, "yaw": 0, "pitch": -10, "speed": 0.5, "why": "the blow, slow"}
      ]},
 
-    {"id": "F-18", "chapter": 5, "title": "Hold at a watched road", "scenario": "ua-danger-crossing", "state": "ready",
+    {"id": "F-18", "take": "main", "chapter": 5, "title": "Hold at a watched road", "scenario": "ua-danger-crossing", "state": "ready",
      "caption": "A soldier holds short of a road an enemy can see, and rushes across only when it is clear",
      "anchors": {"hold": {"on": "task", "who": "Rifleman", "is": "HoldShort"}, "rush": {"on": "task", "who": "Rifleman", "is": "Cross"}},
      "shots": [
@@ -173,7 +173,7 @@
        {"at": "rush-0.5", "seconds": 4, "follow": "Rifleman", "distance": 14, "yaw": 0, "pitch": -15, "why": "the dash"}
      ]},
 
-    {"id": "F-19", "chapter": 5, "title": "Flank a lost target", "scenario": "ua-attack-approach", "state": "ready",
+    {"id": "F-19", "take": "main", "chapter": 5, "title": "Flank a lost target", "scenario": "ua-attack-approach", "state": "ready",
      "caption": "When the target ducks out of sight, the soldier moves to a new firing position",
      "anchors": {"fire": {"on": "shot", "by": "Rifleman", "n": 1}},
      "shots": [
@@ -182,7 +182,7 @@
        {"at": "fire-1", "seconds": 3, "over": "Rifleman", "toward": "Hidden Hostile", "back": 3, "height": 1.7, "ahead": 0.8, "fov": 30, "why": "sight regained, fire"}
      ]},
 
-    {"id": "F-20", "chapter": 5, "title": "Window duel", "scenario": "bt-window-duel", "state": "ready",
+    {"id": "F-20", "take": "main", "chapter": 5, "title": "Window duel", "scenario": "bt-window-duel", "state": "ready",
      "caption": "Peek, fire, hide: one man moves between windows, the other bounds between vans",
      "anchors": {"first": {"on": "shot", "n": 1}, "bound": {"on": "near", "who": "Street Rifleman", "point": [113, 76], "within": 2}},
      "shots": [
@@ -192,7 +192,7 @@
        {"at": 60, "seconds": 4, "follow": "Window Rifleman", "distance": 8, "yaw": 270, "pitch": -5, "why": "the window man shifts to the other window"}
      ]},
 
-    {"id": "F-21", "chapter": 5, "title": "Grenade over the sandbags", "scenario": "ua-grenade-or-rifle", "state": "ready",
+    {"id": "F-21", "take": "main", "chapter": 5, "title": "Grenade over the sandbags", "scenario": "ua-grenade-or-rifle", "state": "ready",
      "needs": "no live check exists — the scout pass is its first live look",
      "caption": "Against a man behind sandbags, the grenadier closes and lobs a grenade",
      "anchors": {"throw": {"on": "shot", "by": "Grenadier", "n": 1}, "blast": {"on": "blast", "n": 1}},
@@ -202,7 +202,7 @@
        {"at": "blast-1", "seconds": 3, "look_at": "149,42,0.5", "distance": 12, "yaw": 90, "pitch": -25, "why": "the burst behind the bags"}
      ]},
 
-    {"id": "F-22", "chapter": 5, "title": "The sentry turns", "scenario": "ld-sentry-surprise-360", "state": "ready",
+    {"id": "F-22", "take": "main", "chapter": 5, "title": "The sentry turns", "scenario": "ld-sentry-surprise-360", "state": "ready",
      "caption": "A sentry notices a man creeping up behind him and turns to face him",
      "anchors": {"near": {"on": "near", "who": "Hostile B", "point": [185, 40], "within": 5}},
      "shots": [
@@ -211,7 +211,7 @@
        {"at": "near-1", "seconds": 4, "follow": "Sentry", "distance": 7, "yaw": 300, "pitch": -6, "why": "he turns"}
      ]},
 
-    {"id": "F-24", "chapter": 6, "title": "Fire and movement", "scenario": "ua-fire-and-movement", "state": "ready",
+    {"id": "F-24", "take": "main", "chapter": 6, "title": "Fire and movement", "scenario": "ua-fire-and-movement", "state": "ready",
      "caption": "One half of the squad fires while the other rushes to cover, then they swap",
      "anchors": {"contact": {"on": "shot", "n": 1}},
      "shots": [
@@ -221,7 +221,7 @@
        {"at": "contact+60", "seconds": 4, "follow": "Leader", "distance": 45, "yaw": 45, "pitch": -45, "why": "the gap has closed"}
      ]},
 
-    {"id": "F-25", "chapter": 6, "title": "Bounding overwatch", "scenario": "ua-bounding-overwatch", "state": "ready",
+    {"id": "F-25", "take": "main", "chapter": 6, "title": "Bounding overwatch", "scenario": "ua-bounding-overwatch", "state": "ready",
      "caption": "Half the squad watches while the other half moves; at contact the watchers open fire at once",
      "anchors": {"contact": {"on": "shot", "n": 1}},
      "shots": [
@@ -230,7 +230,7 @@
        {"at": "contact+1", "seconds": 4, "follow": "Leader", "distance": 40, "yaw": 90, "pitch": -40, "why": "contact: the overwatch fires"}
      ]},
 
-    {"id": "F-26", "chapter": 6, "title": "Crossing a road", "scenario": "ua-squad-danger-crossing", "state": "ready",
+    {"id": "F-26", "take": "main", "chapter": 6, "title": "Crossing a road", "scenario": "ua-squad-danger-crossing", "state": "ready",
      "caption": "Security first, a pair at a time, far side secured, security last",
      "anchors": {"first": {"on": "near", "who": "Rifleman 1", "point": [200, 75], "within": 3}},
      "shots": [
@@ -239,7 +239,7 @@
        {"at": "first+20", "seconds": 5, "look_at": "195,72,0", "distance": 70, "yaw": 90, "pitch": -55, "why": "the last ones over"}
      ]},
 
-    {"id": "F-27", "chapter": 6, "title": "Contact mid-crossing", "scenario": "ua-squad-danger-crossing-contact", "state": "ready",
+    {"id": "F-27", "take": "main", "chapter": 6, "title": "Contact mid-crossing", "scenario": "ua-squad-danger-crossing-contact", "state": "ready",
      "caption": "Fire comes while the squad is split by the road; both halves fight, then assault",
      "anchors": {"contact": {"on": "shot", "n": 1}},
      "shots": [
@@ -248,7 +248,7 @@
        {"at": "contact+20", "seconds": 5, "follow": "Leader", "distance": 45, "yaw": 45, "pitch": -45, "why": "the assault by fire and movement"}
      ]},
 
-    {"id": "F-28", "chapter": 6, "title": "Casualty care", "scenario": "ua-casualty-care", "state": "script",
+    {"id": "F-28", "take": "main", "chapter": 6, "title": "Casualty care", "scenario": "ua-casualty-care", "state": "script",
      "needs": "the check makes Rifleman 3 fall (a health edit); film with that action in the plan, or (better) let a Hostile with ammo hit him — blocked by CE-2160",
      "caption": "A man goes down; the squad lays covering fire and the medic drags him to cover",
      "anchors": {"down": {"on": "health", "who": "Rifleman 3", "below": 0.3}, "medic": {"on": "task", "who": "Medic", "is": "Rescue"}},
@@ -258,7 +258,7 @@
        {"at": "medic-0.5", "seconds": 6, "follow": "Medic", "distance": 10, "yaw": 45, "pitch": -15, "why": "the medic goes out and drags him back"}
      ]},
 
-    {"id": "F-29", "chapter": 6, "title": "Spread the fire", "scenario": "ua-fire-distribution", "state": "ready",
+    {"id": "F-29", "take": "main", "chapter": 6, "title": "Spread the fire", "scenario": "ua-fire-distribution", "state": "ready",
      "caption": "The leader spreads the squad's fire over three targets, no more than two men on any one",
      "anchors": {"contact": {"on": "shot", "n": 1}},
      "shots": [
@@ -266,7 +266,7 @@
        {"at": "contact+2", "seconds": 5, "look_at": "300,410,0", "distance": 130, "yaw": 90, "pitch": -55, "why": "high: tracers fan out to three targets"}
      ]},
 
-    {"id": "F-30", "chapter": 7, "title": "Platoon march", "scenario": "sl0-platoon-march", "state": "ready",
+    {"id": "F-30", "take": "main", "chapter": 7, "title": "Platoon march", "scenario": "sl0-platoon-march", "state": "ready",
      "caption": "Two squads march in column while the third lies back",
      "anchors": {},
      "shots": [
@@ -274,7 +274,7 @@
        {"at": 60, "seconds": 5, "follow": "Bravo 2", "distance": 15, "yaw": 135, "pitch": -12, "why": "in the file"}
      ]},
 
-    {"id": "F-32", "chapter": 7, "title": "Platoon attacks a house", "scenario": "pc-defend-house", "state": "ready",
+    {"id": "F-32", "take": "main", "chapter": 7, "title": "Platoon attacks a house", "scenario": "pc-defend-house", "state": "ready",
      "caption": "AI on both sides: a platoon attack with base of fire and bound, against a platoon defending a house",
      "anchors": {"set": {"on": "task", "who": "Blue Squad 1", "is": "Set"}, "lift": {"on": "shot", "by": "*Red", "n": 1}, "clear": {"on": "task", "who": "*Blue Squad", "is": "ClearBuilding"}},
      "shots": [
@@ -284,7 +284,7 @@
        {"at": "clear-6", "seconds": 6, "look_at": "121,150,0", "distance": 90, "yaw": 90, "pitch": -40, "why": "the assault reaches the house"}
      ]},
 
-    {"id": "F-33", "chapter": 8, "title": "Clear the house", "scenario": "bc-house-clear", "state": "ready",
+    {"id": "F-33", "take": "main", "chapter": 8, "title": "Clear the house", "scenario": "bc-house-clear", "state": "ready",
      "caption": "A squad clears a house room by room, fire teams taking turns, sparing the civilians inside",
      "anchors": {"entry": {"on": "near", "who": "Blue Leader", "point": [40, 104], "within": 3}},
      "shots": [
@@ -293,7 +293,7 @@
        {"at": "entry+30", "seconds": 6, "look_at": "47,105,0", "distance": 30, "yaw": 90, "pitch": -75, "why": "the last rooms"}
      ]},
 
-    {"id": "F-35", "chapter": 8, "title": "Doors", "scenario": "bt-doors", "state": "ready",
+    {"id": "F-35", "take": "main", "chapter": 8, "title": "Doors", "scenario": "bt-doors", "state": "ready",
      "caption": "A locked door is avoided, a closed one opened on the way; a locksmith unlocks the front",
      "anchors": {},
      "shots": [
@@ -302,7 +302,7 @@
        {"at": 40, "seconds": 4, "follow": "Locksmith", "distance": 6, "yaw": 90, "pitch": -8, "why": "the locksmith at the front"}
      ]},
 
-    {"id": "F-36", "chapter": 8, "title": "Prone saves your life", "scenario": "bt-grenade-posture", "state": "ready",
+    {"id": "F-36", "take": "main", "chapter": 8, "title": "Prone saves your life", "scenario": "bt-grenade-posture", "state": "ready",
      "caption": "A grenade lands between a standing and a prone man; the fragments find only the standing one",
      "anchors": {"blast": {"on": "blast", "n": 1}},
      "shots": [
@@ -311,7 +311,7 @@
        {"at": "blast-0.3", "seconds": 2, "look_at": "110,43,0.5", "distance": 7, "yaw": 270, "pitch": -4, "speed": 0.25, "replay": true, "why": "replay, very slow"}
      ]},
 
-    {"id": "F-37", "chapter": 8, "title": "A roof stops the blast", "scenario": "bt-mortar-roof", "state": "ready",
+    {"id": "F-37", "take": "main", "chapter": 8, "title": "A roof stops the blast", "scenario": "bt-mortar-roof", "state": "ready",
      "caption": "A mortar round bursts on a roof: the man in the courtyard is hit, the man downstairs is not",
      "anchors": {"tube": {"on": "shot", "n": 1}, "blast": {"on": "blast", "n": 1}},
      "shots": [
@@ -320,7 +320,7 @@
        {"at": "blast+2", "seconds": 4, "look_at": "100,100,0", "distance": 20, "yaw": 45, "pitch": -70, "why": "after: who is down"}
      ]},
 
-    {"id": "F-40", "chapter": 9, "title": "TOW or 25 mm", "scenario": "ua-weapon-choice", "state": "ready",
+    {"id": "F-40", "take": "main", "chapter": 9, "title": "TOW or 25 mm", "scenario": "ua-weapon-choice", "state": "ready",
      "caption": "The weapon picks itself: a 25 mm burst for the man, a TOW for the tank",
      "anchors": {"burst": {"on": "shot", "by": "Bradley", "n": 1}, "tow": {"on": "hit", "target": "T-72"}},
      "shots": [
@@ -329,7 +329,7 @@
        {"at": "tow-2", "seconds": 3, "follow": "T-72", "distance": 30, "yaw": 160, "pitch": -8, "why": "the missile arrives"}
      ]},
 
-    {"id": "F-41", "chapter": 9, "title": "Tank round the corner", "scenario": "ua-tank-corner", "state": "ready",
+    {"id": "F-41", "take": "main", "chapter": 9, "title": "Tank round the corner", "scenario": "ua-tank-corner", "state": "ready",
      "needs": "⚠ the AT team often dies in the first exposure; the cycle may show only once",
      "caption": "The tank shows itself just long enough to fire, then backs into cover",
      "anchors": {"fire": {"on": "shot", "by": "Tank", "n": 1}},
@@ -339,7 +339,7 @@
        {"at": "fire+2", "seconds": 4, "look_at": "200,120,0", "distance": 120, "yaw": 90, "pitch": -45, "why": "high: back into cover"}
      ]},
 
-    {"id": "F-42", "chapter": 9, "title": "The lock that never comes", "scenario": "ua-javelin-lock", "state": "ready",
+    {"id": "F-42", "take": "main", "chapter": 9, "title": "The lock that never comes", "scenario": "ua-javelin-lock", "state": "ready",
      "caption": "The tank stays exposed for less than the Javelin's lock time",
      "anchors": {"hit": {"on": "hit", "target": "Tank Open"}},
      "shots": [
@@ -347,7 +347,7 @@
        {"at": "hit-3", "seconds": 4, "follow": "Tank Open", "distance": 35, "yaw": 0, "pitch": -10, "why": "the other tank, in the open, is hit"}
      ]},
 
-    {"id": "F-43", "chapter": 9, "title": "RPG from the windows", "scenario": "ua-rpg-window", "state": "ready",
+    {"id": "F-43", "take": "main", "chapter": 9, "title": "RPG from the windows", "scenario": "ua-rpg-window", "state": "ready",
      "caption": "An RPG man fires from one window, moves along the floor, and fires from the next",
      "anchors": {"rpg": {"on": "shot", "by": "RPG Man", "n": 1}, "rpg2": {"on": "shot", "by": "RPG Man", "n": 2}},
      "shots": [
@@ -357,7 +357,7 @@
        {"at": "rpg2-3", "seconds": 4, "look_at": "105,101,4", "distance": 25, "yaw": 90, "pitch": -5, "why": "the facade: he fires again from another window"}
      ]},
 
-    {"id": "F-44", "chapter": 9, "title": "Stand-off", "scenario": "ua-ifv-standoff", "state": "ready",
+    {"id": "F-44", "take": "main", "chapter": 9, "title": "Stand-off", "scenario": "ua-ifv-standoff", "state": "ready",
      "caption": "Far out, the IFV's 25 mm kills RPG men untouched; up close, an RPG gets its shot in",
      "anchors": {"far": {"on": "shot", "by": "IFV Standoff", "n": 1}, "close": {"on": "hit", "target": "IFV Close"}},
      "shots": [
@@ -365,7 +365,7 @@
        {"at": "close-2", "seconds": 4, "follow": "IFV Close", "distance": 20, "yaw": 90, "pitch": -8, "why": "close in, the RPG hits"}
      ]},
 
-    {"id": "F-45", "chapter": 9, "title": "A round for each target", "scenario": "ua-tank-ammo", "state": "ready",
+    {"id": "F-45", "take": "main", "chapter": 9, "title": "A round for each target", "scenario": "ua-tank-ammo", "state": "ready",
      "needs": "re-run the check first (soft targets survived on 2026-10-16; the causes are fixed)",
      "caption": "The tank picks the round: sabot for the tank, high explosive for the truck",
      "anchors": {"s1": {"on": "shot", "by": "Tank", "n": 1}, "s2": {"on": "shot", "by": "Tank", "n": 2}},
@@ -375,7 +375,7 @@
        {"at": "s2+4", "seconds": 3, "follow": "Technical", "distance": 25, "yaw": 0, "pitch": -10, "why": "the HE on the truck"}
      ]},
 
-    {"id": "F-46", "chapter": 9, "title": "Hull-down platoon", "scenario": "ua-hill-attack", "state": "ready",
+    {"id": "F-46", "take": "main", "chapter": 9, "title": "Hull-down platoon", "scenario": "ua-hill-attack", "state": "ready",
      "caption": "Pairs creep to the crest, fire one round each and reverse out of sight",
      "anchors": {"first": {"on": "shot", "by": "*Tank", "n": 1}},
      "shots": [
@@ -384,7 +384,7 @@
        {"at": "first+3", "seconds": 4, "look_at": "275,200,2", "distance": 150, "yaw": 0, "pitch": -6, "fov": 30, "why": "back down, the other pair goes up"}
      ]},
 
-    {"id": "F-47", "chapter": 9, "title": "Push through", "scenario": "uc-convoy-hit-ifv", "state": "ready",
+    {"id": "F-47", "take": "main", "chapter": 9, "title": "Push through", "scenario": "uc-convoy-hit-ifv", "state": "ready",
      "caption": "An IED under the convoy: the Bradley is hit but drives through with its squad still aboard",
      "anchors": {"blast": {"on": "blast", "n": 1}},
      "shots": [
@@ -394,7 +394,7 @@
        {"at": "blast+3", "seconds": 4, "follow": "Convoy APC", "distance": 30, "yaw": 90, "pitch": -15, "why": "it keeps going"}
      ]},
 
-    {"id": "F-48", "chapter": 10, "title": "Hide from the drone", "scenario": "ua-drone-shelter", "state": "ready",
+    {"id": "F-48", "take": "main", "chapter": 10, "title": "Hide from the drone", "scenario": "ua-drone-shelter", "state": "ready",
      "caption": "A tank hears an FPV drone and backs under a deck; the tank in the open is hit on the roof",
      "anchors": {"hide": {"on": "task", "who": "Tank by the deck", "is": "ShelterFromAir"}, "hit": {"on": "hit", "target": "Tank in the open"}},
      "shots": [
@@ -404,7 +404,7 @@
        {"at": "hit-0.5", "seconds": 2, "follow": "Tank in the open", "distance": 18, "yaw": 90, "pitch": -25, "speed": 0.5, "replay": true, "why": "the roof hit, slow"}
      ]},
 
-    {"id": "F-49", "chapter": 10, "title": "Level bomb", "scenario": "ua-air-strike", "state": "ready",
+    {"id": "F-49", "take": "main", "chapter": 10, "title": "Level bomb", "scenario": "ua-air-strike", "state": "ready",
      "caption": "The A-10 releases on the weapon's cue; the bomb hits the target, the truck 120 m off survives",
      "anchors": {"release": {"on": "shot", "by": "A-10", "n": 1}, "blast": {"on": "blast", "n": 1}},
      "shots": [
@@ -413,7 +413,7 @@
        {"at": "blast-2", "seconds": 4, "look_at": "620,360,0", "distance": 250, "yaw": 90, "pitch": -15, "fov": 25, "why": "both trucks in frame; the bomb lands"}
      ]},
 
-    {"id": "F-50", "chapter": 10, "title": "Door-gun orbit", "scenario": "ua-air-attack", "state": "ready",
+    {"id": "F-50", "take": "door-gun", "chapter": 10, "title": "Door-gun orbit", "scenario": "ua-air-attack", "state": "ready",
      "caption": "A helicopter circles its target firing from the door; when that gunner is hit it turns to fight from the other door",
      "anchors": {"orbit": {"on": "near", "who": "Door Gunship UH-60", "point": [-350, 300], "within": 150}, "gunner": {"on": "health", "who": "*Door Gunner", "below": 0.3}},
      "shots": [
@@ -422,7 +422,7 @@
        {"at": "gunner+2", "seconds": 5, "look_at": "-350,300,0", "distance": 400, "yaw": 90, "pitch": -25, "fov": 30, "why": "the orbit reverses"}
      ]},
 
-    {"id": "F-51", "chapter": 10, "title": "Gun and rocket runs", "scenario": "ua-air-attack", "state": "ready",
+    {"id": "F-51", "take": "gun-runs", "chapter": 10, "title": "Gun and rocket runs", "scenario": "ua-air-attack", "state": "ready",
      "caption": "An Apache attacks with rockets and gun; an A-10 strafes a column",
      "anchors": {"apache": {"on": "shot", "by": "Apache", "n": 1}, "gun": {"on": "shot", "by": "Gunship A-10", "n": 1}},
      "shots": [
@@ -432,7 +432,7 @@
        {"at": "gun+0.5", "seconds": 3, "look_at": "520,-150,0", "distance": 80, "yaw": 180, "pitch": -15, "why": "the column hit"}
      ]},
 
-    {"id": "F-52", "chapter": 10, "title": "Missile warning", "scenario": "ua-air-defence", "state": "ready",
+    {"id": "F-52", "take": "main", "chapter": 10, "title": "Missile warning", "scenario": "ua-air-defence", "state": "ready",
      "needs": "⚠ the decoys are not drawn (§2 G-2) — the clip shows the break only",
      "caption": "A Stinger is launched; the Apache's missile warning makes it break low",
      "anchors": {"launch": {"on": "shot", "by": "Stinger Gunner", "n": 1}},
@@ -441,7 +441,7 @@
        {"at": "launch+0.5", "seconds": 4, "follow": "Apache", "distance": 40, "yaw": 0, "pitch": -5, "why": "the break"}
      ]},
 
-    {"id": "F-53", "chapter": 10, "title": "Air assault", "scenario": "ua-air-assault", "state": "ready",
+    {"id": "F-53", "take": "main", "chapter": 10, "title": "Air assault", "scenario": "ua-air-assault", "state": "ready",
      "caption": "Nobody gets out in the air; the helicopter lifts off only after the last man",
      "anchors": {"land": {"on": "near", "who": "UH-60 (doors off)", "point": [190, 340], "within": 5}, "out": {"on": "embark", "who": "Rifleman 5", "is": false}},
      "shots": [
@@ -450,7 +450,7 @@
        {"at": "out+1", "seconds": 4, "look_at": "190,340,5", "distance": 60, "yaw": 45, "pitch": -5, "why": "lift-off over the squad"}
      ]},
 
-    {"id": "F-54", "chapter": 10, "title": "Air rescue", "scenario": "ua-air-rescue", "state": "ready",
+    {"id": "F-54", "take": "main", "chapter": 10, "title": "Air rescue", "scenario": "ua-air-rescue", "state": "ready",
      "caption": "The medic carries the downed pilot aboard; the helicopter lifts off",
      "anchors": {"pick": {"on": "near", "who": "Medic", "point": [190, 318], "within": 2}, "lift": {"on": "near", "who": "UH-60 (doors off)", "point": [190, 340], "within": 8}},
      "shots": [
@@ -459,7 +459,7 @@
        {"at": 68, "seconds": 4, "look_at": "190,340,5", "distance": 60, "yaw": 45, "pitch": -5, "why": "lift-off"}
      ]},
 
-    {"id": "F-55", "chapter": 10, "title": "Fast rope", "scenario": "ua-fast-rope-roof", "state": "ready",
+    {"id": "F-55", "take": "main", "chapter": 10, "title": "Fast rope", "scenario": "ua-fast-rope-roof", "state": "ready",
      "caption": "Eight men slide down ropes onto a roof in under eight seconds",
      "anchors": {},
      "shots": [
@@ -468,7 +468,7 @@
        {"at": 26, "seconds": 5, "look_at": "65,255,8", "distance": 50, "yaw": 45, "pitch": -25, "why": "the ring on the roof, the helicopter leaves"}
      ]},
 
-    {"id": "F-56", "chapter": 10, "title": "Parachute drop", "scenario": "ua-airborne-drop", "state": "ready",
+    {"id": "F-56", "take": "main", "chapter": 10, "title": "Parachute drop", "scenario": "ua-airborne-drop", "state": "ready",
      "caption": "A stick of eight jumps, one a second, lands near their points and assembles",
      "anchors": {"jump": {"on": "embark", "who": "Paratrooper 1", "is": false}},
      "shots": [
@@ -477,7 +477,7 @@
        {"at": "jump+60", "seconds": 5, "follow": "Paratrooper 1", "distance": 90, "yaw": 90, "pitch": -50, "why": "on the ground, assembling"}
      ]},
 
-    {"id": "F-58", "chapter": 11, "title": "Adjust, then fire for effect", "scenario": "ua-indirect-fire", "state": "script",
+    {"id": "F-58", "take": "main", "chapter": 11, "title": "Adjust, then fire for effect", "scenario": "ua-indirect-fire", "state": "script",
      "needs": "the check sends the orders; better: give Observer and Mortar Section their missions in the file so a launch plays by itself",
      "caption": "The observer walks the rounds onto the target from what he sees, then calls fire for effect",
      "anchors": {"b1": {"on": "blast", "n": 1}, "ffe": {"on": "blast", "n": 4}},
@@ -487,7 +487,7 @@
        {"at": "ffe-1", "seconds": 5, "look_at": "340,300,0", "distance": 300, "yaw": 270, "pitch": -15, "fov": 25, "why": "fire for effect on target"}
      ]},
 
-    {"id": "F-60", "chapter": 12, "title": "Crew weapons", "scenario": "ua-weapon-systems", "state": "ready",
+    {"id": "F-60", "take": "main", "chapter": 12, "title": "Crew weapons", "scenario": "ua-weapon-systems", "state": "ready",
      "needs": "⚠ the M2 is not checked to fire",
      "caption": "Weapons are entities: a sentry gun fires by itself; a crew sets up an M2; a man picks up a Javelin",
      "anchors": {"sentry": {"on": "shot", "by": "Sentry Gun", "n": 1}},
@@ -496,7 +496,7 @@
        {"at": 2, "seconds": 5, "replay": true, "follow": "M2 Gunner", "distance": 7, "yaw": 90, "pitch": -15, "why": "the crew sets up the M2"},
        {"at": 2, "seconds": 4, "replay": true, "follow": "Javelin Man", "distance": 6, "yaw": 90, "pitch": -15, "why": "the Javelin picked up"}
      ]},
-    {"id": "F-61", "chapter": 5, "title": "Pinned in the open", "scenario": "uf-alone-under-fire", "state": "ready",
+    {"id": "F-61", "take": "main", "chapter": 5, "title": "Pinned in the open", "scenario": "uf-alone-under-fire", "state": "ready",
      "caption": "Alone under fire, a soldier rushes crouched, drops prone at a near miss, stays down while pinned, and rushes on when the fire stops",
      "anchors": {"fire": {"on": "shot", "by": "*Hostile", "n": 1}},
      "shots": [
@@ -506,7 +506,7 @@
        {"at": "fire+8", "seconds": 5, "follow": "Runner", "distance": 8, "yaw": 0, "pitch": -6, "why": "up again and running"}
      ]},
 
-    {"id": "F-62", "chapter": 8, "title": "Into the room", "scenario": "bc-room-clear", "state": "ready",
+    {"id": "F-62", "take": "main", "chapter": 8, "title": "Into the room", "scenario": "bc-room-clear", "state": "ready",
      "needs": "⚠ CE-2341: about 1 run in 4 loses all four entry men — the scout pass shows which run this is (the editor is deterministic, so one good run stays good)",
      "caption": "The squad stacks beside the door out of the window's view, breaches, and goes in one man at a time",
      "anchors": {"stack": {"on": "near", "who": "Blue Rifleman 1", "point": [47, 112], "within": 3}, "first": {"on": "shot", "n": 1}},

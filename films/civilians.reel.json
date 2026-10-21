@@ -1,0 +1,96 @@
+{
+ "title": "HROT — Civilians and crowds · Armed people, riots and police",
+ "transition": "fade",
+ "items": [
+  {
+   "scenario": "ua-civ-shelter",
+   "take": "main",
+   "title": "Panic, then shelter",
+   "clip": "F-03"
+  },
+  {
+   "scenario": "ua-civ-cower",
+   "take": "main",
+   "title": "Nowhere to run",
+   "clip": "F-04"
+  },
+  {
+   "scenario": "ua-civ-contagion",
+   "take": "main",
+   "title": "Fear spreads",
+   "clip": "F-05"
+  },
+  {
+   "scenario": "ua-civ-gathering",
+   "take": "main",
+   "title": "Onlookers",
+   "clip": "F-06"
+  },
+  {
+   "scenario": "ua-civ-provocation",
+   "take": "main",
+   "title": "Protest, provocation, riot",
+   "clip": "F-07"
+  },
+  {
+   "scenario": "ua-armed-draw-aim",
+   "take": "main",
+   "title": "Drawn is not hostile, aimed is",
+   "clip": "F-08"
+  },
+  {
+   "scenario": "ua-armed-shield",
+   "take": "main",
+   "title": "No shot through bystanders",
+   "clip": "F-09"
+  },
+  {
+   "scenario": "ua-armed-blend-back",
+   "take": "main",
+   "title": "Only the witness remembers",
+   "clip": "F-10"
+  },
+  {
+   "scenario": "ua-civ-police-line",
+   "take": "main",
+   "title": "Stones and a police line",
+   "clip": "F-11"
+  },
+  {
+   "scenario": "ua-armed-gas-throwback",
+   "take": "main",
+   "title": "Gas thrown back",
+   "clip": "F-12"
+  },
+  {
+   "scenario": "ua-civ-escalation",
+   "take": "main",
+   "title": "The escalation ladder",
+   "clip": "F-13"
+  },
+  {
+   "scenario": "ua-armed-celebration",
+   "take": "main",
+   "title": "Celebratory fire",
+   "clip": "F-14"
+  },
+  {
+   "scenario": "ua-armed-surrender",
+   "take": "main",
+   "title": "Surrender, then a feint",
+   "clip": "F-15"
+  },
+  {
+   "scenario": "ua-armed-bomber",
+   "take": "main",
+   "title": "Suicide bomber",
+   "clip": "F-16"
+  },
+  {
+   "scenario": "ua-civ-melee",
+   "take": "main",
+   "title": "A blow",
+   "clip": "F-17"
+  }
+ ]
+}

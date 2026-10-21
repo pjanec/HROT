@@ -1,0 +1,322 @@
+{
+ "title": "HROT — what the engine can do",
+ "transition": "fade",
+ "note": "every ready clip in CAPABILITIES chapter order; a chapter card opens each chapter",
+ "items": [
+  {
+   "scenario": "ua-civ-shelter",
+   "take": "main",
+   "title": "Panic, then shelter",
+   "clip": "F-03",
+   "chapterCard": "3 · Civilians and crowds"
+  },
+  {
+   "scenario": "ua-civ-cower",
+   "take": "main",
+   "title": "Nowhere to run",
+   "clip": "F-04"
+  },
+  {
+   "scenario": "ua-civ-contagion",
+   "take": "main",
+   "title": "Fear spreads",
+   "clip": "F-05"
+  },
+  {
+   "scenario": "ua-civ-gathering",
+   "take": "main",
+   "title": "Onlookers",
+   "clip": "F-06"
+  },
+  {
+   "scenario": "ua-civ-provocation",
+   "take": "main",
+   "title": "Protest, provocation, riot",
+   "clip": "F-07"
+  },
+  {
+   "scenario": "ua-armed-draw-aim",
+   "take": "main",
+   "title": "Drawn is not hostile, aimed is",
+   "clip": "F-08",
+   "chapterCard": "4 · Armed people, riots and police"
+  },
+  {
+   "scenario": "ua-armed-shield",
+   "take": "main",
+   "title": "No shot through bystanders",
+   "clip": "F-09"
+  },
+  {
+   "scenario": "ua-armed-blend-back",
+   "take": "main",
+   "title": "Only the witness remembers",
+   "clip": "F-10"
+  },
+  {
+   "scenario": "ua-civ-police-line",
+   "take": "main",
+   "title": "Stones and a police line",
+   "clip": "F-11"
+  },
+  {
+   "scenario": "ua-armed-gas-throwback",
+   "take": "main",
+   "title": "Gas thrown back",
+   "clip": "F-12"
+  },
+  {
+   "scenario": "ua-civ-escalation",
+   "take": "main",
+   "title": "The escalation ladder",
+   "clip": "F-13"
+  },
+  {
+   "scenario": "ua-armed-celebration",
+   "take": "main",
+   "title": "Celebratory fire",
+   "clip": "F-14"
+  },
+  {
+   "scenario": "ua-armed-surrender",
+   "take": "main",
+   "title": "Surrender, then a feint",
+   "clip": "F-15"
+  },
+  {
+   "scenario": "ua-armed-bomber",
+   "take": "main",
+   "title": "Suicide bomber",
+   "clip": "F-16"
+  },
+  {
+   "scenario": "ua-civ-melee",
+   "take": "main",
+   "title": "A blow",
+   "clip": "F-17"
+  },
+  {
+   "scenario": "ua-danger-crossing",
+   "take": "main",
+   "title": "Hold at a watched road",
+   "clip": "F-18",
+   "chapterCard": "5 · The soldier"
+  },
+  {
+   "scenario": "ua-attack-approach",
+   "take": "main",
+   "title": "Flank a lost target",
+   "clip": "F-19"
+  },
+  {
+   "scenario": "bt-window-duel",
+   "take": "main",
+   "title": "Window duel",
+   "clip": "F-20"
+  },
+  {
+   "scenario": "ua-grenade-or-rifle",
+   "take": "main",
+   "title": "Grenade over the sandbags",
+   "clip": "F-21"
+  },
+  {
+   "scenario": "ld-sentry-surprise-360",
+   "take": "main",
+   "title": "The sentry turns",
+   "clip": "F-22"
+  },
+  {
+   "scenario": "uf-alone-under-fire",
+   "take": "main",
+   "title": "Pinned in the open",
+   "clip": "F-61"
+  },
+  {
+   "scenario": "ua-fire-and-movement",
+   "take": "main",
+   "title": "Fire and movement",
+   "clip": "F-24",
+   "chapterCard": "6 · The squad"
+  },
+  {
+   "scenario": "ua-bounding-overwatch",
+   "take": "main",
+   "title": "Bounding overwatch",
+   "clip": "F-25"
+  },
+  {
+   "scenario": "ua-squad-danger-crossing",
+   "take": "main",
+   "title": "Crossing a road",
+   "clip": "F-26"
+  },
+  {
+   "scenario": "ua-squad-danger-crossing-contact",
+   "take": "main",
+   "title": "Contact mid-crossing",
+   "clip": "F-27"
+  },
+  {
+   "scenario": "ua-fire-distribution",
+   "take": "main",
+   "title": "Spread the fire",
+   "clip": "F-29"
+  },
+  {
+   "scenario": "sl0-platoon-march",
+   "take": "main",
+   "title": "Platoon march",
+   "clip": "F-30",
+   "chapterCard": "7 · Platoon and command"
+  },
+  {
+   "scenario": "pc-defend-house",
+   "take": "main",
+   "title": "Platoon attacks a house",
+   "clip": "F-32"
+  },
+  {
+   "scenario": "bc-house-clear",
+   "take": "main",
+   "title": "Clear the house",
+   "clip": "F-33",
+   "chapterCard": "8 · Buildings and close quarters"
+  },
+  {
+   "scenario": "bt-doors",
+   "take": "main",
+   "title": "Doors",
+   "clip": "F-35"
+  },
+  {
+   "scenario": "bt-grenade-posture",
+   "take": "main",
+   "title": "Prone saves your life",
+   "clip": "F-36"
+  },
+  {
+   "scenario": "bt-mortar-roof",
+   "take": "main",
+   "title": "A roof stops the blast",
+   "clip": "F-37"
+  },
+  {
+   "scenario": "bc-room-clear",
+   "take": "main",
+   "title": "Into the room",
+   "clip": "F-62"
+  },
+  {
+   "scenario": "ua-weapon-choice",
+   "take": "main",
+   "title": "TOW or 25 mm",
+   "clip": "F-40",
+   "chapterCard": "9 · Vehicles and armour"
+  },
+  {
+   "scenario": "ua-tank-corner",
+   "take": "main",
+   "title": "Tank round the corner",
+   "clip": "F-41"
+  },
+  {
+   "scenario": "ua-javelin-lock",
+   "take": "main",
+   "title": "The lock that never comes",
+   "clip": "F-42"
+  },
+  {
+   "scenario": "ua-rpg-window",
+   "take": "main",
+   "title": "RPG from the windows",
+   "clip": "F-43"
+  },
+  {
+   "scenario": "ua-ifv-standoff",
+   "take": "main",
+   "title": "Stand-off",
+   "clip": "F-44"
+  },
+  {
+   "scenario": "ua-tank-ammo",
+   "take": "main",
+   "title": "A round for each target",
+   "clip": "F-45"
+  },
+  {
+   "scenario": "ua-hill-attack",
+   "take": "main",
+   "title": "Hull-down platoon",
+   "clip": "F-46"
+  },
+  {
+   "scenario": "uc-convoy-hit-ifv",
+   "take": "main",
+   "title": "Push through",
+   "clip": "F-47"
+  },
+  {
+   "scenario": "ua-drone-shelter",
+   "take": "main",
+   "title": "Hide from the drone",
+   "clip": "F-48",
+   "chapterCard": "10 · Drones, aircraft and air defence"
+  },
+  {
+   "scenario": "ua-air-strike",
+   "take": "main",
+   "title": "Level bomb",
+   "clip": "F-49"
+  },
+  {
+   "scenario": "ua-air-attack",
+   "take": "door-gun",
+   "title": "Door-gun orbit",
+   "clip": "F-50"
+  },
+  {
+   "scenario": "ua-air-attack",
+   "take": "gun-runs",
+   "title": "Gun and rocket runs",
+   "clip": "F-51"
+  },
+  {
+   "scenario": "ua-air-defence",
+   "take": "main",
+   "title": "Missile warning",
+   "clip": "F-52"
+  },
+  {
+   "scenario": "ua-air-assault",
+   "take": "main",
+   "title": "Air assault",
+   "clip": "F-53"
+  },
+  {
+   "scenario": "ua-air-rescue",
+   "take": "main",
+   "title": "Air rescue",
+   "clip": "F-54"
+  },
+  {
+   "scenario": "ua-fast-rope-roof",
+   "take": "main",
+   "title": "Fast rope",
+   "clip": "F-55"
+  },
+  {
+   "scenario": "ua-airborne-drop",
+   "take": "main",
+   "title": "Parachute drop",
+   "clip": "F-56"
+  },
+  {
+   "scenario": "ua-weapon-systems",
+   "take": "main",
+   "title": "Crew weapons",
+   "clip": "F-60",
+   "chapterCard": "12 · Weapon systems and airborne"
+  }
+ ]
+}

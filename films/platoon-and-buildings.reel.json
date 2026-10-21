@@ -1,0 +1,48 @@
+{
+ "title": "HROT — Platoon and command · Buildings and close quarters",
+ "transition": "fade",
+ "items": [
+  {
+   "scenario": "sl0-platoon-march",
+   "take": "main",
+   "title": "Platoon march",
+   "clip": "F-30"
+  },
+  {
+   "scenario": "pc-defend-house",
+   "take": "main",
+   "title": "Platoon attacks a house",
+   "clip": "F-32"
+  },
+  {
+   "scenario": "bc-house-clear",
+   "take": "main",
+   "title": "Clear the house",
+   "clip": "F-33"
+  },
+  {
+   "scenario": "bt-doors",
+   "take": "main",
+   "title": "Doors",
+   "clip": "F-35"
+  },
+  {
+   "scenario": "bt-grenade-posture",
+   "take": "main",
+   "title": "Prone saves your life",
+   "clip": "F-36"
+  },
+  {
+   "scenario": "bt-mortar-roof",
+   "take": "main",
+   "title": "A roof stops the blast",
+   "clip": "F-37"
+  },
+  {
+   "scenario": "bc-room-clear",
+   "take": "main",
+   "title": "Into the room",
+   "clip": "F-62"
+  }
+ ]
+}

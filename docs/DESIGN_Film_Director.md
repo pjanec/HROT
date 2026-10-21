@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD (approved 2026-10-21, R-4062; dispatched to backend: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Film_Director.md)
-updated: 2026-10-21 (fifth pass, backend — R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors (lean); B0 withdrawn. Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+updated: 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
 current-answer: §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
 known-rot: §2/§6 still name the scout pass, `AnchorBook` and baked anchors as exact, and B0/B3 acceptance as "same run" — read them through R-3034 and D-3 (revised) until the classes are redrawn with B3
-known-conflict: none — R-3032 ("the scene alone") is amended by R-4060 for takes that turn layers on; R-1004 / AU-3 (sound only while possessed) by R-4059
+known-conflict: ⚠ OPEN 2026-10-21 — the user and backend are investigating whether runs CAN be made deterministic (user: "I still believe we could make this deterministic"); §3d is written to work either way, and if determinism lands, D-3 may cut on baked times again (exact leads, replays by re-run) · R-3032 ("the scene alone") is amended by R-4060 for takes that turn layers on; R-1004 / AU-3 (sound only while possessed) by R-4059
 related-designs:
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
   - RUNBOOK_Filming.md — OWNS film.py / film-events.py as built (CE-3289); D-9 makes them thin clients of this
@@ -46,6 +46,10 @@ feature so i would avoid it for now. we do not want instant replay in slice 1 so
 takes. The **director** is the editor feature that plays them: on screen in real time, or frame by frame to a film.
 
 🔒 **User, 2026-10-21 (the step rate):** *"clip can run on 15Hz if faster stepping does not work"* · *"(or 20)"*
+
+🔒 **User, 2026-10-21 (fifth pass):** *"scenarios are not deterministic by design. this might be quite an issue for planning clips"* ·
+*"which might lead to the replay from recording path"*. ⭐ Canon since 2026-09-04: *"the scenario is not deterministic, entities do not
+go the same ways"* (`RUNBOOK_Cluster_Debugging_Over_Http.md` §8).
 
 🔒 **User, 2026-10-21 (approval):** *"lets write a note to backend to implement that"* — the design as summarized, slice 1 = phases 1–3.
 
@@ -296,6 +300,7 @@ sequenceDiagram
       R->>P: IsReady(scenario)?
     end
     R->>V: EnterPreviewMode(startPaused: true) — t=0, not recorded (R-4061)
+    R->>A: arm the take's anchors (none resolved yet — R-3034, R-4064)
     R->>R: CinemaMode.Enter, title card
     loop each frame until the take ends
       R->>C: StepsDue(wallDt) — 0, 1 or 2 fixed steps (1/60, else 1/20 or 1/15 s)
@@ -339,6 +344,52 @@ sequenceDiagram
 | after it | ⭐ **every run loads again (R-3034)** — ⛔ never Stop-and-rewind: a rewind leaks brain and perception state (measured, CE-3291) | another run = another load |
 | network ids | the same on every load (`DESIGN_Deterministic_Network_Ids.md` §4) | allocated by the load |
 | how tested | filming already uses it (RUNBOOK §0). ⛔ Two runs are NOT the same run (R-3034, CE-3291) — nothing may rest on it | 🔒 *"even more untested"* — avoided for now |
+
+### 3d. Runs differ — so the cut follows THIS run's events (R-4064)
+
+⛔ **A time measured on one run is not the time on the next.** 🔒 Runs are not deterministic by design (RUNBOOK §8), and the trial scout
+already showed it: `ua-civ-melee`'s blow at 4.25 s in the editor's preview, against ~8.6 s recorded from a cluster run. ⇒ **no cut may rest
+on a baked time.**
+
+```mermaid
+sequenceDiagram
+  participant W as the running world
+  participant A as AnchorBook (live)
+  participant R as DirectorRunner
+  participant E as ShotEvaluator → FilmStudio
+  Note over R: shot 1 (establish) holds from t=0
+  W-->>A: Tank's weapon channel starts aiming at Enemy Tank (precursor "engage")
+  A->>R: anchor engage = now
+  R->>E: cut to shot 2: over Tank → Enemy Tank (the aim takes ≥ 0.8 s, so the cut lands BEFORE the round)
+  W-->>A: the round hits Enemy Tank ("hit")
+  A->>R: anchor hit = now
+  R->>E: hold shot 2 until hit + 0.3, then cut to shot 3 (the result)
+  Note over R: a required anchor that never comes ⇒ the take ends after its timeout and the report says "beat missing"
+```
+
+*What the picture shows: anticipation without knowing the future — a cut is triggered by a PRECURSOR the world exposes (aiming begins, a
+behaviour starts, a vehicle closes on a point), and a shot is held UNTIL the next event. No time from another run is used.*
+
+| | how it works now |
+|---|---|
+| **a shot's start** | `at` is an event of THIS run + an offset ≥ 0 (`"engage"`, `"hit+0.3"`), or a fixed time for an establishing shot |
+| **anticipation** | ⭐ **precursor anchors**: `engage` (the shooter's aim phase begins — `ActionStatus.Weapon` "Aiming", its `Progress`/`Needed` giving the lead, as backend measured; `AimAndFireExecutor.AimState` underneath, ≥ 0.8 s before the round), `task` (a behaviour begins), `near` (closing on a point or a unit), `countdown` (a charge or a release cue armed) |
+| **a shot's end** | `until` an event (+ offset) or `seconds` as the cap — a shot is HELD to the next beat, never cut by a clock that may be wrong |
+| ⛔ **negative offsets** (`fire-0.5`) | not possible live; in capture they become exact only from a RECORDING (§3e). The seeded takes are rewritten to precursors |
+| **the scout** | ⭐ becomes a **reliability measurement**: N runs (3 by default) → per beat: happened k of N, and its time spread. A beat under N of N is flagged unreliable — a finding for the scenario's lane |
+| **capture** | ⭐ **retakes**: if a required beat does not happen, the run is repeated (up to `retakes`, default 3) and the first good run is kept — as a film crew reshoots |
+| **paced stepping (D-1)** | kept, for a fixed dt independent of the render rate (R-143), ⛔ **no longer for identical runs** |
+| **every run loads again** | 🔒 *"do not use rewind, always load again"* (R-3034): a re-run, a retake or the scout's next run is a fresh load, never the preview's rewind |
+
+### 3e. Later — shoot, then edit, from a RECORDING (the user's path)
+
+🔒 *"which might lead to the replay from recording path."* ⭐ The final films come from a recorded run: **shoot** (a live, recorded run;
+retake until the beats happen) → **scout the recording** (its events are fixed now) → **edit**: play the recording back with the take's
+cuts, where leads (`fire-0.5`), slow motion and instant replays are seeks into a run that no longer changes. The live, event-driven slice
+(§3d) stays the way to review on screen.
+
+⚠ **Untried (user):** record → playback fidelity, and drawing the recording with its types (the Replay Browser draws unknown boxes today,
+`DESIGN_Map_3D_Mode.md` §6b). ⇒ that slice starts by measuring both — the same questions §3c lists for replays, which it now also serves.
 
 ### 3c. Instant replays — LATER, from the live run's recording (R-4061)
 
@@ -460,9 +511,9 @@ call.
 
 | # | question | ⭐ lean | rejected, one line each |
 |---|---|---|---|
-| **D-1** | how real time plays | ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time, still identical between live, scout and capture | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
+| **D-1** | how real time plays | ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time; live, scout and capture use the same rate | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
 | **D-2** | where takes live | ⭐ **beside the scenario**, `takes/*.take.json` — a variant carries its own | in `scenario.json`: presentation in the replicated world document, and the R-260 camera entity is adopted once at load · one central manifest: variants lose their takes |
-| **D-3** | when a cut happens | ⭐ **REVISED `2026-10-21` (R-3034), lean for approval: LIVE CUES in the run being shown.** A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
+| **D-3** | when a cut happens | ⭐ **REVISED `2026-10-21` (R-3034), lean for approval: LIVE CUES in the run being shown.** A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate  ⭐ **Coordinator, R-4064:** a shot is held **`until`** its next event; the scout measures **reliability** (N runs: k of N, time spread) and drafts; capture **retakes** a run whose required beat is missing (§3d) | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
 | **D-4** | instant replays | ✅ **RULED (R-4061): none in slice 1; later, from the live run's recording** (§3c), after measuring that playback is faithful; the in-memory bookmark is the fallback | — |
 | **D-5** | overlays per shot — backend tip 4 | ✅ **RULED (R-4060):** off by default; a take or a shot turns layers on and off by name, as a transient override (§4b) | — |
 | **D-6** | titles, captions, sound — tip 5 | ⭐ captions **drawn by `CinemaMode`**, on screen and burned into captured frames. ⭐ **Sound** in every view when Sound is on (R-4059); the films get a track **rendered offline from the mixer's cue log** (§4c) | `ffmpeg drawtext` only: the live show would have none · recording the device: a captured frame takes ~0.8 s, so the sound would be stretched ~50× |
@@ -473,6 +524,7 @@ call.
 | **D-11** | "is it loaded?" | ⭐ **extract** `HandleScenarioLoad`'s measured edge logic into `ScenarioReadyProbe`; the route and the runner share it | a new "loaded" event: none exists, and the edge logic is already measured. `LoadedScenarioName` is set when the load is SENT (`EditorScenarioSession.cs:82`), not when it is built |
 | **D-12** | moving the camera | ⭐ through `FilmStudio` (the director's `ICameraDriver`) only | writing the scenario's camera entity: it would be saved into the scenario (`DESIGN_Map_3D_Mode.md` §6i) · `DESIGN_Remote_Map_Control` `CMD_SET_VIEW`: an IG-only DDS path |
 | **D-17** | the run the director plays | ✅ **RULED (R-4061, amended; R-3034): the editor's PREVIEW** in slice 1 — opened from the saved file, entered paused; ⛔ **never rewound — every run loads again** (R-3034) | a full live run: 🔒 *"even more untested"*; it returns with the replay slice, which needs its recording |
+| **D-18** | the final films | ⭐ **later from a recording** (§3e): shoot, scout the recording, edit — exact leads, slow motion and replays | rendering only live runs: every lead is a guess and a missed beat costs a whole run |
 | **D-13** | the map layers over HTTP — R-4060 | ✅ **RULED:** `GET/POST /map/layers`, the same rows and the same persistence as the panel's click | — |
 | **D-14** | the 2-D ear — R-4059 | ⭐ at the view's centre, half the visible width up | no sound in 2-D: the user asked for sound outside FPS, not only in 3-D |
 | **D-15** | several scenarios in one film | ⭐ **a reel is the movie** (§4a): one capture, frames numbered across items, a transition and a chapter mark per item, one sound track | a movie per take joined afterwards: the joins, titles and sound would be a second tool to keep in step |
@@ -485,7 +537,8 @@ call.
 | a held shot follows its unit every frame, paused or not | ✅ `Film.cs` `FilmDirector.Place` (resolves `Follow` per frame) | ✅ `DESIGN_Map_3D_Mode.md` §6ab |
 | every map host already carries the film layer | ✅ `MapInteractionPack.cs:553`; attached by Editor, CGF, IG, SimHost, ReplayBrowser | ✅ §6ab |
 | real-time play takes dt from the wall clock | ✅ `MasterSyncController.cs:177-186`; only `Step` uses `fixedDelta` (`:349`) | ✅ `DESIGN_Time_Architecture.md` |
-| stepped editor runs are identical | ⚠ CE-202 measured 600 PREVIEW steps identical (`DESIGN_Subsystem_Composition_Unification.md`), and that doc admits its first claim was vacuous | ✅ the runbook §0 measured frame-exact cuts in the editor |
+| ~~stepped editor runs are identical~~ | ⛔ **overturned by R-4064**: 🔒 runs are not deterministic by design (RUNBOOK §8, 2026-09-04); the trial scout: the melee blow at 4.25 s (editor) vs ~8.6 s (cluster). CE-202's 600-step identity does not carry to a whole scenario | ⛔ |
+| a precursor of a shot is observable | ✅ the weapon channel's `AimState` (`AimAndFireExecutor.cs:778`: target, elapsed aim time) — ⚠ to be exposed to the director in-process (no HTTP field is needed) | ✅ `DESIGN_Peek_And_Fire.md` (aim 0.8 s when seen, P7) |
 | the editor's step path | ✅ `EditorTimeTransportFacade.Step` → `ITimeCommands.StepOneTick`, the same as `/sim/step` | ✅ AS-11 |
 | one step per frame at most on the master | ✅ `/sim/step` comment CE-105 (`DebugApiHost.cs`) | — ⇒ D-1 caps at 2 per frame and **measures** it; if the master retires only 1, the take drops to 20 Hz or 15 Hz steps (🔒 user) |
 | a step's size is chosen by whoever asks for it | ✅ `StepTimeIntent { DeltaSeconds }` (`TimeLocalEvents.cs:19`); `IntentTimeCommands.StepOneTick` sends `_fixedStepSeconds` ⇒ the runner can send 1/20 s or 1/15 s with no engine change | — |
@@ -505,11 +558,11 @@ call.
 
 | phase | builds | accepted when |
 |---|---|---|
-| **1** | ⭐ first: a rail that two previews of one take, stepped alike, cut at the same frames (CE-202 at film scale) · `Take`/`Reel`/`TakeStore` + validation (unknown names listed) · `ShotEvaluator` (follow, over-toward, lookAt, orbit, `to` + ease, fov) · `PacedClock` · `DirectorRunner` (load → ready → preview → play → exit → next, title cards between items) · `ScenarioReadyProbe` extracted · `/director/play\|stop\|next\|status\|takes\|reels` · the panel · ⭐ `LayerOverride` + `/map/layers` · ⭐ `/audio` + the 2-D ear | a reel of 3 takes from 3 scenarios plays unattended in the editor; cuts land within one frame of the baked times; a take's layers never reach the user's settings file; `realtimeFactor` reported |
-| **2** | `Scout` + `AnchorBook` (bake, live verify, staleness) · `/director/scout` · the report | the scout of a take finds every anchor or names the missing one; a changed scenario is re-scouted |
+| **1** | ⭐ first: **measure how much two previews of one take differ** (a report, not a gate — R-4064) · `Take`/`Reel`/`TakeStore` + validation (unknown names listed) · `ShotEvaluator` (follow, over-toward, lookAt, orbit, `to` + ease, fov) · `PacedClock` · `DirectorRunner` (load → ready → preview → play → exit → next, title cards between items) · `ScenarioReadyProbe` extracted · `/director/play\|stop\|next\|status\|takes\|reels` · the panel · ⭐ `LayerOverride` + `/map/layers` · ⭐ `/audio` + the 2-D ear | a reel of 3 takes from 3 scenarios plays unattended in the editor; each cut fires on its event in that run; a take's layers never reach the user's settings file; `realtimeFactor` reported |
+| **2** | `AnchorBook` (live anchors incl. precursors `engage` / `countdown`, `until`) · `Scout` (N runs: per beat k of N and the time spread) · `/director/scout` · retakes in capture | a take cuts on its events in every run; the scout report flags each unreliable beat |
 | **3** | `CaptureSink` (+ `speed`) · a reel → ONE movie with transitions and chapters · `SoundTrack` (cue log + offline WAV) · `CinemaMode` (panels off, captions) · `film.py` as a client | the overnight run films a reel of several scenarios into one movie with sound; the measured per-frame time with panels off |
 | **4** | `/director/draft` (automatic takes to edit) | — |
-| **5** *(later, R-4061)* | instant replays: measure record → playback first; then replays from the recording (or the bookmark fallback) | a replay shows the moment again and the take continues untouched |
+| **5** *(later, R-4061, R-4064)* | **shoot, then edit, from a recording** (§3e): measure record → playback fidelity and typed drawing first; then exact leads, slow motion and instant replays from the recording | a replay shows the moment again and the take continues untouched |
 
 ⭐ **Seed data:** `docs/films/clips.json` splits into one `main.take.json` per scenario (55 takes), and a `films/features.reel.json` lists
 them in CAPABILITIES chapter order.
