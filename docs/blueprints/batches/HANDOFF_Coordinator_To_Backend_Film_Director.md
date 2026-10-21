@@ -10,11 +10,11 @@ related-designs:
 
 # HANDOFF — coordinator → backend: build the film director, slice 1 (CE-4038)
 
-**Dispatched at `d4f406cd9`** (the design at that commit, plus this handoff's own commit). ⛔ **Your scope is FROZEN at that sha.**
+**Dispatched at `751d89899`** (re-dispatched under rule 1a: the first stamp `d4f406cd9` was never merged by backend; the amendment adds the 20 / 15 Hz step fallback to B0, B3 and the gates). ⛔ **Your scope is FROZEN at this sha.**
 Documents that change after it are FYI only. If a later document invalidates an item, stop and report it; do not adapt.
 
 🔒 **User, 2026-10-21:** *"lets write a note to backend to implement that"* (R-4062) · *"i need also the live mode with no saving screenshot
-images, jus rendering on the screen"* · *"it will be implemented by the backend"*.
+images, jus rendering on the screen"* · *"it will be implemented by the backend"* · *"clip can run on 15Hz if faster stepping does not work"* · *"(or 20)"*.
 
 ## What to build — the design's phases 1–3
 
@@ -24,10 +24,10 @@ back INTO the design (marked SUPERSEDED), not only into your report.
 
 | # | item | design basis | accepted when |
 |---|---|---|---|
-| **B0** | ⭐ **first, before any director code:** a rail that two previews of one take, stepped alike, produce the same world at every cut. Use CE-202's method at film scale (a real demo scenario, 30 s) | D-1 claim row; §3b-i | the rail passes. ⛔ If it fails, STOP and report: paced real time rests on it |
+| **B0** | ⭐ **first, before any director code:** a rail that two previews of one take, stepped alike, produce the same world at every cut. Use CE-202's method at film scale (a real demo scenario, 30 s) | D-1 claim row; §3b-i | the rail passes — at 60 Hz, and at 20 Hz and 15 Hz too (the fallback step rates, B3). ⛔ If it fails, STOP and report: paced real time rests on it |
 | **B1** | `Take` / `Reel` / `TakeStore`: load, save, validate against the loaded world (each unknown name listed); `takes/` folders copied by "Save As" / new-from | §2, §4, §4a, D-2 | a take with a misspelt name is refused with the name; a copied scenario carries its takes |
 | **B2** | `ShotEvaluator`: follow, over-toward, lookAt, eye-target, orbit, `to` + ease, fov. ⭐ **Port `film.py`'s `_shot_for`; do not write a second copy of it** | §2, D-9 | unit rails per camera kind; `film.py` drives `/director/*` (or `ShotEvaluator` through `/film/shot`) and keeps working |
-| **B3** | `PacedClock` + `DirectorRunner`: open from the file → `ScenarioReadyProbe` → `EnterPreviewMode(startPaused)` → paced `StepOneTick`s → hold the shot each frame → `ExitPreviewMode` → next item, with a title card over each load. The new call `EditorSubsystem.Update → DirectorRunner.Tick` after `DrainAll` | §1a, §3a, D-1, D-11, D-17 | a reel of 3 takes from 3 scenarios plays unattended **live, on screen, saving nothing**; cuts land within one frame of the baked times; `realtimeFactor` reported. ⭐ **Measure** whether the master retires 2 steps in one frame and say so |
+| **B3** | `PacedClock` + `DirectorRunner`: open from the file → `ScenarioReadyProbe` → `EnterPreviewMode(startPaused)` → paced `StepOneTick`s → hold the shot each frame → `ExitPreviewMode` → next item, with a title card over each load. The new call `EditorSubsystem.Update → DirectorRunner.Tick` after `DrainAll` | §1a, §3a, D-1, D-11, D-17 | a reel of 3 takes from 3 scenarios plays unattended **live, on screen, saving nothing**; cuts land within one frame of the baked times; `realtimeFactor` reported. ⭐ **Measure** whether the master retires 2 steps in one frame. ⭐ **If not, and rendering is under 60 fps:** run the take at a coarser fixed step — **20 Hz, else 15 Hz** (`tickHz` in the take; send `StepTimeIntent { DeltaSeconds = 1/20 or 1/15 }`, no engine change), one step per rendered frame; live, scout and capture use the same rate; baked anchors record it |
 | **B4** | `ScenarioReadyProbe`: **extract** `HandleScenarioLoad`'s edge logic; the route uses the same class | D-11 | the existing load rails stay green through the shared probe |
 | **B5** | `/director/takes`, `/reels`, `/take/{s}/{t}` (GET, PUT), `/play`, `/stop`, `/next`, `/pause`, `/resume`, `/status`, each with a `DebugApiRouteDocs` entry (MCP) | §4 | `POST /director/play` without `capture` plays live; with `capture` it renders (B8) |
 | **B6** | the **Director panel** (View › Director): reel or take, Play / Stop / Next, replay this take, prepare (scout), speed, a report row per item. Same runner methods as the routes | §4 panel | usable without HTTP |
@@ -46,11 +46,11 @@ runs, `--mode all` hosts (D-8).
 
 | # | report |
 |---|---|
-| 1 | per gate: the verbatim command · pass / fail / skip · the delta against `d4f406cd9` |
+| 1 | per gate: the verbatim command · pass / fail / skip · the delta against the dispatch sha |
 | 2 | ⭐ **T-1, the feature's own suites first:** `Hrot.Presentation.Tests` `FilmTests` + `FilmFrameRail` (the film camera you drive), then the editor's load rails (`DeterminismRails`, the `HandleScenarioLoad` readiness cases) through the extracted probe |
 | 3 | every new rail named (B0–B11), each with an inverse-edit red-proof where it guards a rule (B0, B10's never-written, B11's FPS-always) |
 | 4 | the integration row: one live run of `POST /director/play {reel}` in the editor, **and** one capture of the same reel on the cloud VM. The scout report of the 55 seeded takes, as a table: found / missing beat / name not found |
-| 5 | the measurements: two steps per frame (yes/no), per-frame time with panels on and off, the realtime factor on the cloud VM |
+| 5 | the measurements: two steps per frame (yes/no), the `tickHz` chosen, per-frame time with panels on and off, the realtime factor on the cloud VM and on a desktop; ⚠ any seeded take whose beats change at 20 / 15 Hz versus 60 Hz (the scout table, per rate) |
 | 6 | the build: the affected projects with `--no-restore`, the TEST projects built (the stale-binary trap); one full-solution build at the end |
 | 7 | the working tree clean after the suites; `tracker-counts.py --check`, `rulings-check.py`, `design-digest.py --check`, `mermaid-check.mjs` on the design |
 | 8 | every id allocated (`CE-3xxx`, `R-3xxx` from your blocks) and the design sections you updated to the as-built |
