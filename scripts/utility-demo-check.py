@@ -4637,10 +4637,11 @@ def run_df_lone_soldier_reflex(c, timeout):
     call("POST", "/sim/play", {})
     rows = _watch_tasks(["Reflex", "Inert"], ids, 40)
     reflex, inert = rows["Reflex"], rows["Inert"]
-    reacted = next((r for r in reflex if r[1] in ("TakeCover", "FallBack") and r[2] == "Reaction"), None)
+    # ⭐ AQ98 A (R-2070) — the cover reaction is FightFromCover now (TakeCover before 2026-10-21)
+    reacted = next((r for r in reflex if r[1] in ("FightFromCover", "TakeCover", "FallBack") and r[2] == "Reaction"), None)
     print(f"    Reflex tasks: {sorted({(r[1], r[2]) for r in reflex}, key=str)}")
     print(f"    Inert tasks:  {sorted({(r[1], r[2]) for r in inert}, key=str)}")
-    c.ok(reacted is not None, f"(1) Reflex reacts by himself: a TakeCover reaction ({reacted and round(reacted[0], 1)} s)")
+    c.ok(reacted is not None, f"(1) Reflex reacts by himself: a cover reaction ({reacted and reacted[1]}, {reacted and round(reacted[0], 1)} s)")
     moved = max((flat(r[3], reflex[0][3]) for r in reflex if r[3] and reflex[0][3]), default=0.0)
     c.ok(moved > 2.0, f"(1) and he leaves his spot ({moved:.1f} m)")
     c.ok(all(r[1] in (None, "None") for r in inert), "(2) Inert never gets a task, whatever comes near him")

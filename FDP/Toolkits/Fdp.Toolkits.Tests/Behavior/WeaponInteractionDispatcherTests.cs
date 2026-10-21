@@ -85,6 +85,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-2333</c> (AQ98 D, R-2070) — no weapon action runs ⇒ the unit's weapon status row clears to <c>None</c>; while one
+        /// runs, the executor's word stays. 📐 Measured: the row read "Aiming", stamped 10 s earlier, over a man with no fire action.
+        /// ✅ Red-proof: drop the clear in the dispatcher ⇒ the row stays <c>Aiming</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2333_WeaponDispatcher_ClearsAStaleWeaponStatus_WhenNoActionRuns()
+        {
+            var world = TestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>())
+                world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var sys = new WeaponDispatcherSystem();
+            sys.RegisterExecutor(1, new SpyExecutor<WeaponChannel>());
+            var e = world.CreateEntity();
+            world.AddComponent(e, new WeaponChannel { ActiveAction = 1, ActionInstanceId = 1, Status = NodeStatus.Running });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanShoot });
+            world.AddComponent(e, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Weapon(world, e, 1, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Entity.Null);
+
+            sys.Execute(world, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming,
+                world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(e).Weapon.Reason);   // an action runs: its word stays
+
+            ref var ch = ref world.GetComponentRW<WeaponChannel>(e);
+            ch.ActiveAction = 0;
+            ch.Status = NodeStatus.Success;
+            sys.Execute(world, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None,
+                world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(e).Weapon.Reason);
+            world.Dispose();
+        }
+
         [Fact]
         public void InteractionDispatcher_RunsExecutor_WhenCanInteract()
         {

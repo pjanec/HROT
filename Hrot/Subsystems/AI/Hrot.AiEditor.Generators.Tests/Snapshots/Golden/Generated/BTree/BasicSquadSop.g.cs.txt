@@ -52,6 +52,14 @@ public static class BasicSquadSop
                     visualId: new Guid("c2123000-0000-0000-0000-000000000040"));
                 sel.Sequence(seq =>
                 {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.ContactWhileHalted",
+                        visualId: new Guid("c2123000-0000-0000-0000-0000000000b1"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:Contact@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-0000000000b2"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-0000000000b0"));
+                sel.Sequence(seq =>
+                {
                     seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding",
                         visualId: new Guid("c2123000-0000-0000-0000-000000000081"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadRide:Alert@-1",
@@ -82,6 +90,14 @@ public static class BasicSquadSop
                         visualId: new Guid("c2123000-0000-0000-0000-000000000052"));
                 },
                     visualId: new Guid("c2123000-0000-0000-0000-000000000050"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CasualtyInALull",
+                        visualId: new Guid("c2123000-0000-0000-0000-0000000000a1"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:CasualtyCare:Contact@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-0000000000a2"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-0000000000a0"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@16",

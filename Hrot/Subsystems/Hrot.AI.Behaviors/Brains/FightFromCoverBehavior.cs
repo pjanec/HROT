@@ -1,0 +1,169 @@
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Compiler;
+using Fbt.Kernel;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Perception;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Hrot.Map.Definitions.Behavior;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>⭐ <c>CE-2331</c> (AQ98 A/B) — the parameters of <see cref="FightFromCoverBehavior.Run"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FightFromCoverParams
+    {
+        /// <summary>How long nothing must land near him, once in cover, before the reaction ends (s).</summary>
+        public float QuietSeconds;
+        /// <summary>The fight from cover (the library defaults).</summary>
+        public PeekAndFireParams Peek;
+        /// <summary>No cover anywhere: down in the open until a point comes (<c>TakeCover</c>, AQ96 C — the library defaults).</summary>
+        public EqsTacticsParams Open;
+    }
+
+    /// <summary>⭐ <c>CE-2331</c> — what <see cref="FightFromCoverBehavior.Run"/> keeps: the fight's own state.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FightFromCoverState
+    {
+        public PeekAndFireState Peek;
+        /// <summary>1 once <c>PeekAndFire</c> found no cover (it answered Failure): the rest of the run is <see cref="Open"/>.</summary>
+        public byte InTheOpen;
+        public EqsTacticsState Open;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2331</c> / <c>CE-2332</c> (AQ98 A, B, C — R-2070; 📄 docs/blueprints/Architect_Question_98_Cover_Reaction_Fights_Back.md §3) —
+    /// <c>FightFromCover</c>, the soldier's cover REACTION (<c>BasicInfantrySop</c>'s hit, near-miss, first-threat and enemy-in-sight rows): it
+    /// FIGHTS from cover — the library <see cref="PeekAndFireNodes.PeekAndFire"/> (hide, expose, fire per the ROE, down when fired on) — and
+    /// it ENDS once he is in cover and nothing has landed near him for <see cref="FightFromCoverParams.QuietSeconds"/>, so the task the
+    /// reaction paused resumes and decides the fight. 📐 Why the end: the hide-only <c>TakeCover</c> lasted while a threat was remembered,
+    /// which in a battle is always — 9 of 24 men spent 64–79 % of <c>pc-defend-house</c> hiding with the enemy in sight.
+    /// </summary>
+    public static class FightFromCoverBehavior
+    {
+        public const float DefaultQuietSeconds = 8f;
+
+        /// <summary>The open-ground half: the shipped <c>TakeCover</c> asset's numbers, and it fires while it moves (the ROE gates every shot).</summary>
+        public static readonly EqsTacticsParams OpenDefaults = new()
+        {
+            SearchRadius = 60f, MinRepositionMetres = 5f, Speed = 2.5f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
+        };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FightFromCoverBlackboard
+        {
+            public FightFromCoverParams Fight;
+            public FightFromCoverState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.FightFromCover)]
+        public static void Resolve(in FightFromCoverParamsJsonDto authored, ref FightFromCoverBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Fight = new FightFromCoverParams
+            {
+                QuietSeconds = authored.QuietSeconds > 0f ? authored.QuietSeconds : DefaultQuietSeconds,
+                Open = OpenDefaults,
+            };
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.FightFromCover, Params = typeof(FightFromCoverParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
+        [BTreeDefinition(BehaviorNames.FightFromCover, Curated = true, Group = "Library/Tactics", ParamsType = typeof(FightFromCoverBlackboard))]
+        public static BTreeBuilder<FightFromCoverBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<FightFromCoverBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Fight, bb => bb.State, Run);
+
+        /// <summary>The fight from cover until it is QUIET in cover (Success, the reaction ends); <c>PeekAndFire</c>'s own end — nothing left
+        /// to fight — ends it too. ⭐ No cover anywhere (<c>PeekAndFire</c> answers Failure after its <c>NoCoverSeconds</c>): the rest of
+        /// the run is <c>TakeCover</c> — down in the open until a point comes, moving to it when one does (AQ96 C, <c>CE-2322</c>) — and it
+        /// ends the same way, once he is not on the move and it has been quiet.</summary>
+        [SharedAiAction]
+        public static NodeStatus Run(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            if (ws.InTheOpen == 0)
+            {
+                if (InCover(in ws) && Quiet(world, self, p.QuietSeconds) && !WouldReturn(world, self))
+                {
+                    PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+                    return NodeStatus.Success;
+                }
+                var status = PeekAndFireNodes.PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+                if (status != NodeStatus.Failure || !world.HasComponent<LocomotionChannel>(self)) return status;
+                ws.InTheOpen = 1;   // no cover: PeekAndFire released its sensors, its move and its fire
+            }
+            if (ws.Open.Moving != 1 && Quiet(world, self, p.QuietSeconds) && !WouldReturn(world, self))
+            {
+                EqsTacticsNodes.Deactivate_TakeCover(ref p.Open, ref ws.Open, self, world);
+                return NodeStatus.Success;
+            }
+            return EqsTacticsNodes.TakeCover(ref p.Open, ref ws.Open, self, world);
+        }
+
+        /// <summary>Leaving the reaction (a new hit, an order, the SOP's gate): whichever node runs releases its sensors, its move and its fire.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.FightFromCoverBehavior.Run")]
+        public static void Deactivate_Run(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            if (ws.InTheOpen == 0) PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+            else EqsTacticsNodes.Deactivate_TakeCover(ref p.Open, ref ws.Open, self, world);
+        }
+
+        /// <summary>He is at his hide point or fighting from it (not choosing one, not on his way to one).</summary>
+        public static bool InCover(in FightFromCoverState ws) => ws.Peek.Phase >= PeekPhase.Hidden;
+
+        /// <summary>⭐ The quiet end exists so the paused TASK resumes; with no task to resume (none paused, or only <c>Idle</c>) and the
+        /// enemy still in sight, ending would only let the SOP's enemy-in-sight row start the reaction again a frame later — the cover
+        /// search restarting every few seconds. ⇒ he fights on; <c>PeekAndFire</c>'s own end (nothing left to fight) still ends it.</summary>
+        public static bool WouldReturn(EntityRepository world, Entity self)
+        {
+            if (!CoverFightConditions.EnemyInSight(self, world)) return false;
+            var paused = BehaviorIngressSystem.PausedTaskOf(world, self);
+            return paused == null || paused.BehaviorName == BehaviorNames.Idle;
+        }
+
+        /// <summary>No hit and no near miss on him for <paramref name="seconds"/>.</summary>
+        public static bool Quiet(EntityRepository world, Entity self, float seconds)
+            => !RecentSensesOf.Within(world, self, SensorChange.Hit, seconds) && !RecentSensesOf.Within(world, self, SensorChange.NearMiss, seconds);
+    }
+
+    /// <summary>⭐ <c>CE-2332</c> (AQ98 C, R-2070) — the soldier SOP's enemy-in-sight row.</summary>
+    public static class CoverFightConditions
+    {
+        /// <summary>How recently he must have SEEN the enemy (ticks, 1 s at 60 Hz; the clock perception stamps <c>LastSeenTick</c> with).</summary>
+        public const uint InSightTicks = 60;
+
+        private static readonly int IdleHash = BehaviorHash.FromName(BehaviorNames.Idle);
+
+        /// <summary>A hostile he SAW (not only heard) within <see cref="InSightTicks"/>, alive and in the fight.</summary>
+        [SharedAiCondition]
+        public static unsafe bool EnemyInSight(Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<TargetMemory>() || !world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = world.SimulationTick;
+            for (int i = 0; i < mem.Count && i < PerceptionConstants.MaxTrackedTargets; i++)
+            {
+                if (mem.EntityIds[i] <= 0 || TargetMemory.IsAnonymous(in mem, i)) continue;
+                if ((mem.Modalities[i] & (byte)SensorModality.Visual) == 0) continue;
+                if (mem.LastSeenTick[i] <= now && now - mem.LastSeenTick[i] > InSightTicks) continue;
+                var e = new Entity((ulong)mem.EntityIds[i]);
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, self, e)) continue;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>His task slot is empty or runs only <c>Idle</c> (the SOP's do-when-idle): nobody gave him anything to do.</summary>
+        [SharedAiCondition]
+        public static bool NoTask(Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<BehaviorState>(self)) return true;
+            int hash = world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash;
+            return hash == 0 || hash == IdleHash;
+        }
+    }
+}

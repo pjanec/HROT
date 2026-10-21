@@ -7,6 +7,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Perception.Events;
+using Hrot.AI.Behaviors.Brains;
 using Hrot.CGF.Configuration;
 using Xunit;
 
@@ -87,6 +88,30 @@ namespace Hrot.SimHost.Tests
                 mem.Count = 1;
             }
 
+            /// <summary>⭐ AQ98 C — a hostile in his memory: <paramref name="seen"/> = seen just now (the Visual bit), else only heard of.</summary>
+            public unsafe Entity RememberEnemy(bool seen, ForceId force = ForceId.Hostile)
+            {
+                if (!Repo.HasComponent<EntityInfo>(Unit)) Repo.AddComponent(Unit, new EntityInfo { ForceId = ForceId.Friend });
+                var enemy = Repo.CreateEntity();
+                Repo.AddComponent(enemy, new EntityInfo { ForceId = force });
+                if (!Repo.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit))
+                    Repo.AddComponent(Unit, new Fdp.Toolkit.Perception.Components.TargetMemory());
+                ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
+                mem.EntityIds[0] = (long)enemy.PackedValue;
+                mem.Freshness[0] = 10f;
+                mem.LastSeenTick[0] = Repo.SimulationTick;
+                mem.Modalities[0] = seen ? (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual : (byte)0;
+                mem.Count = 1;
+                return enemy;
+            }
+
+            /// <summary>Keeps the remembered enemy SEEN (the eye re-stamps it every tick in production).</summary>
+            public unsafe void KeepSeeing()
+            {
+                ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
+                mem.LastSeenTick[0] = Repo.SimulationTick;
+            }
+
             public void Order(string behaviour)
                 => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
 
@@ -119,13 +144,13 @@ namespace Hrot.SimHost.Tests
             w.Remember(true);
             w.Sense(SensorChange.Hit);
             w.Run(0.1);
-            Assert.Equal("TakeCover", w.TaskName);                             // row 1: hit → React(cover, Hit)
+            Assert.Equal("FightFromCover", w.TaskName);                        // row 1: hit → React(cover, Hit) — AQ98 A
             Assert.Equal(BehaviorOrigin.Reaction, w.Task.Origin);
             Assert.Equal(ReactionUrgency.Hit, w.Task.Urgency);
             Assert.Equal("Idle", BehaviorIngressSystem.PausedTaskOf(w.Repo, w.Unit)!.BehaviorName);
 
             w.Run(1.3);
-            Assert.Equal("TakeCover", w.TaskName);                             // cover lasts while a threat is remembered
+            Assert.Equal("FightFromCover", w.TaskName);                        // the fight lasts while a threat is remembered (within 8 s)
             w.Remember(false);                                                 // … and ends when it is forgotten
             w.Run(0.1);
             Assert.Equal("Idle", w.TaskName);                                  // the task is back, at its own rank
@@ -138,7 +163,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void CE2080_AContactUnderHoldFire_Withdraws_OtherwiseTakesCover()
+        public void CE2080_AContactUnderHoldFire_Withdraws_OtherwiseFightsFromCover()
         {
             var held = new World();
             held.Repo.AddComponent(held.Unit, new Roe { Fire = RoeFire.HoldFire, SetBy = BehaviorOrigin.Superior });
@@ -157,13 +182,13 @@ namespace Hrot.SimHost.Tests
             free.Remember(true);
             free.Sense(SensorChange.FirstThreat);
             free.Run(0.1);
-            Assert.Equal("TakeCover", free.TaskName);                          // row 3
+            Assert.Equal("FightFromCover", free.TaskName);                     // row 3 (AQ98 A)
             Assert.Equal(ReactionUrgency.Contact, free.Task.Urgency);
         }
     
         // ── ⭐ CE-2322 (AQ97, R-2062) — every lone soldier reacts by default; "no response" is said explicitly ────────────────────
 
-        /// <summary>⭐ AQ97 B — rounds passing near a lone soldier are reason enough: React(TakeCover, UnderFire). ✅ Red-proof: the
+        /// <summary>⭐ AQ97 B — rounds passing near a lone soldier are reason enough: React(cover, UnderFire) — <c>FightFromCover</c> since AQ98 A. ✅ Red-proof: the
         /// near-miss row removed from the asset ⇒ he stays idle ⇒ red.</summary>
         [Fact]
         public void CE2322_ANearMiss_SendsALoneSoldierToCover()
@@ -175,7 +200,7 @@ namespace Hrot.SimHost.Tests
             w.Remember(true);
             w.Sense(SensorChange.NearMiss);
             w.Run(0.1);
-            Assert.Equal("TakeCover", w.TaskName);
+            Assert.Equal("FightFromCover", w.TaskName);
             Assert.Equal(ReactionUrgency.UnderFire, w.Task.Urgency);
         }
 
@@ -201,7 +226,7 @@ namespace Hrot.SimHost.Tests
             w.Run(3.5);                                                        // the first hit is stale now
             w.Sense(SensorChange.Hit);
             w.Run(0.1);
-            Assert.Equal("TakeCover", w.TaskName);
+            Assert.Equal("FightFromCover", w.TaskName);
 
             var crew = new World();
             crew.Repo.AddComponent(crew.Unit, new IsEmbarkedTag { VehicleEntity = crew.Repo.CreateEntity() });
@@ -213,6 +238,133 @@ namespace Hrot.SimHost.Tests
             crew.Run(0.1);
             Assert.Equal("Idle", crew.TaskName);
             Assert.Equal(BehaviorOrigin.Superior, crew.Task.Origin);
+        }
+
+        // ── ⭐ CE-2331 / CE-2332 / CE-2333 (AQ98, R-2070) — the cover reaction fights back and ends; an idle man engages what he sees ────
+
+        /// <summary>⭐ AQ98 B — the reaction ENDS after a quiet lapse though the threat is still remembered (the hide-only rule lasted while
+        /// a threat was remembered — in a battle, always), and the paused task resumes. Here there is no cover anywhere (no EQS in this world),
+        /// so it runs its open-ground half (AQ96 C: down in the open) and ends the same way. ✅ Red-proof: <c>Quiet</c> always false ⇒ the
+        /// reaction lasts ⇒ red.</summary>
+        [Fact]
+        public void CE2331_TheReaction_EndsAfterAQuietLapse_WithTheThreatStillRemembered()
+        {
+            var w = new World();
+            w.Order("Idle");
+            w.StartSop();
+            w.Run(0.3);
+            w.Remember(true);
+            w.Sense(SensorChange.Hit);
+            w.Run(0.1);
+            Assert.Equal("FightFromCover", w.TaskName);
+
+            w.Run(FightFromCoverBehavior.DefaultQuietSeconds - 1.5);
+            Assert.Equal("FightFromCover", w.TaskName);                        // not yet quiet
+            w.Run(2.5);
+            Assert.Equal("Idle", w.TaskName);                                  // quiet: the task is back …
+            Assert.Equal(BehaviorOrigin.Superior, w.Task.Origin);
+            Assert.True(w.Repo.GetComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(w.Unit).Count > 0);   // … the threat still remembered
+        }
+
+        /// <summary>⭐ AQ98 B — rounds still landing keep him in the reaction: a near miss 5 s in restarts the quiet clock.
+        /// ✅ Red-proof: <c>Quiet</c> reading only <c>Hit</c> ⇒ it ends at 8 s ⇒ red.</summary>
+        [Fact]
+        public void CE2331_RoundsStillLanding_KeepTheReactionGoing()
+        {
+            var w = new World();
+            w.Order("Idle");
+            w.StartSop();
+            w.Run(0.3);
+            w.Remember(true);
+            w.Sense(SensorChange.Hit);
+            w.Run(5.0);
+            w.Sense(SensorChange.NearMiss);
+            w.Run(4.5);                                                        // 9.5 s after the hit, 4.5 s after the near miss
+            Assert.Equal("FightFromCover", w.TaskName);
+            w.Run(4.5);
+            Assert.Equal("Idle", w.TaskName);
+        }
+
+        /// <summary>⭐ AQ98 B — the in-cover end, on the node itself: at his hide point and quiet ⇒ Success; a hit within the lapse ⇒ he fights
+        /// on. Not in cover yet ⇒ it never ends on quiet (he would be walked back out into the fire). ✅ Red-proof: drop <c>InCover</c> from
+        /// the end ⇒ the not-in-cover case ends ⇒ red.</summary>
+        [Fact]
+        public void CE2331_InCoverAndQuiet_Ends_NotInCover_FightsOn()
+        {
+            var w = new World();
+            w.Remember(true);
+            var p = new FightFromCoverParams { QuietSeconds = 8f, Open = FightFromCoverBehavior.OpenDefaults };
+
+            var hidden = new FightFromCoverState();
+            hidden.Peek.Phase = Fdp.Toolkit.Combat.PeekPhase.Hidden;
+            Assert.Equal(Fbt.NodeStatus.Success, FightFromCoverBehavior.Run(ref p, ref hidden, w.Unit, w.Repo));
+
+            var choosing = new FightFromCoverState();
+            Assert.NotEqual(Fbt.NodeStatus.Success, FightFromCoverBehavior.Run(ref p, ref choosing, w.Unit, w.Repo));
+
+            w.Sense(SensorChange.Hit);
+            w.Tick();
+            var shotAt = new FightFromCoverState();
+            shotAt.Peek.Phase = Fdp.Toolkit.Combat.PeekPhase.Hidden;
+            Assert.NotEqual(Fbt.NodeStatus.Success, FightFromCoverBehavior.Run(ref p, ref shotAt, w.Unit, w.Repo));
+        }
+
+        /// <summary>⭐ AQ98 C — a man with no task who SEES an enemy engages from where he is (React FightFromCover, Contact) instead of
+        /// standing idle — and, with no task to resume, a quiet lapse does not end it (no restart churn). ✅ Red-proofs: the row removed from
+        /// the asset ⇒ he stays Idle ⇒ red; <c>WouldReturn</c> always false ⇒ a new run after 8 s ⇒ red.</summary>
+        [Fact]
+        public void CE2332_NoTask_AnEnemyInSight_HeFightsFromCover()
+        {
+            var w = new World();
+            w.StartSop();
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);                                                        // the SOP re-reads its rows every 0.2 s (+ stagger)
+            Assert.Equal("FightFromCover", w.TaskName);
+            Assert.Equal(BehaviorOrigin.Reaction, w.Task.Origin);
+            Assert.Equal(ReactionUrgency.Contact, w.Task.Urgency);
+
+            // ⭐ no task to resume and the enemy still in sight ⇒ the quiet lapse does not end it (it would only restart a frame later)
+            uint run = w.Task.InstanceId;
+            for (int i = 0; i < 700; i++) { w.KeepSeeing(); w.Tick(); }     // > QuietSeconds, nothing landing near him
+            Assert.Equal("FightFromCover", w.TaskName);
+            Assert.Equal(run, w.Task.InstanceId);
+        }
+
+        /// <summary>⭐ AQ98 C — the row's limits: a man WITH a task keeps it (the task decides the fight); only HEARD (not seen) ⇒ nothing;
+        /// a neutral in sight ⇒ nothing. ✅ Red-proof: <c>NoTask</c> always true ⇒ the tasked man reacts ⇒ red.</summary>
+        [Fact]
+        public void CE2332_ATaskedMan_AHeardEnemy_OrANeutral_DoNotFireTheRow()
+        {
+            var tasked = new World();
+            tasked.Order("HoldStance");
+            tasked.StartSop();
+            tasked.Run(0.3);
+            string? task = tasked.TaskName;
+            Assert.NotNull(task);
+            Assert.NotEqual("Idle", task);
+            tasked.RememberEnemy(seen: true);
+            tasked.KeepSeeing();
+            tasked.Run(0.5);
+            Assert.Equal(task, tasked.TaskName);
+
+            var heard = new World();
+            heard.StartSop();
+            heard.Run(0.3);
+            heard.RememberEnemy(seen: false);
+            heard.Run(0.5);
+            Assert.Equal("Idle", heard.TaskName);
+
+            var neutral = new World();
+            neutral.StartSop();
+            neutral.Run(0.3);
+            neutral.RememberEnemy(seen: true, ForceId.Neutral);
+            neutral.KeepSeeing();
+            neutral.Run(0.5);
+            Assert.Equal("Idle", neutral.TaskName);
         }
 
         /// <summary>⭐ AQ97 C — <c>InertSop</c>, the explicit none: no idle choice and no reaction, whatever he senses.</summary>

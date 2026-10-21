@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE — APPROVED 2026-10-20 (R-2062): A–F as leaned; BUILT, both demos live PASS
-updated: 2026-10-20
+updated: 2026-10-21 (known-rot: AQ98)
 build-state: BUILT (§6 as built)
 current-answer: §5 the answer · §6 as built (deviations ①–⑩, live results) · §3 the leans it approved
 stale-below: nothing
-known-rot: none
+known-rot: the soldier's cover reaction is no longer `TakeCover` — AQ98 (R-2070, 2026-10-21) made the hit / near-miss / first-threat rows react with `FightFromCover` (PeekAndFire + an end after 8 s quiet in cover) and added an enemy-in-sight row for a man with no task; read "TakeCover" in this file's SOP rows as "FightFromCover"
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_98_Cover_Reaction_Fights_Back.md — OWNS what the cover reaction RUNS and when it ENDS (fights from cover, quiet lapse), and the enemy-in-sight row
   - docs/DESIGN_Decision_Layer.md — §4 OWNS the SOP slot, the four gate rules (R-199), §4.7 BasicInfantrySop (CE-2080); this question gives it to every lone soldier by default and adds rows
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — §3 OWNS R-188 "no SOP = brain-dead = absolute control; the TKB names the default"; this question keeps the rule and adds the explicit "none"
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS CivilianHsm (CIV-2: Routine, Alarmed, Panic, Shelter, Inside, Cower, Casualty, crowds) and the fear (CivilianFearSystem); this question moves the fear's OWNERSHIP of the state out of the HSM and adds a civilian SOP for a civilian on another task

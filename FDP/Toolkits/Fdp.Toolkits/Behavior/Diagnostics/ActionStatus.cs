@@ -138,6 +138,17 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             Write(ref s.Weapon, actionId, reason, target, progress, needed, Now(world));
         }
 
+        /// <summary>⭐ <c>CE-2333</c> (AQ98 D, R-2070) — no weapon action runs: <paramref name="unit"/>'s WEAPON row says nothing
+        /// (<see cref="ActionReason.None"/>) instead of keeping the last executor's word — 📐 it read "Aiming", stamped 10 s earlier, over a
+        /// man with no fire action, and misled a diagnosis. A no-op when the row is already clear.</summary>
+        public static void ClearWeapon(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<ActionStatus>() || !world.HasComponent<ActionStatus>(unit)) return;
+            if (world.GetComponentRO<ActionStatus>(unit).Weapon.Reason == ActionReason.None) return;
+            ref var s = ref world.GetComponentRW<ActionStatus>(unit);
+            Write(ref s.Weapon, 0, ActionReason.None, Entity.Null, 0f, 0f, Now(world));
+        }
+
         /// <summary>Sets <paramref name="unit"/>'s LOCOMOTION row.</summary>
         public static void Locomotion(EntityRepository world, Entity unit, ushort actionId, ActionReason reason,
             float progress = 0f, float needed = 0f)

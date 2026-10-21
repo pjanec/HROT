@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: AQ97 A/C (CE-2322) - two soldiers stand idle with no orders by the L-Block on test-town; a hostile rifleman ~150 m south-west opens fire (all immortal). 'Reflex' carries nothing in the file, so he gets his type's default SOP (BasicInfantrySop); 'Inert' is stamped InertSop - the explicit 'no response'. Judge: (1) Reflex reacts by himself once he sees the hostile or is fired on - his task becomes TakeCover (a reaction) and he moves off his spot behind the block; (2) Inert never gets a task and never moves, whatever comes near him. Fail: Reflex stands still under fire, or Inert reacts. Check: python3 scripts/utility-demo-check.py"
+    "description": "What: AQ97 A/C (CE-2322) - two soldiers stand idle with no orders by the L-Block on test-town; a hostile rifleman ~150 m south-west opens fire (all immortal). 'Reflex' carries nothing in the file, so he gets his type's default SOP (BasicInfantrySop); 'Inert' is stamped InertSop - the explicit 'no response'. Judge: (1) Reflex reacts by himself once he sees the hostile or is fired on - his task becomes FightFromCover (a reaction, AQ98: he fights from cover and it ends after 8 s of quiet) and he moves off his spot behind the block; (2) Inert never gets a task and never moves, whatever comes near him. Fail: Reflex stands still under fire, or Inert reacts. Check: python3 scripts/utility-demo-check.py"
   },
   "entities": {
     "d2322000-0000-0000-0000-000000000001": {
