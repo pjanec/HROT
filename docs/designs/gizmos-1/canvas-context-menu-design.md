@@ -341,10 +341,12 @@ AI-trace items, IG / CGF / SimHost "Center on entity" + "Select entity", CGF `Pu
 and the ReplayBrowser's own Center View / Select handlers. Rails `MapEntityMenuHandlerTests` (re-homing the deleted handler's rails).
 ⚠ Not yet seen in the GUI.
 
-## 11. DESIGN — the ORBAT tree's menu IS the map's entity menu; Embark / Disembark join it (`CE-1230`, `2026-10-20`, ui) — build-state: DESIGN (R-1015; ⏸ leans OM-1…OM-5 with the user)
+## 11. DESIGN — the ORBAT tree's menu IS the map's entity menu; Embark / Disembark join it (`CE-1230`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (R-1015; ✅ OM-1…OM-5 APPROVED `2026-10-21`, R-1019)
 
 🔒 User, `2026-10-20`: *"the contex menu in orbat tree panel should be the same as when right clicked on entity in 2d map or 3d map. not
 duplicated, but shared and unified. the embark/disembark command should go to the shared menu."* (`R-1015`)
+
+🔒 User, `2026-10-21`: *"Approved"* (OM-1…OM-5, R-1019)
 
 ### 11.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` `.*ContextMenu.*`, `.*Orbat.*`, `.*MenuHandler.*`; grep `RequestDisembark|RequestEmbark|IContextMenuBuilder`)*
 

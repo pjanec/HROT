@@ -1871,10 +1871,12 @@ that registers none would refuse the action, as it already would for a door.
 📐 **Rails:** `OperatorUseActionsTests.CE1207_*`, `RoundPickUpTests.CE1207_*`, `PossessionStationTests.CE1207_*` (×2,
 `PossessionStationTests.PickUp.cs`), `MenuOrdersTests.CE1205_*`.
 
-## 8n. S15 DESIGN — seat switching in a vehicle with several crewed weapons (`CE-1210`, `2026-10-20`, ui) — build-state: DESIGN (MW-1 R-1008; ⏸ leans MS-1…MS-7 with the user — ⚠ MS-2 amends Weapon Systems W-H)
+## 8n. S15 DESIGN — seat switching in a vehicle with several crewed weapons (`CE-1210`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (MW-1 R-1008; ✅ MS-1…MS-7 APPROVED `2026-10-21`, R-1018 — ⚠ MS-2 amends Weapon Systems W-H)
 
 🔒 User, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* —
 *"Seat switching approved, record it."* (§8i MW-1)
+
+🔒 User, `2026-10-21`: *"Approved"* (MS-1…MS-7, R-1018)
 
 ### 8n.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` `.*Seat.*`, `.*Station.*`, `.*Possess.*`, `.*Controlled.*`, `.*Arc.*`, `.*Rider.*`, `search_code` `ControlledMountBase` (limit 100); grep and the code read; `check_index_coverage` not reachable through the CLI)*
 
