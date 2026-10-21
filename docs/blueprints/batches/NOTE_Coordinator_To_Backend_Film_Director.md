@@ -45,5 +45,13 @@ CE-4034 (the overnight batch runner) becomes phase 3 of this design: the batch i
 |---|---|
 | **R-4059 sound** | sound in every map view behind the menu switch (CE-1137 already does 3-D; add the **2-D ear**), FPS always; `GET/POST /audio`; a take may silence a shot; **the films get a sound track**: the mixer logs every sound it starts while capturing, the engine renders the WAV offline (§4c) |
 | **R-4060 layers** | overlays off by default in a take; a take or shot turns map layers on and off **as a transient override, never saved**; `GET/POST /map/layers` does exactly what a click in the Layers panel does, saved like one (§4b) |
-| **instant replays live** | the user previews the clips in the editor, replays included, before the overnight run ⇒ a **world bookmark** before the moment, restore, re-step the moment from the replay camera (§3c). ⭐ **First task: the restore rail** (snapshot at t, run 5 s, restore, run 5 s, compare); fallback rewind-to-0 + fast-step |
+| ~~instant replays live~~ | ⛔ **superseded by the third pass below** |
 | **a reel is one movie** | several scenarios' takes, whole or part, in one film with transitions, chapter marks and one sound track (§4a) |
+
+## Third pass, same day — R-4061
+
+| | |
+|---|---|
+| **a LIVE run, not the preview** | each reel item is `LoadForLive` (from the saved file, a new exercise, paused at t=0, recorded), then paced steps. ⭐ **Phase 1's first rail: two live loads stepped alike are identical** — CE-202 measured PREVIEW runs only, and a live load allocates its ids (§3b-i) |
+| **no instant replays in slice 1** | a take's replay shots are skipped and named in the report |
+| **later: replays from the recording** | the replay slice first measures record → playback fidelity (§3c questions); the in-memory bookmark is the fallback |

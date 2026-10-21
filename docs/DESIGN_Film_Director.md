@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN
-updated: 2026-10-21 (second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+updated: 2026-10-21 (third pass — R-4061: the director runs a full LIVE run (recorded), not a preview; NO instant replays in slice 1, later from the recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
 current-answer: §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
 known-rot: none
@@ -35,6 +35,11 @@ could be great if the script controlling the movie can turn them on or off. And 
 turning those tactical map symbols on or off, as the user can do today from the UI."* · *"I would like to use this built-in feature in the
 editor to replay the clips before I start overnight rendering of all the movies. Note that I need to also concatenate multiple different
 scenario takes together into a movie showing multiple features."*
+
+🔒 **User, 2026-10-21 (third pass), on instant replays:** *"oh you meant using the recorded scenario and replaying it? that is a great
+ides, would require functional recording and replay which i am not sure if it works properly, not tried; also the editor preview is not
+recorderded by design (but we not need to use the preview feature of the editor, but the full live run instead, which does the recording)"* ·
+*"In the first slice no such instant replays, but later, yes"*
 
 **Words used here.** A **take** is one scenario's camera script: its shots, cuts, anchors and captions. A **reel** is a playlist of
 takes. The **director** is the editor feature that plays them: on screen in real time, or frame by frame to a film.
@@ -198,10 +203,6 @@ classDiagram
     <<extracted from DebugApiHost.HandleScenarioLoad>>
     +bool IsReady(string scenario)
   }
-  class ReplayBookmark {
-    +Save(double simTime)
-    +Restore()
-  }
   class LayerOverride {
     <<transient, never saved>>
     +Apply(on, off)
@@ -221,8 +222,7 @@ classDiagram
   }
   class FilmShot { <<existing>> }
   class ITimeCommands { <<existing>> +StepOneTick() }
-  class IScenarioSession { <<existing>> +OpenForEdit(name) }
-  class EditorPreviewController { <<existing>> +EnterPreviewMode(startPaused) }
+  class IScenarioSession { <<existing>> +LoadForLive(name) }
 
   Take "1" *-- "many" ShotSpec
   ShotSpec *-- CameraSpec
@@ -238,7 +238,6 @@ classDiagram
   DirectorRunner --> CaptureSink
   DirectorRunner --> ScenarioReadyProbe
   DirectorRunner --> IScenarioSession
-  DirectorRunner --> EditorPreviewController
   PacedClock --> ITimeCommands
   AnchorBook --> LiveCues
   Scout --> DirectorRunner : runs a take with capture off and pacing off
@@ -246,7 +245,6 @@ classDiagram
   DirectorRunner --> FilmStudio
   CaptureSink --> FilmStudio
   DirectorPanel --> DirectorRunner
-  DirectorRunner --> ReplayBookmark
   DirectorRunner --> LayerOverride
   CaptureSink --> SoundTrack
   DirectorRoutes --> DirectorRunner
@@ -266,21 +264,19 @@ sequenceDiagram
   participant R as DirectorRunner
   participant S as IScenarioSession + ScenarioLoadSequence
   participant P as ScenarioReadyProbe
-  participant V as EditorPreviewController
   participant A as AnchorBook / Scout
   participant C as PacedClock → StepOneTick
   participant E as ShotEvaluator → FilmStudio
   U->>R: Play(reel)
   loop each reel item
-    R->>S: OpenForEdit(scenario)
+    R->>S: LoadForLive(scenario) — a new exercise, paused at t=0, recorded (R-4061)
     loop each frame until ready
       R->>P: IsReady(scenario)?
     end
-    R->>V: EnterPreviewMode(startPaused: true)
     R->>A: anchors baked and fresh?
     alt stale or missing
       A->>A: scout pass (stepped, no capture) — bakes times, reports missing beats
-      R->>V: exit and re-enter preview (rewind to t=0)
+      R->>S: LoadForLive(scenario) again — a fresh run from t=0
     end
     R->>R: CinemaMode.Enter, title card
     loop each frame until the take ends
@@ -288,7 +284,7 @@ sequenceDiagram
       R->>A: Observe live cues (verify baked times)
       R->>E: Evaluate(current shot, simTime) → Direct(shot)
     end
-    R->>V: ExitPreviewMode (rewind)
+    Note over R: the next item's LoadForLive unloads this one first (ScenarioLoadSequence)
   end
   R->>U: status: done, per-take report (missing beats, anchor mismatches, realtime factor)
 ```
@@ -310,51 +306,44 @@ sequenceDiagram
     R->>K: Frame(simTime) — waits for the drawn PNG
     R->>C: StepOneTick × (60 / fps × shot.speed)
   end
-  Note over R: a replay shot is served exactly as live (§3c): restore the bookmark, re-step the moment from the replay camera
+  Note over R: slice 1 has no replay shots (R-4061): a take's replay shots are skipped and reported
   R->>B: frames + sound cues + manifest (frame → item, shot, simTime) — one movie per reel (§4a)
 ```
 
-### 3c. The instant replay — how it works, live and on film
+### 3b-i. A live run versus the preview — what differs besides the recording
 
-```mermaid
-sequenceDiagram
-  participant R as DirectorRunner
-  participant B as ReplayBookmark (world snapshot)
-  participant C as StepOneTick
-  participant E as ShotEvaluator → FilmStudio
-  Note over R: the take's next shot is a replay of [t0, t1] — t0 is known in advance from the take
-  R->>B: at sim time t0: Save() — the world, the rewindables, the clock
-  loop t0 → t1, the first showing
-    R->>C: paced steps
-    R->>E: the normal shots
-  end
-  Note over R: at t1 the replay shot starts: "REPLAY" caption
-  R->>B: Restore() — the world is back at t0
-  loop t0 → t1 again, slow (speed 0.5 ⇒ half the steps per second)
-    R->>C: paced steps
-    R->>E: the replay camera (reverse angle)
-  end
-  Note over R: under D-1 the second t0 → t1 is the same run, so the world at t1 is the state the first showing left — the take carries on with no second bookmark
-```
+| | preview (Play from Edit) | ⭐ live run (what the director plays) |
+|---|---|---|
+| the world it starts from | the editor's world **in memory**, unsaved edits included | the **saved scenario file**, always (🔒 *"started from scenario file always, never from memory"*, `DESIGN_Cluster_Load_Phase.md` §8) ⇒ a take films what is in git |
+| recorded | no, by design | yes (a new exercise per load) |
+| after it | Stop **rewinds** to the pre-play world | no rewind: another run = another load (the runner does this per item) |
+| network ids | the same on every rerun (`DESIGN_Deterministic_Network_Ids.md` §4) | allocated by the load ⇒ ⛔ whether two live loads step identically is phase 1's first rail |
 
-*What the picture shows: one snapshot per replay, taken BEFORE the moment, because the take says in advance where the replay starts. A
-replay replays the window that just ended (D-16), so re-stepping it lands the world exactly where it was.*
+### 3c. Instant replays — LATER, from the live run's recording (R-4061)
 
-**In plain words.** A replay shows a moment that has just happened a second time, from another angle and usually slowed down, then the
-action carries on. Time cannot run backwards, so the director keeps a bookmark: just before the moment it saves the world, lets the moment
-play, then puts the saved world back and plays the same seconds again with the replay camera. Because every run is stepped identically
-(D-1), the second showing is the same as the first, and when it ends the world is back where it was. Live in the editor it costs a fraction
-of a second for the restore; on film it costs nothing extra.
+🔒 *"In the first slice no such instant replays, but later, yes."* ⇒ ⭐ **slice 1 skips a take's replay shots** (the format keeps
+`replay`, and the report names each one skipped).
 
-⛔ **The one unknown:** whether a mid-run restore brings back EVERYTHING a run depends on (brains, path requests in flight, sensor caches,
-random numbers). The preview rewind already restores the world at t = 0 (`EditorPreviewController`, CE-3156), but mid-run is unmeasured.
-⇒ backend's first task is a rail: snapshot at t, run 5 s → A; restore, run 5 s → B; **A must equal B**. If it fails before it is fixed,
-the fallback is **rewind to t = 0 and fast-step to t0** (both exist), with a "REPLAY" card on screen while it catches up.
+**What a replay is.** The moment that just happened, shown again from another angle and usually slowed, then the action carries on.
+
+**The basis the user prefers: the recording.** The director runs each scenario as a full LIVE run (D-17), and a live run is recorded
+(a new exercise per load, `node_N.fdp` per node). A replay would then show the recorded seconds `[t0, t1]` from the replay camera, while the
+live run waits, and resume. ⚠ **Not tried yet** (user): whether a recording plays back faithfully. ⇒ ⭐ **the replay slice starts by
+measuring it**: record a take, play `[t0, t1]` back, compare positions, effects and deaths with the live run.
+
+| the questions that slice must answer first | why it matters |
+|---|---|
+| does playback show what the live run showed (types, effects, deaths)? | ⚠ measured limit: the Replay Browser draws replayed entities as unknown boxes, it sets no TKB (`DESIGN_Map_3D_Mode.md` §6b) |
+| can the recording be shown while the live run is paused, then the live world come back untouched? | the live world must not be driven by the playback (cluster replay drives the live world: `DESIGN_Time_Architecture.md` §12) |
+| on film: replay from the recording, or re-film the window in a second pass? | both are possible; the recording is cheaper if it is faithful |
+
+⭐ **Kept as the fallback:** an in-memory bookmark of the world before the moment, restored and re-stepped (the earlier proposal). It needs
+no recording, but a mid-run restore is unmeasured.
 
 ## 4. Formats and routes
 
 **A take** — `scenarios/<scenario>/takes/<take>.take.json` (`main` is the default take). The shot keys are `clips.json`'s, which are
-`film.py`'s plan keys plus `to`, `ease`, `speed`, `replay` (`{"from": "fire-1"}` — the window it replays ends where the shot starts), `caption`,
+`film.py`'s plan keys plus `to`, `ease`, `speed`, `replay` (`{"from": "fire-1"}` — the window it replays ends where the shot starts; ⚠ skipped in slice 1, §3c), `caption`,
 `layers` (`{"on": [...], "off": [...]}`, §4b) and `sound` (§4c). A take may also carry `layers` and `sound` at its top level, for the whole take.
 
 ```json
@@ -452,7 +441,7 @@ call.
 | **D-1** | how real time plays | ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), so the run is identical to the stepped film and the scout | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
 | **D-2** | where takes live | ⭐ **beside the scenario**, `takes/*.take.json` — a variant carries its own | in `scenario.json`: presentation in the replicated world document, and the R-260 camera entity is adopted once at load · one central manifest: variants lose their takes |
 | **D-3** | when a cut happens | ⭐ **baked anchor times** from a scout pass (exact under D-1), **verified live** by in-process cues; a take is re-scouted when the scenario hash or build changes | live cues alone: cannot cut BEFORE an event (`fire-0.5`), which is the director's main move |
-| **D-4** | instant replays | ⭐ **live and on film, by a bookmark** (§3c): save the world just before the moment, restore it, re-step the moment from the replay camera. ⭐ First task: the restore rail; until it passes, **rewind to t = 0 and fast-step** behind a "REPLAY" card | film-only replays: the user previews the clips in the editor before the overnight run, and a preview without its replays is not the clip · a second film pass spliced in: twice the render time for the same frames |
+| **D-4** | instant replays | ✅ **RULED (R-4061): none in slice 1; later, from the live run's recording** (§3c), after measuring that playback is faithful; the in-memory bookmark is the fallback | — |
 | **D-5** | overlays per shot — backend tip 4 | ✅ **RULED (R-4060):** off by default; a take or a shot turns layers on and off by name, as a transient override (§4b) | — |
 | **D-6** | titles, captions, sound — tip 5 | ⭐ captions **drawn by `CinemaMode`**, on screen and burned into captured frames. ⭐ **Sound** in every view when Sound is on (R-4059); the films get a track **rendered offline from the mixer's cue log** (§4c) | `ffmpeg drawtext` only: the live show would have none · recording the device: a captured frame takes ~0.8 s, so the sound would be stretched ~50× |
 | **D-7** | rendering speed — tip 2 | ⭐ **`CinemaMode` hides the panels and gizmos** while directing: the map fills the window. Measure the per-frame gain on entry | keep the panels: ~0.8 s per film frame, mostly the panels |
@@ -461,10 +450,11 @@ call.
 | **D-10** | automatic plans — tip 3 | ⭐ `/director/draft` writes a take from the scout's events (a shot fired → over the shooter 0.5 s before, then the target), **for a human to edit** | fully automatic films: the grammar (PLAN §1a) needs judgement the rules lack |
 | **D-11** | "is it loaded?" | ⭐ **extract** `HandleScenarioLoad`'s measured edge logic into `ScenarioReadyProbe`; the route and the runner share it | a new "loaded" event: none exists, and the edge logic is already measured. `LoadedScenarioName` is set when the load is SENT (`EditorScenarioSession.cs:82`), not when it is built |
 | **D-12** | moving the camera | ⭐ through `FilmStudio` (the director's `ICameraDriver`) only | writing the scenario's camera entity: it would be saved into the scenario (`DESIGN_Map_3D_Mode.md` §6i) · `DESIGN_Remote_Map_Control` `CMD_SET_VIEW`: an IG-only DDS path |
+| **D-17** | the run the director plays | ✅ **RULED (R-4061): a full LIVE run** (`IScenarioSession.LoadForLive`: a new exercise, paused at t=0, recorded) — not the editor's preview | the preview: not recorded by design, rewinds on stop |
 | **D-13** | the map layers over HTTP — R-4060 | ✅ **RULED:** `GET/POST /map/layers`, the same rows and the same persistence as the panel's click | — |
 | **D-14** | the 2-D ear — R-4059 | ⭐ at the view's centre, half the visible width up | no sound in 2-D: the user asked for sound outside FPS, not only in 3-D |
 | **D-15** | several scenarios in one film | ⭐ **a reel is the movie** (§4a): one capture, frames numbered across items, a transition and a chapter mark per item, one sound track | a movie per take joined afterwards: the joins, titles and sound would be a second tool to keep in step |
-| **D-16** | what a replay may replay | ⭐ **only the window that just ended** (`replay.from` → the shot's start), so one bookmark suffices and the run continues exactly | any earlier window: a second bookmark at "now" and a restore back to it — more state, no grammar needs it (PLAN §1a ⑤) |
+| **D-16** | what a replay may replay *(the replay slice)* | ⭐ **only the window that just ended** (`replay.from` → the shot's start), so one bookmark suffices and the run continues exactly | any earlier window: a second bookmark at "now" and a restore back to it — more state, no grammar needs it (PLAN §1a ⑤) |
 
 ### 5a. Claim table — what the leans rest on
 
@@ -473,12 +463,15 @@ call.
 | a held shot follows its unit every frame, paused or not | ✅ `Film.cs` `FilmDirector.Place` (resolves `Follow` per frame) | ✅ `DESIGN_Map_3D_Mode.md` §6ab |
 | every map host already carries the film layer | ✅ `MapInteractionPack.cs:553`; attached by Editor, CGF, IG, SimHost, ReplayBrowser | ✅ §6ab |
 | real-time play takes dt from the wall clock | ✅ `MasterSyncController.cs:177-186`; only `Step` uses `fixedDelta` (`:349`) | ✅ `DESIGN_Time_Architecture.md` |
-| stepped editor runs are identical | ⚠ CE-202 measured 600 steps identical (`DESIGN_Subsystem_Composition_Unification.md`), and that doc admits its first claim was vacuous | ✅ the runbook §0 measured frame-exact cuts in the editor |
+| stepped editor runs are identical | ⚠ CE-202 measured 600 PREVIEW steps identical (`DESIGN_Subsystem_Composition_Unification.md`), and that doc admits its first claim was vacuous | ✅ the runbook §0 measured frame-exact cuts in the editor |
 | the editor's step path | ✅ `EditorTimeTransportFacade.Step` → `ITimeCommands.StepOneTick`, the same as `/sim/step` | ✅ AS-11 |
 | one step per frame at most on the master | ✅ `/sim/step` comment CE-105 (`DebugApiHost.cs`) | — ⇒ D-1 caps at 2 per frame and **measures** it; if the master retires only 1, real time needs ≥ 60 fps rendering, and the realtime factor says so |
 | no "loaded" event exists | ✅ searched; readiness is the edge poll in `HandleScenarioLoad` | ⛔ searched `docs/`, none found |
 | a mid-run snapshot restore re-steps identically | ⛔ **not measured** — D-4's first task is the rail; the fallback (rewind to 0 + fast-step) is built from parts that exist | ⛔ none found |
-| the preview rewinds the world to t = 0 | ✅ `EditorPreviewController` (snapshot + `IPreviewRewindable`s, the clock restored CE-3156) | ✅ `DESIGN_Deterministic_Network_Ids.md` §4 |
+| a live load starts a new exercise, paused at t = 0 | ✅ `EditorScenarioSession.LoadForLive` (`:149-166`: a fresh `ExerciseId`, `TimeMode = "Deterministic"`) | ✅ Q86 §4-G (*"reset the clock to zero and paused"*) |
+| a live run is recorded per node | ✅ seen in CE-4033: `/tmp/FDP_Temp/exercises/<id>/node_1.fdp` | — |
+| two LIVE runs stepped alike are identical | ⛔ **not measured** — CE-202 measured stepped PREVIEW runs. ⇒ phase 1's first rail | — |
+| a recording plays back faithfully | ⛔ **not tried** (user) — the replay slice measures it first | — |
 | sound from the 3-D camera outside FPS is built | ✅ `AudioLayer.cs:82-84`, `AudioPreferences.CameraSound`, the menu at `LocalWindowController.cs:254` (CE-1137) | ✅ `designs/audio/DESIGN_FPS_Audio.md` |
 | the 2-D map has no ear | ✅ `AudioLayer.cs:82` (`view.Is3D ? new Ear(…) : null`) | — |
 | the user's layer set is saved to their file | ✅ `LayerControlSets` (`LayerControlGizmo.cs:230-290`) ⇒ a take's layers must not be written there | ✅ `DESIGN_Terrain_Combat_Tuning.md` §5e |
@@ -488,10 +481,11 @@ call.
 
 | phase | builds | accepted when |
 |---|---|---|
-| **1** | `Take`/`Reel`/`TakeStore` + validation (unknown names listed) · `ShotEvaluator` (follow, over-toward, lookAt, orbit, `to` + ease, fov) · `PacedClock` · `DirectorRunner` (load → ready → preview → play → exit → next, title cards between items) · `ScenarioReadyProbe` extracted · `/director/play\|stop\|next\|status\|takes\|reels` · the panel · ⭐ `LayerOverride` + `/map/layers` · ⭐ `/audio` + the 2-D ear | a reel of 3 takes from 3 scenarios plays unattended in the editor; cuts land within one frame of the baked times; a take's layers never reach the user's settings file; `realtimeFactor` reported |
-| **2** | `Scout` + `AnchorBook` (bake, live verify, staleness) · `/director/scout` · the report · ⭐ the restore rail, then `ReplayBookmark` (or the rewind fallback) | the scout of a take finds every anchor or names the missing one; a changed scenario is re-scouted; a replay shows the same moment again and the take continues identically |
+| **1** | ⭐ first: the rail that two live loads stepped alike are identical · `Take`/`Reel`/`TakeStore` + validation (unknown names listed) · `ShotEvaluator` (follow, over-toward, lookAt, orbit, `to` + ease, fov) · `PacedClock` · `DirectorRunner` (load → ready → preview → play → exit → next, title cards between items) · `ScenarioReadyProbe` extracted · `/director/play\|stop\|next\|status\|takes\|reels` · the panel · ⭐ `LayerOverride` + `/map/layers` · ⭐ `/audio` + the 2-D ear | a reel of 3 takes from 3 scenarios plays unattended in the editor; cuts land within one frame of the baked times; a take's layers never reach the user's settings file; `realtimeFactor` reported |
+| **2** | `Scout` + `AnchorBook` (bake, live verify, staleness) · `/director/scout` · the report | the scout of a take finds every anchor or names the missing one; a changed scenario is re-scouted |
 | **3** | `CaptureSink` (+ `speed`) · a reel → ONE movie with transitions and chapters · `SoundTrack` (cue log + offline WAV) · `CinemaMode` (panels off, captions) · `film.py` as a client | the overnight run films a reel of several scenarios into one movie with sound; the measured per-frame time with panels off |
 | **4** | `/director/draft` (automatic takes to edit) | — |
+| **5** *(later, R-4061)* | instant replays: measure record → playback first; then replays from the recording (or the bookmark fallback) | a replay shows the moment again and the take continues untouched |
 
 ⭐ **Seed data:** `docs/films/clips.json` splits into one `main.take.json` per scenario (55 takes), and a `films/features.reel.json` lists
 them in CAPABILITIES chapter order.
@@ -511,4 +505,4 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 ```
 
 *Reused as is:* `FilmStudio`, `FilmDirector`, `FilmCaptureLayer`, `ITimeCommands`, `IScenarioSession`, `ScenarioLoadSequence`,
-`EditorPreviewController`, the debug job queue. *Prior art:* `CameraBookmarkStore` (Stride) saves poses, not timed shots.
+the debug job queue. *Prior art:* `CameraBookmarkStore` (Stride) saves poses, not timed shots.
