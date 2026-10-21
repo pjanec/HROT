@@ -303,8 +303,11 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐ CE-2307 (CH-3, §5b) — and STANDING: a carrier that drives on (PushThrough) carries its squad out of the kill zone
                     //   ⭐ CE-2313 — and NOT pushing through: the carrier slows near a stop as PushThrough issues its move (measured live,
                     //   uc-convoy-hit-ifv: 0.6 m/s), and the squad got out in that dip; a carrier driving on has decided to drive on
+                    //   ⭐ CE-2347 — and a carrier that CANNOT move stands, whatever its velocity says: a destroyed APC's replicated velocity
+                    //   froze at its last sample (0.33 m/s for 140 s, measured live on uc-urban-battle) and its squad sat in the wreck
                     AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
-                                               && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier) && !PushingThrough(world, carrier),
+                                               && (Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(world, carrier) || !ConvoyConditions.CanMove(world, carrier))
+                                               && !PushingThrough(world, carrier),
                     AboardWhere.Roping      => phase == Fdp.Toolkit.Navigation.NavigationPhase.Roping,     // ⭐ CE-1118 H-1
                     AboardWhere.Dropping    => phase == Fdp.Toolkit.Navigation.NavigationPhase.Dropping,   // ⭐ CE-1118 H-1
                     _                       => phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading,
