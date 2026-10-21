@@ -17,6 +17,9 @@ lead to the replay from recording path."* ⭐ Canon since 2026-09-04: *"the scen
 ways"* (RUNBOOK_Cluster_Debugging_Over_Http §8). 📐 The coordinator's trial scout agreed: the `ua-civ-melee` blow at 4.25 s in the editor
 preview against ~8.6 s from a cluster run.
 
+⭐ **You got there first:** B0 measured RED (CE-3291) and R-3034 (*"do not use rewind, always load again"*) already withdraw B0 and the
+baked times. ⇒ the rows below that repeat R-3034 are confirmations; the NEW asks are `until`, the reliability scout, retakes, and B12's timing.
+
 ## What changes — design §3d
 
 | item | ⛔ was | ⭐ now |

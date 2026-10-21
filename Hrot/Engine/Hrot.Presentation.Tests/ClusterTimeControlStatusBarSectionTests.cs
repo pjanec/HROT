@@ -91,6 +91,7 @@ internal sealed class FakeTimeTransportFacade : ITimeTransportFacade
 
     public void TogglePlayPause() => TogglePlayPauseCallCount++;
     public void Step() => StepCallCount++;
+    public void StepBy(float seconds) => StepCallCount++;
     public void Stop() => StopCallCount++;
     public void SetTimeScale(float scale) => LastSetTimeScale = scale;
 }

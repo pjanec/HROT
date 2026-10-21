@@ -113,16 +113,19 @@ namespace Hrot.Editor.UI
         }
 
         /// <inheritdoc/>
-        public void Step()
+        public void Step() => StepBy(1f / 60f);
+
+        /// <inheritdoc/>
+        public void StepBy(float seconds)
         {
             if (!InPreview)
                 _preview.EnterPreviewMode(startPaused: true);
             else if (!Paused)
                 Pause();
             else if (_commands != null)
-                _commands.StepOneTick();
+                _commands.StepBy(seconds);
             else
-                _timeCtrl.Step(1f / 60f);
+                _timeCtrl.Step(seconds);
         }
 
         // ── T4: one place each, so the direct-call fallback is visible ───────────

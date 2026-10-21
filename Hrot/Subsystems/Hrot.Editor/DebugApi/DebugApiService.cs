@@ -1014,12 +1014,16 @@ namespace Hrot.Editor.DebugApi
             return GetSimState();
         }
 
-        /// <summary><c>POST /sim/step {count?}</c> — discrete single-step(s) (main thread).</summary>
-        public JsonNode Step(int count = 1)
+        /// <summary><c>POST /sim/step {count?, dt?}</c> — discrete single-step(s) (main thread); <paramref name="dt"/> sizes
+        /// each step (the film director's 1/20 or 1/15 s, `DESIGN_Film_Director.md` D-1), else 1/60 s.</summary>
+        public JsonNode Step(int count = 1, float? dt = null)
         {
             if (count < 1) count = 1;
             for (int i = 0; i < count; i++)
-                _time.Step();
+            {
+                if (dt is { } seconds) _time.StepBy(seconds);
+                else                   _time.Step();
+            }
             return GetSimState();
         }
 

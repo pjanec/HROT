@@ -56,6 +56,22 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(0.25f, steps[0].DeltaSeconds, 3);
         }
 
+        /// <summary>CE-4038 — the film director's coarser rates: a sized step carries its own delta, and only a positive one.</summary>
+        [Fact]
+        public void StepBy_PublishesAStepIntent_CarryingTheGivenDelta_AndRefusesANonAdvancingOne()
+        {
+            var bus = RegisteredBus();
+            new IntentTimeCommands(bus).StepBy(1f / 15f);
+            bus.SwapBuffers();
+
+            var steps = bus.ReadManaged<StepTimeIntent>();
+            Assert.Single(steps);
+            Assert.Equal(1f / 15f, steps[0].DeltaSeconds, 5);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => new IntentTimeCommands(bus).StepBy(0f));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new IntentTimeCommands(bus).StepBy(float.NaN));
+        }
+
         [Fact]
         public void SetTimeScale_PublishesTheScale()
         {

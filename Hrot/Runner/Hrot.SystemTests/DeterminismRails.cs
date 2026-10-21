@@ -409,4 +409,7 @@ public sealed class DeterminismRails
                     $"declared-volatile kind(s) [{string.Join(", ", noLongerDrifting)}] no longer drift — "
                   + "delete the exemption rather than carrying one nothing needs.");
     }
+
+    // ⛔ CE-4038 B0's film-take rail ("a take played again is the same take") was withdrawn `2026-10-21`: R-3034 — scenarios are
+    //   not deterministic and nothing may expect two runs to be the same run; the film director loads every run again (CE-3291).
 }
