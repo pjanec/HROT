@@ -970,6 +970,8 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         c.MaxHealth = 800;
                         c.BlastSusceptibility = 0.8f;
+                        // ⭐ CE-2185 (R-3028, Air Ops §7c-i) — the airframe and crew seats against 7.62 mm: front · side · rear · top (mm RHA)
+                        c.ArmorFront = 8; c.ArmorSide = 6; c.ArmorRear = 4; c.ArmorTop = 4;
                         c.Weapons.Add(Dispenser(flares: 30, chaff: 30));   // ⭐ CE-2188 (BS-1 §5.4c) — its only mount: not a weapon
                     })
                     .WithBehavior(uh60);
@@ -1182,6 +1184,8 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.MaxHealth = 600;
                     c.BlastSusceptibility = 0.5f;   // ⭐ R-2019 D-M2 (AE3) — the titanium cockpit tub; wings and engines are soft
+                    // ⭐ CE-2185 (R-3028, Air Ops §7c-i) — the titanium "bathtub" survives direct hits up to 23 mm: front · side · rear · top
+                    c.ArmorFront = 25; c.ArmorSide = 25; c.ArmorRear = 10; c.ArmorTop = 10;
                     c.EyeHeight = 1f;
                     c.SensorRange = 5000;
                     c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
@@ -1250,6 +1254,8 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.MaxHealth = 800;
                     c.BlastSusceptibility = 0.8f;   // ⭐ R-2019 D-M2 (AE3) — a helicopter's armour covers the crew, not the rotors
+                    // ⭐ CE-2185 (R-3028, Air Ops §7c-i) — crew armour against 12.7 mm, critical parts tolerant to 23 mm: front · side · rear · top
+                    c.ArmorFront = 20; c.ArmorSide = 15; c.ArmorRear = 8; c.ArmorTop = 8;
                     c.EyeHeight = 1f;
                     c.SensorRange = 6000;
                     c.Weapons.Add(new WeaponMount

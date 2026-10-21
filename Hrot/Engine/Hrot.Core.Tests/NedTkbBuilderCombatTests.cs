@@ -964,6 +964,32 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2185</c> (R-3028, Air Ops §7c-i — 🔒 user: "approved") — the aircraft carry the approved armour faces, and what that
+        /// means for a hit through the one penetration rule (<c>ArmorModel.PenetrationChance</c>): a rifle round (5 mm) never defeats the
+        /// A-10's or AH-64's front, nor the UH-60's front, but defeats the UH-60's rear; the 12.7 mm AP round (25 mm) defeats every face
+        /// at least half the time. 🔴 Red-proof: without the faces every round penetrates (0 mm ⇒ chance 1).
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Jet_AttackA10, 25f, 25f, 10f, 10f)]
+        [InlineData(TkbEntityTypes.Heli_AH64, 20f, 15f, 8f, 8f)]
+        [InlineData(TkbEntityTypes.Heli_UH60, 8f, 6f, 4f, 4f)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff, 8f, 6f, 4f, 4f)]
+        public void CE2185_AnAircraft_CarriesTheApprovedArmour(long type, float front, float side, float rear, float top)
+        {
+            var platform = BuildDatabase().GetByType(type)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto>()!;
+            Assert.Equal((front, side, rear, top), (platform.ArmorFront, platform.ArmorSide, platform.ArmorRear, platform.ArmorTop));
+
+            const float rifle = 5f, hmgAp = 25f;   // 5.56 mm ball · the 12.7 mm AP round (MunitionTkbCatalog.TkbHmgAp)
+            float Chance(float pen, Fdp.Toolkit.Combat.Facing f)
+                => Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(pen, Fdp.Toolkit.Combat.ArmorModel.ArmourFor(platform, f));
+            Assert.Equal(0f, Chance(rifle, Fdp.Toolkit.Combat.Facing.Front));
+            Assert.True(Chance(hmgAp, Fdp.Toolkit.Combat.Facing.Front) >= 0.49f);   // 25 on 25 mm: (1 − 0.8) / 0.4 = 0.5, in float a hair under
+            Assert.True(Chance(hmgAp, Fdp.Toolkit.Combat.Facing.Side) >= 0.49f);
+            if (type is TkbEntityTypes.Heli_UH60 or TkbEntityTypes.Heli_UH60_DoorsOff)
+                Assert.Equal(1f, Chance(rifle, Fdp.Toolkit.Combat.Facing.Rear));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c; 🔒 user: "Chaff launcher can be weapon type and slot could be normal one") —
         /// every crewed aircraft with a brain carries its flares and chaff as an ordinary weapon mount, its LAST one: category
         /// Countermeasure, a loadout of the flare (DIS 8.2.2) and the chaff (8.2.1), a rate of fire. Through the production translators the

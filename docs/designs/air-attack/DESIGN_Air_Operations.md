@@ -615,8 +615,8 @@ already existed (`4e4cd78b3`, M7); the one hole was the impact's ground-phase sk
 · `…CE2184_AHelicopterKilledWhileLanding_DoesNotFallThroughTheGround` · `…CE2184_APlaneKilledAt300m_FallsAlongItsTrack` · `FireProcessingSystemTests.CE2183_ARoundAtACrossingHelicopter_IsLed_AGroundVehicleIsNot`. Riders: the existing
 `EmbarkedStateSystemTests.CE3110_I2c_AVehicleDestroyed_KillsThePassengers_…`.
 
-**Proposed armour faces — NOT built, for the user** (mm RHA-equivalent per face, the `ArmorModel` columns; public figures, rounded, not
-verified against a primary source):
+**Armour faces — ✅ APPROVED and BUILT `2026-10-21` (R-3028; 🔒 user: *"Those 3 approved"*; `CE-2185`)** (mm RHA-equivalent per face, the
+`ArmorModel` columns; public figures, rounded, not verified against a primary source; rail `NedTkbBuilderCombatTests.CE2185_*`):
 
 | type | front · side · rear · top | basis |
 |---|---|---|
@@ -624,7 +624,10 @@ verified against a primary source):
 | AH-64 (406) | 20 · 15 · 8 · 8 | Boeing: crew armour against 12.7 mm, critical components tolerant to 23 mm |
 | UH-60 (400, 404) | 8 · 6 · 4 · 4 | Sikorsky / US Army: the airframe and crew seats against 7.62 mm; rotor and drive tolerant to 23 mm |
 
-⇒ rifle ball would stop on the A-10's and AH-64's faces and pass a UH-60's skin; the 12.7 mm HMG and every cannon would pass all of them.
+📐 **What it means through the one rule** (`ArmorModel.PenetrationChance` = (pen/armour − 0.8) / 0.4, clamped): 5.56 mm ball (pen 5) never
+defeats the A-10's or AH-64's faces, nor the UH-60's front (8) — 7 % on its side (6), always on its rear and top (4); 7.62 mm (pen 8) half
+the time on the UH-60's front, always on its side; the 12.7 mm AP round (pen 25) the A-10 half the time, the AH-64 and UH-60 always; every
+cannon passes all. ⚠ An earlier line here said rifle ball "would pass a UH-60's skin" — true of its rear and top only.
 
 
 ### 7d. Air defence — the frame (CE-2179; `2026-10-15`) — build-state: DESIGN (the engine half dispatched as a FRAME)

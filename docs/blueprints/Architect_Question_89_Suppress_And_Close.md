@@ -185,3 +185,10 @@ throws if it can, else fires blind, else fires aimed once he is seen.*
 | **D** `CombatPostureParamsJsonDto.assault` → `WillingToCloseParams.Assault` | counts as an order unless the running origin is `Sop` or `Reaction` |
 | **E** `TemperamentOf.WillingThreshold` = 0.6 | deterministic |
 | rails | `CombatTemperamentTests` (defaults never zero; set-at-zero counts; threshold) · `AimAndFireExecutorTests.AQ89_A_*` · `TacticsTreesTests.AQ89_A_*`, `AQ89_C_*` (4 cases) · cluster `GrenadeOrRifleScenarioTests` ✅ (the Grenadier closes under blind fire from 31 m, throws at ~24 m, the lob clears the sandbags, the hostile is hurt) |
+
+## ✅ `2026-10-21` — C EXTENDED for an attack order on a hidden named enemy (`CE-3177`, R-3031)
+
+🔒 User: *"3177 approved"* — behaviors' lean as written in the tracker row: inside the Suppress branch, a hidden NAMED enemy + WILLING
+(≥ 0.6, `Obedience` under an `assault` order) + NO throwable ⇒ advance on its last-known point under blind fire (the hunt
+`AdvanceAndAttack` already does); with a throwable ⇒ `CloseToThrow` as today; unwilling ⇒ blind suppression (A). The posture tree is
+the behaviors lane's to build.
