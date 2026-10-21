@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Vis2D.Systems;
 /// INCLUDES CYCLE DETECTION to prevent infinite loops.
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
+[TickMode(TickPolicy.EveryFrame)]
 public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
 {
     /// <summary>

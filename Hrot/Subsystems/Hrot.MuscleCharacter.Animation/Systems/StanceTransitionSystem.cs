@@ -13,6 +13,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// Runs in PreSimulation.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StanceTransitionSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

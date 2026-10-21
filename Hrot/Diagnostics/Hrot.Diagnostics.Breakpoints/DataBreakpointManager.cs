@@ -41,13 +41,13 @@ public sealed record CompiledEventScanner(EventScannerDelegate Delegate)
     private readonly List<SearchResultDto> _buffer = new(4);
 
     /// <summary>
-    /// Scans <paramref name="bus"/> for matching events.
+    /// Scans <paramref name="repo"/>'s events (through its repository reads — CE-3293 S3, rule 4) for matching ones.
     /// Returns <c>true</c> if at least one matching event is present.
     /// </summary>
-    public bool Evaluate(FdpEventBus bus, EntityRepository repo)
+    public bool Evaluate(EntityRepository repo)
     {
         _buffer.Clear();
-        Delegate(bus, 0, 0L, _buffer, repo, null);
+        Delegate(repo, 0, 0L, _buffer, null);
         return _buffer.Count > 0;
     }
 }

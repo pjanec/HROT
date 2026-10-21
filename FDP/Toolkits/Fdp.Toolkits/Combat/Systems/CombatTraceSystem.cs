@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// the systems that feed it — a restored ring is never topped up from a live log.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CombatTraceSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

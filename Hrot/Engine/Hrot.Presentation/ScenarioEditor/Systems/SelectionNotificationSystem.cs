@@ -34,6 +34,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// implementations of one concept (ruling 9). 📄 §2.7.15.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionNotificationSystem : IEcsModuleSystem
 {
     private readonly Func<IInspectorContext?> _inspector;
@@ -85,7 +86,7 @@ public sealed class SelectionNotificationSystem : IEcsModuleSystem
         //   skipped it silently on exactly those hosts.
         var inspector = _inspector();
 
-        foreach (var note in world.Bus.ReadManaged<SelectionChangedNotification>())
+        foreach (var note in world.ReadManagedEvents<SelectionChangedNotification>())
         {
             if (note == null) continue;
 

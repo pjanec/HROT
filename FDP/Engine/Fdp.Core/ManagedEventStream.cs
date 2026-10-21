@@ -13,6 +13,18 @@ namespace Fdp.Core
         void WriteRaw(object evt);
         void Swap();
         void ClearCurrent();
+
+        /// <summary>The bus type id (the full-name hash).</summary>
+        int TypeId { get; }
+
+        /// <summary>How many events the READ buffer holds (CE-3293 S4 — no boxing, no lock).</summary>
+        int ReadCount { get; }
+
+        /// <summary>
+        /// ⭐ CE-3293 S4 — this stream's typed event history, one list per slot of <paramref name="slotCapacity"/>: the
+        /// accumulator captures and replays it by a virtual call, never through <c>object</c>.
+        /// </summary>
+        ManagedStreamHistory CreateHistory(int slotCapacity);
     }
 
     /// <summary>
@@ -30,7 +42,13 @@ namespace Fdp.Core
         private readonly object _lock = new object();
 
         // IManagedEventStreamInfo implementation
-        public int TypeId => typeof(T).FullName!.GetHashCode() & 0x7FFFFFFF;
+        public int TypeId => FdpEventBus.ManagedTypeId<T>.Id;
+
+        /// <inheritdoc/>
+        public int ReadCount => _front.Count;
+
+        /// <inheritdoc/>
+        public ManagedStreamHistory CreateHistory(int slotCapacity) => new ManagedStreamHistory<T>(this, slotCapacity);
         public Type EventType => typeof(T);
         
         // IEventStreamInspector implementation
@@ -73,8 +91,9 @@ namespace Fdp.Core
         /// </summary>
         public void Write(T evt)
         {
-            // For reference types, guard against null. For value types this check is always false.
-            if (evt is null)
+            // For reference types, guard against null. ⭐ CE-3293 S4 — the IsValueType test first: `evt is null` boxes a struct
+            //   in unoptimised (Debug / tier-0) code, 32 bytes per publish.
+            if (!typeof(T).IsValueType && evt is null)
                 throw new ArgumentNullException(nameof(evt));
 
             lock (_lock)

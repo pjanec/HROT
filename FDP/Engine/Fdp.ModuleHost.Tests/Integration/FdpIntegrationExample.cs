@@ -124,6 +124,7 @@ namespace Fdp.ModuleHost.Tests.Integration
     }
     
     // Mock module for testing
+    [TickMode(TickPolicy.EveryFrame)]
     public class MockModule : IEcsModule
     {
         public string Name { get; }

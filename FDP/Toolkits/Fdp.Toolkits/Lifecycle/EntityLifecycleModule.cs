@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Lifecycle
     /// Ensures entities are fully initialized before becoming Active,
     /// and properly cleaned up before destruction.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class EntityLifecycleModule : IEcsModule
     {
         public string Name => "EntityLifecycleManager";

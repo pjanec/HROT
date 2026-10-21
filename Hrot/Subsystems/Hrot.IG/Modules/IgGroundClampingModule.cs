@@ -25,6 +25,7 @@ namespace Hrot.IG.Modules
     /// </list>
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class IgGroundClampingModule : IEcsModule
     {
         private readonly ITerrainProvider _terrainProvider;

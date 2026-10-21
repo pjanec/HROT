@@ -39,8 +39,10 @@ public sealed record FilmShot
     }
 }
 
-/// <summary>A capture asked for: the PNG's path and size; <see cref="Supersample"/> renders that many times larger and scales down.</summary>
-public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1);
+/// <summary>A capture asked for: the PNG's path and size; <see cref="Supersample"/> renders that many times larger and scales down.
+/// ⭐ CE-4038 B8/B9 — <see cref="Caption"/> is burned in under the picture; a <see cref="Card"/> is a title card (its text on black) instead
+/// of the scene.</summary>
+public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, string? Caption = null, string? Card = null);
 
 /// <summary>A captured frame: where it was written, its size, and the sim time it shows.</summary>
 public readonly record struct FilmFrame(string Path, int Width, int Height, double SimTime);
@@ -120,7 +122,13 @@ public sealed class FilmDirector : ICameraDriver
 
     private float? _fovBefore;
 
-    public void Update(MapCamera3D camera, float dt) => Place(camera);
+    public void Update(MapCamera3D camera, float dt)
+    {
+        // ⭐ CE-4038 — the newest shot, read when the camera updates: a cut lands THIS frame, before the layers (the weather) read the
+        //   camera — so a new shot's first frame needs no throwaway settle capture any more
+        if (FilmStudio.Shot is { } latest) Shot = latest;
+        Place(camera);
+    }
 
     /// <summary>Gives the lens back: the field of view the camera had before a shot changed it.</summary>
     public void Detached(MapCamera3D camera)
@@ -218,7 +226,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
     {
         try
         {
-            if (!_view.Is3D) throw new InvalidOperationException("the map is in 2-D — hold a shot (POST /film/shot) or switch the map to 3-D first");
+            if (!_view.Is3D && request.Card == null) throw new InvalidOperationException("the map is in 2-D — hold a shot (POST /film/shot) or switch the map to 3-D first");
             int ss = Math.Clamp(request.Supersample, 1, 4);
             int w = request.Width * ss, h = request.Height * ss;
             if (request.Width < 16 || request.Height < 16 || w > MaxSide || h > MaxSide)
@@ -239,7 +247,12 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             {
                 Raylib.BeginTextureMode(_target);
                 Raylib.ClearBackground(Color.Black);
-                _canvas.DrawScene();
+                if (request.Card != null) FilmText.Card(request.Card, w, h);
+                else
+                {
+                    _canvas.DrawScene();
+                    if (!string.IsNullOrWhiteSpace(request.Caption)) FilmText.Caption(request.Caption!, w, h);
+                }
                 Raylib.EndTextureMode();
             }
             finally { camera.ViewportOverride = viewport; }
@@ -274,5 +287,61 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
         if (_target.Id != 0) Raylib.UnloadRenderTexture(_target);
         _target = default;
         if (ReferenceEquals(_view.Camera3D.Driver, _director)) _view.Camera3D.Driver = null;
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-4038</c> B9 (docs/DESIGN_Film_Director.md D-6) — the director's words on the picture, the same on screen and burned into a frame:
+/// a caption in a dark band under the picture, a title card centred on black. Sized from the frame's height.
+/// </summary>
+public static class FilmText
+{
+    /// <summary>A caption at the bottom of a <paramref name="w"/>×<paramref name="h"/> picture.</summary>
+    public static void Caption(string text, int w, int h)
+    {
+        int size = Math.Max(12, h / 30);
+        var lines = Wrap(text, size, (int)(w * 0.86f));
+        int lineH = (int)(size * 1.25f);
+        int band = lineH * lines.Count + size;
+        int top = h - band - h / 18;
+        Raylib.DrawRectangle(0, top, w, band, new Color(0, 0, 0, 150));
+        for (int i = 0; i < lines.Count; i++)
+        {
+            int tw = Raylib.MeasureText(lines[i], size);
+            Raylib.DrawText(lines[i], (w - tw) / 2, top + size / 2 + i * lineH, size, Color.RayWhite);
+        }
+    }
+
+    /// <summary>A title card: each line of <paramref name="text"/> centred, the first one larger.</summary>
+    public static void Card(string text, int w, int h)
+    {
+        Raylib.DrawRectangle(0, 0, w, h, Color.Black);
+        var lines = text.Split('\n');
+        int big = Math.Max(16, h / 14), small = Math.Max(12, h / 24);
+        int total = 0;
+        for (int i = 0; i < lines.Length; i++) total += (int)((i == lines.Length - 1 ? big : small) * 1.4f);
+        int y = (h - total) / 2;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int size = i == lines.Length - 1 ? big : small;
+            var color = i == lines.Length - 1 ? Color.RayWhite : new Color(200, 200, 200, 255);
+            int tw = Raylib.MeasureText(lines[i], size);
+            Raylib.DrawText(lines[i], (w - tw) / 2, y, size, color);
+            y += (int)(size * 1.4f);
+        }
+    }
+
+    private static List<string> Wrap(string text, int size, int width)
+    {
+        var lines = new List<string>();
+        var line = "";
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var next = line.Length == 0 ? word : line + " " + word;
+            if (line.Length > 0 && Raylib.MeasureText(next, size) > width) { lines.Add(line); line = word; }
+            else line = next;
+        }
+        if (line.Length > 0) lines.Add(line);
+        return lines;
     }
 }

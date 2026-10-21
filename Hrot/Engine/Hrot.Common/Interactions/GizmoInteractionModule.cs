@@ -25,6 +25,7 @@ namespace Hrot.Common.Interactions
     // The bus is injected directly into systems that need it (DataDrivenGizmoSystem,
     // GlobalGizmoManager, ContextActionIngressSystem, GlobalActionDispatchSystem)
     // so they read from the isolated bus without any view interception.
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GizmoInteractionModule : IEcsModule
     {
         public string Name => "GizmoInteraction";
@@ -60,14 +61,28 @@ namespace Hrot.Common.Interactions
             _interactionBus.Register<GlobalActionRequestedEvent>();
         }
 
-        // RegisterSystems is intentionally empty: all systems run manually inside Tick()
-        // with the raw view; interaction events are isolated via explicit bus injection.
-        public void RegisterSystems(ISystemRegistry registry) { }
+        // All systems still run inside Tick() with the raw view, in this order; interaction events are isolated via explicit
+        // bus injection. ⭐ CE-3293 S2 — RegisterSystems hands each one to the scheduler as a MANUAL system (never run by a
+        // kernel phase) and Tick runs the wrappers, so every call passes the one gate.
+        public void RegisterSystems(ISystemRegistry registry)
+        {
+            if (_gizmoIngress != null)   _gizmoIngressRun   = registry.RegisterManualSystem(_gizmoIngress);
+            if (_contextIngress != null) _contextIngressRun = registry.RegisterManualSystem(_contextIngress);
+            var runs = new IEcsModuleSystem[_interactionSystems.Length];
+            for (int i = 0; i < runs.Length; i++) runs[i] = registry.RegisterManualSystem(_interactionSystems[i]);
+            _interactionRuns = runs;
+            if (_gizmoEgress != null)    _gizmoEgressRun    = registry.RegisterManualSystem(_gizmoEgress);
+        }
+
+        private IEcsModuleSystem? _gizmoIngressRun;
+        private IEcsModuleSystem? _contextIngressRun;
+        private IEcsModuleSystem[]? _interactionRuns;
+        private IEcsModuleSystem? _gizmoEgressRun;
 
         public void Tick(ISimulationView view, float deltaTime)
         {
             // 1. Network Ingress (headless only): reads DDS and writes directly to _interactionBus.
-            _gizmoIngress?.Execute(view, deltaTime);
+            (_gizmoIngressRun ?? _gizmoIngress)?.Execute(view, deltaTime);
 
             // 2. Advance the isolated bus so ingress events become readable.
             _interactionBus.SwapBuffers();
@@ -76,15 +91,15 @@ namespace Hrot.Common.Interactions
             //    ContextActionIngressSystem reads ContextActionTriggered from _interactionBus
             //    (injected at construction) and publishes GlobalActionRequestedEvent.
             //    The 1-frame delay to step 4 is imperceptible for UI clicks.
-            _contextIngress?.Execute(view, deltaTime);
+            (_contextIngressRun ?? _contextIngress)?.Execute(view, deltaTime);
 
             // 4. Dispatch actions and drive gizmo FSMs.
             //    Systems read from _interactionBus directly (injected at construction).
-            foreach (var sys in _interactionSystems)
+            foreach (var sys in _interactionRuns ?? _interactionSystems)
                 sys.Execute(view, deltaTime);
 
             // 5. Network Egress (non-headless IG with DDS): reads _interactionBus, sends to DDS.
-            _gizmoEgress?.Execute(view, deltaTime);
+            (_gizmoEgressRun ?? _gizmoEgress)?.Execute(view, deltaTime);
         }
     }
 }

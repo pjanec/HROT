@@ -1,0 +1,56 @@
+{
+  "title": "Contact mid-crossing",
+  "caption": "Fire comes while the squad is split by the road; both halves fight, then assault",
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "contact": 70.15
+    },
+    "tickHz": 60,
+    "scenarioHash": "3f76693bf396765f",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "contact-2",
+      "seconds": 4,
+      "lookAt": [
+        200,
+        74,
+        0
+      ],
+      "distance": 70,
+      "yaw": 90,
+      "pitch": -50,
+      "why": "split across the road"
+    },
+    {
+      "at": "contact+1",
+      "seconds": 4,
+      "over": "Leader",
+      "toward": "Hostile",
+      "back": 4,
+      "height": 2,
+      "ahead": 0.5,
+      "fov": 30,
+      "why": "toward the enemy"
+    },
+    {
+      "at": "contact+20",
+      "seconds": 5,
+      "follow": "Leader",
+      "distance": 45,
+      "yaw": 45,
+      "pitch": -45,
+      "why": "the assault by fire and movement"
+    }
+  ],
+  "clip": "F-27",
+  "chapter": 6,
+  "state": "ready"
+}

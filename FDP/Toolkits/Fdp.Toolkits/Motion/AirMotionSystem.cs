@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Motion
     /// every body with a <see cref="Locomotion"/>, so nothing is integrated twice.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AirMotionSystem : IEcsModuleSystem
     {
         /// <summary>⭐ Air Ops slice 2 — the routes a <c>FollowRoute</c> intent names (<see cref="NavigationIntent.RouteEntityId"/>); the
@@ -35,6 +36,24 @@ namespace Fdp.Toolkit.Motion
             if (repo.IsComponentTypeRegistered<Descent>())
                 foreach (var e in repo.Query().With<Descent>().With<SimTransform>().WithOwned<SimTransform>().With<SimVelocity>().Without<Locomotion>().Build())
                     Step(repo, e, intents, drives, terrain, deltaTime);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S5 — compiles every owned air body's route path WITHOUT moving it: the paused-time half of this system
+        /// (<see cref="AirRouteCompileSystem"/>), so a route edited while time stands still is flown as drawn. The same compile the
+        /// step runs (<see cref="EnsurePath"/>) — one implementation.
+        /// </summary>
+        internal void CompilePaths(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Locomotion>() || !repo.IsComponentTypeRegistered<NavigationIntent>()) return;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);
+            foreach (var e in repo.Query().With<Locomotion>().With<SimTransform>().WithOwned<SimTransform>().With<NavigationIntent>().Build())
+            {
+                var cls = Locomotions.Of(repo, e);
+                if (Locomotions.DomainOf(cls) != MotionDomain.Air) continue;
+                var intent = repo.GetComponentRO<NavigationIntent>(e);
+                if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain, cls);
+            }
         }
 
         private void Step(EntityRepository repo, Entity e, bool intents, bool drives, Fdp.Toolkit.World.IWorldQuery? terrain, float deltaTime)
@@ -139,6 +158,26 @@ namespace Fdp.Toolkit.Motion
     }
 
     /// <summary>
+    /// ⭐ CE-3293 S5 (R-3036 §1b; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §8, approved "split") — the paused-time half
+    /// of <see cref="AirMotionSystem"/>: on a frame that does not advance, an air body's route path is (re)compiled when its order or
+    /// its route changed, so the path the map draws is the one it will fly. On a frame that advances the motion system compiles it.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
+    public sealed class AirRouteCompileSystem : IEcsModuleSystem
+    {
+        private readonly AirMotionSystem _motion;
+
+        public AirRouteCompileSystem(AirMotionSystem motion) => _motion = motion ?? throw new ArgumentNullException(nameof(motion));
+
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            if (deltaTime > 0f || view is not EntityRepository repo) return;   // advancing: the motion system compiles
+            _motion.CompilePaths(repo);
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-2168 (MD-B) — the AIR domain's module: the systems that move air bodies (<see cref="AirMotionSystem"/>) and then what happens
     /// when one meets something (the drone's impact, M7). Held beside <c>GroundKinematicsModule</c> by the SimHost and the editor's
     /// Muscle (<c>SimHostCoreLogicPack</c>). ⚠ The per-domain OWNERSHIP role (<c>MuscleAir</c>, MD-B) is not built: the ownership table
@@ -151,7 +190,13 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ Air Ops slice 2 — with the routes a <c>FollowRoute</c> names (<see cref="AirMotionSystem.RouteSource"/>).</summary>
         public AirMotionModule(IRouteSource? routes, params IEcsModuleSystem[] after)
         {
-            var list = new System.Collections.Generic.List<IEcsModuleSystem> { new AirMotionSystem { RouteSource = routes }, new DescentLandingSystem() };
+            var motion = new AirMotionSystem { RouteSource = routes };
+            var list = new System.Collections.Generic.List<IEcsModuleSystem>
+            {
+                new AirRouteCompileSystem(motion),   // ⭐ CE-3293 S5 — a route edited while paused is compiled at once
+                motion,
+                new DescentLandingSystem(),
+            };
             if (after != null) list.AddRange(after);
             PostSimulationSystems = list;
         }

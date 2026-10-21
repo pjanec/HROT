@@ -44,4 +44,75 @@ namespace Fdp.ModuleHost.Abstractions
     public sealed class SingleInstanceAttribute : Attribute
     {
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3293</c> (R-3036) — when a system or a module runs. 📄 <c>docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md</c> §1.
+    /// <para>⛔ There is no default: every system and every module declares one with <see cref="TickModeAttribute"/>, because 82 of the
+    /// 202 production systems must run while time is paused and 116 must not — whichever default, a new system silently gets the wrong one.</para>
+    /// </summary>
+    public enum TickPolicy
+    {
+        /// <summary>A group or a wrapper that only forwards to other systems — they decide. Never written in a <see cref="TickModeAttribute"/>.</summary>
+        Forwarding = 0,
+
+        /// <summary>Runs only on a frame whose sim time advances — live play or a step; never on a paused frame. Simulation work.</summary>
+        WhenTimeAdvances = 1,
+
+        /// <summary>Runs on every rendered frame, paused or not (its delta is 0 while paused): editing, network, operator UI, recording.</summary>
+        EveryFrame = 2,
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3293</c> (R-3036) — declares a system's or a module's <see cref="TickPolicy"/>. ⛔ Not inherited: a base class cannot hand
+    /// its mode down, so every concrete system states its own.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+    public sealed class TickModeAttribute : Attribute
+    {
+        public TickPolicy Policy { get; }
+
+        public TickModeAttribute(TickPolicy policy)
+        {
+            if (policy == TickPolicy.Forwarding)
+                throw new ArgumentException("Forwarding is not declared: a group or a wrapper carries no TickMode (its members decide).", nameof(policy));
+            Policy = policy;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3293</c> — reads a type's <see cref="TickPolicy"/>, throwing (with the type's name) when a system or module declares none.
+    /// </summary>
+    public static class TickModes
+    {
+        /// <summary>The policy a system declares; <see cref="TickPolicy.Forwarding"/> for a group or a wrapper.</summary>
+        /// <exception cref="InvalidOperationException">the system type carries no <see cref="TickModeAttribute"/>.</exception>
+        public static TickPolicy OfSystem(Type systemType)
+        {
+            if (typeof(ISystemGroup).IsAssignableFrom(systemType) || typeof(IForwardingSystem).IsAssignableFrom(systemType))
+                return TickPolicy.Forwarding;
+            return Declared(systemType)
+                ?? throw new InvalidOperationException(
+                    $"System {systemType.FullName} must declare [TickMode(TickPolicy.WhenTimeAdvances)] or [TickMode(TickPolicy.EveryFrame)] " +
+                    "(CE-3293, R-3036 — there is no default; see docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md Appendix A).");
+        }
+
+        /// <summary>The policy a module declares for its own <c>Tick</c> (and, for a background module, its dispatch).</summary>
+        /// <exception cref="InvalidOperationException">the module type carries no <see cref="TickModeAttribute"/>.</exception>
+        public static TickPolicy OfModule(Type moduleType)
+            => Declared(moduleType)
+               ?? throw new InvalidOperationException(
+                   $"Module {moduleType.FullName} must declare [TickMode(TickPolicy.WhenTimeAdvances)] or [TickMode(TickPolicy.EveryFrame)] " +
+                   "(CE-3293, R-3036 — there is no default; see docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md Appendix B).");
+
+        private static TickPolicy? Declared(Type type)
+            => ((TickModeAttribute?)Attribute.GetCustomAttribute(type, typeof(TickModeAttribute), inherit: false))?.Policy;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3293</c> — a system that only forwards to another (a profiling wrapper): it carries no <see cref="TickModeAttribute"/>;
+    /// the system it forwards to decides.
+    /// </summary>
+    public interface IForwardingSystem : IEcsModuleSystem
+    {
+    }
 }

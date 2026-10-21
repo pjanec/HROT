@@ -42,6 +42,7 @@ namespace Hrot.IG.Systems;
 /// so that freshly-received <see cref="IgSymbolOverride"/> data is visible in the view.
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public class StyleResolutionSystem : IEcsModuleSystem
 {
     private readonly MapUserConfig _userConfig;

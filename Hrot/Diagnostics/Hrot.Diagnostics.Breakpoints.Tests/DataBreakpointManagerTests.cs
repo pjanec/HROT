@@ -906,7 +906,7 @@ public sealed class DataBreakpointSystemEventTests
         var compiler      = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
         var eventCompiler = new EventScannerCompiler(new ComponentEditServiceBuilder().Build());
         var manager       = new DataBreakpointManager(repo, preTick, provider, tc, compiler, eventCompiler);
-        var bus           = new FdpEventBus();
+        var bus           = repo.Bus;   // CE-3293 S3 — the world's own bus: the scanners read it through the repository
         var system        = new DataBreakpointSystem(manager, bus);
         return (manager, system, repo, bus);
     }

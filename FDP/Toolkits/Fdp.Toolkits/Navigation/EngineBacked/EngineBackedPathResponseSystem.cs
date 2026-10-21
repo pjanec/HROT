@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// <c>PathfindingResultMaterializationSystem</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EngineBackedPathResponseSystem : IEcsModuleSystem
     {
         private readonly EngineBackedPathRegistry _registry;

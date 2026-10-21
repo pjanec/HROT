@@ -1,0 +1,61 @@
+{
+  "title": "Push through",
+  "caption": "An IED under the convoy: the Bradley is hit but drives through with its squad still aboard",
+  "anchors": {
+    "blast": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "blast": 21.4667
+    },
+    "tickHz": 60,
+    "scenarioHash": "4138b5e5d8db96aa",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "blast-6",
+      "seconds": 4,
+      "follow": "Convoy APC",
+      "distance": 25,
+      "yaw": 90,
+      "pitch": -12,
+      "why": "the avenue, the Bradley driving"
+    },
+    {
+      "at": "blast-2",
+      "seconds": 3,
+      "over": "Trigger man",
+      "toward": "Convoy APC",
+      "back": 3,
+      "height": 2,
+      "why": "the trigger man waits for it to enter the zone"
+    },
+    {
+      "at": "blast-0.3",
+      "seconds": 3,
+      "lookAt": [
+        652,
+        200,
+        1
+      ],
+      "distance": 45,
+      "pitch": -12,
+      "why": "the blast, side on"
+    },
+    {
+      "at": "blast+3",
+      "seconds": 4,
+      "follow": "Convoy APC",
+      "yaw": 90,
+      "pitch": -15,
+      "why": "it keeps going"
+    }
+  ],
+  "clip": "F-47",
+  "chapter": 9,
+  "state": "ready"
+}

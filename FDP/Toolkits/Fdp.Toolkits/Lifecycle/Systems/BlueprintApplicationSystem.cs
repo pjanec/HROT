@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Lifecycle.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class BlueprintApplicationSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkb;

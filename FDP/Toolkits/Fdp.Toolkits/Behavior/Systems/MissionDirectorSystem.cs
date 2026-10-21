@@ -61,6 +61,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateBefore(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in MissionControlModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>
@@ -96,7 +97,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // look them up in O(1) during the entity query loop below.
             _behaviorFinishedThisFrame.Clear();
             _outcomeThisFrame.Clear();
-            var behaviorFinishedEvents = repo.Bus.Read<BehaviorFinishedEvent>();
+            var behaviorFinishedEvents = repo.ReadEvents<BehaviorFinishedEvent>();
             foreach (var finishedEvt in behaviorFinishedEvents)
             {
                 // ⭐ CE-2078 — a REACTION ending is not the phase's task ending (the paused task restarts after it).

@@ -79,9 +79,23 @@ namespace Hrot.UI.Common.Audio
         /// <summary>⭐ CE-1120 — for the station: the layer reads the station's unit and its 3-D camera.</summary>
         public static AudioLayer For(Map3D.PossessionStation station, MapViewSwitch view, Func<EntityRepository?> world, Func<ITkbDatabase?> tkb)
             => new(world, tkb, () => station.InFps ? station.Unit : Entity.Null,
-                   () => view.Is3D ? new Ear(view.Camera3D.Eye, view.Camera3D.Forward) : null,
+                   () => view.Is3D ? new Ear(view.Camera3D.Eye, view.Camera3D.Forward) : Ear2D(view),
                    settingsPath: AudioSettings.DefaultPath,
-                   cameraSound: () => view.Is3D && AudioPreferences.CameraSound);   // ⭐ CE-1137
+                   // ⭐ CE-1137 — Settings ▸ Sound; ⭐ CE-4038 B11 (R-4059) — in the 2-D view too, and a film take's switch over it
+                   cameraSound: () => AudioDirector.CameraSound);
+
+        /// <summary>
+        /// ⭐ CE-4038 B11 (docs/DESIGN_Film_Director.md §4c, D-14; R-4059) — the 2-D map's ear: at the view's centre, as high as half the visible
+        /// width, so a wide view hears only the loud things (the same spatializer, no new rule). The map is north-up (CE-1040): the ear looks
+        /// north, so east is to its right.
+        /// </summary>
+        public static Ear Ear2D(MapViewSwitch view)
+        {
+            var pose = view.CurrentPose;   // the overhead pose that shows what the 2-D view shows
+            float aspect = Raylib.IsWindowReady() && Raylib.GetScreenHeight() > 0 ? Raylib.GetScreenWidth() / (float)Raylib.GetScreenHeight() : 16f / 9f;
+            float halfWidth = pose.Distance * MathF.Tan(view.Camera3D.FovyDegrees * MathF.PI / 360f) * aspect;
+            return new Ear(pose.LookAt + new Vector3(0f, 0f, halfWidth), Vector3.UnitY);
+        }
 
         private static IAudioOutput DefaultOutput()
             => Environment.GetEnvironmentVariable("HROT_AUDIO") != "0" && Raylib.IsWindowReady()
@@ -123,8 +137,10 @@ namespace Hrot.UI.Common.Audio
                 return;
             }
             if (State == AudioState.Idle) Activate(w);
+            Record(w);
             if (State != AudioState.Active || _output == null || _ear() is not { } ear) return;
             Keys();
+            ApplySettings();   // ⭐ CE-4038 B11 — POST /audio changes the shared settings; they reach the output on the next frame
             Sources.Collect(w, unit, ear, _now, dt, _output);
             Test(ear);
             Mixer.Update(_output, _now, ear);
@@ -139,6 +155,32 @@ namespace Hrot.UI.Common.Audio
             SoundEvents.Listen(w);
             _listening = w;
             State = AudioState.Active;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4038 B11 (§4c) — while the director captures a film, every sound goes through a <see cref="RecordingAudioOutput"/> into its
+        /// <see cref="SoundTrack"/>; with no device (a cloud VM) the scene is still heard by the track, through an output that plays nothing.
+        /// </summary>
+        private void Record(EntityRepository w)
+        {
+            if (AudioDirector.Recorder is { } track)
+            {
+                if (_output is RecordingAudioOutput r && ReferenceEquals(r.Track, track)) return;
+                if (State == AudioState.Idle) return;
+                if (_output != null) Mixer.Clear(_output);
+                var inner = _output is RecordingAudioOutput old ? old.Inner : _output;
+                if (inner == null || !inner.IsOpen) { inner = new NullAudioOutput(); inner.Open(); }
+                _output = new RecordingAudioOutput(inner, track);
+                DefineClips();
+                ApplySettings();
+                if (State == AudioState.Silent) { SoundEvents.Listen(w); _listening = w; State = AudioState.Active; }
+            }
+            else if (_output is RecordingAudioOutput rec)
+            {
+                Mixer.Clear(_output);
+                _output = rec.Inner;
+                if (!_output.IsOpen || _output is NullAudioOutput) { Deactivate(); State = AudioState.Silent; }
+            }
         }
 
         private void Deactivate()
@@ -156,7 +198,7 @@ namespace Hrot.UI.Common.Audio
             var tkb = _tkb();
             foreach (var type in SoundTkbCatalog.BuiltIn.Keys)
             {
-                if (_output.Has(type)) continue;
+                if (_output.Has(type) && (_output is not RecordingAudioOutput r || r.Track.HasClip(type))) continue;
                 var s = SoundTkbCatalog.SoundOf(tkb, type);
                 if (s == null) continue;
                 bool loaded = false;

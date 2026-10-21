@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Perception.Look
     /// <see cref="LookState.Source"/>. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.2a, §3.2b.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class LookFollowSystem : IEcsModuleSystem
     {
         /// <summary>Above this speed (m/s) a person walks: a look off his way is a glance.</summary>

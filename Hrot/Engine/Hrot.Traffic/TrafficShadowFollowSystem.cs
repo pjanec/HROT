@@ -18,6 +18,7 @@ namespace Hrot.Traffic;
 /// <c>None</c>, and the executor's normal blocked / replan path takes over.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
 {
     /// <summary>A SUMO shadow car's name: the handed-over body's network id.</summary>

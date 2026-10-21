@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// are processed per tick; excess requests are dropped (oldest-evict ring-buffer semantics).</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class PathfindingSolverSystem : IEcsModuleSystem
     {
         /// <summary>

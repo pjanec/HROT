@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Replay
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class PlaybackTickSystem : IEcsModuleSystem
     {
         /// <summary>

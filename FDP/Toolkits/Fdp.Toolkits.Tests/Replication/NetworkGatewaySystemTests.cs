@@ -285,6 +285,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
         // ── Base class poll mode (item B): defer until a local condition clears ─
 
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class FlagReadinessParticipant : DeferredConstructionParticipant
         {
             public bool Ready;

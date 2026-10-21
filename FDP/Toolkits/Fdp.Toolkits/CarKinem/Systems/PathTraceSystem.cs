@@ -15,6 +15,7 @@ namespace CarKinem.Systems
     /// 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class PathTraceSystem : IEcsModuleSystem
     {
         private readonly TrajectoryPoolManager _pool;

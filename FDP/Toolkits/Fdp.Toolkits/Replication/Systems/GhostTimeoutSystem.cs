@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <see cref="GhostStateTracker.FirstSeenFrame"/> was stamped by
     /// <see cref="GhostCreationSystem"/> at ghost creation time.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class GhostTimeoutSystem : IEcsModuleSystem
     {
         private const uint MAX_GHOST_AGE = 3600; // 60 seconds at 60Hz

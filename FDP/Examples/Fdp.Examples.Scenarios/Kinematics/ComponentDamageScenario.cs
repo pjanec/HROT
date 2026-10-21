@@ -259,6 +259,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
         // ── Inner module helper (shared pattern) ──────────────────────────────
 
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;
@@ -293,6 +294,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
         /// to a MobilityLost event without requiring a full HSM state-machine definition.
         /// Must run after <see cref="HsmDamageBridgeSystem"/>.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class LocomotionClearOnMobilityKillSystem : IEcsModuleSystem
         {
             public void Execute(ISimulationView view, float deltaTime)

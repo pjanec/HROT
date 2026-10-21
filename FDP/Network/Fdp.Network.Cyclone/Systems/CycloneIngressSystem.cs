@@ -15,6 +15,7 @@ namespace Fdp.Network.Cyclone.Systems
     /// Iterates translators, which now own their data readers.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CycloneIngressSystem : IEcsModuleSystem
     {
         private readonly DdsParticipant _participant;

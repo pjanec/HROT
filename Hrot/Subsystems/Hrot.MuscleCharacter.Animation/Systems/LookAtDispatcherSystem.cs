@@ -17,6 +17,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// LookAtPoint and LookAtEntity require CanAim capability; ReleaseLook does not.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class LookAtDispatcherSystem : DispatcherSystemBase<LookAtChannelWork>
     {
         public LookAtDispatcherSystem(IAnimationBackend backend)

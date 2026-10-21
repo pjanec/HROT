@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HealthApplicationSystem : IEcsModuleSystem
     {
         public HealthApplicationSystem()
@@ -57,7 +58,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(HealthApplicationSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.Read<DamageAssessedEvent>();
+            var events = repo.ReadEvents<DamageAssessedEvent>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)

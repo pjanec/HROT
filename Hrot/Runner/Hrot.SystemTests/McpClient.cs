@@ -88,6 +88,12 @@ public sealed class McpClient : IDisposable
     // ── Group D — sim / preview / time ─────────────────────────────────────────
 
     public Task<ApiResult> GetSimStateAsync(CancellationToken ct = default) => GetAsync("/sim/state", ct);
+
+    // ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §4)
+    public Task<ApiResult> DirectorPlayAsync(JsonNode body, CancellationToken ct = default) => PostAsync("/director/play", body, ct);
+    public Task<ApiResult> DirectorScoutAsync(JsonNode body, CancellationToken ct = default) => PostAsync("/director/scout", body, ct);
+    public Task<ApiResult> DirectorStatusAsync(CancellationToken ct = default) => GetAsync("/director/status", ct);
+    public Task<ApiResult> DirectorStopAsync(CancellationToken ct = default) => PostAsync("/director/stop", null, ct);
     public Task<ApiResult> PlayAsync(CancellationToken ct = default) => PostAsync("/sim/play", null, ct);
     public Task<ApiResult> PauseAsync(CancellationToken ct = default) => PostAsync("/sim/pause", null, ct);
 

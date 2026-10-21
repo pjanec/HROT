@@ -1149,7 +1149,7 @@ public class IgApplication : IDisposable
             afterKernel: () =>
             {
                 // Clear gizmo undo stack on world/scenario reset.
-                foreach (ref readonly var _ in _world.Bus.Read<WorldResetEvent>())
+                foreach (ref readonly var _ in _world.ReadEvents<WorldResetEvent>())
                     _gizmoUndoStack?.Clear();
             });
 

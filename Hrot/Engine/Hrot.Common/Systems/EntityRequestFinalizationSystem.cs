@@ -53,6 +53,7 @@ namespace Hrot.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class EntityRequestFinalizationSystem : IEcsModuleSystem
     {
         private struct PendingRequest

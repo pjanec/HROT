@@ -20,6 +20,7 @@ namespace Hrot.IG.Modules;
 ///   </item>
 /// </list>
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class EventEffectModule : IEcsModule
 {
     public string          Name   => "EventEffect";

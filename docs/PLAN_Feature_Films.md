@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (first version — coordinator; the clip list per CAPABILITIES chapter, what each needs, and the overnight pipeline proposal)
+updated: 2026-10-21 (§3 the takes are seeded and the director built — clips.json is the seed now, CE-4038) · 2026-10-21 (first version — coordinator; the clip list per CAPABILITIES chapter, what each needs, and the overnight pipeline proposal)
 current-answer: §1 the clip list · §2 the gaps (features no clip can show yet) · §3 the overnight pipeline (proposal, leans) · §4 what the sweep found broken · §5 the reels · §6 how to produce them
 stale-below: none
 known-rot: event times are from the scenario docs and the description sweep (2026-10-21) — the scout pass (§3) re-measures every one before filming
@@ -173,6 +173,11 @@ caused.* The shot list in `clips.json` follows these rules; the `why` of each sh
 ⭐ **Superseded in shape by [DESIGN_Film_Director.md](DESIGN_Film_Director.md) (CE-4038):** the same pieces live INSIDE the editor —
 takes and reels instead of one manifest, `/director/play {reel, capture}` instead of `film-batch.py`, played live in real time as well as
 to film. The table below stays as the list of what the pipeline must do.
+
+⭐ **BUILT `2026-10-21` (CE-4038, ui):** the 55 clips are now takes — `scenarios/<s>/takes/main.take.json` (demo-city's under
+`Hrot.AI.Behaviors/Recipes/Scenarios/demo-city/takes/`), split from `docs/films/clips.json` with each clip's id, chapter, state and needs
+kept; ⛔ **`clips.json` is the SEED, not the source any more — edit the take.** The night run is
+`POST /director/play {reel: "features", capture: {...}}`; the scout table is `scripts/director-check.py scout-all`.
 
 📐 **The budget:** `--mode editor` costs ~0.8 s per film frame (RUNBOOK §6). At 30 fps that is ~24 s of wall time per second of film.
 A 20 s clip takes ~8 min, plus ~2 min of scouting. **The ~40 clips in §1 fit in one night (~6–7 h).** At 24 fps it is ~20 % less.

@@ -73,15 +73,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var results = new List<SearchResultDto>();
             using var playback = new PlaybackController(fdpPath);
             var repo = new EntityRepository();
-            var bus  = new FdpEventBus();
             RegisterComponents(repo, playback);
-            playback.EventBus = bus;
+            playback.EventBus = repo.Bus;
 
             while (playback.StepForward(repo))
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results, repo, null);
+                scanner(repo, frame, ticks, results, null);
             }
 
             Assert.Equal(2, results.Count);
@@ -118,15 +117,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var results = new List<SearchResultDto>();
             using var playback = new PlaybackController(fdpPath);
             var repo = new EntityRepository();
-            var bus  = new FdpEventBus();
             RegisterComponents(repo, playback);
-            playback.EventBus = bus;
+            playback.EventBus = repo.Bus;
 
             while (playback.StepForward(repo))
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results, repo, null);
+                scanner(repo, frame, ticks, results, null);
             }
 
             // Only frame 0 should match (Damage = 100 > 50)
@@ -156,15 +154,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var results = new List<SearchResultDto>();
             using var playback = new PlaybackController(fdpPath);
             var repo = new EntityRepository();
-            var bus  = new FdpEventBus();
             RegisterComponents(repo, playback);
-            playback.EventBus = bus;
+            playback.EventBus = repo.Bus;
 
             while (playback.StepForward(repo))
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results, repo, null);
+                scanner(repo, frame, ticks, results, null);
             }
 
             Assert.Empty(results);
@@ -194,15 +191,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 var results = new List<SearchResultDto>();
                 using var playback = new PlaybackController(fdpPath);
                 var repo = new EntityRepository();
-                var bus  = new FdpEventBus();
                 RegisterComponents(repo, playback);
-                playback.EventBus = bus;
+                playback.EventBus = repo.Bus;
 
                 while (playback.StepForward(repo))
                 {
                     int frame = playback.CurrentFrame;
                     long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                    scanner(bus, frame, ticks, results, repo, null);
+                    scanner(repo, frame, ticks, results, null);
                 }
 
                 Assert.Single(results);

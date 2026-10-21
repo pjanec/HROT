@@ -1,0 +1,72 @@
+{
+  "title": "RPG from the windows",
+  "caption": "An RPG man fires from one window, moves along the floor, and fires from the next",
+  "anchors": {
+    "rpg": {
+      "on": "shot",
+      "by": "RPG Man",
+      "n": 1
+    },
+    "rpg2": {
+      "on": "shot",
+      "by": "RPG Man",
+      "n": 2
+    }
+  },
+  "baked": {
+    "times": {
+      "rpg": 4.4333,
+      "rpg2": 15.6333
+    },
+    "tickHz": 60,
+    "scenarioHash": "b5f56415552e3834",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "rpg-2",
+      "seconds": 3,
+      "follow": "IFV",
+      "distance": 25,
+      "yaw": 90,
+      "pitch": -10,
+      "why": "the IFVs come up the street"
+    },
+    {
+      "at": "rpg-0.5",
+      "seconds": 3,
+      "over": "RPG Man",
+      "toward": "IFV",
+      "back": 3,
+      "height": 1,
+      "ahead": 0.6,
+      "why": "from the window"
+    },
+    {
+      "at": "rpg-0.5",
+      "seconds": 2.5,
+      "follow": "IFV",
+      "distance": 15,
+      "pitch": -6,
+      "speed": 0.5,
+      "replay": true,
+      "why": "the hit, slow"
+    },
+    {
+      "at": "rpg2-3",
+      "seconds": 4,
+      "lookAt": [
+        105,
+        101,
+        4
+      ],
+      "distance": 25,
+      "yaw": 90,
+      "pitch": -5,
+      "why": "the facade: he fires again from another window"
+    }
+  ],
+  "clip": "F-43",
+  "chapter": 9,
+  "state": "ready"
+}

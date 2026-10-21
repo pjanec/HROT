@@ -25,6 +25,7 @@ namespace Hrot.Orchestrator
     /// a no-op. All work is performed in <see cref="Tick(ISimulationView, float)"/>
     /// which delegates to <see cref="ClusterSlave.Tick"/>.</para>
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class OrchestrationLogicPack : IEcsModule
     {
         /// <inheritdoc/>

@@ -30,6 +30,7 @@ public sealed class CgfClusterDebugTimeControllerTests
     // ── the harness ─────────────────────────────────────────────────────────────
 
     /// <summary>A system that counts its executions, so "exactly one tick" is measurable.</summary>
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class CountingSystem : IEcsModuleSystem
     {
         public int Executions;

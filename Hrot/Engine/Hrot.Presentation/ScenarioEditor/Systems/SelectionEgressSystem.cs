@@ -41,6 +41,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⭐ The reason travels WITH the thing it describes.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionEgressSystem : IEcsModuleSystem
 {
     /// <summary>
@@ -73,7 +74,7 @@ public sealed class SelectionEgressSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
 
-        foreach (var note in world.Bus.ReadManaged<SelectionChangedNotification>())
+        foreach (var note in world.ReadManagedEvents<SelectionChangedNotification>())
         {
             if (note == null) continue;
 

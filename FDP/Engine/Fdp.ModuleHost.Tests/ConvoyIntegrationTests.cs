@@ -14,6 +14,7 @@ namespace Fdp.ModuleHost.Tests
     [Collection("SerialTests")]
     public class ConvoyIntegrationTests
     {
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";

@@ -1,0 +1,60 @@
+{
+  "title": "Hull-down platoon",
+  "caption": "Pairs creep to the crest, fire one round each and reverse out of sight",
+  "anchors": {
+    "first": {
+      "on": "shot",
+      "by": "*Tank",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "0d5a41ee5ed7207e",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
+    "missing": [
+      "first"
+    ]
+  },
+  "shots": [
+    {
+      "at": "first-6",
+      "seconds": 4,
+      "lookAt": [
+        275,
+        200,
+        2
+      ],
+      "distance": 150,
+      "pitch": -6,
+      "fov": 30,
+      "why": "low side view of the ridge: the pair creeping up"
+    },
+    {
+      "at": "first-0.5",
+      "seconds": 3,
+      "follow": "Tank 1",
+      "distance": 15,
+      "yaw": 90,
+      "pitch": -5,
+      "why": "on the crest: the round"
+    },
+    {
+      "at": "first+3",
+      "seconds": 4,
+      "lookAt": [
+        275,
+        200,
+        2
+      ],
+      "distance": 150,
+      "pitch": -6,
+      "fov": 30,
+      "why": "back down, the other pair goes up"
+    }
+  ],
+  "clip": "F-46",
+  "chapter": 9,
+  "state": "ready"
+}

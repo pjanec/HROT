@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Perception.Signatures
     /// solver's budget defers by a tick still hears them. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 B–C.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class SoundEmissionSystem : IEcsModuleSystem
     {
         /// <summary>Below this speed (m/s) an entity's movement makes no sound.</summary>

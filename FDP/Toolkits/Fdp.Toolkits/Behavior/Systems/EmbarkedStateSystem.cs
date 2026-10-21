@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// 📄 docs/DESIGN_Entity_Interactions.md §7.1c, §7.1d, §7.2a.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EmbarkedStateSystem : IEcsModuleSystem
     {
         private readonly List<(Entity passenger, Entity vehicle, int seat)> _boarders = new();

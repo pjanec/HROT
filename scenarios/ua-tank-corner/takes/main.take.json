@@ -1,0 +1,58 @@
+{
+  "title": "Tank round the corner",
+  "caption": "The tank shows itself just long enough to fire, then backs into cover",
+  "anchors": {
+    "fire": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "fire": 4.1667
+    },
+    "tickHz": 60,
+    "scenarioHash": "1536023d18a60468",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "fire-5",
+      "seconds": 4,
+      "follow": "Tank",
+      "distance": 20,
+      "yaw": 90,
+      "pitch": -8,
+      "why": "low behind the tank as it edges out"
+    },
+    {
+      "at": "fire-0.5",
+      "seconds": 3,
+      "over": "Tank",
+      "toward": "AT Gunner",
+      "back": 10,
+      "height": 4,
+      "ahead": 0.5,
+      "fov": 25,
+      "why": "the shot"
+    },
+    {
+      "at": "fire+2",
+      "seconds": 4,
+      "lookAt": [
+        200,
+        120,
+        0
+      ],
+      "distance": 120,
+      "yaw": 90,
+      "pitch": -45,
+      "why": "high: back into cover"
+    }
+  ],
+  "clip": "F-41",
+  "chapter": 9,
+  "state": "ready",
+  "needs": "⚠ the AT team often dies in the first exposure; the cycle may show only once"
+}

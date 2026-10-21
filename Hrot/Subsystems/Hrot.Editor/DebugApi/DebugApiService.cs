@@ -84,6 +84,16 @@ namespace Hrot.Editor.DebugApi
             => _editorWorld ?? _dispatcher?.World
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
 
+        private Hrot.UI.Common.Map3D.Director.WorldUnits? _filmUnits;
+
+        /// <summary>
+        /// ⭐ CE-4038 D-9 (docs/DESIGN_Film_Director.md) — <c>POST /film/shot {spec, t}</c>: a take's shot (its own keys: follow · over + toward ·
+        /// lookAt · eye + target, orbit, to, fov) <paramref name="t"/> sim seconds into it, by the ONE copy of the shot math — so film.py
+        /// keeps none. Units by name, in this host's world (the active perspective's on a cluster). Main thread.
+        /// </summary>
+        public Hrot.UI.Common.Map3D.FilmShot? EvaluateShot(Hrot.UI.Common.Map3D.Director.ShotSpec spec, double t)
+            => Hrot.UI.Common.Map3D.Director.ShotEvaluator.Evaluate(spec, t, _filmUnits ??= new Hrot.UI.Common.Map3D.Director.WorldUnits(() => _world));
+
         private NetworkEntityMap _entityMap
             => _editorEntityMap ?? _dispatcher?.EntityMap
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap);

@@ -1,0 +1,74 @@
+{
+  "title": "Drawn is not hostile, aimed is",
+  "caption": "A hidden pistol drawn is not a threat; the rifleman fires only when it is aimed at him",
+  "anchors": {
+    "aim": {
+      "on": "side",
+      "who": "Covert insurgent",
+      "is": "Hostile"
+    },
+    "fire": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "aim": 18.2667,
+      "fire": 19.4667
+    },
+    "tickHz": 60,
+    "scenarioHash": "70a26007df250a1f",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": 2,
+      "seconds": 3,
+      "lookAt": [
+        120,
+        207,
+        1
+      ],
+      "distance": 40,
+      "yaw": 90,
+      "pitch": -15,
+      "why": "establish both men"
+    },
+    {
+      "at": 9,
+      "seconds": 4,
+      "over": "Rifleman",
+      "toward": "Covert insurgent",
+      "back": 4,
+      "height": 1.8,
+      "ahead": 0.9,
+      "fov": 30,
+      "why": "his view: the pistol comes out — he waits"
+    },
+    {
+      "at": "aim-1",
+      "seconds": 3,
+      "follow": "Covert insurgent",
+      "distance": 6,
+      "yaw": 300,
+      "pitch": -5,
+      "why": "close on the aim"
+    },
+    {
+      "at": "fire-0.3",
+      "seconds": 3,
+      "over": "Rifleman",
+      "toward": "Covert insurgent",
+      "back": 3,
+      "height": 1.7,
+      "ahead": 0.9,
+      "fov": 30,
+      "why": "the shot"
+    }
+  ],
+  "clip": "F-08",
+  "chapter": 4,
+  "state": "ready"
+}

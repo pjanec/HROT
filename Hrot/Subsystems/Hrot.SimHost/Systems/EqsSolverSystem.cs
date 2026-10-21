@@ -27,6 +27,7 @@ namespace Hrot.SimHost.Systems
     /// "empty". The <see cref="EqsResultPool"/> singleton is created on first Execute.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsSolverSystem : IEcsModuleSystem
     {
         // Query cached after first use.
@@ -112,7 +113,7 @@ namespace Hrot.SimHost.Systems
 
             _currentView = view;
             _currentCmd  = view.GetCommandBuffer();
-            _currentTick = view.Tick;
+            _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
             _currentRepo = repo;
             _memory.Begin(repo);
             _lastSchedule.Clear();

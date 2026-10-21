@@ -22,6 +22,7 @@ namespace Hrot.Editor.Modules;
 /// kernel.Initialize();
 /// </code>
 /// </summary>
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class EditorSystemsModule : IEcsModule
 {
     private readonly EditorPerceptionSetupSystem _perception;
@@ -48,9 +49,20 @@ public sealed class EditorSystemsModule : IEcsModule
     }
 
     /// <inheritdoc/>
+    public void RegisterSystems(ISystemRegistry registry)
+    {
+        // ⭐ CE-3293 S2 — still ticked by this module, in this order, through the scheduler's one gate.
+        _perceptionRun = registry.RegisterManualSystem(_perception);
+        _zoneRun       = registry.RegisterManualSystem(_zone);
+    }
+
+    private IEcsModuleSystem? _perceptionRun;
+    private IEcsModuleSystem? _zoneRun;
+
+    /// <inheritdoc/>
     public void Tick(ISimulationView view, float deltaTime)
     {
-        _perception.Execute(view, deltaTime);
-        _zone.Execute(view, deltaTime);
+        (_perceptionRun ?? _perception).Execute(view, deltaTime);
+        (_zoneRun ?? _zone).Execute(view, deltaTime);
     }
 }

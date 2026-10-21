@@ -19,6 +19,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// to their executors after capability checking.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AnimationDispatcherSystem : DispatcherSystemBase<AnimationChannelWork>
     {
         public AnimationDispatcherSystem(

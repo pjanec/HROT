@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Replay
     /// await them with <c>Task.WhenAll</c>.
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ReplayModule : IEcsModule, IDisposable
     {
         private readonly string _filePath;

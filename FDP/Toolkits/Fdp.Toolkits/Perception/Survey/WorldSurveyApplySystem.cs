@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Perception.Survey
     /// </summary>
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WorldSurveyApplySystem : IEcsModuleSystem
     {
         /// <summary>Answers dropped for an old epoch (a re-pointed sensor) since this system was built (diagnostics / rails).</summary>
@@ -30,7 +31,7 @@ namespace Fdp.Toolkit.Perception.Survey
             bool announce = repo.Bus.IsRegistered<SensorChangedEvent>();
             float now = (float)view.Time;
 
-            foreach (var evt in repo.Bus.ReadManaged<WorldSurveyResultEvent>())
+            foreach (var evt in repo.ReadManagedEvents<WorldSurveyResultEvent>())
             {
                 if (evt is null) continue;
                 var child = evt.Observer.IsNull ? Resolve(repo, evt) : evt.Observer;

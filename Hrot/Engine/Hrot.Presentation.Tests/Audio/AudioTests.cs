@@ -207,6 +207,51 @@ public sealed class AudioTests
         Assert.Equal(AudioState.Idle, layer.State);
     }
 
+    /// <summary>
+    /// ⭐ CE-4038 B11 (docs/DESIGN_Film_Director.md §4c, R-4059) — a film take's sound switch rules the CAMERA's sound (off silences it, on
+    /// turns it on over the user's menu), ⛔ never first person: 🔒 <i>"FPS mode always has sounds"</i>. And while the director captures, the
+    /// scene is heard by its sound track even on a machine with no device (a cloud VM). 🔴 Red-proof: let <c>TakeSound=false</c> silence
+    /// the held unit too ⇒ the FPS assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice()
+    {
+        var (world, tkb) = World();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var held = Entity.Null;
+        try
+        {
+            AudioDirector.TakeSound = true;
+            var camera = new AudioLayer(() => world, () => tkb, () => held, () => North, () => new NullAudioOutput(), cameraSound: () => AudioDirector.CameraSound);
+            camera.Update(0.016f);
+            Assert.Equal(AudioState.Active, camera.State);                 // the take turned the camera's sound on
+            AudioDirector.TakeSound = false;
+            camera.Update(0.016f);
+            Assert.Equal(AudioState.Idle, camera.State);                   // …and off
+            held = me;
+            camera.Update(0.016f);
+            Assert.Equal(AudioState.Active, camera.State);                 // ⭐ FPS always sounds, whatever the take says
+
+            AudioDirector.TakeSound = true;
+            var track = new SoundTrack(() => 1d);
+            AudioDirector.Recorder = track;
+            var noDevice = new AudioLayer(() => world, () => tkb, () => Entity.Null, () => North, () => new NullAudioOutput { Opens = false },
+                                          cameraSound: () => AudioDirector.CameraSound);
+            noDevice.Update(0.016f);
+            Assert.Equal(AudioState.Active, noDevice.State);               // recording, though nothing can be heard here
+            Assert.IsType<RecordingAudioOutput>(noDevice.Output);
+            Assert.Contains(track.Cues, c => c.Clip == SoundTkbCatalog.Wind && c.Loop);
+            AudioDirector.Recorder = null;
+            noDevice.Update(0.016f);
+            Assert.IsNotType<RecordingAudioOutput>(noDevice.Output);
+        }
+        finally
+        {
+            AudioDirector.TakeSound = null;
+            AudioDirector.Recorder = null;
+        }
+    }
+
     [Fact]
     public void CE1120_AShotIsHeardAfterItsSoundTravels_FromItsSide_HisOwnAtOnce()
     {

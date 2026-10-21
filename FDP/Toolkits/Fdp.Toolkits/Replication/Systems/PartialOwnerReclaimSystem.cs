@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateAfter(typeof(OwnershipIngressSystem))]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class PartialOwnerReclaimSystem : IEcsModuleSystem
     {
         private readonly int              _localNodeId;

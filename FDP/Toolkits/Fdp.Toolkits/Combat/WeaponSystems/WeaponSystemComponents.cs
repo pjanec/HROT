@@ -104,6 +104,7 @@ namespace Fdp.Toolkit.Combat
     /// <see cref="WeaponDeployment.Pack"/>). Composed on every node by <c>CoreInfrastructureCapabilities.Interactions</c>.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WeaponDeploySystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

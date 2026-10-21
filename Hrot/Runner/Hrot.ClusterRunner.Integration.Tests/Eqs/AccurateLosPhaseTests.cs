@@ -30,6 +30,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
     /// Runs in PostSimulation so it sees harvest-phase events one frame after they are published.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class MockRaycastSolverSystem : IEcsModuleSystem
     {
         public int RaycastsResolvedTotal { get; private set; }

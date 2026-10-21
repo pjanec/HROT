@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// contract).</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class BrainHandOverSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;

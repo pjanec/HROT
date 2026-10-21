@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
     /// Runs in BeforeSync phase to ensure changes are visible to all modules.
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class LifecycleSystem : IEcsModuleSystem
     {
         private readonly EntityLifecycleModule _manager;

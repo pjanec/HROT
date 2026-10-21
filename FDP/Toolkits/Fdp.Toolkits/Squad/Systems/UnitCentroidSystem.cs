@@ -12,7 +12,13 @@ namespace Fdp.Toolkit.Squad.Systems
     /// <see cref="SimTransform"/> is written, and the owner's egress carries it to every other node. No live member ⇒ it stays where
     /// it is. 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.1 C-3.
     /// </summary>
+    /// <remarks>
+    /// ⭐ CE-3293 S5 (R-3036 §1b, approved "split") — <see cref="TickPolicy.EveryFrame"/>: its whole work is the paused-time duty
+    /// (a commander follows his members when one is DRAGGED while paused), and it reads no event and keeps no state, so a paused
+    /// frame computes exactly what the next step would — the split has no step half.
+    /// </remarks>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class UnitCentroidSystem : IEcsModuleSystem
     {
         private EntityQuery? _units;

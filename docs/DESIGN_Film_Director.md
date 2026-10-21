@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (approved 2026-10-21, R-4062; dispatched to backend: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Film_Director.md)
-updated: 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
-current-answer: §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
+build-state: BUILT (slice 1 = phases 1–3, CE-4038, ui lane, 2026-10-21 — §8) · was READY-TO-BUILD (approved 2026-10-21, R-4062) · ⭐ RE-DISPATCHED 2026-10-21 to the UI lane (R-3038): docs/blueprints/batches/HANDOFF_Backend_To_Ui_Film_Director.md — the backend dispatch (HANDOFF_Coordinator_To_Backend_Film_Director.md) is superseded
+updated: 2026-10-21 (filmed = scouted ACCEPTED after CE-3293 S5 — the identity gate, §8.4; the takes re-scouted) · 2026-10-21 (AS BUILT §8 — CE-4038 slice 1 by the ui lane: the runner, its five seams, the routes, the panel, the take store, the seeded takes, the 2-D ear and the sound track; eight deviations from §2) · 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+current-answer: §8 AS BUILT (CE-4038 slice 1 — what was built and where it deviates) · §0 FIRST (R-3038 overrides §3d and D-3 for stepped runs) · §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
-known-rot: §2/§6 still name the scout pass, `AnchorBook` and baked anchors as exact, and B0/B3 acceptance as "same run" — read them through R-3034 and D-3 (revised) until the classes are redrawn with B3
-known-conflict: ⚠ OPEN 2026-10-21 — the user and backend are investigating whether runs CAN be made deterministic (user: "I still believe we could make this deterministic"); §3d is written to work either way, and if determinism lands, D-3 may cut on baked times again (exact leads, replays by re-run) · R-3032 ("the scene alone") is amended by R-4060 for takes that turn layers on; R-1004 / AU-3 (sound only while possessed) by R-4059
+known-rot: §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
+known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
   - RUNBOOK_Filming.md — OWNS film.py / film-events.py as built (CE-3289); D-9 makes them thin clients of this
   - PLAN_Feature_Films.md — OWNS WHAT to film (the clip list, the director's grammar §1a, the gaps); its clips.json is the seed of the takes here
@@ -50,6 +51,29 @@ takes. The **director** is the editor feature that plays them: on screen in real
 🔒 **User, 2026-10-21 (fifth pass):** *"scenarios are not deterministic by design. this might be quite an issue for planning clips"* ·
 *"which might lead to the replay from recording path"*. ⭐ Canon since 2026-09-04: *"the scenario is not deterministic, entities do not
 go the same ways"* (`RUNBOOK_Cluster_Debugging_Over_Http.md` §8).
+
+## 0. ⭐⭐⭐ SIXTH PASS — R-3038: a take is scripted in TIME, on a stepped run that repeats
+
+🔒 **User, `2026-10-21`:** *"it needs to rely on determinism, otherwise we could not specify when what cut should take place and at which
+time the camera should be at what direction or not."* · *"Yes, write it and write a handoff to the UI line."*
+
+| | fifth pass (R-4064, superseded for stepped runs) | ⭐ **sixth pass (R-3038)** |
+|---|---|---|
+| when a cut happens | on a live cue in the run being shown | ⭐ **at the script's time** — anchors baked by the scout are exact, because the filmed run IS the scouted run |
+| the scout | a reliability measurement over N differing runs | ⭐ **one run, stepped like the film**, that bakes the anchor times; a second scout run that differs is a **determinism defect** to report, not a statistic |
+| retakes | repeat a run whose beat is missing | ⛔ not a remedy — a missing beat on a repeated run is a defect (report it with both runs' state) |
+| live cues and precursors | the cut mechanism | ⭐ kept as the **verification**: capture checks each baked anchor fires at its time and the report names any that drift |
+| the stepping cadence | paced, up to 2 steps per frame | ⭐⭐ **EXACTLY ONE STEP PER RENDERED FRAME, for every run that must repeat — the scout, the live show, the capture.** Never zero, never two. Real time is kept by **holding the frame** until the step is due, not by skipping or doubling steps |
+| the step size | 1/60 s, or 20 / 15 Hz when 60 cannot keep up (R-4063) | the same — ⚠ **but one take keeps ONE step size across its scout and every film of it**; a step-size change is a new scout |
+| every run | loads from the file (R-3034) | unchanged |
+
+⭐ **Why the cadence rule** (`DESIGN_Paused_And_Stepped_Execution.md` §10 F1): a system that runs every frame reacts on the frame after a
+step, so whether a paused frame comes before the next step changes the run. ⛔ Rejected: the kernel forbidding two steps on consecutive
+frames — it halves the top step rate (a 60 Hz live show would need 120 fps).
+
+⭐ **What it depends on** *(✅ MET `2026-10-21`: S5 merged; three loads of three takes identical at every cut — §8.4)*: stepped runs repeat only once **CE-3293 S5** lands (step-only systems receive every event since the last step).
+Until then the director is built and tested on single runs; *"the filmed run equals the scouted run"* is accepted after S5 — measured on
+three loads stepped once per frame, identical at every cut.
 
 🔒 **User, 2026-10-21 (approval):** *"lets write a note to backend to implement that"* — the design as summarized, slice 1 = phases 1–3.
 
@@ -511,9 +535,9 @@ call.
 
 | # | question | ⭐ lean | rejected, one line each |
 |---|---|---|---|
-| **D-1** | how real time plays | ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time; live, scout and capture use the same rate | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
+| **D-1** | how real time plays | ⛔ **SUPERSEDED IN PART by §0 (R-3038): exactly one step per rendered frame, the frame held to real time — never 2 per frame.** ⭐ **paced stepping**: the runner steps fixed 1/60 s ticks as the wall clock allows (at most 2 per frame), (⛔ SUPERSEDED `2026-10-21`: *"so the run is identical to the stepped film and the scout"* — R-3034, scenarios are not deterministic; pacing still gives a fixed step and real time) ⭐ **If 60 Hz cannot keep up** (the master retires one step per frame and the renderer is under 60 fps), the take runs at a **coarser fixed step: 20 Hz, else 15 Hz** (`tickHz`), one step per rendered frame — still real time; live, scout and capture use the same rate | `Continuous` play: dt from the wall clock (`MasterSyncController.cs:177-186`), so cuts land late and the AI differs run to run |
 | **D-2** | where takes live | ⭐ **beside the scenario**, `takes/*.take.json` — a variant carries its own | in `scenario.json`: presentation in the replicated world document, and the R-260 camera entity is adopted once at load · one central manifest: variants lose their takes |
-| **D-3** | when a cut happens | ⭐ **REVISED `2026-10-21` (R-3034), lean for approval: LIVE CUES in the run being shown.** A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate  ⭐ **Coordinator, R-4064:** a shot is held **`until`** its next event; the scout measures **reliability** (N runs: k of N, time spread) and drafts; capture **retakes** a run whose required beat is missing (§3d) | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
+| **D-3** | when a cut happens | ⛔ **SUPERSEDED for stepped runs by §0 (R-3038): at the script's time, anchors baked by a scout stepped like the film; live cues verify.** ~~REVISED `2026-10-21` (R-3034): LIVE CUES in the run being shown.~~ A cut AT an event fires on its cue; a cut BEFORE an event (`fire-0.5`) fires on its **precursor** — the shooter's aim phase beginning (`ActionStatus.Weapon` "Aiming", with `Progress`/`Needed` giving the lead), a launch committed, a mover's arrival from its remaining path. A take's times are a fallback (a cut with no cue). A scout pass, if kept, only DRAFTS a take (D-10) — its times are approximate  ⭐ **Coordinator, R-4064:** a shot is held **`until`** its next event; the scout measures **reliability** (N runs: k of N, time spread) and drafts; capture **retakes** a run whose required beat is missing (§3d) | ⛔ baked anchors replayed exactly (the earlier lean): rested on two runs being the same run — measured false (CE-3291), ruled not a goal (R-3034) · post-hoc editing of a capture: one camera per run, nothing to cut to |
 | **D-4** | instant replays | ✅ **RULED (R-4061): none in slice 1; later, from the live run's recording** (§3c), after measuring that playback is faithful; the in-memory bookmark is the fallback | — |
 | **D-5** | overlays per shot — backend tip 4 | ✅ **RULED (R-4060):** off by default; a take or a shot turns layers on and off by name, as a transient override (§4b) | — |
 | **D-6** | titles, captions, sound — tip 5 | ⭐ captions **drawn by `CinemaMode`**, on screen and burned into captured frames. ⭐ **Sound** in every view when Sound is on (R-4059); the films get a track **rendered offline from the mixer's cue log** (§4c) | `ffmpeg drawtext` only: the live show would have none · recording the device: a captured frame takes ~0.8 s, so the sound would be stretched ~50× |
@@ -554,7 +578,9 @@ call.
 | the user's layer set is saved to their file | ✅ `LayerControlSets` (`LayerControlGizmo.cs:230-290`) ⇒ a take's layers must not be written there | ✅ `DESIGN_Terrain_Combat_Tuning.md` §5e |
 | no HTTP route reaches the layers or the sound | ✅ the editor's route list: only `/panels*` touch the UI | — |
 
-## 6. Phases and acceptance — for backend
+## 6. Phases and acceptance — for the ui lane (R-3038)
+
+⚠ **Read through §0:** phase 1's first item becomes *"two runs stepped once per frame are identical at every cut"* — a REPORT now, a GATE once CE-3293 S5 lands; phase 2's scout bakes exact times; retakes give way to a determinism report.
 
 | phase | builds | accepted when |
 |---|---|---|
@@ -583,3 +609,175 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 
 *Reused as is:* `FilmStudio`, `FilmDirector`, `FilmCaptureLayer`, `ITimeCommands`, `IScenarioSession`, `ScenarioLoadSequence`,
 the debug job queue. *Prior art:* `CameraBookmarkStore` (Stride) saves poses, not timed shots.
+
+## 8. ⭐ AS BUILT — CE-4038 slice 1 (phases 1–3), ui lane, `2026-10-21`
+
+⭐ Built against §1–§4 under §0 (R-3038). The design had **19 classes and 4 sequences** (§3a, §3b, §3d, §3e); what was built matches
+§1's module view and §1a's one new edge exactly, and deviates from §2 in the eight places named in §8.3 — each SUPERSEDES the part of
+§2 it names. ⛔ §3d (live cues as the cut mechanism) stays superseded by §0: live cues are the FALLBACK when a take has no fresh bake.
+
+### 8.1 Classes as built
+
+```mermaid
+classDiagram
+  class DirectorRunner {
+    +Play(PlayRequest) problems
+    +Stop() Next() Pause() Resume() SetSpeed()
+    +Tick() once per frame
+    -StepOnce() the ONE step, throws on a second
+    +Status() JsonObject
+    +Reports ItemReport[]
+  }
+  class PlayRequest {
+    +Reel Reel
+    +double Speed
+    +CaptureOptions? Capture
+    +bool Scout
+    +bool Bake
+    +Inline takes
+  }
+  class ItemReport {
+    +status found missing mismatches
+    +realtimeFactor steps waitFrames
+    +maxStepsInAFrame maxRetiredInAFrame
+    +maxStepsInAFrame frames
+    +CutSnapshot[] Cuts
+  }
+  class IDirectorHost {
+    <<interface>>
+    +LoadScenario() IsOperatingEdit EntityCount
+    +EnterPreview() ExitPreview() Pause()
+    +StepBy(seconds) SimTime WallNow Hold()
+  }
+  class EditorDirectorHost
+  class ICinema { <<interface>> +Enter() Exit() Card() Caption() }
+  class EditorCinema
+  class ILayerOverride { <<interface>> +Apply(on, off) Clear() }
+  class EditorLayerOverride
+  class IFrameSink { <<interface>> +Frame() Card() }
+  class FilmFrameSink
+  class IDirectorSound { <<interface>> +SetTakeSound() BeginLog() EndLog() Reset() }
+  class EditorDirectorSound
+  class PacedClock { +HoldFor(wall) +Stepped(wall) +RealtimeFactor }
+  class TakeTimeline { +Plan(take, anchorTime, from, to) +At(t) +Next(t) }
+  class AnchorBook { +Observe(world, units, t) +TimeOf(anchor) +Mismatches(t) }
+  class ShotEvaluator { +Evaluate(shot, t, units) FilmShot }
+  class WorldUnits { +Resolve(name) +PositionOf(id) }
+  class TakeStore { +Load() Save() LoadReel() Validate() CopyTakes() ScenarioHash() }
+  class TakeJson { +ParseTake() WriteTake() ParseShot() ParseReel() }
+  class ScenarioReadyProbe { +Observe(state, count, elapsed) }
+  class DirectorWindow
+  class DebugApiHost_Director { <<partial>> }
+  class SoundTrack { +Started() Stopped() RenderWav() }
+  class RecordingAudioOutput
+  class AudioDirector { <<static>> TakeSound Recorder }
+  class LayerControlGizmo { <<existing>> +SetOverride() ClearOverride() SetRows() }
+  class WindowManager { <<existing>> +Cinema }
+  class FilmStudio { <<existing>> }
+  class AudioLayer { <<existing>> +Ear2D() }
+
+  DirectorRunner --> IDirectorHost
+  DirectorRunner --> ICinema
+  DirectorRunner --> ILayerOverride
+  DirectorRunner --> IFrameSink
+  DirectorRunner --> IDirectorSound
+  DirectorRunner --> PacedClock
+  DirectorRunner --> TakeTimeline
+  DirectorRunner --> AnchorBook
+  DirectorRunner --> ScenarioReadyProbe
+  DirectorRunner ..> ShotEvaluator
+  DirectorRunner ..> FilmStudio
+  DirectorRunner "1" *-- "many" ItemReport
+  EditorDirectorHost ..|> IDirectorHost
+  EditorDirectorHost --> TakeStore
+  EditorCinema ..|> ICinema
+  EditorCinema --> WindowManager
+  EditorLayerOverride ..|> ILayerOverride
+  EditorLayerOverride --> LayerControlGizmo
+  FilmFrameSink ..|> IFrameSink
+  FilmFrameSink --> FilmStudio
+  EditorDirectorSound ..|> IDirectorSound
+  EditorDirectorSound --> AudioDirector
+  AudioLayer --> AudioDirector
+  AudioLayer --> RecordingAudioOutput
+  RecordingAudioOutput --> SoundTrack
+  ShotEvaluator --> WorldUnits
+  AnchorBook --> WorldUnits
+  TakeStore ..> TakeJson
+  DirectorWindow --> DirectorRunner
+  DebugApiHost_Director --> DirectorRunner
+  DebugApiHost_Director --> LayerControlGizmo
+  DebugApiHost_Director ..> ScenarioReadyProbe : /scenario/load shares it
+```
+
+*What the picture shows that prose hid: every editor dependency is behind an interface the runner owns (host, cinema, layers, frames,
+sound), so the rails drive the runner frame by frame with a fake editor — and the panel and the routes reach the SAME runner. The pure
+parts (formats, shot math, clock, timeline, anchors) live in `Hrot.Presentation` (`Map3D/Director/`); the runner and its editor adapters
+in `Hrot.Editor` (`Director/`).*
+
+### 8.2 One frame, as built — the stepping rule
+
+```mermaid
+sequenceDiagram
+  participant U as EditorSubsystem.Update
+  participant R as DirectorRunner.Tick
+  participant H as IDirectorHost
+  participant F as FilmStudio / FilmCaptureLayer
+  participant K as kernel (MasterSyncController)
+  U->>U: debug jobs drain (a /director/play lands here)
+  U->>R: Tick()
+  R->>H: SimTime — how many steps has the master taken? (it takes each ONE frame after it is asked)
+  alt two still outstanding (the master fell behind)
+    R-->>U: no step this frame (counted: waitFrames)
+  else at most one in flight
+    R->>R: AnchorBook.Observe (component state, the combat logs) · replan if a live beat arrived
+    R->>F: Direct(ShotEvaluator.Evaluate(shot at t))
+    alt live, in a shot
+      R->>H: Hold(PacedClock.HoldFor(now)) — the frame waits for its step
+    else capture, a film frame due
+      R->>F: Capture(frame, caption) — served in THIS frame's map update, before the step lands
+    end
+    R->>H: StepBy(1 / tickHz) — exactly once (a second throws)
+  end
+  U->>F: MapCanvas.Update → FilmDirector reads the newest shot · a capture is written
+  U->>K: kernel update retires the step
+```
+
+*What the picture shows: a step is never asked for twice in a frame, and never with two already outstanding — so the master cannot be
+handed two to take at once (§0's rule holds whatever the master does). 📐 **Measured in the editor, `2026-10-21`: the master takes a step
+ONE FRAME after it is asked for** (the step intent crosses the orchestration bus); keeping one in flight makes the KERNEL step every frame.
+⛔ SUPERSEDED the same day: "wait for each step to land before the next" — with that lag it stepped every OTHER frame (109 of 109 steps
+waited on the first live run), a paused frame between every two steps — the very interleaving §0 forbids. A capture is taken in the same frame BEFORE that frame's step
+lands, so the picture is the state at the film frame's sim time.*
+
+### 8.3 Deviations from §2 — each SUPERSEDES the §2 box it names
+
+| §2 had | as built | why |
+|---|---|---|
+| `Scout` (a class) | ⭐ a **mode** of the runner (`PlayRequest.Scout`, `/director/scout`); `Bake=false` measures without writing | §2's own edge said the scout *runs a take with capture and pacing off* — one runner, one stepping path; a second class would be a second loop |
+| `CaptureSink` (a class) | the runner's capture branch + `IFrameSink` (`FilmFrameSink` over `FilmStudio.Capture`); cards and captions are `FilmCaptureRequest` fields drawn by `FilmText` | the capture IS the frame loop; only the mailbox is a seam |
+| `CinemaMode` | `ICinema` / `EditorCinema` over `WindowManager.Cinema` (menu bar, panels and status bar not drawn; frame overlays still are) + a frame overlay for the card and caption; Esc stops | the window manager already owns what is drawn |
+| `LayerOverride` | `ILayerOverride` over `LayerControlGizmo.SetOverride` / `ClearOverride` (a third set laid over the two, ⛔ never written); `SetRows` is the route's user click | the gizmo owns the mask; a second owner would race it |
+| `SoundTrack.Log` | `RecordingAudioOutput` wraps the layer's output while `AudioDirector.Recorder` is set (a `NullAudioOutput` when the machine has no device); `RenderWav` maps each cue to the FILM timeline (gaps skipped, slow motion stretched) | the output is the one place every started sound passes |
+| — (not in §2) | ⭐ `TakeTimeline` — shots laid out in sim time (film.py's plan rule: a shot starts at its `at` or when the last ends), trims, unresolved anchors, skipped replays | the runner, the scout and the panel needed one answer to "which shot is held now" |
+| — | ⭐ `WorldUnits` / `IShotWorld` — names to network ids, positions | shared by the shot math, the anchors and validation |
+| `AnchorBook.Observe(LiveCues)` | `Observe(world, units, t)` reading `ShotLog` / `DetonationLog` (kept beside the world) and component state (`SimTransform`, `EntityInfo`, `Health`, `BehaviorState`, `IsEmbarkedTag`, `Gesture`) | ⛔ no `repo.Bus.Read` (touch point 1, CE-3293 S3) |
+
+⭐ **Also built:** `/film/shot {spec, t}` (D-9 — film.py sends its plan as take shots, the engine evaluates them; `film.py --take` films a
+saved take through the director) · `POST /director/play` takes an inline take (played, never saved) · the Director panel (View ›
+Director: reel or take, Play / Prepare / Stop / Next / Pause, speed, a row per take with Replay) · "Save As" copies `takes/`
+(`EditorScenarioSession.SaveAs`) · the 2-D ear (`AudioLayer.Ear2D`: the view's centre, half the visible width up, looking north) · the
+`FilmDirector` reads the newest shot when the camera updates (a cut lands the same frame) · every cut's world in the report (B0′).
+
+### 8.4 Measured, and what is not yet
+
+| claim | as built — how it IS | status |
+|---|---|---|
+| one step per rendered frame | `StepOnce` throws on a second; `maxStepsInAFrame` and the kernel's own `maxRetiredInAFrame` reported; rails `CE4038_AReelOfThreeScenarios_PlaysLive_OneStepPerFrame_HeldToRealTime` (🔴 red-proven) and `CE4038_WithTheMasterOneFrameBehind_TheKernelStillStepsEveryFrame` (the editor's measured lag) | ✅ |
+| live play holds real time | the same rail: ×1.00 ± 5 % on a 120 fps fake renderer, the frame held · 📐 the editor on the cloud VM (Xvfb + llvmpipe, ~20–25 fps): **×0.27–0.41 at 60 Hz · ×0.72–1.00 at 20 Hz · ×0.86–1.00 at 15 Hz**, one step per frame at the kernel in every take, 0 waits — ⇒ R-4063's fallback is what the VM needs | ✅ (rails, VM) · ⚠ a desktop not measured |
+| B9 — the panels' cost | 📐 VM, live: 65 → 46 ms per frame with the panels off (×1.4); the renderer, not the panels, is the cost there | ✅ measured (VM) |
+| a take's layers never reach the user's file | `GZH011_Tests.CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick` (🔴 red-proven) | ✅ |
+| FPS always sounds | `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice` (🔴 red-proven) | ✅ |
+| filmed = scouted (B0′) | ⭐ **ACCEPTED `2026-10-21` after CE-3293 S5** — `Hrot.SystemTests.DirectorIdentityRails.CE1240_ATakeRunThreeTimes_IsTheSameAtEveryCut`, now a GATE: `ua-tank-ammo` (rounds), `bt-grenade-posture` (a blast), `ua-civ-melee` (a blow), **three fresh loads each, identical at every cut** (positions, health, rounds, beat times), one step per frame asked and taken, 0 waits. 📐 S5 moved the beats (the M1's rounds 9.150 / 17.883 → 8.933 / 17.667 s), as touch point 3 warned ⇒ every seeded take was re-scouted after it and 54 of 55 BAKED (`baked`: times, `tickHz` 60, the scenario's hash, the build) — CE-1240. ⛔ SUPERSEDED: "a REPORT until S5" | ✅ |
+| the sound track of an OGG clip | ⛔ `WavReader` reads PCM WAV only — a clip from an `.ogg` file is left out of the film's track (the generated placeholders are all in) | ⛔ a known gap |
+| a 20 / 15 Hz take behaves as at 60 Hz | ⛔ not measured — the scout at that rate is the check (§5a row) | ⛔ open |

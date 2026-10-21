@@ -53,6 +53,7 @@ public sealed class ModuleFaultReportingRails : IDisposable
     public void Dispose() => FdpConfig.FailFastOnModuleException = _originalFailFast;
 
     /// <summary>A synchronous module that throws the same exception on every tick.</summary>
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class AlwaysThrowsModule : IEcsModule
     {
         public int Ticks;

@@ -15,6 +15,28 @@ namespace Fdp.Toolkit.Perception.Tests
     {
         private static SoundEmission Shot(float x, double time = 0d) => new() { Kind = (byte)SoundKind.Shot, At = new Vector3(x, 0f, 0f), Carry = 100f, Time = time };
 
+        /// <summary>
+        /// ⭐ <c>CE-3292</c> (R-3035) — the ring outlives a load and a preview Stop (it is a node singleton). 📐 Measured before: after a reload
+        /// every fresh sensor heard the previous runs' shots, and each reload heard more. ⇒ when the clock goes BACK, nothing made before it is
+        /// heard again — by a fresh sensor or by one whose cursor was rewound with the world. ✅ Red-proof: the marker removed ⇒ 3 heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3292_AfterTheClockGoesBack_NoSoundOfTheEarlierTimelineIsHeard()
+        {
+            var ring = new SoundEmissionRing();
+            ring.Tick(9.0);
+            for (int i = 1; i <= 3; i++) ring.Append(Shot(i, time: 9.0));   // the previous run's shots
+            ring.Tick(0.0);                                                  // a load snaps the clock back
+            ring.Tick(0.5);
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            Assert.Equal(0, ring.ReadAfter(0, into, out long last));         // a fresh sensor
+            Assert.Equal(0, ring.ReadAfter(1, into, out _));                 // a cursor rewound with the world
+            ring.Append(Shot(7, time: 0.5));                                 // this run's first shot
+            int n = ring.ReadAfter(last, into, out _);
+            Assert.Equal(1, n);
+            Assert.Equal(7f, into[0].At.X);
+        }
+
         [Fact]
         public void CE3282_AReader_GetsEverySoundAfterItsCursor_AndResumesWhereItStopped()
         {

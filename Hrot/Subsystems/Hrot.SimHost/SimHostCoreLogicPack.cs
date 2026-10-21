@@ -38,6 +38,7 @@ namespace Hrot.SimHost
     /// <para><b>Execution order:</b> matches the production order used by
     /// <see cref="SimulationLogicModule"/> for the <c>MuscleGround</c> role.</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class SimHostCoreLogicPack : IEcsModule, IDisposable
     {
         /// <inheritdoc/>

@@ -62,7 +62,7 @@ namespace Hrot.Network.NED.SimHost
         {
             if (view is not EntityRepository repo) return;
 
-            var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
             // ⭐ CE-3167 — the egress now runs on EVERY node (an order may be issued anywhere); a node with no brain state
             //   registered owns no brain, so it forwards everything. 🔴 HasAuthority on an unregistered type THROWS — that is
             //   what the cross-node rail (EntityOrdersAcrossNodesTests) caught on SimHost.
@@ -108,7 +108,7 @@ namespace Hrot.Network.NED.SimHost
         private void ForwardRoe(EntityRepository repo, bool brainHere)
         {
             if (!repo.Bus.IsRegistered<SetRoeEvent>()) return;
-            foreach (var evt in repo.Bus.Read<SetRoeEvent>())
+            foreach (var evt in repo.ReadEvents<SetRoeEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // RoeSystem applies it here
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
@@ -135,7 +135,7 @@ namespace Hrot.Network.NED.SimHost
         private void ForwardReporting(EntityRepository repo, bool brainHere)
         {
             if (!repo.Bus.IsRegistered<SetReportingEvent>()) return;
-            foreach (var evt in repo.Bus.Read<SetReportingEvent>())
+            foreach (var evt in repo.ReadEvents<SetReportingEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // ReportingRequirementsSystem applies it here
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
@@ -163,7 +163,7 @@ namespace Hrot.Network.NED.SimHost
         private void ForwardEngagementArea(EntityRepository repo, bool brainHere)
         {
             if (!repo.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
-            foreach (var evt in repo.Bus.Read<SetEngagementAreaEvent>())
+            foreach (var evt in repo.ReadEvents<SetEngagementAreaEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // EngagementAreaSystem applies it here
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))

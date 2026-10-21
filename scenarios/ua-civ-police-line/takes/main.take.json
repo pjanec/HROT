@@ -1,0 +1,67 @@
+{
+  "title": "Stones and a police line",
+  "caption": "Rioters throw stones; the police line answers with non-lethal force only, and the riot breaks",
+  "anchors": {
+    "force": {
+      "on": "shot",
+      "by": "Police launcher",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "force": 2.2167
+    },
+    "tickHz": 60,
+    "scenarioHash": "15e762a7953be413",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": 1,
+      "seconds": 3,
+      "lookAt": [
+        103,
+        200,
+        1
+      ],
+      "pitch": -12,
+      "why": "establish: the line and the rioters"
+    },
+    {
+      "at": "force-1",
+      "seconds": 3,
+      "over": "Police shield",
+      "toward": "Instigator",
+      "back": 4,
+      "height": 2,
+      "why": "behind the shields as the stun grenades go"
+    },
+    {
+      "at": "force-1",
+      "seconds": 3,
+      "follow": "Instigator",
+      "distance": 8,
+      "yaw": 180,
+      "pitch": -8,
+      "speed": 0.5,
+      "replay": true,
+      "why": "replay from the crowd, slow"
+    },
+    {
+      "at": "force+4",
+      "seconds": 5,
+      "lookAt": [
+        108,
+        200,
+        0
+      ],
+      "distance": 45,
+      "pitch": -45,
+      "why": "high: the crowd scatters"
+    }
+  ],
+  "clip": "F-11",
+  "chapter": 4,
+  "state": "ready"
+}

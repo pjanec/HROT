@@ -175,9 +175,10 @@ public sealed class BlueprintTestFixture : IDisposable
         // Also sync repo simulation time so view.Time is accurate for tick delegates.
         _repo.SetSimulationTime(View.Time);
         _repo.SetCommandBufferOverride(Ecb);
-        TickSystem.Execute(_repo, deltaTime);
+        // ⭐ CE-3293 S5 — through the scheduler's gate, as production runs them: a step-only system is not called on a paused frame
+        _gate.Run(TickSystem, _repo, deltaTime);
         foreach (var sys in _auxSimulationSystems)
-            sys.Execute(_repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
+            _gate.Run(sys, _repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
         _repo.SetCommandBufferOverride(null);
 
         // 4. BeforeSync phase — ⛔ CE-3137 U-0: no BlueprintMaintenanceSystem (the store never moves a slot).
@@ -192,6 +193,8 @@ public sealed class BlueprintTestFixture : IDisposable
     }
 
     // ---- System registration helpers ----------------------------------------
+
+    private readonly Fdp.ModuleHost.Scheduling.SystemScheduler _gate = new();
 
     public void RegisterTickAction(Action<ISimulationView, IEntityCommandBuffer> action)
         => _tickActions += action;

@@ -325,6 +325,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [UpdateAfter(typeof(Fdp.Toolkit.Behavior.Systems.LocomotionDispatcherSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class UnderFireMoveSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;

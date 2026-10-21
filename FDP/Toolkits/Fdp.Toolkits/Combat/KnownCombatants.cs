@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Combat
         {
             if (actor.IsNull || !world.IsComponentTypeRegistered<TargetMemory>()) return 0;
             long id = (long)actor.PackedValue;
-            uint now = world.SimulationTick;   // what ThreatEvaluationSystem stamps LastSeenTick with (ISimulationView.Tick)
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // what ThreatEvaluationSystem stamps LastSeenTick with (CE-3292: sim steps)
             var witnesses = _witnesses ??= new System.Collections.Generic.List<Entity>();
             witnesses.Clear();
             foreach (var e in world.Query().With<TargetMemory>().Build())

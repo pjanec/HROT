@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 [UpdateBefore(typeof(LocomotionDispatcherSystem))]
 [UpdateBefore(typeof(WeaponDispatcherSystem))]
 [UpdateBefore(typeof(InteractionDispatcherSystem))]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 {
     private readonly BlueprintRegistry _registry;
@@ -45,10 +46,8 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
-        // Respect the engine's paused state: when the time controller sets deltaTime=0
-        // (e.g. during a debug breakpoint), skip blueprint execution to freeze the
-        // rewound pre-tick snapshot. Mirrors BTreeTickSystem and HsmTickSystem.
-        if (deltaTime <= 0f) return;
+        // A paused frame (deltaTime = 0, e.g. a debug breakpoint) freezes the rewound pre-tick snapshot: the system is not called.
+        // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
         // Per Debug DD §9.2: notify the debug session of the tick boundary before running blueprints.
         FrameStartCallback?.Invoke();
@@ -146,7 +145,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     var evSpan = new Span<byte>(
                         memory + slot.PayloadOffset, slot.PayloadSize);
                     BlueprintEventDispatch.DispatchForSlot(
-                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
+                        def, evSpan, repo, view, ecb, entity, view.Time, deltaTime);
                 }
 
                 if (def.Tick is not null)

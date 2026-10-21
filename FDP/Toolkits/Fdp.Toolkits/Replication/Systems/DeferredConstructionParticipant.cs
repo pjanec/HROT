@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// and calls <see cref="Complete"/> from its external signal handler.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public abstract class DeferredConstructionParticipant : IEcsModuleSystem
     {
         /// <summary>The ELM module id this participant acks under.</summary>

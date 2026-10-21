@@ -40,6 +40,7 @@ namespace Hrot.SimHost.Systems
     // remove the attribute and say why — do not weaken the guard.
     [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsResultUpdateSystem : IEcsModuleSystem
     {
         // ⭐ CE-3241 (found by the CE-3222 perf gate) — the sensors by wire key, built ONCE per frame that has results. Was a scan
@@ -54,7 +55,7 @@ namespace Hrot.SimHost.Systems
             if (view is not EntityRepository repo) return;
 
             // ── Path A: Online managed events from DDS ingress translator ─────────
-            foreach (var evt in repo.Bus.ReadManaged<EqsResultUpdateEvent>())
+            foreach (var evt in repo.ReadManagedEvents<EqsResultUpdateEvent>())
             {
                 if (!repo.IsAlive(evt.Observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(evt.Observer)) continue;

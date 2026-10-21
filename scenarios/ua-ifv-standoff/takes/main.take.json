@@ -1,0 +1,49 @@
+{
+  "title": "Stand-off",
+  "caption": "Far out, the IFV's 25 mm kills RPG men untouched; up close, an RPG gets its shot in",
+  "anchors": {
+    "far": {
+      "on": "shot",
+      "by": "IFV Standoff",
+      "n": 1
+    },
+    "close": {
+      "on": "hit",
+      "target": "IFV Close"
+    }
+  },
+  "baked": {
+    "times": {
+      "close": 3.5,
+      "far": 9.4833
+    },
+    "tickHz": 60,
+    "scenarioHash": "fec4d7e5af03380d",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "far-1",
+      "seconds": 4,
+      "over": "IFV Standoff",
+      "toward": "RPG Man A1",
+      "back": 10,
+      "height": 4,
+      "ahead": 0.95,
+      "fov": 8,
+      "why": "telephoto: 300 m away, out of RPG range"
+    },
+    {
+      "at": "close-2",
+      "seconds": 4,
+      "follow": "IFV Close",
+      "distance": 20,
+      "yaw": 90,
+      "pitch": -8,
+      "why": "close in, the RPG hits"
+    }
+  ],
+  "clip": "F-44",
+  "chapter": 9,
+  "state": "ready"
+}

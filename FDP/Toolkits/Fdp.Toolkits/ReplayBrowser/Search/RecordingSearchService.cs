@@ -191,11 +191,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             using var playback = new PlaybackController(fdpPath);
             var repo = new EntityRepository();
-            var bus = new FdpEventBus();
 
             RegisterAllComponents(repo, playback);
-            // CRITICAL: set EventBus BEFORE the loop so ApplyFrame injects events.
-            playback.EventBus = bus;
+            // CRITICAL: set EventBus BEFORE the loop so ApplyFrame injects events. ⭐ CE-3293 S3 — the repository's own bus, so
+            //   the scanner reads them through the repository (rule 4).
+            playback.EventBus = repo.Bus;
 
             // Per DESIGN.md §6.4 strict contract: step first, then scan, no ClearCurrentBuffers.
             while (playback.StepForward(repo))
@@ -205,7 +205,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
                 // Step 1 already happened (StepForward injected events into bus).
                 // Step 2: scan immediately without clearing the bus.
-                scanner(bus, frame, ticks, results, repo, entityFilter);
+                scanner(repo, frame, ticks, results, entityFilter);
                 // Deliberately NO bus.ClearCurrentBuffers() here — this is the SR-T38 invariant.
             }
 

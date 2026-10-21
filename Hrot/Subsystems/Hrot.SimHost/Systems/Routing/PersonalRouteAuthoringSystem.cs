@@ -41,6 +41,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
 {
     /// <summary>
@@ -88,7 +89,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
         }
 
         // -- 2. Process CmdAppendPersonalWaypoint events --
-        var events = repo.Bus.Read<CmdAppendPersonalWaypoint>();
+        var events = repo.ReadEvents<CmdAppendPersonalWaypoint>();
         if (events.Length == 0) return;
 
         foreach (var evt in events)

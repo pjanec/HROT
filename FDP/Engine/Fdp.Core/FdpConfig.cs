@@ -123,6 +123,14 @@ namespace Fdp.Core
         public static bool EnforceExplicitEventRegistration { get; set; } = false;
 
         /// <summary>
+        /// ⭐⭐ CE-3293 S5 (R-3036 rules 2 and 5; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §10 F12) — the tick-mode
+        /// gate and the step windows: a <c>[TickMode(WhenTimeAdvances)]</c> system (and module) is not run on a frame that does not
+        /// advance, and reads every event since its own last run. ON by default; turn it off only to bisect a red to this change.
+        /// ⚠ Off is not byte-for-byte the old behaviour: the eight hand-written <c>deltaTime &lt;= 0</c> returns it replaced are gone.
+        /// </summary>
+        public static bool TickModeGate { get; set; } = true;
+
+        /// <summary>
         /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a
         /// frame instead of catching and reporting it. The node dies at the first fault, with the
         /// original stack.

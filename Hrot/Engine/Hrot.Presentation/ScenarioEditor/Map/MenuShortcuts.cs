@@ -22,6 +22,7 @@ namespace Hrot.ScenarioEditor.Map
     /// <para>Not while a tool holds the map (a pick, a placement — its keys are its own), except the RTS command tool; not with Ctrl or
     /// Alt held. Several selected: the primary one, as a menu click on it would (plain orders stay one unit — DESIGN_Orders §13.12 O6).</para>
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class MenuShortcuts : IEcsModuleSystem
     {
         private readonly EntityRepository _world;

@@ -27,6 +27,7 @@ namespace Hrot.Network.Routing
     /// DERIVED from the <c>fdp.role.*</c> subset of each node's tokens (CE-286), the heartbeat carries no RolesMask.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class ClusterCapabilityIngestSystem : IEcsModuleSystem
     {
         private readonly DdsReader<NodeHeartbeat> _heartbeatReader;

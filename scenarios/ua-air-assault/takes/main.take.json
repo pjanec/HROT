@@ -1,0 +1,68 @@
+{
+  "title": "Air assault",
+  "caption": "Nobody gets out in the air; the helicopter lifts off only after the last man",
+  "anchors": {
+    "land": {
+      "on": "near",
+      "who": "UH-60 (doors off)",
+      "point": [
+        190,
+        340
+      ],
+      "within": 5
+    },
+    "out": {
+      "on": "embark",
+      "who": "Rifleman 5",
+      "is": false
+    }
+  },
+  "baked": {
+    "times": {
+      "land": 19.2167,
+      "out": 32.3833
+    },
+    "tickHz": 60,
+    "scenarioHash": "9255b217e891e1bf",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "land-8",
+      "seconds": 4,
+      "follow": "UH-60 (doors off)",
+      "distance": 40,
+      "pitch": -10,
+      "why": "inbound"
+    },
+    {
+      "at": "land-1",
+      "seconds": 5,
+      "lookAt": [
+        190,
+        340,
+        1
+      ],
+      "distance": 45,
+      "yaw": 45,
+      "pitch": -12,
+      "why": "the landing and the squad out"
+    },
+    {
+      "at": "out+1",
+      "seconds": 4,
+      "lookAt": [
+        190,
+        340,
+        5
+      ],
+      "distance": 60,
+      "yaw": 45,
+      "pitch": -5,
+      "why": "lift-off over the squad"
+    }
+  ],
+  "clip": "F-53",
+  "chapter": 10,
+  "state": "ready"
+}

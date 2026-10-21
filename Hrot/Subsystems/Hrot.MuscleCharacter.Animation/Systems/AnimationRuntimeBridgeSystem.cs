@@ -16,6 +16,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// Per-tick: applies staged executor state, calls backend.Tick.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class AnimationRuntimeBridgeSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

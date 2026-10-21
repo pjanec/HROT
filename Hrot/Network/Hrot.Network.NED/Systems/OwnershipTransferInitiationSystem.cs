@@ -36,6 +36,7 @@ namespace Hrot.Network.Systems
     /// owns everything). 📄 docs/DESIGN_Entity_Ownership_Transfer.md §2.2.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class OwnershipTransferInitiationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap       _entityMap;

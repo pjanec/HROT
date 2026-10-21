@@ -12,6 +12,7 @@ namespace Hrot.IG.Modules;
 /// instance is constructed here and passed to the registry so that tests can also
 /// construct it directly without a kernel.
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class StyleResolutionModule : IEcsModule
 {
     public string          Name   => "StyleResolution";

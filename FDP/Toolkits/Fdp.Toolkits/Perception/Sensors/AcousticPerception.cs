@@ -123,7 +123,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             var broadphase = _broadphase.For(view, _grid);
 
             var ear = view.GetComponentRO<SimTransform>(unit).Position;
-            var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, view.Tick,
+            var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, PerceptionClock.Now(view),   // ⭐ CE-3292 — the seed: the step
                                 AcousticPerception.IdentificationOf(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(view, unit)));
             int n = 0;
             // MOVEMENT is continuous: the emitters near the unit, through the grid (§5.1)
@@ -159,7 +159,10 @@ namespace Fdp.Toolkit.Perception.Sensors
                 ref readonly var e = ref sounds[i];
                 if (n == candidates.Length) { last = e.Serial - 1; break; }   // no room: this one and the rest wait for the next solve
                 if (e.Source == unit.PackedValue || e.Force == ourForce) continue;   // not his own sound, not his own side's (the broadphase's rule)
-                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, (uint)e.Serial, e.Family, e.Token);
+                // ⭐ CE-3292 — the error's seed is the sound's place in THIS timeline: the ring's serial keeps counting across loads, so the
+                //   raw serial gave the same shot a different mishearing in every run.
+                uint seed = unchecked((uint)(e.Serial - ring.FirstOfTimeline + 1));
+                Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, seed, e.Family, e.Token);
             }
             if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
             var cmd = view.GetCommandBuffer();                       //   else a sound after a long skip would meet the no-cursor window

@@ -130,6 +130,7 @@ internal class MockNetworkFactory : INetworkFactory
 
     // ---- null stubs -------------------------------------------------------
 
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class NullReplicationModule : IReplicationModule
     {
         private readonly GhostCreationSystem _ghostCreationSystem = new(new NetworkEntityMap());

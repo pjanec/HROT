@@ -78,6 +78,7 @@ namespace Fdp.Toolkit.Combat
 
     /// <summary>⭐ <c>CE-2176</c> IF-3 — records each <see cref="DetonationNotification"/> into <see cref="RecentDetonations"/> (on a brain node).</summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DetonationMemorySystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

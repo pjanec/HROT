@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Squad.Command
     /// 📄 docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md §3, §5, §8 CC-C.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StaffComposerSystem : IEcsModuleSystem
     {
         /// <summary>How long a composed report waits before it goes (R-2031: ~3 s, a leader's report).</summary>
@@ -72,7 +73,7 @@ namespace Fdp.Toolkit.Squad.Command
 
             // PROGRESS on the end of a commander's TASK (CC-5)
             if (repo.Bus.IsRegistered<BehaviorFinishedEvent>())
-                foreach (var fin in repo.Bus.Read<BehaviorFinishedEvent>())
+                foreach (var fin in repo.ReadEvents<BehaviorFinishedEvent>())
                 {
                     if (fin.Origin == BehaviorOrigin.Reaction || fin.Origin == BehaviorOrigin.Sop) continue;
                     if (!Sends(repo, fin.Entity)) continue;
@@ -86,7 +87,7 @@ namespace Fdp.Toolkit.Squad.Command
             // ⭐ CE-2309 (HQ-1) — this frame's heard launches, by the listener's commander
             _launches.Clear();
             if (repo.Bus.IsRegistered<SoundContactEvent>())
-                foreach (var heard in repo.Bus.Read<SoundContactEvent>())
+                foreach (var heard in repo.ReadEvents<SoundContactEvent>())
                     if (IsLaunch(repo, in heard, out var commander)) _launches.Add((commander, heard));
 
             _commanders ??= repo.Query().With<UnitRoster>().With<UnitSubordinate>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
@@ -385,6 +386,7 @@ namespace Fdp.Toolkit.Squad.Command
     /// a <c>Synthetic</c> fake always taken, CC-14).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StaffInboxSystem : IEcsModuleSystem
     {
         /// <summary>A sender's new SPOT replaces its element within this many metres; farther, it is another element.</summary>
@@ -423,7 +425,7 @@ namespace Fdp.Toolkit.Squad.Command
             bool brainHere = repo.IsComponentTypeRegistered<BehaviorState>();
             float now = CommandPictureOps.Now(repo);
             SquadReportLog? log = null;
-            foreach (var n in repo.Bus.ReadManaged<SquadReportNotification>())
+            foreach (var n in repo.ReadManagedEvents<SquadReportNotification>())
             {
                 // ⭐ CE-2295 (PC-11) — every report this node sees goes into its log, with what the inbox did with it
                 log ??= SquadReportLog.For(repo);

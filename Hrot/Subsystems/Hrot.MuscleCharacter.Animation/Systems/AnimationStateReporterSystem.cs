@@ -17,6 +17,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// (ANC-P3-07, DD-1 §18, §17)
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AnimationStateReporterSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

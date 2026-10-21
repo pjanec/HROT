@@ -32,6 +32,7 @@ namespace Hrot.SimHost.Systems
     /// an error and truncates — it never throws.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class BlueprintMaterializationSystem : IEcsModuleSystem
     {
         private readonly BlueprintRegistry _registry;

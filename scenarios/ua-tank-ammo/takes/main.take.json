@@ -1,0 +1,59 @@
+{
+  "title": "A round for each target",
+  "caption": "The tank picks the round: sabot for the tank, high explosive for the truck",
+  "anchors": {
+    "s1": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 1
+    },
+    "s2": {
+      "on": "shot",
+      "by": "Tank",
+      "n": 2
+    }
+  },
+  "baked": {
+    "times": {
+      "s1": 8.9333,
+      "s2": 17.6667
+    },
+    "tickHz": 60,
+    "scenarioHash": "346794a367ebdc52",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "s1-0.5",
+      "seconds": 1.7999999523162842,
+      "over": "Tank",
+      "toward": "Enemy Tank",
+      "lift": 2,
+      "back": 14,
+      "height": 4.5,
+      "ahead": 0.2,
+      "why": "the RUNBOOK's proven shot"
+    },
+    {
+      "at": "s2-0.5",
+      "seconds": 2.5999999046325684,
+      "follow": "Enemy Tank",
+      "yaw": 180,
+      "pitch": -10,
+      "fov": 25,
+      "why": "the hit"
+    },
+    {
+      "at": "s2+4",
+      "seconds": 3,
+      "follow": "Technical",
+      "distance": 25,
+      "pitch": -10,
+      "why": "the HE on the truck"
+    }
+  ],
+  "clip": "F-45",
+  "chapter": 9,
+  "state": "ready",
+  "needs": "re-run the check first (soft targets survived on 2026-10-16; the causes are fixed)"
+}

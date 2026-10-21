@@ -964,10 +964,10 @@ internal static class InstanceEmitter
         }
         foreach (var g in events)
         {
-            e.WriteLine($"if (world.Bus.HasEvent(__EvtId_{g.Name}))");
+            e.WriteLine($"if (world.HasEventsByTypeId(__EvtId_{g.Name}))");   // CE-3293 S3 — the repository's reads, never the bus
             e.WriteLine("{");
             e.Indent();
-            e.WriteLine($"var __raw = world.Bus.ReadRawByTypeId(__EvtId_{g.Name}, out int __size);");
+            e.WriteLine($"var __raw = world.ReadRawEventsByTypeId(__EvtId_{g.Name}, out int __size);");
             e.WriteLine("if (__size > 0)");
             e.WriteLine("    for (int __i = 0; __i + __size <= __raw.Length; __i += __size)");
             e.WriteLine($"        Event_{g.Name}_Thunk(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, __raw.Slice(__i, __size));");

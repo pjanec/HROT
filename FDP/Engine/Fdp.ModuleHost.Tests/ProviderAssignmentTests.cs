@@ -12,6 +12,7 @@ namespace Fdp.ModuleHost.Tests
 {
     public class ProviderAssignmentTests
     {
+        [TickMode(TickPolicy.EveryFrame)]
         private class TestModule : IEcsModule
         {
             public string Name => "TestModule-" + Guid.NewGuid();

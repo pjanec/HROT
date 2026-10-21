@@ -14,6 +14,7 @@ namespace Fdp.ModuleHost.Tests.Integration
         [ComponentId(94)]
         struct Velocity { public float X, Y; }
 
+        [TickMode(TickPolicy.EveryFrame)]
         private class PhysicsModule : IEcsModule
         {
             public string Name => "Physics";
@@ -50,6 +51,7 @@ namespace Fdp.ModuleHost.Tests.Integration
             }
         }
         
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class SpawnerModule : IEcsModule
         {
             public string Name => "Spawner";
@@ -226,6 +228,7 @@ namespace Fdp.ModuleHost.Tests.Integration
             Assert.False(sawVelocity, "Should NOT see Velocity (filtered)");
         }
         
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class InlineModule : IEcsModule
         {
             public string Name { get; }
