@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
 current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
@@ -77,8 +77,8 @@ classDiagram
   direction LR
   class EntityBodyLayer3D { <<existing, grows>> pose pipeline + HeldInHands · Strike · Gestured(animated) }
   class BlockFigure { <<existing, grows>> +HandItem parts · +PistolArms · PhoneArms · BinocularArms · ThrowArms · StrikeArms · SlungOnBack }
-  class HandItemLook { <<NEW>> Rifle Pistol Knife Baton Taser Spray Phone Binoculars Stone Grenade Canister Toy }
-  class HandItems { <<NEW, pure>> +Of(world, man, tkb) HandItemLook · reads HeldItem, ActiveMount, Appearance, the hands round }
+  class HandItemLook { <<BUILT as HeldLook, CE-1236 — weapons>> Rifle Pistol MachineGun ScopedRifle Rpg MissileTube Manpads Mortar · ⏳ Knife Baton Taser Spray Phone Binoculars Stone Grenade Canister Toy }
+  class HandItems { <<BUILT as HeldWeapons, pure, CE-1236>> +Of(world, man, tkb) (InHands, Slung) · +LookOf(tkb, mount) · reads ActiveMount, Category, Appearance, scope, the round's shape }
   class StrikeTracker { <<BUILT CE-1171, RecentShots shape>> last blow per striker · StruckWithin }
   class GestureMotion { <<BUILT as GestureClock + GestureArms t, no class>> t = simTime + seed offset, sin(t x rate) }
   class PoliceKit { <<NEW in Outfits + BodySurface>> cap or riot helmet · vest and belt painted }
@@ -115,8 +115,9 @@ sequenceDiagram
   participant G as Gestured
   participant S as StrikeTracker
   L->>P: stance, carriage arms
-  L->>H: HandItems.Of(man): held item, active mount, its look, toy or real
-  H-->>L: the item and the arms that hold it (pistol one hand, phone to the ear, binoculars up, a stone ready)
+  L->>H: HandItems.Of(man): held item, active mount, its look, toy or real (BUILT as HeldWeapons.Of for weapons)
+  H-->>L: the item and the arms that hold it (pistol both hands, a tube, a machine gun, a mortar on the ground · phone to the ear, binoculars up, a stone ready)
+  L->>L: BlockFigure.Held reshapes the weapon part · WeaponDetails adds a scope, a box, a warhead, a launcher slung on the back
   L->>G: gesture arms, animated by the man's own phase (fist pumps, sign bobs, hands-up sway)
   L->>S: a strike in the last 0.45 s? (fist or baton)
   S-->>L: the swing overrides the striking arm
@@ -162,6 +163,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **U7** | what is in his hand | `HandItems.Of`: `HeldItem` first (Phone → to the ear while still, in hand while walking · Binoculars → raised to the eyes · Throwable → the hands round's look: stone a grey lump, grenade dark green, canister a can); Weapon → the `ActiveMount`'s `Appearance.Look` (Rifle the rifle · Pistol one hand, the other free · LongObject a baton / bar · SmallObject a knife); None → empty | a held-item entity: B-12 chose a byte, and an entity per phone is heavy |
+| **U7a** (`CE-1236`, `2026-10-21`, R-1022) | a SOLDIER's weapon drawn as what it is | 🔒 User: *"The soldiers can have different type of weapons … they all have a single rifle-like rod. Could we make them distinguishable?"* — approved: *"approved. also in the mortar roof scenario I saw that the mortar shells are coming from two soldiers standing and there is no mortar rendered at all."* ⭐ The drawing's own vocabulary (`HeldLook`), from the SELECTED mount (`ActiveMount`, replicated): Pistol (its `Appearance`) both hands on it · MachineGun (category) longer, heavier, a box magazine, a folded bipod · ScopedRifle (`ScopeMagnification`) longer, a scope · Rpg (a rocket round) a slim tube with a warhead · MissileTube (Atgm) N-4's thick tube with a sight · Manpads (Sam, or a carried Igla / Stinger) a long tube with a grip box · Mortar (category or a bomb round — the MortarTeam's mount names no category) its deployed kit on the ground in front of him while his weapon is up, his hands at the tube's mouth; at ease the tube and baseplate on his back, his hands hanging. Tubes show in EVERY posture (on the shoulder when aimed, N-4). A launcher or mortar of his own he is not using rides upright on his back | adding MachineGun / Launcher to `ItemLook` — it is what an AI OBSERVER concludes (AW-15), and backend's data · a separate figure per soldier type — a man switches weapons · the tube only while aimed (as it was) — an RPG man walking reads as a rifleman · drawing the mortarman kneeling — the sim says he stands, and his head is drawn where he is seen and hit (as the lean, `CE-1193`) |
 | **U8** | where a carried weapon sits | Hands drawn as U7 · Back slung across the back (today's carrier sling) · Hidden NOT drawn — a worn charge, a concealed pistol; ⭐ an exercise-control layer **"Concealed (ExCon)"**, off by default, outlines hidden items for the instructor | draw concealed items for everyone: defeats AW-15's per-observer identification |
 | **U9** | drawn / aimed at someone | the posture as today (at ease low, ready, aimed — rifle and pistol each); ⭐ AIMED AT A PERSON adds a thin line from the muzzle to the target in 2-D and 3-D, on the `UnitDetails` layer (off by default) | an always-on line: a firefight becomes spaghetti |
 | **U10** | melee | a 0.45 s swing of the striking arm (`StrikeTracker`, the `PostureBlend` shape): a fist — a straight punch; a baton — an overhead swing; a knife — a stab; started by G3's notification | animate from the VICTIM's knock-down: wrong man swings, and a miss shows nothing |
@@ -191,7 +193,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 
 | id | what | needs | state |
 |---|---|---|---|
-| `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ✅ READY |
+| `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ✅ READY · ⭐ the HAND-WEAPON half BUILT `2026-10-21` as `CE-1236` (§7b): the pistol, and every soldier's weapon (U7a) |
 | `CE-1170` | U9 — aimed at a person: the line | on the wire today | ✅ READY |
 | `CE-1171` | U10 — the melee swing (fist, baton, knife) | G3 (and G4 for the baton / knife as items) | ✅ the swing built `2026-10-19` (§7a); the items in the hand at rest still wait G4 |
 | `CE-1172` | U11 — the police look (cap, riot helmet, vest, belt, baton in hand) | ui only (baton in hand from his type until G4) | ✅ READY |
@@ -203,6 +205,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 | `CE-1178` | U17 — the overhead text line above the head in 3-D | ui only | ✅ BUILT `2026-10-18` (§7a) |
 | `CE-1179` | U18 — items on the ground (pick-up weapons, laid-down weapon, placed charge) | on the wire today | ✅ READY |
 | `CE-1193` | the LEAN round a corner (backend's `Lean`, `CE-3257`; behaviors' poses note CB-21) | on the wire today | ✅ BUILT `2026-10-19` (§7a) |
+| `CE-1236` | U7a — every soldier's weapon drawn as what it is (pistol, machine gun, scoped rifle, RPG / missile / MANPADS tubes, a man's own mortar on the ground, a launcher slung) | on the wire today | ✅ BUILT `2026-10-21` (§7b) |
 
 ### 7a. As built *(`2026-10-18`)*
 
@@ -214,6 +217,64 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 | `CE-1195` (the throw) | `BlockFigure.ThrowArms(parts, crouched, soldier, phase)`: the right arm sweeps over the shoulder from the wind-up (the `Throwing` gesture's pose) to the follow-through (forward and down), easing out, the left arm swinging back; drawn for `ThrowSeconds` = 0.6 s after a shot from his HANDS mount (`RecentShots`, `PersonHands.MountIndex`) by `EntityBodyLayer3D.Thrown`, standing or crouched, free, alive, not cowering. Rail `Map3DTests.CE1195_AThrow_SweepsTheArmFromTheWindUpToTheFollowThrough` | ⭐ no state and nothing on the wire: the throw is the fire event every node already has (CE-3248 kept it in `RecentShots` for exactly this) |
 | `CE-1171` (the blow, U10) | `StrikeTracker` (beside the world, as `RecentShots`): `EffectSpawnSystem` records every `StrikeNotification` (backend `CE-3266`, G3 — local or from the `MeleeStrike` topic) with its `MeleeWeapon` and sim time; `EntityBodyLayer3D.Struck` draws `BlockFigure.StrikeArms` for `StrikeSeconds` = 0.45 s, standing or crouched, free, alive, not cowering: a FIST punches straight out at the chin and back, a KNIFE stabs out at the belly with a 20 cm blade, a BATON swings from above the head over and down in front with a 60 cm stick; the left arm up as a guard, a soldier's rifle slung. Rails `Map3DTests.CE1171_*` (the poses, the window, a busy man) and `EffectTests.CE1171_*` (the spawner keeps a remote blow, no effect spawned) | ⭐ deviates from §2's `PostureBlend shape`: no blend state — the phase is the time since the strike, as the throw (`CE-1195`). ⭐ the blade / stick appear only DURING the swing; a man holding them at rest waits for G4's items. ⚠ empty in a replay (the spawner is off), as the throw |
 | `CE-1193` (lean) | `EntityBodyLayer3D.LeanShear(world, e)` = the sim's shear (`Leans`, Hit Location §13 LN-2): body-frame `y' = y + sign · 0.4 · z / eye` (eye 1.7 standing, 1.1 crouched — `EngineFallbacks`), multiplied into `kitToBody` for a FREE figure (not held, on a rope or jumping); identity when he does not lean or lies prone. ⭐ The eye and the muzzle tip read `kitToBody`, so the first-person view of a possessed leaning man and his muzzle flash move with him — backend's `PossessionStation.EyeOf` suggestion needs nothing more. Rails `CE1193_TheDrawnLean_IsTheSimsShear`, frame `CE1193_V_TheLeanIsDrawnAsTheSimLeans` ([`people-2-lean.png`](assets/map-3d/people-2-lean.png)) | ⚠ a shear, not behaviors' "upper body tilted, weapon leading" roll: the shear is what sight and the round use, so the head is drawn where he is seen and hit; a roll about the hip would put it elsewhere. ⚠ the eye height is the engine fallback, not the type's TKB eye (the sim's `EyeOf` resolves the type's); the same for the built-in figures |
+
+### 7b. As built — every soldier's weapon (`CE-1236`, `2026-10-21`, ui; U7a, R-1022)
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBodyLayer3D { <<existing, grows>> free figure: HeldWeapons.Of then BlockFigure.Held · DrawMortar · MortarAt · MortarMouth · MortarsDrawn }
+  class HeldWeapons { <<NEW, pure>> +LookOf(tkb, mount) HeldLook · +LookOf(WeaponKind) · +Of(world, man, tkb, out load) (InHands, Slung) · +IsTube · +IsSlungShown }
+  class HeldLook { <<NEW enum>> Rifle Pistol MachineGun ScopedRifle Rpg MissileTube Manpads Mortar }
+  class BlockFigure { <<existing, grows>> +Held(parts, look, posture, handsAt) · +WeaponDetails(inHands, slung, posture, into) · +Ends(part) · Shouldered (N-4, kept) }
+  class WeaponKits { <<existing>> Kit(Mortar, deployed) · DefaultElevation · TypeOf }
+  class WeaponPosture { <<existing, replicated>> Kind · ActiveMount }
+  class WeaponMountDto { <<existing TKB>> Category · Appearance · ScopeMagnification · AmmoGuid }
+  EntityBodyLayer3D --> HeldWeapons
+  EntityBodyLayer3D --> BlockFigure
+  EntityBodyLayer3D --> WeaponKits : the mortar kit
+  HeldWeapons --> HeldLook
+  HeldWeapons ..> WeaponPosture : reads ActiveMount
+  HeldWeapons ..> WeaponMountDto : reads the mount
+```
+
+*Caption:* one classifier reads data every node already has, the figure keeps its parts and order (only the weapon part, and for the
+pistol and mortar the hands, change), and the mortar is the EXISTING weapon-system kit (§6n) drawn at the man's feet — no new mortar
+geometry, no new wire data.
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D (each soldier, free figure)
+  participant H as HeldWeapons
+  participant F as BlockFigure
+  participant K as WeaponKits
+  L->>H: Of(world, man, tkb): ActiveMount -> mount or controlled weapon
+  H-->>L: (InHands, Slung), the carried load when it is in his hands
+  L->>F: Held(parts, inHands, posture, MortarMouth when fired)
+  F-->>L: the weapon part reshaped, the hands moved (pistol, mortar)
+  L->>F: WeaponDetails(inHands, slung, posture)
+  L->>L: DrawParts (the figure, its details)
+  L->>K: a fired mortar: Kit(Mortar, deployed) at MortarAt
+  L->>L: the weapon tip = the tube's mouth (the shot's flash)
+```
+
+| as built | |
+|---|---|
+| classifier | `HeldWeapons.LookOf`: `Appearance.Look == Pistol` → Pistol; category Sam → Manpads, Atgm → MissileTube (Rpg when its round is a rocket), MachineGun, Mortar; else the round's shape (Rocket → Rpg, Missile → MissileTube, Bomb → Mortar); `ScopeMagnification > 1` → ScopedRifle; else Rifle. A controlled weapon system by its kind (`WeaponKits.TypeOf`) |
+| figure | `BlockFigure.Held`: lengths machine gun 1.05 m, scoped 1.12 m, pistol 0.22 m at the right hand with the left forearm closed on it; tubes RPG 1.0 m × 0.08, MANPADS 1.5 m × 0.09, missile 1.10 m × 0.13 (N-4's), along the rifle line, on the shoulder when aimed; mortar: no weapon part, hands to `MortarMouth` (reach 0.62 m) or hanging |
+| details | `BlockFigure.WeaponDetails` (part details, §6q's mechanism): MG box + bipod · scope · RPG warhead + grip · MANPADS grip box + seeker cap · missile sight · slung launcher / mortar tube (+ baseplate) upright on the back |
+| mortar | `EntityBodyLayer3D.DrawMortar`: the deployed §6n kit at `MortarAt` (0.62 m ahead, 0.28 m right), laid at its default 60°; its mouth is the man's weapon tip (the muzzle flash) |
+| the mortarman's stance (`CE-1238`, R-1023) | ⭐ a man firing a mortar of his own CROUCHES beside it — the BRAIN's stance (Indirect Fire §CE-1238), so the figure draws the sim; his hands still reach the tube's mouth (they are measured from his actual shoulders) |
+| carried launcher | a controlled launcher in his hands (`ActiveMount` 32 + k) is drawn by the figure and NOT on his back (`_loadInHands`) |
+| rails | `Map3DTests.CE1236_EveryWeapon_IsDrawnAsWhatItIs` (red-proved); frame `Map3DFrameRail.CE1236_V_EveryWeapon_IsDrawnAsWhatItIs` |
+| deviation | ⚠ §2 named the classes `HandItems` / `HandItemLook`; built as `HeldWeapons` / `HeldLook` — the weapon half; the pocket items and the hands round join `HeldLook` when built (`CE-1169`) |
+
+| | |
+|---|---|
+| ![rifle, pistol, MG, sniper, RPG](assets/map-3d/weapons-1-rifle-pistol-mg-sniper-rpg.png) | ![slung RPG, Javelin, mortars](assets/map-3d/weapons-2-slung-javelin-mortars.png) |
+| *right to left: the rifle, the pistol (both hands), the PKM at Ready (box, bipod), the sniper (scope), the RPG on the shoulder (warhead)* | *right to left: the insurgent on his rifle with the RPG on his back, the Javelin at ease (sight), the MortarTeam firing (the mortar at his right side), the MortarTeam at ease (tube and baseplate on his back)* |
+| ![the mortarman](assets/map-3d/weapons-3-mortar-close.png) | |
+| *the firing mortarman from his front: his right hand at the tube's mouth (measured on the first frame and moved: 0.62 m ahead and 0.28 m right put the tube a metre from either shoulder)* | |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

@@ -101,6 +101,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _ropeUsers.Clear();
         _carried.Clear();
         _shouldering.Clear();
+        _loadInHands.Clear();
+        MortarsDrawn = 0;
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -167,6 +169,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             var pose = ArticulationPose.Neutral;
             bool canopy = false;
             bool leans = false;   // ⭐ CE-1193 — only a man in his own pose (not held, not on a rope, not jumping) is drawn leaning
+            // ⭐ CE-1236 (People Display U7a) — what his weapon looks like, in his hands and slung; Rifle = the figure as it was
+            HeldLook inHands = HeldLook.Rifle, slung = HeldLook.Rifle;
+            var heldPosture = WeaponPostureKind.AtEase;
+            bool mortarFired = false;
             if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
             {
                 parts = descending;                 // ⭐ CE-1119 (§6w) — on a rope or under a canopy: the phase's figure, no gait
@@ -183,11 +189,20 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
                 (parts, motion) = Burdened(world, e, carriage, look.Soldier, parts, motion);
-                // ⭐ CE-1090 (§6n N-4) — just fired a launcher and still aimed: the tube on his shoulder instead of the rifle
-                if (look.Soldier && PostureOf(world, e) == WeaponPostureKind.Aimed && Shouldering(world, e, carriage, tkb, simTime))
+                // ⭐ CE-1236 (People Display U7a, R-1022) — his weapon drawn as what it is, in every posture: the pistol, a machine gun, a
+                //   scoped rifle, a launcher's tube (⭐ CE-1090 N-4: on the shoulder when aimed), a mortar on the ground in front of him
+                //   while it is fired; a launcher or mortar he is not using rides his back (details, below)
+                if (look.Soldier)
                 {
-                    parts = BlockFigure.Shouldered(parts);
-                    _shouldering.Add(e);
+                    heldPosture = PostureOf(world, e);
+                    (inHands, slung) = HeldWeapons.Of(world, e, tkb, out var heldLoad);
+                    if (heldPosture == WeaponPostureKind.Aimed && !HeldWeapons.IsTube(inHands) && inHands != HeldLook.Mortar
+                        && Shouldering(world, e, carriage, tkb, simTime))
+                        inHands = HeldLook.MissileTube;   // CE-1090 — just fired a launcher, whatever is selected now
+                    mortarFired = inHands == HeldLook.Mortar && heldPosture != WeaponPostureKind.AtEase;
+                    parts = BlockFigure.Held(parts, inHands, heldPosture, mortarFired ? MortarMouth : null);
+                    if (HeldWeapons.IsTube(inHands) && heldPosture == WeaponPostureKind.Aimed) _shouldering.Add(e);
+                    else if (!heldLoad.IsNull) _loadInHands.Add(e);   // his carried launcher is in his hands: not drawn on his back
                 }
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
@@ -248,15 +263,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e), look.Kit,
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
                                      look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
+                if (look.Soldier) BlockFigure.WeaponDetails(inHands, slung, heldPosture, _details);   // ⭐ CE-1236
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader);
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
+            if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
@@ -872,6 +889,43 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     private readonly List<(Entity Weapon, Entity Bearer, TypeLook Look, Vector3 Size, Color Colour)> _carried = new();
     private readonly HashSet<Entity> _shouldering = new();
+    private readonly HashSet<Entity> _loadInHands = new();   // ⭐ CE-1236 — a carried launcher held (not aimed): drawn by the figure
+
+    /// <summary>⭐ CE-1236 — soldiers drawn firing their own mortar by the last frame (rails).</summary>
+    public int MortarsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1236 (People Display U7a) — where a man's own mortar stands while he fires it, in his body frame: at his right side,
+    /// its baseplate clear of his feet, its tube toward his front (the lay is the kit's default, §6n N-5), its mouth within his right
+    /// hand's reach (measured on the first frame: 0.62 m ahead and 0.28 m right put it a metre from either shoulder).</summary>
+    public static readonly Matrix4x4 MortarAt = Matrix4x4.CreateTranslation(0.30f, -0.45f, 0f);
+
+    private static readonly ArticulationPose MortarPose = ArticulationPose.Neutral with { GunElevation = WeaponKits.DefaultElevation(WeaponKind.Mortar) };
+
+    /// <summary>⭐ CE-1236 — the mouth of that mortar's tube in his body frame: where his hands go to drop a bomb.</summary>
+    public static readonly Vector3 MortarMouth = MortarTip(Matrix4x4.Identity).Tip;
+
+    private static (Vector3 Tip, Vector3 Forward) MortarTip(Matrix4x4 bodyToWorld)
+    {
+        var kit = WeaponKits.Kit(WeaponKind.Mortar, deployed: true);
+        var tube = kit.Parts[1];   // baseplate, TUBE, bipod ×2, sight — WeaponKits.Mortar's order
+        return WeaponTip(tube, WeaponKits.DefaultSize(WeaponKind.Mortar), kit.Pivots, MortarPose, MotionPose.Still, MortarAt * bodyToWorld);
+    }
+
+    /// <summary>⭐ CE-1236 — a man's own mortar, deployed at <see cref="MortarAt"/>; its tube's mouth is his weapon's tip (the shot's flash).</summary>
+    private void DrawMortar(Entity man, Matrix4x4 body, Color colour, LitShader shader)
+    {
+        var kit = WeaponKits.Kit(WeaponKind.Mortar, deployed: true);
+        var size = WeaponKits.DefaultSize(WeaponKind.Mortar);
+        foreach (var part in kit.Parts)
+        {
+            var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, kit.Pivots, MortarPose) * MortarAt * body);
+            var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
+            Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, false)), model);
+            PartsDrawn++;
+        }
+        _weaponTips[man] = MortarTip(body);
+        MortarsDrawn++;
+    }
     private readonly Dictionary<Entity, (Matrix4x4 Frame, float Height)> _figureFrames = new();
     private readonly Dictionary<Entity, Entity> _teamPartner = new();
 
@@ -1020,7 +1074,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     {
         foreach (var (weapon, bearer, look, size, colour) in _carried)
         {
-            if (_shouldering.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
+            if (_shouldering.Contains(bearer) || _loadInHands.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
             // ⭐ CE-1169 (People Display U8) — a HIDDEN station is not drawn (a concealed pistol, a worn charge); a hand weapon in his
             //   HANDS is held level, a pistol in his back station is in its holster, the rest is slung across his back
             if (Fdp.Toolkit.Behavior.CarryStations.IsConcealed(world, weapon)) continue;
@@ -1276,9 +1330,26 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         => world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
 
     /// <summary>⭐ CE-1099 (§6q O-1) — true when his colour is HIS (authored on the entity, or named by his type), not the family default.</summary>
-    private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look)
+    private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look) => look.TypeColoured || HasEntityColour(world, e);
+
+    /// <summary>
+    /// ⭐ CE-1099 (§6q O-1) / ⭐ CE-1235 (O-4a, R-1020) — the colour a person's OUTFIT takes as his own, or null for none. A civilian (and a
+    /// police officer): his entity's or his type's. A SOLDIER: only one HE names — a type colour is per type, never per side (one type serves
+    /// both sides), so it could only make the sides alike, and his side picks the cloth instead. ⚠ The type's colour is stamped onto every
+    /// spawned entity (<c>PresentationTkbTranslator</c>), so his own is one that DIFFERS from the type's.
+    /// </summary>
+    public static Color? OwnColourOf(EntityRepository world, Entity e, in TypeLook look)
     {
-        if (look.TypeColoured) return true;
+        var colour = ColourOf(world, e, look.Colour);
+        if (!look.Soldier || look.Kit == PersonKit.Security) return HasOwnColour(world, e, look) ? colour : null;
+        return HasEntityColour(world, e) && !(look.TypeColoured && SameColour(colour, look.Colour)) ? colour : null;
+    }
+
+    private static bool SameColour(Color a, Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
+
+    /// <summary>⭐ CE-1235 — true when the ENTITY itself names a colour (authored appearance or visual data), whatever his type says.</summary>
+    private static bool HasEntityColour(EntityRepository world, Entity e)
+    {
         if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e) && world.GetComponentRO<EntityAppearance>(e).HasColour)
             return true;
         return world.IsComponentTypeRegistered<VisualData>() && world.HasComponent<VisualData>(e)

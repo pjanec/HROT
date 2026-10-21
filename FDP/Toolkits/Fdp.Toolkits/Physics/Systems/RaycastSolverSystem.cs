@@ -191,6 +191,12 @@ namespace Fdp.Toolkit.Physics.Systems
                     if (!repo.IsAlive(candidate)) continue;
 
                     if (!req.IgnoreEntity.IsNull && candidate == req.IgnoreEntity) continue;
+                    // ⭐ CE-1238 — a ROUND never meets what rides with its shooter (Weapon Systems WS-3's rule, LineOfFire.RidesWith: its
+                    //   carrier, its crew, its fellow riders — the aim check already says they are never "on the line"). 📐 Live
+                    //   bt-mortar-roof: a crewed 81 mm's bomb struck its own gunner 0.14 s out of the muzzle, both gunners killed — a seated
+                    //   man stands at the weapon's origin in the sim (EmbarkedStateSystem), right where its round leaves.
+                    if (!req.IgnoreEntity.IsNull && PhysicsConstants.IsBulletRay(req.RayId)
+                        && Fdp.Toolkit.Combat.LineOfFire.RidesWith(repo, req.IgnoreEntity, candidate)) continue;
 
                     if (!repo.HasComponent<PhysicsCollider>(candidate)) continue;
 

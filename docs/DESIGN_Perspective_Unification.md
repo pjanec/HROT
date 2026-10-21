@@ -269,6 +269,19 @@ it is existing without reason"*)*. ⭐ These are **built-but-unregistered UI**; 
 fix is to **register them in a real perspective**, not to remove them. ⛔ **Out of scope for this design** —
 filed here so the next reader does not repeat my mistake.
 
+## 1h. ⛔ A RAW `ImGui.Begin` WINDOW BELONGS TO NO PERSPECTIVE AND CANNOT BE CLOSED *(`CE-1237`, `2026-10-21`, ui)*
+
+> 🔒 **User, `2026-10-21`:** *"the imgui panel showing blueprint attach button and some zone editing is now shown in scenario perspective
+> and has no close button, i can not close it, coukd it become a normal panel with close box?"*
+
+📐 **Measured:** the editor's ONLY window opened with a plain `ImGui.Begin` and no open flag was **Blueprint Tools**
+(`EditorSubsystem` DrawUI — the MVE-BATCH-03/04/05 + PU-603 merge, `d06fd144`, CF-5's debug controls): drawn every frame in EVERY
+perspective, no close box, no View-menu entry. ⭐ Every `ManagedWindow` passes its `IsOpen` to `Begin` (`ManagedWindow.cs:202`), so the
+Zone Editor beside it always had one. ⇒ **Fix (as built):** `EditorBlueprintToolsWindow : ManagedWindow`, perspective **Blueprint**
+(its buttons act on the open blueprint), `PerspectiveBound` — pinnable like any window; content `EditorSubsystem.DrawBlueprintToolsContent`
+(unchanged, plus a hint when no blueprint is open). Rail `BlueprintToolsIsANormalPanelTests`. ⚠ A raw window is neither of §1c's two legal
+shapes — ⛔ do not add another; the remaining raw ones live in other hosts (IG, SimHost, ExCon panels) and are theirs.
+
 ## 2. ⭐⭐ THE MECHANISM — how a perspective comes to exist
 
 ⭐⭐⭐ **A perspective is not declared anywhere. It exists because a window claims it.**

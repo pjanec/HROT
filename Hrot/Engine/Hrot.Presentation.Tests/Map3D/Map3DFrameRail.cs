@@ -2658,6 +2658,83 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1236 (docs/DESIGN_People_Display.md §5 U7a) — the (V) acceptance for the held weapons: a row of soldiers, each with his weapon
+    /// up as the weapon brain would have it — the rifleman, his pistol, the PKM gunner, the sniper, the insurgent's RPG (aimed, then at ease
+    /// on his rifle with the RPG on his back), the Javelin at ease, the MortarTeam firing (his mortar in front of him) and at ease (on his
+    /// back). Side-on, then three-quarter. Screenshots <c>weapons-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1236_V_EveryWeapon_IsDrawnAsWhatItIs()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Soldier(long type, float dx, Fdp.Toolkit.Combat.Components.WeaponPostureKind posture, byte mount = 0)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y;   // a file, each facing +x: broadside from the south
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, ActiveMount = mount,
+                Point = new Vector3(x + 50f, y, G(x, y) + 1.4f) });
+        }
+        long soldier = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier, insurgent = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent;
+        Soldier(soldier, -12.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);                                  // the rifle
+        Soldier(soldier, -9.5f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, mount: 1);                        // his pistol
+        Soldier(TkbEntityTypes.Infantry_MachineGunnerPkm, -7.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        Soldier(TkbEntityTypes.Infantry_Sniper, -4.5f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
+        Soldier(insurgent, -2.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);                                // the RPG
+        Soldier(insurgent, 1.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase, mount: 1);                   // on his rifle, the RPG on his back
+        Soldier(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbJavelinTeam, 3.5f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Soldier(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMortarTeam, 6.5f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);   // firing
+        Soldier(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMortarTeam, 9.5f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);  // carrying it
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 6.6f, spot.Y, ground + 1.0f), 8.2f, -MathF.PI / 2f, -0.06f);   // from the south: rifle … RPG
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "weapons-1-rifle-pistol-mg-sniper-rpg.png"));
+        Assert.True(LitShader.Shared.IsValid, "the shader compiled");
+        Assert.Equal(1, bodies.MortarsDrawn);                 // the firing mortarman's mortar stands in front of him
+        Assert.Equal(1, bodies.ShoulderedDrawn);              // the aimed RPG is on the shoulder (the Javelin is at ease)
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 5.2f, spot.Y, ground + 1.0f), 7.5f, -MathF.PI / 2f, -0.06f);   // RPG slung … mortars
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "weapons-2-slung-javelin-mortars.png"));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 6.9f, spot.Y - 0.2f, ground + 0.8f), 4.2f, -3f * MathF.PI / 4f, -0.22f);   // the firing mortarman, from his front
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "weapons-3-mortar-close.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9) — the (V) acceptance for decoys: a UH-60 flying east 40 m up has released a salvo of
     /// four flares (0.3 s apart, the oldest 1.2 s ago) and one chaff bundle — each a fire notification as backend's dispenser raises it,
     /// drawn by the spawn system and the effect layer. Screenshot <c>decoy-1-flares.png</c>.

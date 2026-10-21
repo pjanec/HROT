@@ -252,6 +252,34 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0, hit.HasHit);
         }
 
+        /// <summary>
+        /// ⭐ CE-1238 — a ROUND never meets what rides with its shooter: a crewed tube's gunner (embarked on the tube, standing at its origin)
+        /// is not struck by the tube's own bomb; a man NOT riding with it is; and a SIGHT ray is not changed (it still sees the gunner).
+        /// 📐 Live bt-mortar-roof: both 81 mm gunners were killed by their own bombs 0.14 s out of the muzzle.
+        /// </summary>
+        [Fact]
+        public void CE1238_ARoundNeverMeetsWhatRidesWithItsShooter_ButOthersAndSightAreUnchanged()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>())
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var tube = _world.CreateEntity();   // the shooter: the weapon itself, no collider of its own here
+            var gunner = SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = tube, Exposed = 1 });
+            var round = new RaycastRequestEvent
+            {
+                Start = new Vector3(-5f, 0f, 0f), End = new Vector3(10f, 0f, 0f),
+                RayId = PhysicsConstants.PackBulletRayId(4), LayerMask = 1, IgnoreEntity = tube,
+            };
+            Assert.Equal(0, RunSolver(round).HasHit);   // his own tube's round passes him
+
+            var sight = round with { RayId = PhysicsConstants.PackLosRayId(1, 2) };
+            Assert.Equal(1, RunSolver(sight).HasHit);   // sight still meets him
+
+            var stranger = SpawnCollider(new Vector2(7f, 0f), radius: 1f, layer: 1);
+            var hit = RunSolver(round with { RayId = PhysicsConstants.PackBulletRayId(5) });
+            Assert.Equal((1, stranger), (hit.HasHit, hit.HitEntity));   // anyone else is met as before
+        }
+
         // ── Test 5 ────────────────────────────────────────────────────────────────
 
         /// <summary>
