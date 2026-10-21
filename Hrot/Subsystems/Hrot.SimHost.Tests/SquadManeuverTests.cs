@@ -2389,6 +2389,14 @@ namespace Hrot.SimHost.Tests
             Assert.All(given, d => Assert.True(d.Post.Window && !d.Post.Frame));
         }
 
+        /// <summary>⭐ CE-2334 — where <paramref name="m"/>'s latest <c>AdvanceTo</c> order sends him.</summary>
+        private static Vector3 AdvanceOf(Squad s, Entity m)
+        {
+            var o = s.Orders.Last(x => x.Entity.Equals(m) && (x.IntentId == BehaviorNames.AdvanceTo || x.IntentId == BehaviorNames.CombatPosture));
+            Assert.Equal(BehaviorNames.AdvanceTo, o.IntentId);
+            return System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Objective;
+        }
+
         private static CombatPostureParamsJsonDto PostureOf(Squad s, Entity m)
         {
             var o = s.Orders.Last(x => x.Entity.Equals(m) && x.IntentId == BehaviorNames.CombatPosture);
@@ -3966,7 +3974,7 @@ namespace Hrot.SimHost.Tests
                 float b = plan.Facing(k) * MathF.PI / 180f;
                 Assert.True(MathF.Cos(b) > 0f, $"sector {k} looks into the room (north): {plan.Facing(k)}");
             }
-            Near(new Vector3(0.4f, 9.4f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.6 m off the wall");
+            Near(new Vector3(0.4f, 9.2f, 0f), plan.Stack(0), "#1 0.6 m past the jamb, 0.8 m off the wall (CE-2334: on the mesh, not its edge)");
             Assert.Equal(0.8f, plan.Stack(0).X - plan.Stack(1).X, 3);
             Assert.True(plan.Point0.X > 1.5f && plan.Point1.X < 1.5f, "#1 to the open side, #2 to the stack's side");
             Assert.Equal(12f, plan.Point0.Y, 3);   // a third in
@@ -3976,6 +3984,44 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, RoomEntryPlan.Plan(new[] { 0f, 10f, 3f, 10f, 3f, 13f, 0f, 13f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4).Entry);
             Assert.Equal(2, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 2).Entry);
             Assert.Equal(3, RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 3).Entry);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2334</c> CB-64 — the stack stands INSIDE the room it stands in. Room A (x 0…7, y 6…10) entered from the hallway by its
+        /// door at (3.5, 6): CB-50 puts the stack west, but 3.15 m of hallway (0.35 m clear of its wall) cannot hold four men, so it stands
+        /// east — all six there in a 14 m hallway; in a 7 m hallway neither side holds them all, so the stack SPLITS: three west, three
+        /// east of the door. Every stack point stays clear of the hallway's walls; from outside nothing changes. 📐 Measured on
+        /// <c>bc-house-clear</c>: the unbounded stack put two men outside the house's front wall, one in its doorway, blocking the next
+        /// entry man for good. ✅ Red-proof: the bound dropped ⇒ stack points past the hallway's end.
+        /// </summary>
+        [Fact]
+        public void CE2334_CB64_TheStackStandsInTheRoomItStandsIn_AndSplitsWhenOneSideCannotHoldIt()
+        {
+            float[] roomA = { 0f, 6f, 7f, 6f, 7f, 10f, 0f, 10f };
+            float[] longHall = { 0f, 4f, 14f, 4f, 14f, 6f, 0f, 6f }, shortHall = { 0f, 4f, 7f, 4f, 7f, 6f, 0f, 6f };
+            var door = new Vector2(3.5f, 6f);
+            bool Clear(float[] hall, Vector3 at) => at.X >= hall[0] + RoomEntryPlan.StackWallClearMetres - 1e-3f
+                && at.X <= hall[2] - RoomEntryPlan.StackWallClearMetres + 1e-3f && at.Y >= 4f + RoomEntryPlan.StackWallClearMetres - 1e-3f
+                && at.Y <= 6f - RoomEntryPlan.StackWallClearMetres + 1e-3f;
+
+            var outside = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6);
+            Assert.Equal(0, outside.Fit);
+            Assert.True(outside.Stack(5).X < 0f, $"from outside the stack is unbounded: {outside.Stack(5)}");
+
+            var east = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6, longHall);
+            for (int k = 0; k < 6; k++)
+            {
+                Assert.True(east.Stack(k).X > door.X, $"man {k} east of the door (the west side cannot hold the entry): {east.Stack(k)}");
+                Assert.True(Clear(longHall, east.Stack(k)), $"man {k} inside the hallway: {east.Stack(k)}");
+            }
+
+            var split = RoomEntryPlan.Plan(roomA, 0f, door, 1f, inFight: 6, shortHall);
+            Assert.Equal(3, split.Fit);
+            for (int k = 0; k < 6; k++)
+            {
+                Assert.True(Clear(shortHall, split.Stack(k)), $"man {k} inside the short hallway: {split.Stack(k)}");
+                Assert.True((split.Stack(k).X < door.X) == (split.Stack(0).X < door.X) == (k < 3), $"man {k} on {(k < 3 ? "the stack's" : "the far")} side: {split.Stack(k)}");
+            }
         }
 
         /// <summary>
@@ -4013,11 +4059,27 @@ namespace Hrot.SimHost.Tests
             s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
-            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 goes first");
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes first — square to the door (CE-2334)");
+            Near(new Vector3(1.5f, 9f, 0f), plan.DoorFront, "the door front: 1 m outside");
+            Near(new Vector3(1.5f, 11f, 0f), plan.Threshold, "the threshold: 1 m in through the door");
             Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 not yet");
-            TickFor(s, 0.6);
-            Near(plan.Point(1), PostureOf(s, s.Members[1]).Post.Point, "#2 0.6 s after");
-            TickFor(s, 1.3);
+            s.Teleport(s.Members[0], plan.DoorFront);
+            TickFor(s, 0.1);
+            Near(plan.Threshold, AdvanceOf(s, s.Members[0]), "#1 at the door: straight through");
+            TickFor(s, 1.0);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[1])).IntentId);   // still his stack order
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 waits while #1 is in the doorway (CE-2334: one man in it at a time)");
+            s.Teleport(s.Members[0], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // #1 across
+            TickFor(s, 0.1);
+            Near(plan.Point(0), PostureOf(s, s.Members[0]).Post.Point, "#1 across: to his point");
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "#2 goes once #1 is through");
+            Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 not yet");
+            for (int k = 1; k < 4; k++)
+            {
+                Near(plan.DoorFront, AdvanceOf(s, s.Members[k]), $"man {k} to the door in his turn");
+                s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // across
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);                                 // and CB-54's 0.6 s still holds
+            }
             for (int k = 0; k < 4; k++)
             {
                 Near(plan.Point(k), PostureOf(s, s.Members[k]).Post.Point, $"man {k} at his point");
@@ -4057,9 +4119,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, plan.Entry);
             Near(plan.Stack(0), PostureOf(s, s.Members[1]).Post.Point, "the first after the leader is #1");
             Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader last");
-            for (int k = 0; k < 6; k++) s.Teleport(s.Members[k], plan.Stack((k + 5) % 6));
+            for (int k = 1; k < 3; k++) s.Teleport(s.Members[k], plan.Stack(k - 1));   // ⭐ CE-2334 — only the entry men need be stacked
             TickFor(s, 1.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            for (int k = 1; k < 3; k++)
+            {
+                Near(plan.DoorFront, AdvanceOf(s, s.Members[k]), $"man {k} square to the gap, in his turn");
+                s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);
+            }
             Near(plan.Point(0), PostureOf(s, s.Members[1]).Post.Point, "#1 in");
             Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
             for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");
@@ -4183,6 +4251,8 @@ namespace Hrot.SimHost.Tests
                         posts.Add(post);
                         s.Teleport(o.Entity, post);
                     }
+                    else if (o.IntentId == BehaviorNames.AdvanceTo)   // ⭐ CE-2334 — the threshold leg
+                        s.Teleport(o.Entity, System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, opts).Objective);
                 }
             }
             return (false, default);

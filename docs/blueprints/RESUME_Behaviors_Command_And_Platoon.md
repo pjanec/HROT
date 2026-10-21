@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+updated: 2026-10-21 (clearing demos N.1a, AQ99) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
 current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
 stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
@@ -27,7 +27,7 @@ related-designs:
 | | |
 |---|---|
 | ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
-| ⭐ ids | tracker next free **`CE-2331`** · rulings next free **`R-2065`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **98** (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
+| ⭐ ids | tracker next free **`CE-2338`** · rulings next free **`R-2065`** · component ids **420–433** (418 = `UnderFireMove`, 419 = `MapGraphic`, R-2056) · next architect question **100** (AQ99 asked 2026-10-20: person spacing + what a cleared room may cost, `CE-2336`) (AQ97 approved R-2062 and BUILT 2026-10-20: default reflexes, `CE-2322`) |
 | ⭐ unmerged | `backend` is 1 commit ahead — `8d6e2ed05` CE-3278 (a weapon whose round bursts states its burst's carry) + its note [Launch_Hearing_Measured](batches/NOTE_Backend_To_Behaviors_Launch_Hearing_Measured.md) (already read, cited by Q95). `ui` is 1 commit ahead. ⇒ first move: `git fetch origin backend ui coordinator`, merge both, gate the touched suites (SimHost, Toolkits) in the background |
 | ⚠ environment | fresh cloud VM: `bash scripts/cloud-bootstrap.sh` if `dotnet` is missing; codebase-memory MCP may be down ⇒ `codebase-memory-mcp cli <tool>` (no `check_index_coverage` there — say so) |
 
@@ -39,6 +39,17 @@ related-designs:
 | ✅ **Q95 approved (A–E + B3)** | [Q95](Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md) §5 — a sound signature per weapon (the emitter's TKB type; the ear's proficiency decides how much is named); hearing bounded by DISTANCE, never by the high-resolution terrain (guns stand 2–20 km off it); a lossless emission ring (per-sensor serial cursor, overflow counted); demo-city bounds over its road net for perf tests; a TKB `Band` (Low/Mid/High) scaling WQ-E's future obstacle loss. ⭐ Dispatched to backend: [handoff](batches/HANDOFF_Behaviors_To_Backend_Sound_Signatures_And_Lossless_Hearing.md) (S1 ring · S2 CE-3279 timeouts · S3 signature · S4 carries · S5 the rule · S6 Band) |
 | 🟡 **behaviors' half of Q95 — `CE-2315`** | E1 after backend's S3: `StaffSystems.IsLaunch` reads the signature, CE-2309's ≥ 1 km rule goes. **E2 (not blocked): measure why backend's run delivered 9 heard contacts to the brain and no SPOT came.** E3: L7 `uc-request-chain` with the guns 2–3 km OFF the terrain |
 | ⭐ **the user's live findings, filed 2026-10-20** | see N.2 — measured, leaned, not built |
+
+### N.1a ⭐ The clearing demos *(overnight 2026-10-20/21 — start here for building clearing)*
+
+| | |
+|---|---|
+| ✅ built + rails | CE-2334 (the drill on the real house: entry team stacks, one "there", door front → threshold → point, one man in the doorway at a time, stack 0.8 m off the wall) · CB-64 (the stack inside the room it stands in, split stack) — [Building Clearing §7.1b](../designs/group-maneuvers/DESIGN_Building_Clearing.md) |
+| 🟡 `bc-room-clear` | RoomClear + both insurgents down in 4 of 6 runs, 2–3 friends lost every run ⇒ twin skipped on ③ "no friend hit" |
+| 🟡 `bc-house-clear` | hallway every run, room A in some, then a jam in the 2 m hallway ⇒ twin skipped |
+| ⏳ yours | [`AQ99`](Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) (`CE-2336`): A person shell 1.6 m → 0.3 m · B ③ "no friend hit by a friend" · C step over a body where there is no way round |
+| 📋 filed | `CE-2335` a door can read Open on CGF while closed (backend) · `CE-2337` an occupant hides then deletes himself (BC-2) · NOTE to backend: `batches/NOTE_Behaviors_To_Backend_Doorways_And_Person_Spacing.md` |
+| ⏭ next | after AQ99: rerun both twins (traces already in `ClearingScenarioTests`), unskip, then PL-1 (`CE-2264`, `bc-platoon-house`) |
 
 ### N.2 The user's live findings *(tracker rows, all with file:line and a lean)*
 

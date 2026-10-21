@@ -1,0 +1,306 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "BC-1 (CE-2257): a six-man squad (Veteran) clears room A of the CQB test house on bt-range through its north side door: it stacks beside the door out of the window's view, breaches, and the entry team crosses the threshold one man at a time to its points of domination. Two Militia insurgents hold the room's far corners; the house's other doors are locked. Ends with both insurgents down and a RoomClear report."
+ },
+ "entities": {
+  "bc000001-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [53.0, 114.0, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "NetworkIdentity": {
+    "Value": 12001
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Blue Squad",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ClearRoom",
+    "Params": "{\"Room\": [43.5, 108, 0], \"Speed\": 2}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": "{}",
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Proficiency": "Veteran"
+  },
+  "bc000001-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [51.0, 113.6, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12002
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Leader",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "SquadLeader"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [51.8, 114.2, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12003
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "TeamLeader"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [52.6, 113.6, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12004
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [53.4, 114.2, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12005
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "AutomaticRifleman"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [54.2, 113.6, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12006
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Rifleman 4",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "TeamLeader"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [55.0, 114.2, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12007
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue Rifleman 5",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "bc000001-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   }
+  },
+  "bc000001-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [40.8, 106.8, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12008
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Insurgent 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": "{\"Advance\": {\"Objective\": [40.8, 106.8, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [40.8, 106.8, 0], \"Radius\": 2.0}}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Proficiency": "Militia"
+  },
+  "bc000001-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [46.2, 106.8, 0],
+    "Rotation": [0, 0, 0, 1]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 12009
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Insurgent 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": "{\"Advance\": {\"Objective\": [46.2, 106.8, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [46.2, 106.8, 0], \"Radius\": 2.0}}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": "{}",
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Proficiency": "Militia"
+  }
+ },
+ "TerrainObjects": {
+  "bt-range/CQB House/a": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/front": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/back": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/south": {
+   "door": "Locked"
+  },
+  "bt-range/CQB House/north": {
+   "door": "Closed"
+  }
+ }
+}
