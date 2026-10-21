@@ -3484,7 +3484,7 @@ public sealed class Map3DFrameRail
         using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
         var net = Hrot.Traffic.TrafficNetCache.Of(world)!;
         var query = WorldQuery.Of(world)!;
-        var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt).ToArray();
+        var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt && !m.Sidewalk).ToArray();
         Assert.NotEmpty(asphalt);
         var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
         foreach (var m in asphalt) foreach (var v in m.Vertices) { lo = Vector2.Min(lo, new Vector2(v.X, v.Y)); hi = Vector2.Max(hi, new Vector2(v.X, v.Y)); }
@@ -3514,6 +3514,7 @@ public sealed class Map3DFrameRail
         try
         {
             int sampled = 0, grey = 0;
+            var misses = new List<string>();
             foreach (var m in asphalt)
                 for (int t = 0; t + 2 < m.Indices.Length; t += 3)
                 {
@@ -3525,10 +3526,69 @@ public sealed class Map3DFrameRail
                     var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
                     int max = Math.Max(px.R, Math.Max(px.G, px.B)), min = Math.Min(px.R, Math.Min(px.G, px.B));
                     sampled++;
-                    if (max - min < 16 && max < 150) grey++;
+                    // ⭐ CE-1197 — the road SURFACE's neutral grey, the asphalt's or the sidewalk's beside it (from 2 km a lane is two pixels
+                    //   wide); the ground is tinted (green / olive), so ground through the road still fails
+                    if (max - min < 16 && max < 225) grey++;
+                    else if (misses.Count < 40) misses.Add($"({px.R},{px.G},{px.B})");
                 }
             Assert.True(sampled > 200, $"anti-vacuity: asphalt samples on screen {sampled}");
-            Assert.True(grey >= sampled * 0.9, $"asphalt shown at {grey} of {sampled} sampled road triangles");
+            Assert.True(grey >= sampled * 0.9, $"asphalt shown at {grey} of {sampled} sampled road triangles; misses {string.Join(" ", misses)}");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1197</c> — close over a demo-city junction, the sidewalks are drawn light grey beside the dark carriageway. 🔒 User, live,
+    /// <c>2026-10-19</c>: <i>"side-walks on sumo roads not rendered in different shade of gray"</i>. Screenshot
+    /// <c>map3d-ce1197-sidewalks.png</c>. ✅ Red-proof: <c>TrafficRoadScene.IsSidewalk</c> ⇒ false (no light pixel on a sidewalk).
+    /// </summary>
+    [SkippableFact]
+    public void CE1197_V_TheSidewalks_AreLightGrey_BesideTheCarriageway()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        var net = Hrot.Traffic.TrafficNetCache.Of(world)!;
+        var query = WorldQuery.Of(world)!;
+        var walk = net.Roads.Meshes.Single(m => m.Sidewalk);
+        var at = new Vector2(400f, 400f);   // junction d_4_4
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(new TrafficLayer3D(() => world));
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), 70f, MathF.PI * 0.3f, -0.9f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-ce1197-sidewalks.png");
+        frame.Screenshot(png);
+
+        var cam = sw.Camera3D;
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int sampled = 0, light = 0;
+            for (int t = 0; t + 2 < walk.Indices.Length; t += 3)
+            {
+                var a = walk.Vertices[walk.Indices[t]]; var b = walk.Vertices[walk.Indices[t + 1]]; var c = walk.Vertices[walk.Indices[t + 2]];
+                var centre = (a + b + c) / 3f;
+                if (Vector2.Distance(new Vector2(centre.X, centre.Y), at) > 45f) continue;
+                var s = cam.WorldToScreen(centre);
+                if (s.X < 2 || s.Y < 2 || s.X > 1277 || s.Y > 797) continue;
+                var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
+                int max = Math.Max(px.R, Math.Max(px.G, px.B)), min = Math.Min(px.R, Math.Min(px.G, px.B));
+                sampled++;
+                if (max - min < 24 && min > 100) light++;
+            }
+            Assert.True(sampled > 10, $"anti-vacuity: sidewalk samples on screen {sampled}");
+            Assert.True(light >= sampled * 0.7, $"sidewalk light grey at {light} of {sampled} sampled triangles");
         }
         finally { Raylib.UnloadImage(image); }
     }

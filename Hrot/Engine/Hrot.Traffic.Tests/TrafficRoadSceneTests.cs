@@ -35,9 +35,36 @@ public sealed class TrafficRoadSceneTests
             Assert.False(c.X > 20f && c.X < 780f && c.Y > 20f && c.Y < 780f, $"a ground cell sits at ({c.X}, {c.Y}), inside our terrain");
         }
 
-        var asphalt = roads.Meshes.Single(m => m.Kind == SceneKind.Asphalt);
+        var asphalt = roads.Meshes.Single(m => m.Kind == SceneKind.Asphalt && !m.Sidewalk);
         Assert.Contains(asphalt.Vertices, v => v.X > 0f && v.X < 800f && v.Y > 0f && v.Y < 800f);
         Assert.Contains(asphalt.Vertices, v => v.X < -500f);   // and beyond it: the net is 4.75 km
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1197</c> — 🔒 user, live: <i>"side-walks on sumo roads not rendered in different shade of gray"</i>. The pedestrian-only lanes
+    /// (sidewalks, walking areas) are their own mesh; the carriageway keeps every other ribbon; together they are exactly what
+    /// <c>Sim.Scene</c> merged into Asphalt (nothing lost, nothing drawn twice). ✅ Red-proof: <c>IsSidewalk</c> ⇒ false.
+    /// </summary>
+    [Fact]
+    public void CE1197_TheSidewalks_AreTheirOwnMesh_SplitFromTheCarriageway()
+    {
+        var cache = Load();
+        var roads = cache.Roads;
+        var road = roads.Meshes.Single(m => m.Kind == SceneKind.Asphalt && !m.Sidewalk);
+        var walk = roads.Meshes.Single(m => m.Sidewalk);
+        Assert.Equal(SceneKind.Asphalt, walk.Kind);
+
+        var net = cache.Model;
+        var whole = RoadSceneBuilder.Build(net, new SceneFrame(0, 0)).Meshes.Single(m => m.Kind == SceneKind.Asphalt).Mesh;
+        // the carriageway is exactly Sim.Scene's asphalt less the pedestrian ribbons (the walking areas are filled as polygons instead)
+        int walkRibbons = RoadMeshBuilder.BuildAll(new SceneFrame(0, 0), net, includeInternal: true)
+            .Where(x => TrafficRoadScene.IsSidewalk(net.LanesByHandle.First(l => l.Handle == x.Handle))).Sum(x => x.Mesh.TriangleCount);
+        Assert.Equal(whole.TriangleCount - walkRibbons, road.TriangleCount);
+
+        int walkLanes = net.LanesByHandle.Count(TrafficRoadScene.IsSidewalk);
+        Assert.True(walkLanes > 500, $"pedestrian-only lanes in the demo city: {walkLanes}");
+        Assert.True(walk.TriangleCount > walkLanes, $"sidewalk triangles {walk.TriangleCount} for {walkLanes} lanes");
+        Assert.DoesNotContain(net.LanesByHandle, l => TrafficRoadScene.IsSidewalk(l) && (l.AllowsRoadVehicle || CrosswalkBuilder.IsCrossingLaneId(l.Id)));
     }
 
     internal static TrafficNetCache Load()

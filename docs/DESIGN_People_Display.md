@@ -80,6 +80,7 @@ classDiagram
   class HandItemLook { <<BUILT as HeldLook, CE-1236 — weapons>> Rifle Pistol MachineGun ScopedRifle Rpg MissileTube Manpads Mortar · ⏳ Knife Baton Taser Spray Phone Binoculars Stone Grenade Canister Toy }
   class HandItems { <<BUILT as HeldWeapons, pure, CE-1236>> +Of(world, man, tkb) (InHands, Slung) · +LookOf(tkb, mount) · reads ActiveMount, Category, Appearance, scope, the round's shape }
   class StrikeTracker { <<BUILT CE-1171, RecentShots shape>> last blow per striker · StruckWithin }
+  class AimLineGizmo { <<BUILT CE-1170, IStatelessGizmo>> WeaponPosture Aimed at a person: muzzle to chest, UnitDetails }
   class GestureMotion { <<BUILT as GestureClock + GestureArms t, no class>> t = simTime + seed offset, sin(t x rate) }
   class PoliceKit { <<NEW in Outfits + BodySurface>> cap or riot helmet · vest and belt painted }
   class OverheadMarkLayer { <<NEW IMapLayer, 2-D + 3-D>> one small mark per person, above the head }
@@ -275,6 +276,12 @@ sequenceDiagram
 | *right to left: the rifle, the pistol (both hands), the PKM at Ready (box, bipod), the sniper (scope), the RPG on the shoulder (warhead)* | *right to left: the insurgent on his rifle with the RPG on his back, the Javelin at ease (sight), the MortarTeam firing (the mortar at his right side), the MortarTeam at ease (tube and baseplate on his back)* |
 | ![the mortarman](assets/map-3d/weapons-3-mortar-close.png) | |
 | *the firing mortarman from his front: his right hand at the tube's mouth (measured on the first frame and moved: 0.62 m ahead and 0.28 m right put the tube a metre from either shoulder)* | |
+
+### 7c. As built — the overnight `2026-10-21` items *(ui, PLAN_Ui_FPS_And_Quick_Wins §3a)*
+
+| item | as built | rails |
+|---|---|---|
+| `CE-1170` U9 — the aim line | `AimLineGizmo` (Hrot.Common, `[GizmoProjector(WeaponPosture)]`, auto-discovered on every map host): `Aimed` at a living PERSON (`PhysicsColliderReaders.IsPerson`) ⇒ a thin red-orange line from `Muzzle.TryOf(ActiveMount)` — or, with no muzzle data (a rifleman), his shoulder (1.4 m) half a metre toward the target — to the target's chest (1.2 m); on `UnitDetails`. ⭐ A non-zero Z is drawn at its height in 3-D, never draped (`GizmoRenderer3D`); 2-D draws it flat. None when ready, at a vehicle, at a dead man | `Map3DTests.CE1170_*` (red-proof: the person check removed ⇒ the vehicle case draws) |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

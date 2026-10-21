@@ -684,6 +684,44 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐ CE-1170 (docs/DESIGN_People_Display.md §5 U9) — AIMED AT A PERSON: a line from his weapon (his shoulder, a rifleman's type has no
+    /// muzzle data) to the target's chest; none when he only holds it ready, none at a vehicle, none at a dead man. On UnitDetails (off by
+    /// default). ✅ Red-proof: the person check removed ⇒ the vehicle case draws.
+    /// </summary>
+    [Fact]
+    public void CE1170_AimedAtAPerson_ALineFromHisShoulderToTheTargetsChest_OnlyThen()
+    {
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            if (!world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) world.RegisterComponent<CarKinem.Core.VehicleParams>();
+            var shooter = Man(world, new Vector3(0f, 0f, 2f));
+            var target = Man(world, new Vector3(10f, 0f, 2f));
+            world.AddComponent(target, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.Pedestrian });
+            var car = world.CreateEntity();
+            world.AddComponent(car, new SimTransform { Position = new Vector3(0f, 10f, 2f), Rotation = Quaternion.Identity });
+            world.AddComponent(car, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.PersonalCar });
+            var posture = new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready, Target = target };
+            world.AddComponent(shooter, posture);
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));   // ready, not aimed
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed;
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out var from, out var to));
+            Assert.Equal(new Vector3(10f, 0f, 2f + Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.ChestZ), to);
+            Assert.Equal(2f + Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.ShoulderZ, from.Z, 3);
+            Assert.True(from.X > 0.4f && from.X < 0.6f, $"half a metre toward him: {from}");
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Target = car;
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));   // a vehicle: the posture shows it
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Target = target;
+            world.DestroyEntity(target);
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1081 … CE-1083 — ONE classifier says how a man is held, from what every map host already has: the embarked tag (carried /
     /// dragged by a person carrier, seated in an exposed seat with a place), the carrier's own list (he carries / drags), and the injury
     /// state off the replicated health (wounded — combinable; incapacitated — down). An ENCLOSED seat, or an open one with no place, is
