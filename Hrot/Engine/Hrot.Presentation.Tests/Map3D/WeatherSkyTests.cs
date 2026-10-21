@@ -83,4 +83,32 @@ public sealed class WeatherSkyTests
         Assert.Equal(SceneAtmosphere.FogFor(cam.FarClip * 0.9f), clear, 6);   // clamped: faded fully before the far clip
         Assert.Equal(1.1f / (5f * 6f + 600f), cam.FogDensityFor(SceneAtmosphere.Default), 6);   // the free camera's haze, unchanged
     }
+    /// <summary>
+    /// ⭐ CE-1146 PR-1 (Map 3-D §6aa) — the precipitation overlay: none without precipitation; more drops for a heavier rate (a cap for a
+    /// cloudburst); rain falls as streaks slanted WITH the wind across the view, snow as flakes; the same field at the same time (no state),
+    /// moving with time; every drop on the screen. ✅ Red-proof: the slant's sign flipped ⇒ the streaks lean into the wind.
+    /// </summary>
+    [Fact]
+    public void CE1146_PR1_Rain_AsStreaksWithTheWind_Snow_AsFlakes_AsManyAsTheRate()
+    {
+        Assert.Equal(0, Precipitation.CountOf(PrecipitationKind.None, 10f));
+        Assert.True(Precipitation.CountOf(PrecipitationKind.Rain, 10f) > Precipitation.CountOf(PrecipitationKind.Rain, 1f));
+        Assert.Equal(Precipitation.MaxDrops, Precipitation.CountOf(PrecipitationKind.Rain, 500f));
+
+        var screen = new Vector2(1280f, 800f);
+        var a = new List<(Vector2 A, Vector2 B, float Size)>();
+        var b = new List<(Vector2 A, Vector2 B, float Size)>();
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, windAcross: 8f, time: 3f, screen, a);
+        Assert.Equal(Precipitation.CountOf(PrecipitationKind.Rain, 4f), a.Count);
+        Assert.All(a, d => Assert.True(d.Size == 0f && d.B.Y > d.A.Y && d.B.X > d.A.X, "a streak falling to the right with the wind"));
+        Assert.All(a, d => Assert.True(d.A.X >= 0f && d.A.X <= screen.X && d.A.Y >= -20f && d.A.Y <= screen.Y + 20f, $"on screen: {d.A}"));
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, 8f, 3f, screen, b);
+        Assert.Equal(a, b);                                                           // the same field at the same time
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, 8f, 3.05f, screen, b);
+        Assert.NotEqual(a[0].A, b[0].A);                                             // and it falls
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, -8f, 3f, screen, b);
+        Assert.All(b, d => Assert.True(d.B.X < d.A.X, "the other wind, the other slant"));
+        Precipitation.Drops(PrecipitationKind.Snow, 2f, 0f, 3f, screen, b);
+        Assert.All(b, d => Assert.True(d.Size > 0f, "flakes"));
+    }
 }

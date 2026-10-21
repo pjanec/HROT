@@ -2295,6 +2295,100 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1146 PR-1 (docs/DESIGN_Map_3D_Mode.md §6aa) — rain and snow over the 3-D scene, through the PRODUCTION path: a global weather entity
+    /// (<c>WeatherConditions</c>) raining 6 mm/h with a wind, <c>WeatherSkyLayer.Update</c> sampling it at what the camera looks at, its overlay
+    /// drawing the drops. Dry ⇒ none; rain ⇒ as many as the rate asks, and the frame differs from the dry one; then snow. Screenshots
+    /// <c>weather-rain.png</c>, <c>weather-snow.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1146_V_PR1_RainAndSnow_FromTheWorldsWeather()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        for (int i = 0; i < 3; i++)
+        {
+            var m = world.CreateEntity();
+            float x = spot.X + 4f + i * 1.5f, y = spot.Y - 6f;
+            world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)) });
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+        }
+        var env = world.CreateEntity();
+        world.AddComponent(env, Fdp.Toolkit.Weather.ScenarioClock.Default);
+        var weather = Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new Vector2(-8f, 0f));   // blowing west: from the right, looking south
+        world.AddComponent(env, weather);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(new EntityBodyLayer3D(() => world, () => tkb));
+        var sky = new WeatherSkyLayer(sw, () => world);
+        canvas.AddLayer(sky);
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y - 8f, ground + 1.6f), 30f, MathF.PI * 1.5f, -0.15f);
+
+        string Shot(string name)
+        {
+            sky.Update(0.016f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            string path = Path.Combine(shots, name);
+            frame.Screenshot(path);
+            return path;
+        }
+        string dry = Shot("weather-dry.png");
+        Assert.Equal(0, sky.DropsDrawn);
+
+        weather.Precipitation = (byte)Fdp.Toolkit.Weather.PrecipitationKind.Rain;
+        weather.PrecipitationMmPerHour = 6f;
+        world.SetComponent(env, weather);
+        string rain = Shot("weather-rain.png");
+        Assert.Equal(Precipitation.CountOf(Fdp.Toolkit.Weather.PrecipitationKind.Rain, 6f), sky.DropsDrawn);
+
+        var a = Raylib.LoadImage(dry);
+        var b = Raylib.LoadImage(rain);
+        int changed = 0, n = 0;
+        try
+        {
+            for (int y = 0; y < a.Height; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(a, x, y); var q = Raylib.GetImageColor(b, x, y);
+                    if (Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B) > 24) changed++;
+                    n++;
+                }
+        }
+        finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
+        Assert.True(changed > n / 200, $"the rain shows: {changed} of {n} sampled pixels changed");
+
+        weather.Precipitation = (byte)Fdp.Toolkit.Weather.PrecipitationKind.Snow;
+        weather.PrecipitationMmPerHour = 2f;
+        world.SetComponent(env, weather);
+        Shot("weather-snow.png");
+        Assert.Equal(Precipitation.CountOf(Fdp.Toolkit.Weather.PrecipitationKind.Snow, 2f), sky.DropsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1119 U-2 (docs/DESIGN_Map_3D_Mode.md §6w) — the ejection: three pilots in the sky — on the seat with its rocket burning, on the
     /// seat burnt out, and under an opening canopy with the empty seat falling away beneath him. Screenshot <c>airborne-5-ejection.png</c>.
     /// </summary>

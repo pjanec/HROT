@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-21 (§6aa.PR-1 precipitation over the 3-D scene + §6aa.next leans CL, MO, NL, SW, CE-1146) · 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -2719,6 +2719,65 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ![](assets/map-3d/weather-free-camera-fog.png) |
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
+
+#### 6aa.PR-1 — precipitation over the 3-D scene — DESIGN + AS-BUILT `2026-10-21` (ui, overnight #35)
+
+🔒 User, `2026-10-19`: *"depending from what place the 3d map camera is looking, the weather effects should be shown (fog density/distance,
+precipitation overlay...)"* — the overlay is named, so it is the uncontroversial slice; the rest of the item stays a discussion (below).
+
+| the slice rests on | code — how it is | design basis |
+|---|---|---|
+| the sample already carries the precipitation kind and rate | ✅ `WeatherSample.Precipitation` / `PrecipitationMmPerHour` (`WeatherField.cs:73`, set at `:313`) | Weather §4 (R-3012, user-approved precipitation) |
+| the wind is the direction it blows TOWARD, X east, Y north | ✅ `WeatherSample.Wind` (`WeatherField.cs:57`) | Weather §4 |
+| screen-right on the ground is `(sin yaw, −cos yaw)` | ✅ `MapCamera3D.Forward`/`Right` (`MapCamera3D.cs:110,126`, `Right = Forward × Up`) | §3 |
+| a 3-D layer's overlay draws only if it says `Has3D` | ✅ `MapCanvas.Draw` (`MapCanvas.cs:156`) | §3.6 |
+| nothing else draws precipitation | ⛔ searched (`scripts/find.sh Precipitation`, graph `.*Precip.*`) — only the field, its conditions, their replication (`EntityWeatherTranslators`) and perception (`PerceptionWeather`) touch it; ⚠ coverage not checkable through the CLI | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class WeatherSkyLayer { <<existing, grows>> Update: keeps the sample · DrawOverlay: the drops · Has3D · DropsDrawn }
+    class Precipitation { <<NEW, pure>> MaxDrops 700 · CountOf(kind, rate) · Drops(kind, rate, windAcross, time, screen, into) · Colour(kind) }
+    class WeatherField { <<existing, backend>> At(world, point): WeatherSample }
+    class MapCamera3D { <<existing>> Yaw · Viewport }
+    WeatherSkyLayer ..> WeatherField : the same sample as the sky
+    WeatherSkyLayer ..> Precipitation
+    WeatherSkyLayer ..> MapCamera3D : the wind across the view
+```
+
+*What the picture shows that prose hid: the drops come from the SAME sample the sky and fog already read (at the eye in first person, at the
+look-at point in the free camera), so the overlay can never disagree with the fog about where the camera is; and `Precipitation` takes no
+world and keeps no state — a drop is a hash of its index moved by the time, so the field is identical on every frame at a time.*
+
+| decision | rule |
+|---|---|
+| **PR-1a the look** | rain, sleet and hail as short streaks falling fast (1100 px/s), drizzle as faint fine streaks (700 px/s), snow as flakes drifting down (70 px/s) with a small sway |
+| **PR-1b how many** | 100 + 45 × mm/h for rain (80 + 40 × for drizzle, 120 + 60 × for snow), at most 700 — a cloudburst is a cap, not a frame-rate cliff |
+| **PR-1c the wind** | the component of the sample's wind ACROSS the view slants the streaks (run per unit of fall = wind / 12 m/s, at most 0.8) and drifts the flakes |
+| **PR-1d where** | only in 3-D; the 2-D map draws none (the layer's own rule since the first slice) |
+
+**Rejected — one line each:** *3-D particle drops in the world* — hundreds of billboards near the eye cost a draw each and read the same at FPS
+scale; *a scrolling rain texture* — needs an asset and cannot slant with the wind without a shader; *a particle system with state* — a pause,
+a replay jump or a second view would each need it kept in step.
+
+**As-built `2026-10-21`** — matches the diagram. Rail `WeatherSkyTests.CE1146_PR1_Rain_AsStreaksWithTheWind_Snow_AsFlakes_AsManyAsTheRate`
+(none when dry · more for a heavier rate · capped · streaks fall with the wind and flip with it · flakes · same field at the same time, moving
+with time) — ✅ red-proved: the slant's sign flipped ⇒ 280 / 280 streaks fail. Frame rail `Map3DFrameRail.CE1146_V_PR1_RainAndSnow_FromTheWorldsWeather`
+through the PRODUCTION path (a World Environment entity raining 6 mm/h with an 8 m/s wind, `WeatherSkyLayer.Update` sampling it): dry ⇒ 0
+drops, rain ⇒ exactly `CountOf` and the frame differs from the dry one, then snow.
+
+| rain, 6 mm/h, the wind blowing to screen-right | snow, 2 mm/h |
+|---|---|
+| ![](assets/map-3d/weather-rain.png) | ![](assets/map-3d/weather-snow.png) |
+
+#### 6aa.next — the rest of CE-1146: leans for the discussion (taken overnight `2026-10-21`, NOT built — the user decides)
+
+| # | what | ⭐ lean | cost | what would change the lean |
+|---|---|---|---|---|
+| **CL** | cloud LAYERS | one flat, translucent quad per deck at its base height (`WeatherSample.Clouds`, the field's strongest deck), textured by ONE procedural noise texture made at start-up (256², tiled, scrolled by the wind at that height), its alpha from the octas; seen from below and from above (a helicopter) | ⭐ one draw per deck (≤ 3), one texture | the user wanting volume (puffy cumulus) — that is a raymarch, an order of magnitude more |
+| **MO** | the MOON | ⛔ the field has no lunar position ⇒ **a backend ask**: `MoonElevationDeg`, `MoonAzimuthDeg`, `MoonIllumination` on `WeatherSample` (a low-precision ephemeris, ~40 lines); ui then draws a disc and lifts the twilight floor by up to +0.1 under a full moon | backend ~½ day, ui an hour | the user content with the twilight floor alone (the scene is already never dark) |
+| **NL** | lights that light their SURROUNDINGS at night (a flare lighting the ground) | up to 8 nearest point lights from the live light-emitting effects (flare, fire, explosion, muzzle flash) as a uniform array in `LitShader`, added with a 1/(1+d²) fall-off, only while the light is under 0.5 | one loop of 8 in the fragment shader | Mesa / the Windows GL measuring too slow on the frame-rate telemetry (§6z) — then flares only |
+| **SW** | smoke drifting on the WIND | the effect smoke column's fixed breeze (`EffectLayer.Puffs`, *"a fixed light breeze until weather exists"*) reads `WeatherField.WindAt` at the column | ⭐ trivial | — (built next as PR-2, below, because the code itself names it as waiting on the weather) |
 
 ### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
 
