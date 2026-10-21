@@ -2433,6 +2433,16 @@ Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the ca
 |---|---|
 | ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
 
+#### 6w.U2 — the ejection seat (`CE-1119` U-2, `2026-10-21`, ui) — AS-BUILT
+
+Backend B-7…B-9 landed (`EjectionSystem` spawns the pilot 206 with a `Descent { Kind = Ejection, Phase = Exit }`; after `SeatSeconds`
+1.5 s the canopy deploys). Drawn: the Exit phase's figure is **sitting** (`DescentDraw.PoseOf(Ejection, Exit)` = SittingOut, blended into
+the canopy pose while it deploys); `DescentDraw.EjectionSeat` (pure) puts the seat in his frame — the pan under him, the back and headrest
+behind — and the rocket's flame under it for `RocketSeconds` 1 s, a cone that shrinks and flickers as it burns out; from the canopy's
+deployment the EMPTY seat falls away beneath and behind him, tumbling, for `SeatAwaySeconds` 1.2 s. `EntityBodyLayer3D.DrawEjectionSeat`
+draws it (seat grey, flame `RocketFlame`). The abandoned jet's fall is the existing crash drawing. Rails `Map3DTests.CE1119_U2_*` (red-proved:
+a flame after burn-out), frame `Map3DFrameRail.CE1119_V_U2_*` (`docs/assets/map-3d/airborne-5-ejection.png`).
+
 ### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
 
 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built

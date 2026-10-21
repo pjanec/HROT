@@ -140,3 +140,4 @@ the next item (`R-106`).
 | `2026-10-21` | 30 | ✅ `CE-1202` the station gunner turns with his weapon (the vehicle-station case was the one failing) — Map 3-D §6n N-2; Presentation 814 / 0 |
 | `2026-10-21` | 31 | ✅ `CE-1200` first person in a vehicle draws it, from a crew eye (Entity Control §8o, leans CR-1…CR-3 taken overnight); Presentation 815 / 0 |
 | `2026-10-21` | 32 | ✅ `CE-1201` the over-the-shoulder view — designed (Entity Control §8p, leans OS-1…OS-6 taken overnight) and built: View menu + O, his head drawn, aim unchanged; Presentation 816 / 0 |
+| `2026-10-21` | 34 | ✅ `CE-1119` U-2 the ejection seat (the seat, its rocket flame, the seat falling away) — Map 3-D §6w.U2; Presentation 817 / 0 |
