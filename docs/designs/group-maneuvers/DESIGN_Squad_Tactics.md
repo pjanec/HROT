@@ -1808,6 +1808,10 @@ passengers surviving the wreck (R-2011 C9) are backend's ([`CE-2348`](../../blue
 10 s). 📐 Measured live: the convoy's squads, remounting after 30 s of quiet, were put out again every ~70 s by contacts minutes old —
 heard ones with no entity id, placed at the convoy's own guns and the mortar bursts. Rail
 `CE2347_BasicSquadSop_AnOldContactNearAHaltedCarrier_DoesNotPutTheSquadOut`, red under its mutant.
+⭐ **And the dead left aboard do not keep the squad "aboard"** (`CE-2347`): the dismount drill and every carrier row (fast rope, jump,
+unload, under fire, halted carrier) skip a man dead or down — he cannot get out, so a dismount waiting for him never ended. 📐 Measured live:
+Squad B's dead, still seated in the wrecked IFV, started a dismount every ~9 s for 25 minutes and kept the convoy in contact. Rail
+`CE2347_TheDeadLeftInAHaltedCarrier_DoNotKeepTheSquadAboard`, red under its mutant.
 
 ## 6. Formations — as measured *(2026-10-11)*
 

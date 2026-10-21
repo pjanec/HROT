@@ -4688,6 +4688,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2347</c> — the dead left in a halted carrier do not keep the squad "aboard": with an enemy near, the SOP does
+        /// not start a dismount for them, and a dismount ends once every man who can act is out. 📌 Live on <c>uc-urban-battle</c>: Squad B's
+        /// dead, still seated in the wrecked IFV, started a dismount every ~9 s for 25 minutes. ✅ Red-proof: <c>OutOfTheFight</c> always
+        /// false ⇒ the dismount never ends.</summary>
+        [Fact]
+        public void CE2347_TheDeadLeftInAHaltedCarrier_DoNotKeepTheSquadAboard()
+        {
+            var s = new Squad(members: 3);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });
+            Down(s, s.Members[0], 0f);                                                                               // dead in his seat
+            s.Order("{}", BehaviorNames.SquadDismount);
+            Ticks(s, 3);
+            Embarkation.Disembark(s.Repo, s.Members[1]);
+            Assert.Null(RunUntilFinished(s, 5));                                                                     // one who can act is aboard
+            Embarkation.Disembark(s.Repo, s.Members[2]);
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));                                            // only the dead remain: done
+            Assert.False(SquadDismountBehavior.AnyMemberAboard(s.Repo, s.Commander));
+        }
+
         /// <summary>⭐ <c>CE-2347</c> — the enemy near a halted carrier must be NEAR NOW: a contact last perceived more than
         /// <see cref="SquadSopConditions.HaltedContactFreshTicks"/> ago does not put the squad out (📌 live: a squad remounting after 30 s of
         /// quiet was put out again by contacts minutes old). ✅ Red-proof: the freshness test dropped ⇒ it gets out.</summary>

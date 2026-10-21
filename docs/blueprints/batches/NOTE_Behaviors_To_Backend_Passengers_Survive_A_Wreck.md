@@ -21,6 +21,10 @@ related-designs:
 | 31 → 161 | the same place, **Health 0**, `NetworkVelocity` **still (0.12, 0.31)**, task still `FollowRoute` | ⛔ **aboard, health 100** (an earlier run: until ~450 s) |
 | 171 | `NetworkVelocity` (0, 0) | the squad's task changes |
 
+⚠ **Intermittent, measured a second way:** in a later run the **IFV** was destroyed and all five of Squad B **did** die with it (health 0,
+still listed in its `PassengerBuffer`) — so ① is not "never", it is "sometimes"; which vehicle and which node lands the killing hit are the
+first things to compare between the two runs.
+
 ## Two things that look wrong — both in backend's code, neither fixed here
 
 | # | what | expected (design) | lean |

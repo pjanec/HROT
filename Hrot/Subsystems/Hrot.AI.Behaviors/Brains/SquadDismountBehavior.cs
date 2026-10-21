@@ -61,11 +61,17 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Run(ref SquadDismountParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
             => SquadManeuverRunner.Tick<SquadDismountPlay, SquadDismountParams>(ref p, ref ws, self, world);
 
+        /// <summary>⭐ <c>CE-2347</c> — a man dead or down does not keep his squad "aboard": he cannot get out, so a dismount waiting for him
+        /// never ends and the rows that start one fire again. 📌 Live on <c>uc-urban-battle</c>: Squad B, its dead still seated in the wrecked
+        /// IFV, started a dismount every ~9 s for 25 minutes. A unit member (a squad under a platoon) is judged by its own men.</summary>
+        public static bool OutOfTheFight(EntityRepository world, Entity member)
+            => !SquadManeuverRunner.IsUnit(world, member) && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, member);
+
         /// <summary>True when <paramref name="member"/> is aboard a vehicle — for a member that is a UNIT, when any of ITS members is
         /// (a platoon's squad rides as soldiers).</summary>
         public static bool Aboard(EntityRepository world, Entity member, int depth = 0)
         {
-            if (!world.IsAlive(member)) return false;
+            if (!world.IsAlive(member) || OutOfTheFight(world, member)) return false;
             if (world.IsComponentTypeRegistered<IsEmbarkedTag>() && world.HasComponent<IsEmbarkedTag>(member)) return true;
             if (depth >= 4 || !SquadManeuverRunner.IsUnit(world, member) || !world.HasComponent<UnitRoster>(member)) return false;
             var roster = world.GetComponentRO<UnitRoster>(member);
@@ -299,7 +305,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static bool AboardWhereIs(EntityRepository world, Entity member, AboardWhere where, int depth)
         {
-            if (!world.IsAlive(member)) return false;
+            if (!world.IsAlive(member) || SquadDismountBehavior.OutOfTheFight(world, member)) return false;
             var carrier = AirHolds.CarrierOf(world, member);
             if (!carrier.IsNull)
             {
