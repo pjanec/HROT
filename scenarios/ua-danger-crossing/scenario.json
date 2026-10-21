@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: AQ (CE-3079) - a Rifleman (Friend) ordered from (100,60) to (285,220) on test-town must cross two roads; a hostile Watcher at (370,212) on a Sentry task has sight of one of the crossings only. Shows the danger-area sensor and a plain BTree hold-then-cross; nothing is scripted over HTTP. Judge: (1) his sensor lists two crossings in route order, the watched one rated >= 0.5 and the other < 0.5; (2) he halts within 4 m of the watched crossing's near side and holds there at least 10 s; (3) the Watcher's own mission ends its Sentry and walks away (to (395,290)) and the rating falls < 0.4; (4) he then crosses and arrives within 6 m of (285,220). Fail: He walks through the watched crossing, never moves on once the watcher leaves, or stops at the unwatched one. Check: python3 scripts/utility-demo-check.py --launch ua-danger-crossing"
   },
   "entities": {
     "a3079000-0000-4000-8000-000000000001": {

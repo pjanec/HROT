@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "bt-range"
+    "terrainName": "bt-range",
+    "description": "What: On the bt-range terrain four civilians stand near House A (doors closed, not locked) and the locked House B; a Rifleman fires at a Hostile 28 m from them, with hide time set to 20 s (CV-7, CE-2236). Judge: (1) each civilian panics (2) each goes Inside House A's footprint through a door that opens (state Open) on every node (3) none enters the locked House B (4) about 20 s after going in (18-23 s) each deletes himself, gone on CGF, SimHost and IG. Fail: a civilian enters House B, stays outside, or is still present long after hiding. Check: python3 scripts/utility-demo-check.py --launch ua-civ-shelter"
   },
   "entities": {
     "c2360000-0000-4000-8000-000000000001": {

@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Test-town (EQS and navigation fixture): an M2 Bradley IFV starts at (20,255) and is ordered ~100 m east, so it must route around Block A (square (40,230)-(90,280)). Separately an \"Observer\" M1 (300,80) watches \"Hostile A (behind High Wall)\" (360,80) and \"Hostile B (open)\" (360,175). Judge: (1) the Observer sees Hostile B (from ~0.2 s) and never Hostile A behind the 3 m wall (2) the Bradley goes around Block A on the vehicle route, its centre never nearer the wall than ~1.5 m (3) it arrives within 5 m of its point. Fail: the Observer sees Hostile A, or the Bradley drives through or scrapes Block A. Check: none (no utility-demo-check live check); scripts/corner-clearance-check.py [seconds] on a --mode all cluster; geometry also railed by TerrainEqsTests and EqsDistributedTests"
   },
   "entities": {
     "29696a70-fc22-497b-8019-7acdfe788460": {

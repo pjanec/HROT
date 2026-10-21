@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: Berlin: end-to-end check of an HSM behaviour (HsmChannelE2E) with blueprint guards and actions. Two Bradleys, \"E2E Driving (Open=false)\" (368,296) and \"E2E Firing (Open=true)\" (368,360), both start in Driving toward x 560; a blueprint guard on the Open flag decides Driving -> Firing at \"E2E Target (static)\" (620,328, 500 HP). Judge: (1) Driving (Open=false) drives east along y 296 (x ~500 by 18 s) and never fires (2) Firing (Open=true) stops driving and shoots (ammo drops 293 -> 278 by 18 s) (3) the static target dies (health 300 at 6 s, 0 at 18 s). Fail: the Open=false Bradley fires, or the Open=true one never fires. Check: none (no live check); params round-trip railed by SopParamsRoundTripTests (Hrot.SimHost.Tests)"
   },
   "entities": {
     "61e2e000-0000-0000-0000-000000000001": {

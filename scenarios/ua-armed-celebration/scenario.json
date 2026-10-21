@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A police patrol (a rifle, Lethal ceiling) stands 24 m from a wedding party of six guests; the Celebrant (Neutral, rifle in hand) fires 8 rounds into the air, then aims at the patrol (AW-17, escalation of force). Judge: (1) the patrol WARNS him at once (Warning cue) and spends no round while he fires into the air (2) once he aims at the patrol, the patrol's rifle fires at him (3) no other guest is hurt. Fail: the patrol fires at the volley, or never fires once he aims, or a guest is hit. Check: python3 scripts/utility-demo-check.py --launch ua-armed-celebration"
   },
   "entities": {
     "c2390008-0000-4000-8000-000000000001": {

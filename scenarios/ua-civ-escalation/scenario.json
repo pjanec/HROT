@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A police line under a LETHAL ceiling (rifleman with stun grenades, baton man, launcher man) faces an Instigator and three protesters round a stone source, and a Hostile Gunman who draws a hidden rifle, holds it at ease for 6 s, then fires into the air (EL-1..EL-3). Judge: (0) the riot starts (1) drawn and at ease he is WARNED (a policeman shows the Warning cue) and the police rifle stays silent (2) every police rifle round goes at the gunman, and at least one does (3) he is hit (4) the unarmed rioters get non-lethal force only: one stunned, irritated or down, none dies. Fail: a protester is shot, or the gunman is not engaged. Check: python3 scripts/utility-demo-check.py --launch ua-civ-escalation"
   },
   "entities": {
     "c2390005-0000-4000-8000-000000000001": {

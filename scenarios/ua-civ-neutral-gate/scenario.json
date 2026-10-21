@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A rifleman (Friend) on a mission (CombatPosture, Sentry) stands among neutrals: an unarmed civilian, an ARMED Neutral nearest of all, and a Hostile farther off (CIV-0, CE-2233: a neutral is never a target). Judge: (1) he sees both neutrals (2) the Hostile is put out of the fight (3) neither neutral loses health at any time, and both rank at score 0 (4) once the Hostile is down he fires nothing for 8 s and never takes a neutral as target (5) after the check flips the armed neutral to Hostile (not in the file) he is engaged at once while the civilian stays unhurt. Fail: any neutral is hit, or the flipped man is ignored. Check: python3 scripts/utility-demo-check.py --launch ua-civ-neutral-gate"
   },
   "entities": {
     "c1030000-0000-4000-8000-000000000001": {

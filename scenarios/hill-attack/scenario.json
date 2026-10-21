@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: Berlin (flat, no hill): a platoon of four M1s (\"Tank Platoon (Auto Spawn)-1\"..\"-4\", commander on PlatoonHillAttack, spacing 30 m, ~140 m firing line) starts in a column at x~447 and attacks two idle \"M1 Abrams\" at (668,427) and (668,522) inside a red target area, in alternating waves from a baseline. Judge: (1) the tanks advance east from the baseline (about 30 m in the first 6 s) (2) as each comes within ~100 m (vision range, ~24 s) it sees a target and fires (3) both M1 Abrams are destroyed and the commander finishes (4) the four tanks end back near the baseline. Fail: the platoon stays put, or a target survives. Check: none (no utility-demo-check live check); system smoke ScenarioBehaviorTests.Playing_hill_attack_advances_the_assault_force; acceptance script scripts/hill-attack-check.py hill-attack 1000 on a --mode all cluster"
   },
   "entities": {
     "98e75951-8493-4db9-9197-785b9ba470bc": {

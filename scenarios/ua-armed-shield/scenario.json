@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: A rifleman at x=40 and a Hostile Insurgent walking east at x=100, with six civilians standing in one row just beside the firing line, inside the rifle's spread (AW-20: a neutral in the spread holds the shot). Judge: (1) the rifleman is seen holding ('hold: neutral on line') while a civilian is beside the line (2) he fires once the line is clear and the Insurgent goes down, out of the fight (3) no civilian is hit. Fail: he fires with a civilian in the spread, or a civilian is wounded. Check: python3 scripts/utility-demo-check.py --launch ua-armed-shield"
     },
     "entities": {
         "c2470001-0000-4000-8000-000000000001": {

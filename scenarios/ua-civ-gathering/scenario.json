@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A hurt civilian (Casualty, health 40) lies at the crossroads (200,200); twelve calm Onlookers stand 30-60 m up the four streets (CV-5, CE-2237). Demonstrates onlookers drawn to an incident and standing as one crowd on a ring. Judge: (0) the hurt man is a Casualty (1) every onlooker enters Gather (2) their mean distance to him falls below 15 m within 60 s (3) one crowd holds at least 8 of them (4) all arrive within 11 m and stand on a ring 2.5-11 m round him, not on top of him. Fail: some onlookers stay put, or they pile on the casualty. Check: python3 scripts/utility-demo-check.py --launch ua-civ-gathering"
   },
   "entities": {
     "c2370001-0000-4000-8000-000000000001": {

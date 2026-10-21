@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: two FPV drones hunt two M1 tanks on test-town. 'Drone A' attacks 'Tank by the deck' at (300, 60); 'Drone B' attacks 'Tank in the open' at (150, 40). The first tank hears the rotors and backs under Garage Deck 1 so its drone's dive meets the slab; the second has no cover. Judge: (1) the deck tank moves under the deck (x 240-290, y 40-80) (2) Drone A is spent and the deck took the warhead - the tank was under it and keeps 90%+ of its health (3000 to 3000 measured) (3) Drone B is spent and the open tank is hit from above (3000 to 2550 measured). Fail: the deck tank is hit, or the open tank is unhurt. Check: python3 scripts/utility-demo-check.py --launch ua-drone-shelter"
   },
   "entities": {
     "a2220000-0000-4000-8000-000000000001": {

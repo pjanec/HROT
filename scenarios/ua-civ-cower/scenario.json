@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Three civilians on open ground with no enterable building nearby, 20-30 m from a Rifleman who is firing at a Hostile (CV-7 fallback). Demonstrates that with no shelter within reach a frightened civilian cowers in place. Judge: (1) all three start in Routine, then under fire each enters Cower, EffectState.Cowering is set on CGF, SimHost and IG, and each stands still (under 0.3 m moved in 1.5 s) (2) once the firing is over, each leaves Cower as his fear fades and Cowering is cleared on every node. Fail: one runs off or never cowers, or stays cowering after the fire ends. Check: python3 scripts/utility-demo-check.py --launch ua-civ-cower"
   },
   "entities": {
     "c2370000-0000-4000-8000-000000000001": {

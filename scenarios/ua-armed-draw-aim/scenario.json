@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: A covert insurgent (a civilian with a pick-up pistol hidden) goes about his routine for 8 s, draws the pistol (StationWeapon Hands, 10 s), then attacks a rifleman 25 m off (AW-16: drawing is not the act, aiming is). Judge: (1) the pistol starts hidden, and once drawn he is still Neutral and the rifleman spends no round (2) he turns Hostile only once he aims, at least 8 s after the draw, on CGF, SimHost and IG alike (3) the rifleman then engages him. Fail: the rifleman shoots at the draw, or the side flips at the draw instead of the aim. Check: python3 scripts/utility-demo-check.py --launch ua-armed-draw-aim"
     },
     "entities": {
         "c2380004-0000-4000-8000-000000000001": {

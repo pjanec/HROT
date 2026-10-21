@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: a fast-rope insertion on test-town. A doors-off UH-60 carries an 'SF squad' of eight operators (SF operator 1-8) and hovers 12 m above a flat roof (x 40-90, y 230-280); SquadFastRope sends them down the two ropes one man per rope at a time, then they take a ring of spots on the roof. Judge: (1) all eight go down the ropes within 15 s (7.6 s measured) (2) all eight stand ON the roof (above 10 m), none on the ground, and no two within 1 m (3) the helicopter leaves only after the last man has landed. Fail: a man ends on the ground, or the helicopter departs with a man still on a rope. Check: python3 scripts/utility-demo-check.py --launch ua-fast-rope-roof"
   },
   "entities": {
     "a1118100-0000-4000-8000-000000000001": {

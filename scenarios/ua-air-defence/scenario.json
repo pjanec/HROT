@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: the ground fires back at aircraft (CE-2191), on basic-desert. An 'Apache' attacks 'Apache Target' right beside a 'Stinger Gunner' at (560, 120); a doors-off 'Door Gunship UH-60' circles 'Orbit Target' next to a 'ZU-23 Technical'. Both defenders are on their default SOPs. Judge: (1) the Stinger gunner fires at least one missile at an aircraft (2) the Apache gets an infra-red MissileWarning, stops firing and breaks away to a low altitude (measured 60 m to 25 m above ground within 6 s) (3) the ZU-23 fires at least 10 rounds at the UH-60 (about 50 measured). Fail: no missile or no ZU-23 fire, or the Apache is never warned. Note: flares are not shown. Check: python3 scripts/utility-demo-check.py --launch ua-air-defence"
   },
   "entities": {
     "a2191d00-0000-4000-8000-000000000001": {

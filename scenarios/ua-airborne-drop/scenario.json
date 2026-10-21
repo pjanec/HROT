@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: a parachute drop on basic-desert. A doors-off UH-60 flies a drop leg along y = 300 at 400 m altitude and 35 m/s with an 'Airborne squad' of eight paratroopers (Paratrooper 1-8). SquadAirborneExit sends the stick out one man at a time, each with a landing point; AssembleAfterDrop then gathers the squad. Judge: (1) all eight jump, one at a time (gaps at least 0.7 s; 0.78-0.85 s measured) (2) every man lands within 150 m of his planned point (7.8-10.5 m measured) (3) the squad ends assembled, every man within 20 m of the group's middle (13 m measured) (4) the helicopter flies on empty past x 450. Fail: a man does not jump, drifts off his point, or the squad stays scattered. Check: python3 scripts/utility-demo-check.py --launch ua-airborne-drop"
   },
   "entities": {
     "a1118200-0000-4000-8000-000000000001": {

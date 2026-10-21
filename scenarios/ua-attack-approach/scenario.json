@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: U4 (CE-3084) - a Rifleman advances east on test-town from (300,80) toward (380,80); an unarmed Hidden Hostile (1000 HP) at (345,160) is first seen north of the High Wall, then its own mission walks it to (360,80) behind the wall. Shows the AttackApproach decision {Direct, Flank, FiringPosition}. Judge: (1) against the unarmed hostile his posture advances (AdvanceAndAttack); (2) once the identified hostile is out of sight behind the wall he chooses Flank or FiringPosition instead of walking straight at it; (3) from there he regains sight and fires (his ammo drops). Fail: He walks straight at the last-seen spot, never regains sight, or never fires. Check: python3 scripts/utility-demo-check.py --launch ua-attack-approach"
   },
   "entities": {
     "a3084000-0000-4000-8000-000000000001": {

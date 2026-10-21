@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A rifleman stands 30 m from a crowd of ten civilians in a ring; a civilian (Bomber) with a charge hidden in a vest walks into the crowd and sets it off (DetonateCharge, AW-12). Demonstrates that a hidden charge is never seen as a weapon and that casualties follow the warhead. Judge: (1) until the blast he stays Neutral and the rifleman spends no round (2) the vest bursts: the vest is gone and the Bomber is dead (3) everyone within 3 m of the burst is hurt, nobody beyond 25 m is (the rifleman unhurt). Fail: the rifleman shoots him before the blast, or the casualties do not follow distance. Check: python3 scripts/utility-demo-check.py --launch ua-armed-bomber"
   },
   "entities": {
     "c2380006-0000-4000-8000-000000000001": {

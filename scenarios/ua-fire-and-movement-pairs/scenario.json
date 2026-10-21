@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S6 (CE-2158 F-d) - the ua-fire-and-movement cast (Squad: Leader + Rifleman 1-5 at (190-210,165); Hostile 1 and 2 at (195,285) and (205,285)) with Pairs on: inside the moving half, one buddy rushes while the other fires, then they swap. Shows buddy-pair bounding within fire and movement. Judge: (1) the squad rushes (>= 4 polls in a rush); (2) never the whole half up - at most 2 up at once (a half is 3); (3) the buddy who stays down fires for the one who is up; (4) inside one rush the A buddies go, then the B buddies; (5) the squad centre closes >= 20 m in up to 120 s. Fail: A whole half rushes at once, or the waiting buddy does not fire. Check: python3 scripts/utility-demo-check.py --launch ua-fire-and-movement-pairs"
   },
   "entities": {
     "a2158f00-0000-4000-8000-0000000000c0": {

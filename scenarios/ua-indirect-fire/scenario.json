@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "indirect-fire-range"
+    "terrainName": "indirect-fire-range",
+    "description": "What: four mortar and artillery vignettes on the indirect-fire-range terrain, driven by orders the check sends over HTTP. (1) 'Observer' calls the 'Mortar Section' (three 81mm tubes) on 'Enemy 1-4'; (2) 'Artillery Battery' (M109 1-3) strikes three trucks with time on target; (3) a strike on 'Courtyard Truck'; (4) a strike near 'Friendly 1-2'. Judge: (1) one tube fires adjusting rounds first, then all three fire for effect with 3+ bursts within 120 m of the enemy squad (2) the three first rounds land within 1 s, within 150 m of the trucks (3) the courtyard round flies the high arc (flight time 1.5x the low arc or more) (4) a strike 400 m from friends is refused (no gun fires); resent with danger close it fires. Fail: any vignette missing. Check: python3 scripts/utility-demo-check.py --launch ua-indirect-fire"
   },
   "entities": {
     "a2176400-0000-4000-8000-000000000001": {

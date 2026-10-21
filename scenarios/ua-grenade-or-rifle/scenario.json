@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "bt-range"
+    "terrainName": "bt-range",
+    "description": "What: WL-4 (U-W7) - on bt-range a Rifleman (140,12) and a brave Grenadier (158,12, rifle + M67) advance north on CombatPosture toward a Hostile behind the sandbags at (149,42.5), who is seen for ~3 s and then crouches out of sight. Shows a rifle-or-grenade choice against a hidden target. Judge: (1) the Grenadier carries grenades and closes to throwing distance, then throws at the hostile's last-known spot (his grenade count drops); (2) the Rifleman fires blind at the same spot - his rounds hit the sandbags, the hostile's health is unchanged and he is marked under fire; (3) the lobbed grenade clears the sandbags and the hostile loses health. Fail: Nobody throws, the Grenadier stands off, or the hostile is never hurt. Check: none (no live check) - twin: GrenadeOrRifleScenarioTests"
   },
   "entities": {
     "a4120000-0000-4000-8000-000000000001": {

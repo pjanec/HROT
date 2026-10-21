@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: An instigating Rioter strikes a Policeman (and so turns Hostile), and a Rifleman 40 m off is ordered to attack him (CV-13a: a covered hostile raises his hands, the AI holds). Judge: (1) the rioter is Hostile after the blow (2) covered, his hands go up (Gesture HandsUp) on CGF, SimHost and IG (3) the rifleman is seen holding ('hold: hands up') (4) from the first raised-hands sample for 10 s the rifleman spends no round and the rioter is not hurt (5) he stays Hostile. Fail: the rifleman shoots a man with raised hands, or the hands never go up. Check: python3 scripts/utility-demo-check.py --launch ua-civ-surrender"
     },
     "entities": {
         "c2410001-0000-4000-8000-000000000001": {

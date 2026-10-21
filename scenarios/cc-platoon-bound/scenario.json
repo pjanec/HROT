@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: CC-D (CE-2294) - a body-less Platoon runs PlatoonBound over Alpha and Bravo (4 men each) on test-town: Bravo goes to the support point (225,110); when Bravo reports SET, Alpha goes to (195,170). Three neutral Enemy 1-3 at (188-202,270) are turned hostile by the check, Alpha SPOTs, the platoon holds both squads; when the enemy is down it resumes. Judge: (1) Bravo moves first, Alpha waits; (2) Bravo's SET reaches the platoon 2.9-3.6 s after its task ends, only then Alpha is ordered; (3) Alpha sends ONE SPOT; (4) the platoon runs PlatoonHold, both squads hold, then the task resumes in its leg and Alpha is ordered on; (5) Alpha reports SET, the task completes and the reports are visible over HTTP. Fail: Alpha moves before Bravo is SET, one SPOT per contact, or the task never resumes. Check: python3 scripts/utility-demo-check.py --launch cc-platoon-bound"
   },
   "entities": {
     "a2294000-0000-4000-8000-000000000001": {

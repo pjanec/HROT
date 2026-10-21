@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Twelve civilians are told to protest at (224,265), in the street in front of a building; no security forces (CE-2240, CV-13). Demonstrates a peaceful crowd with gestures. Judge: (1) every one reaches Protest and they stand as one crowd (at least 10) round the point (2) on CGF, SimHost and IG at least 3 members show FistRaised and at least 3 show HoldSign over the run (3) in 120 s nobody turns Hostile and nobody riots. Fail: the crowd scatters, someone riots or turns Hostile, or no gestures show. Check: python3 scripts/utility-demo-check.py --launch ua-civ-protest"
   },
   "entities": {
     "c2400000-0000-4000-8000-000000000001": {

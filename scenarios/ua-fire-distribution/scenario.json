@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: U6 (CE-3088) - on basic-desert a body-less Squad with Leader and Rifleman 1-4 advances north at 0.5 m/s from y 460 toward y 365 against three spread hostiles (West, Centre, East Hostile, 600 HP each). Shows the leader spreading the squad's fire (threat matrix). Judge: (1) the squad forms with 5 members and its merged pool holds all three hostiles; (2) every rifleman gets an assigned target, the fire covers at least 2 targets, no target has more than 2 men; (3) when the check drops Rifleman 4 to 10 HP he breaks off and holds prone on open ground (HoldProne, asks to lie down); (4) every rifleman spends rounds. Fail: Everyone fires at one hostile, a target gets more than 2 men, or the 10 HP man keeps advancing. Check: python3 scripts/utility-demo-check.py --launch ua-fire-distribution"
   },
   "entities": {
     "a3088000-0000-4000-8000-0000000000c0": {

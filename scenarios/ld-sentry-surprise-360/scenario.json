@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: CE-2298 LD-5 control - the ld-sentry-surprise cast on bt-range (Sentry at (185,80), Hostile A crossing at y 150, Hostile B walking up from (185,5) to y 40 behind him) with the Sentry's field of view widened to 360 degrees. Shows that the 200-degree cone, not something else, hid B in the main demo. Judge: (1) the Sentry holds and A is seen as it crosses; (2) B is seen (visual memory) while it is still walking up behind him; he turns toward it. No shot is ordered in this run. Fail: B is not noticed while walking up, which would make the main demo's hidden approach meaningless. Check: python3 scripts/utility-demo-check.py --launch ld-sentry-surprise-360"
  },
  "entities": {
   "2a980301-0000-4000-8000-000000000301": {

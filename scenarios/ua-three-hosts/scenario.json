@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: U3 (CE-3082/3083) - three Riflemen (A, B, C) side by side at (295, 281-289) on test-town advance on the same armed Armed Hostile at (360,320). Since CE-3160 all three run the ONE C#-built CombatPosture, so this shows one decision giving the same answer for three identical bodies under identical Health edits. Judge: (1) every rifleman starts at Suppress (healthy, armed, matched enemy); (2) the check sets all three to 40 HP, then 100, 10, 100 - at each step every host picks the same class: defend (TakeCover/Flee) when hurt, fight (Suppress/AdvanceAndAttack) when healed; exact winners are printed side by side and may differ. Fail: One host fights while another defends at the same step. Check: python3 scripts/utility-demo-check.py --launch ua-three-hosts"
   },
   "entities": {
     "a3082000-0000-4000-8000-000000000001": {

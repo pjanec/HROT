@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S7 (CE-2158 F-c) - on test-town a Squad of Leader + Rifleman 1-5 (immortal) at (130-150,139) is ordered BoundingOverwatch to (140,226), 30 m bounds. One immortal Hostile with an empty rifle sits at (195,300), unseen until the squad is ~70 m from it. Shows one half bounding while the other watches, no fire before contact. Judge: (1) one half moves while the other watches (both halves moving at most 1.5 s at a time); (2) bounds go to cover points and end within 1.5 m of them (>= 80%); (3) swaps are on 'set' (>= 80% DefiladeReached), not the clock; (4) nobody fires before contact; (5) on contact the watchers suppress within 3.5 s and their rounds fall within 5.5 s. Fail: Both halves run together, rounds before contact, or the watchers stay silent after contact. Check: python3 scripts/utility-demo-check.py --launch ua-bounding-overwatch"
   },
   "entities": {
     "a2158b00-0000-4000-8000-0000000000c0": {

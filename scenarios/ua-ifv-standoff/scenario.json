@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert, two vignettes. \"IFV Standoff\" (450,40) is approached by two RPG men (\"RPG Man A1\"/\"A2\", 340 m, reach 300 m) and fights from where it stands; \"IFV Close\" (560,580) has \"RPG Man C\" 80 m away on an attack order. Judge: (1) the stand-off IFV fires and hurts the RPG men (killed at ~326 m, beyond their reach) (2) it is never hurt (health stays 500) (3) up close the RPG hits \"IFV Close\" (health < 500). Fail: the stand-off IFV is hit or never fires, or \"IFV Close\" is never hit. Check: python3 scripts/utility-demo-check.py --launch ua-ifv-standoff"
   },
   "entities": {
     "a2199d00-0000-4000-8000-000000000001": {

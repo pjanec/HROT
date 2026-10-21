@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert, north of a 210 m ridge: one friendly M1 (\"Tank\", BasicVehicleSop) faces an idle enemy T-72 (\"Enemy Tank\", 240 m), an HMG technical (\"Technical\", 230 m) and two riflemen advancing on it (\"Rifleman 1\"/\"Rifleman 2\", 230 m). Shows the weapon brain choosing the round by target (A7/A8). Judge: (1) the M1 fires at the T-72, the technical and the riflemen (all three kinds hit as targets) (2) the round against the tank penetrates more (kinetic APFSDS) than any round fired at the soft targets (HE / HEAT). Fail: the M1 fires at fewer than three target kinds, or the same round goes at tank and soft targets. Check: python3 scripts/utility-demo-check.py --launch ua-tank-ammo"
   },
   "entities": {
     "a2200d00-0000-4000-8000-000000000001": {

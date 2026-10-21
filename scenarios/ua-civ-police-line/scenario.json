@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: Three policemen (Police shield, Police baton, Police launcher) with NO task, so on their default HoldTheLine under a NonLethal ROE, 12 m from an Instigator and four protesters round a stone source (CV-8/CV-11). Judge: (0) the riot starts (1) the police use force, and only non-lethal force: stun grenades, gas, baton rounds (2) at least one rioter is stunned, irritated or knocked down (3) the riot breaks up: no civilian riots for 10 s (4) nobody dies. Fail: any lethal round, a death, or the riot never ends. Check: python3 scripts/utility-demo-check.py --launch ua-civ-police-line"
     },
     "entities": {
         "c2390004-0000-4000-8000-000000000001": {

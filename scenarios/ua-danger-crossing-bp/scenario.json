@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: AQ (CE-3079 H7) - the same scene as ua-danger-crossing - Rifleman from (100,60) to (285,220) on test-town, hostile Watcher at (370,212) watching one of the two road crossings - but the Rifleman's task is the BLUEPRINT DangerCrossingBp instead of the BTree. Shows the blueprint form behaves identically. Judge: (1) his sensor lists two crossings in route order, the watched one >= 0.5 and the other < 0.5; (2) he holds within 4 m of the watched crossing's near side for at least 10 s; (3) once the Watcher's mission walks it away the threat falls < 0.4; (4) he crosses and arrives within 6 m of (285,220). Fail: Same as ua-danger-crossing, or he crawls/jitters at the crossing instead of holding still. Check: python3 scripts/utility-demo-check.py --launch ua-danger-crossing-bp"
   },
   "entities": {
     "a3079000-0000-4000-8000-0000000000b1": {

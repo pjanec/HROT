@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: A Policeman puts ONE tear-gas canister down in front of a riot (FireAtPoint, mount 2), then holds the line; a 'Hardened rioter' (PanicAt 1.5: the gas irritates him, it does not turn him) picks it up and throws it back, with two protesters beside him (AW-8/AW-9). Judge: (0) a gas cloud sits on the canister where it lies (1) he picks it up (the fuze burns in his hands) and the first cloud lets go of its source and drifts (2) he is irritated while he holds it (3) thrown, a new cloud rises nearer the policeman. Fail: he flees instead of picking it up, or the cloud stays on the canister. Check: python3 scripts/utility-demo-check.py --launch ua-armed-gas-throwback"
     },
     "entities": {
         "c2380003-0000-4000-8000-000000000001": {

@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: Berlin (no terrain, flat): the simplest movement test. One friendly M2 Bradley IFV at (368,296) with a mission MoveToLocation drives east ~121 m to local (489,296) at 5 m/s, arrival radius 5 m. Judge: (1) the Bradley moves east along y 296 (2) it stops within 5 m of (489,296) after about 24 s and the mission ends. Fail: it does not move, or it does not stop near the point. Check: none (no live check); loaded as the spawn smoke in DebugApiHeadlessSmokeTests"
   },
   "entities": {
     "3702ba5f-04ea-40e0-b1ee-893931426e75": {
