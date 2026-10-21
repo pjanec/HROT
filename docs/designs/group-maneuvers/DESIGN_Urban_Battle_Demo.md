@@ -258,6 +258,15 @@ fight that's going on."*
 | ② Squad B stops fighting | `PlatoonHold` ordered every squad to hold, and a superior order replaces a running reaction | the hold leaves a squad fighting its own reaction, and holds it when that ends | Command Chain §6 (the `PlatoonHold` row) |
 | the APC wedging beside the IFV | a consequence of the overtaking (it tried to pass the stopped IFV) — not reproduced once the APC leads; ⚠ the vehicle avoidance itself is backend's | — | — |
 
+📐 **Live after the fixes (`2026-10-21`, two `--mode all` runs):** `utility-demo-check.py uc-urban-battle` PASS 4/4 (122 sim s: Blue 50 / Red 43
+rounds, 0 at civilians, the IED at 24.9 s with a vehicle 11.6 m off, **a mortar round at 62 s**, a Reinforce REQUEST answered by the reserve, a
+Casevac). A per-2-s probe (180 sim s): **the APC leads all the way** (y 40 → 154, the IFV 18 m behind) and stops at y 154 by the charge
+(y 150); **Squad A dismounts at 18 s** and reacts to contact; Squad B's contact drill runs (the platoon hold no longer ends it), then it
+carries its casualty. ⚠ Still open: once the contact reaction ends (~33 s) both squads have NO task — the platoon is task-less in this
+scene, so nobody orders a consolidation and the men stand; the aircraft beat was not reached in 180 s (it needs a Blue ear to hear the
+launch and SPOT it).
+
+
 ⛔ Not in a rung: a fixed outcome. Each rung asserts what must hold whatever happens; a rung whose fight goes either way records
 which way it went.
 
