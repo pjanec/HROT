@@ -38,3 +38,12 @@ http of course"* · *"and also from some ui panel"* · *"it will be implemented 
 - ⭐ **"Save As" copies `takes/`**: the user expects several versions of a scenario, each with its own takes.
 
 CE-4034 (the overnight batch runner) becomes phase 3 of this design: the batch is `POST /director/play {reel, capture}`.
+
+## Second pass, same day — the user's rulings (R-4059, R-4060)
+
+| | what changed in the design |
+|---|---|
+| **R-4059 sound** | sound in every map view behind the menu switch (CE-1137 already does 3-D; add the **2-D ear**), FPS always; `GET/POST /audio`; a take may silence a shot; **the films get a sound track**: the mixer logs every sound it starts while capturing, the engine renders the WAV offline (§4c) |
+| **R-4060 layers** | overlays off by default in a take; a take or shot turns map layers on and off **as a transient override, never saved**; `GET/POST /map/layers` does exactly what a click in the Layers panel does, saved like one (§4b) |
+| **instant replays live** | the user previews the clips in the editor, replays included, before the overnight run ⇒ a **world bookmark** before the moment, restore, re-step the moment from the replay camera (§3c). ⭐ **First task: the restore rail** (snapshot at t, run 5 s, restore, run 5 s, compare); fallback rewind-to-0 + fast-step |
+| **a reel is one movie** | several scenarios' takes, whole or part, in one film with transitions, chapter marks and one sound track (§4a) |
