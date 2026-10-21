@@ -2675,7 +2675,7 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
 
-### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN `2026-10-21` (backend, cross-lane into ui's map)
+### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
 
 🔒 User, `2026-10-21`: *"I would like to make short videos demonstrating the engine features"* · *"videos of the 3d map content, not the imgui
 necessarily. Actually the imgui panels are clutter so they would rather be turned off during the filming"* · *"Yes pls implement the
@@ -2807,6 +2807,18 @@ edge, red) — so the film is of what is on screen, and a hidden host's map neve
 | `{follow: networkId, distance, yawDeg, pitchDeg, lift}` | looks at the unit's position + `lift` metres, from that distance and angle, every frame |
 | `DELETE /film/shot` | releases the view (the free camera keeps the last pose) |
 | `POST /film/capture {path, width?, height?}` | the next drawn frame's scene to `path` (PNG); answers `{path, width, height, simTime}`; 504 after 30 s (no map drawn) |
+
+#### 6ab-i As built `2026-10-21` — matches the diagrams above; two additions, measured on the first films
+
+| | |
+|---|---|
+| code | `Fdp.Presentation`: `ISceneLayer` (`Vis2D/Abstractions/CoreInterfaces.cs`), `MapCanvas.DrawScene` / `DrawLayers3D`, `ICameraDriver.ViewsFromEye`, `MapCamera3D.FogStart` · `Hrot.Presentation/Map3D/Film.cs`: `FilmShot`, `FilmStudio`, `FilmDirector`, `FilmCaptureLayer`; `WeatherSkyLayer` reads a look-AT driver at its point; `MapInteractionPack` adds the layer last · `DebugApiHost`: `/film/shot`, `/film/capture` · `scripts/film.py` |
+| ⭐ added: **the lens** | a shot may carry `fovDeg` (a telephoto): 📐 the first take, over the M1's shoulder, showed the T-72 at 240 m as a speck. The director sets `FovyDegrees` and gives the camera's own back in `Detached` |
+| ⭐ added: **cuts** | `film.py --plan` — segments at sim times; between them the sim PLAYS in real time to the next one. ⚠ real-time play overshoots by up to ~0.1 s, and the AI is not frame-identical between runs ⇒ 📐 the second take's cut landed just after the T-72 shot it was meant to catch. Aim a cut ≥ 0.5 s before the event |
+| ⚠ the first frame of a new shot | `WeatherSkyLayer` updates BEFORE the film layer, so the frame a shot first takes effect has the previous pose's atmosphere (📐 the first frame of the first take was the default sky, brighter). `film.py` throws that frame away |
+| 📐 cost | `--mode all`, 1280×720, Xvfb + llvmpipe: **~1.85 s per film frame** at 30 fps (2 sim steps + 1 capture; each step is a gated frame of the whole editor window) ⇒ 13 s of film in 12 min, 7 s in 7 min — run in the background |
+| rails | `FilmTests` ×6 (shot geometry, follow, fog, mailbox, layer takes / gives back the camera + undrawn map films nothing, the lens) · `FilmFrameRail` (Xvfb: the scene alone at the asked size, no clutter, sky on top) · the shared-layers pin · `EveryRouteIsDocumented` — 7/7 mutants caught |
+| ⏭ not built | a frame-exact cut (step, not play, to the next segment — slow but exact) · a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
