@@ -31,7 +31,37 @@ namespace Fdp.ModuleHost.Scheduling
         {
             public readonly Fdp.Core.EventAccumulator History;
             public readonly int Id;
-            public EventReader(Fdp.Core.EventAccumulator history) { History = history; Id = history.RegisterReaderAtCurrentFrame(); }
+            public EventReader(Fdp.Core.EventAccumulator history) { History = history; Id = history.RegisterReaderAtTimelineStart(); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S5 (R-3036 rule 6) — registers the step window of every step-only system this scheduler knows (each phase,
+        /// group members included) and of <paramref name="extra"/> (a direct module's simulation systems) BEFORE any of them runs:
+        /// the history then keeps the whole timeline for them from its start — the same on every run of a scenario. A reader
+        /// registered lazily at a system's first run (the 📐 measured case: a reload's first step read the load's events, the
+        /// first run after boot's did not) would make the first run differ from every later one.
+        /// </summary>
+        public void RegisterStepReaders(Fdp.Core.EventAccumulator history, IEnumerable<IEcsModuleSystem>? extra = null)
+        {
+            if (!Fdp.Core.FdpConfig.TickModeGate) return;
+            foreach (var systems in _systemsByPhase.Values)
+                foreach (var s in systems) RegisterStepReader(s, history);
+            if (extra != null)
+                foreach (var s in extra) RegisterStepReader(s, history);
+        }
+
+        private void RegisterStepReader(IEcsModuleSystem system, Fdp.Core.EventAccumulator history)
+        {
+            if (system is ISystemGroup group)
+            {
+                foreach (var member in group.GetSystems()) RegisterStepReader(member, history);
+                return;
+            }
+            if (!_tickPolicies.TryGetValue(system, out var policy))
+                _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());
+            if (policy != TickPolicy.WhenTimeAdvances) return;
+            if (_eventReaders.TryGetValue(system, out var have) && ReferenceEquals(have.History, history)) return;
+            _eventReaders[system] = new EventReader(history);
         }
 
         // CE-165 — every [SingleInstance] type seen so far, including those found inside registered groups.

@@ -108,6 +108,7 @@ namespace Fdp.ModuleHost
         private double _frameSimTime;
         private double _lastFrameSimTime = double.NegativeInfinity;
         private int    _timelineEpoch;     // + 1 whenever sim time goes back (a load, a preview Stop) or the clock snaps
+        private object? _stepReadersFor;         // ⭐ CE-3293 — the topology whose step-only systems' readers are registered
         private ITimeController? _epochClock;   // ⭐ CE-3293 — whose TimelineEpoch _clockEpochSeen is
         private long   _clockEpochSeen;
         
@@ -577,6 +578,18 @@ namespace Fdp.ModuleHost
 
                 // Signal the awaiting Install/Uninstall Task — the swap is complete.
                 pendingOp.SwapCompletion.TrySetResult();
+            }
+
+            // ⭐ CE-3293 S5 — every step-only system holds its step window from the timeline's start, registered before it first
+            //   runs (a new or swapped topology). The PreFrame/Input phases above ran on the previous topology's readers.
+            if (!ReferenceEquals(_stepReadersFor, topology))
+            {
+                _stepReadersFor = topology;
+                var direct = new List<IEcsModuleSystem>();
+                foreach (var entry in topology.Modules)
+                    if (entry.Module.Policy.Strategy == DataStrategy.Direct && entry.SimulationSystems != null)
+                        direct.AddRange(entry.SimulationSystems);
+                topology.Scheduler.RegisterStepReaders(_eventAccumulator, direct);
             }
 
             // ═══════════ PHASE: BeforeSync ═══════════
