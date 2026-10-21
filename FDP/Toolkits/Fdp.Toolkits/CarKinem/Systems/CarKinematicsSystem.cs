@@ -796,12 +796,6 @@ namespace CarKinem.Systems
                 // ⭐ CE-2304 — another storey is not a neighbour
                 if (!neighborEntity.IsNull && repo.HasComponent<SimTransform>(neighborEntity)
                     && MathF.Abs(repo.GetComponentRO<SimTransform>(neighborEntity).Position.Z - selfZ) > AvoidanceStoreyGapM) continue;
-                // ⭐ CE-2334 — a PERSON lying down (incapacitated or dead) is stepped over, not steered round: measured, one body 0.9 m
-                //   inside a doorway walled the doorway off for the men behind it. A vehicle (a hull) is still avoided, wreck or not.
-                if (!neighborEntity.IsNull && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
-                    && repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(neighborEntity)
-                    && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)
-                    && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, neighborEntity)) continue;
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)

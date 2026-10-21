@@ -322,59 +322,6 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
-        /// <summary>
-        /// ⭐ <c>CE-2334</c> — a PERSON lying down (dead, or incapacitated) is stepped over, not steered round; a standing man still is, and so
-        /// is a vehicle whatever its state. 📐 Measured on <c>bc-room-clear</c>: one body 0.9 m inside a doorway walled it off for every man
-        /// behind it. Judged against the same walk with nothing in the way. ✅ Red-proof: the skip removed ⇒ the walker swerves round the body.
-        /// </summary>
-        [Theory]
-        [InlineData(VehicleClass.Pedestrian, 0f, false)]     // a dead man: walked over
-        [InlineData(VehicleClass.Pedestrian, 100f, true)]    // a standing man: avoided
-        [InlineData(VehicleClass.PersonalCar, 0f, true)]     // a wreck: avoided
-        public void CE2334_ADownedPerson_IsSteppedOver_AStandingOneAndAWreckAreAvoided(VehicleClass blockerClass, float blockerHealth, bool avoided)
-        {
-            var clear = Walk(null, 0f);
-            var past = Walk(blockerClass, blockerHealth);
-            float off = Vector3.Distance(clear, past);
-            Assert.True((off > 0.02f) == avoided, $"{blockerClass} at health {blockerHealth}: walker ends at {past}, {off:F3} m from the clear walk's {clear}");
-        }
-
-        /// <summary>A walker following a path east at 1.5 m/s for 1.5 s; <paramref name="blocker"/> (when given) standing on the path 1.5 m
-        /// ahead.</summary>
-        private static Vector3 Walk(VehicleClass? blocker, float blockerHealth)
-        {
-            var (repo, walker, pool) = TrajectoryWorld(1.5f, 1.5f, vehicle: new VehicleParams
-            {
-                Class = VehicleClass.Pedestrian, WheelBase = 0.5f, MaxSpeedFwd = 2f, MaxAccel = 5f, MaxDecel = 5f, MaxSteerAngle = 1.5f,
-                MaxLatAccel = 6f, LookaheadTimeMin = 0.5f, LookaheadTimeMax = 1f, AccelGain = 2f, AvoidanceRadius = 0.4f,
-            });
-            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
-            repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();   // the avoidance hash holds colliders only
-            repo.AddComponent(walker, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-            repo.AddComponent(walker, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.3f, Height = 1.8f });
-            if (blocker is { } cls)
-            {
-                var b = repo.CreateEntity();
-                repo.AddComponent(b, new VehicleState { Speed = 0f });
-                repo.AddComponent(b, new SimTransform { Position = new Vector3(1.5f, 0.05f, 0f), Rotation = SimMath.FacingEast });
-                repo.AddComponent(b, new SimVelocity { Linear = Vector3.Zero });
-                repo.AddComponent(b, new NavState { Mode = KinematicsMode.None });
-                repo.AddComponent(b, new VehicleParams { Class = cls, AvoidanceRadius = 0.4f });
-                repo.AddComponent(b, new Fdp.Toolkit.Combat.Components.Health { Current = blockerHealth, Max = 100f });
-                repo.AddComponent(b, new Fdp.Toolkit.Physics.Components.PhysicsCollider
-                {
-                    Radius = cls == VehicleClass.Pedestrian ? 0.3f : 1.2f, Height = cls == VehicleClass.Pedestrian ? 1.8f : 1.5f,
-                });
-            }
-            var spatialSystem = new SpatialHashSystem();
-            var kinematicsSystem = new CarKinematicsSystem(pool);
-            for (int i = 0; i < 90; i++) { spatialSystem.Execute(repo, 1f / 60f); kinematicsSystem.Execute(repo, 1f / 60f); }
-            var at = repo.GetComponent<SimTransform>(walker).Position;
-            pool.Dispose();
-            repo.Dispose();
-            return at;
-        }
-
         [Fact]
         public void System_FollowsTrajectory()
         {
