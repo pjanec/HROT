@@ -50,10 +50,43 @@ stepped every other frame; fixed in `0adef0cb6`, design §8.2). ⭐ **`tickHz` o
 panels, is the cost — ⚠ D-7's "~0.8 s per frame, mostly the panels" was a capture-mode figure. R-106: B3's "within 5 % on a desktop"
 is not measurable from the cloud — reported, not claimed.
 
+### Gate 4 — the integration rows
+
+**① live** — `POST /director/play {reel: "director-check"}` in the editor: 3 takes from 3 scenarios, unattended, every take `ok`
+(gate 5 below). **② capture on the cloud VM** — the same reel, `capture {dir, fps 15, size 640x360}`: ⭐ **ONE movie**, 30.4 s
+(390 film frames + three 1.5 s title cards), H.264 + AAC, **three chapters** (Doors · Onlookers · Down the rope), a sound track
+(mean −42 dB, peak −11 dB), captions burned in; every take ×1 steps, one per frame at the kernel, 0 waits; 243 s wall.
+![four frames of the captured movie: a title card, then a captioned frame of each scenario](../../assets/film-director/director-check-capture.png)
+
+**③ the scout table of the 55 seeded takes** — `scripts/director-check.py scout-all --headless` (nothing baked), 1894 s:
+⭐ **40 found · 14 missing a beat · 1 name not found.** The 15 that are not `found` (the 40 are in `/tmp/director-scout.json` of that run;
+re-run the script for the current answer):
+
+| take | verdict | missing | what was seen / the problem |
+|---|---|---|---|
+| `Recipes/demo-city/main` | missing beat | burst | — |
+| `bt-mortar-roof/main` | missing beat | tube, blast | — |
+| `pc-defend-house/main` | missing beat | set, clear | seen: lift 11.167 |
+| `ua-air-attack/door-gun` | name not found | — | anchor 'gunner': no unit's name contains 'Door Gunner' |
+| `ua-armed-celebration/main` | missing beat | volley, fire | — |
+| `ua-armed-gas-throwback/main` | missing beat | pick | seen: throw 4.217 |
+| `ua-casualty-care/main` | missing beat | down, medic | — |
+| `ua-civ-contagion/main` | missing beat | far | seen: fire 1.183 |
+| `ua-civ-escalation/main` | missing beat | warn | seen: lethal 1.05 |
+| `ua-civ-provocation/main` | missing beat | arrive, charge | seen: riot 57.15 |
+| `ua-civ-shelter/main` | missing beat | door | seen: fire 1.183 |
+| `ua-danger-crossing/main` | missing beat | hold, rush | — |
+| `ua-hill-attack/main` | missing beat | first | — |
+| `ua-indirect-fire/main` | missing beat | b1, ffe | — |
+| `ua-weather-regions/main` | missing beat | fog, cloud | — |
+
+⚠ **Not triaged here** — each is either the scenario not doing the beat in a stepped preview, or the anchor naming it in a way the
+scout does not match (e.g. a `task` named differently from the registry's name). Filed as `CE-1241` for the take authors.
+
 GATES-PLACEHOLDER
 
 ## Ids allocated (ui block)
 
-`CE-1239` (an OGG clip is missing from a film's sound track) · `CE-1240` (re-scout the takes and turn B0′ into a gate after CE-3293
+`CE-1239` (an OGG clip is missing from a film's sound track) · `CE-1241` (15 seeded takes the scout does not complete) · `CE-1240` (re-scout the takes and turn B0′ into a gate after CE-3293
 S5). No ruling ids. Design sections updated to the as-built: Film Director §8 (new) + its STATUS · Map 3D Mode §6ab-i · FPS Audio §8.2 ·
 Terrain Combat Tuning §5e.2 · RUNBOOK_Filming §0a · PLAN_Feature_Films §3.
