@@ -4223,6 +4223,37 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2261</c> BC-5 (CB-72, as built) — a hostile the squad still holds in the room, no longer seen: the entry stays held while
+        /// the pie is sliced (📐 bc-house-defended: the "quiet" came while he waited down the doorway's axis), and no longer — then 3 s quiet
+        /// and #1 goes (📐 bc-room-clear: held for as long as he was known, the stack waited at the door for ever). ✅ Red-proofs: the known
+        /// hostile ignored ⇒ released 3 s after he was last seen; held while known ⇒ never released.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_AKnownHostile_HoldsTheEntryWhileThePieIsSliced_NotForEver()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+
+            var enemy = s.PoolMany(1, new Vector3(3f, 18f, 0f))[0];   // seen once, then only known: the pool keeps him, nobody sees him again
+            s.Repo.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
+            TickFor(s, 0.2);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "contact: #1 pies");
+            for (uint t = 0; t <= RoomSuspicion.SeenTicks; t++) s.Repo.Tick();   // the frame clock moves on: no longer "seen now", still held
+            double sliced = RoomDrill.PieSlices * RoomDrill.PieStepSeconds;
+            TickFor(s, sliced - 1.0);   // long past "3 s after he was last seen"
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "known, the pie not sliced yet: still held");
+            TickFor(s, 1.0 + RoomDrill.QuietSeconds + 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "sliced, then quiet: #1 goes although he is still known");
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2261</c> BC-5 (CB-73, §6a) — #1 is shot down before anybody is through: the stack is placed again over the live men — the
         /// next man takes #1's place and goes; nobody stands waiting in the doorway for the dead man. ✅ Red-proof: no re-stack ⇒ the dead #1 is
         /// still the one the flow waits on, and #2 never goes.

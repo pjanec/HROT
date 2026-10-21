@@ -262,6 +262,12 @@ namespace Hrot.AI.Behaviors.Brains
         private static int PieStep(ref RoomDrillState d, double now)
             => Math.Min(8, (int)((now - d.ContactSince) / PieStepSeconds));
 
+        /// <summary>The slices it takes the first man's pie point to reach the doorway's line (60° → 10° in 15° steps: 4, 8 s).</summary>
+        public static readonly int PieSlices = (int)MathF.Ceiling((PieAngle0 - PieMinAngle0) / PieStepDegrees);
+
+        /// <summary>⭐ CB-72 (as built) — the pie is sliced: both pie points have stepped to the doorway's line.</summary>
+        private static bool PieSliced(ref RoomDrillState d, double now) => PieStep(ref d, now) >= PieSlices;
+
         /// <summary>
         /// ⭐ The gate (CB-69, CB-72): true once the entry may flow. While no entry man has crossed, contact at the way in (a hostile SEEN in
         /// the room, or a man of the stack fired on) holds it — the released go back, the first two pie; 3 s quiet releases it. Then the
@@ -274,10 +280,11 @@ namespace Hrot.AI.Behaviors.Brains
             var know = Knowledge(ref d, in ctx);
             bool firedOn = FiredOnAtTheWayIn(ref d, in ctx);
             if (firedOn) d.FiredOn = 1;
-            // ⭐ CB-72 (as built) — once in contact, it lasts while a hostile the squad still holds in the room is alive: 📐 live
-            //   (bc-house-defended), a defender down the hallway's axis was unseen from behind the wall, the 3 s "quiet" came, the next
-            //   man went in and was shot
-            if (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown))
+            // ⭐ CB-72 (as built) — once in contact, a hostile the squad still holds in the room (alive, seen lately or not) keeps it
+            //   until the pie is sliced: 📐 live (bc-house-defended), a defender down the hallway's axis was unseen from behind the wall,
+            //   the 3 s "quiet" came, the next man went in and was shot. ⛔ Not for as long as he is known: 📐 live (bc-room-clear), the
+            //   pie men were shot, nobody else could see in, and the stack waited at the door for ever
+            if (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown && !PieSliced(ref d, ctx.Now)))
             {
                 if (d.Contact == 0 || d.GateOpen != 0)
                 {
