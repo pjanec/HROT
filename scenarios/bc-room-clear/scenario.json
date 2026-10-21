@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "BC-1 (CE-2257): a six-man squad (Veteran) clears room A of the CQB test house on bt-range through its north side door: it stacks beside the door out of the window's view, breaches, and the entry team crosses the threshold one man at a time to its points of domination. Two Militia insurgents hold the room's far corners; the house's other doors are locked. Ends with both insurgents down and a RoomClear report."
  },
  "entities": {
   "bc000001-0000-4000-8000-000000000001": {

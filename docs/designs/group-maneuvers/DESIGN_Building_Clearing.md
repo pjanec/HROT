@@ -614,6 +614,7 @@ Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `Request
 | a friend within the grenade's lethal radius of the aim point | no grenade |
 | a door that cannot be opened or breached | the room Blocked, skipped, `RoomBlocked` report; the platoon decides (explosive breach later) |
 | the report sender is down | nothing goes up until succession; the platoon sees the silence as the squad's status age |
+| ⚠ **a civilian panicked INSIDE the house** *(measured 2026-10-20, `CE-2337` — NOT yet designed)* | today CE-2236's `Inside` (R-4035) hides him for a random time and then DELETES him — right for a street crowd, wrong for an occupant the squad must find and hold. ⭐ Lean for BC-2: an occupant's Inside cowers and stays |
 
 ## 7. Slices *(owners; behaviors ids `CE-2257`…`CE-2261`, `CE-2262`…`CE-2264`)*
 

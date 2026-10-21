@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "BC-3 (CE-2259): a six-man squad (Veteran) clears the CQB test house on bt-range room by room from its front door: hallway first (the foothold), then each room reachable from a cleared one, the fire teams taking turns. Two Militia insurgents hold room A and the closet E (reached only through D); two civilians stand in B and C. Ends with every room cleared once and a BuildingClear report."
  },
  "entities": {
   "bc000002-0000-4000-8000-000000000001": {
