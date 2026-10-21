@@ -40,17 +40,16 @@ public static class HeldWeapons
     {
         if (mount == null) return HeldLook.Rifle;
         if (mount.Appearance?.Look == ItemLook.Pistol) return HeldLook.Pistol;
+        if (MunitionTkbCatalog.IsMortar(tkb, mount)) return HeldLook.Mortar;   // ⭐ CE-1238 — the one rule the brain reads too
         var shape = MunitionTkbCatalog.VisualOf(tkb, unchecked((long)mount.AmmoGuid))?.Shape;
         switch (mount.Category)
         {
             case WeaponCategory.Sam: return HeldLook.Manpads;
             case WeaponCategory.Atgm: return shape == MunitionShape.Rocket ? HeldLook.Rpg : HeldLook.MissileTube;
             case WeaponCategory.MachineGun: return HeldLook.MachineGun;
-            case WeaponCategory.Mortar: return HeldLook.Mortar;
         }
         if (shape == MunitionShape.Rocket) return HeldLook.Rpg;            // the insurgent's RPG names no category (its round says it)
         if (shape == MunitionShape.Missile) return HeldLook.MissileTube;
-        if (shape == MunitionShape.Bomb) return HeldLook.Mortar;           // the MortarTeam's 81 mm names none either
         if (mount.ScopeMagnification > 1f) return HeldLook.ScopedRifle;
         return HeldLook.Rifle;
     }

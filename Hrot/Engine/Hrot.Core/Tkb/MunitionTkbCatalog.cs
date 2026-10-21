@@ -480,6 +480,16 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6035), whether or not it has a look: a round, never a body.</summary>
         public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbChaff;
 
+        /// <summary>
+        /// ⭐ CE-1238 (People Display U7a, R-1023) — is <paramref name="mount"/> a MORTAR: its category says so, or it names none and fires a
+        /// bomb (the MortarTeam 2005's 81 mm — an aircraft bomb mount is category <c>Bomb</c>). The ONE rule the 3-D figure (what he holds)
+        /// and the brain (he crouches beside it to fire) both read.
+        /// </summary>
+        public static bool IsMortar(ITkbDatabase? tkb, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount)
+            => mount != null && (mount.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar
+                                 || mount.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown
+                                    && VisualOf(tkb, unchecked((long)mount.AmmoGuid))?.Shape == MunitionShape.Bomb);
+
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>
         public static MunitionVisualDto? VisualOf(ITkbDatabase? tkb, long ammo)

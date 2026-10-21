@@ -12,8 +12,8 @@
   "2a97000b-0000-4000-8000-00000000000b": {
    "SimTransform": {
     "Position": [
-     105,
-     20,
+     104.6,
+     -145.4,
      0
     ],
     "Rotation": [
@@ -31,7 +31,7 @@
     "Value": 7411
    },
    "TkbIdentity": {
-    "TkbType": 2005
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Mortar Roof",
@@ -42,20 +42,24 @@
    },
    "Behavior": {
     "Name": "FireAtPoint",
-    "Params": "{\"x\":105,\"y\":104,\"z\":6,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Params": "{\"x\":105,\"y\":104,\"z\":6,\"mount\":32,\"rounds\":1,\"cooldownSeconds\":5}",
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
     "Params": "{}",
     "Origin": "Superior"
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "2a970010-0000-4000-8000-000000000010",
+    "Seat": 0
    }
   },
   "2a97000c-0000-4000-8000-00000000000c": {
    "SimTransform": {
     "Position": [
-     95,
-     20,
+     94.6,
+     -157.4,
      0
     ],
     "Rotation": [
@@ -73,7 +77,7 @@
     "Value": 7412
    },
    "TkbIdentity": {
-    "TkbType": 2005
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Mortar Yard",
@@ -84,13 +88,17 @@
    },
    "Behavior": {
     "Name": "FireAtPoint",
-    "Params": "{\"x\":95,\"y\":92,\"z\":0,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Params": "{\"x\":95,\"y\":92,\"z\":0,\"mount\":32,\"rounds\":1,\"cooldownSeconds\":5}",
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
     "Params": "{}",
     "Origin": "Superior"
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "2a970011-0000-4000-8000-000000000011",
+    "Seat": 0
    }
   },
   "2a97000d-0000-4000-8000-00000000000d": {
@@ -217,6 +225,76 @@
     "Name": "InertSop",
     "Params": "{}",
     "Origin": "Superior"
+   }
+  },
+  "2a970010-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     105,
+     -146,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7416
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "81mm Tube Roof",
+    "ForceId": "Friend"
+   },
+   "PassengerBuffer": {
+    "Count": 1,
+    "Passengers": [
+     "2a97000b-0000-4000-8000-00000000000b"
+    ]
+   }
+  },
+  "2a970011-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     95,
+     -158,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7417
+   },
+   "TkbIdentity": {
+    "TkbType": 610
+   },
+   "EntityInfo": {
+    "Name": "81mm Tube Yard",
+    "ForceId": "Friend"
+   },
+   "PassengerBuffer": {
+    "Count": 1,
+    "Passengers": [
+     "2a97000c-0000-4000-8000-00000000000c"
+    ]
    }
   }
  }
