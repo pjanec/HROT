@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
-updated: 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
-current-answer: §1 the rules · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
+build-state: DESIGN (back from READY-TO-BUILD 2026-10-21: the critical review, §10, found gaps to close before S1)
+updated: 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+current-answer: §10 the open findings FIRST (they amend what follows) · §1 the rules · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -137,7 +137,7 @@ graph TD
   class X1,X2,X3,X4 bypass
 ```
 
-*What the picture shows that prose hid:* **seven call sites never reach `ExecuteSystem` today** (red; file:line in
+*What the picture shows that prose hid:* **at least seven call sites never reach `ExecuteSystem` today** (⚠ §10 F3 measured 13+) (red; file:line in
 Appendix B). A gate placed only in the scheduler would not see them — `BulletReverseSyncSystem` (drag while paused) and
 `DeferredTakeoverSystem` (ownership, reachable only through `NetworkLifecycleSystemGroup`) among them.
 
@@ -303,7 +303,7 @@ events to the same step.
 ② an entity deleted while paused gets its `DestructionOrder` cleanup in `WeaponDispatcherSystem`, `AnimationDispatcherSystem`
 and `PhysicsBodyLifecycleSystem` at the next step (no body leak) ·
 ③ a background module held over 120 paused frames still sees every event (today: the 60-frame trim) ·
-④ the three-reload probe of §17 at 15 Hz HTTP-stepped: identical including `RecentSenses.NearMiss` / `UnderFire.LastTime`, and
+④ *(narrowed by §10 F1)* the three-reload probe of §17 at 15 Hz HTTP-stepped: identical including `RecentSenses.NearMiss` / `UnderFire.LastTime`, and
 paced vs HTTP stepping agree ·
 ⑤ **zero allocation** (S4, red today): after a warm-up, `GC.GetAllocatedBytesForCurrentThread()` across 1 000 frames of capture +
 `ReadSince` over a 30-frame window + a flush to a replica, native and managed-struct events in every frame, is **0** — the
@@ -319,6 +319,27 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | the three half-and-half systems of §1b — split, or leave their paused duty undone until the next step? | **split** — each paused duty becomes its own small `EveryFrame` system; the sim work stays `WhenTimeAdvances`. ⛔ Not a third mode: a mode that means "partly" brings back the per-system `dt` checks |
 | `HierarchyOrderSystem` has no production registration | **`EveryFrame`** (map ordering, UI) — marked so the rule holds when it is registered |
 | frame-counted service timeouts in `EveryFrame` systems (`NetworkGatewaySystem`, `DeferredConstructionParticipant`, `LifecycleSystem`, `MissionControlExecutionSystem`) and `GhostPromotionSystem`'s 2 ms budget | **keep** — service plumbing, not simulation; they already must move while paused |
+
+## 10. ⛔⛔ CRITICAL REVIEW `2026-10-21` — **gaps and flaws, each measured; close them before S1**
+
+📐 The measurements behind this section are grep and code reads made the same day. Each row gives its evidence.
+
+| # | finding | evidence | fix (lean) |
+|---|---|---|---|
+| **F1** | ⛔⛔ **Paced and HTTP stepping are NOT equivalent.** An `EveryFrame` system that reacts to an event a step-only system published at step N runs on frame N+1. In paced stepping that frame is the next step, where step-only systems in earlier phases (or earlier in its own phase) have already read the old state. In HTTP stepping all of the next step sees the new state. ⇒ §1's *"the number of paused frames changes nothing"* holds for 1 vs many, ⛔ not for 0 vs ≥ 1. Acceptance ④'s *"paced vs HTTP agree"* over-claims. | `VehicleCommandSystem` (STEP) publishes `CmdAssignSubordinate`, which `UnitHierarchySystem` (EVERY lean) applies on the next frame | **Lean:** determinism is promised **within one stepping cadence** (what §17 already says), and ④ drops "paced vs HTTP". ⭐ R-4064 makes films cut on events of the run shown, so no consumer needs the two cadences to match. If one ever does: the master never runs two steps on consecutive frames, which halves the top paced rate. |
+| **F2** | ⛔⛔ **Producer/consumer mode mismatch: a loaded scenario shows no AI while paused.** `InitialBrainMaterializationSystem` (EVERY) publishes `SetRoeEvent`, `AssignSopEvent` and `AssignBehaviorEvent` at load. Their appliers `RoeSystem` and `BehaviorIngressSystem` are STEP ⇒ the step window delivers them only at the first step. ⇒ Appendix A was classified one system at a time and never checked along the event chains. | `InitialBrainMaterializationSystem.cs:36-43` (and the reader's own note: *"must run alongside the system that applies those events"*) | **Lean:** every **command-intake** system (it applies an event once and has no time-scaled work) is `EveryFrame`: `BehaviorIngressSystem`, `RoeSystem`, `ReportingRequirementsSystem`, `BlueprintEventIngressSystem`. ⭐ Plus a **producer→consumer rail**: for every event type, an EVERY publisher with a STEP consumer must be on a reviewed allow-list. |
+| **F3** | ⛔ **The bypass inventory is incomplete: 7 claimed, at least 13 measured.** Added: `IgApplication.cs:1948` (`GlobalGizmoManager` called directly); `StridePhysicsBracket.cs:199, 205, 219` (outside the kernel, with its own `simRunning` gate); `StrideViewBracket.cs:118` (`AnimationRuntimeBridgeSystem` on WALL `dt`); `CgfThreatEvaluationSystem.cs:27` (a system calling a system); the toggle groups' own `Execute` (`TogglableInputGroup.cs:71`, `TogglableSimulationGroup.cs:70`, `TogglablePostSimulationGroup.cs:83`). | grep for `.Execute(view-like, dt)`. ⚠ a regex: Roslyn `find_references` on `IEcsModuleSystem.Execute` is the exhaustive check, and interface dispatch under-reports | Inventory by Roslyn before S2. ⭐ The Stride brackets ask the kernel for the frame's advancing flag instead of keeping their own `simRunning`: one gate, not two |
+| **F4** | ⛔ **The direct world-bus reads are undercounted.** 43 counted `X.Bus.Read` only. In fact 93 production files read through a bus receiver, 8 alias the world bus into a local, and executors, runners and BTree nodes called *from* a system read it too. Also unaddressed: `HasEvent<T>` (3 files), `HasManagedEvent<T>` (2) and `ReadRawByTypeId` (3) bypass the window too. | grep, whole tree: receivers `bus` 333×, `_bus` 100×, `eventBus` 39×; 93 is production files only | S3 starts from Roslyn `find_references` on every `FdpEventBus` read member, not grep. ⭐ The rail bans world-bus reads **outside the framework**, not only in classes that are systems. `HasEvent`/`HasManagedEvent` answer from the window too |
+| **F5** | ⚠ **Rule 5 covers only the live world.** A module with a snapshot view (`FastReplica`, a GDB or SoD strategy) acquires a fresh view every frame it is dispatched. A step-only system inside it would get only the step frame's events: the paused frames were flushed into views it never read. | `ExecutionPolicy.cs:66-74`; production has none today (all 40 production modules are `Synchronous` or `SlowBackground`), tests and examples use it | **Rule:** a module with a snapshot view has ONE mode for all its systems, which is the module's. A `WhenTimeAdvances` snapshot module is not dispatched on a paused frame, so its next flush covers the pause |
+| **F6** | ⚠ **"Since the previous step" is the wrong unit; "since this system's last run" is the right one.** `ISimulationView.ReadEvents`' own contract is *"since module's last run"*. A main-thread module running below 60 Hz (`FrameSynced(targetHz)`) misses the events of the frames it skips, in LIVE play, today. | `ISimulationView.cs:53-57`; `ExecutionPolicy.FrameSynced(targetHz)` exists (1 use in the tree) | **Lean:** the window is **since this system's last run**. At 60 Hz it equals "since the last step"; it also fixes reduced-rate modules in live play. The zero-copy fast path still holds when the last run was the previous frame |
+| **F7** | ⚠ **Rule 7's trigger is inferred.** "The clock went back" misses a load at the same sim time (both 0), and an operator click from before the load would then reach the new world's first step. | Time Architecture §12a: *"`SnapAndPause` is the ONE time discontinuity"* | Restart the window and the history on **`SnapAndPause`**, the explicit discontinuity, not on a comparison of clocks |
+| **F8** | ⚠ **"Kept until its last reader" never ends for a reader that stops reading**: a module tripped by the circuit breaker, disabled or uninstalled ⇒ history runs to the cap and overflows every frame. | `ExecutionPolicy` `FailureThreshold` / `CircuitResetTimeoutMs` | A reader **expires** after it has not read for the cap's length (counted, logged); a module that is removed unregisters |
+| **F9** | ⚠ **A long pause does not fit a per-frame ring.** 10 minutes of paused editing at 60 fps is 36 000 frames. | ⛔ **not measured:** what the world bus carries per paused frame | An empty frame takes no slot. ⭐ **While paused, consecutive frames merge into one slot**: step readers do not need frame granularity, and a held background module reads all of it anyway. ⚠ Measure the paused-frame event volume (a 60 s paused editor session, per type) before sizing the cap |
+| **F10** | ⚠ **"Registration throws" does not reach every system.** Group members never pass `RegisterSystem` (`ExecuteGroup` adds them lazily, `SystemScheduler.cs:188-196`), nor do directly executed systems (F3). And `[TickMode]` on `DispatcherSystemBase<TChannel>` would be **inherited**, which is a default by the back door. | `SystemScheduler.cs:30-46, 188-196` | Also check on the first `ExecuteSystem` of a type (cached), plus the reflection rail over loaded assemblies. `AttributeUsage(Inherited = false)` |
+| **F11** | ⚠ **Background modules are held only in STEPPED mode** (CE-3292). A `dt = 0` frame in continuous play (time scale 0) still dispatches them. | `ModuleHostKernel.cs:600-603` | Rule 2 gates async dispatch on `dt > 0` in every mode |
+| **F12** | ⚠ **S5 is a big bang**: 118 systems change behaviour at once, 8 test files drive the kernel with `dt = 0`, and there is no way back short of a revert. | grep: 8 test files call `Update(0)` | An `FdpConfig` switch for the gate (on by default) so a red can be bisected, and S5's test fallout counted before it lands |
+| **F13** | ⚠ **Appendix A is the four readers' verdicts**, spot-checked only in part. F2 shows they can contradict along a chain. | F2 | The F2 producer→consumer rail is the durable check. ⭐ Re-run the classification over the chains before S1 |
+| **F14** | ⚠ **Replay is not expressed.** `TickMode` says nothing about what runs while a recording plays; `mgmt-1` §8.10 owns that and gates systems in place. Is a replayed frame "advancing"? | `docs/designs/mgmt-1/DESIGN.md` §8.10 (current-answer) | **Lean:** orthogonal. The §8.10 gates stay; a replayed frame is advancing (its `dt` > 0). Write the interplay into both documents |
 
 ## 9. Related, not built here — **one way to mark an event** (R-3037)
 
