@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-10-21: every §10 finding resolved by measurement, R-3038 or the user's approval of its lean)
+build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate)
 updated: 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
@@ -370,6 +370,19 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | rule 7 | `ITimeController.TimelineEpoch` (default 0); `MasterSyncController.SnapAndPause` bumps it. The kernel restarts the history on a changed epoch OR on sim time going back (the backstop — a slave sees only the master's snapped time), and does so at the TOP of the frame, before the capture, so a load's own events are kept |
 | ⑤ zero allocation | ✅ `EventHistoryTests.Capture_WindowRead_AndFlush_AllocateNothing_InSteadyState` — 1 000 frames, 3 native + 2 managed-struct events each, a 30-frame window, a flush every 10: **0 bytes**. 🔴 Red before: the same measurement on the S3 accumulator **1 289 600 bytes**. ⚠ Found on the way: `ManagedEventStream.Write`'s `evt is null` boxed every managed STRUCT in unoptimised code (32 bytes a publish) |
 
+## 7e. ⭐ AS-BUILT — S5 (`2026-10-21`) — **the gate is ON**
+
+| | as built |
+|---|---|
+| the switch | `FdpConfig.TickModeGate` (default **true**). ⚠ Off is not byte-for-byte the old behaviour: the eight hand gates are gone |
+| the gate | `SystemScheduler.ExecuteSystem(system, view, dt, advancing, moduleGoverns)`: a `WhenTimeAdvances` system is not called when `advancing` is false (`dt > 0` for every kernel phase and every manual wrapper; the host's flag through `Run(…, advancing)`). On the LIVE world it runs inside its step window: a reader registered on first sight at the current frame, `OpenStepWindow` / `CloseStepWindow` around the call, `MarkRead` after it (also on a throw). Groups pass the flags to their members. `Stopwatch.StartNew()` per system per frame replaced by `GetTimestamp` (no object) |
+| modules (rule 2, §10 F5/F11) | a `WhenTimeAdvances` module on a SNAPSHOT is not dispatched on a frame that does not advance, in every mode (time scale 0 included) — ⇒ its next flush carries the pause; its systems then run under the module's mode (`moduleGoverns`). A DIRECT (live) module keeps running its simulation systems, each under its own mode; only its `Tick` follows the module's. A held frame is not counted as a frame since its last run |
+| hosts | the Stride bracket passes `simRunning` as "advances" for all three of its runs; its hand gate on vehicle navigation is gone. The replay browser's runs gate on the delta its Update is handed (its step-only effect systems stand down in replay anyway — rule 10) |
+| the 8 hand gates (rule 8) | gone from `BallisticsSystem`, `BehaviorFrameSystem`, `BlueprintTickSystem`, `BrainTickSystem`, `DroneImpactSystem`, `GuidedRoundSystem`, `NavigationExecutionSystem`, `ResumeAndDrainSystem` |
+| the splits (§1b, §8 approved) | `GroundClampWhilePausedSystem` (EVERY): a drag lands on the surface — the movement model's bodies and clamping flag, shared (`CarKinematicsSystem.MovedBodies`/`IsClamped`) · `AirRouteCompileSystem` (EVERY): a route edited while paused is compiled at once — the motion system's own `EnsurePath` (`AirMotionSystem.CompilePaths`), one implementation. Both act only on a frame that does not advance (on a step the half they split from does it). ⚠ deviation: **`UnitCentroidSystem` is re-marked EVERY instead of split** — its whole work is the paused duty, it reads no event and keeps no state, so a paused frame computes exactly what the next step would; a split would have an empty step half |
+| the test fallout | 6 of ~12 000 in the suites run *(ModuleHost, Core, ClusterRunner, Common, SimHost, IG, Editor, ReplayBrowser, Toolkits, Breakpoints, Blueprints, Presentation, NodeComposition)*: 4 called a step-only system DIRECTLY with `dt = 0` and relied on its hand gate — now through `SystemScheduler.Run` (`ResumeAndDrainSystemTests` ×2, `TheBehaviorFramePulseTests`, and `BlueprintTestFixture.TickFrame` for `AssetTickCounterTests`) · `Continuous_TheCadenceStaysFrameCounted` asserted a step-only background module RUNS at time scale 0 — the approved F11 says it must not: split into an advancing-cadence test and `Continuous_AtTimeScaleZero_AStepOnlyBackgroundModuleIsHeld` · `GroundKinematicsModule_RegistersAllKinematicSystems` counts the new split |
+| acceptance | ① ② `PausedAndSteppedExecutionTests.AStepOnlySystem_ReadsEverythingSinceItsLastRun_AtTheNextStep_Once` (1, 7, 120 paused frames: an event published at the step and one during the pause reach the step-only system once, in order, at the next step; it is never called paused; the every-frame system reads each once) — ⚠ generic, not through `BrainTickSystem`/the dispatchers: the mechanism is the same for every step-only reader · `AStepOnlySystem_SeesTheSameStepsWhateverThePausedFrames` (0, 1, 5 paused frames between steps) · `ASnap_ForgetsTheEventsBeforeIt` (rule 7) · ③ `ABackgroundModule_HeldOverALongPause_GetsEveryEvent` (120 paused frames, an event each, `Overflow` 0) · ④ see below · ⑤ S4 |
+
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
 | question | lean |
@@ -420,6 +433,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 |---|---|---|---|---|
 | ActiveSensorTracksUpdateSystem | Simulation | STEP ⚠ | brain track memory fed by DDS events | ActiveSensorTracksUpdateSystem.cs:35-50 |
 | AirMotionSystem | PostSimulation | STEP | moves air bodies | AirMotionSystem.cs:32,48 |
+| AirRouteCompileSystem *(S5 split)* | PostSimulation | EVERY (edit) | AirMotion's paused half: a route edited while paused is compiled at once | AirMotionSystem.cs |
 | AnimationBackendCleanupSystem | PostSimulation | EVERY edit | a delete while paused must free the backend slot | AnimationBackendCleanupSystem.cs:43-56; StrideAnimationBackend.cs:178 |
 | AnimationCapabilityChangeReactorSystem | Input | STEP | capability edges — same mode as CognitiveInterrupt/Cleanup | AnimationCapabilityChangeReactorSystem.cs:29,56 |
 | AnimationDispatcherSystem | Simulation | STEP ⚠ | montage executors; DestructionOrder teardown | AnimationDispatcherSystem.cs:62-75 |
@@ -441,6 +455,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 | BulletReverseSyncSystem | PostSimulation | EVERY edit | drag/reposition while paused (bypass, §2) | StridePhysicsBracket.cs:177,196,219 |
 | CanvasMenuUpdateSystem | PostSimulation | EVERY ui | the right-click menu; the cluster boots paused | CanvasMenuUpdateSystem.cs:37,52 |
 | CarKinematicsSystem | PostSimulation | STEP | vehicle motion | CarKinematicsSystem.cs:107 |
+| GroundClampWhilePausedSystem *(S5 split)* | PostSimulation | EVERY (edit) | CarKinematics' paused half: a drag lands on the surface | GroundClampWhilePausedSystem.cs |
 | CarryStationSystem | Simulation | STEP ⚠ | RestationEvent from brain behaviours | CarryStations.cs:126-128 |
 | CenterOnEntitySystem | PostSimulation | EVERY ui | camera "center on" while paused | CenterOnEntitySystem.cs:64-72 |
 | CgfThreatEvaluationSystem | Simulation | STEP | threat decay/boost by dt | CgfThreatEvaluationSystem.cs:27 |
@@ -607,7 +622,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 | TrafficPanicSystem | Input | STEP ⚠ | shots frighten pedestrians | TrafficPanic.cs:86,90 |
 | TrafficShadowFollowSystem | Simulation | STEP | body follows its shadow | TrafficShadowFollowSystem.cs:37-91 |
 | UnderFireMoveSystem | Simulation | STEP | under-fire reflex | UnderFireMoveSystem.cs:335-345 |
-| UnitCentroidSystem | Simulation | STEP | commander at the centroid | UnitCentroidSystem.cs:20-45 |
+| UnitCentroidSystem | Simulation | EVERY (edit) *(S5: was STEP — its whole work is the paused duty, no events, no state)* | commander at the centroid | UnitCentroidSystem.cs:20-45 |
 | UnitHierarchySystem | Simulation | EVERY edit (lean, §8) | ORBAT assigns while paused + sim assigns on steps | ScenarioOrbatAdapter.cs:213; UnitHierarchySystem.cs:54-147 |
 | UpdateEntityAttributeRequestSystem | Input | EVERY edit | attribute patches | UpdateEntityAttributeRequestSystem.cs:200 |
 | UpdateEntityDescriptorRequestSystem | Input | EVERY edit | position/overlay requests | UpdateEntityDescriptorRequestSystem.cs:91 |
@@ -621,7 +636,7 @@ Paths abbreviated; each resolves under `FDP/` `Hrot/` or `Stride/`.
 | WorldSurveyApplySystem | Simulation | STEP ⚠ | survey answers | WorldSurveyApplySystem.cs:33 |
 | WreckSpawnSystem | PostSimulation | STEP | flames at the health crossing | EffectSystems.cs:359-385 |
 
-**Totals:** STEP 115 · EVERY 83 (edit 30 · net 24 · ui 26 · rec 3; 4 of them leans, §8; 2 moved by §10 F2, 1 corrected in S2) · GROUP 4 = **202**. Plus `DispatcherSystemBase<TChannel>`
+**Totals:** STEP 114 · EVERY 86 (edit 33 · net 24 · ui 26 · rec 3; S5: 2 split systems added, `UnitCentroidSystem` moved; 4 of them leans, §8; 2 moved by §10 F2, 1 corrected in S2) · GROUP 4 = **204**. Plus `DispatcherSystemBase<TChannel>`
 (abstract; its subclasses are marked) and 48 test/example systems (S1 marks them too). ⚠ Same-mode sets: the three
 capability-interrupt systems · `PersonalRouteAuthoringSystem` + `RouteTrajectorySyncSystem` · the four terrain-query systems.
 

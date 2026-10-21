@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Combat.Systems
     {
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (deltaTime <= 0f) return;
+            // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(

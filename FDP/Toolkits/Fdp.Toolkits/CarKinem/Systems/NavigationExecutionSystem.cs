@@ -81,8 +81,8 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            // Prevent frustration accumulation during paused/frozen frames
-            if (deltaTime <= 0f) return;
+            // No frustration accumulates on a paused/frozen frame: the system is not called on one.
+            // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(

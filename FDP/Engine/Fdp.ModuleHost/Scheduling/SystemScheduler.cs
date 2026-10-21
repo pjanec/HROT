@@ -24,6 +24,15 @@ namespace Fdp.ModuleHost.Scheduling
         // ⭐ CE-3293 (R-3036) — every system's declared TickPolicy, read once: at registration, or on its first ExecuteSystem
         //   (a group member or a manual system never passes RegisterSystem). An undeclared system throws there, by name.
         private readonly ConcurrentDictionary<IEcsModuleSystem, TickPolicy> _tickPolicies = new();
+        // ⭐⭐ CE-3293 S5 (R-3036 rule 5) — each step-only system's reader in the live world's event history (its step window)
+        private readonly ConcurrentDictionary<IEcsModuleSystem, EventReader> _eventReaders = new();
+
+        private sealed class EventReader
+        {
+            public readonly Fdp.Core.EventAccumulator History;
+            public readonly int Id;
+            public EventReader(Fdp.Core.EventAccumulator history) { History = history; Id = history.RegisterReaderAtCurrentFrame(); }
+        }
 
         // CE-165 — every [SingleInstance] type seen so far, including those found inside registered groups.
         private readonly HashSet<Type> _singleInstanceTypes = new();
@@ -154,37 +163,57 @@ namespace Fdp.ModuleHost.Scheduling
         }
         
         internal void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime)
+            => ExecuteSystem(system, view, deltaTime, advancing: deltaTime > 0f, moduleGoverns: false);
+
+        /// <summary>
+        /// ⭐⭐ THE GATE (CE-3293, R-3036 rules 2 and 5). A <see cref="TickPolicy.WhenTimeAdvances"/> system is not called on a frame
+        /// that does not <paramref name="advancing">advance</paramref>; on one that does, it runs inside its STEP WINDOW when its view
+        /// is the live world: every event read during the run is every event since its own last run. An
+        /// <see cref="TickPolicy.EveryFrame"/> system is always called and reads the frame. <paramref name="moduleGoverns"/>: the
+        /// system runs on a background module's snapshot, which has ONE mode — the module's, already applied at its dispatch (§10 F5).
+        /// Off with <c>FdpConfig.TickModeGate</c>.
+        /// </summary>
+        internal void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
         {
-            if (!_tickPolicies.ContainsKey(system))
-                _tickPolicies[system] = TickModes.OfSystem(system.GetType());   // CE-3293: first sight of a system registered no other way
+            if (!_tickPolicies.TryGetValue(system, out var policy))
+                _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());   // CE-3293: first sight of a system registered no other way
+
+            bool stepOnly = policy == TickPolicy.WhenTimeAdvances && !moduleGoverns && Fdp.Core.FdpConfig.TickModeGate;
+            if (stepOnly && !advancing) return;
+
             var profile = _profileData.GetOrAdd(system, static s => new SystemProfileData(GetSystemProfileName(s)));
-            var sw = Stopwatch.StartNew();
-            
-            //try
+            long started = Stopwatch.GetTimestamp();   // ⭐ CE-3293 — no Stopwatch object per system per frame
+
+            Fdp.Core.EntityRepository? live = null;
+            EventReader? reader = null;
+            int previousWindow = -1;
+            if (stepOnly && view is Fdp.Core.EntityRepository repo && repo.EventHistory is { } history)
             {
-                // Check if system is a group
-                if (system is ISystemGroup group)
-                {
-                    ExecuteGroup(group, view, deltaTime);
-                }
-                else
-                {
-                    system.Execute(view, deltaTime);
-                }
-                
-                sw.Stop();
-                profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                reader = _eventReaders.GetOrAdd(system, static (_, h) => new EventReader(h), history);
+                if (!ReferenceEquals(reader.History, history))
+                    _eventReaders[system] = reader = new EventReader(history);   // the same system on another world
+                live = repo;
+                previousWindow = repo.OpenStepWindow(reader.Id);
             }
-            //catch (Exception ex)
-            //{
-            //    sw.Stop();
-            //    profile.RecordError(ex);
-            //    throw new SystemExecutionException(
-            //        $"System {system.GetType().Name} failed", ex);
-            //}
+            try
+            {
+                if (system is ISystemGroup group)
+                    ExecuteGroup(group, view, deltaTime, advancing, moduleGoverns);
+                else
+                    system.Execute(view, deltaTime);
+            }
+            finally
+            {
+                if (live != null)
+                {
+                    live.CloseStepWindow(previousWindow);
+                    reader!.History.MarkRead(reader.Id);
+                }
+            }
+            profile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         
-        private void ExecuteGroup(ISystemGroup group, ISimulationView view, float deltaTime)
+        private void ExecuteGroup(ISystemGroup group, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
         {
             var groupProfile = _profileData[group];
             var groupSw = Stopwatch.StartNew();
@@ -204,7 +233,7 @@ namespace Fdp.ModuleHost.Scheduling
                 if (!_systemPhases.ContainsKey(system) && _systemPhases.TryGetValue(group, out var groupPhase))
                     _systemPhases[system] = groupPhase;
                 
-                ExecuteSystem(system, view, deltaTime);
+                ExecuteSystem(system, view, deltaTime, advancing, moduleGoverns);
             }
             
             groupSw.Stop();
@@ -458,9 +487,16 @@ namespace Fdp.ModuleHost.Scheduling
         /// (its <see cref="TickPolicy"/> is read on first sight) and, from S5, gated on the host's own "time advances" flag.
         /// </summary>
         public void Run(IEcsModuleSystem system, ISimulationView view, float deltaTime)
+            => Run(system, view, deltaTime, advancing: deltaTime > 0f);
+
+        /// <summary>
+        /// ⭐ CE-3293 S5 — <see cref="Run(IEcsModuleSystem, ISimulationView, float)"/> with the host's own "time advances this frame"
+        /// flag (the Stride bracket's <c>simRunning</c>), for a host whose delta is not the whole answer.
+        /// </summary>
+        public void Run(IEcsModuleSystem system, ISimulationView view, float deltaTime, bool advancing)
         {
             if (system == null) throw new ArgumentNullException(nameof(system));
-            ExecuteSystem(system, view, deltaTime);
+            ExecuteSystem(system, view, deltaTime, advancing, moduleGoverns: false);
         }
 
         private sealed class ProfiledManualSystemWrapper : IForwardingSystem

@@ -82,20 +82,7 @@ namespace CarKinem.Systems
             var spatialGrid = gridData.Grid;
             
             // Get all vehicles (owned only -- skip ghost entities to enforce split-authority)
-            var query = repo.Query()
-                .With<VehicleState>()
-                .With<SimTransform>()
-                .WithOwned<SimTransform>()
-                .With<SimVelocity>()
-                .With<VehicleParams>()
-                .With<NavState>()
-                // ⭐ CE-3110 I-2c (R-271) — a passenger is CARRIED (EmbarkedStateSystem writes its transform from the vehicle's on the
-                //   position owner); driving it here would fight the carry every frame and let a possessed passenger walk out of the hull.
-                .Without<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
-                // ⭐ airborne insertion D-3 — a man coming down a rope or under a canopy is moved by his descent model (AirMotionSystem);
-                //   driving and ground-clamping him here would pull him out of the sky
-                .Without<Fdp.Toolkit.Motion.Descent>()
-                .Build();
+            var query = MovedBodies(repo);
             
             // We use FDP Kernel's optimized ForEachParallel which handles load balancing
             // and avoids allocations.
@@ -142,9 +129,31 @@ namespace CarKinem.Systems
         private bool _health;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
-        private bool Clamped(EntityRepository repo, Entity entity)
-            => !_clampFlags || !repo.HasComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity)
+        private bool Clamped(EntityRepository repo, Entity entity) => IsClamped(repo, entity, _clampFlags);
+
+        /// <summary>Is this body held to the surface? No <c>GroundClampingConfig</c> table or none on it = yes (CE-1034 H1).</summary>
+        internal static bool IsClamped(EntityRepository repo, Entity entity, bool clampFlags)
+            => !clampFlags || !repo.HasComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity)
                || repo.GetComponentRO<Fdp.Modules.Geographic.Components.GroundClampingConfig>(entity).IsClampingActive;
+
+        /// <summary>
+        /// The bodies the movement model moves — and ⭐ CE-3293 the ones <see cref="GroundClampWhilePausedSystem"/> holds to the
+        /// surface while paused: owned (ghosts are another node's), not carried, not descending.
+        /// </summary>
+        internal static EntityQuery MovedBodies(EntityRepository repo) => repo.Query()
+            .With<VehicleState>()
+            .With<SimTransform>()
+            .WithOwned<SimTransform>()
+            .With<SimVelocity>()
+            .With<VehicleParams>()
+            .With<NavState>()
+            // ⭐ CE-3110 I-2c (R-271) — a passenger is CARRIED (EmbarkedStateSystem writes its transform from the vehicle's on the
+            //   position owner); driving it here would fight the carry every frame and let a possessed passenger walk out of the hull.
+            .Without<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+            // ⭐ airborne insertion D-3 — a man coming down a rope or under a canopy is moved by his descent model (AirMotionSystem);
+            //   driving and ground-clamping him here would pull him out of the sky
+            .Without<Fdp.Toolkit.Motion.Descent>()
+            .Build();
 
         private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)

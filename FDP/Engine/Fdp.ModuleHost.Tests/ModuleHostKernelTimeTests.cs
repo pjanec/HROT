@@ -288,9 +288,23 @@ namespace Fdp.ModuleHost.Tests
         {
             var (kernel, world, clock, module) = SteppedKernel(sleepMs: 0);
             clock.Mode = TimeMode.Continuous;
-            for (int i = 0; i < 60; i++) { Step(kernel, clock, 0f); System.Threading.Thread.Sleep(1); }   // paused-by-scale frames
+            for (int i = 0; i < 60; i++) { Step(kernel, clock, 1f / 60f); System.Threading.Thread.Sleep(1); }
             kernel.Dispose(); world.Dispose();
             lock (module.RunAt) Assert.True(module.RunAt.Count >= 5, $"frame-counted 10 Hz ran {module.RunAt.Count} times in 60 frames");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3293 S5 (R-3036 rule 2, §10 F11) — at time scale 0 in CONTINUOUS mode a step-only background module is held too:
+        /// the gate does not depend on the mode. 🔴 Before: held only in stepped mode, so it ran on every 6th paused frame.
+        /// </summary>
+        [Fact]
+        public void Continuous_AtTimeScaleZero_AStepOnlyBackgroundModuleIsHeld()
+        {
+            var (kernel, world, clock, module) = SteppedKernel(sleepMs: 0);
+            clock.Mode = TimeMode.Continuous;
+            for (int i = 0; i < 60; i++) { Step(kernel, clock, 0f); System.Threading.Thread.Sleep(1); }   // paused-by-scale frames
+            kernel.Dispose(); world.Dispose();
+            lock (module.RunAt) Assert.Empty(module.RunAt);
         }
     }
 }

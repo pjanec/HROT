@@ -182,8 +182,8 @@ public sealed class StridePhysicsBracket
     /// potentially unchanged. Deriving this flag from the mode is how gravity kept running under a
     /// cluster-wide pause.</para>
     /// </param>
-    // ⭐ CE-3293 S2 (DESIGN_Paused_And_Stepped_Execution.md rule 3) — this bracket runs outside the kernel; its systems still go
-    //   through a scheduler's gate (TickMode read on first sight; from S5 gated on simRunning, which replaces the hand gate below).
+    // ⭐ CE-3293 (DESIGN_Paused_And_Stepped_Execution.md rule 3) — this bracket runs outside the kernel; its systems still go
+    //   through a scheduler's gate, which takes simRunning as "time advances" (S5): a step-only system is not run on a paused frame.
     private readonly Fdp.ModuleHost.Scheduling.SystemScheduler _systems = new();
 
     public void RunPreKernelStep(EntityRepository world, float dt, bool simRunning = true)
@@ -200,13 +200,13 @@ public sealed class StridePhysicsBracket
         // ALWAYS runs regardless of simRunning (drag/reposition must work while paused).
         _lifecycleSw.Restart();
         if (PhysicsIsActive)
-            if (PhysicsBodyLifecycle != null) _systems.Run(PhysicsBodyLifecycle, world, dt);
+            if (PhysicsBodyLifecycle != null) _systems.Run(PhysicsBodyLifecycle, world, dt, simRunning);
         _lifecycleSw.Stop();
 
         // Step 2b: Pre-physics motors (VehicleNavIntent first — STR-D21 F7 fix, then motors).
-        // VehicleNavIntent is gated on simRunning: when paused, don't advance navigation/steering.
+        // VehicleNavIntent is step-only ([TickMode(WhenTimeAdvances)]): when paused, the gate does not advance navigation/steering.
         _vehicleNavIntentSw.Restart();
-        if (simRunning && VehicleNavIntentSystem != null) _systems.Run(VehicleNavIntentSystem, world, dt);
+        if (VehicleNavIntentSystem != null) _systems.Run(VehicleNavIntentSystem, world, dt, simRunning);
         _vehicleNavIntentSw.Stop();
 
         _charMotorSw.Restart();
@@ -220,7 +220,7 @@ public sealed class StridePhysicsBracket
         // Step 3: Reverse-sync BEFORE kernel tick — writes Bullet pose+velocity into
         // SimTransform/SimVelocity for owned entities (design §8.3).
         _reverseSyncSw.Restart();
-        _systems.Run(ReverseSyncGroup, world, dt);
+        _systems.Run(ReverseSyncGroup, world, dt, simRunning);
         _reverseSyncSw.Stop();
 
         // ── Throttled breakdown log (~once per second at 60 fps) ─────────────

@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (deltaTime <= 0f || view is not EntityRepository repo || !repo.IsComponentTypeRegistered<GuidedRound>()) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<GuidedRound>()) return;   // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
             var world = Fdp.Toolkit.World.WorldQuery.Of(repo);
             uint tick = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u;
             _rounds = repo.Query().With<GuidedRound>().With<SimTransform>().With<SimVelocity>().Build();

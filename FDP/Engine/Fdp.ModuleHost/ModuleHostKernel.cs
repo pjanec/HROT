@@ -691,6 +691,16 @@ namespace Fdp.ModuleHost
                     continue;
                 }
 
+                // ⭐⭐ CE-3293 S5 (R-3036 rule 2; §10 F5, F11) — a step-only module is not dispatched on a frame that does not advance,
+                //   in every mode (time scale 0 included). A module on a SNAPSHOT has one mode — its own — so its whole dispatch is
+                //   gated here and its next flush carries the pause's events. A DIRECT (live-world) module keeps running its
+                //   simulation systems, each gated by its OWN mode; only its Tick follows the module's. A held frame is not a frame
+                //   since the last run.
+                bool moduleHeld = Fdp.Core.FdpConfig.TickModeGate && !_advancingFrame
+                                  && entry.TickPolicy == TickPolicy.WhenTimeAdvances;
+                bool directModule = entry.Module.Policy.Strategy == DataStrategy.Direct;
+                if (moduleHeld && !directModule) continue;
+
                 // ⭐ CE-3066 — never a second run beside an abandoned one: they share the module's state. ⚠ A run that is
                 //   DUE but blocked by the zombie counts as a failure, so a module that hangs for good still opens its
                 //   circuit (it used to, by timing out over and over) instead of reading as one old timeout.
@@ -751,9 +761,9 @@ namespace Fdp.ModuleHost
                             if (entry.SimulationSystems != null)
                             {
                                 foreach (var sys in entry.SimulationSystems)
-                                    topology.Scheduler.ExecuteSystem(sys, view, moduleDelta);
+                                    topology.Scheduler.ExecuteSystem(sys, view, moduleDelta, _advancingFrame, moduleGoverns: !directModule);
                             }
-                            entry.Module.Tick(view, moduleDelta);
+                            if (!moduleHeld) entry.Module.Tick(view, moduleDelta);
                             System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                             
                             // Playback commands immediately for sync modules
@@ -886,7 +896,9 @@ namespace Fdp.ModuleHost
                     if (entry.SimulationSystems != null)
                     {
                         foreach (var sys in entry.SimulationSystems)
-                            topology.Scheduler.ExecuteSystem(sys, view, dt);
+                            topology.Scheduler.ExecuteSystem(sys, view, dt, advancing: dt > 0f,
+                                // ⭐ CE-3293 (§10 F5) — on a snapshot the module's mode, applied at its dispatch, is the only one
+                                moduleGoverns: entry.Module.Policy.Strategy != DataStrategy.Direct);
                     }
                     entry.Module.Tick(view, dt);
                     System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
