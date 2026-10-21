@@ -8,6 +8,7 @@ known-rot: nothing known
 known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface through the MCP
   server; this document is the direct-HTTP path to it and does not contradict it.
 related-designs:
+  - docs/RUNBOOK_Filming.md — OWNS filming the 3-D map over these routes (/film/shot, /film/capture with /sim/pause and /sim/step)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility AI demo scenarios and their per-scenario runbook (§5.3 there), which builds on this one.
 -->
 
