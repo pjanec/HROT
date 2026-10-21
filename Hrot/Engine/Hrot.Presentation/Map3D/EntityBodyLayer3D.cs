@@ -448,7 +448,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 Lean = motion.Lean + BlockFigure.CrouchRunLean * crouchRun * (1f - AimedNow(soldier ? PostureOf(world, e) : WeaponPostureKind.AtEase)),
                 Swing = motion.Swing * (1f - BlockFigure.CrouchRunStepCut * crouchRun),
             };
-        if (!soldier) return motion;
+        if (!soldier) return motion with { HeadTurn = _postures.Head(e, HeadTurnOf(world, e, 0f), simTime) };   // ⭐ CE-1204 (LK-5)
         if (stance == StanceId.Standing && aimed > 0f)
             motion = motion with
             {
@@ -458,7 +458,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             };
         if (!TryAim(world, e, tf, size, stance, out float twist, out float pitch)) twist = pitch = 0f;
         var (t, p) = _postures.Aim(e, twist, pitch, simTime);
-        return motion with { Twist = t, Lean = motion.Lean - p };
+        return motion with { Twist = t, Lean = motion.Lean - p, HeadTurn = _postures.Head(e, HeadTurnOf(world, e, t), simTime) };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1204</c> (docs/DESIGN_Entity_Control.md §8l LK-5, R-1017) — the drawn head's turn off the torso: where his eyes point off his
+    /// body (<see cref="Fdp.Toolkit.Perception.Look.LookOf.HeadYaw"/>, replicated) less the torso's drawn <paramref name="drawnTwist"/>, within
+    /// his neck. So every node shows where he looks — an aim, an ordered look, a glance (LD-3), an operator's free look. 0 with no look.
+    /// </summary>
+    public static float HeadTurnOf(EntityRepository world, Entity e, float drawnTwist)
+    {
+        float eyes = Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(world, e);
+        if (eyes == 0f && drawnTwist == 0f) return 0f;
+        float neck = Fdp.Toolkit.Perception.Look.LookOf.HeadLimit(world, e);
+        return Math.Clamp(Fdp.Toolkit.Perception.Look.LookOf.Wrap(eyes - drawnTwist), -neck, neck);
     }
 
     /// <summary>⭐ WL-6c — the gait's legs for <paramref name="stance"/>: the hips at the stance's height, each shin bent back as its leg

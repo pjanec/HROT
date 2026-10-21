@@ -87,6 +87,7 @@ namespace Hrot.Network.NED.SimHost
                     BackendForce    = (byte)req.BackendForce,
                     NavLayerMask    = req.NavLayerMask,
                     RoadUse         = (byte)req.RoadUse,
+                    TurnRadius      = req.TurnRadius,   // ⭐ CE-3200 — the corners are rounded on the solver's node too
                     Start = new RelativeVector3
                     {
                         East  = req.Start.X - anchorCartesian.X,
@@ -301,6 +302,7 @@ namespace Hrot.Network.NED.SimHost
                     BackendForce    = (NavigationBackend)ddsReq.BackendForce,   // ⭐ CE-3129
                     NavLayerMask    = ddsReq.NavLayerMask,
                     RoadUse         = (RoadUse)ddsReq.RoadUse,
+                    TurnRadius      = ddsReq.TurnRadius,   // ⭐ CE-3200
                     // Stamp the originating Brain node ID for demultiplexing on egress.
                     SourceNodeId    = data.SourceNodeId,
                 });

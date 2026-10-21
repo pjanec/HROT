@@ -28,7 +28,10 @@ namespace Fdp.Toolkit.Scenario
     /// <remarks>⛔⛔ <b>No TKB name — <c>R-4018</c>.</b> A scenario never names a TKB: there is one TKB per
     /// deployment, synced from its NAS master copy (R-4018). An older file's <c>Header.TkbName</c> is ignored on read and never
     /// written back. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</remarks>
+    /// <param name="Description">⭐ <c>CE-3288</c> — what the scenario shows and how to judge that it worked (one string, by
+    /// convention <i>"What: … · Judge: …"</i>); null = none. Metadata, not an asset reference. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d.</param>
     public record ScenarioHeader(
         string SubsystemType,
-        string? TerrainName = null);
+        string? TerrainName = null,
+        string? Description = null);
 }

@@ -61,6 +61,10 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>Seconds this station has run (the use key's hold and the verdict line time against it).</summary>
         public float Clock { get; private set; }
 
+        /// <summary>⭐ <c>CE-1204</c> (§8l LK-4, R-1017) — the operator's choice for a person's look: free of his body (V) or locked (the
+        /// default). The station's, not the driver's, so it stays across possessions and Tab.</summary>
+        public bool PersonLookFree { get; internal set; }
+
         /// <summary>⭐ CE-1158 — where the Drive hand-over stands (§8h driving sequence).</summary>
         public enum HandOverStep : byte
         {
@@ -370,7 +374,7 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
-                                  _driver.Scheme, _driver.Running);
+                                  _driver.Scheme, _driver.Running, _driver.LookFree);
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
             foreach (var line in lines) width = Math.Max(width, (int)HudText.Measure(font, line));
@@ -734,13 +738,14 @@ namespace Hrot.UI.Common.Map3D
                 if (line.StartsWith("  ", StringComparison.Ordinal)) return new Color(215, 215, 215, 255);
                 if (line.StartsWith("LOCKED", StringComparison.Ordinal)) return new Color(255, 150, 50, 255);
                 if (line.StartsWith("STANCE", StringComparison.Ordinal)) return new Color(120, 220, 255, 255);
+                if (line == LookFreeLine) return new Color(255, 220, 120, 255);   // ⭐ CE-1204
                 if (line.StartsWith("SPD", StringComparison.Ordinal)) return new Color(150, 200, 255, 255);
                 return Color.RayWhite;
             }
 
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
-                                         ControlScheme scheme = ControlScheme.Person, bool running = false)
+                                         ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -769,17 +774,23 @@ namespace Hrot.UI.Common.Map3D
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
+                if (lookFree && !vehicle && !flyer) lines.Add(LookFreeLine);   // ⭐ CE-1204 (§8l LK-4)
                 lines.Add(scheme switch
                 {
                     ControlScheme.FixedWing => "mouse: fly where you look  W/S throttle  Esc release",          // ⭐ CE-1095
                     ControlScheme.Rotorcraft => "W/S/A/D fly  mouse turn  Space/C climb  Esc release",
                     _ => vehicle
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
-                        : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
+                        : lookFree
+                            ? "W/S move  A/D turn  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V lock look  Esc release"   // ⭐ CE-1204
+                            : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V free look  Esc release",
                 });
                 lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
+
+            /// <summary>⭐ <c>CE-1204</c> (§8l LK-4) — the HUD's line while a person's look is free of his body.</summary>
+            public const string LookFreeLine = "LOOK FREE (V)";
 
             /// <summary>The most weapon slots a unit has (its own mounts, then the weapons it controls).</summary>
             public const int MaxSlots = 32;
@@ -820,7 +831,8 @@ namespace Hrot.UI.Common.Map3D
 
             /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
             public static string Label(EntityRepository w, in UseAction a)
-                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man && TypeName(w, a.Target) is { } name
+                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man
+                         or UseVerbKind.Take or UseVerbKind.Drop or UseVerbKind.PickUpRound && TypeName(w, a.Target) is { } name   // ⭐ CE-1207
                     ? $"{a.Label} {name}" : a.Label;
 
             /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
@@ -967,6 +979,7 @@ namespace Hrot.UI.Common.Map3D
         private readonly long _netId;
         private IInputProvider? _locked;
         private float _yaw, _pitch, _mouseSteer, _roll;
+        private float _bodyYaw, _dt;   // ⭐ CE-1204 (§8l LK-2, LK-4) — a person's heading while his look is free; the last frame's dt
         private bool _lookInitialised;
         private uint _seq;
         private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
@@ -1029,6 +1042,17 @@ namespace Hrot.UI.Common.Map3D
         public bool HullLocked { get; private set; }
         public bool IsVehicle => Scheme == ControlScheme.Vehicle;
 
+        /// <summary>⭐ <c>CE-1204</c> (§8l LK-4, R-1017) — how fast A/D turn a person's body while his look is free (rad/s, 120°/s).</summary>
+        public static readonly float FreeLookTurnRate = 120f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-1204</c> (§8l LK-4) — is a PERSON's look free of his body (V)? Then the mouse turns his head within his neck
+        /// (<see cref="Fdp.Toolkit.Perception.Look.LookOf.HeadLimit"/>), dragging the body past it, and A/D turn the body. Locked (the
+        /// default): the mouse turns the body. The choice is the station's, so it stays across possessions and Tab.</summary>
+        public bool LookFree => Scheme == ControlScheme.Person && _station.PersonLookFree;
+
+        /// <summary>⭐ <c>CE-1204</c> — the heading the frame asks for: the body's own while the look is free, else the look's.</summary>
+        public float BodyYaw => LookFree ? _bodyYaw : _yaw;
+
         /// <summary>⭐ CE-2168 (Motion Domains MD-D) — the control scheme, chosen by the body's locomotion class (not "vehicle or not"):
         /// a rotorcraft flies (W/S forward, A/D sideways, the mouse yaws, Space / C climb and descend), a ground vehicle drives, the
         /// rest walk.</summary>
@@ -1041,7 +1065,8 @@ namespace Hrot.UI.Common.Map3D
                 _ => ControlScheme.Person,
             };
 
-        /// <summary>The look direction (radians): what the camera shows and, for a person, the body's yaw (M-2).</summary>
+        /// <summary>The look direction (radians): what the camera shows and, for a person with a locked look, the body's yaw (M-2;
+        /// free look — <see cref="BodyYaw"/>, CE-1204).</summary>
         public float Yaw => _yaw;
         public float Pitch => _pitch;
 
@@ -1060,7 +1085,8 @@ namespace Hrot.UI.Common.Map3D
             if (_world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             float hullYaw = HullYaw(tf.Rotation);
-            if (!_lookInitialised) { _yaw = hullYaw; _pitch = 0f; _lookInitialised = true; }
+            if (!_lookInitialised) { _yaw = hullYaw; _bodyYaw = hullYaw; _pitch = 0f; _lookInitialised = true; }
+            _dt = dt;
             bool vehicle = IsVehicle;
             if (vehicle && HullLocked) _yaw = hullYaw;
             _eye = EyeOf(w, tf, vehicle);
@@ -1154,7 +1180,7 @@ namespace Hrot.UI.Common.Map3D
             BinocularsHeld = false;   // ⭐ CE-1219 — the binoculars go down with him (Binoculars = 0 below)
             _station.Send(_netId, new OperatorControlFrameEvent
             {
-                Seq = ++_seq, Yaw = _yaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
+                Seq = ++_seq, Yaw = BodyYaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
                 Stance = !IsVehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,
@@ -1285,12 +1311,30 @@ namespace Hrot.UI.Common.Map3D
             Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (vehicle && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) HullLocked = !HullLocked;
+            // ⭐ CE-1204 (§8l LK-4) — V frees a person's look from his body, or locks it back (his body turns to the look)
+            if (Scheme == ControlScheme.Person && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V))
+            {
+                if (!_station.PersonLookFree) _bodyYaw = _yaw;
+                _station.PersonLookFree = !_station.PersonLookFree;
+            }
+            bool lookFree = LookFree;
             if (vehicle && HullLocked) _mouseSteer = Math.Clamp(_mouseSteer - delta.X * MouseSteerPerPixel, -1f, 1f);
             else _yaw -= delta.X * look;
             _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
+            if (lookFree)
+            {
+                // ⭐ CE-1204 (LK-2, LK-4) — A/D turn him (his view turns with him); the look stays within his neck, dragging the body past it
+                float turn = side * FreeLookTurnRate * _dt;
+                _bodyYaw += turn;
+                _yaw += turn;
+                side = 0f;
+                _bodyYaw = DragBody(_bodyYaw, _yaw, _world() is { } nw ? Fdp.Toolkit.Perception.Look.LookOf.HeadLimit(nw, Unit)
+                                                                       : Fdp.Toolkit.Perception.Look.LookOf.MaxHeadYaw);
+            }
+            else _bodyYaw = _yaw;
             // ⭐ CE-2168 (MD-D) — a flyer's climb axis; ⭐ CE-1095 (§8f P-2) — a plane's is its look's pitch (mouse-aim), and it does not strafe
             var scheme = Scheme;
             float vertical = scheme switch
@@ -1366,7 +1410,8 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1211 (§8j Z-2) — the locked shot's cancel is X now (RMB zooms, as in every shooter)
             if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.X)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
-            UseKey(input, aimTarget);
+            UseAim = _world() is { } uw ? UseTargetFor(uw, aimTarget, aimAt) : aimTarget;   // ⭐ CE-1207 (§8m PK-3)
+            UseKey(input, UseAim);
 
             var frame = new OperatorControlFrameEvent
             {
@@ -1374,7 +1419,7 @@ namespace Hrot.UI.Common.Map3D
                 Forward = forward,
                 Lateral = vehicle ? 0f : side,
                 Steer = vehicle ? (HullLocked ? _mouseSteer : side) : 0f,
-                Yaw = _yaw,
+                Yaw = BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked)
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
                 Trigger = !glassing && input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
@@ -1388,6 +1433,14 @@ namespace Hrot.UI.Common.Map3D
             };
             _station.Send(_netId, frame);
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-1204</c> (§8l LK-2) — the body's heading after a free look to <paramref name="look"/>: unchanged while the look
+        /// is within <paramref name="neck"/> of it, else dragged so the look sits on the neck's limit.</summary>
+        public static float DragBody(float body, float look, float neck)
+        {
+            float off = Fdp.Toolkit.Perception.Look.LookOf.Wrap(look - body);
+            return MathF.Abs(off) <= neck ? body : look - MathF.CopySign(neck, off);
         }
 
         public void Detached(MapCamera3D camera)
@@ -1461,6 +1514,8 @@ namespace Hrot.UI.Common.Map3D
             int verb = UseListOpen ? _listIndex : 0;
             _eHolding = false;
             if (_station.TryGetOut(Unit)) return;
+            // ⭐ CE-1207 (§8m PK-6) — a tap never sends a hold-only verb (Drop): with nothing else on offer it does nothing
+            if (!UseListOpen && _world() is { } tw && Actions(tw, _pressTarget) > 0 && _actions[0].HoldOnly) return;
             var action = Press((byte)verb, _pressTarget);
             if (action is { Verb: UseVerbKind.Drive or UseVerbKind.Pilot } drive) _station.ArmDrive(Unit, drive.Target);
         }
@@ -1480,6 +1535,48 @@ namespace Hrot.UI.Common.Map3D
             }
             _lastLabel = action is { } a && _world() is { } lw ? PossessionStation.Hud.Label(lw, a) : "Use";
             return action;
+        }
+
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-3) — what the use key acts on this frame: the unit under the crosshair when it offers a verb, else
+        /// the lying stone / round nearest the crosshair's point (a round has no pick box, LR-3).</summary>
+        public long UseAim { get; private set; }
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — how far from the crosshair's point a lying round may be to be the use target (m).</summary>
+        public const float RoundUnderCrosshairM = 1f;
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — the use target for <paramref name="aimTarget"/> at <paramref name="aimAt"/>: see <see cref="UseAim"/>.</summary>
+        public long UseTargetFor(EntityRepository w, long aimTarget, Vector3 aimAt)
+        {
+            if (aimTarget != 0 && w.HasSingletonManaged<NetworkEntityMap>() && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var under))
+            {
+                int n = OperatorUseActions.For(w, Unit, under, _actions);
+                for (int i = 0; i < n; i++) if (_actions[i].Target == under) return aimTarget;
+            }
+            return RoundNear(w, aimAt) is long round ? round : aimTarget;
+        }
+
+        /// <summary>⭐ <c>CE-1207</c> (PK-3) — the network id of the lying hand-item round within <see cref="RoundUnderCrosshairM"/> of
+        /// <paramref name="point"/> and within his reach, nearest the point; null when none.</summary>
+        public long? RoundNear(EntityRepository w, Vector3 point)
+        {
+            if (!w.HasSingletonManaged<NetworkEntityMap>()) return null;
+            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
+            float best = RoundUnderCrosshairM * RoundUnderCrosshairM;
+            long? found = null;
+            void Consider(Entity e)
+            {
+                var at = w.GetComponentRO<SimTransform>(e).Position;
+                float d2 = (at.X - point.X) * (at.X - point.X) + (at.Y - point.Y) * (at.Y - point.Y);
+                if (d2 > best || !Fdp.Toolkit.Combat.RoundPickUp.IsLying(w, e) || !Fdp.Toolkit.Combat.RoundPickUp.IsHandItem(w, e)
+                    || !Fdp.Toolkit.Combat.RoundPickUp.InReach(w, Unit, e) || !map.TryGetNetworkId(e, out long id)) return;
+                best = d2;
+                found = id;
+            }
+            if (w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>())
+                foreach (var e in w.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build()) Consider(e);
+            if (w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>())
+                foreach (var e in w.Query().With<Fdp.Toolkit.Combat.Components.BallisticProjectile>().With<SimTransform>().Build()) Consider(e);
+            return found;
         }
 
         /// <summary>The actions on <paramref name="target"/> (a network id; 0 = nothing), primary first, into <see cref="_actions"/>.</summary>
@@ -1511,9 +1608,11 @@ namespace Hrot.UI.Common.Map3D
                     lines.Add(new UseLine((i == _listIndex ? "> " : "  ") + (i + 1) + "  " + PossessionStation.Hud.Prompt(w, _actions[i])[3..],
                         i == _listIndex ? PossessionStation.Hud.UsePicked : _actions[i].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
             }
-            else if (Actions(w, _eHolding ? _pressTarget : AimTarget) > 0)
-                lines.Add(new UseLine(PossessionStation.Hud.Prompt(w, _actions[0]),
-                    _actions[0].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
+            else if (Actions(w, _eHolding ? _pressTarget : UseAim) > 0)
+                lines.Add(_actions[0].HoldOnly   // ⭐ CE-1207 (PK-6) — only hold-list verbs (Drop): say so, a tap does nothing
+                    ? new UseLine("hold F  " + PossessionStation.Hud.Label(w, _actions[0]), PossessionStation.Hud.UseGreyed)
+                    : new UseLine(PossessionStation.Hud.Prompt(w, _actions[0]),
+                        _actions[0].Available ? PossessionStation.Hud.UseReady : PossessionStation.Hud.UseGreyed));
             if (VerdictLine(w) is { } verdict) lines.Add(verdict);
             return lines;
         }

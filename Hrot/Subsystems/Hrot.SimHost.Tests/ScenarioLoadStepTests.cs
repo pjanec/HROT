@@ -152,6 +152,46 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Empty(Drain(source).Where(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment));
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3288</c> (Distributed Scenario Persistence §4d) — LOAD → SAVE keeps the scenario's description: the step stamps it
+    /// resident at Commit, a save reads it back (<see cref="Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf"/>, the formula both save
+    /// sites use) and the serializer writes it; a NEW scenario then clears it. 🔴 Red-proof: drop the stamp ⇒ the saved file has none.
+    /// </summary>
+    [Fact]
+    public async Task CE3288_LoadThenSave_KeepsTheDescription_AndANewScenarioClearsIt()
+    {
+        const string text = "What: two riflemen. · Judge: both reach the house.";
+        _goldRepo.CreateEntity();
+        string json = _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType, Description: text)).ToJsonString();
+
+        using var world = new EntityRepository();
+        var step = MakeStep(json, NewBus());
+        var ctx  = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+        Assert.Equal(text, Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world));
+
+        var saved = _serializer.Serialize(world, new ScenarioHeader(SubsystemType,
+            Description: Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world)));
+        Assert.Equal(text, Fdp.Toolkit.Scenario.ScenarioDescription.OfDom(saved));
+
+        var fresh = Ctx(Guid.NewGuid(), ClusterState.LoadingEdit, scenarioId: null, isNew: true);
+        await step.PrepareAsync(fresh, CancellationToken.None);
+        step.Commit(fresh, world);
+        Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world));
+    }
+
+    /// <summary>⭐ <c>CE-3288</c> — the shipped scenario files write the header camelCase (<c>header.description</c>); a save writes it
+    /// PascalCase. Both read; a scenario with none reads null and still loads.</summary>
+    [Fact]
+    public void CE3288_TheDescription_ReadsInEitherCase_AndNoneIsNull()
+    {
+        Assert.Equal("a", Fdp.Toolkit.Scenario.ScenarioDescription.Read("{\"header\":{\"description\":\"a\"},\"entities\":{}}"));
+        Assert.Equal("b", Fdp.Toolkit.Scenario.ScenarioDescription.Read("{\"Header\":{\"Description\":\"b\"},\"Entities\":{}}"));
+        Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.Read("{\"Header\":{\"TerrainName\":\"t\"},\"Entities\":{}}"));
+        Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.Read("not json"));
+    }
+
     /// <summary>⭐ Re-homed from the CGF suite: abort clears the pending state, so a later commit is a no-op.</summary>
     [Fact]
     public async Task Abort_ClearsPendingRequests_SoASubsequentCommitIsANoOp()

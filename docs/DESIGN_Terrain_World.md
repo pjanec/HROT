@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; CE-3017 + CE-3018 + CE-3025 + CE-3026 closed 2026-10-03; live-run results in §8) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
-updated: 2026-10-08
-current-answer: §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
+updated: 2026-10-20 (§10 CE-1227 — the 2-D terrain is a retained layer; §3/§5 renamed TerrainWorldGizmo → TerrainLayer2D + TerrainPlan2D)
+current-answer: §10 (CE-1227, 2026-10-20) the 2-D map draws the terrain as a RETAINED layer (TerrainLayer2D), not gizmos · §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
@@ -181,11 +181,8 @@ classDiagram
     +float Height
   }
   class LosRequestBatchingSystem
-  class TerrainWorldGizmo
-  class IGlobalStatelessGizmo {
-    <<interface>>
-    +Draw(view, builder)
-  }
+  class TerrainLayer2D
+  class TerrainPlan2D
   TerrainResidency --> TerrainWorldParser : Prepare
   TerrainResidency --> INavmeshFactory : Prepare, when AttachNavmesh was called
   TerrainResidency --> SwitchableNavmeshProvider : Commit publishes the bake
@@ -209,8 +206,8 @@ classDiagram
   TerrainWorldLosStrategy --> SensorMount : eye height by stance reader
   TerrainWorldLosStrategy --> PhysicsCollider : radius + height
   LosRequestBatchingSystem --> ILosStrategy
-  TerrainWorldGizmo ..|> IGlobalStatelessGizmo
-  TerrainWorldGizmo --> TerrainWorld
+  TerrainLayer2D --> TerrainPlan2D : once per terrain (§10)
+  TerrainPlan2D --> TerrainWorld
   note for TerrainWorld "NEW. ECS singleton, NoScenario|NoReplay. FillTriangles = polygons triangulated ONCE at parse, for the map"
   note for DotRecastNavmeshProvider "MOVED from Hrot.Stride.Core. Z-up API, swizzles to Recast Y-up INSIDE (W7)"
   note for PlanarCircleLosStrategy "the original 2-D sweep, extracted unchanged — the default when no strategy is injected"
@@ -227,7 +224,7 @@ position (W8). ⭐ New interfaces: only `INavmeshFactory` (keeps DotRecast out o
 | `TerrainWorld`, `TerrainWorldParser`, `GroundFollow`, `INavmeshFactory`, `ISceneGeometrySource`, `ILosStrategy`, `PlanarCircleLosStrategy`, `TerrainWorldLosStrategy` | `Fdp.Toolkits` (`Terrain/`, `Navigation/`, `Perception/`, `CarKinem/`) | new (`ISceneGeometrySource` moved) |
 | `SensorMount` | TKB `SensorCapabilitiesDto` (per-stance heights), projected by `PerceptionTkbTranslator` | new fields |
 | `RecastNavmeshBaker`, `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `RecastNavmeshFactory`, `TerrainWorldGeometrySource` | **new `Fdp.Toolkits.Navigation.Recast`** (net8.0) — W1 | moved + new |
-| `TerrainWorldGizmo` | `Hrot.Presentation` (beside `TerrainZoneGizmo`) | new |
+| `TerrainPlan2D` (was `TerrainWorldGizmo`, a projector until `CE-1227`) + `TerrainLayer2D` | `Hrot.Presentation` (`ScenarioEditor/Gizmos`, `Map2D`) | new — §10 |
 | `DebugPrimitiveShape.FilledTriangle` | `GizmoMap.Contracts` + one renderer case | new enum value, same 64-byte slot (W2) |
 
 ## 4. SEQUENCES
@@ -439,18 +436,18 @@ graph TD
     SH_N["NavigationSolverModule (NEW composition)"]
     SH_K["Car/Linear kinematics read SurfaceZ"]
     SH_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
-    SH_M["map: TerrainWorldGizmo"]
+    SH_M["map: TerrainLayer2D (§10)"]
   end
   subgraph EdCgf["Editor = CGF (one host shape, ruling 66)"]
     EC_L["TerrainLoadStep: world + navmesh"]
-    EC_M["map: TerrainWorldGizmo"]
+    EC_M["map: TerrainLayer2D (§10)"]
     EC_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
     EC_K["CarKinematics reads SurfaceZ"]
     EC_N["NavigationSolverModule (SimHost capability, CE-3017)"]
   end
   subgraph IG["IG (Map2D)"]
     IG_L["TerrainLoadStep: world"]
-    IG_M["map: TerrainWorldGizmo"]
+    IG_M["map: TerrainLayer2D (§10)"]
   end
   subgraph Stride["Stride (NavSolver, Map2D)"]
     ST_N["scene-baked navmesh (unchanged slice 1)"]
@@ -686,3 +683,127 @@ everything.
 
 ⭐ **Size of the change:** moderate, not a rewrite — `TerrainDefinition` + its parser, `TerrainWorld`'s ground and extent,
 the mesh builder, the navmesh bake loop, the route planner's open-ground leg, and the map's terrain layer drawing per inset.
+
+## 10. ⭐ THE 2-D MAP DRAWS THE TERRAIN AS A RETAINED LAYER — `CE-1227` *(ui, `2026-10-20`; build-state: BUILT, see the as-built note; ruling R-1013)*
+
+🔒 **User, `2026-10-20`:** *"When i load scenario uc convoy hit, on that terrain in 2d the entity symbols are not shown and neither the
+selecgion maraquee, and when i turn off the entity checkbox in the tactical layer panel the labels show up. Looks like some gizmo buffer
+overflow. What limits number of gizmos? The terrain has msny houses."* · on the explanation of a retained layer: *"Yes"*.
+
+### INVENTORY *(graph CLI + grep, `2026-10-20`)*
+
+| query | result |
+|---|---|
+| a temporary rail drawing every map projector against demo-city into an unbounded buffer | ⛔ **`TerrainWorldGizmo` 73 188 primitives a frame** (23 896 `FilledTriangle`, 47 792 `Line`, 1 500 `Text`, all on layer 0) · `TrafficRoadGizmo` 648 · `DoorLeafGizmo` 507 · `RoadNetworkGizmo` 0 |
+| the map buffer's capacity | `MapInteractionContext.DefaultBufferCapacity` = **16 384**; `DebugPrimitiveBuffer.AppendRaw` drops what does not fit (only the CE-1071 protected meta primitives and pick boxes survive) |
+| when demo-city crossed it | `a8ed7908e` (UI-8..12, the quarters) and `1aad64e8e` (`CE-4028`, 34 enterable houses), both `2026-10-18` — every wall piece around a door or window is 2 triangles + 4 lines |
+| `grep TerrainWorldGizmo` (code) | 1 production class, 3 rails (`Hrot.IG.Tests/Gizmos/PresentationGizmoTests`) |
+| the 2-D map layers every host gets | `MapInteractionPack.AttachMapLayers` — editor, CGF, SimHost, IG, Replay Browser (rail `EveryMapHostAttachesTheSharedLayers`); the gizmo layer is the FIRST layer it adds |
+| who ships a gizmo frame off the node | SimHost, CGF, IG (`CreateGizmoPublisherSystem`) → Stride's `ConsumerBuffer` (4 096) and the stand-alone `GizmoMap.Viewer`; both draw their own terrain or none |
+| the retained precedent | `TerrainLayer3D` (Fdp.Presentation) — one mesh, rebuilt when the geometry's identity changes, `Has3D` only |
+| view culling in the gizmo API | none — no view rectangle reaches a projector |
+
+```mermaid
+classDiagram
+  class IMapLayer { <<exists>> Draw(ctx) · Has3D }
+  class TerrainLayer2D {
+    <<NEW, Hrot.Presentation Map2D>>
+    world : Func of EntityRepository
+    visible : Func of bool
+    Draw(ctx) mesh, then outlines and labels in view
+    Rebuild(TerrainWorld) once per instance
+    FillTriangles · OutlinesDrawn · LabelsDrawn
+  }
+  class TerrainPlan2D {
+    <<RENAMED from TerrainWorldGizmo, no longer a projector>>
+    Emit(TerrainWorld, IDebugDrawBuilder) static
+    MaterialColor · HeightColor · WallEdge
+  }
+  class DebugPrimitiveBuffer { <<exists>> the recording for one Emit · IsLayerActive(bit) }
+  class DebugPrimitiveRenderer2D { <<exists, Fdp.Presentation>> Render(span, ctx) — strokes, dashes, north-up text }
+  class TerrainLayer3D { <<exists>> the 3-D sibling }
+  class TerrainWorld { <<exists>> the singleton, replaced on every terrain load }
+  class MapInteractionPack { <<exists, changed>> AttachMapLayers adds TerrainLayer2D BEFORE the gizmo layer }
+  class LayerControlDto { <<exists, changed>> Terrain2D row, on (FL-1) }
+  class DebugTraceLayers { <<exists, changed>> Terrain2D = 15 }
+  TerrainLayer2D ..|> IMapLayer
+  TerrainLayer3D ..|> IMapLayer
+  TerrainLayer2D --> TerrainPlan2D : once per terrain
+  TerrainLayer2D --> TerrainWorld
+  TerrainLayer2D --> DebugPrimitiveRenderer2D : outlines + labels in view
+  TerrainPlan2D ..> DebugPrimitiveBuffer : emits into a private one
+  MapInteractionPack ..> TerrainLayer2D : builds, visible = map buffer IsLayerActive(Terrain2D)
+  LayerControlDto --> DebugTraceLayers
+```
+*What the picture shows that prose hid:* the terrain's LOOK does not move — `TerrainPlan2D` is the old gizmo's code, emitting into a
+private buffer once; what changes is only WHO calls it and HOW OFTEN. Nothing points from the map's gizmo buffer to the terrain any more.
+
+```mermaid
+sequenceDiagram
+  participant R as TerrainResidency
+  participant L as TerrainLayer2D
+  participant P as TerrainPlan2D
+  participant G as GPU
+  participant D as DebugPrimitiveRenderer2D
+  participant B as map buffer (gizmos)
+  R->>R: Commit — a new TerrainWorld singleton
+  L->>L: Draw — the instance changed
+  L->>P: Emit(world, private buffer)
+  P-->>L: triangles, lines, labels
+  L->>G: UploadMesh(triangles) — once
+  loop every 2-D frame
+    L->>B: IsLayerActive(Terrain2D)?
+    L->>G: DrawMesh (one call)
+    L->>D: Render(lines and labels inside the view)
+    Note over B: entities, tools, marquee — the terrain takes no slot
+  end
+```
+*What the picture shows that prose hid:* the expensive work is on the LOAD edge, not the frame; the frame does one mesh draw plus what is on
+screen.
+
+```mermaid
+graph TD
+  H["editor · CGF · SimHost · IG · Replay Browser"] --> A["MapInteractionPack.AttachMapLayers"]
+  A --> T2["TerrainLayer2D (first, bottom)"]
+  A --> GL["DebugGizmoLayer (map buffer)"]
+  A --> T3["TerrainLayer3D"]
+  GL --> PUB["CreateGizmoPublisherSystem (SimHost, CGF, IG)"]
+  PUB -.->|"no terrain any more"| ST["Stride ConsumerBuffer"]
+  PUB -.->|"no terrain any more"| GV["GizmoMap.Viewer"]
+  style ST stroke:#c33,stroke-dasharray: 5 5
+  style GV stroke:#c33,stroke-dasharray: 5 5
+```
+*What the picture shows that prose hid:* every map host reaches the layer through the one attach call, so none can lack it (W3 holds); the
+two dashed edges are what the terrain LEAVES — Stride draws its own terrain, the stand-alone viewer now shows none.
+
+| ⭐ decision | why |
+|---|---|
+| ⭐⭐ fills = one non-indexed mesh with vertex colours, drawn with back-face culling off | the `TerrainLayer3D` way; the north-up mirror flips winding, which the gizmo renderer answered by drawing every triangle twice |
+| ⭐ outlines and labels drawn each frame through the existing `DebugPrimitiveRenderer2D`, only those whose box meets the view | their stroke is in SCREEN pixels, so a baked mesh would be wrong at every other zoom; reusing the renderer keeps dashes, wall widths and north-up text identical |
+| ⭐ the checkbox reads the map buffer's mask (`IsLayerActive`) — the mask `LayerControlGizmo` already hands it (CE-1071) | one authority; a host with no layer control has no mask ⇒ the terrain shows |
+| ⭐ `Has3D` false ⇒ never drawn in 3-D | answers §5e FL-7's open row ("Terrain (2-D)" under the real buildings): the old triangles targeted `All` and the 3-D triage draped them under `TerrainLayer3D` |
+| ⭐ the class is RENAMED (Roslyn), not deleted: `TerrainWorldGizmo` → `TerrainPlan2D` | route, don't delete — the look and its rails stay; only `[GizmoProjector]` / `IGlobalStatelessGizmo` go |
+
+**Rejected — one line each:**
+- *A bigger buffer* — gizmos-1 §11.11 already rejects it: the next bigger terrain is the next cliff, and 73k primitives a frame are still sorted and shipped.
+- *Protect entity primitives from eviction* — the city would draw with holes.
+- *Cull and LOD inside the gizmo* — no view reaches a projector, and zoomed out the whole city is still 73k.
+- *Draw the 2-D terrain from `ITerrainRenderGeometry`* (World Query Seam's long-term direction) — it carries ground / wall / roof only, not the plan's heights, materials and labels; the source stays `TerrainWorld` exactly as before, so R-250 is no worse.
+
+⚠ **Amends W2's mechanism (§7.1, R-182) — not its shape:** `FilledTriangle` stays (`MapOverlayGizmo` uses it); only the terrain stops
+reaching the map through it. Ruled by the user `2026-10-20` (R-1013).
+⚠ **What leaves the gizmo frame:** the debug API's gizmo panels and any remote viewer no longer list terrain primitives — the terrain is
+not a gizmo.
+
+#### ✅ As built `2026-10-20` (ui) — and what the build found
+
+| | |
+|---|---|
+| the classes and sequence above | as drawn: `TerrainLayer2D` (`Hrot.Presentation/Map2D`), `TerrainPlan2D.Emit` (the renamed gizmo; Roslyn, 5 references = grep's 5), `MapLayers.Terrain2D`, `DebugTraceLayers.Terrain2D = 15`, `LayerControlDto.Terrain2D` (on), `FirstUntoggledLayer` 15 → 16 |
+| level of detail (new, not drawn above) | labels only from `LabelMinZoom` = 1.5 px/m (zoomed out, the old path smeared all 1 500 into one black mass — see the parity rail's reference); an outline shorter than `MinStrokePixels` = 0.75 px is skipped; culling pads the view by 150 px |
+| ⚠ order inside the terrain | every fill first, then every outline and label — before, a later building's fill could cover an earlier one's outline. Outlines now always show |
+| ⭐ **first frame (found by the rail)** | `LayerControlGizmo` hands the buffer its mask only when it runs — AFTER the projectors — so on a fresh map the first frame stored the hidden layers: 📐 demo-city's Cover (7 891 points × sphere + line) and SpatialGrid, **17 943 dropped**. ⭐ `MapInteractionPack.Build` now seeds the buffer with `LayerControlGizmo.ActiveLayers` |
+| ⚠ **colour (found by the parity rail, NOT fixed here → `CE-1228`)** | `GizmoMap.Presentation.DebugPrimitiveRenderer2D` draws each `FilledTriangle` in BOTH windings ("the culled one costs nothing"), but the 2-D camera disables culling (CE-1040 N4) ⇒ every translucent fill was blended TWICE. The mesh blends once, so the sand houses, slabs and walls now show the colour their alpha says (lighter); the tower and orange houses look the same. Other `FilledTriangle` users (`MapOverlayGizmo`) still double-blend |
+| rails | `TerrainLayer2DTests` ×3 (the production frame on demo-city drops nothing and holds no terrain — red-proved; the plan; culling) · `Map3DFrameRail.CE1227_V` (real window: under the gizmos, built once, coverage = the old gizmo path's, unticked = gone, close-up culls) · `LayerControlGizmoTests` (the row) · `EveryMapHostAttachesTheSharedLayers` (no host builds its own) |
+
+Screenshots: [`terrain2d-1-demo-city.png`](assets/map-3d/terrain2d-1-demo-city.png) · [`terrain2d-2-off.png`](assets/map-3d/terrain2d-2-off.png) · [`terrain2d-3-close.png`](assets/map-3d/terrain2d-3-close.png).

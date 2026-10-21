@@ -25,6 +25,7 @@ namespace Hrot.Network.NED.Tests
         /// <summary>
         /// The actor's order — forced backend, navmesh layer and road use — crosses the wire. 🔴 Before: the request carried
         /// <c>MobilityProfile</c> only, so a solver on another node planned every request as Auto / all layers / Unspecified.
+        /// ⭐ CE-3200 — and the vehicle's turn radius (🔴 before: a solver on another node planned sharp corners).
         /// </summary>
         [Fact]
         public void CE3129_TheOrder_BackendLayerAndRoadUse_CrossesTheWire()
@@ -38,6 +39,7 @@ namespace Hrot.Network.NED.Tests
                 RequestId = 42, SourceNodeId = BrainNode, MobilityProfile = 2,
                 Start = new Vector3(10f, 20f, 0f), End = new Vector3(110f, 60f, 0f),
                 BackendForce = NavigationBackend.NavRoadGraph, NavLayerMask = (int)NavLayerMask.Vehicle, RoadUse = RoadUse.Never,
+                TurnRadius = 7.25f,
             };
             var batch = egress.BuildBatch(new[] { sent });
             Assert.NotNull(batch);
@@ -56,6 +58,7 @@ namespace Hrot.Network.NED.Tests
             Assert.Equal(NavigationBackend.NavRoadGraph, got.BackendForce);
             Assert.Equal((int)NavLayerMask.Vehicle, got.NavLayerMask);
             Assert.Equal(RoadUse.Never, got.RoadUse);
+            Assert.Equal(7.25f, got.TurnRadius);
             Assert.InRange(Vector3.Distance(sent.End, got.End), 0f, 0.05f);
         }
 

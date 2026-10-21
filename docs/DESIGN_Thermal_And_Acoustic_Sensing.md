@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -736,3 +736,30 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 | `NedTkbBuilderCombatTests` (BR-14 rail) | each carry inside its sourced band, ordered 60 < 81 < 120 < 105 < 155; every firing weapon has a family and a band |
 | `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
 
+
+### 8.6 `CE-3281` — the BUILT-IN catalogue is heard: tanks, the Bradley, the HMMWV, every aircraft, every BDC person *(backend, `2026-10-20`; 🔒 user: "CE-3281 approved"; build-state: BUILT)*
+
+📐 Measured (rail `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard`, red first — it IS the inventory): 41 silences in
+`HrotEnvironment.CreateTkb()` — the M1, T-72, Bradley, HMMWV; persons 200–211 (moving and firing); the UH-60 (both), F-16, C-130, A-10 (and its
+Mk-82 bursts), AH-64; the security men's stun grenades and baton launcher (CE-3223); plus three FALSE positives the rail now names (the hands
+mount, the FPV drone's warhead, a static obstacle car) and SUMO traffic, kept silent (user, `2026-10-20`).
+
+| type | moving | firing (burst = the firing figure unless stated) | why this figure | source |
+|---|---|---|---|---|
+| M1, T-72 | tracked, 300 m | main gun **12 km**, burst 12 km, family Gun | a gun over 90 mm is at least the 1B19 band's floor for guns ≤ 90 mm / howitzers ≤ 105 mm (12–15 km, §8.5) | §8.5's 1B19 table; an M1 main gun recorded at 5 km ([AWM](https://www.awm.gov.au/collection/C1426361)); Fort Knox tank fire heard ~48 km away ([WDRB](https://www.wdrb.com/news/boom-fort-knox-tank-training-can-be-heard-miles-away/article_c63f374c-36b4-11e9-83f0-bb5a828e4e09.html)) — ⚠ anecdote, the upper end |
+| Bradley | tracked, 300 m | 25 mm: the ZU-23's 1.5 km, burst 600 m, family AaGun (an autocannon) | the catalogue's own autocannon figure (BR-14) | — |
+| HMMWV | wheeled, 100 m | — (its M2 is a weapon system with its own report, BR-14) | the technicals' figure | — |
+| UH-60, AH-64 | **Rotor, 3 km** | AH-64: its Hydra-70 as the ATGM's (800 m, burst 800 m, Launcher) | below the detector figure for heavy military helicopters | Sandia passive detector: ~1 km small civil → ~5 km heavy military ([INMM](https://resources.inmm.org/node/37016)) |
+| F-16, A-10, C-130 | **Rotor class, 15 km** ⚠ | A-10: the GAU-8 as the autocannon figure (1.5 km); its burst **10 km** (a Mk-82) | the low end of a jet's 15–25 km; the larger of its two bursts | ⚠ a non-authoritative guide ([sky-lens](https://sky-lens.com/guide/sound-propagation)); a 1 000 kg bomb heard ~10 km, a 250 kg one 2.5 km ([Times of Israel](https://www.timesofisrael.com/unexploded-1000-kilogram-wwii-bomb-is-detonated-in-england/)) — ⚠ news reports |
+| persons 200–211 | footsteps, 25 m | the rifle's 400 m; an LMG (M249, PKM) 600 m | the urban catalogue's CE-2106 figures | CE-2106 |
+| security (CE-3223) | footsteps (as before) | baton launcher 200 m (the pistol's); a stun / gas grenade's burst **400 m** | a flash-bang is as loud as a rifle shot or louder | ⚠ an estimate, no source |
+
+| decision | why | rejected |
+|---|---|---|
+| ⚠ a fixed-wing engine is heard as class **`Rotor`** ("an aircraft overhead") — ✅ 🔒 user, `2026-10-20`: *"Jets ok"* | the 3-bit class is full (`Rotor` = 7, the last value); `OfClass(Rotor)` = 1 is the right danger for an unknown aircraft; data only, cheap to change | ⛔ a new class — a wire and `Flags` layout change (bits 13–15 hold the family, CE-3283) for one label |
+| one figure per type: the loudest weapon's report, the largest burst | a signature has ONE firing and ONE detonation range (§8.4) | ⛔ per-mount signatures — a schema change no reader needs yet |
+| the hands mount (Grenade, no round), a static obstacle, a warhead whose burst is heard (the FPV drone) are NOT silences | a throw makes no report (CE-3248); an obstacle never moves; a drone IS its warhead | — |
+| ✅ **SUMO traffic (`TrafficCar` 8851) stays silent** | hundreds of background cars as sound sources is load and noise the AI ears never had; the traffic programme (R-4040) owns that call | 🔒 user, `2026-10-20`: *"sumo not heard ok"* |
+
+⚠ **Behaviour changes in every scenario using these types**: BDC soldiers' shots, tanks' guns and aircraft are now heard — a soldier who hears a
+shot reacts (CE-2106). Told behaviors ([note](blueprints/batches/NOTE_Backend_To_Behaviors_Catalogue_Heard.md)).

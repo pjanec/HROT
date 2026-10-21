@@ -30,6 +30,8 @@ namespace Hrot.Common.Orders
         /// <summary>⭐ <c>CE-2143</c> — no class of the unit fulfils the order (§8: no <c>&lt;Class&gt;&lt;Order&gt;</c> behaviour), or two
         /// classes tie. The receiver would start nothing; the sender says why.</summary>
         NotFulfilled,
+        /// <summary>⭐ <c>CE-1205</c> (Entity Control §8m PK-7) — the entity cannot be possessed (a weapon system is manned).</summary>
+        NotPossessable,
     }
 
     /// <summary>The outcome of one <see cref="EntityOrders"/> call: the refusal, or what was published.</summary>
@@ -187,6 +189,8 @@ namespace Hrot.Common.Orders
         public OrderResult Possess(long unit, PossessionMode mode)
         {
             if (!TryAddress(unit, out var entity, out var refused, ignorePossession: true)) return refused;
+            if (Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(_world, entity) is { } why)   // ⭐ CE-1205 (§8m PK-7)
+                return OrderResult.Refused(OrderRefusal.NotPossessable, $"Entity {unit}: {why}.");
             if (mode != PossessionMode.Riding) ReleaseOtherFps(entity);
             Publish(new PossessRequestEvent { Unit = entity, Mode = mode, StationNodeId = StationFor(entity) });
             return new OrderResult(OrderRefusal.None, mode == PossessionMode.Riding ? "riding" : "possessing", string.Empty, string.Empty);

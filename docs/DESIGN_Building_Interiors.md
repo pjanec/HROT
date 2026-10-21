@@ -1577,7 +1577,7 @@ graph TD
     TR --> HEAR[hearing attenuation]
     W --> COV[TerrainCoverProvider: per storey, window positions]
     W --> EQS[EqsTerrainSight: interior sampling]
-    W --> MAP[TerrainWorldGizmo: storey selector]
+    W --> MAP[TerrainLayer2D: storey selector]
     W --> STR[Stride: geometry + colliders from TerrainWorld]
     W --> DOOR[Door entities + DoorState, spawned at load]
     DOOR --> PATH

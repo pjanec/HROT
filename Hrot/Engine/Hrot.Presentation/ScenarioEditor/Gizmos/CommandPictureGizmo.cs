@@ -33,11 +33,12 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<UnitSubordinate>()) return;
         if (repo.IsComponentTypeRegistered<CommandPicture>() && repo.HasComponent<CommandPicture>(entity)) return;
         if (!IsCommander(repo, entity)) return;
         var at = view.GetComponentRO<SimTransform>(entity).Position;
-        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f);
+        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f, layer: DebugTraceLayers.SquadCommand);
     }
 
     /// <summary>True when some unit names <paramref name="unit"/> as its commander.</summary>
@@ -61,6 +62,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         ref readonly var pic = ref view.GetComponentRO<CommandPicture>(entity);
         float now = CommandPictureOps.Now(view);
@@ -72,7 +74,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
             var colour = WithAlpha(ElementColour, Alpha(age));
             Diamond(draw, e.At, HalfSize(e.Size), colour);
             draw.DrawText(e.At.X, e.At.Y, new FixedString32($"{e.Count}{Flags(e.Equipment)} {age:0}s{(e.Synthetic != 0 ? " SYN" : "")}"), colour,
-                fontSizePx: 10f, lineOffsetPx: 14f);
+                fontSizePx: 10f, lineOffsetPx: 14f, layer: DebugTraceLayers.SquadCommand);
         }
 
         if (view is EntityRepository repo)
@@ -82,14 +84,14 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
                 var sub = NetworkIdResolver.ResolveNetworkId(repo, row.UnitNetId);
                 if (sub.IsNull || !repo.IsAlive(sub) || !repo.HasComponent<SimTransform>(sub)) continue;
                 var s = repo.GetComponentRO<SimTransform>(sub).Position;
-                draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed);
-                draw.DrawText(s.X, s.Y, new FixedString32(row.Progress.ToString()), SubordinateColour, fontSizePx: 10f, lineOffsetPx: -14f);
+                draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed, layer: DebugTraceLayers.SquadCommand);
+                draw.DrawText(s.X, s.Y, new FixedString32(row.Progress.ToString()), SubordinateColour, fontSizePx: 10f, lineOffsetPx: -14f, layer: DebugTraceLayers.SquadCommand);
             }
 
         for (int i = 0; i < pic.Requests.Count && i < CommandPicture.MaxRequests; i++)
         {
             ref readonly var r = ref pic.Requests.Items[i];
-            draw.DrawText(r.At.X, r.At.Y, new FixedString32($"? {r.Kind}"), RequestColour, fontSizePx: 12f);
+            draw.DrawText(r.At.X, r.At.Y, new FixedString32($"? {r.Kind}"), RequestColour, fontSizePx: 12f, layer: DebugTraceLayers.SquadCommand);
         }
     }
 
@@ -116,14 +118,16 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
     private static void Diamond(IDebugDrawBuilder draw, Vector3 c, float h, Rgba32 colour)
     {
         var n = c + new Vector3(0, h, 0); var e = c + new Vector3(h, 0, 0); var s = c + new Vector3(0, -h, 0); var w = c + new Vector3(-h, 0, 0);
-        draw.DrawLine(n, e, colour, 2f); draw.DrawLine(e, s, colour, 2f); draw.DrawLine(s, w, colour, 2f); draw.DrawLine(w, n, colour, 2f);
+        draw.DrawLine(n, e, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(e, s, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(s, w, colour, 2f, layer: DebugTraceLayers.SquadCommand); draw.DrawLine(w, n, colour, 2f, layer: DebugTraceLayers.SquadCommand);
     }
 }
 
 /// <summary>
 /// ⭐ <c>CE-1192</c> (UI-5b, 📄 docs/DESIGN_Command_Display.md §6 D2) — a selected / pinned man's own sector ARC (<see cref="EngagementArea"/>
 /// <c>ArcSet</c>): two edges from the arc's origin along its compass bearings and the far edge at its range (50 m when unlimited), in his
-/// unit's colour. Every man may carry one, so it is drawn only for the selection (family <c>SquadAssignment</c>).
+/// unit's colour. Every man may carry one, so it is drawn only for the selection (family <c>SquadAssignment</c>). ⭐ <c>CE-1225</c> (§8 S-1,
+/// S-3): on the <see cref="DebugTraceLayers.Sectors"/> layer, on the ground (z = 0, draped in 3-D); a COMMANDER's arc is also drawn for
+/// everyone by <see cref="SectorAreasGizmo"/> (the same line twice when he is selected — S-5).
 /// </summary>
 [GizmoProjector(typeof(EngagementArea), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
 public sealed class SectorArcGizmo : IStatelessGizmo
@@ -132,25 +136,36 @@ public sealed class SectorArcGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Sectors)) return;
         ref readonly var a = ref view.GetComponentRO<EngagementArea>(entity);
         if (a.ArcSet == 0) return;
         long net = view is EntityRepository repo && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
             && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
             ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value : entity.Index;
-        var colour = SectorAreasGizmo.ColourOf(net);
+        DrawArc(draw, in a, SectorAreasGizmo.ColourOf(net));
+    }
+
+    /// <summary>An arc's two edges and its far edge on the ground (z = 0) on the Sectors layer; nothing when it has no arc.</summary>
+    public static void DrawArc(IDebugDrawBuilder draw, in EngagementArea a, Rgba32 colour)
+    {
+        if (a.ArcSet == 0) return;
         float far = a.MaxRange > 0f ? a.MaxRange : UnlimitedDrawRange;
         float near = MathF.Max(0f, a.MinRange);
         float left = a.LeftBearing, sweep = ((a.RightBearing - a.LeftBearing) % 360f + 360f) % 360f;
         if (sweep == 0f) sweep = 360f;
-        draw.DrawLine(a.ArcOrigin + Dir(left) * near, a.ArcOrigin + Dir(left) * far, colour, 1.5f);
-        draw.DrawLine(a.ArcOrigin + Dir(left + sweep) * near, a.ArcOrigin + Dir(left + sweep) * far, colour, 1.5f);
+        var origin = new Vector3(a.ArcOrigin.X, a.ArcOrigin.Y, 0f);
+        Line(draw, origin + Dir(left) * near, origin + Dir(left) * far, colour);
+        Line(draw, origin + Dir(left + sweep) * near, origin + Dir(left + sweep) * far, colour);
         int steps = Math.Max(2, (int)(sweep / 10f));
         for (int i = 0; i < steps; i++)
         {
             float b0 = left + sweep * i / steps, b1 = left + sweep * (i + 1) / steps;
-            draw.DrawLine(a.ArcOrigin + Dir(b0) * far, a.ArcOrigin + Dir(b1) * far, colour, 1.5f);
+            Line(draw, origin + Dir(b0) * far, origin + Dir(b1) * far, colour);
         }
     }
+
+    private static void Line(IDebugDrawBuilder draw, Vector3 from, Vector3 to, Rgba32 colour)
+        => draw.DrawLine(from, to, colour, 1.5f, layer: DebugTraceLayers.Sectors);
 
     /// <summary>A compass bearing (0 = north +Y, 90 = east +X) as a unit vector on the map plane.</summary>
     public static Vector3 Dir(float bearingDeg)

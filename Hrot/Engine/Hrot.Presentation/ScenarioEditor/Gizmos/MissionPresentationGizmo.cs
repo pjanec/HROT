@@ -31,6 +31,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Paths)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             if (!view.HasManagedComponent<ActiveMissionPlan>(entity)) return;
             var activePlan = view.GetManagedComponentRO<ActiveMissionPlan>(entity);
             if (activePlan?.Plan?.Tasks == null) return;
@@ -60,7 +61,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     var cartesian = _geoTransform.ToCartesian(targetLat, targetLon, 0.0);
                     var targetPos = new Vector3((float)cartesian.X, (float)cartesian.Y, 0f);
 
-                    draw.DrawLineGradient(lastPos, targetPos, StartColor, EndColor, thickness: 2f, SizeMode.WorldMeters);
+                    draw.DrawLineGradient(lastPos, targetPos, StartColor, EndColor, thickness: 2f, SizeMode.WorldMeters, layer: DebugTraceLayers.Paths);
 
                     lastPos = targetPos;
                 }

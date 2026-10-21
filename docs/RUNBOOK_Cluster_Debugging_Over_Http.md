@@ -298,6 +298,15 @@ curl -s --noproxy '*' $B/entities/1000       # { EntityId, NetworkId, Components
 | ⭐⭐ **intent vs status distinguishes three bugs** | intent empty ⇒ nothing issued it · intent set + status absent ⇒ the consumer never ran · both set + zero velocity ⇒ the consumer ran and produced nothing |
 | ⭐ **check authority before filing "the write did nothing"** | a write to an entity this node does not own is legitimately dropped |
 
+### 6.1 ⛔⛔ Driving a POSSESSED unit over HTTP — **the runner's own 3-D station overwrites your frames** *(measured `2026-10-20`, CE-1206)*
+
+`POST /entities/{id}/possess` makes THIS node the station, and the runner's editor UI (under `xvfb-run`) holds a 3-D possession station
+that sends its OWN control frame every tick for the unit this node holds: trigger 0, aim 1000 m along yaw 0, the first weapon slot.
+⛔ "Newest seq wins" (`PossessionSystem`), so `POST /entities/{id}/control` frames counting from 1 lose to it — read
+`Components.OperatorInput` and the trigger, aim and press counters are the station's, not yours. ⭐ **Send `seq` from 1 000 000 up.**
+⚠ And a per-press weapon (a cannon, a ZU-23 — `WeaponBrainProfiles.FiresPerPress`) fires on a PRESS: bump `shot` (the press counter)
+once per shot; a held `trigger` alone fires only automatic weapons.
+
 ⭐ **The components worth reading first for an AI/combat question:** `NetworkAuthority`,
 `PendingAuthorityGrants`, `BehaviorState.ActiveBehaviorHash`, `MissionPlanQueue.PhaseCount`,
 `SensorContactList.Count`, `ActiveSensorTracks.Count`, `LocomotionChannel.Status`,

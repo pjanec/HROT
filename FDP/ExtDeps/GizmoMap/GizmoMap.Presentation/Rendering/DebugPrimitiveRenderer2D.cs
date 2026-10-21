@@ -26,6 +26,16 @@ namespace GizmoMap.Presentation
 
         private const float DegToRad = MathF.PI / 180f;
 
+        /// <summary>⭐ CE-1228 — <paramref name="a"/>, <paramref name="b"/>, <paramref name="c"/> in the order raylib draws with back-face
+        /// culling on (counter-clockwise ON SCREEN — its y-down pixels: a negative cross product there), given whether the view
+        /// <paramref name="mirrored"/> the plane (<see cref="WorldYUp"/> — the north-up map's Y flip). So exactly one triangle lands, culling on or off.</summary>
+        public static (Vector2 A, Vector2 B, Vector2 C) KeptWinding(Vector2 a, Vector2 b, Vector2 c, bool mirrored)
+        {
+            float cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+            bool keep = mirrored ? cross > 0f : cross < 0f;
+            return keep ? (a, b, c) : (a, c, b);
+        }
+
         /// <summary>
         /// Optional Raylib Font used for all gizmo text rendering.
         /// Set once by the integration layer after the GL context and window are created.
@@ -358,10 +368,11 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.FilledTriangle:
                 {
-                    // ⭐ Both windings: raylib culls a clockwise triangle, and whether a world-CCW triangle is
-                    //   screen-CCW depends on the camera's Y flip. The culled one costs nothing.
-                    Raylib.DrawTriangle(prim.TriA, prim.TriB, prim.TriC, color);
-                    Raylib.DrawTriangle(prim.TriA, prim.TriC, prim.TriB, color);
+                    // ⭐ CE-1228 — ONE triangle, in the winding raylib keeps: whether a world-CCW triangle is screen-CCW depends on the
+                    //   camera's Y flip (WorldYUp, the one mirror flag the text already uses). ⛔ Was: both windings, "the culled one costs
+                    //   nothing" — but a map that turns culling OFF (the north-up mirror) drew both, and a translucent fill blended twice.
+                    var (a, b, c) = KeptWinding(prim.TriA, prim.TriB, prim.TriC, WorldYUp);
+                    Raylib.DrawTriangle(a, b, c, color);
                     break;
                 }
 

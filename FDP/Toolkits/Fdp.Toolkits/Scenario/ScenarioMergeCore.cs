@@ -88,6 +88,7 @@ public static class ScenarioMergeCore
         int?     schemaVersion = null;
         string?  terrainName   = null;
         bool     terrainSeen   = false;
+        string?  description   = null;   // ⭐ CE-3288 — the Brain's slice carries it (§4d)
 
         // ── Entities (I1+I2): disjoint union ─────────────────────────────────────────────
         var mergedEntities = new JsonObject();
@@ -116,6 +117,16 @@ public static class ScenarioMergeCore
                 else if (!string.Equals(terrainName, v, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"Header.TerrainName mismatch across slices ('{terrainName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE terrain.");
+            }
+
+            // ⭐ CE-3288 (§4d) — the scenario's description: only the Brain loads and saves the scenario as a whole, so normally ONE
+            //   slice carries it. ⚠ Two different texts are a WARNING, not a failure — unlike the terrain (I4) they do not make two exercises.
+            if (ScenarioDescription.OfDom(dom) is { } text)
+            {
+                if (description == null) description = text;
+                else if (!string.Equals(description, text, StringComparison.Ordinal))
+                    Fdp.Core.Logging.FdpLog<ScenarioSlice>.Warn(
+                        "[ScenarioMerge] Header.Description differs on node {0}; the first slice's is kept.", s.OriginNodeId);
             }
 
             // ⛔⛔ F2 — THE `Zones` ARM IS GONE, and its absence is the point.
@@ -158,8 +169,13 @@ public static class ScenarioMergeCore
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
         var canonical = new JsonObject { ["Entities"] = mergedEntities };
         // ⛔⛔ R-4018 — the header carries the terrain name only; a legacy slice's TkbName is not carried over.
-        if (terrainName is not null)
-            canonical["Header"] = new JsonObject { ["TerrainName"] = JsonValue.Create(terrainName) };
+        if (terrainName is not null || description is not null)
+        {
+            var header = new JsonObject();
+            if (terrainName is not null) header["TerrainName"] = JsonValue.Create(terrainName);
+            if (description is not null) header["Description"] = JsonValue.Create(description);   // ⭐ CE-3288
+            canonical["Header"] = header;
+        }
         if (mergedTerrainObjects.Count > 0) canonical[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = mergedTerrainObjects;
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
 

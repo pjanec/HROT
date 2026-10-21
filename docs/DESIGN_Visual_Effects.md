@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). ⭐ §10 impacts on every surface BUILT 2026-10-16 (CE-1128 / CE-1129). Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-19 (§10 impact marks sized by their round — CE-1199)
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
+updated: 2026-10-20 (§11 charges BUILT — CE-1231/1232, as built §11.3; every damage-0 burst now sized by its explosive) · 2026-10-20 (§11 charges: the IED / vest burst and the placed IED — leans APPROVED R-1016) · 2026-10-19 (§10 impact marks sized by their round — CE-1199)
+current-answer: §11 charges (BUILT — §11.3 as built) · §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -1005,3 +1005,126 @@ writes, viewers read, never both), `EffectTests.CE1129_*` (puff + mark; a wall m
 light ([Map 3D §6aa](DESIGN_Map_3D_Mode.md) WS-5). ⚠ Whatever is added to the effects must keep drawing unlit; an effect that lights its
 SURROUNDINGS at night (a flare lighting the ground) is not built — CE-1146's open discussion.
 
+
+## 11. Charges — the IED / suicide-vest / car-bomb burst, and the placed IED itself *(`CE-1231` · `CE-1232`, ui, `2026-10-20`; build-state: ✅ BUILT `2026-10-20` — leans APPROVED, R-1016; as built §11.3)*
+
+🔒 **User, `2026-10-20`:** *"do we have any vsualization of ICD explosion? I ahevnt seen any. Also nothing for suicide bomber explosion. adn
+visualization of the OCD itself - i sam just the entity label"* · on the leans below: *"the explosions leans accepted, record as tracked item."*
+
+**How it is** *(measured `2026-10-20`)*:
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a charge (vest, IED, car bomb) bursts as one `DetonationNotification` carrying its round (ammo 6043) | ✅ `Charges.Detonate` (`Fdp.Toolkits/Combat/Charges.cs`) | ✅ Civilians AW-12: one charge type, three placements |
+| that burst is drawn as the SMALLEST explosion (0.35 s, 0.8 m dust puff + a bullet mark) | ✅ 6043 has no `MunitionEffectsDto` ⇒ `EffectTkbCatalog.EffectsFor` sizes by damage; the charge mount has no `DamagePerHit` and its ammo is the mount's own ⇒ `RoundOf` = 0 ⇒ `CalibreClass.Small` | ⛔ searched this file and Civilians: no look for a charge |
+| the placed IED shows only its label | ✅ 2-D: its class chain reaches `LandPlatform` ⇒ a ground-VEHICLE outline at its ~30 cm size (sub-pixel); 3-D: `WeaponKits.Charge` is a 0.30 × 0.20 × 0.12 m box | ⛔ none; AW-12 / BM-2 keep the WORN vest hidden (what observers can tell, not the map) |
+| the burst's SOUND is small too | ⛔ not measured (`SoundEvents.Burst` gets damage 0) | ⛔ not searched |
+
+| id | ✅ APPROVED lean *(R-1016)* | rejected — one line each |
+|---|---|---|
+| **CH-1** *(`CE-1231`)* | a round with no per-hit damage is sized by its warhead's EXPLOSIVE MASS (`WarheadDto`); a new look **"Explosion huge"** (≈ 2 s, ≈ 20 m, orange core in a grey-brown cloud) + the crater decal from 5 kg up — fixes the IED, the vest, the car bomb and any later damage-0 area round, all in `EffectTkbCatalog`; check the sound and the Mk-82 with it | a one-off look for 6043 only — every other damage-0 area round stays a puff · raising the charge's `DamagePerHit` — that number is combat damage (backend's), not a look |
+| **CH-2** *(`CE-1232`)* | a PLACED charge gets a fixed-pixel 2-D marker (a small diamond reading "IED", side-coloured) through its class (`ExplosiveChargeWeaponSystem`), not the ground-vehicle outline; a WORN vest stays unmarked (the bomber is a person — AW-12); a car bomb is its car | a symbol on the bomber — AW-12 rules the vest hidden until it goes off |
+| **CH-3** *(`CE-1232`)* | in 3-D the charge keeps its true size but reads as what it is: two shells bundled with a wire (`WeaponKits.Charge`); from map height its label and the 2-D marker find it | a minimum on-screen size in 3-D — a 30 cm thing drawn metres wide lies about the scene |
+
+### 11.1 INVENTORY *(`2026-10-20`; graph CLI `search_graph` over `EffectTkbCatalog|Charges|DetonationNotification|WarheadDto|SoundEvents|WeaponKits`,
+then `git grep "new DetonationNotification"` and `git grep EffectsFor` for the call sites — the graph does not model event publishes; `check_index_coverage`
+is not reachable through the CLI)*
+
+**Every production publisher of `DetonationNotification`, and the damage it carries** — 🔴 the finding: the damage-0 burst is NOT the IED's alone.
+
+| publisher | when | `Damage` on the event |
+|---|---|---|
+| `HitResolutionSystem` (FDP Physics) | a round met a body | ✅ the round's |
+| `DroneImpactSystem` (FDP Motion) | an FPV drone meets the ground or a body | ✅ `RoundOf` its mount |
+| `Charges.Detonate` (FDP Combat) | a vest / IED / car bomb is set off | ⛔ **0** — the charge mount has no `DamagePerHit` |
+| `BallisticsSystem.Detonate` (FDP Combat) | **every off-target burst** — a grenade, a mortar or howitzer shell, a bomb, a rocket that missed, a lying grenade's fuze | ⛔ **0 — never set** |
+| `MunitionDetonationIngressTranslator` (NED) | **another node's** burst, on every node | ⛔ **0 — not on the wire** |
+
+⇒ ⭐ every off-target burst and every REMOTE burst reaches `EffectsFor` with damage 0 and draws the 0.8 m puff — unless its ammo names an
+effect set (only the M67 grenade and the 81 mm bomb do). 📐 The reference library's explosive masses (`ammo.json`): 23 mm HEI 0.013 kg ·
+40 mm HEDP 0.045 · M67 0.24 · Igla 0.39 · 60 mm 0.4 · PG-7V 0.73 · 81 mm 0.95 · Stinger 1.0 · 70 mm rocket 1.04 · 120 mm HEAT 1.6 · 105 mm 2.1 ·
+120 mm mortar 3.0 · TOW-2 3.1 · 125 mm HE 3.4 · **155 mm 6.6 · the charge 8.0 · Mk-82 94**.
+
+**Every reader of `EffectTkbCatalog.EffectsFor`** — `EffectSpawnSystem` ×4 (fire flash, detonation, impact, release) · `SoundTkbCatalog.ShotFor` ·
+`SoundTkbCatalog.DetonationFor` (the bang, from the explosion it picks — so the sound follows the look with no change of its own).
+**The placed charge's drawing:** 2-D `EntityPresentationGizmo` → `EntityClassShapeLibrary` (class chain ⇒ `LandPlatform` ⇒ a ground-vehicle outline);
+3-D `EntityBodyLayer3D` → `WeaponKits.KindOf` (`ExplosiveChargeWeaponSystem` ⇒ `WeaponKind.Charge`) → `WeaponKits.Charge` (a box).
+A WORN charge: 3-D `DrawCarried` skips a concealed station (`CarryStations.IsConcealed`); a car's cargo charge is an enclosed passenger
+(`PhysicalPresence.IsEnclosedPassenger`) — no symbol of its own in either view.
+
+### 11.2 Diagrams
+
+```mermaid
+classDiagram
+  class EffectTkbCatalog {
+    <<exists, changed>>
+    ExplosionHuge 7114 : new look
+    CalibreClass : Small, Medium, Large, Huge (new)
+    ClassOfExplosive(kg) : new
+    EffectsFor(tkb, ammo, damage) : damage 0 and a warhead ⇒ burst and mark by its mass
+  }
+  class ParameterResolver { <<exists, FDP>> Warhead(tkb, ammo) : the ONE warhead lookup }
+  class WarheadDto { <<exists>> ExplosiveKg }
+  class SoundTkbCatalog { <<exists, changed>> ExplosionHuge 7314 : new; DetonationFor maps the huge burst }
+  class SoundSynth { <<exists, FDP, changed>> ExplosionHuge : appended }
+  class SoundSources { <<exists, changed>> BurstRangeHuge }
+  class EntityPresentationGizmo { <<exists, changed>> a PLACED charge: the IED marker instead of the outline }
+  class ChargeMarker { <<new>> IsPlaced(view, e) by class; Draw: a side-coloured diamond reading IED, fixed pixels }
+  class WeaponKits { <<exists, changed>> Charge : two shells bundled with a wire }
+  class EntityClassTable { <<exists>> Chain(dis) : ExplosiveChargeWeaponSystem }
+  EffectTkbCatalog ..> ParameterResolver
+  ParameterResolver ..> WarheadDto
+  SoundTkbCatalog ..> EffectTkbCatalog : DetonationFor
+  SoundSources ..> SoundTkbCatalog
+  EntityPresentationGizmo ..> ChargeMarker
+  ChargeMarker ..> EntityClassTable
+  WeaponKits ..> EntityClassTable
+```
+*What the picture shows that prose hid:* one change in `EffectsFor` reaches the look AND the bang (the sound reads the explosion it picks), so
+CH-1 has no second sizing rule to keep in step; the marker and the kit both key on the CLASS, the way the rest of the map does.
+
+```mermaid
+sequenceDiagram
+  participant T as trigger man / timer
+  participant C as Charges.Detonate (owner node)
+  participant B as bus
+  participant N as NED (other nodes)
+  participant E as EffectSpawnSystem (every map host)
+  participant K as EffectTkbCatalog
+  participant S as SoundSources
+  T->>C: DetonateChargeEvent
+  C->>B: DetonationNotification (ammo 6043, damage 0)
+  B-->>N: MunitionDetonation (no damage on the wire)
+  N->>E: DetonationNotification (damage 0) on each node
+  B->>E: (own node)
+  E->>K: EffectsFor(tkb, 6043, 0)
+  K->>K: no set, damage 0 ⇒ Warhead(6043) = 8 kg ⇒ Huge
+  K-->>E: Explosion huge 7114 + crater 7123
+  E->>S: Burst(point, 6043, 0)
+  S->>K: DetonationFor ⇒ ExplosionHuge ⇒ 7314, range 6 km
+```
+*What the picture shows that prose hid:* the REMOTE node never sees a damage, so sizing by damage could never have been right there — the
+munition's warhead is the only size every node can look up.
+
+```mermaid
+graph TD
+  MIP["MapInteractionPack (every map host)"] -->|registers, scheduled each frame| ESS[EffectSpawnSystem]
+  AL["AttachMapLayers: AudioLayer"] -->|each frame| SS[SoundSources]
+  MIP -->|reflection registrar| EPG[EntityPresentationGizmo]
+  AL2["AttachMapLayers: EntityBodyLayer3D"] -->|each 3-D frame| WK[WeaponKits.Charge]
+  ESS --> EF[EffectTkbCatalog.EffectsFor]
+  SS --> EF
+```
+*What the picture shows that prose hid:* every host that has a map runs all four — nothing here is per host, so nothing needs wiring.
+
+### 11.3 As built *(`2026-10-20`, ui — the diagrams above are the as-built; where it goes past or beside the leans)*
+
+| | as built | why |
+|---|---|---|
+| CH-1 | `EffectsFor`: no set and damage 0 ⇒ the burst and the mark by `ClassOfExplosive(kg)` — **medium from 0.01 kg, large from 1 kg, huge from 5 kg** — the flash and tracer stay the damage class's. The mass comes from `ParameterResolver.Warhead` (the TKB's `WarheadDto`, else the reference library by name: the charge is "8 kg demolition charge") | ⭐ the thresholds make a round that HITS (damage-sized) and the SAME round that MISSES (mass-sized) look alike: 25 mm HEI medium, PG-7V medium, 120 mm HEAT and TOW large (measured classes in the rail). ⚠ The lean said only "huge from 5 kg"; the lower bands are needed because the inventory (§11.1) found every off-target and every remote burst arrives with damage 0 — not just the charge |
+| CH-1 look | `ExplosionHuge` 7114: 2.2 s, 20 m, `#F07028`; mark: the crater (`DecalLarge`). ⭐ A burst of 15 m and up raises a **grey-brown dust cloud** under its core (`EffectLayer.RaisesDust` / `Dust`, 2-D disc and 3-D sphere), the core drawn at 0.6 of the size — the lean's "orange core in a grey-brown cloud" | the explosion look has ONE colour (`EffectVisualDto`), so the cloud is the layer's, keyed on size, not a second descriptor |
+| CH-1 sound | `SoundTkbCatalog.ExplosionHuge` 7314 (`SoundSynth.ExplosionHuge`, appended to the FDP enum), heard to 6 km (`SoundSources.BurstRangeHuge`); `DetonationFor` maps it — the bang follows the look with no rule of its own | — |
+| CH-1 Mk-82 | 94 kg ⇒ huge (and the 155 mm shell, 6.6 kg). ⛔ Was: both the puff | "check the Mk-82 with it" |
+| CH-2 | `ChargeMarker`: a charge by CLASS (`ExplosiveChargeWeaponSystem`) that is not carried (`IsEmbarkedTag`) draws a 7 px diamond in its side's colour (2-D only, `Map2D \| FlatOnly`) and "IED" beside it, in place of the outline; its pick box is in screen pixels too (`EmitPickBox` gained `sizeMode`) so it is clickable at every zoom. A worn vest keeps today's drawing (no marker); a car bomb is an enclosed passenger (nothing of its own) | ⚠ `DrawText` has no view target, so the "IED" letters also show in 3-D beside the true-size kit — harmless, and they help find it from map height |
+| CH-3 | `WeaponKits.Charge`: two shells (a body and an ogive cone each) side by side, two turns of wire round both, a detonator between them, its wire off the back — at the old 0.30 × 0.20 × 0.12 m. ⭐ The boxes a round meets are the drawn parts (`CE-3214`): `VehicleBody.WeaponKits.g.cs` (FDP) regenerated (`HROT_GEN_VEHICLE_BODY=1`) — the Charge kit only, 2 boxes → 8 | the parity rail `CE3214_TheBoxesTheRoundsMeet…` holds the two equal |
+| ⚠ not done | a WORN vest still has its own entity card and a sub-pixel outline in 2-D (not new; AW-12 governs observers, not the operator's map) — out of CH-2's scope, named here so it is not lost | — |

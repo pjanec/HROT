@@ -9,6 +9,7 @@ GET /diagnostics/architecture (avgMs / recentAvgMs / maxMs per system). No timin
     dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore
     python3 scripts/perf-civilians.py 100 300 500            # one fresh cluster per count
     python3 scripts/perf-civilians.py 300 --budget-ms 16     # exit 1 when a watched system's recent average exceeds the budget
+    python3 scripts/perf-civilians.py --gate                 # ⭐ R-3029: 300 civilians, each node's ALL SYSTEMS ≤ 100 ms (the ruled ceiling)
 
 Design: docs/DESIGN_Civilians_And_Crowd_Control.md §7.4 (B-4) and its as-built §7.4a. Demo ua-civ-crowd-300 (§5c) reads this.
 """
@@ -27,6 +28,9 @@ WATCHED = ("BrainTickSystem", "CivilianFearSystem", "CrowdSystem", "CarKinematic
            "WeaponAmmoMirror", "EqsResultUpdate", "GhostPromotion", "OwnershipRecompute")
 AREA = (60.0, 60.0, 340.0, 340.0)           # test-town, inside its roads' footprint
 TOP = 8                                     # the costliest systems shown per subsystem, whatever they are
+# ⭐ R-3029 (CE-3222; DESIGN_Civilians_And_Crowd_Control §7.4a) — the approved REGRESSION ceiling on the dev VM: each node's sum of recent
+#   averages at 300 civilians. Not a real-time target (that is set separately on a release machine).
+GATE_COUNT, GATE_NODE_MS = 300, 100.0
 
 
 def scenario(count):
@@ -78,7 +82,7 @@ def profile_rows():
     return rows, trows
 
 
-def run(count, seconds, port, budget):
+def run(count, seconds, port, budget, node_budget=0.0):
     name, folder = write_scenario(count)
     proc = udc.launch(port)
     try:
@@ -112,26 +116,36 @@ def run(count, seconds, port, budget):
     frames = max((r[5] for r in rows), default=0)
     print(f"   frames run: {frames} in {seconds} s of sim (a --mode all host runs every subsystem in one process, one after another)")
     over = [r for r in watched if budget and r[3] > budget]
+    # ⭐ R-3029 — a node (subsystem) over the per-node ceiling, reported in the same row shape: (sub, "ALL SYSTEMS", avg, recent, max, n)
+    over += [(sub, "ALL SYSTEMS", 0.0, total, 0.0, 0) for sub, total in sorted(per_sub.items()) if node_budget and total > node_budget]
     return over
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("counts", nargs="+", type=int)
+    ap.add_argument("counts", nargs="*", type=int)
     ap.add_argument("--seconds", type=float, default=60.0, help="sim seconds to run before reading (default 60)")
     ap.add_argument("--port", type=int, default=8111)
     ap.add_argument("--budget-ms", type=float, default=0.0, help="fail when a watched system's recent average exceeds this")
+    ap.add_argument("--node-budget-ms", type=float, default=0.0, help="fail when a node's ALL SYSTEMS sum exceeds this (R-3029)")
+    ap.add_argument("--gate", action="store_true", help=f"the ruled gate: {GATE_COUNT} civilians, --node-budget-ms {GATE_NODE_MS:g} (R-3029)")
+    ap.set_defaults(counts=[])
     a = ap.parse_args()
+    if a.gate:
+        a.counts, a.node_budget_ms = a.counts or [GATE_COUNT], a.node_budget_ms or GATE_NODE_MS
+    if not a.counts:
+        ap.error("give civilian counts, or --gate")
     udc.BASE = f"http://localhost:{a.port}"
     failed = []
     for c in a.counts:
-        failed += [(c,) + r for r in run(c, a.seconds, a.port, a.budget_ms)]
+        failed += [(c,) + r for r in run(c, a.seconds, a.port, a.budget_ms, a.node_budget_ms)]
     if failed:
         print("\nOVER BUDGET:")
         for c, sub, n, _, recent, _, _ in failed:
-            print(f"   {c} civilians · {sub} {n}: {recent:.3f} ms > {a.budget_ms} ms")
+            limit = a.node_budget_ms if n == "ALL SYSTEMS" else a.budget_ms
+            print(f"   {c} civilians · {sub} {n}: {recent:.3f} ms > {limit} ms")
         sys.exit(1)
-    print("\nPASS" if a.budget_ms else "\n(no budget given — measured only)")
+    print("\nPASS" if a.budget_ms or a.node_budget_ms else "\n(no budget given — measured only)")
 
 
 if __name__ == "__main__":

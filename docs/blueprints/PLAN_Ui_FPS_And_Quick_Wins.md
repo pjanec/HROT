@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19
+updated: 2026-10-20
 current-answer: §1 the order (the user's, reordered 2026-10-19: the quick wins first) · §2 how each step is done · §3 approved earlier the same day, after the list · §4 progress log
 stale-below: nothing.
 known-rot: none.
@@ -67,6 +67,7 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `CE-1207` + `CE-1205` | the operator picks up stones / rounds and takes weapons; a lying weapon is not possessed | `R-1007` |
 | `CE-1210` | seat switching in a vehicle with several crewed weapons | `R-1008` |
 | `CE-1206` | the ZU-23 technical that would not fire — reproduce live first | — |
+| `CE-1196` | ⛔ reopened (`R-1014` put the near plane back): the SUMO roads flicker in 3-D — 🔒 user, `2026-10-20`: *"Keep road flicker in the plan, btw same flicker is for multiple gizmos showing filled circle on the ground in 3d."* ⇒ one depth bias for everything drawn ON the ground (the road mesh and the draped gizmo fills) | — |
 
 ## 4. Progress log
 
@@ -98,3 +99,9 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `2026-10-19` | 18 | ✅ M: the 2-D map centred on him (he holds still, still possessed), M again back to his eyes; Presentation 790 / 0 |
 | `2026-10-19` | 19 | ✅ hold B: the binoculars (raised by his brain, refused without them), 10° view when up, the range, LMB designates for his men; cross-lane: `OperatorControlBehavior` + the frame byte through the wire; Presentation 791 / 0, SimHost 1689 / 0 |
 | `2026-10-19` | 20 | ✅ when he falls: the view stays and fades, "KILLED - by <name>", Tab a squad mate / K a kill cam / Esc the map; DOWN dims the view; Presentation 793 / 0. **#16–#20 done.** |
+| `2026-10-20` | — | `CE-1204` (a person's mouse look) designed — Entity Control §8l, leans LK-2…LK-7 with the user; `CE-1196` kept, widened to the draped ground circles |
+| `2026-10-20` | — | ✅ `CE-1225` the Sectors checkbox (Command Display §8; Presentation 795 / 0); `CE-1203` finer layers + a set per view + remembered — APPROVED `R-1011`, ⛔ not started (Tuning §5e). Next: §3's items, each designed first — see [RESUME_UI_Lane](RESUME_UI_Lane.md) "SESSION 2026-10-20" |
+| `2026-10-20` | — | ✅ `CE-1203` finer layers (Tuning §5e.1), `CE-1231`/`CE-1232` charges (VE §11), `CE-1234` the 3-D layer panel; ✅ `CE-1204` a person's mouse look BUILT (Entity Control §8l.5, `R-1017`): V frees the look within his neck (the TKB's, 0 ⇒ 70°), A/D turn him, every node draws his head where his eyes point. Next: `CE-1196` |
+| `2026-10-20` | — | ✅ `CE-1196` ground flicker (one ground depth bias: roads + gizmo fills, fills without depth writes; Map 3-D §6z CA-4) and `CE-1228` (a 2-D fill drawn once); Presentation 813 / 0, GizmoMap 47 / 0. Next: `CE-1207` + `CE-1205` design |
+| `2026-10-20` | — | ✅ `CE-1207` + `CE-1205` designed and built (Entity Control §8m, §8m.5): Take a lying portable weapon, Pick up a lying stone / round (the station chooses it; a new executor, action 12), Drop on the hold list, a weapon is manned never possessed (menu greyed, order refused). Next: `CE-1210` seat switching (design first) |
+| `2026-10-20` | — | `CE-1210` seat switching designed (Entity Control §8n, leans MS-1…MS-7 — ⚠ MS-2 amends Weapon Systems W-H) and `CE-1230` the shared ORBAT menu designed (canvas context menu §11, leans OM-1…OM-5) — ⏸ both wait for the user |

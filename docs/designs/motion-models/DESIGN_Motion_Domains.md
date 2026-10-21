@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
-build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+updated: 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
+current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -286,3 +286,256 @@ speed but whether the move is allowed to END. A radius of 0 already says "there 
 ⭐ Rails: `RotorcraftModelTests.CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive` (a drone at 60 m sent to a ground point
 40 m off reaches it within 4 s — the 72 m line from rest — and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off) · ⭐ `CE2213_AStrike_FliesTheLineToItsPoint_NotLevelThenDown` (at 30 m/s and 60 m, a ground point 30 m ahead: over it at 38.5 m — down the line — where CE-2211's rule is still at 52.9 m) — red-proofed (CE-2211's full horizontal). ⚠ Against a FIXED point neither rule overshoots (the one-frame cap stops the horizontal); the overshoot needs a MOVING point, which `AirAttackNodesTests`' evading and fleeing rails (on this model) red-prove. The
 behaviour half: [Air Ops §9i](../air-attack/DESIGN_Air_Operations.md) D-3.
+
+## 5e. MEASURED — a hull half inside a building, with no way out — `CE-2198`'s guard is the centre only (`CE-3286`, `2026-10-20`, backend)
+
+📐 Measured live `2026-10-20` (`ua-tank-corner`, `ua-technical-scoot`, a 0.5 s trace of each vehicle's pose and move orders; test-town's
+footprints from `test-town.world.geojson`):
+
+```mermaid
+sequenceDiagram
+    participant N as VehicleFightFromCover (CGF)
+    participant E as EQS FindVehicleHide
+    participant K as CarKinematicsSystem (SimHost)
+    N->>E: a hide near me
+    E-->>N: a point width/2 + 0.5 m off the wall (VehicleFootprint: the hull parked SIDE-ON)
+    N->>K: MoveTo(hide), no reverse
+    K->>K: the hull arrives NOSE-FIRST — its front is half a length ahead of the centre
+    K->>K: the wall guard traces the CENTRE line only ⇒ the nose enters the building, the centre stops ON the wall line
+    N->>K: MoveTo(the next point — to the side or behind)
+    loop every tick
+      K->>K: steering turns only while moving forward (BicycleModel) ⇒ the step goes into the wall ⇒ refused, speed 0
+      K->>K: the heading creeps ~1°/s (one tick's accel × dt) — the only motion left
+    end
+    K->>K: the watchdog replans after 2 s ⇒ a path from the same spot, again forward ⇒ held again
+```
+
+*Caption:* what the picture shows that the code hid — three separate rules each look right alone: the hide's clearance box assumes a
+hull parked ALONG the wall, the follower drives to it nose-first, and the wall guard watches only the centre. Together they put the front
+half of the hull inside the building, and a vehicle that can turn only while driving forward has no way out except reverse, which only the
+cycle's withdrawal asks for.
+
+| run | what the trace shows |
+|---|---|
+| `ua-tank-corner` (M1 preset 7.0 × 3.5 m, turn radius ~6.3 m) | hide answered at (251.2, 107.7), **2.25 m** off the L-Block's south wall (y 110); the tank drove north to it, its nose 0.2 m into the block; the next move (west, along the wall) turned it into the wall — **centre ON the wall line (249.8, 110.0), front half inside, held 37 s** (t 17–54) while four more moves were issued and one failed; freed only when the heading creep reached ~180° (parallel to the wall) |
+| `ua-technical-scoot` (HMG technical) | at its hide (281.9, 227.3), 2.7 m off Block C's south face (y 230), facing NE; a scoot to (250.9, 219.9) — behind-left — turned it into the wall: **centre ON the wall (284.3, 230.0), front half inside, held 207 s to the end of the run**; the cycle then took its next hide (283.8, 228.6) as REACHED (inside the 4 m arrival radius) and sat "hidden" half inside the block |
+| both | **no move asked for reverse** (the cycle allows it only on the withdrawal to the same hide, Exposure Cycle §4); the move status stayed `Running` most of the time |
+
+| cause (measured) | where |
+|---|---|
+| the wall guard traces only the hull's centre at 0.5 m ⇒ the hull may stand with its centre on the wall line | `CarKinematicsSystem.cs:533-556` |
+| a stopped hull cannot turn: yaw rate = speed / wheelbase × tan(steer); the guard zeroes the speed each tick | `BicycleModel.cs` |
+| the hide's stand-off is width/2 + 0.5 m and its box lies length ALONG the wall — a side-on park the follower never makes | `VehicleFootprint.StandOff` / `Clear`, Exposure Cycle §3 |
+| the firing-point query has no clearance check at all (a donut of points, path cost reachable within the navmesh's 2 m snap) | `VehicleTemplates.FindVehicleFiringPoint`, `DotRecastNavmeshProvider.cs:44` |
+| the watchdog's replan starts from the held spot, forward again | `NavigationExecutionSystem` frustration guard |
+
+✅ **Decided `2026-10-20` — A + B, the recovery made smart (R-3025): designed and built in §5f.**
+
+## 5f. A hull never enters a building, and one held at a wall BACKS OUT until its way on is clear — `CE-3286` (`2026-10-20`, backend; R-3025)
+
+🔒 User, `2026-10-20`: *"just stopping the vehicle is good but not enough, vehicle it needs to recover, so a+b, and the replan must be smart to avoid ending up in similar situation one meter away"*
+
+### INVENTORY — the queries run
+
+| query | total | the set |
+|---|---|---|
+| `search_graph` `.*(Unstick\|Recover\|KTurn\|ThreePoint\|BackUp\|Reverse\|Stuck\|Frustration\|HullClear\|Footprint\|Rollout\|Feasib).*` over `CarKinem`, `Navigation`, `Spatial`, `AI.Behaviors.Brains` | 34 | no motion-side recovery or hull clearance exists. Reused: `FrustrationTicks` (the watchdog's never-sent muscle state), `NavigationExecutionSystem`'s `IsBlocked` skip, `NavState.ReverseAllowed` / V5 reverse, `PathLookahead` + `CapLookaheadByChord`, `TrajectoryPoolManager.SampleTrajectory`. ⛔ Not reused: `VehicleFootprint` (EQS — a box at a candidate POINT, not a moving hull), `PeekAndFireNodes.Recover` (a behaviour's retry, not motion) |
+
+```mermaid
+classDiagram
+  class CarKinematicsSystem {
+    <<existing, grows>>
+    UpdateVehicle()  «a recovering hull drives the recovery, not the path»
+    FinishMove()  «the guard: HullClearance.StepBlocked, refused ⇒ pose AND heading kept»
+  }
+  class HullClearance {
+    <<new static, CarKinem/Controllers>>
+    +StepBlocked(world, from, fromFwd, to, toFwd, z, length, width, moving) bool
+    +WayOnClear(world, pool, nav, params, pos, fwd, z) bool  «the rollout»
+    EnterEpsilon = 1e-3
+    RolloutStepM = 0.5
+  }
+  class HullRecovery {
+    <<new static, CarKinem/Controllers>>
+    +Tick(ref FrustrationTicks, ref NavState, …) RecoveryCommand
+    HoldSeconds = 0.5
+    SpeedMps = 2
+    MaxHullLengths = 2
+    MaxRecoveries = 3
+  }
+  class FrustrationTicks {
+    <<existing, grows — appended, never sent>>
+    WallHeldSeconds : float
+    RecoverMetres : float
+    CheckedTrajectoryId : int
+    RecoverDir : sbyte  «0 · −1 back · +1 forward»
+    RecoverSteer : sbyte
+    Recoveries : byte
+  }
+  class NavigationExecutionSystem {
+    <<existing, grows>>
+    the watchdog skips a recovering hull «as IsBlocked»
+  }
+  class IWorldQuery { <<existing>> Trace(Fire) }
+  class TrajectoryPoolManager { <<existing>> SampleTrajectory }
+  CarKinematicsSystem ..> HullClearance
+  CarKinematicsSystem ..> HullRecovery
+  HullRecovery ..> HullClearance : the exit test
+  HullRecovery --> FrustrationTicks : its state
+  NavigationExecutionSystem ..> FrustrationTicks : RecoverDir
+  HullClearance ..> IWorldQuery
+  HullClearance ..> TrajectoryPoolManager
+```
+
+*Caption:* two small static helpers and six appended fields on the watchdog's own component — no new component, id or wire field. The
+recovery is the watchdog's remedy for a held hull, so it lives beside the watchdog's counts.
+
+```mermaid
+sequenceDiagram
+    participant W as NavigationExecutionSystem (watchdog)
+    participant K as CarKinematicsSystem
+    participant R as HullRecovery
+    participant C as HullClearance
+    K->>C: StepBlocked(this step) — the two LEADING corners and the centre, at 0.5 m
+    C-->>K: a corner ENTERS a closed barrier ⇒ refused: pose and heading kept, speed 0
+    K->>R: held this tick (WallHeldSeconds += dt)
+    alt held ≥ 0.5 s, or a standing start whose way on is not clear
+      R->>R: RecoverDir = against the held motion · RecoverSteer = the nose toward the path's aim point
+      loop each tick while recovering
+        K->>K: drive RecoverDir at 2 m/s on full lock (guarded the same way)
+        K->>C: WayOnClear(pose) — roll the follower out along the path: pure pursuit, 0.5 m steps, the hull traced at each
+        C-->>K: clear for a quarter turn + one hull length, or to the path's end ⇒ recovery ends, the path is driven on
+      end
+      R->>R: blocked behind, or 2 hull lengths backed ⇒ the next try steers the other way (≤ 3 tries a move)
+    end
+    W->>W: no counting while RecoverDir ≠ 0 · after 3 tries the held hull is the watchdog's again: replan, then FailedBlocked
+    K->>K: held FORWARD with the path's end within half a hull + its radius ahead ⇒ ARRIVED (the nose is at the wall)
+```
+
+*Caption:* what the picture shows that the prose would hide — "smart" is the EXIT TEST, not the replan: the hull stops backing only when
+a rollout of the very follower that will drive it (pure pursuit on the same path, the same hull, the same guard) clears the wall, so it
+cannot end "in a similar situation one metre away". The path is kept; it was never wrong — the hull's heading was.
+
+```mermaid
+graph TD
+  GKM["GroundKinematicsModule (SimHost, the MuscleGround owner)"]
+  GKM -->|SimulationSystems, every frame| NES["NavigationExecutionSystem — the watchdog"]
+  GKM -->|PostSimulationSystems, every frame, after it| CKS["CarKinematicsSystem — guard + recovery"]
+  CKS --> HC["HullClearance (static)"]
+  CKS --> HR["HullRecovery (static)"]
+  NES -. reads RecoverDir .-> FT["FrustrationTicks (owned, never sent)"]
+  HR --> FT
+  CGF["CGF brain (VehicleFightFromCover, any MoveTo)"] -. NavigationIntent only — unchanged .-> NES
+```
+
+*Caption:* who runs it each frame — only the owner of the hull's position (MuscleGround, R-3005) runs both systems; a brain sends the same
+`NavigationIntent` as before and never sees the recovery except as a move that arrives.
+
+| rule | why |
+|---|---|
+| ⭐ the guard traces the FOUR corners and the centre, each with CE-2198's two tests: the surface under the point RISES like a wall, or its line ENTERS a closed barrier (`T > EnterEpsilon`); a point whose surface had already risen, or that started inside, may move | A: the nose stops at the wall. A hull spawned or left half inside can still leave. ⚠ AS-BUILT `2026-10-20` — deviates from the first draft ("the LEADING corners · a closed barrier", ⛔ SUPERSEDED): all four, because a tight turn swings the TAIL into a wall; and the RISE test, because the stand-in's solid block is NOT a closed barrier (`TerrainWorldQuery.IsClosedBarrier` — a blast meaning, W-7′: "a free-standing wall or a solid block is not one"). 📐 Measured: with the barrier test alone the rails' tank stood 3.5 m inside a block — the live centre was only ever stopped by CE-2198's rise test |
+| a refused step keeps the HEADING too | ⛔ the heading creep (~1°/s) swept corners in |
+| recovery starts after **0.5 s** held, or AT ONCE on a standing start (a new path) whose way on is not clear | the second is the "smart" half: a hull parked nose to a wall backs out before it touches it |
+| recovery drives against the held motion at **2 m/s** (capped by `MaxSpeedRev` when it has one) on FULL LOCK, the nose swinging toward the path's aim point | the reverse leg of a three-point turn |
+| it ends when `WayOnClear` holds — a rollout of the path follower (pure pursuit at the path lookahead, 0.5 m steps, horizon a quarter turn at full lock + one hull length, or the path's end) whose every step passes the guard | ⛔ a fixed back-up distance: one metre is the "similar situation one metre away" |
+| blocked behind, or **2 hull lengths** backed, ends a try; the next try steers the other way; **3 tries** a move | bounded — a box with no way out fails the move as before (`FailedBlocked`), and the behaviour chooses again |
+| the watchdog does not count while `RecoverDir ≠ 0` | a recovery is not being stuck |
+| held FORWARD with the path's end ahead within `Length / 2 + ArrivalRadius` ⇒ arrived | a point beside a wall is reached when the nose meets the wall (the hide at 2.25 m off a wall is 1.25 m short of a 7 m hull's centre) |
+| persons are untouched | a walker has CE-2304's rule |
+| ⚠ the system's shared `_crossings` list was used from `ForEachParallel` | made per-thread with the new traces (a latent race since CE-2198) |
+
+⭐ **Live `2026-10-20` — both shoot-and-scoot demos, before and after** (a 0.5 s trace of each vehicle's pose; the hull's corners against
+test-town's footprints; hulls from the live `VehicleParams`: M1 7.93 × 3.66 m, the technical 5.3 × 1.9 m):
+
+| demo · vehicle | before (`18bd6ed48`) | after (`3fc536e33`) |
+|---|---|---|
+| `ua-tank-corner` · M1 | front 3.98 m inside the L-Block, stuck 13 s and 10.5 s, never reversed, 70 m driven | 0.00 m inside, never stuck, reversed on 5 samples, 67 m driven over 5 moves |
+| `ua-technical-scoot` · HMG technical | 2.83 m inside Block C, held to the end of the run, 59 m driven | 0.00 m inside, never stuck, reversed on 5 samples, **158 m** driven over 15 moves — it kept shooting and scooting |
+| `ua-technical-scoot` · M1, ATGM technical | — | 0.00 m inside; the ATGM technical killed early in both, as before (the demo's design ending) |
+
+⚠ A first `ua-tank-corner` run after the fix proved nothing: a Javelin hit the tank 7 s in on its first drive (3000 → 1800), a mobility
+kill (CE-2197), so it never reached the wall. The runs vary; the table's tank run is the second.
+
+| rejected | the one fact |
+|---|---|
+| replan from the held pose (the watchdog's remedy) | the path from the same pose starts forward again — measured live (§5e) |
+| a fixed back-up distance | the room a hull needs is its turn — a tank needs ~6.3 m of radius, a pickup less |
+| a hull-sized navmesh | the navmesh is a disc (1.8 m); a 7 m box's corners are the problem |
+| reverse on every behaviour move | a motion fault fixed in every behaviour |
+
+## 5g. A wreck never moves, and a vehicle that is not driving is never pushed — `CE-3287` (`2026-10-20`, backend; R-3026)
+
+🔒 User, `2026-10-20`: *"I have seen destroyed vehicle still moving, maybe being pushed by people coming close"* · *"parked vehicles should not be pushed either"*
+
+📐 Measured (rail `CE3287_*`, red before): one man standing 4 m from a destroyed M1 with no move pushed it **~10 m**. `RVOAvoidance.ApplyAvoidance`
+returns the wanted velocity PLUS a push — a separation inside 2 × `AvoidanceRadius` (10 m for the tank) and a repulsion from anyone closing — and
+`CarKinematicsSystem` applied it with a wanted velocity of zero; nothing in the ground model read `Health`. The route is not the cause: a running move
+is ended at death on the brain (CE-3091, `LocomotionDispatcherSystem` ⇒ `OnExit` ⇒ intent `None`).
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a vehicle's tick)
+    participant L as CombatLife
+    participant A as RVOAvoidance
+    K->>L: IsDestroyed(hull)? (Health ≤ 0, read where Health is registered)
+    alt a wreck
+      K->>K: wanted speed 0 · no recovery (§5f) · no avoidance — it brakes and stays
+    else wanted speed 0 (parked, arrived, held)
+      K->>K: no avoidance — it stays where it is
+    else driving
+      K->>A: ApplyAvoidance(wanted velocity, neighbours) — it steers round others, as before
+    end
+```
+
+*Caption:* what the picture shows — avoidance is a DRIVER's act: it bends a vehicle's own motion round others. A vehicle with no motion of its own has
+nothing to bend, and a person walks round it (a person's avoidance is untouched — it sees the vehicle as a neighbour).
+
+| rule | why |
+|---|---|
+| a destroyed hull (`CombatLife.IsDestroyed`) is driven at speed 0 and takes no recovery try | a wreck has no driver; belt and braces with CE-3091 (a move the brain has not ended yet) |
+| a vehicle whose wanted speed is 0 gets no avoidance push | 🔒 "parked vehicles should not be pushed either" |
+| a driving vehicle avoids as before | `System_AvoidanceMovesVehicle`, the RVO rails |
+| persons unchanged | crowds still part; a person steps round a vehicle — ⚠ except a man DOWN, §5h (CE-2321) |
+
+| rejected | the one fact |
+|---|---|
+| strip the push inside `RVOAvoidance` | it is shared by persons, who must keep parting |
+| read `CanMove` instead of `Health` | `ActorCapabilityState` is the brain's group (`HrotOwnershipGroups.cs:54`); `Health` is the one the presentation already reads for a wreck (`IsDestroyed`) |
+
+## 5h. A man down lies where he fell — `CE-2321` (`2026-10-20`, backend; R-3027)
+
+🔒 User, live, `2026-10-20`: *"Lying incapacitated one should stay on the ground until dragged by someone, and not turning."* · 🔒 *"fix CE-2321 the
+same way"* (as §5g).
+
+📐 The same cause as §5g, on a person: `RVOAvoidance` adds a push to a body with a wanted velocity of zero, and `HumanGait.Integrate` turns him to
+face that push — so a lying body slid and turned away from whoever came close. `Injury.cs` assumed a stripped `CanMove` stops him: it stops his
+BRAIN, not the ground model.
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (a person's tick)
+    participant I as Injury
+    participant A as RVOAvoidance
+    K->>I: IsInTheFight(man)? (dead or incapacitated ⇒ no · read where Health is registered)
+    alt down
+      K->>K: wanted speed 0 · no aim or look turn · no avoidance — no push, so no turn
+    else in the fight
+      K->>A: ApplyAvoidance — he steps aside as before
+    end
+    Note over K: carried or dragged he is embarked (IsEmbarkedTag) — not driven here at all
+```
+
+*Caption:* what the picture shows — the man down is skipped as a MOVER only; as a NEIGHBOUR he stays in the grid, so others still walk round him,
+and the only way he moves is the carry (`CE-2152`), which this system never drives.
+
+| rule | rail (`CarKinematicsSystemTests`) |
+|---|---|
+| a man dead or incapacitated (`!Injury.IsInTheFight`) is neither pushed nor turned; the same man fit is (the control) | `CE2321_AManDown_IsNotPushedNorTurned_ByAManBesideHim` |
+| he does not walk a move his brain has not ended yet (CE-3091's belt and braces) | `CE2321_AManDown_DoesNotWalkTheMoveHeStillHas` |
+| a walker still steps round him, and does not push him | `CE2321_AWalker_StillStepsRoundAManDown` |
+
+| rejected | the one fact |
+|---|---|
+| take him out of the spatial grid | then walkers would walk over him |
+| strip the push inside `RVOAvoidance` | shared with every standing person, who must keep parting |
+| ⏭ an operator possessing a man down (`KinematicsMode.Manual`) | not changed here — the possession path reads its own drive; not reported |

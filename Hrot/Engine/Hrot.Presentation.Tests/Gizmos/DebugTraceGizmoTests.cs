@@ -219,6 +219,8 @@ public sealed class DebugTraceGizmoTests : IDisposable
 
         new UtilityDecisionGizmo().Draw(_w, unit, _draw);
         Assert.Equal(2, _draw.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Text));
+        // ⭐ CE-1203 (§5e FL-3) — the Utility row: drawn on its own layer, nothing with it hidden
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new UtilityDecisionGizmo().Draw(_w, unit, d), DebugTraceLayers.Utility);
     }
 
     // ⭐ CE-3136 (T3) — the ACTIONS gizmo: one line per busy channel, the hold reasons amber, a stale row (older than 1 s of sim
@@ -246,6 +248,8 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal("W aiming 0.4/0.8s", ActionStatusGizmo.Text('W', in aiming, 10.0));
         Assert.Equal("W hold: not seen", ActionStatusGizmo.Text('W', in status.Weapon, 10.0));
         Assert.Null(ActionStatusGizmo.Text('L', in status.Locomotion, 10.0));
+        // ⭐ CE-1203 (§5e FL-3) — the Actions row
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new ActionStatusGizmo().Draw(_w, unit, d), DebugTraceLayers.Actions);
     }
 
     // ⭐ CE-3136 — the Actions family is a pinnable, scoped family like the others (layer panel + "Pin gizmos" menu).
@@ -305,5 +309,39 @@ public sealed class DebugTraceGizmoTests : IDisposable
         new SquadGizmo().Draw(_w, cmd, _draw);
         var ends = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Line).Select(p => p.LineEnd).ToArray();
         Assert.Equal(new[] { new Vector3(10, 0, 0), new Vector3(0, 10, 0) }, ends);
+        // ⭐ CE-1203 (§5e FL-3) — the Squad & command row
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new SquadGizmo().Draw(_w, cmd, d), DebugTraceLayers.SquadCommand);
+    }
+
+    /// <summary>⭐ CE-1203 (§5e FL-1) — the CONTACTS row, split from Perception: the contact line to a remembered unit and a heard contact's
+    /// dashed circle are on the Contacts layer (25), not Perception (1, now the vision cones only), and nothing draws with it hidden.</summary>
+    [Fact]
+    public void CE1203_TheContactLines_AreOnTheContactsLayer()
+    {
+        _w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new SimTransform { Position = new Vector3(0, 0, 0) });
+        var mem = default(Fdp.Toolkit.Perception.Components.TargetMemory);
+        Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, entityId: 42, posX: 30f, posY: 40f, scoreBoost: 1f, tick: 0u);
+        _w.AddComponent(unit, mem);
+
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new Hrot.Common.Diagnostics.Gizmos.LineOfSightGizmo().Draw(_w, unit, d), DebugTraceLayers.Contacts);
+        Assert.NotEqual(DebugTraceLayers.Contacts, (byte)1);
+    }
+
+    /// <summary>⭐ CE-1203 (§5e FL-1) — the unit → mission-task lines join the PATHS row (5, the family they already belonged to), off the
+    /// Entities bit they rode on before.</summary>
+    [Fact]
+    public void CE1203_TheMissionLines_AreOnThePathsLayer()
+    {
+        _w.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new SimTransform { Position = new Vector3(0, 0, 0) });
+        var plan = new Fdp.Toolkit.Behavior.Components.ActiveMissionPlan();
+        plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"targetLat\":0.001,\"targetLon\":0.001}" });
+        _w.SetManagedComponent(unit, plan);
+        var gizmo = new MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_w, unit, d), DebugTraceLayers.Paths);
     }
 }

@@ -51,7 +51,8 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Effects.EffectLayer Effects,
         Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
         Hrot.UI.Common.Map3D.PossessionStation? Possession = null,
-        Hrot.UI.Common.Audio.AudioLayer? Audio = null);
+        Hrot.UI.Common.Audio.AudioLayer? Audio = null,
+        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null);
 
     public static class MapInteractionPack
     {
@@ -80,6 +81,17 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>
         /// Constructs the map's gizmo machinery and hands it back for the host to schedule.
         /// </summary>
+        /// <summary>⭐ CE-1203 FL-8 — the layer control <see cref="Build"/> made for each map buffer. Every host hands
+        /// <see cref="AttachMapLayers"/> the buffer Build made (<c>MapInteraction.Buffer</c>), so the view switch reaches the layer control
+        /// with no host wiring to forget (rail <c>CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost</c>).</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo>
+            LayerControlOf = new();
+
+        /// <summary>⭐ CE-1234 — the local UI-state transport <see cref="Build"/> made for each map buffer; <see cref="AttachMapLayers"/> hands it
+        /// to the gizmo render layer, whose panel drains it.</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport>
+            UiStatesOf = new();
+
         public static MapInteraction Build(MapInteractionContext ctx)
         {
             if (ctx is null) throw new ArgumentNullException(nameof(ctx));
@@ -293,10 +305,27 @@ namespace Hrot.ScenarioEditor.Map
             var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
             var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
             long layerControlId = GlobalGizmoManager.NewId();
+            // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
+            var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
+            MapLayerPreferences.Load(settings, layerSettingsPath);
+            // ⭐ CE-1234 — the layer panel learns what the gizmo holds: its state goes to the host's publisher (a remote terminal) AND to a
+            //   local transport the map's own panel drains each frame (AttachMapLayers). ⛔ Was: the host's hub only, which no local endpoint
+            //   ever joined — the panel showed only its own clicks, so in 3-D (its own copy still read "2-D map") every click was dropped.
+            var uiStates = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport();
+            var layerUi = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub();
+            layerUi.AddEndpoint(uiStates);
+            if (ctx.GizmoUiPublisher != null) layerUi.AddEndpoint(ctx.GizmoUiPublisher);
+            UiStatesOf.AddOrUpdate(buffer, uiStates);
             var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
                 layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                ctx.GizmoUiPublisher, settings);   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+                layerUi, settings,   // ⭐ CE-3120 — the panel edits the family scopes in the shared settings
+                saveSettings: () => MapLayerPreferences.Save(settings, layerSettingsPath));
             globalManager.Register(layerControlId, layerControl);
+            LayerControlOf.AddOrUpdate(buffer, layerControl);   // ⭐ CE-1203 FL-8 — AttachMapLayers finds it by the buffer and hands it the view
+            // ⭐ CE-1227 — the gizmo hands the buffer its mask only when it runs, AFTER the projectors: 📐 on demo-city the first frame
+            //   therefore stored the hidden Cover (7 891 points) and SpatialGrid layers and dropped 17 943 primitives. Seeded here, the
+            //   first frame refuses them like every later one (CE-1071's one authority, applied from the start).
+            buffer.SetActiveLayers(layerControl.ActiveLayers);
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
             // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
@@ -453,7 +482,14 @@ namespace Hrot.ScenarioEditor.Map
             int layerBitIndex = 31)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
+            //   slot in the map buffer (demo-city's terrain alone was 73 188 primitives a frame against 16 384, and the symbols and the
+            //   marquee were dropped). Its checkbox is the buffer's Terrain2D bit — the mask LayerControlGizmo hands the buffer (CE-1071).
+            var terrain2D = new Hrot.UI.Common.Map2D.TerrainLayer2D(worldProvider,
+                () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
+            canvas.AddLayer(terrain2D);
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
+            if (UiStatesOf.TryGetValue(buffer, out var uiStates)) gizmoLayer.UiStates = uiStates;   // ⭐ CE-1234 — the panel follows its gizmo
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;
@@ -461,6 +497,8 @@ namespace Hrot.ScenarioEditor.Map
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
             var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+            // ⭐ CE-1203 FL-8 (§5e) — the layer control shows and applies the set of the view on screen
+            if (LayerControlOf.TryGetValue(buffer, out var layerControl)) layerControl.Is3D = () => viewSwitch.Is3D;
             // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
@@ -510,7 +548,7 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(audio);
             // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
             canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)
@@ -518,7 +556,7 @@ namespace Hrot.ScenarioEditor.Map
             if (registry is null) throw new ArgumentNullException(nameof(registry));
             var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
             using var session = editService.Open(
-                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Units = { Entities = true }, Ai = { VisionCones = true, AiHelpers = true } },
                 typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
             registry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, session.Document);
         }

@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
@@ -87,6 +88,32 @@ namespace Hrot.IG.Tests.Gizmos
 
             // 3 waypoints, not a loop → 2 line segments.
             Assert.Equal(2, draw.LineCalls.Count);
+
+            // ⭐ CE-1233 (routes-1 §8.1) — a circle at EACH waypoint, and a line thick enough to see over the road lanes; blue.
+            //   🔒 User, 2026-10-20: "routes are not rendered as waypoints connect as lines". (SelectionState is not even
+            //   registered here: an unselected route on a host without selection.)
+            Assert.Equal(3, draw.SphereCalls.Count);
+            Assert.Equal(new[] { 0f, 10f, 20f }, draw.SphereCalls.Select(c => c.Center.X).ToArray());
+            Assert.All(draw.LineCalls, l => { Assert.Equal(RouteGizmo.LinePixels, l.Thickness); Assert.Equal(RouteGizmo.NormalColor, l.Color); });
+            Assert.All(draw.SphereCalls, c => { Assert.Equal(RouteGizmo.WaypointPixels, c.Radius); Assert.Equal(RouteGizmo.NormalColor, c.Color); });
+
+            // the circles are a constant size ON SCREEN and filled (a handle, not a world disc)
+            var buffer = new DebugPrimitiveBuffer();
+            gizmo.Draw(_repo, entity, buffer);
+            var dots = buffer.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Sphere).ToArray();
+            Assert.Equal(3, dots.Length);
+            Assert.All(dots, d => { Assert.Equal(SizeMode.ScreenPixels, d.SizeMode); Assert.True(d.FillColor.A > 0, "a filled circle"); });
+
+            // selected ⇒ the whole route in the selected colour, thicker
+            _repo.RegisterComponent<Hrot.IG.Components.SelectionState>();
+            _repo.AddComponent(entity, new Hrot.IG.Components.SelectionState { IsSelected = true });
+            var picked = new FullCapturingDrawBuilder();
+            gizmo.Draw(_repo, entity, picked);
+            Assert.All(picked.LineCalls, l => { Assert.Equal(RouteGizmo.SelectedColor, l.Color); Assert.Equal(RouteGizmo.SelectedLinePixels, l.Thickness); });
+            Assert.All(picked.SphereCalls, c => { Assert.Equal(RouteGizmo.SelectedColor, c.Color); Assert.Equal(RouteGizmo.SelectedWaypointPixels, c.Radius); });
+            Assert.Equal(3, picked.SphereCalls.Count);
+            // ⭐ CE-1203 (§5e FL-3) — the Routes row
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_repo, entity, d), DebugTraceLayers.Routes);
         }
 
         // SC_GZ058_4: DrawSpatialAnchor via DebugPrimitiveBuffer emits correct primitive.
@@ -142,6 +169,8 @@ namespace Hrot.IG.Tests.Gizmos
 
             // 3 points, not closed → 2 segments.
             Assert.Equal(2, draw.LineCalls.Count);
+            // ⭐ CE-1203 (§5e FL-3) — the Tactical graphics row
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_repo, entity, d), DebugTraceLayers.TacticalGraphics);
         }
 
         // CE-3014: a closed area with a visible fill colour is FILLED (it carried the colour and was never drawn).
@@ -182,10 +211,10 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.SetSingletonManaged(world);
 
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
 
             Assert.Equal(4, draw.TriangleCalls.Count);             // building 2 + forest 2; open ground is not drawn
-            Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainWorldGizmo.TerrainLayer, t.Layer));
+            Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainPlan2D.TerrainLayer, t.Layer));
             Assert.Single(draw.TextCalls);                         // one building label
             Assert.Equal(4, draw.LineCalls.Count);                 // the building outline
         }
@@ -206,12 +235,12 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.SetSingletonManaged(world);
 
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
 
             Assert.Equal(8, draw.LineCalls.Count);   // two walls, four edges each
             Assert.All(draw.LineCalls, l =>
             {
-                Assert.Equal(TerrainWorldGizmo.WallEdgePixels, l.Thickness);
+                Assert.Equal(TerrainPlan2D.WallEdgePixels, l.Thickness);
                 Assert.True(l.Color.R + l.Color.G + l.Color.B > 200, $"outline {l.Color} reads as black");
             });
             Assert.Contains(draw.LineCalls, l => l.Color.R > l.Color.G + 20);   // the brick wall's edge is brick-coloured
@@ -221,7 +250,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void TerrainWorldGizmo_DrawsNothing_WhenNoTerrainIsLoaded()
         {
             var draw = new FullCapturingDrawBuilder();
-            new TerrainWorldGizmo().Draw(_repo, draw);
+            new TerrainPlan2D().Draw(_repo, draw);
             Assert.Empty(draw.TriangleCalls);
             Assert.Empty(draw.LineCalls);
         }
@@ -464,6 +493,7 @@ namespace Hrot.IG.Tests.Gizmos
             // 670 + (-53) = 617 ; 473.5 + (-88.5) = 385
             Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
             Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new TacticalAreaGizmo().Draw(_repo, entity, d), DebugTraceLayers.TacticalGraphics);   // ⭐ CE-1203
         }
 
         // SC-GZ058-8c: picking follows the drawing — EmitPickSegments must use the same origin, or a
@@ -479,6 +509,16 @@ namespace Hrot.IG.Tests.Gizmos
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
 
+
+            // ⭐ CE-1203 (CE-1160) — with "Tactical graphics" unticked the outline is gone but the area is still clickable: its pick
+            //   segments stay on layer 0 and are never refused by a toggle.
+            var hidden = new DebugPrimitiveBuffer(64);
+            var mask = new LayerMask256();
+            for (int i = 0; i < 256; i++) if (i != DebugTraceLayers.TacticalGraphics) mask.SetBit(i);
+            hidden.SetActiveLayers(mask);
+            new TacticalAreaGizmo().Draw(_repo, entity, hidden);
+            Assert.DoesNotContain(hidden.GetFrame().ToArray(), Fdp.TestShared.GizmoLayerProbe.IsDrawing);
+            Assert.Equal(777L, GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(hidden.GetFrame(), new Vector2(667f, 385f), zoom: 1f));
             Assert.NotNull(hit);
             Assert.Equal(777L, hit!.Value);
         }
@@ -570,6 +610,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             Assert.Equal(3, draw.LineCalls.Count);
             Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new TerrainZoneGizmo().Draw(_repo, zone, d), DebugTraceLayers.TerrainZones);   // ⭐ CE-1203
         }
 
         /// <summary>⛔ A FAILED load must be loud, not a subtle dash — §8.3 N3, two outcomes only.</summary>

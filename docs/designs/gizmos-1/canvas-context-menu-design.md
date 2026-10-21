@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
+updated: 2026-10-20 (§11 CE-1230 designed — the ORBAT row's menu is the map's; leans with the user)
 current-answer: §1-§3 — the hit-test → interned JSON → popup path, which is what SimHost and the Editor
   run today for both canvas and entity right-click. ⭐ §10 (CE-1134 / CE-1135, 2026-10-16) — the ENTITY INSPECTOR's
   menu as built: the map's entity menu heads it on every host; Center View / Select / Properties… on every map host.
@@ -340,4 +340,83 @@ inspector* — the map's menu shows some (Rotate on CGF, known-rot above), the i
 AI-trace items, IG / CGF / SimHost "Center on entity" + "Select entity", CGF `PublishForEntity`, SimHost `CenterCameraOnEntity`, the Editor's
 and the ReplayBrowser's own Center View / Select handlers. Rails `MapEntityMenuHandlerTests` (re-homing the deleted handler's rails).
 ⚠ Not yet seen in the GUI.
+
+## 11. DESIGN — the ORBAT tree's menu IS the map's entity menu; Embark / Disembark join it (`CE-1230`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (R-1015; ✅ OM-1…OM-5 APPROVED `2026-10-21`, R-1019)
+
+🔒 User, `2026-10-20`: *"the contex menu in orbat tree panel should be the same as when right clicked on entity in 2d map or 3d map. not
+duplicated, but shared and unified. the embark/disembark command should go to the shared menu."* (`R-1015`)
+
+🔒 User, `2026-10-21`: *"Approved"* (OM-1…OM-5, R-1019)
+
+### 11.1 INVENTORY *(`2026-10-20`; codebase-memory CLI `search_graph` `.*ContextMenu.*`, `.*Orbat.*`, `.*MenuHandler.*`; grep `RequestDisembark|RequestEmbark|IContextMenuBuilder`)*
+
+| surface | where | today |
+|---|---|---|
+| the map's entity menu (2-D, 3-D) | `ContextMenuProjectorGizmo.MenuJsonFor` → the gizmo menu JSON | orders, Designate, Possess, Center / Select / Properties, Rotate, pins — ⛔ no Embark / Disembark |
+| the entity inspector's menu | `MapEntityMenuHandler` (`Hrot.Presentation/Menus`) via `InspectorMapLink` (§10) | ⭐ the SAME JSON re-served through `IContextMenuBuilder`, a click = `GlobalActionRequestedEvent` on the map's bus — the prior art |
+| the ORBAT row | `SharedOrbatPanel.cs:141` | its own ImGui popup, ONE item "Disembark" → `IOrbatController.RequestDisembark` |
+| embark / disembark | `ScenarioOrbatAdapter.RequestEmbark / RequestDisembark` (`:182`, `:196`) — `EmbarkEntityCommand` / `DisembarkEntityCommand` on the bus; ExCon's `ExConOrbatAdapter` (`:147`, `:159`) — a logged no-op | embark is ORBAT drag-and-drop only |
+| hosts with the ORBAT window | `EditorSubsystem.cs:4991`, `CgfSubsystem.cs:1874` (`SharedOrbatPanelWindow`); ExCon's `ExConMock` draws the panel itself | Editor and CGF have a map (`MapInteractionPack`); ExCon has none |
+
+### 11.2 Claim table
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| one menu can be re-served to a non-map surface | ✅ `MapEntityMenuHandler.PopulateMenu` | ✅ §10 (CE-1134) |
+| the ORBAT row knows its entity | ✅ `node.EntityId` (the network id the adapters resolve, `_indexCache`) | ✅ `IOrbatController` doc: *"the network entity ID"* |
+| embark / disembark are one bus command each | ✅ `ScenarioOrbatAdapter.cs:188`, :205 | ✅ Entity Interactions §7.3 (I-2a, the vehicle's owner applies it) |
+| the menu JSON is cached per flag set | ✅ `ContextMenuProjectorGizmo.UnitMenus` | ⭐ an item that depends on the entity (aboard or not) is a flag, as Possess's |
+
+```mermaid
+classDiagram
+  class SharedOrbatPanel { <<exists, changed>> row right-click : the shared menu via IEntityContextMenuHandler (own popup removed) }
+  class MapEntityMenuHandler { <<exists>> PopulateMenu(entity, builder) : the map's JSON, clicks on the map's bus }
+  class ContextMenuBuilder { <<exists FDP ImGui>> draws the items }
+  class ContextMenuProjectorGizmo { <<exists, changed>> + Disembark (aboard) · + Embark… (a vehicle pick) }
+  class EmbarkOrders { <<new>> Embark(passenger, vehicle) · Disembark(passenger) — the one implementation }
+  class ScenarioOrbatAdapter { <<exists, changed>> drag-and-drop embark ⇒ EmbarkOrders }
+  SharedOrbatPanel ..> MapEntityMenuHandler
+  MapEntityMenuHandler ..> ContextMenuBuilder
+  MapEntityMenuHandler ..> ContextMenuProjectorGizmo
+  ContextMenuProjectorGizmo ..> EmbarkOrders : the menu actions' handlers
+  ScenarioOrbatAdapter ..> EmbarkOrders
+```
+*What the picture shows that prose hid:* the ORBAT gets no menu of its own at all — it borrows the inspector's route, and both embark
+paths (menu and drag-and-drop) end in one helper.
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant O as SharedOrbatPanel
+  participant H as MapEntityMenuHandler
+  participant M as the map's action registry
+  participant E as EmbarkOrders
+  U->>O: right-click a man aboard a BMP
+  O->>H: PopulateMenu(him, ImGui builder)
+  H-->>O: the map's items, Disembark among them
+  U->>O: Disembark
+  O->>M: GlobalActionRequestedEvent (Disembark, him)
+  M->>E: Disembark(him) - DisembarkEntityCommand to the vehicle's owner
+```
+*What the picture shows that prose hid:* a click from the tree and a click on the map are the same event on the same bus.
+
+```mermaid
+graph TD
+  ED["Editor / CGF host"] -->|builds| MIP[MapInteractionPack - the map, its actions, InspectorMapLink]
+  ED -->|registers| OW[SharedOrbatPanelWindow]
+  OW -->|each frame| SOP[SharedOrbatPanel - right-click asks the handler]
+  EX["ExCon"] -->|draws| SOP2[SharedOrbatPanel - no map: no menu]
+```
+*What the picture shows that prose hid:* ExCon has no map, so it has no entity menu to share — its ORBAT row gets none (its Disembark was a
+logged no-op).
+
+### 11.3 Decisions — ⏸ leans for the user
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **OM-1** | how the tree gets the menu | ⭐ `SharedOrbatPanel` takes an optional `IEntityContextMenuHandler` and draws its items with the FDP ImGui `ContextMenuBuilder`; the window passes the host's `MapEntityMenuHandler` (found by the inspector state, as §10) | a copy of the JSON walk in the panel — the duplicate R-1015 forbids |
+| **OM-2** | Disembark | ⭐ a map menu item **Disembark**, shown on an entity that is aboard (a menu flag, like Possess's); its handler publishes `DisembarkEntityCommand` through `EmbarkOrders` | only in the tree — the map would still lack it |
+| **OM-3** | Embark | ⭐ **Embark…** takes a VEHICLE pick on the map (the pick flow Engage already uses), then `EmbarkEntityCommand`; drag-and-drop in the tree stays and goes through the same `EmbarkOrders` | a submenu of nearby vehicles — the menu JSON is cached per flag set, a per-entity list defeats it |
+| **OM-4** | the tree's own popup and `IOrbatController.RequestDisembark` | ⭐ removed (the panel's popup) / kept only for ExCon's adapter until ExCon embarks over DDS | keeping both — two menus |
+| **OM-5** | ExCon | ⭐ no row menu (no map, nothing to share); said in the window | a fake menu with ExCon's no-op |
 

@@ -17,6 +17,8 @@ namespace Hrot.Core.Tkb
         public const long ShotFarSmall = 7304, ShotFarMedium = 7305, ShotFarLarge = 7306;
         public const long Burst = 7307;
         public const long ExplosionSmall = 7311, ExplosionMedium = 7312, ExplosionLarge = 7313;
+        /// <summary>⭐ CE-1231 (DESIGN_Visual_Effects §11 CH-1) — the bang of the huge burst (<see cref="EffectTkbCatalog.ExplosionHuge"/>).</summary>
+        public const long ExplosionHuge = 7314;
         public const long BulletPass = 7321;
         public const long ImpactSoft = 7331, ImpactHard = 7332;
         public const long Footsteps = 7341, WheeledEngine = 7342, TrackedEngine = 7343, Rotor = 7344, Jet = 7345;
@@ -41,6 +43,7 @@ namespace Hrot.Core.Tkb
                 [ExplosionSmall]  = ("Sound: explosion small",  S(SoundSynth.ExplosionSmall,  25f, SoundCategory.Explosions, PriorityExplosion, 2f)),
                 [ExplosionMedium] = ("Sound: explosion medium", S(SoundSynth.ExplosionMedium, 40f, SoundCategory.Explosions, PriorityExplosion, 4f)),
                 [ExplosionLarge]  = ("Sound: explosion large",  S(SoundSynth.ExplosionLarge,  60f, SoundCategory.Explosions, PriorityExplosion, 6f)),
+                [ExplosionHuge]   = ("Sound: explosion huge",   S(SoundSynth.ExplosionHuge,   90f, SoundCategory.Explosions, PriorityExplosion, 8f)),   // ⭐ CE-1231
                 [BulletPass]      = ("Sound: bullet pass",      S(SoundSynth.BulletPass,       3f, SoundCategory.Impacts,    PriorityBulletPass, -2f, range: 30f)),
                 [ImpactSoft]      = ("Sound: impact soft",      S(SoundSynth.ImpactSoft,       5f, SoundCategory.Impacts,    PriorityImpact, -6f, range: 120f)),
                 [ImpactHard]      = ("Sound: impact hard",      S(SoundSynth.ImpactHard,       5f, SoundCategory.Impacts,    PriorityImpact, -4f, range: 200f)),
@@ -99,6 +102,7 @@ namespace Hrot.Core.Tkb
                 EffectTkbCatalog.ExplosionSmall => ExplosionSmall,
                 EffectTkbCatalog.ExplosionMedium => ExplosionMedium,
                 EffectTkbCatalog.ExplosionLarge => ExplosionLarge,
+                EffectTkbCatalog.ExplosionHuge => ExplosionHuge,   // ⭐ CE-1231
                 _ => 0L,
             };
             return Pick(own?.Detonation, bang);

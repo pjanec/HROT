@@ -2994,6 +2994,11 @@ round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions i
 weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
 node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
 
+⭐ **THE CEILING — ✅ APPROVED `2026-10-21` (R-3029; 🔒 user: *"Those 3 approved"*)**: a REGRESSION ceiling, not a real-time target — at
+**300 civilians, ≤ 100 ms per frame per node** (CGF and SimHost "all systems", recent average) on the dev VM, `perf-civilians.py 300
+--budget-ms 100`. The real-time budget is set separately on a release machine. 📐 Today: CGF 95.2, SimHost 71.4 (passes); 500 is not
+gated (CGF 338 ms — the next thing to profile).
+
 #### 7.5a AS-BUILT `CE-3223` part 1 *(2026-10-16)* — the rounds whose effect exists, and the security loadouts
 
 | built | where |

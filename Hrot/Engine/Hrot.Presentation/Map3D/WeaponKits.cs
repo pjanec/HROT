@@ -382,16 +382,29 @@ public static class WeaponKits
         }, default);
     }
 
-    /// <summary>⭐ CE-1179 (People Display U18) — an explosive charge: a box, its detonator on top.</summary>
+    /// <summary>⭐ CE-1179 (People Display U18) — an explosive charge. ⭐ CE-1232 (docs/DESIGN_Visual_Effects.md §11 CH-3, R-1016) — read as what it
+    /// is: two shells lying side by side, bundled with two turns of wire, a detonator between them and its wire running off the back; at true
+    /// size (a minimum size on screen would lie about the scene — from map height its label and the 2-D marker find it). ⛔ Was: a box.</summary>
     private static ShapeKit Charge(bool deployed)
     {
         var s = DefaultSize(WeaponKind.Charge);
+        const float d = 0.09f, z = 0.045f, y = 0.048f;   // shell diameter, axis height, half the spacing
         return new ShapeKit(new[]
         {
-            Block(s, 0f, 0f, 0.05f, 0.30f, 0.20f, 0.10f, ColourRole.Canvas),            // the charge
-            Upright(s, 0.08f, 0.05f, 0.11f, 0.03f, 0.025f, ColourRole.Dark),            // the detonator
+            Tube(s, -0.02f, y, z, 0.22f, d, ColourRole.Body),                           // shell 1, its body
+            Nose(s, 0.12f, y, z, 0.06f, d),                                             //   and its ogive
+            Tube(s, -0.02f, -y, z, 0.22f, d, ColourRole.Body),                          // shell 2
+            Nose(s, 0.12f, -y, z, 0.06f, d),
+            Block(s, -0.08f, 0f, z, 0.012f, 0.20f, 0.10f, ColourRole.Dark),             // the wire, two turns round both
+            Block(s, 0.04f, 0f, z, 0.012f, 0.20f, 0.10f, ColourRole.Dark),
+            Upright(s, -0.02f, 0f, 0.10f, 0.035f, 0.025f, ColourRole.Metal),            // the detonator between them
+            Block(s, -0.10f, 0f, 0.10f, 0.10f, 0.008f, 0.008f, ColourRole.Dark),        // its wire, off the back
         }, default);
     }
+
+    /// <summary>⭐ CE-1232 — a shell's ogive: a cone along x, its base at <paramref name="cx"/> − length/2.</summary>
+    private static KitPart Nose(Vector3 s, float cx, float cy, float cz, float length, float diameter)
+        => new(PartShape.Cone, new Vector3(cx, cy, cz) / s, new Vector3(length, 0f, diameter) / s, ColourRole.Body, PartAxis.X, 0f, 0f, PartRole.Hull);
 
     /// <summary>⭐ CE-1169 (People Display U8) — a pistol carried but not in his hands: in the holster on his right hip.</summary>
     public static Matrix4x4 OnHip(Matrix4x4 carrierBody, float carrierHeight, Vector3 weaponSize)

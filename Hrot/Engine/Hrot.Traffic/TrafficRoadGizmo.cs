@@ -13,13 +13,13 @@ namespace Hrot.Traffic;
 /// </summary>
 /// <remarks>
 /// ⭐ 2-D only — <see cref="Target"/> carries <see cref="PipelineTarget.FlatOnly"/>, so the 3-D map, which draws the triangle meshes,
-/// never draws this layer. ⭐ On <see cref="RoadLayer"/> 0 with the terrain, emitted before entity gizmos. ⭐ Within
+/// never draws this layer. ⭐ On <see cref="RoadLayer"/> — ⭐ CE-1203 its own "Traffic" checkbox (bit 24), no longer the Entities bit. ⭐ Within
 /// <see cref="TrafficRoadPlan.Budget"/> (rail <c>TheRoadLayerFitsTheMapBufferTests</c>).
 /// </remarks>
 [GizmoProjector]
 public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
 {
-    public const byte RoadLayer = 0;
+    public const byte RoadLayer = DebugTraceLayers.Traffic;   // ⭐ CE-1203 (§5e FL-1) — was 0, the Entities bit
 
     /// <summary>⭐ Every primitive here is a 2-D SYMBOL — the 3-D map draws the road meshes, the lamps and the cars itself
     /// (<c>TrafficLayer3D</c>), so its pass never draws these (🔒 user, 2026-10-17).</summary>
@@ -44,6 +44,7 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository world) return;
+        if (!draw.IsLayerActive(RoadLayer)) return;   // ⭐ CE-1203 — a hidden layer costs no work
         var net = TrafficNetCache.Of(world);
         if (net is null) return;
 

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-04
+updated: 2026-10-20 (§4d the scenario's description, CE-3288)
 build-state: BUILDING
 build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate) BUILT & GREEN `2026-09-14`.
   Stage A: OwnershipIngressSystem mirrors an EntityMaster-ordinal transfer into NetworkAuthority.PrimaryOwnerId
@@ -27,7 +27,7 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   (2 readers repointed, 17 test files fixed; id 140 reserved). Ownership is now the single NetworkAuthority component.
   REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
   T3 --mode all E2E).
-current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
+current-answer: §4d the scenario's description (CE-3288) · §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
   ECS↔network seam (primary owner is an ECS fact; transport DERIVES EntityMaster from it; transfer
@@ -600,6 +600,88 @@ camera; that assertion IS the c3 proof.
 its `$meta.docType`, exactly today's `Deserialize` graceful-skip (§6b), and prove it loaded the rest.
 
 ---
+
+### 4d. ⭐ THE SCENARIO'S DESCRIPTION — a header field that survives load → save → merge *(`CE-3288`, backend, `2026-10-20`; frame: behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Scenario_Description.md))*
+
+> 🔒 User, `2026-10-20`: *"each scenario needs a string description what it is all about and how to judge if successfull, in a header
+> (description field)"*
+
+📐 **Measured traps** (the handoff's, re-read): both save sites build a FRESH header (`HrotScenarioSaveHandler.cs:98`,
+`ScenarioFileService.cs:104`) and the merge rebuilds it (`ScenarioMergeCore.cs:160-162`) — a field in the file alone is dropped on the
+first save. The terrain name survives only because the loader makes it RESIDENT and both sites read it back (`CE-3015`).
+
+```mermaid
+classDiagram
+  class ScenarioHeader {
+    <<record, Fdp.Toolkits — EXISTS, grows>>
+    +SubsystemType string
+    +TerrainName string?
+    +Description string? NEW
+  }
+  class ScenarioHeaderDto {
+    <<Hrot.Core — EXISTS, grows>>
+    +Description string? NEW
+  }
+  class ScenarioDescription {
+    <<static, Fdp.Toolkits.Scenario — NEW>>
+    +Read(json) string?
+    +ResidentOf(world) string?
+    +Stamp(world, text)
+  }
+  class ScenarioDescriptionResident {
+    <<managed singleton — NEW>>
+    +Text string
+  }
+  class ScenarioLoadStep { <<EXISTS — Brain>> }
+  class ScenarioSerializer { <<EXISTS>> }
+  class ScenarioMergeCore { <<EXISTS>> }
+  class HrotScenarioSaveHandler { <<EXISTS — every host>> }
+  class ScenarioFileService { <<EXISTS — editor shim>> }
+  ScenarioLoadStep --> ScenarioDescription : Read at Prepare, Stamp at Commit
+  ScenarioDescription --> ScenarioDescriptionResident : one per world
+  HrotScenarioSaveHandler --> ScenarioDescription : ResidentOf
+  ScenarioFileService --> ScenarioDescription : ResidentOf
+  HrotScenarioSaveHandler --> ScenarioHeader : Description
+  ScenarioSerializer --> ScenarioHeader : writes Header.Description
+  ScenarioMergeCore ..> ScenarioHeader : carries Description
+```
+
+*Caption:* the terrain name's route (`CE-3015`) with the terrain taken out — the description is held by the world the BRAIN loaded, not by the
+terrain (a scenario may have none), and the one new type is the resident holder; everything else grows by one field.
+
+```mermaid
+sequenceDiagram
+  participant F as scenario file
+  participant L as ScenarioLoadStep (Brain)
+  participant W as Brain world
+  participant H as HrotScenarioSaveHandler (each node)
+  participant M as ScenarioMergeCore
+  F->>L: Prepare — Header.Description (either case)
+  L->>W: Commit — Stamp (a new scenario stamps none)
+  H->>W: save — ResidentOf
+  H->>H: ScenarioHeader with Description — the Brain's slice
+  Note over H: other nodes hold none — their slices have no description
+  H->>M: slices
+  M->>M: the first non-empty description · a different one warns and is dropped
+  M-->>F: canonical Header carries it
+```
+
+*Caption:* only the Brain loads and saves the scenario as a whole (§5, R-A), so only its slice carries the text; the merge takes it and a
+disagreement is a warning, not a failure — unlike the terrain (I4), two texts do not make two exercises.
+
+| D (handoff) | ⭐ as designed | rejected (one line) |
+|---|---|---|
+| D1 where | `Header.Description` beside `TerrainName` | a top-level section — the header is where a reader looks first |
+| D2 shape | one string, *"What: … · Judge: …"* by convention | a schema — the check script and people read prose |
+| D3 round-trip | Brain stamps it at load commit; both save sites write it; the merge carries it | stamping on every node through the staged header — only the Brain saves the whole scenario, so the wire would carry text nobody reads |
+| D4 rails | load → save keeps the text; no text still loads and saves; the merge carries it and warns on a mismatch | — |
+| D5 / D6 | behaviors writes the texts; ui shows them later | — |
+
+⭐ **As built `2026-10-20`** — matches the diagrams, with one addition the class diagram did not show: `ScenarioDescriptionResident` needs
+a `[ComponentId]` (440) to be a managed singleton at all, and carries `[DataPolicy(NoScenario | NoReplay)]` like `TerrainDefinition` —
+applied only through `RegisterManagedComponent`, so it is registered in `HrotSharedComponentRegistry` (`R-254`). 📌 Without the id every
+`ScenarioLoadStep.Commit` with a world threw (four existing door/readiness rails went red before the fix). Rails:
+`ScenarioMergeCoreTests.CE3288_*`, `ScenarioLoadStepTests.CE3288_*`.
 
 ## 5. ⭐⭐ LOAD — per-node file, brain canonical  ✅ R-A (ruled §8.1)
 

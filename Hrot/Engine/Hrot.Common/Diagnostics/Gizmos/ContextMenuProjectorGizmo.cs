@@ -45,7 +45,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Flags, ulong Dis, bool Unit), string> UnitMenus = new();
         private static object? _menusBuiltFor;
 
-        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false)
+        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false, bool manned = false)
         {
             var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
             if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
@@ -54,11 +54,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 System.Threading.Volatile.Write(ref _menusBuiltFor, vocabulary);
             }
             form &= orders;
-            int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0);   // ⭐ CE-1059 — 8: an order form here
-            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form));
+            manned &= orders;
+            int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0)   // ⭐ CE-1059 — 8: an order form here
+                      | (manned ? 16 : 0);                                                         // ⭐ CE-1205 — 16: a weapon (manned, not possessed)
+            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned));
         }
 
-        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form)
+        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form, bool manned = false)
         {
             var items = new System.Collections.Generic.List<ContextMenuItemDto>();
             if (orders)
@@ -96,7 +98,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     },
                 });
                 // ⭐ CE-2143 (D4-H) — no Possess on a body-less unit: there is nothing to drive.
-                if (!isUnit) items.Add(new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" });   // ⭐ CE-3174
+                if (!isUnit) items.Add(manned   // ⭐ CE-1205 (§8m PK-7) — a weapon is manned: the item stays, greyed, saying why
+                    ? new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Enabled = false,
+                                               Tooltip = Fdp.Toolkit.Behavior.Possession.Possessability.WeaponIsManned }
+                    : new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" });   // ⭐ CE-3174
                 if (items.Count > 0) items.Add(new ContextMenuItemDto { IsSeparator = true });
             }
             items.AddRange(new[]
@@ -220,7 +225,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 var dis = repo != null ? repo.GetDisType(entity) : default;                                 // ⭐ CE-2143 — its class
                 bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
                 bool form = orders && repo!.HasSingletonManaged<Hrot.Common.Orders.IOrderForm>();             // ⭐ CE-1059
-                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form);
+                bool manned = Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(view, entity) != null;   // ⭐ CE-1205
+                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form, manned);
             }
 
             return menuJson;

@@ -19,6 +19,9 @@ namespace Hrot.UI.Common.Map3D;
 /// <remarks>
 /// ⭐ A flat net and our ground are both at Z 0, so each kind is LIFTED a few centimetres (paint over asphalt over junction over our
 /// ground; the ambient ground just under it) — a render offset, never a height the simulation reads.
+/// ⭐ <c>CE-1196</c> (docs/DESIGN_Map_3D_Mode.md §6z CA-4) — and the ROADS are drawn <see cref="MapCamera3D.GroundBiasSteps"/> depth steps
+/// toward the eye (<see cref="LitShader.SetDepthBias"/>): from afar a few centimetres are less than one depth step, so they fought our
+/// ground. The ambient ground is its own mesh, unbiased — it lies UNDER everything.
 /// </remarks>
 public sealed class TrafficLayer3D : IMapLayer, IDisposable
 {
@@ -32,8 +35,8 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
     private readonly Func<EntityRepository?> _world;
     private object? _identity;
     private bool _ambient;
-    private Mesh _mesh, _cube;
-    private bool _hasMesh, _hasCube;
+    private Mesh _mesh, _ground, _cube;
+    private bool _hasMesh, _hasGround, _hasCube;
 
     public TrafficLayer3D(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -56,10 +59,17 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
     {
         if (_world() is not { } world || TrafficNetCache.Of(world) is not { } net) { Release(); _identity = null; return; }
         if (!ReferenceEquals(net, _identity) || _ambient != ShowAmbientGround) Rebuild(net);
-        if (_hasMesh)
+        if (_hasMesh || _hasGround)
         {
+            var lit = LitShader.Shared;
             Rlgl.DisableBackfaceCulling();
-            Raylib.DrawMesh(_mesh, LitShader.Shared.Tinted(Color.White), Matrix4x4.Identity);
+            if (_hasGround) Raylib.DrawMesh(_ground, lit.Tinted(Color.White), Matrix4x4.Identity);
+            if (_hasMesh)
+            {
+                lit.SetDepthBias(MapCamera3D.GroundBiasNdc);   // ⭐ CE-1196 — the roads over the ground they lie on, at every distance
+                Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
+                lit.SetDepthBias(0f);
+            }
             Rlgl.EnableBackfaceCulling();
         }
 
@@ -82,10 +92,21 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
         ReleaseMesh();
         _identity = net;
         _ambient = ShowAmbientGround;
-        BuildVertexData(net.Roads, ShowAmbientGround, out var positions, out var normals, out var colors);
+        BuildVertexData(net.Roads, k => k != SceneKind.AmbientGround, out var positions, out var normals, out var colors);
+        _hasMesh = Upload(positions, normals, colors, out _mesh);
         TriangleCount = positions.Length / 3;
-        if (TriangleCount == 0) return;
-        var mesh = new Mesh(positions.Length, TriangleCount);
+        if (!ShowAmbientGround) return;
+        BuildVertexData(net.Roads, k => k == SceneKind.AmbientGround, out positions, out normals, out colors);
+        _hasGround = Upload(positions, normals, colors, out _ground);
+        TriangleCount += positions.Length / 3;
+    }
+
+    private static bool Upload(Vector3[] positions, Vector3[] normals, Color[] colors, out Mesh uploaded)
+    {
+        uploaded = default;
+        int tris = positions.Length / 3;
+        if (tris == 0) return false;
+        var mesh = new Mesh(positions.Length, tris);
         mesh.AllocVertices();
         mesh.AllocNormals();
         mesh.AllocColors();
@@ -93,17 +114,22 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
         normals.AsSpan().CopyTo(mesh.NormalsAs<Vector3>());
         colors.AsSpan().CopyTo(mesh.ColorsAs<Color>());
         Raylib.UploadMesh(ref mesh, false);
-        _mesh = mesh;
-        _hasMesh = true;
+        uploaded = mesh;
+        return true;
     }
 
     /// <summary>The un-indexed vertex streams in Raylib coordinates, each kind lifted and coloured. Pure — a rail tests it.</summary>
     public static void BuildVertexData(TrafficRoadScene roads, bool ambientGround,
         out Vector3[] positions, out Vector3[] normals, out Color[] colors)
+        => BuildVertexData(roads, k => ambientGround || k != SceneKind.AmbientGround, out positions, out normals, out colors);
+
+    /// <summary>⭐ <c>CE-1196</c> — the streams of the kinds <paramref name="include"/> keeps (the roads, biased; the ambient ground, not).</summary>
+    public static void BuildVertexData(TrafficRoadScene roads, Func<SceneKind, bool> include,
+        out Vector3[] positions, out Vector3[] normals, out Color[] colors)
     {
         int tris = 0;
         foreach (var m in roads.Meshes)
-            if (ambientGround || m.Kind != SceneKind.AmbientGround) tris += m.TriangleCount;
+            if (include(m.Kind)) tris += m.TriangleCount;
         positions = new Vector3[tris * 3];
         normals = new Vector3[tris * 3];
         colors = new Color[tris * 3];
@@ -111,7 +137,7 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
         var up = HrotToRaylib.Position(Vector3.UnitZ);
         foreach (var m in roads.Meshes)
         {
-            if (!ambientGround && m.Kind == SceneKind.AmbientGround) continue;
+            if (!include(m.Kind)) continue;
             var (colour, lift) = Style(m.Kind);
             var lifted = new Vector3(0f, 0f, lift);
             for (int i = 0; i < m.Indices.Length; i++, o++)
@@ -137,7 +163,8 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
     private void ReleaseMesh()
     {
         if (_hasMesh) Raylib.UnloadMesh(_mesh);
-        _hasMesh = false;
+        if (_hasGround) Raylib.UnloadMesh(_ground);
+        _hasMesh = _hasGround = false;
         TriangleCount = 0;
     }
 

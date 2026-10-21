@@ -111,10 +111,17 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
 
+            // ⭐ CE-1232 (docs/DESIGN_Visual_Effects.md §11 CH-2) — a placed charge is drawn as the IED marker, a fixed size on screen
+            ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
+            bool placedCharge = ChargeMarker.IsPlaced(view, entity, profileId);
+
             // ⭐ CGF's copy omitted the pick box, so CGF entities could not be picked at all (CE-126b).
-            // ⭐ CE-3147 — sized from the entity's own footprint, so the clickable area tracks the drawn symbol.
-            EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position,
-                Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity));
+            // ⭐ CE-3147 — sized from the entity's own footprint, so the clickable area tracks the drawn symbol (the marker's, CE-1232).
+            if (placedCharge)
+                EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position, ChargeMarker.HalfPixels + 2f, sizeMode: SizeMode.ScreenPixels);
+            else
+                EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position,
+                    Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity));
 
             // ── Condition: the damage states, now read off the replicated Health itself. ──
             // ⭐ CE-196 — this used to read IgHealthState.Damage, a precomputed percentage. The
@@ -141,8 +148,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   unknown-type fallback (magenta) for every door.
             if (view.HasManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>(entity)) return;
 
+            // ⭐ CE-1232 (docs/DESIGN_Visual_Effects.md §11 CH-2) — a placed charge is an IED marker, not a 30 cm vehicle outline
+            if (placedCharge)
+            {
+                ChargeMarker.Draw(draw, tf.Position, Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(view, entity));
+                return;
+            }
+
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
-            ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 
             // ⭐ Through the shared helper, which forces an opaque colour. CGF's copy called the raw
             // builder, which starts from default(DebugPrimitive) and leaves Color at (0,0,0,0) — so CGF's

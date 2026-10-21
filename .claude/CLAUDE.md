@@ -1,6 +1,25 @@
-## Codebase Memory MCP
+## Codebase Memory — **CLI ONLY, through `scripts/cbm.sh`** *(user, `2026-10-20`)*
 
-**MANDATORY: use Codebase Memory MCP graph tools FIRST — before reading files, before making code
+> 🔒 **User, verbatim:** *"pls disable codebase memory MCP server as its use keep asking for permission blocking your autonomous
+> operations; and update claude.md to always use CLI version only."*
+
+⛔⛔ **The codebase-memory MCP SERVER IS DISABLED** — removed from `.mcp.json`, listed in `.claude/settings.json`
+`disabledMcpjsonServers`. ⛔ Do NOT re-enable it and do NOT call `mcp__codebase-memory-mcp__*` tools (they are gone, and any
+that reappear still prompt). ⭐⭐ **Every graph query runs through Bash:**
+
+```bash
+scripts/cbm.sh <tool> '<json args>'          # finds the binary, indexes the repo if nothing is indexed, adds "project", passes args on stdin
+scripts/cbm.sh search_graph '{"name_pattern":".*Foo.*","label":"Class"}'
+scripts/cbm.sh search_code  '{"pattern":"FooBar","limit":100}'
+scripts/cbm.sh trace_path   '{"function_name":"<qualified name>","direction":"inbound","depth":3}'
+scripts/cbm.sh <tool> --help                 # the tool's own flags
+```
+
+⭐ **The rules below are unchanged — only the CALLING CONVENTION changed.** Wherever this file says `search_graph(…)`,
+`trace_path(…)`, `get_code_snippet(…)`, `query_graph(…)`, `get_architecture(…)` or `search_code(…)`, it means
+`scripts/cbm.sh <that tool> '<json>'`. ⇒ ⛔ **"the MCP was not available, so I used grep" is a MISS** — the CLI always is.
+
+**MANDATORY: use the codebase-memory graph (via `scripts/cbm.sh`) FIRST — before reading files, before making code
 changes, and before asserting anything about what exists in this codebase.**
 
 This rule applies to every request involving this codebase.
@@ -32,63 +51,25 @@ the failure mode.** It has recurred across sessions.
   resolver.**
 
 🔒 **So: graph first for inventory and structure, grep to confirm call sites, and never rely on either
-alone for an exhaustive claim.** Use `check_index_coverage` before any negative or exhaustive claim —
-coverage is best-effort and is never proof of completeness.
+alone for an exhaustive claim.** Coverage is best-effort and is never proof of completeness.
 
-⚠ **If the MCP server is disconnected mid-session** (it does drop), say so explicitly in any inventory
-claim made while it was down, and re-verify those claims once it reconnects. Do not silently downgrade to
-grep and present the result with the same confidence.
+> ⛔⛔ **CLI GAP, measured `2026-09-02`: `check_index_coverage` is NOT available through the CLI** *(→ `unknown tool`)*, and the
+> CLI is now the only way in. ⇒ ⭐⭐ **in any negative or exhaustive claim, SAY that coverage could not be checked** rather than
+> implying it was. ⚠ **And `trace_path` returned an EMPTY caller set for a struct constructor** *(`NetworkAuthority`)*, so
+> ⛔ **it does not substitute for grep on "who writes this"** — the warning about C# interface dispatch is narrower than the real
+> limitation.
 
-> **Cloud / Claude Code on the web:** if the `mcp__codebase-memory-mcp__*` tools are
-> not connected or `dotnet` is missing, this is a fresh cloud VM — run the
-> `/cloud-bootstrap` skill (or `bash scripts/cloud-bootstrap.sh`) to install the
-> .NET 8 SDK and the codebase-memory-mcp server. Note: if the binary is installed
-> mid-session, the graph **MCP tools** connect on the **next** session (MCP servers spawn
-> at session start). For session-#1 tools, run the bootstrap from the environment's
-> Setup script. Details: `docs/cloud-codebase-memory-mcp.md`. (Local Windows/VS Code
-> sessions already have the tools — skip this.)
->
-> 🔴 **BUT the MCP tools not being connected is NOT a reason to downgrade to grep-only**
-> *(session complaint, `2026-08-25`)*. **The same binary has a CLI mode** — run any graph
-> tool through Bash: **`codebase-memory-mcp cli <tool> '<json-args>'`** *(binary at
-> `/opt/codebase-memory-mcp/codebase-memory-mcp`, or `~/.local/bin/codebase-memory-mcp`,
-> or `$CODEBASE_MEMORY_MCP_BIN`; `cli <tool> --help` shows the flag form)*. ⭐ Every
-> `mcp__codebase-memory-mcp__*` tool is available this way — `list_projects`,
-> `search_graph`, `query_graph`, `trace_path`, `get_code_snippet`, `index_repository`, … —
-> so the **INVENTORY-before-design** rule still holds in a session where the MCP server
-> never connected. ⚠ If `list_projects` returns empty, `codebase-memory-mcp cli
-> index_repository '{"repo_path":"<repo root>"}'` first *(tens of seconds)*. Example:
-> `codebase-memory-mcp cli search_graph '{"project":"<name>","name_pattern":".*Foo.*","label":"Class"}'`.
-> ⇒ ⛔ **A report that says "codebase-memory MCP was not connected, so I used grep" is now
-> a MISS** — the CLI was available; use it and say so.
-
-> ⛔⛔ **CLI GAP, measured `2026-09-02`: `check_index_coverage` is NOT available through the CLI**
-> *(`codebase-memory-mcp cli check_index_coverage …` → `unknown tool`)*. ⇒ ⭐ in a session where only the
-> CLI is reachable, the *"run `check_index_coverage` before any negative or exhaustive claim"* rule
-> **cannot be satisfied** — ⭐⭐ **say so in the claim** rather than implying coverage was checked.
-> ⚠ **And `trace_path` returned an EMPTY caller set for a struct constructor** *(`NetworkAuthority`)*, so
-> ⛔ **it does not substitute for grep on "who writes this"** — the existing warning about C# interface
-> dispatch is narrower than the real limitation.
-
-Always call `list_projects` first when you do not already know the project name, then use the `display_name` or exact `name` returned by that tool.
-
-```json
-// Step 0 — discover project names
-mcp_codebase-memo_list_projects()
-
-// Step 1 — use the project identifier returned above
-mcp_codebase-memo_get_architecture({ "project": "<display_name>" })
-```
+> **Cloud / Claude Code on the web:** if `dotnet` is missing or `scripts/cbm.sh` reports `UNAVAILABLE`, this is a fresh cloud
+> VM — run the `/cloud-bootstrap` skill (or `bash scripts/cloud-bootstrap.sh`): it installs the .NET 8 SDK and the
+> codebase-memory binary, and the CLI works at once (no session-start timing — that was the MCP server's). Details:
+> `docs/cloud-codebase-memory-mcp.md`.
 
 ### Workflow
 
-0. **If `list_projects` returns an empty list** (a fresh cloud VM re-indexes each
-   session — the graph is not persisted): **immediately** call
-   `index_repository(repo_path="<repo root>")` for this repo, **without asking**,
-   then continue. Indexing ~5k C# files takes only tens of seconds. On Linux the
-   repo root is the current working directory (e.g. `/home/user/IOS-IG-SimHost-FDP`).
-1. Call `list_projects` to discover the correct project name.
-2. Call `get_architecture(project)` to understand the codebase structure.
+0. **The graph is not persisted on a cloud VM** — `scripts/cbm.sh` indexes the repo on its first call when nothing is
+   indexed (tens of seconds), **without asking**, and fills in the project name itself.
+1. `scripts/cbm.sh list_projects` — only when you need to see what is indexed.
+2. `scripts/cbm.sh get_architecture '{}'` to understand the codebase structure.
 3. Use `search_graph` to find relevant symbols, `trace_path` for call chains.
 4. Use `get_code_snippet` to read specific function implementations.
 5. Only use `Read` when you need exact raw content to edit a specific line.
@@ -105,14 +86,14 @@ get_architecture(project, aspects:["clusters"])                        # the de-
 pick the production `qualified_name` from them (the list will be mostly test doubles; that is expected,
 not a signal).
 
-### Available Tools (15 MCP tools)
+### The tools — **all through `scripts/cbm.sh <tool> '<json>'`**
 
 **Indexing:**
 - `index_repository(repo_path)` — Index a repository into the knowledge graph
 - `list_projects` — List all indexed projects with node/edge counts
 - `delete_project(project)` — Remove a project and all its graph data
 - `index_status(project)` — Check indexing status
-- `check_index_coverage` — 🔴 **run before any negative or exhaustive claim**; coverage is best-effort, never proof of completeness
+- ⛔ `check_index_coverage` — **NOT available through the CLI**: say so in any negative or exhaustive claim
 
 **Querying:**
 - `search_graph(query | name_pattern | semantic_query, label, file_pattern, …)` — 🔴 **the inventory tool.** Three independent modes: `query=` BM25 full-text, `name_pattern=` regex, `semantic_query=[...]` vector. Paginate while `has_more` is true — a truncated page is not the answer

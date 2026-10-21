@@ -20,6 +20,7 @@ public sealed class UtilityDecisionGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Utility)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         var log = view.GetComponentRO<UtilityDecisionLog>(entity);
         float line = 0f;
@@ -27,7 +28,7 @@ public sealed class UtilityDecisionGizmo : IStatelessGizmo
         {
             if (slot.DecisionId == 0) continue;
             draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32($"D{slot.DecisionId}: {slot.Winner} Δ{slot.Margin:0.00}"), TextColor,
-                fontSizePx: 11f, lineOffsetPx: 14f + line);
+                fontSizePx: 11f, lineOffsetPx: 14f + line, layer: DebugTraceLayers.Utility);
             line += 13f;
         }
     }

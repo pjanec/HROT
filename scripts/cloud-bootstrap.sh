@@ -9,18 +9,15 @@
 #   2. codebase-memory-mcp      -> /opt/codebase-memory-mcp/codebase-memory-mcp
 #      (the single static "portable" Linux binary from the official installer)
 #
-# The path in step 2 is the SAME path that .mcp.json points at by default:
-#     "command": "${CODEBASE_MEMORY_MCP_BIN:-/opt/codebase-memory-mcp/codebase-memory-mcp}"
-# so once this script has run, the codebase-memory-mcp MCP server connects.
+# ⛔ The binary is used through its CLI ONLY (scripts/cbm.sh) — user, 2026-10-20: the MCP server is DISABLED
+# (removed from .mcp.json, listed in .claude/settings.json disabledMcpjsonServers) because its permission prompts
+# blocked autonomous work. The CLI needs nothing at session start: installed mid-session, it works at once.
 #
 # WHERE TO RUN THIS (read docs/cloud-codebase-memory-mcp.md for the full story):
 #   * BEST  - paste `bash scripts/cloud-bootstrap.sh` into your web environment's
-#             *Setup script* field. It runs BEFORE the session, so the MCP server
-#             is present and connects on session #1.
+#             *Setup script* field, so dotnet and the binary are there from the start.
 #   * OK    - let the agent run it during a session (via the /cloud-bootstrap
-#             skill or the CLAUDE.md pointer). The binary is cached, but the MCP
-#             server only connects on the NEXT session (MCP servers are spawned
-#             at session start, before the agent can install anything).
+#             skill or the CLAUDE.md pointer); the CLI is usable immediately.
 #
 # Network: the codebase-memory-mcp download comes from github.com/releases, so the
 #          environment network policy must allow GitHub (a "Full" policy does).
@@ -318,7 +315,7 @@ main() {
     install_ddsmonitor && ddsmon_ok=1 || true
     log "Done. dotnet=$(command -v dotnet || echo "$DOTNET_ROOT/dotnet")  mcp=$([ -x "$CBM_BIN" ] && echo "$CBM_BIN" || echo MISSING)  roslyn=$([ "$roslyn_ok" = 1 ] && echo "$ROSLYNMCP_DIR" || echo MISSING)  ddsmonitor=$(command -v ddsmonitor >/dev/null 2>&1 && echo OK || echo MISSING)"
     if [ "$cbm_ok" != 1 ]; then
-        log "NOTE: codebase-memory-mcp was NOT installed; the MCP server will show 'failed to connect'."
+        log "NOTE: codebase-memory-mcp was NOT installed; scripts/cbm.sh will report UNAVAILABLE."
         return 1
     fi
 }

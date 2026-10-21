@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -18,7 +19,9 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// name, and every NoFire area hatched red. Both come from the replicated <see cref="EngagementArea"/> (<c>AllowArea</c>, <c>NoFire</c>:
 /// area network ids), so every node draws them. ONE global gizmo: many men list the same NoFire area (looked up through the chain), so
 /// each area is drawn once per frame however many units name it. The outline is the area's own (<see cref="WeatherField.TryOutline"/>,
-/// points relative to its transform — the shape <c>EngagementAreas</c> tests a shot against).
+/// points relative to its transform — the shape <c>EngagementAreas</c> tests a shot against). ⭐ <c>CE-1225</c> (§8 S-1…S-3): everything on the
+/// <see cref="DebugTraceLayers.Sectors"/> layer (off by default), and every COMMANDER's arc too — a unit some replicated
+/// <see cref="UnitSubordinate.Commander"/> names (a platoon's slice on each squad, the support squad's arc) — for everyone, on the ground.
 /// </summary>
 [GizmoProjector]
 public sealed class SectorAreasGizmo : IGlobalStatelessGizmo
@@ -34,50 +37,72 @@ public sealed class SectorAreasGizmo : IGlobalStatelessGizmo
 
     private EntityRepository? _queryRepo;
     private EntityQuery? _units;
+    private EntityQuery? _subordinates;
     private readonly Dictionary<long, Entity> _sectors = new();
     private readonly HashSet<long> _noFire = new();
     private readonly List<(Vector2 A, Vector2 B)> _hatch = new();
+    private readonly HashSet<Entity> _commanders = new();
 
     public static Rgba32 ColourOf(long unitNetId) => UnitColours[(int)((ulong)unitNetId % (ulong)UnitColours.Length)];
 
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<EngagementArea>()) return;
+        if (!draw.IsLayerActive(DebugTraceLayers.Sectors)) return;
         if (!ReferenceEquals(repo, _queryRepo))
         {
             _queryRepo = repo;
             _units = repo.Query().With<EngagementArea>().Build();
+            _subordinates = repo.IsComponentTypeRegistered<UnitSubordinate>() ? repo.Query().With<UnitSubordinate>().Build() : null;
         }
         _sectors.Clear();
         _noFire.Clear();
+        Commanders(repo, _subordinates, _commanders);
         foreach (var unit in _units!)
         {
             ref readonly var a = ref repo.GetComponentRO<EngagementArea>(unit);
             if (a.AllowArea != 0) _sectors.TryAdd(a.AllowArea, unit);
             for (int i = 0; i < a.NoFire.Count && i < EngagementArea.MaxNoFire; i++)
                 if (a.NoFire.Items[i] != 0) _noFire.Add(a.NoFire.Items[i]);
+            if (a.ArcSet != 0 && _commanders.Contains(unit)) SectorArcGizmo.DrawArc(draw, in a, ColourOf(NetOf(repo, unit)));
         }
 
         foreach (var (areaNet, unit) in _sectors)
         {
             if (!TryArea(repo, areaNet, out var points, out var origin)) continue;
-            long unitNet = repo.IsComponentTypeRegistered<NetworkIdentity>() && repo.HasComponent<NetworkIdentity>(unit)
-                ? repo.GetComponentRO<NetworkIdentity>(unit).Value : unit.Index;
+            long unitNet = NetOf(repo, unit);
             var colour = ColourOf(unitNet);
-            EntityPresentationGizmoShared.DrawClosedPolylineOutline(draw, points, origin, colour, thickness: 2.5f);
+            EntityPresentationGizmoShared.DrawClosedPolylineOutline(draw, points, origin, colour, thickness: 2.5f, layer: DebugTraceLayers.Sectors);
             var c = origin + Centroid(points);
-            draw.DrawText(c.X, c.Y, new FixedString32(Truncate(NameOf(repo, unit, unitNet))), colour, fontSizePx: 11f);
+            draw.DrawText(c.X, c.Y, new FixedString32(Truncate(NameOf(repo, unit, unitNet))), colour, layer: DebugTraceLayers.Sectors, fontSizePx: 11f);
         }
 
         foreach (var areaNet in _noFire)
         {
             if (!TryArea(repo, areaNet, out var points, out var origin)) continue;
-            EntityPresentationGizmoShared.DrawClosedPolylineOutline(draw, points, origin, NoFireColour, thickness: 2f);
+            EntityPresentationGizmoShared.DrawClosedPolylineOutline(draw, points, origin, NoFireColour, thickness: 2f, layer: DebugTraceLayers.Sectors);
             Hatch(points, HatchSpacing, _hatch);
             foreach (var (a, b) in _hatch)
-                draw.DrawLine(new Vector3(origin + a, 0f), new Vector3(origin + b, 0f), NoFireColour, 1f);
+                draw.DrawLine(new Vector3(origin + a, 0f), new Vector3(origin + b, 0f), NoFireColour, 1f, layer: DebugTraceLayers.Sectors);
         }
     }
+
+    /// <summary>The units some replicated <see cref="UnitSubordinate.Commander"/> names (§7 D4's test of a commander), read through
+    /// <paramref name="subordinates"/> (a query over <see cref="UnitSubordinate"/>; null = none), into <paramref name="into"/>.</summary>
+    public static void Commanders(EntityRepository repo, EntityQuery? subordinates, HashSet<Entity> into)
+    {
+        into.Clear();
+        if (subordinates == null) return;
+        foreach (var e in subordinates)
+        {
+            var commander = repo.GetComponentRO<UnitSubordinate>(e).Commander;
+            if (!commander.IsNull) into.Add(commander);
+        }
+    }
+
+    private static long NetOf(EntityRepository repo, Entity unit)
+        => repo.IsComponentTypeRegistered<NetworkIdentity>() && repo.HasComponent<NetworkIdentity>(unit)
+            ? repo.GetComponentRO<NetworkIdentity>(unit).Value : unit.Index;
 
     private static bool TryArea(EntityRepository repo, long areaNet, out IReadOnlyList<Vector2> points, out Vector2 origin)
     {

@@ -833,9 +833,14 @@ public sealed class Map3DTests
         {
             var size = WeaponKits.DefaultSize(kind);
             Assert.True(size.X < 1f && size.Z < 0.25f, $"{kind}: {size}");
-            Assert.NotEqual(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.Length, WeaponKits.Kit(kind, false).Parts.Length);
+            // not the HMG's kit (⭐ CE-1232: compared part by part — the two-shell charge happens to have the HMG's part COUNT)
+            Assert.False(WeaponKits.Kit(WeaponKind.Hmg, false).Parts.SequenceEqual(WeaponKits.Kit(kind, false).Parts), $"{kind} draws the HMG");
             Assert.Null(WeaponKits.GunnerSpot(kind));                 // nobody kneels behind it
         }
+        // ⭐ CE-1232 (VE §11 CH-3) — the charge reads as what it is: two shells (each a body and an ogive) bundled with wire, not a box
+        var chargeKit = WeaponKits.Kit(WeaponKind.Charge, false).Parts;
+        Assert.Equal(2, chargeKit.Count(p => p.Shape == PartShape.Cone));
+        Assert.True(chargeKit.Count(p => p.Shape == PartShape.Cylinder && p.Axis == PartAxis.X) == 2, "two shells lying");
         Assert.True(WeaponKits.IsHandWeapon(WeaponKind.Rifle) && WeaponKits.IsHandWeapon(WeaponKind.Pistol));
         Assert.False(WeaponKits.IsHandWeapon(WeaponKind.Charge) || WeaponKits.IsHandWeapon(WeaponKind.Hmg));
 
@@ -2505,6 +2510,47 @@ public sealed class Map3DTests
         Assert.InRange(blend.Aim(man, 0f, 0f, 1.65).Twist, 0.5f, 0.8f);      // no longer aimed: turning back
         var other = new Entity(9, 1);
         Assert.Equal(0.7f, blend.Aim(other, 0.7f, 0f, 2.0).Twist);           // first seen: already turned
+    }
+
+    /// <summary>
+    /// ⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5, R-1017) — the drawn HEAD points where his eyes do: it turns on its neck by the
+    /// replicated look's head yaw less the torso's drawn twist (within the neck), its face with it; nothing else of the figure moves, and a
+    /// man with no look keeps his head on his body; the turn eases in. ✅ Red-proof: the head rotation in <c>BodyTransform</c> removed ⇒
+    /// the face stays forward.
+    /// </summary>
+    [Fact]
+    public void CE1204_TheDrawnHead_TurnsWhereHisEyesPoint_LessTheTorsosTwist()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();
+        var man = world.CreateEntity();
+        world.AddComponent(man, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+        Assert.Equal(0f, EntityBodyLayer3D.HeadTurnOf(world, man, 0f));                              // no look: on his body
+        world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0.6f });
+        Assert.Equal(0.6f, EntityBodyLayer3D.HeadTurnOf(world, man, 0f), 4);                        // no twist: all of it is the neck
+        Assert.Equal(0.4f, EntityBodyLayer3D.HeadTurnOf(world, man, 0.2f), 4);                      // the torso already turned 0.2
+        Assert.Equal(-70f * MathF.PI / 180f, EntityBodyLayer3D.HeadTurnOf(world, man, 1.3f - 0.6f + 1.3f), 3);   // within the neck
+
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var parts = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase);
+        var head = parts[BlockFigure.HeadIndex];
+        Assert.Equal(FaceOn.Front, head.Face);
+        var turned = MotionPose.Still with { HeadTurn = MathF.PI / 2f };
+        Vector3 Face(MotionPose m) => Vector3.Transform(new Vector3(0.5f, 0f, 0f), head.BodyTransform(size, default, ArticulationPose.Neutral, m))
+                                      - Vector3.Transform(Vector3.Zero, head.BodyTransform(size, default, ArticulationPose.Neutral, m));
+        Assert.True(Face(MotionPose.Still).X > 0.05f, "the face looks forward");
+        var left = Face(turned);
+        Assert.True(left.Y > 0.05f && MathF.Abs(left.X) < 1e-3f, $"turned 90° left the face looks left: {left}");
+        Assert.Equal(Vector3.Transform(Vector3.Zero, head.BodyTransform(size)),
+                     Vector3.Transform(Vector3.Zero, head.BodyTransform(size, default, ArticulationPose.Neutral, turned)));   // on its neck
+        Assert.Equal(parts[4].BodyTransform(size), parts[4].BodyTransform(size, default, ArticulationPose.Neutral, turned));  // the torso stays
+
+        var blend = new PostureBlend();
+        Assert.Equal(0f, blend.Head(man, 0f, 1.0));
+        Assert.InRange(blend.Head(man, 1.0f, 1.05), 0.2f, 0.4f);                                     // 0.05 s in: part of the way
+        Assert.InRange(blend.Head(man, 1.0f, 1.8), 0.98f, 1.0f);                                     // there
+        world.Dispose();
     }
 
     // ── ⭐ WL-6c — knees: the athletic fighting stance, the combat glide, the walking knee ─────────────────────────────────────────

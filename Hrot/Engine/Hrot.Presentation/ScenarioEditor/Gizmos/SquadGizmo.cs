@@ -36,12 +36,13 @@ public sealed class SquadGizmo : IStatelessGizmo
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         var state = view.GetComponentRO<SquadCognitiveState>(entity);
         var roster = view.GetComponentRO<UnitRoster>(entity);
 
         draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32($"SQUAD {roster.Count} ph{state.PhaseId}"), PhaseColor,
-            fontSizePx: 11f, lineOffsetPx: -16f);
+            fontSizePx: 11f, lineOffsetPx: -16f, layer: DebugTraceLayers.SquadCommand);
 
         var elements = MemoryMarshal.CreateReadOnlySpan(
             ref Unsafe.As<MemberElementIndexArray, byte>(ref Unsafe.AsRef(in state.Elements.MemberElements)), UnitRoster.Capacity);
@@ -53,14 +54,14 @@ public sealed class SquadGizmo : IStatelessGizmo
             if (!view.IsAlive(member) || !view.HasComponent<SimTransform>(member)) continue;
             var m = view.GetComponentRO<SimTransform>(member).Position;
             var color = ElementColors[elements[i] % ElementColors.Length];
-            draw.DrawLine(at, m, color, 1.5f);
-            draw.DrawText(m.X, m.Y, new Fdp.Core.FixedString32($"E{elements[i]}R{roles[i].RoleId}"), color, fontSizePx: 10f, lineOffsetPx: 12f);
+            draw.DrawLine(at, m, color, 1.5f, layer: DebugTraceLayers.SquadCommand);
+            draw.DrawText(m.X, m.Y, new Fdp.Core.FixedString32($"E{elements[i]}R{roles[i].RoleId}"), color, fontSizePx: 10f, lineOffsetPx: 12f, layer: DebugTraceLayers.SquadCommand);
         }
 
         var contacts = MemoryMarshal.CreateReadOnlySpan(
             ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), ContactCapacity);
         for (int c = 0; c < Math.Min(state.Contacts.Count, contacts.Length); c++)
-            draw.DrawSphere(new Vector3(contacts[c].PositionX, contacts[c].PositionY, contacts[c].PositionZ), 1.5f, ContactColor, thickness: 1.5f);
+            draw.DrawSphere(new Vector3(contacts[c].PositionX, contacts[c].PositionY, contacts[c].PositionZ), 1.5f, ContactColor, thickness: 1.5f, layer: DebugTraceLayers.SquadCommand);
 
         if (state.ActiveFeatureId != 0 && view.HasComponent<DangerAreaCognitiveBuffer>(entity))
         {

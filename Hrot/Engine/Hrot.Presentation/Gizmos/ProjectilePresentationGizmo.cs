@@ -30,15 +30,22 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <summary>The marker's radius on screen (px); a lying round's is larger, so the danger reads.</summary>
         public const float MarkerPixels = 4f, LyingMarkerPixels = 6.5f;
 
+        /// <summary>⭐ CE-1203 (docs/DESIGN_Terrain_Combat_Tuning.md §5e FL-7) — the streak and the marker are 2-D SYMBOLS of a round the
+        /// 3-D map draws itself (ProjectileLayer's round and tracer, FireStreams' bursts): drawn at z = 0 they lay on the ground UNDER
+        /// it there. So never in 3-D, whatever the checkbox — the flag R-4058 made for the SUMO roads. ⭐ The fuze countdown is not a
+        /// symbol of anything the 3-D map draws, so it stays in both.</summary>
+        public const PipelineTarget SymbolTarget = PipelineTarget.Map2D | PipelineTarget.FlatOnly;
+
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Rounds)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             ref readonly var proj = ref view.GetComponentRO<BallisticProjectile>(entity);
             ref readonly var tf   = ref view.GetComponentRO<SimTransform>(entity);
 
             var start = new Vector3(proj.PreviousPosition.X, proj.PreviousPosition.Y, 0f);
             var end   = new Vector3(tf.Position.X,           tf.Position.Y,           0f);
 
-            if ((proj.Warhead & WarheadRound.Spent) != 0) { draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels); return; }
+            if ((proj.Warhead & WarheadRound.Spent) != 0) { draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels, target: SymbolTarget, layer: DebugTraceLayers.Rounds); return; }
             var tkb = view is EntityRepository repo && repo.HasSingletonManaged<ITkbDatabase>() ? repo.GetSingletonManaged<ITkbDatabase>() : null;
             var look = proj.Ammo == 0 ? null : Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, proj.Ammo);
             bool lying = (proj.Warhead & WarheadRound.Landed) != 0 || proj.StoppedTick != 0;
@@ -55,18 +62,18 @@ namespace Hrot.ScenarioEditor.Gizmos
         public static void DrawRound(IDebugDrawBuilder draw, Vector3 start, Vector3 end, Fdp.Toolkit.Tkb.Domain.MunitionVisualDto? look,
                                      bool lying, bool armed, float fuzeLeft)
         {
-            draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels);
+            draw.DrawLine(start, end, StreakColor, thickness: 2f, SizeMode.ScreenPixels, target: SymbolTarget, layer: DebugTraceLayers.Rounds);
             if (look == null) return;   // an ordinary bullet: the streak only
             if (look.Shape == Fdp.Toolkit.Tkb.Domain.MunitionShape.Bullet)
             {
                 // ⭐ P2 (§8 PR-F) — a tracer bullet: its streak again, wider and in its glow; no marker (it is a bullet)
-                if (look.Tracer) draw.DrawLine(start, end, TracerGlow(look.TracerColorHex), thickness: 3f, SizeMode.ScreenPixels);
+                if (look.Tracer) draw.DrawLine(start, end, TracerGlow(look.TracerColorHex), thickness: 3f, SizeMode.ScreenPixels, target: SymbolTarget, layer: DebugTraceLayers.Rounds);
                 return;
             }
             draw.DrawSphere(end, lying ? LyingMarkerPixels : MarkerPixels, MarkerOutline, thickness: 1.5f, SizeMode.ScreenPixels,
-                            fillColor: armed ? ArmedFill : FlyingFill);
+                            fillColor: armed ? ArmedFill : FlyingFill, target: SymbolTarget, layer: DebugTraceLayers.Rounds);
             if (armed)
-                draw.DrawText(end.X, end.Y, new Fdp.Core.FixedString32(FuzeLabel(fuzeLeft)), FuzeText, fontSizePx: 20f, lineOffsetPx: -18f);
+                draw.DrawText(end.X, end.Y, new Fdp.Core.FixedString32(FuzeLabel(fuzeLeft)), FuzeText, fontSizePx: 20f, lineOffsetPx: -18f, layer: DebugTraceLayers.Rounds);
         }
 
         private static Rgba32 TracerGlow(string? hex)
@@ -95,6 +102,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     {
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.Rounds)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             if (view.HasComponent<BallisticProjectile>(entity) || !view.HasComponent<TkbIdentity>(entity)) return;
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var velocity = view.HasComponent<SimVelocity>(entity) ? view.GetComponentRO<SimVelocity>(entity).Linear : Vector3.Zero;

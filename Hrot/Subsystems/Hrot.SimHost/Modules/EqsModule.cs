@@ -29,10 +29,16 @@ namespace Hrot.SimHost.Modules
         public string Name => "Eqs";
 
         /// <inheritdoc/>
-        /// <remarks>Runs asynchronously at 10 Hz against a SoD snapshot. ⭐ CE-3038 — the 400 ms timeout moved here with
-        /// vision (it was <c>CognitiveSpatialModule</c>'s, CE-3032): the breaker is for HANGS; the deterministic work budget
-        /// (<see cref="EqsSolverSystem.BudgetUnits"/>) is what bounds a tick.</remarks>
-        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(400);
+        /// <remarks>Runs asynchronously at 10 Hz against a SoD snapshot. ⭐ CE-3038 — the timeout moved here with vision (it was
+        /// <c>CognitiveSpatialModule</c>'s, CE-3032): the breaker is for HANGS; the deterministic work budget
+        /// (<see cref="EqsSolverSystem.BudgetUnits"/>) is what bounds a tick. ⭐ CE-3279 (user, 2026-10-20: "make it 2 s") — 2000 ms,
+        /// was 400: a timed-out run is NOT stopped (it runs on as a zombie and blocks the next one, CE-3066), so the cap freed nothing —
+        /// it only discarded a correct late answer and, after five, skipped the module 10 s. 📐 A legitimately slow solve on the debug
+        /// VM is ~320 ms (~450 ms at a full budget).</remarks>
+        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(MaxRunMs);
+
+        /// <summary>⭐ CE-3279 — how long one solve may run before it counts as a hang (ms).</summary>
+        public const int MaxRunMs = 2000;
 
         private readonly EqsSolverSystem _solver = new();
 

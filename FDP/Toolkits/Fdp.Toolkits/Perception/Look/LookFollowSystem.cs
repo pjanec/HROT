@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Perception.Look
                 ref var look = ref repo.GetComponentRW<LookState>(e);
                 var tf = repo.GetComponentRO<SimTransform>(e);
                 float body = LookOf.YawOf(tf.Rotation);
+                float neck = LookOf.HeadLimit(repo, e);   // ⭐ CE-1204 (LK-3) — his type's neck
                 float speed = kinem && repo.HasComponent<global::CarKinem.Core.VehicleState>(e)
                     ? MathF.Abs(repo.GetComponentRO<global::CarKinem.Core.VehicleState>(e).Speed) : 0f;
 
@@ -49,7 +50,7 @@ namespace Fdp.Toolkit.Perception.Look
                 if (Combat.WeaponPostureOf.TryAimPoint(repo, e, out var aim))
                 {
                     look.Source = LookSource.LookAim;
-                    look.HeadYaw = Toward(body, tf.Position, aim);
+                    look.HeadYaw = Toward(body, tf.Position, aim, neck);
                     look.GlanceSince = 0;
                     continue;
                 }
@@ -60,7 +61,7 @@ namespace Fdp.Toolkit.Perception.Look
                     look.GlanceSince = 0;
                     continue;
                 }
-                float want = Toward(body, tf.Position, look.Target);
+                float want = Toward(body, tf.Position, look.Target, neck);
                 if (speed <= WalkingSpeed)
                 {
                     // standing: the head leads; CarKinematicsSystem turns the body after it, so the head comes back as it does
@@ -91,13 +92,17 @@ namespace Fdp.Toolkit.Perception.Look
             }
         }
 
-        /// <summary>The head's turn from <paramref name="bodyYaw"/> toward <paramref name="point"/>, clamped to the neck.</summary>
-        public static float Toward(float bodyYaw, Vector3 from, Vector3 point)
+        /// <summary>The head's turn from <paramref name="bodyYaw"/> toward <paramref name="point"/>, clamped to the 70° neck.</summary>
+        public static float Toward(float bodyYaw, Vector3 from, Vector3 point) => Toward(bodyYaw, from, point, LookOf.MaxHeadYaw);
+
+        /// <summary>The head's turn from <paramref name="bodyYaw"/> toward <paramref name="point"/>, clamped to <paramref name="neck"/>
+        /// (<see cref="LookOf.HeadLimit"/>, CE-1204).</summary>
+        public static float Toward(float bodyYaw, Vector3 from, Vector3 point, float neck)
         {
             var d = new Vector2(point.X - from.X, point.Y - from.Y);
             if (d.LengthSquared() < 1e-6f) return 0f;
             float off = LookOf.Wrap(MathF.Atan2(d.Y, d.X) - bodyYaw);
-            return Math.Clamp(off, -LookOf.MaxHeadYaw, LookOf.MaxHeadYaw);
+            return Math.Clamp(off, -neck, neck);
         }
     }
 }

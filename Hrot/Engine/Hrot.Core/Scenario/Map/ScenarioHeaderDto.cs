@@ -23,4 +23,10 @@ public sealed class ScenarioHeaderDto
     /// here. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ①.</para>
     /// </summary>
     public string? TerrainName { get; set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-3288</c> — what the scenario shows and how to judge that it worked ("What: … · Judge: …"); null = none.
+    /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d.
+    /// </summary>
+    public string? Description { get; set; }
 }

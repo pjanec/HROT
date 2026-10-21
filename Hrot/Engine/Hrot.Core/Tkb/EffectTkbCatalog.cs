@@ -17,6 +17,9 @@ namespace Hrot.Core.Tkb
     {
         public const long MuzzleFlashSmall = 7101, MuzzleFlashMedium = 7102, MuzzleFlashLarge = 7103;
         public const long ExplosionSmall = 7111, ExplosionMedium = 7112, ExplosionLarge = 7113;
+        /// <summary>⭐ CE-1231 (docs/DESIGN_Visual_Effects.md §11 CH-1, R-1016) — the burst of 5 kg of explosive and more: an IED, a suicide vest, a
+        /// car bomb, a 155 mm shell, a bomb.</summary>
+        public const long ExplosionHuge = 7114;
         public const long DecalSmall = 7121, DecalMedium = 7122, DecalLarge = 7123;
         public const long Tracer = 7131;
         /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — what a destroyed vehicle burns with: flames ≈ 60 s, smoke ≈ 180 s
@@ -30,8 +33,8 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9) — a decoy flare burning as it falls, and a chaff cloud.</summary>
         public const long Flare = 7171, ChaffCloud = 7172;
 
-        /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit.</summary>
-        public enum CalibreClass : byte { Small, Medium, Large }
+        /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit (or, ⭐ CE-1231, its explosive).</summary>
+        public enum CalibreClass : byte { Small, Medium, Large, Huge }
 
         /// <summary>Below this damage per hit a round is SMALL calibre (rifles: 25).</summary>
         public const float MediumDamageFrom = 50f;
@@ -40,6 +43,16 @@ namespace Hrot.Core.Tkb
         /// RPG 400 are medium).</summary>
         public const float LargeDamageFrom = 500f;
 
+        /// <summary>⭐ CE-1231 (§11 CH-1) — from these explosive masses (kg) a burst is medium, large, huge: chosen so a round that HITS (sized by
+        /// its damage) and the same round that MISSES (sized by its warhead) look alike — the 25 mm HEI (0.03 kg, damage 60) medium both ways,
+        /// the RPG (0.73 kg, 400) medium, the 120 mm HEAT (1.6 kg, 1200) and the TOW (3.1 kg, 2000) large.</summary>
+        public const float MediumExplosiveFromKg = 0.01f, LargeExplosiveFromKg = 1f, HugeExplosiveFromKg = 5f;
+
+        /// <summary>⭐ CE-1231 (§11 CH-1) — the class of a burst of <paramref name="explosiveKg"/> of explosive.</summary>
+        public static CalibreClass ClassOfExplosive(float explosiveKg)
+            => explosiveKg >= HugeExplosiveFromKg ? CalibreClass.Huge : explosiveKg >= LargeExplosiveFromKg ? CalibreClass.Large
+             : explosiveKg >= MediumExplosiveFromKg ? CalibreClass.Medium : CalibreClass.Small;
+
         /// <summary>The calibre class of a round with <paramref name="damagePerHit"/> (0 = unknown ⇒ small).</summary>
         public static CalibreClass ClassOf(float damagePerHit)
             => damagePerHit >= LargeDamageFrom ? CalibreClass.Large : damagePerHit >= MediumDamageFrom ? CalibreClass.Medium : CalibreClass.Small;
@@ -47,6 +60,7 @@ namespace Hrot.Core.Tkb
         /// <summary>The default effect set of a calibre class.</summary>
         public static MunitionEffectsDto DefaultFor(CalibreClass c) => c switch
         {
+            CalibreClass.Huge => new MunitionEffectsDto { MuzzleFlash = MuzzleFlashLarge, Explosion = ExplosionHuge, Decal = DecalLarge, Tracer = Tracer },   // the crater
             CalibreClass.Large => new MunitionEffectsDto { MuzzleFlash = MuzzleFlashLarge, Explosion = ExplosionLarge, Decal = DecalLarge, Tracer = Tracer },
             CalibreClass.Medium => new MunitionEffectsDto { MuzzleFlash = MuzzleFlashMedium, Explosion = ExplosionMedium, Decal = DecalMedium, Tracer = Tracer },
             _ => new MunitionEffectsDto { MuzzleFlash = MuzzleFlashSmall, Explosion = ExplosionSmall, Decal = DecalSmall },
@@ -55,13 +69,27 @@ namespace Hrot.Core.Tkb
         /// <summary>
         /// ⭐ VE-D — the effects a round makes: its AMMO type's <see cref="MunitionEffectsDto"/> when it has one, else the default of
         /// its calibre class. The ONE answer the spawn system asks (E2).
+        /// <para>⭐⭐ CE-1231 (docs/DESIGN_Visual_Effects.md §11 CH-1, R-1016) — a round that comes with NO damage (an off-target burst, any
+        /// burst from another node — neither carries one — and a charge, whose mount has none) bursts and marks by its warhead's EXPLOSIVE
+        /// MASS (<see cref="Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(ITkbDatabase?, long, Fdp.Toolkit.Tkb.Reference.ReferenceLibrary?)"/>,
+        /// the one warhead lookup); its flash and tracer stay those of its damage class. ⛔ Was: every such burst drew the 0.8 m puff — the IED,
+        /// the vest, a 155 mm shell, a bomb.</para>
         /// </summary>
         public static MunitionEffectsDto EffectsFor(ITkbDatabase? tkb, long ammoType, float damagePerHit)
         {
             if (tkb != null && ammoType != 0 && tkb.TryGetByType(ammoType, out var ammo) && ammo?.GetDescriptor<MunitionEffectsDto>() is { } set)
                 return set;
-            return DefaultFor(ClassOf(damagePerHit));
+            var byDamage = DefaultFor(ClassOf(damagePerHit));
+            if (damagePerHit > 0f) return byDamage;
+            float kg = ExplosiveKgOf(tkb, ammoType);
+            if (kg <= 0f) return byDamage;
+            var burst = DefaultFor(ClassOfExplosive(kg));
+            return byDamage with { Explosion = burst.Explosion, Decal = burst.Decal };
         }
+
+        /// <summary>⭐ CE-1231 — the explosive mass (kg) of a munition's warhead; 0 when it has none (a kinetic round) or is unknown.</summary>
+        public static float ExplosiveKgOf(ITkbDatabase? tkb, long ammoType)
+            => tkb == null || ammoType == 0 ? 0f : Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, ammoType).Warhead?.ExplosiveKg ?? 0f;
 
         /// <summary>The built-in effect types' looks — what <see cref="RegisterAll"/> puts in the TKB, and what
         /// <see cref="VisualOf"/> answers for a host with no TKB (the replay browser — PLAN D4).</summary>
@@ -74,6 +102,7 @@ namespace Hrot.Core.Tkb
                 [ExplosionSmall]    = ("Explosion small",     V(EffectKind.Explosion, 0.35f, 0.8f, "#C8B89A", 0.2f)),   // an impact puff
                 [ExplosionMedium]   = ("Explosion medium",    V(EffectKind.Explosion, 0.9f, 5f, "#FF8A30", 0.4f)),
                 [ExplosionLarge]    = ("Explosion large",     V(EffectKind.Explosion, 1.6f, 12f, "#FF6A20", 0.7f)),
+                [ExplosionHuge]     = ("Explosion huge",      V(EffectKind.Explosion, 2.2f, 20f, "#F07028", 1.0f)),   // ⭐ CE-1231 — an IED, a vest, a car bomb
                 [DecalSmall]        = ("Decal small",         V(EffectKind.Decal, 60f, 0.35f, "#1E1A16C0", 10f)),       // a bullet mark
                 [DecalMedium]       = ("Decal medium",        V(EffectKind.Decal, 180f, 1.8f, "#18140FD0", 30f)),
                 [DecalLarge]        = ("Decal large",         V(EffectKind.Decal, 300f, 4.5f, "#120F0CE0", 60f)),       // a crater

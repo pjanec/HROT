@@ -64,6 +64,17 @@ namespace Fdp.Toolkit.Perception.Look
             return MathF.Atan2(f.Y, f.X);
         }
 
+        /// <summary>⭐ <c>CE-1204</c> (Entity Control §8l LK-3, R-1017) — how far <paramref name="e"/>'s head turns off his body (radians):
+        /// his type's <c>Gen.VehicleParameters.HeadYawLimitDeg</c>, else <see cref="MaxHeadYaw"/>. The ONE neck — his eyes
+        /// (<see cref="LookFollowSystem"/>) and the operator's free look both read it.</summary>
+        public static float HeadLimit(ISimulationView view, Entity e)
+        {
+            if (view is EntityRepository repo && Combat.CombatTkb.TryGetTemplate(repo, e, out var t)
+                && t.GetDescriptor<Tkb.Domain.VehicleParametersDto>() is { HeadYawLimitDeg: > 0f } p)
+                return p.HeadYawLimitDeg * MathF.PI / 180f;
+            return MaxHeadYaw;
+        }
+
         /// <summary>The head's turn off the body (0 without a <see cref="LookState"/>).</summary>
         public static float HeadYaw(ISimulationView view, Entity e)
         {

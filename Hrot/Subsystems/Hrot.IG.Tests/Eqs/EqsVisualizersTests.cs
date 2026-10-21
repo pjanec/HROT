@@ -136,6 +136,8 @@ namespace Hrot.IG.Tests.Eqs
             Assert.Equal(2, green.Length);
             Assert.Equal(4, red.Length);
             Assert.All(green, d => Assert.True(d.SphereCenter.Y < 29f, $"a kept point {d.SphereCenter} is not behind the car"));
+            // ⭐ CE-1203 (§5e FL-3) — the EQS row
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new EqsSensorGizmo(new GizmoSettingsRegistry()).Draw(w, sensor, d), DebugTraceLayers.Eqs);
         }
 
         /// <summary>

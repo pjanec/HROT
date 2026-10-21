@@ -981,6 +981,9 @@ on the scenario save) and (b) the fire request to carry it (a field on `WeaponFi
 NOT enough: a crouched man's chest at a window is AT the sill (0.89 m vs 0.9 m) — only ③'s seen-band rule clears it, and that rule needs
 the geometry, i.e. the muscle.
 
+⭐ **✅ APPROVED `2026-10-21` (R-3030; 🔒 user: *"Those 3 approved"*; `CE-2326`)** — the blind burst at a remembered spot is aimed as at
+the body last seen there (its chest, or the band that showed — R-2064 ③); backend's half: `TargetMemory` keeps the seen pose.
+
 ### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
 
 | | |
