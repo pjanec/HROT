@@ -425,7 +425,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (e is { } who && look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
             {
                 _eyes[who] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
-                if (who == FirstPerson) continue;
+                if (who == FirstPerson && !ShowFirstPersonHead) continue;
             }
             var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
             var model = HrotToRaylib.ModelFromHrot(placed);
@@ -1259,6 +1259,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1073 — the unit the camera is looking OUT of (first person): its head is not drawn. Null: none.</summary>
     public Entity FirstPerson { get; set; } = Entity.Null;
+
+    /// <summary>⭐ <c>CE-1201</c> (docs/DESIGN_Entity_Control.md §8p OS-5) — the over-the-shoulder view: the first-person unit's head is
+    /// drawn (he is seen whole); the pickers still skip his body.</summary>
+    public bool ShowFirstPersonHead { get; set; }
 
     /// <summary>⭐ CE-1073 — where the eyes are in a head part's own unit box: the front face, a little above its middle.</summary>
     public static readonly Vector3 EyeInHead = new(0.45f, 0f, 0.1f);

@@ -2658,6 +2658,60 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p) — the over-the-shoulder view: a rifleman seen from behind his right shoulder, his head
+    /// drawn, looking where he aims. Screenshot <c>ce1201-over-the-shoulder.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1201_V_OverTheShoulder()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
+        var man = world.CreateEntity();
+        world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(man, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(man, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed,
+            Point = at + new Vector3(50f, 0f, 1.4f) });
+        var target = world.CreateEntity();   // something to aim at
+        world.AddComponent(target, new SimTransform { Position = at + new Vector3(14f, 1f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(target, new TkbIdentity { TkbType = TkbEntityTypes.Truck_HMMWV });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb) { FirstPerson = man, ShowFirstPersonHead = true };
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        var cam = sw.Camera3D;
+        cam.Yaw = 0f; cam.Pitch = -0.04f; cam.Roll = 0f;
+        cam.Distance = cam.MinDistance;
+        var eye = at + new Vector3(0f, 0f, 1.65f);
+        cam.LookAt = FpsCameraDriver.ShoulderCamera(eye, cam.Forward, ControlScheme.Person, cam.GroundHeight) + cam.Forward * cam.Distance;
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce1201-over-the-shoulder.png"));
+        Assert.True(bodies.FacesPainted > 0 || bodies.FaceDetailsDrawn > 0 || bodies.PartsDrawn > 10, "he is drawn, his head too");
+    }
+
+    /// <summary>
     /// ⭐ CE-1200 (docs/DESIGN_Entity_Control.md §8o) — first person in a vehicle draws the vehicle, from a crew eye: the HMMWV from the
     /// driver's seat (its bonnet ahead), the tank from the commander's hatch (its turret and barrel), the UH-60 from the cockpit. 🔒 User,
     /// live: <i>"in FPS mode the vehicle model should not be turned off — once the camera looks from proper cockpit place, seeing vehicle parts

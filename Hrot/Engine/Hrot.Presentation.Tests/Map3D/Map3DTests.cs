@@ -2070,6 +2070,45 @@ public sealed class Map3DTests
         Assert.Null(EntityBodyLayer3D.CrewEye(VisualFamily.Unit, Vector3.One));
     }
 
+    /// <summary>
+    /// ⭐ CE-1201 (Entity Control §8p OS-2, OS-4) — the over-the-shoulder camera: a person's 2.2 m behind his eye along the LEVEL look,
+    /// 0.55 m to his right, a little up — looking down does not dig it into him; a vehicle's and a flyer's a chase camera straight behind
+    /// and above; never under the ground. ✅ Red-proof: the right offset's sign flipped ⇒ the camera is on his left.
+    /// </summary>
+    [Fact]
+    public void CE1201_TheShoulderCamera_BehindAndRightOfHisEye_AChaseCameraForAVehicle()
+    {
+        var eye = new Vector3(10f, 20f, 1.7f);
+        var east = Vector3.UnitX;
+        var c = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Person, null);
+        Assert.Equal(eye.X - Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderBack, c.X, 3);
+        Assert.True(c.Y < eye.Y - 0.5f, $"on his right (facing east, right is -y): {c}");
+        Assert.True(c.Z > eye.Z, "a little above his eyes");
+        var down = Vector3.Normalize(new Vector3(1f, 0f, -1f));
+        var cDown = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, down, Hrot.UI.Common.Map3D.ControlScheme.Person, null);
+        Assert.Equal(c, cDown);   // the level look: looking down does not move it into him
+        var car = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Vehicle, null);
+        Assert.True(car.X < eye.X - 5f && Math.Abs(car.Y - eye.Y) < 1e-3f && car.Z > eye.Z + 2f, $"a chase camera: behind, above ({car})");
+        var heli = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Rotorcraft, null);
+        Assert.True(heli.X < car.X, "a flyer's further back");
+        var hill = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Person, (_, _) => 5f);
+        Assert.True(hill.Z >= 5f + Hrot.UI.Common.Map3D.FpsCameraDriver.CameraAboveGround - 1e-4f, "never under the ground");
+
+        // OS-1 — View › First Person: Over the Shoulder reaches the station through the view-mode layer
+        using var world = new EntityRepository();
+        world.Bus.Register<Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent>();
+        world.Bus.Register<Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent>();
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var layer = new MapViewModeLayer(new MapViewSwitch(canvas, new Fdp.Toolkit.Vis2D.Components.MapCamera()), world.Bus);
+        bool over = false;
+        layer.ToggleShoulder = () => over = !over;
+        world.Bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent());
+        world.Bus.SwapBuffers();
+        layer.Update(0.016f);
+        Assert.True(over, "the menu item toggled the view");
+        Assert.Equal(256, Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView);
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

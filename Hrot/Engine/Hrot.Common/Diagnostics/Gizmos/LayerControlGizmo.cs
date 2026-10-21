@@ -25,6 +25,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct ToggleMap3DEvent { }
 
+    /// <summary>⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p OS-1) — View › First Person: Over the Shoulder; the map's view-mode layer
+    /// drains it and toggles the station's view.</summary>
+    [EventId(8065)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct ToggleShoulderViewEvent { }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
@@ -339,7 +345,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.OpenLayerControl
             + ",\"label\":\"Tactical Map Layers...\"},{\"id\":"
             + GlobalActionIds.ToggleMap3D            // ⭐ CE-1033 — the map's 2-D / 3-D switch, on every map host
-            + ",\"label\":\"2-D / 3-D Map\"}]}]";
+            + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
+            + GlobalActionIds.ToggleShoulderView     // ⭐ CE-1201 (§8p OS-1)
+            + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
 
         /// <summary>⭐ CE-3171 — the same View menu plus "RTS command mode", where the map can order units
         /// (<see cref="Hrot.Common.Orders.OrdersOffered"/>; never in a replay).</summary>
@@ -350,7 +358,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.ToggleMap3D
             + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
             + GlobalActionIds.ToggleRtsCommand
-            + ",\"label\":\"RTS Command Mode\"}]}]";
+            + ",\"label\":\"RTS Command Mode\"},{\"id\":"
+            + GlobalActionIds.ToggleShoulderView
+            + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
 
         private readonly long _anchorId;
         private readonly FdpEventBus _interactionBus;

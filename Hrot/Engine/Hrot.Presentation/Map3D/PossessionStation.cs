@@ -42,6 +42,11 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1073 — the figures the eye is read from (the forwarding rail checks the pack passes them).</summary>
         public EntityBodyLayer3D? Bodies { get; }
 
+        /// <summary>⭐ <c>CE-1201</c> (docs/DESIGN_Entity_Control.md §8p OS-1) — the view is over his shoulder (a vehicle: a chase camera)
+        /// instead of from his eyes. A station setting: View › First Person: Over the Shoulder, or O while in first person; it stays for
+        /// the next possession.</summary>
+        public bool OverShoulder { get; set; }
+
         public string Name => "Possession (FPS)";
         public int LayerBitIndex => -1;
         public bool Has3D => true;
@@ -377,6 +382,7 @@ namespace Hrot.UI.Common.Map3D
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
                                   _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit));
+            if (OverShoulder && lines.Length > 0) lines = [.. lines[..^1], Hud.ShoulderLine, lines[^1]];   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
             foreach (var line in lines) width = Math.Max(width, (int)HudText.Measure(font, line));
@@ -795,6 +801,9 @@ namespace Hrot.UI.Common.Map3D
 
             /// <summary>⭐ <c>CE-1210</c> (§8n MS-3) — the seat line of a vehicle with manned guns: <c>SEAT driver  (G: next seat)</c> or
             /// <c>SEAT M134  (G: next seat)</c>; null when there is no other seat to go to.</summary>
+            /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — the HUD says the view is over his shoulder, and how back.</summary>
+            public const string ShoulderLine = "VIEW  over the shoulder  (O: his eyes)";
+
             public static string? SeatLine(EntityRepository w, Entity unit)
             {
                 if (SeatSwitch.Seats(w, SeatSwitch.VehicleOf(w, unit)).Count < 2) return null;
@@ -1150,7 +1159,7 @@ namespace Hrot.UI.Common.Map3D
                 Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(w, Unit)));
         }
 
-        /// <summary>The camera at the eye, looking along the operator's look.</summary>
+        /// <summary>The camera at the eye, looking along the operator's look — ⭐ CE-1201 (§8p) or over his shoulder.</summary>
         private void Place(MapCamera3D camera)
         {
             if (!_eyeKnown) return;
@@ -1158,8 +1167,44 @@ namespace Hrot.UI.Common.Map3D
             camera.Pitch = _pitch + Kick;   // ⭐ CE-1216 (§8k S-3) — the recoil kick, on the view only (his look is _pitch)
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
-            camera.LookAt = _eye + camera.Forward * camera.Distance;
+            bool shoulder = _station.OverShoulder;
+            var at = shoulder ? ShoulderCamera(_eye, camera.Forward, Scheme, camera.GroundHeight) : _eye;
+            camera.LookAt = at + camera.Forward * camera.Distance;
             camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
+            if (_station.Bodies is { } bodies) bodies.ShowFirstPersonHead = shoulder;   // ⭐ CE-1201 (OS-5) — he is seen whole
+        }
+
+        /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — O toggles the over-the-shoulder view while in first person.</summary>
+        public const KeyboardKey ShoulderKey = KeyboardKey.O;
+
+        /// <summary>⭐ <c>CE-1201</c> (§8p OS-2) — a person's over-the-shoulder camera: behind his eye, to his right, a little up (m).</summary>
+        public const float ShoulderBack = 2.2f, ShoulderSide = 0.55f, ShoulderLift = 0.2f;
+
+        /// <summary>⭐ <c>CE-1201</c> (§8p OS-4) — the chase camera behind a vehicle's crew eye and above it (m); a flyer's further.</summary>
+        public const float ChaseBack = 9f, ChaseLift = 2.5f, FlyerChaseBack = 18f, FlyerChaseLift = 4.5f;
+
+        /// <summary>The camera never goes nearer the ground than this (m).</summary>
+        public const float CameraAboveGround = 0.4f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1201</c> (docs/DESIGN_Entity_Control.md §8p OS-2, OS-4) — where the camera stands for the over-the-shoulder view: a person
+        /// <see cref="ShoulderBack"/> behind his eye along the LEVEL look, <see cref="ShoulderSide"/> to his right, <see cref="ShoulderLift"/>
+        /// up; a vehicle or a flyer a chase camera straight behind and above; never under the ground. The crosshair ray starts here (OS-3:
+        /// the round still flies from the muzzle to where it hits). Pure — the rail runs it.
+        /// </summary>
+        public static Vector3 ShoulderCamera(Vector3 eye, Vector3 forward, ControlScheme scheme, Func<float, float, float>? ground)
+        {
+            var level = new Vector3(forward.X, forward.Y, 0f);
+            level = level.LengthSquared() > 1e-6f ? Vector3.Normalize(level) : Vector3.UnitX;
+            var right = new Vector3(level.Y, -level.X, 0f);   // Z up, Y left: the right of a heading
+            var at = scheme switch
+            {
+                ControlScheme.Person => eye - level * ShoulderBack + right * ShoulderSide + Vector3.UnitZ * ShoulderLift,
+                ControlScheme.Rotorcraft or ControlScheme.FixedWing => eye - level * FlyerChaseBack + Vector3.UnitZ * FlyerChaseLift,
+                _ => eye - level * ChaseBack + Vector3.UnitZ * ChaseLift,
+            };
+            if (ground != null) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
+            return at;
         }
 
         /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
@@ -1434,6 +1479,7 @@ namespace Hrot.UI.Common.Map3D
                 if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Z)) _stance = ToggleProne(_stance.Value);
                 _crouchHeld = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
             }
+            if (input.IsKeyPressed((MapKeyboardKey)ShoulderKey)) _station.OverShoulder = !_station.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
             // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, X drops it (CE-1211)

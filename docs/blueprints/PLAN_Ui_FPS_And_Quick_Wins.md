@@ -139,3 +139,4 @@ the next item (`R-106`).
 | `2026-10-21` | 26, 28, 29 | ✅ `CE-1179` the laid-down weapon at his feet, the placed charge blinking · ✅ `CE-1176` speech marks · ✅ `CE-1177` the mood dot and the face (a `faceMood` shader uniform) — People Display §7c. ⚠ G1 / G2 have no production WRITER yet (behaviors CE-2249 / CE-2250): live today only the warning and pain |
 | `2026-10-21` | 30 | ✅ `CE-1202` the station gunner turns with his weapon (the vehicle-station case was the one failing) — Map 3-D §6n N-2; Presentation 814 / 0 |
 | `2026-10-21` | 31 | ✅ `CE-1200` first person in a vehicle draws it, from a crew eye (Entity Control §8o, leans CR-1…CR-3 taken overnight); Presentation 815 / 0 |
+| `2026-10-21` | 32 | ✅ `CE-1201` the over-the-shoulder view — designed (Entity Control §8p, leans OS-1…OS-6 taken overnight) and built: View menu + O, his head drawn, aim unchanged; Presentation 816 / 0 |

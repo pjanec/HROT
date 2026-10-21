@@ -61,6 +61,9 @@ namespace Hrot.Common.Constants
         /// <summary>⭐ CE-3174 — the unit menu's "Possess (FPS)": this station takes the unit in first person (docs/DESIGN_Entity_Control.md
         /// §8d). ⚠ 255 measured free on backend, ui and behaviors 2026-10-11.</summary>
         public const int Possess          = 255;
+        /// <summary>⭐ CE-1201 — View › First Person: Over the Shoulder (docs/DESIGN_Entity_Control.md §8p OS-1), on every map host.
+        /// ⚠ 256 measured free on backend, ui and behaviors 2026-10-21.</summary>
+        public const int ToggleShoulderView = 256;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
+updated: 2026-10-21 (§8p CE-1201 — an optional over-the-shoulder view; leans OS-1…OS-6 taken overnight) · 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
 current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
@@ -2011,6 +2011,74 @@ person's head already fills), so a flyer's CG offset and the kit's proportions p
 body (CE-1080). Rails `Map3DTests.CE1200_*` (every kind: inside its glass or above its turret), frame `Map3DFrameRail.CE1200_V_*`
 (`docs/assets/map-3d/ce1200-crew-eye-{hmmwv,tank,uh60}.png`); `PossessionStationTests` 0 red. ⚠ Windows check owed: a flyer's cockpit
 view in motion.
+
+## 8p. An optional over-the-shoulder view (`CE-1201`, `2026-10-21`, ui) — build-state: BUILT (leans taken overnight, the user to confirm)
+
+🔒 User, live, `2026-10-19`: *"just no idea how to solve the aiming and looking around and steering — your knowledge of games would help"*;
+the item asks for a MENU switch.
+
+### 8p.1 INVENTORY *(grep + the code read; codebase-memory CLI not re-run for this section — the surface is the station's own file)*
+
+| what exists | where | used as |
+|---|---|---|
+| the aim: a ray from the CAMERA's screen centre, the nearest terrain or unit PART; nothing within reach ⇒ along the look | `FpsCameraDriver.Aim(camera)` (`PossessionStation.cs`) | ⭐ unchanged — the third-person shooter's convergence is ALREADY how it works: the frame carries `AimAt`, the round flies from the muzzle to it |
+| the own body is never picked | `EntityBoxPicker` / `EntityPartPicker` skip `FirstPerson` (CE-1080) | ⭐ unchanged — a ray from behind his shoulder cannot stop on him |
+| the eye: his drawn head (a person), a crew eye (§8o) or his seat's (MS-5) | `FpsCameraDriver.EyeOf` / `Place` | the camera is placed FROM the eye, back and to the right |
+| his head is not drawn (the camera was inside it) | `EntityBodyLayer3D` part loop, `who == FirstPerson` | drawn again while the view is over the shoulder |
+| the View menu, gizmo-contributed, its actions on every map host | `LayerControlGizmo.MainMenuJson`, `MapInteractionPack` `actions.Register`, `MapViewModeLayer` drains its event | ⭐ one more item and one more event — the `ToggleMap3D` shape |
+| the turret follows the look in a vehicle; steering is W/A/S/D | the station's vehicle scheme | unchanged |
+
+### 8p.2 Claim table
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the shot already converges on the camera's crosshair point | ✅ `Aim(camera)` from the viewport centre → `AimAt`; the brain fires the muzzle at it | ✅ §8e D-1, D-4 (the crosshair point is the target) |
+| a camera behind him cannot pick him | ✅ both pickers skip `FirstPerson` | ✅ §8e D-4 / CE-1080 |
+| the menu path reaches every map host | ✅ `GlobalActionIds` + `MapInteractionPack` registers once for all | ✅ Map 3-D M12 (the 2-D/3-D switch, the same path) |
+
+### 8p.3 Diagrams
+
+```mermaid
+sequenceDiagram
+  participant M as View menu (LayerControlGizmo)
+  participant A as MapInteractionPack actions
+  participant V as MapViewModeLayer
+  participant P as PossessionStation
+  participant D as FpsCameraDriver.Place
+  participant B as EntityBodyLayer3D
+  M->>A: ToggleShoulderView (256)
+  A->>V: ToggleShoulderViewEvent
+  V->>P: OverShoulder = !OverShoulder
+  Note over P: O in first person toggles it too
+  D->>D: camera = eye - forward x back + right x side + up x lift
+  D->>B: ShowFirstPersonHead = OverShoulder
+  D->>D: Aim from the camera's centre (unchanged), AimAt to the frame
+```
+*Caption:* what the picture shows that prose hid — the switch changes WHERE the camera stands and whether his head is drawn; the aim,
+the frame, the brain and the round are untouched, because the crosshair ray already starts at the camera.
+
+### 8p.4 Decisions *(⏸ taken overnight under `R-106`; the user confirms or names the one to change)*
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **OS-1** | the switch | **View › First Person: Over the Shoulder** (a toggle on every map host) **and O** while in first person; it stays as set for the next possession; the HUD says it | a per-possession prompt — a setting, not a question each time |
+| **OS-2** | a person's camera | 2.2 m behind his eye, 0.55 m to his right, 0.2 m up, kept above the ground | centred behind him — his head covers the crosshair · a fixed orbit — the mouse already turns him |
+| **OS-3** | aim and fire | unchanged: the crosshair ray from the CAMERA; the round from the muzzle to where it hits (convergence) | a ray from his eye — what is under the crosshair would not be what is hit |
+| **OS-4** | a vehicle | a chase camera: 9 m behind its crew eye (§8o) along the level look and 2.5 m up (a flyer 18 m and 4.5 m); the turret follows the look as now; steering unchanged | an orbit camera with a free mouse — the look IS the turret's order · lengths from the type — a constant reads the same for every vehicle and needs no lookup |
+| **OS-5** | his own body | drawn whole (the head too); the pickers still skip it | hidden — the point of the view is to see him |
+| **OS-6** | the seated crewman's view (a gun's seat) | the same: behind his eye, his gun in view | — |
+
+### 8p.5 AS-BUILT
+
+| design said | built |
+|---|---|
+| OS-1 the switch | `GlobalActionIds.ToggleShoulderView` (256) in the View menu JSON (both variants) → `ToggleShoulderViewEvent` (8065) → `MapViewModeLayer.ToggleShoulder` → `PossessionStation.OverShoulder`; O in first person (`FpsCameraDriver.ShoulderKey`); the HUD line `Hud.ShoulderLine` |
+| OS-2 / OS-4 the camera | `FpsCameraDriver.ShoulderCamera(eye, forward, scheme, ground)` — pure; `ShoulderBack` 2.2 / `ShoulderSide` 0.55 / `ShoulderLift` 0.2 m; `ChaseBack` 9 / `ChaseLift` 2.5, `FlyerChaseBack` 18 / `FlyerChaseLift` 4.5; at least `CameraAboveGround` 0.4 m over the ground |
+| OS-3 aim | unchanged (`Aim(camera)` from the viewport centre) |
+| OS-5 his body | `EntityBodyLayer3D.ShowFirstPersonHead`, set by `Place` every frame |
+
+⚠ Not built: the camera does not stop at a wall (it can stand inside a building behind him); a Windows check is owed. Rails
+`Map3DTests.CE1201_*` (red-proved: the right offset flipped), frame `Map3DFrameRail.CE1201_V_*` (`docs/assets/map-3d/ce1201-over-the-shoulder.png`).
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
