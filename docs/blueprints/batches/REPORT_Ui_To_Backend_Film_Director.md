@@ -97,6 +97,13 @@ scout does not match (e.g. a `task` named differently from the registry's name).
 | 8 | ids and design sections | below | — |
 
 
+### ⭐ After CE-3293 S5 (merged `2026-10-21`) — filmed = scouted
+
+`dotnet test Hrot.SystemTests --no-build --filter DirectorIdentityRails` (now a GATE, `CE-1240`): ⭐ **3 / 0** — `ua-tank-ammo`,
+`bt-grenade-posture`, `ua-civ-melee`, **three fresh loads each, IDENTICAL at every cut**, one step per frame asked and taken, 0 waits.
+📐 S5 moved the beats (M1 rounds 9.150 / 17.883 → 8.933 / 17.667 s) ⇒ every seeded take is re-scouted and baked after it. The director's
+rails against S5: Presentation 34/0/3 · Editor 13/0 · GZH011 11/0.
+
 ## Ids allocated (ui block)
 
 `CE-1239` (an OGG clip is missing from a film's sound track) · `CE-1241` (15 seeded takes the scout does not complete) · `CE-1240` (re-scout the takes and turn B0′ into a gate after CE-3293
