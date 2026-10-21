@@ -52,7 +52,7 @@ namespace Hrot.Common.Systems
 
         private static void ProcessDestructionOrders(EntityRepository repo)
         {
-            var events = repo.Bus.Read<DestructionOrder>();
+            var events = repo.ReadEvents<DestructionOrder>();
             foreach (var evt in events)
             {
                 var entity = evt.Entity;
@@ -92,7 +92,7 @@ namespace Hrot.Common.Systems
 
         private static void ProcessRemoveSubordinates(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdRemoveSubordinate>();
+            var events = repo.ReadEvents<CmdRemoveSubordinate>();
             foreach (var evt in events)
             {
                 var sub = evt.Subordinate;
@@ -145,7 +145,7 @@ namespace Hrot.Common.Systems
 
         private static void ProcessAssignSubordinates(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdAssignSubordinate>();
+            var events = repo.ReadEvents<CmdAssignSubordinate>();
             foreach (var evt in events)
             {
                 var sub = evt.Subordinate;

@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (view is not EntityRepository repo) return;
             if (repo.Bus.IsRegistered<PickUpRoundEvent>() && repo.Bus.IsRegistered<PickUpGrantEvent>())
             {
-                var asks = repo.Bus.Read<PickUpRoundEvent>();
+                var asks = repo.ReadEvents<PickUpRoundEvent>();
                 for (int i = 0; i < asks.Length; i++)
                 {
                     ref readonly var ask = ref asks[i];
@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Combat.Systems
             }
             if (repo.Bus.IsRegistered<PickUpGrantEvent>())
             {
-                var grants = repo.Bus.Read<PickUpGrantEvent>();
+                var grants = repo.ReadEvents<PickUpGrantEvent>();
                 for (int i = 0; i < grants.Length; i++)
                 {
                     ref readonly var grant = ref grants[i];

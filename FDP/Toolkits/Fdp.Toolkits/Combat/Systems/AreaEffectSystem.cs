@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Combat.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            var events = repo.Bus.Read<DetonationNotification>();
+            var events = repo.ReadEvents<DetonationNotification>();
             if (events.Length == 0) return;
             if (!repo.HasSingletonManaged<ITkbDatabase>() || !repo.IsComponentTypeRegistered<Health>()) return;
             var db = repo.GetSingletonManaged<ITkbDatabase>();

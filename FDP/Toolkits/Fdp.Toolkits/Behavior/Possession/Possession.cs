@@ -183,11 +183,11 @@ namespace Fdp.Toolkit.Behavior.Possession
             Ensure(repo);
 
             if (repo.Bus.IsRegistered<PossessRequestEvent>())
-                foreach (ref readonly var req in repo.Bus.Read<PossessRequestEvent>())
+                foreach (ref readonly var req in repo.ReadEvents<PossessRequestEvent>())
                     if (OwnsBrain(repo, req.Unit) && Alive(repo, req.Unit)) Possess(repo, req.Unit, req.StationNodeId, req.Mode);
 
             if (repo.Bus.IsRegistered<OperatorControlFrameEvent>())
-                foreach (ref readonly var f in repo.Bus.Read<OperatorControlFrameEvent>())
+                foreach (ref readonly var f in repo.ReadEvents<OperatorControlFrameEvent>())
                 {
                     if (!OwnsBrain(repo, f.Unit) || !HeldBy(repo, f.Unit, f.StationNodeId)) continue;
                     if (repo.GetComponentRO<PossessedBy>(f.Unit).Mode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
@@ -206,7 +206,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                 }
 
             if (repo.Bus.IsRegistered<ReleasePossessionEvent>())
-                foreach (ref readonly var rel in repo.Bus.Read<ReleasePossessionEvent>())
+                foreach (ref readonly var rel in repo.ReadEvents<ReleasePossessionEvent>())
                     if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId)) Release(repo, rel.Unit);
 
             // C-3 / §4.3 — a killed unit is released on its own.
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             //   unit it holds is released by the SAME path as Esc, so its paused task resumes. ⛔ No timer (R-4001) — the release keys on
             //   the departure itself (NodeDeparted, raised on every node when a node's capability descriptor goes not-alive).
             if (repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
-                foreach (ref readonly var gone in repo.Bus.Read<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
+                foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
                     foreach (var unit in repo.Query().With<PossessedBy>().Build())
                         if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
 

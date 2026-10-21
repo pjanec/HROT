@@ -93,15 +93,31 @@ namespace Fdp.Core
             return HasManagedComponent<T>(e);
         }
         
-        ReadOnlySpan<T> ISimulationView.ReadEvents<T>()
-        {
-            return Bus.Read<T>();
-        }
+        ReadOnlySpan<T> ISimulationView.ReadEvents<T>() => ReadEvents<T>();
 
-        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ReadManagedEvents<T>()
-        {
-            return Bus.ReadManaged<T>();
-        }
+        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ReadManagedEvents<T>() => ReadManagedEvents<T>();
+
+        // ⭐⭐ CE-3293 S3 (R-3036; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md rule 4) — THE way a system, and any code a
+        //   system calls, reads world events: never Bus.Read*. Today these answer the current frame; from S4/S5 they answer every
+        //   event since the calling system's last run (the step window) — which is why no system may go around them.
+
+        /// <summary>Every event of type <typeparamref name="T"/> this world's reader is owed (rule 4; today: this frame's).</summary>
+        public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged => Bus.Read<T>();
+
+        /// <summary>The managed twin of <see cref="ReadEvents{T}"/>.</summary>
+        public System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>() => Bus.ReadManaged<T>();
+
+        /// <summary>Is there any managed event of type <typeparamref name="T"/> for this reader (rule 4)?</summary>
+        public bool HasManagedEvents<T>() => ReadManagedEvents<T>().Count > 0;
+
+        /// <summary>The raw bytes of every event of a type id (the blueprint dispatch, which knows types only by id) — rule 4.</summary>
+        public ReadOnlySpan<byte> ReadRawEventsByTypeId(int typeId, out int elementSize) => Bus.ReadRawByTypeId(typeId, out elementSize);
+
+        /// <summary>Is there any event of a type id for this reader — the cheap gate in front of <see cref="ReadRawEventsByTypeId"/>.</summary>
+        public bool HasEventsByTypeId(int typeId) => Bus.HasEvent(typeId);
+
+        /// <summary>Is there any event of a runtime type for this reader (the replay search and breakpoint scanners) — rule 4.</summary>
+        public bool HasEvents(Type eventType) => Bus.HasEvent(eventType);
         
         QueryBuilder ISimulationView.Query()
         {

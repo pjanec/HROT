@@ -86,7 +86,7 @@ public sealed class SelectionNotificationSystem : IEcsModuleSystem
         //   skipped it silently on exactly those hosts.
         var inspector = _inspector();
 
-        foreach (var note in world.Bus.ReadManaged<SelectionChangedNotification>())
+        foreach (var note in world.ReadManagedEvents<SelectionChangedNotification>())
         {
             if (note == null) continue;
 

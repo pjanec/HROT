@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Squad.Systems
         private static void Apply(EntityRepository repo, float now)
         {
             Span<DangerAreaDescriptor> previous = stackalloc DangerAreaDescriptor[8];   // CE-2224 — the answer being replaced
-            foreach (var evt in repo.Bus.ReadManaged<DangerAreaResultEvent>())
+            foreach (var evt in repo.ReadManagedEvents<DangerAreaResultEvent>())
             {
                 var child = evt.Observer.IsNull ? Resolve(repo, evt) : evt.Observer;
                 if (child.IsNull || !repo.IsAlive(child)) continue;

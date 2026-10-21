@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Terrain
         {
             if (view is not EntityRepository repo) return;
             if (!repo.Bus.IsRegistered<DoorCommandEvent>() || !repo.IsComponentTypeRegistered<DoorState>()) return;
-            var events = repo.Bus.Read<DoorCommandEvent>();
+            var events = repo.ReadEvents<DoorCommandEvent>();
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var cmd = ref events[i];

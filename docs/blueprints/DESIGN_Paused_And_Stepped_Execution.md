@@ -346,6 +346,17 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | ⚠ mark corrected | `PhysicsBodyLifecycleSystem` → **`EveryFrame`**: its host runs it ALWAYS so bodies follow a drag while paused (`StridePhysicsBracket`, CE-219) — the S1 reader had it step-only. Appendix A updated (STEP 115 · EVERY 83) |
 | left as they are, on purpose | `CgfThreatEvaluationSystem` calls its inner `ThreatEvaluationSystem` — both step-only, the outer call is gated · `IgApplication.TestHook_DirectCreationToolClick` — a test hook · the toggle groups' own `Execute` — reachable only by a direct call, and none remains in production |
 
+## 7c. ⭐ AS-BUILT — S3 (`2026-10-21`)
+
+| | as built |
+|---|---|
+| the reads | `EntityRepository` gained the public `ReadEvents<T>` · `ReadManagedEvents<T>` · `HasManagedEvents<T>` · `ReadRawEventsByTypeId` · `HasEventsByTypeId` · `HasEvents(Type)`; the explicit `ISimulationView` reads forward to them. Today they answer the current frame (= the bus); **S4 makes them the window** — that is the one place it changes |
+| ⚠ deviation: *"→ the view"* | code that holds an `EntityRepository` (most of it — `view is EntityRepository repo`) calls the repository's reads, not `ISimulationView`: same method, no cast back, and the helpers that never see a view (`Custody`, `Charges`, `DoorCommands`, `TrafficPanic`) can use it too |
+| migrated | **45 files** of the 96: every `<repo>.Bus.Read*` / `ReadManaged*` / `HasManagedEvent` *(4 Sonnet agents over the Roslyn list, reviewed)* + `BlueprintEventDispatch` (takes the repository) + **the blueprint emitter** (`InstanceEmitter`: `world.HasEventsByTypeId` / `world.ReadRawEventsByTypeId`; one emit golden, 2 lines) |
+| ⭐ found by the sweep: `DataBreakpointSystem` | **step-only, and it handed the raw world bus to its event scanners** — a breakpoint on an event published while paused would never fire. ⇒ `EventScannerDelegate` takes the repository (not a bus); the replay search feeds playback into its repository's own bus; the system's bus argument is now only the event-path switch |
+| left on a bus, on purpose | the orchestration, time-control, interaction and replay buses *(separate instances; never windowed)* · world buses injected into **every-frame** code — `BusEntityCreationRequestSource` (drained by `CreateEntityRequestSystem`, EveryFrame), the three map egress translators (net), `ScenarioMissionService` / `MenuShortcuts` / `MapViewModeLayer` (editor UI), the gizmo systems' `_interactionBus ?? world.Bus` fallback (EveryFrame) — an every-frame reader's window IS the frame. ⚠ A step-only reader of any of them would be a defect; the sweep found none (step-only files holding an `FdpEventBus` and reading it: only `EditorSubsystem`'s orchestration bus) |
+| the rail | `NoWorldBusReadOutsideTheFrameworkTests` *(ClusterRunner.Tests)* — no `X.Bus.Read*` / `HasEvent` / `HasManagedEvent` / `ReadRawByTypeId` in production source outside `Fdp.Core` and `Fdp.ModuleHost`; covers the emitter's string too. ⚠ It cannot see a bus held in a field — that is what the sweep above was for |
+
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
 | question | lean |

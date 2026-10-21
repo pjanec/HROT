@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(FireProcessingSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.Read<WeaponFireIntent>();
+            var events = repo.ReadEvents<WeaponFireIntent>();
             if (events.Length == 0) return;
 
             uint currentTick = repo.HasSingleton<GlobalTime>()

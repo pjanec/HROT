@@ -160,7 +160,7 @@ namespace Hrot.Common.Systems
             }
 
             // ── 2. Process newly-arrived intents ─────────────────────────────
-            var intents = repo.Bus.ReadManaged<MissionControlIntent>();
+            var intents = repo.ReadManagedEvents<MissionControlIntent>();
             foreach (var intent in intents)
             {
                 ProcessIntent(repo, intent);

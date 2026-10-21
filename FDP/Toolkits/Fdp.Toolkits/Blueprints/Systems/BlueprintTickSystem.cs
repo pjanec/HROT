@@ -147,7 +147,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     var evSpan = new Span<byte>(
                         memory + slot.PayloadOffset, slot.PayloadSize);
                     BlueprintEventDispatch.DispatchForSlot(
-                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
+                        def, evSpan, repo, view, ecb, entity, view.Time, deltaTime);
                 }
 
                 if (def.Tick is not null)

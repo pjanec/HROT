@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             var evaluator = new PropertyEvaluator(_editService, eventType, path);
 
-            // Branch 2: unmanaged value scan (bus.Read<T>()).
+            // Branch 2: unmanaged value scan (repo.ReadEvents<T>()).
             if (eventType.IsValueType)
             {
                 var factoryMethod = _buildUnmanagedScannerMethod.MakeGenericMethod(eventType);
@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     null, new object[] { evaluator, op, targetValue })!;
             }
 
-            // Branch 3: managed value scan (bus.ReadManaged<T>()).
+            // Branch 3: managed value scan (repo.ReadManagedEvents<T>()).
             {
                 var factoryMethod = _buildManagedScannerMethod.MakeGenericMethod(eventType);
                 return (EventScannerDelegate)factoryMethod.Invoke(
@@ -72,10 +72,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static EventScannerDelegate BuildOccurrenceScanner(Type eventType)
         {
             string typeName = eventType.Name;
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
                 if (filter != null) return;
-                if (bus.HasEvent(eventType))
+                if (repo.HasEvents(eventType))
                     results.Add(new SearchResultDto(frame, ticks, Entity.Null, typeName + " Occurred"));
             };
         }
@@ -91,9 +91,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             Func<string, bool> match = CompileStringMatch(op, targetValue);
 
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
-                ReadOnlySpan<T> events = bus.Read<T>();
+                ReadOnlySpan<T> events = repo.ReadEvents<T>();
                 for (int i = 0; i < events.Length; i++)
                 {
                     object boxed = events[i]; // boxes the value once per event
@@ -120,9 +120,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Func<string, bool> match = CompileStringMatch(op, targetValue);
             string typeName = typeof(T).Name;
 
-            return (bus, frame, ticks, results, repo, filter) =>
+            return (repo, frame, ticks, results, filter) =>
             {
-                IReadOnlyList<T> events = bus.ReadManaged<T>();
+                IReadOnlyList<T> events = repo.ReadManagedEvents<T>();
                 for (int i = 0; i < events.Count; i++)
                 {
                     object? boxed = events[i];

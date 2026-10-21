@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
                          && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-            foreach (var evt in repo.Bus.Read<SetRoeEvent>())
+            foreach (var evt in repo.ReadEvents<SetRoeEvent>())
             {
                 // ⭐ CE-3251 (BR-13) — a NETWORKED unit whose brain runs on another node: the tactical-intent egress forwards the event
                 //   there and its owner applies it. ⛔ Applying it here too made a second writer: this node's copy showed the new ROE

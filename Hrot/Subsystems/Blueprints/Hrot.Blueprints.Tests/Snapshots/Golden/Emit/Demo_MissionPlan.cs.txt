@@ -566,9 +566,9 @@ public static class DemoMissionPlan_AB1AAB36_Bp
         ref var __ex = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Exec>(ref exec);
         if (__ex.__fib_OnHitTask0_0.Cursor.ResumeAt != 0)
             Event_OnHit_Task_0(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.__fib_OnHitTask0_0, 0);
-        if (world.Bus.HasEvent(__EvtId_OnHit))
+        if (world.HasEventsByTypeId(__EvtId_OnHit))
         {
-            var __raw = world.Bus.ReadRawByTypeId(__EvtId_OnHit, out int __size);
+            var __raw = world.ReadRawEventsByTypeId(__EvtId_OnHit, out int __size);
             if (__size > 0)
                 for (int __i = 0; __i + __size <= __raw.Length; __i += __size)
                     Event_OnHit_Thunk(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, __raw.Slice(__i, __size));

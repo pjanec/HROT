@@ -102,14 +102,14 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
         {
             // ⛔ Never silently: a host that scheduled the drain but wired no arbiter would otherwise
             //    swallow every tool press. ⭐ Drain the events anyway so they do not pile up.
-            foreach (ref readonly var _ in world.Bus.Read<ActivateEditorToolEvent>()) { }
+            foreach (ref readonly var _ in world.ReadEvents<ActivateEditorToolEvent>()) { }
             ToolReport.Say(_reportUnserviceable,
                 "tool activation was dropped — this host scheduled the drain but wired no ToolController "
               + "(pass MapInteraction.Tools).");
             return;
         }
 
-        foreach (ref readonly var evt in world.Bus.Read<ActivateEditorToolEvent>())
+        foreach (ref readonly var evt in world.ReadEvents<ActivateEditorToolEvent>())
         {
             // ⭐⭐⭐ The WHOLE drain, because "which tool is active" is no longer this system's business.
             //    The controller cancels the OTHER arbiter's modal before arming, which is UXI-07's

@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Squad.Command
 
             bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
                          && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-            foreach (var evt in repo.Bus.Read<SetReportingEvent>())
+            foreach (var evt in repo.ReadEvents<SetReportingEvent>())
             {
                 // ⭐ CE-3251 (BR-13, backend — the RoeSystem rule) — a NETWORKED unit whose brain runs on another node: the tactical-intent
                 //   egress forwards the event there and its owner applies it; applying it here too would be a second writer.

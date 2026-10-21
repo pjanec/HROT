@@ -74,7 +74,7 @@ public sealed class SelectionEgressSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
 
-        foreach (var note in world.Bus.ReadManaged<SelectionChangedNotification>())
+        foreach (var note in world.ReadManagedEvents<SelectionChangedNotification>())
         {
             if (note == null) continue;
 

@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Civilians
             double now = HitModel.Now(world);
             if (world.Bus.IsRegistered<CustodyEvent>())
             {
-                var asks = world.Bus.Read<CustodyEvent>();
+                var asks = world.ReadEvents<CustodyEvent>();
                 for (int i = 0; i < asks.Length; i++)
                     if (!Apply(world, asks[i], now)) Refused++;
             }

@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Systems
             if (view is not EntityRepository repo) return;
 
             // ── Path A: Online managed events from DDS ingress translator ─────────
-            foreach (var evt in repo.Bus.ReadManaged<EqsResultUpdateEvent>())
+            foreach (var evt in repo.ReadManagedEvents<EqsResultUpdateEvent>())
             {
                 if (!repo.IsAlive(evt.Observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(evt.Observer)) continue;

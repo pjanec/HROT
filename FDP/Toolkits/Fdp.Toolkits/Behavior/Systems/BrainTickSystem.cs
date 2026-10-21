@@ -155,9 +155,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             _ecb = view.GetCommandBuffer();
 
             // Prune the dedup cache using reliable lifecycle events.
-            foreach (var evt in repo.Bus.Read<DestructionOrder>())
+            foreach (var evt in repo.ReadEvents<DestructionOrder>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
-            foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
+            foreach (var evt in repo.ReadEvents<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
             SweepStaleDedupEntries(tiers.Count);
@@ -226,8 +226,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
 
             _sopWokenThisFrame.Clear();
-            foreach (var evt in repo.Bus.Read<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
-            foreach (var evt in repo.Bus.Read<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
+            foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
+            foreach (var evt in repo.ReadEvents<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
 
             foreach (var entity in _sopQuery)
             {

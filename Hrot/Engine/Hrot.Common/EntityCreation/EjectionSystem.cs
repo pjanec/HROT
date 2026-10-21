@@ -42,7 +42,7 @@ namespace Hrot.Common.EntityCreation
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Health>()) return;
             _toEject.Clear();
             if (repo.Bus.IsRegistered<EjectRequestEvent>())
-                foreach (var e in repo.Bus.Read<EjectRequestEvent>()) _toEject.Add(e.Aircraft);
+                foreach (var e in repo.ReadEvents<EjectRequestEvent>()) _toEject.Add(e.Aircraft);
             if (repo.IsComponentTypeRegistered<TkbIdentity>())
                 foreach (var e in repo.Query().With<Health>().With<TkbIdentity>().With<SimTransform>().Build())
                 {

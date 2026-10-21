@@ -99,7 +99,7 @@ namespace Hrot.CGF.Systems
                     $"EntityRepository access and cannot run on a read-only snapshot " +
                     $"({view.GetType().Name}).");
 
-            var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
 
             for (int i = 0; i < events.Count; i++)
             {

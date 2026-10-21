@@ -89,7 +89,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
         }
 
         // -- 2. Process CmdAppendPersonalWaypoint events --
-        var events = repo.Bus.Read<CmdAppendPersonalWaypoint>();
+        var events = repo.ReadEvents<CmdAppendPersonalWaypoint>();
         if (events.Length == 0) return;
 
         foreach (var evt in events)

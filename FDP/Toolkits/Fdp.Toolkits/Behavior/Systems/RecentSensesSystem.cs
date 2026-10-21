@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.IsComponentTypeRegistered<RecentSenses>()) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
 
-            foreach (var evt in repo.Bus.Read<SensorChangedEvent>())
+            foreach (var evt in repo.ReadEvents<SensorChangedEvent>())
             {
                 if (!repo.IsAlive(evt.Unit)) continue;
                 if (!repo.HasComponent<RecentSenses>(evt.Unit)) repo.AddComponent(evt.Unit, new RecentSenses());

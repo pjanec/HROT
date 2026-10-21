@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.IsComponentTypeRegistered<EngagementArea>() || !repo.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
             bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
                          && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-            foreach (var evt in repo.Bus.Read<SetEngagementAreaEvent>())
+            foreach (var evt in repo.ReadEvents<SetEngagementAreaEvent>())
             {
                 if (replicas && repo.HasComponent<BehaviorState>(evt.Entity) && !repo.HasAuthority<BehaviorState>(evt.Entity)
                     && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(evt.Entity))

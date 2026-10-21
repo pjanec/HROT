@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Perception.Survey
             bool announce = repo.Bus.IsRegistered<SensorChangedEvent>();
             float now = (float)view.Time;
 
-            foreach (var evt in repo.Bus.ReadManaged<WorldSurveyResultEvent>())
+            foreach (var evt in repo.ReadManagedEvents<WorldSurveyResultEvent>())
             {
                 if (evt is null) continue;
                 var child = evt.Observer.IsNull ? Resolve(repo, evt) : evt.Observer;

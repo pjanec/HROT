@@ -62,7 +62,7 @@ public sealed class CenterOnEntitySystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
 
-        foreach (ref readonly var cmd in world.Bus.Read<CenterOnEntityCommand>())
+        foreach (ref readonly var cmd in world.ReadEvents<CenterOnEntityCommand>())
         {
             var camera = _camera();
             if (camera == null) continue;
