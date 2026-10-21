@@ -1,0 +1,85 @@
+{
+ "title": "HROT in three minutes",
+ "transition": "fade",
+ "note": "the strongest beat of each area; trims keep it near 3 min",
+ "items": [
+  {
+   "scenario": "ua-civ-shelter",
+   "take": "main",
+   "title": "Panic, then shelter",
+   "clip": "F-03"
+  },
+  {
+   "scenario": "ua-civ-provocation",
+   "take": "main",
+   "title": "Protest, provocation, riot",
+   "clip": "F-07"
+  },
+  {
+   "scenario": "ua-armed-bomber",
+   "take": "main",
+   "title": "Suicide bomber",
+   "clip": "F-16"
+  },
+  {
+   "scenario": "ua-civ-police-line",
+   "take": "main",
+   "title": "Stones and a police line",
+   "clip": "F-11"
+  },
+  {
+   "scenario": "ua-fire-and-movement",
+   "take": "main",
+   "title": "Fire and movement",
+   "clip": "F-24"
+  },
+  {
+   "scenario": "bc-house-clear",
+   "take": "main",
+   "title": "Clear the house",
+   "clip": "F-33"
+  },
+  {
+   "scenario": "ua-rpg-window",
+   "take": "main",
+   "title": "RPG from the windows",
+   "clip": "F-43"
+  },
+  {
+   "scenario": "ua-weapon-choice",
+   "take": "main",
+   "title": "TOW or 25 mm",
+   "clip": "F-40"
+  },
+  {
+   "scenario": "ua-hill-attack",
+   "take": "main",
+   "title": "Hull-down platoon",
+   "clip": "F-46"
+  },
+  {
+   "scenario": "ua-drone-shelter",
+   "take": "main",
+   "title": "Hide from the drone",
+   "clip": "F-48"
+  },
+  {
+   "scenario": "ua-air-strike",
+   "take": "main",
+   "title": "Level bomb",
+   "clip": "F-49"
+  },
+  {
+   "scenario": "ua-air-assault",
+   "take": "main",
+   "title": "Air assault",
+   "clip": "F-53"
+  },
+  {
+   "scenario": "ua-airborne-drop",
+   "take": "main",
+   "title": "Parachute drop",
+   "clip": "F-56"
+  }
+ ]
+}
