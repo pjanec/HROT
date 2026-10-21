@@ -491,7 +491,7 @@ brains share a node (the CGF norm); ⛔ not measured for a squad split across no
 | **DA-35** | hold fire | ⭐ *(corrected 2026-10-19 — the first lean claimed to revise Platoon §6a; it did not: §6a's "alone" is the squad with no platoon play above it, and under a platoon the PLATOON holds and lifts, §5 Occupy / Engage)* **The hold is an ROE the order-giver sets** (the operator in `sq-defend-house`, the platoon in `PlatoonDefend`) — ROE persists across tasks by design (`Roe.cs`), so it is never the play's to withdraw. **Under a platoon** the play never touches ROE. **Alone** — a `HoldFire` set on the squad commander itself by a non-Superior origin — the play LIFTS it to `FireAtWill` (origin Self, the order-giver's rank) on the first pooled contact inside the squad's sector, or the first round at one of its men (DA-7's "a post is fired upon"). Its sector keeps every man choosing inside it before and after. ✅ **BUILT 2026-10-19**: `SquadDefendPlay.LiftOwnHold` (every tick, either phase; once) | the play SETTING `HoldFire` itself: `SetRoeEvent` has no withdraw and a task clear runs no play `Release` (DA-32) ⇒ the hold would outlive a cleared defence · the sector alone (the first lean): a `HoldFire` order then has no lift at all, and an alone squad shot at from outside its sector could never answer |
 | **DA-36** | the EA | the squad commander's own Allow (an operator's *Set sector*, a platoon's `SquadSector`); its point for the asks = the area's position, or the arc's middle at half its range. **None ⇒ all-round**: the window ask without a target (every window within the radius), arcs outward, no hold | an EA in the order: a second place a sector lives, and a squad sector is an area entity by DA-24 |
 | **DA-37** | each man's arc | `MemberArc` from his post: centred on the bearing to the EA point, ±45°; all-round ⇒ centred on the bearing position → post, ±60° | splitting the EA between men by bearing (DA-24's `ForMembers`): needs `SectorPlanner`, which D-1 does not — it returns with roles (DA-K) |
-| **DA-38** | displace | the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
+| **DA-38** | displace | ⛔ SUPERSEDED by §14a SC-4 / SC-7 (`CE-2283`): the count is the `PositionUntenable` sensor's — the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
 | **DA-39** | the order | a new library behaviour **`SquadDefend`** {Position, SearchRadius 30 m, Speed}; `DefendArea` on a unit with a roster ⇒ `SquadDefend` at the area's centre (radius ⇒ `SearchRadius`); runs until the next order; Failure when no man is alive | a `Defend` preset of `SquadHold`: the hold has no posts and no memory |
 
 **As built (D-1, 2026-10-19)** — as drawn, with these names: `SquadDefendBehavior` / `SquadDefendPlay` / `DefencePosts` / `DefencePostPicker`
@@ -2471,6 +2471,121 @@ plus `DangerAreaAhead` (an SOP condition).
 ⚠ **DA-14's backend need is downgraded:** the round's origin on `NearMissEvent` is no longer required for v1, because the gunshot
 sound already carries the shooter's position. It is kept as an option if sound proves too coarse at sniper ranges (⛔ not measured:
 the audible range of a rifle shot in `SoundEmissionSystem`).
+
+### 14a. DA-M in detail — the sensor changes as built *(`CE-2283`, behaviors, 2026-10-21; build-state: BUILDING — slice M-1 below; leans SC-1…SC-8, built under the user's "do as much as you can autonomously")*
+
+**INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*(PointSurvey|SensorChange|FiredOnFromStructure|SniperFire|ContactInEngagementArea|ContactOutsideSector|PositionUntenable).*` → 14 nodes, `has_more:false`; one read-only sweep of every `SensorChangedEvent` producer and consumer, every `SquadDefend` in-play precursor, `SoundContactEvent` / `TargetMemory`, the WorldSurvey child sensor. `check_index_coverage` NOT run — CLI only)*
+
+| what | where | ⭐ what it means here |
+|---|---|---|
+| squad changes 11–15 are published by `SquadSensing`, called once a frame by `SquadCoordinationSystem` after its merge (CGF, Simulation) | `SquadSensing.cs:24-153`; `SquadCoordinationSystem.cs:57-86`; `CgfLogicPack.cs:248` | ⭐ the home for the new ones — the pool is fresh there |
+| a new kind must grow THREE tables: `RecentSenses` (field + `Record` + `TryGetLast`), `BuiltInHsmEvents.SensorNames` (HSM id `0xFF00+kind`), the rails that walk the enum | `RecentSenses.cs:21-104`; `BuiltInHsmEvents.cs:16-31`; `BrainTickSystemHsmArmTests.cs:491`, `RoeAndRecentSensesTests.cs:221` | ⛔ a kind missing from `Record` is silently dropped |
+| `ContactOutsideSector` counted IN the play: `SquadDefendPlay.Flanked` | `SquadDefendBehavior.cs:724-756` | ⚠ no hostility test — a seen civilian in the pool flanks him |
+| `PositionUntenable` counted IN the play: `SquadDefendPlay.Displace` (3 rounds / 10 s) | `SquadDefendBehavior.cs:699-721` | ⚠ counts `RecentSenses` TIMES — several rounds in one frame are one; the "friend down at the post" half is missing |
+| `ContactInEngagementArea` precursor: `ContactInSector` (any pooled contact the squad's EA allows) | `SquadDefendBehavior.cs:800-810` | lifts the alone squad's hold (DA-35) |
+| a man's arc reaches him as his `EngagementArea` (`ArcOrigin` = his post) | `SquadManeuverRunner.Sector`, `:461-470` | ⭐ a MEMBER sensor can read it — no play state needed |
+| a heard slot keeps `Radius` and `SourceClass` (SmallArms 4, HeavyWeapon 5), not the shot/footstep kind | `PerceptionComponents.cs:94-104` | enough to tell a gunshot from footsteps |
+| `NearMissEvent` carries the muzzle (`OriginX/Y/Z`, `HasOrigin`, `CE-3262`) — nothing on the brain reads it | `NearMissEvent.cs:16-34` | ⛔ ground truth: not used as a sense (SC-6) |
+| PointSurvey: `WorldSurveyRequest.OfPoints` (≤ 16) → `SurveyPoint{Building, Level, Room, Indoors}`; no production caller | `WorldSurveyModel.cs:101-106, 193-208` | M-2's `BuildingOf(point)` |
+
+```mermaid
+classDiagram
+  class SquadCoordinationSystem {
+    <<existing, CGF Simulation>>
+    Execute()
+  }
+  class SquadSensing {
+    <<existing static>>
+    PoolEdges()
+    UnderFire()
+    InEngagementArea() NEW
+    OutsideSector() NEW
+    Untenable() NEW
+    Sniper() NEW
+  }
+  class SquadSenseMemory {
+    <<NEW, held by the system>>
+    Dictionary~ulong,MemberSense~ members
+    Dictionary~ulong,HashSet~long~~ eaContacts
+  }
+  class MemberSense {
+    double WindowStart
+    int Rounds
+    long Flanker
+  }
+  class SensorChange {
+    <<existing enum>>
+    SniperFire = 20 NEW
+    ContactInEngagementArea = 21 NEW
+    ContactOutsideSector = 22 NEW
+    PositionUntenable = 23 NEW
+  }
+  class RecentSenses { <<existing>> +4 times }
+  class BuiltInHsmEvents { <<existing>> +4 names }
+  class SquadDefendPlay {
+    <<existing>>
+    Flanked() reads ContactOutsideSector
+    Displace() reads PositionUntenable
+    LiftOwnHold() reads ContactInEngagementArea
+  }
+  class EngagementAreas { <<existing>> AllowsUnit() InArc() }
+  SquadCoordinationSystem --> SquadSensing : calls after the merge
+  SquadCoordinationSystem *-- SquadSenseMemory
+  SquadSenseMemory *-- MemberSense
+  SquadSensing ..> EngagementAreas
+  SquadSensing ..> SensorChange : publishes
+  RecentSenses ..> SensorChange : records
+  SquadDefendPlay ..> RecentSenses : reads the change
+```
+*What the picture shows that prose hid:* every new change comes from the ONE place the squad changes already come from, and the
+three counts the defence play keeps today become READERS of a change — one implementation each (ruling 9), not a second copy.
+
+```mermaid
+sequenceDiagram
+  participant P as Perception (frame N)
+  participant B as Bus
+  participant C as SquadCoordinationSystem (N+1)
+  participant S as SquadSensing
+  participant R as RecentSensesSystem (N+2, Input)
+  participant D as SquadDefendPlay (N+2)
+  P->>B: NearMiss / Hit on a man
+  C->>S: merge the pool, then UnderFire + Untenable + Sniper (the member edges)
+  S->>S: count the man's rounds in 10 s, a friend down within 3 m in 10 s
+  S->>B: PositionUntenable (the man), SniperFire (the man + his commander)
+  C->>S: InEngagementArea + OutsideSector (the fresh pool)
+  S->>B: ContactInEngagementArea (commander, once per contact), ContactOutsideSector (the man, once per contact)
+  R->>R: record each change into RecentSenses
+  D->>D: a change fresher than the post was given ⇒ displace / face / lift the hold
+```
+*What it shows:* a change is read by the play one frame after it is published — the latency every existing squad change already has.
+
+```mermaid
+graph TD
+  CGF["CgfLogicPack (CGF node)"] -->|registers, Simulation| SCS[SquadCoordinationSystem]
+  SCS -->|each frame, after the merge| SS[SquadSensing: the new four]
+  CRM["CognitiveRuntimeModule"] -->|registers, Input| RSS[RecentSensesSystem]
+  BT[BrainTickSystem] -->|SOP wake + HSM 0xFF14..0xFF17| SOP[SOPs / HSMs]
+  SS -.->|bus| RSS
+  SS -.->|bus| BT
+  SimHost["SimHost / IG"]:::dead -.->|"⛔ never: no SquadCoordinationSystem there"| SS
+  classDef dead stroke:#c00,stroke-dasharray: 4 4
+```
+*What it shows:* the changes exist only where the squad brain runs (the CGF node, authority-gated by the driver) — a SimHost-only
+twin must register `SquadCoordinationSystem` to see them.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **SC-1** | where | `SquadSensing`, called by `SquadCoordinationSystem` after the merge; per-man memory (`SquadSenseMemory`) held by the system | a component per man: a new id and registration on every host for four counters · in each play: the duplicate this slice removes |
+| **SC-2** | `ContactInEngagementArea` (21) | on the COMMANDER, once per contact: a pooled contact inside the squad's Allow (`EngagementAreas.Contains` — geometry, no tier) that was not inside last frame; `Target` = the man when seen; a heard contact raises it on the edge "no heard contact inside → one" | every frame while inside: a wake storm on the SOP |
+| **SC-3** | `ContactOutsideSector` (22) | on the MAN: a SEEN, hostile (not neutral, in the fight) pooled contact within **50 m** of his arc's origin and outside his arc (his `EngagementArea`), once per contact; `Target` = the contact | heard contacts: an anonymous id would dither (DA-43) · any force: a civilian beside the post moved him (the precursor's gap) |
+| **SC-4** | `PositionUntenable` (23) | on the MAN: **3 rounds** (Hit / NearMiss EVENTS, not times) within **10 s**, or a squad friend DOWN within **3 m** of him within 10 s; the count restarts after it is raised | counting `RecentSenses` times: several rounds in a frame count one (measured gap) |
+| **SC-5** | `SniperFire` (20) | on the man AND his commander: a Hit / NearMiss edge while his memory holds no SEEN contact within **250 m** and no heard SHOT (`SourceClass` SmallArms / HeavyWeapon) centred within 250 m | the round's origin: SC-6 |
+| **SC-6** | the shooter's position | from what the man SENSES (sight, the gunshot's sound) — ⛔ never `NearMissEvent.Origin*` (the muzzle, ground truth) | the origin: free omniscience · a near miss carrying the shooter: backend downgraded it (§14) |
+| **SC-7** | the defence play | reads the change (`RecentSenses` fresher than the post was given) — ⛔ its own counts go: `Displace` reads `PositionUntenable`, `Flanked` reads `ContactOutsideSector` and finds the contact with the sensor's own rule (`SquadSenseChanges.Flanks`). ⚠ **As built:** `LiftOwnHold` keeps reading a STATE ("a contact is inside now", `EngagementAreas.AllowsUnit` — the shared reader, not a copy): the change is an EDGE, and a contact already inside when the order lands would never lift the hold | keep both counts: two implementations of one rule (ruling 9) |
+| **SC-8** | `FiredOnFromStructure` (24) | ⏭ slice **M-2**: on `SquadUnderFire`, the heard shot's circle (centre + 8 on the rim) asked as ONE PointSurvey on the commander's WorldSurvey sensor; ≥ 5 of 9 in one building ⇒ the change + a `FireFromStructure{Building, Level}` on the commander | before M-1: no reader until CE-2284 |
+
+**Slices.** **M-1** = SC-1…SC-7 (four kinds, the defence play rerouted, rails in `SquadManeuverTests.CE2283_*`). **M-2** = SC-8 with
+CE-2284's reader. ⚠ Not built here: the counter-sniper reaction (`CE-2279`, waits on it).
 
 ## 15. Every behaviour, what it does, how they work together
 

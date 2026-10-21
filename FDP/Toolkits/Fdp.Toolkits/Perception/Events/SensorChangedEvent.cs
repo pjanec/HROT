@@ -70,6 +70,22 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-2293</c> CC-C (Command Chain §4) — a REPORT from a subordinate was folded into this commander's
         /// <c>CommandPicture</c> (by <c>StaffInboxSystem</c>). <c>Target</c> is not set; the play reads the picture, not the report.</summary>
         ReportReceived = 19,
+
+        /// <summary>⭐ <c>CE-2283</c> (DA-21, SC-5) — a man was hit or near-missed while he neither SAW a contact within 250 m nor HEARD a shot
+        /// centred within 250 m: fire from beyond what he can place. Published on the MAN and on his commander (<c>SquadSenseChanges</c>).</summary>
+        SniperFire = 20,
+
+        /// <summary>⭐ <c>CE-2283</c> (DA-21, SC-2) — a pooled contact entered the squad's engagement area (the commander's Allow). Published on
+        /// the COMMANDER once per contact; <see cref="SensorChangedEvent.Target"/> is the contact when it was seen.</summary>
+        ContactInEngagementArea = 21,
+
+        /// <summary>⭐ <c>CE-2283</c> (DA-21, SC-3) — a SEEN hostile within 50 m of a man's arc origin (his post) and outside his arc: he is
+        /// flanked. Published on the MAN once per contact; <see cref="SensorChangedEvent.Target"/> is the contact.</summary>
+        ContactOutsideSector = 22,
+
+        /// <summary>⭐ <c>CE-2283</c> (DA-21, SC-4) — 3 rounds at a man (hits / near misses) within 10 s, or a squad friend down within 3 m of
+        /// him: his position is untenable. Published on the MAN.</summary>
+        PositionUntenable = 23,
     }
 
     /// <summary>

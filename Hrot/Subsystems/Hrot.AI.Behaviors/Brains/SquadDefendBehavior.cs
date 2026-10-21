@@ -16,6 +16,7 @@ using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Squad.Maneuvers;
 using Fdp.Toolkit.Squad.Primitives;
+using Fdp.Toolkit.Squad.Systems;
 
 using Hrot.Map.Definitions.Behavior;
 
@@ -103,10 +104,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte SetBackOnly;
         /// <summary>Per roster slot: the candidate he holds, or <see cref="None"/>.</summary>
         public fixed byte PostOf[Capacity];
-        /// <summary>Per roster slot: rounds at him counted since <see cref="WindowStart"/>.</summary>
-        public fixed byte Hits[Capacity];
-        public fixed double WindowStart[Capacity];
-        /// <summary>Per roster slot: the newest hit / near-miss time already counted.</summary>
+        /// <summary>Per roster slot: the newest <c>PositionUntenable</c> time already answered (⭐ CE-2283 — the count is the sensor's).</summary>
         public fixed double LastSense[Capacity];
         /// <summary>⭐ <c>CE-2304</c> — when each man was last sent to a new post (DA-38's count waits <see cref="SquadDefendPlay.DisplacedGraceSeconds"/>).</summary>
         public fixed double MovedAt[Capacity];
@@ -317,9 +315,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MoveTimeoutSeconds = 90f;
         /// <summary>A post query unanswered this long is given up (s): the men left without a post hold where they are.</summary>
         public const float AskTimeoutSeconds = 5f;
-        /// <summary>DA-38 — this many rounds at a man within <see cref="UntenableSeconds"/> ⇒ his alternate post.</summary>
-        public const int UntenableHits = 3;
-        public const float UntenableSeconds = 10f;
+        /// <summary>DA-38 — this many rounds at a man within <see cref="UntenableSeconds"/> ⇒ his alternate post (⭐ CE-2283 — the sensor's own).</summary>
+        public const int UntenableHits = SquadSenseChanges.UntenableRounds;
+        public const float UntenableSeconds = SquadSenseChanges.UntenableSeconds;
         /// <summary>⭐ <c>CE-2304</c> (DA-56) — the rounds at a man in this long after he was sent to a new post do not count toward DA-38:
         /// he is moving there, not holding it. 📌 Measured live (<c>sq-defend-house</c>): without it each displaced man was sent straight
         /// back by the rounds of the fire he moved through — 43 displacements in 14 s, every man ping-ponging between two posts.</summary>
@@ -330,7 +328,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-2a (PC-14, DA-40) — a hide point this close to his post is one of his post's points (m): the windows of his room.</summary>
         public const float PostRadius = 4f;
         /// <summary>⭐ D-2c (DA-21, DA-43) — a seen contact this close to a posted man, outside his arc, flanks him (m).</summary>
-        public const float FlankedMetres = 50f;
+        public const float FlankedMetres = SquadSenseChanges.FlankedMetres;
+        /// <summary>⭐ <c>CE-2283</c> — a flank change this old is still answered (the contact may take a merge to stand where the rule sees it, s).</summary>
+        public const float FlankedFreshSeconds = 2f;
 
         private static readonly SquadHsmShell s_shell = new(SquadDefendManeuver.BuildTransitionTable(), SquadDefendManeuver.PhaseAborted);
 
@@ -496,7 +496,7 @@ namespace Hrot.AI.Behaviors.Brains
             unsafe
             {
                 for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)   // only rounds from now on count (DA-38)
-                    p.Posts.LastSense[i] = ctx.Live(i, out var m) ? LastRoundAt(ctx.World, m) : double.NegativeInfinity;
+                    p.Posts.LastSense[i] = ctx.Live(i, out var m) ? UntenableAt(ctx.World, m) : double.NegativeInfinity;
             }
             ws.Reissue = 1;
         }
@@ -696,20 +696,18 @@ namespace Hrot.AI.Behaviors.Brains
             Report(in ctx, p.Position, ProgressKind.Set);
         }
 
-        /// <summary>DA-38 — each new hit / near-miss time on a man counts one; 3 within 10 s ⇒ his alternate post and PROGRESS Displacing.</summary>
+        /// <summary>DA-38 — ⭐ <c>CE-2283</c> (SC-7): a <see cref="SensorChange.PositionUntenable"/> on a man (3 rounds in 10 s, or a friend down
+        /// beside him — counted by <c>SquadSenseChanges</c>, no longer here) newer than the last one handled ⇒ his alternate post and PROGRESS
+        /// Displacing; ⭐ CE-2304 (DA-56) — not while he is still moving to a post he was just sent to.</summary>
         private static unsafe void Displace(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
             {
                 if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
-                double last = LastRoundAt(ctx.World, m);
+                double last = UntenableAt(ctx.World, m);
                 if (last <= p.Posts.LastSense[i]) continue;
                 p.Posts.LastSense[i] = last;
                 if (ctx.Now - p.Posts.MovedAt[i] < DisplacedGraceSeconds) continue;   // ⭐ CE-2304 (DA-56) — still moving to it
-                if (ctx.Now - p.Posts.WindowStart[i] > UntenableSeconds) { p.Posts.WindowStart[i] = ctx.Now; p.Posts.Hits[i] = 1; }
-                else p.Posts.Hits[i]++;
-                if (p.Posts.Hits[i] < UntenableHits) continue;
-                p.Posts.Hits[i] = 0;
                 int alternate = AlternateOf(ref p, in ctx, i);
                 if (alternate < 0) continue;
                 p.Posts.PostOf[i] = (byte)alternate;
@@ -721,9 +719,9 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
-        /// ⭐ D-2c (DA-21 <c>ContactOutsideSector</c>, DA-4, DA-43) — a SEEN hostile pooled contact within <see cref="FlankedMetres"/> of a posted
-        /// man's post and outside his arc flanks him: he takes his alternate post (none ⇒ he stays) with his arc facing the contact, PROGRESS
-        /// Displacing; once per contact. Counted here until the member sensor lands (<c>CE-2283</c>), as DA-38 counts rounds.
+        /// ⭐ D-2c (DA-21 <c>ContactOutsideSector</c>, DA-4, DA-43) — ⭐ <c>CE-2283</c> (SC-7): a <see cref="SensorChange.ContactOutsideSector"/>
+        /// on a posted man newer than his post ⇒ the contact that flanks him (the sensor's own rule, <see cref="SquadSenseChanges.Flanks"/>,
+        /// against his arc) — he takes his alternate post (none ⇒ he stays) with his arc facing it, PROGRESS Displacing; once per contact.
         /// </summary>
         private static unsafe void Flanked(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
@@ -733,15 +731,13 @@ namespace Hrot.AI.Behaviors.Brains
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
             for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
             {
-                if (!ctx.Live(i, out _) || p.Posts.PostOf[i] == DefencePosts.None) continue;
-                var post = p.Posts.Point(p.Posts.PostOf[i]);
-                var arc = ArcOf(ref p, in ctx, i, post);
+                if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
+                if (!RecentSensesOf.WithinSince(ctx.World, m, SensorChange.ContactOutsideSector, FlankedFreshSeconds, p.Posts.MovedAt[i])
+                    || !EngagementAreas.TryArc(ctx.World, m, out var arc)) continue;
                 for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
                 {
-                    if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0 || pool[c].EntityId == p.Posts.Flanker[i]) continue;
+                    if (pool[c].EntityId == p.Posts.Flanker[i] || !SquadSenseChanges.Flanks(ctx.World, in arc, in pool[c])) continue;
                     var at = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
-                    if (Vector3.Distance(at, post) > FlankedMetres
-                        || EngagementAreas.InArc(post, arc.LeftBearing, arc.RightBearing, arc.MinRange, arc.MaxRange, at)) continue;
                     int alternate = AlternateOf(ref p, in ctx, i);
                     if (alternate >= 0) { p.Posts.PostOf[i] = (byte)alternate; p.Posts.MovedAt[i] = ctx.Now; p.Posts.Reached[i] = 0; }
                     var from = p.Posts.Point(p.Posts.PostOf[i]);
@@ -815,6 +811,11 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.Live(i, out var m) && LastRoundAt(ctx.World, m) >= since) return true;
             return false;
         }
+
+        /// <summary>⭐ <c>CE-2283</c> — when the man's place was last untenable (his own senses), −∞ when never.</summary>
+        private static double UntenableAt(EntityRepository world, Entity man)
+            => world.HasComponent<RecentSenses>(man) && world.GetComponentRO<RecentSenses>(man).TryGetLast(SensorChange.PositionUntenable, out double at)
+                ? at : double.NegativeInfinity;
 
         /// <summary>The newest hit or near-miss time on the man (his own senses), −∞ when none.</summary>
         private static double LastRoundAt(EntityRepository world, Entity man)

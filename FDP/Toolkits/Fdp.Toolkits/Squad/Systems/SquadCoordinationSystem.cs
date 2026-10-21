@@ -75,6 +75,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 SquadSensing.MemberDown(repo, commander);        // ⭐ CE-2152 C-c — a man is down ⇒ one edge on the commander
                 int before = repo.GetComponentRO<SquadCognitiveState>(commander).Contacts.Count;
                 bool merged = SquadPerceptionMergeSystem.Run(repo, commander, tick, MergeIntervalTicks);
+                Changes.Squad(repo, commander, now);             // ⭐ CE-2283 — in the EA, flanked, a friend down beside a man
                 if (!merged) continue;
                 // ⭐ CE-3088 — re-assign fire only when the pool it reads changed (≈ 10 Hz), not every frame.
                 _fire?.Run(repo, commander);
@@ -83,6 +84,10 @@ namespace Fdp.Toolkit.Squad.Systems
             }
             // ⭐ CE-2123 S2 — a member hit or shot at ⇒ its squad is under fire.
             SquadSensing.UnderFire(repo, _gateOnAuthority);
+            Changes.Rounds(repo, _gateOnAuthority, now);         // ⭐ CE-2283 — a man's place untenable, fire from beyond (sniper)
         }
+
+        /// <summary>⭐ <c>CE-2283</c> slice M-1 — the fighting-position changes this driver raises (and their per-man memory).</summary>
+        public SquadSenseChanges Changes { get; } = new();
     }
 }

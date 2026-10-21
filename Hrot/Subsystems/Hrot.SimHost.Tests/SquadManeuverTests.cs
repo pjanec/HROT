@@ -99,6 +99,8 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
+                Sensing.Squad(Repo, Commander, _time);           // ⭐ CE-2283 — what SquadCoordinationSystem raises after its merge (no merge here:
+                Sensing.Rounds(Repo, false, _time);              //   the rails write the pool themselves)
                 _sectors.Execute(Repo, 0.016f);
                 _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
@@ -111,6 +113,8 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
             /// default (no windows found ⇒ no frame posts, DA-84); null = never answered (the 5 s fallback).</summary>
             public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? FrameSurvey = new();
+            /// <summary>⭐ <c>CE-2283</c> — the fighting-position sensor changes, raised each tick as the squad driver raises them.</summary>
+            public readonly Fdp.Toolkit.Squad.Systems.SquadSenseChanges Sensing = new();
             /// <summary>⭐ <c>CE-2257</c> BC-1 — the answers other plays' building surveys get at once, by site (absent = never answered).</summary>
             public readonly Dictionary<int, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload> Surveys = new();
 
@@ -4251,6 +4255,135 @@ namespace Hrot.SimHost.Tests
             Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "known, the pie not sliced yet: still held");
             TickFor(s, 1.0 + RoomDrill.QuietSeconds + 0.5);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "sliced, then quiet: #1 goes although he is still known");
+        }
+
+        private static bool Sensed(Squad s, Entity unit, Fdp.Toolkit.Perception.Events.SensorChange kind, out double at)
+        {
+            at = double.NegativeInfinity;
+            return s.Repo.HasComponent<RecentSenses>(unit) && s.Repo.GetComponentRO<RecentSenses>(unit).TryGetLast(kind, out at);
+        }
+
+        private static void Shot(Squad s, Entity m)
+        {
+            s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            s.Tick(); s.Tick();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-4) — <c>PositionUntenable</c>: three rounds at a man within 10 s raise it, two do not, three spread over more
+        /// than 10 s do not; and a squad friend going down within 3 m raises it for him (not for a man farther off). ✅ Red-proofs: the window
+        /// dropped ⇒ the spread rounds raise it; the friend-down half dropped ⇒ the man beside him never hears it.
+        /// </summary>
+        [Fact]
+        public void CE2283_PositionUntenable_ThreeRoundsInTenSeconds_OrAFriendDownBesideHim()
+        {
+            var s = new Squad(members: 3);
+            var m = s.Members[0];
+            Shot(s, m); Shot(s, m);
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "two rounds: still tenable");
+            TickFor(s, Fdp.Toolkit.Squad.Systems.SquadSenseChanges.UntenableSeconds + 0.5);
+            Shot(s, m);
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "three rounds over more than 10 s");
+            Shot(s, m); Shot(s, m);
+            Assert.True(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "three rounds within 10 s");
+
+            s.Teleport(s.Members[1], new Vector3(20f, 0f, 0f));
+            s.Teleport(s.Members[2], new Vector3(22f, 0f, 0f));   // 2 m from #2
+            Down(s, s.Members[1], 10f);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(Sensed(s, s.Members[2], Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "his friend went down beside him");
+            Assert.False(Sensed(s, s.Members[1], Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "not on the man who fell");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-2) — <c>ContactInEngagementArea</c> on the commander, once per contact: a contact entering the squad's arc
+        /// raises it (with the contact as Target), staying there does not raise it again, a second contact does, one outside never does; a
+        /// squad with no Allow never raises it. ✅ Red-proofs: the once-per-contact memory dropped ⇒ a change every tick; the Allow test
+        /// dropped ⇒ the contact outside raises it.
+        /// </summary>
+        [Fact]
+        public void CE2283_ContactInEngagementArea_OncePerContact_OnTheCommander()
+        {
+            var s = new Squad(members: 2);
+            s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 50f, 0f), reporters: 1);
+            s.Tick(); s.Tick();
+            Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "no Allow, no change");
+
+            s.Repo.Bus.Publish(new SetEngagementAreaEvent { Entity = s.Commander, Origin = BehaviorOrigin.Operator, ArcSet = 1, ArcOrigin = Vector3.Zero,
+                                                            LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f });   // north, ±30°
+            s.ClearPool();
+            s.Tick(); s.Tick();
+            s.Pool(s.Repo.CreateEntity(), new Vector3(100f, 0f, 0f), reporters: 1);   // east: outside
+            s.Tick(); s.Tick();
+            Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "outside the arc");
+            s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 100f, 0f), reporters: 1);   // north: inside
+            s.Tick(); s.Tick();
+            Assert.True(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double first));
+            TickFor(s, 0.5);
+            Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double still);
+            Assert.Equal(first, still);   // he stays inside: no second change
+            s.Pool(s.Repo.CreateEntity(), new Vector3(10f, 120f, 0f), reporters: 1);   // another man inside
+            s.Tick(); s.Tick();
+            Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double second);
+            Assert.True(second > first, "a new contact inside raises it again");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-3) — <c>ContactOutsideSector</c> on the man: a SEEN hostile within 50 m of his arc's origin and outside his
+        /// arc; not a civilian, not a heard contact, not one in his arc, not one beyond 50 m. ✅ Red-proofs: the neutral test dropped ⇒ the
+        /// civilian flanks him; the arc test dropped ⇒ the man in front does.
+        /// </summary>
+        [Fact]
+        public void CE2283_ContactOutsideSector_ASeenHostileBesideHim_NotACivilianNorOneInHisArc()
+        {
+            var s = new Squad(members: 1);
+            var m = s.Members[0];
+            s.Repo.Bus.Publish(new SetEngagementAreaEvent { Entity = m, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = Vector3.Zero,
+                                                            LeftBearing = 315f, RightBearing = 45f });   // he watches north
+            s.Tick(); s.Tick();
+            Entity Contact(Vector3 at, ForceId force)
+            {
+                var e = s.Repo.CreateEntity();
+                s.Repo.AddComponent(e, new EntityInfo { ForceId = force });
+                s.Pool(e, at, reporters: 1);
+                s.Tick(); s.Tick();
+                return e;
+            }
+            Contact(new Vector3(0f, 30f, 0f), ForceId.Hostile);      // in front, in his arc
+            Contact(new Vector3(30f, -5f, 0f), ForceId.Neutral);     // beside him, a civilian
+            Contact(new Vector3(-70f, 0f, 0f), ForceId.Hostile);     // beside him, 70 m off
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.ContactOutsideSector, out _));
+            Contact(new Vector3(30f, -5f, 0f), ForceId.Hostile);     // beside him, a hostile
+            Assert.True(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.ContactOutsideSector, out _), "flanked");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-5) — <c>SniperFire</c>: a round at a man who sees nothing within 250 m and heard no SHOT centred within it
+        /// raises it on him and his commander; a seen contact 100 m off, or a heard shot there, does not; heard FOOTSTEPS there do not count
+        /// as the shot. ✅ Red-proofs: the heard-shot test dropped ⇒ fire from a heard rifle at 100 m reads as a sniper; the class test
+        /// dropped ⇒ footsteps hide the sniper.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2283_SniperFire_ARoundFromBeyondWhatHeCanPlace()
+        {
+            foreach (var (what, sniper) in new[] { ("nothing", true), ("seen", false), ("heard shot", false), ("heard steps", true) })
+            {
+                var s = new Squad(members: 1);
+                var m = s.Members[0];
+                var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+                if (what != "nothing")
+                {
+                    mem.Count = 1;
+                    mem.EntityIds[0] = what == "seen" ? (long)s.Repo.CreateEntity().PackedValue : -1;
+                    mem.PositionsX[0] = 100f;
+                    mem.Anonymous[0] = (byte)(what == "seen" ? 0 : 1);
+                    mem.SourceClass[0] = (byte)(what == "heard shot" ? 4 : what == "heard steps" ? 1 : 0);
+                }
+                s.Repo.AddComponent(m, mem);
+                Shot(s, m);
+                Assert.Equal(sniper, Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.SniperFire, out _));
+                Assert.Equal(sniper, Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.SniperFire, out _));
+            }
         }
 
         /// <summary>
