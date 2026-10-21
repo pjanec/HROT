@@ -1,6 +1,5 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Time;
 
 namespace Fdp.Toolkit.Perception
 {
@@ -21,7 +20,13 @@ namespace Fdp.Toolkit.Perception
     /// </summary>
     public static class PerceptionClock
     {
-        /// <summary>The current sim step of the world behind <paramref name="view"/> (0 when it has no clock yet).</summary>
-        public static uint Now(ISimulationView view) => unchecked((uint)SimClock.Of(view).FrameNumber);
+        /// <summary>The current sim step of the world behind <paramref name="view"/>.</summary>
+        /// <remarks>Read straight off the singleton, allocation-free: it runs per sensor and per commander every frame
+        /// (<c>SquadCoordinationSystem</c>'s no-allocation rails). ⚠ A world with NO clock (no <see cref="GlobalTime"/> — a unit test, a tool;
+        /// a kernel pushes one every frame) has no sim step: its frame counter is the only honest answer.</remarks>
+        public static uint Now(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>()
+                ? unchecked((uint)repo.GetSingletonUnmanaged<GlobalTime>().FrameNumber)
+                : view.Tick;
     }
 }
