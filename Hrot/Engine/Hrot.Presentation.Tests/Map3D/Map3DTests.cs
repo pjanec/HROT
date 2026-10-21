@@ -1986,6 +1986,56 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1202 (Map 3-D §6n N-2) — 🔒 user, live: <i>"the gun operator on a mounted weapon is not moving when the weapon turns"</i>. The
+    /// gunner in a vehicle's seat that OPERATES a station (the technical's bed pintle) turns with the station's weapon: his place swung about
+    /// the weapon's traverse pivot by its azimuth, so he stays behind it; a man in any other seat, or a weapon not deployed, does not turn.
+    /// ✅ Red-proof: <c>TurnedWithStation</c> returning the seat frame unchanged.
+    /// </summary>
+    [Fact]
+    public void CE1202_TheGunnerOfAStationWeapon_TurnsWithIt()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            var technical = world.CreateEntity();
+            world.AddComponent(technical, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(technical, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+            var gunner = Man(world, Vector3.Zero);
+            var gun = world.CreateEntity();
+            world.AddComponent(gun, new SimTransform { Position = new Vector3(-1.3f, 0f, 1.0f), Rotation = Quaternion.Identity });
+            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
+            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+            var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 3 };
+            list.Passengers[1] = gunner; list.Passengers[2] = gun;
+            world.AddComponent(technical, list);
+            var stations = new Fdp.Toolkit.Behavior.Components.CarrierStations { StationMask = 1 << 2 };
+            stations.Seats[2] = new Fdp.Toolkit.Behavior.Components.StationSeat { OperatedBy = 1, X = -1.3f, Z = 1.0f };
+            world.AddComponent(technical, stations);
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = 1 });
+
+            float azimuth = MathF.PI / 2f;   // the gun swung to the left
+            var layer = new EntityBodyLayer3D(() => world, () => db, (_, e) => e == gun ? new ArticulationPose(azimuth, 0f) : ArticulationPose.Neutral);
+            var seat = Matrix4x4.CreateTranslation(-2.0f, 0f, 0.9f);   // kneeling behind the pintle, in the bed
+            var turned = layer.TurnedWithStation(world, gunner, seat, 0d);
+            Assert.True(layer.StationTurn(world, gun, 0d, out var pivot, out _));
+            float before = Vector2.Distance(new Vector2(seat.Translation.X, seat.Translation.Y), new Vector2(pivot.X, pivot.Y));
+            float after = Vector2.Distance(new Vector2(turned.Translation.X, turned.Translation.Y), new Vector2(pivot.X, pivot.Y));
+            Assert.Equal(before, after, 3);                                           // the same distance behind the gun …
+            Assert.True(turned.Translation.Y < seat.Translation.Y - 0.3f, $"… swung round with it ({seat.Translation} → {turned.Translation})");
+            var facing = Vector3.TransformNormal(Vector3.UnitX, turned);
+            Assert.True(facing.Y > 0.9f, $"and facing where the gun points ({facing})");
+
+            var rider = Man(world, Vector3.Zero);
+            world.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = 0 });
+            Assert.Equal(seat, layer.TurnedWithStation(world, rider, seat, 0d));    // the driver's seat operates nothing
+            world.GetComponentRW<Fdp.Toolkit.Combat.WeaponSystemState>(gun).Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed;
+            Assert.Equal(seat, layer.TurnedWithStation(world, gunner, seat, 0d));   // stowed: it does not turn, nor he
+        }
+    }
+
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with
     /// a blade in the hand, a baton swings from above the head down in front with the stick; the body draws it for 0.45 s, a busy or cowering man does not swing.</summary>
     [Fact]

@@ -2658,6 +2658,73 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1202 (docs/DESIGN_Map_3D_Mode.md §6n N-2) — the DShK technical with its gun swung to the left: the gunner kneels BEHIND the gun,
+    /// turned with it, not where his seat was. Screenshot <c>ce1202-gunner-turns.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1202_V_TheTechnicalsGunner_TurnsWithTheGun()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
+        var seats = tkb.GetByType(TkbEntityTypes.Technical_Dshk)!.GetDescriptor<CarrierDefDto>()!.Seats;
+        int gunnerSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Gunner);
+        int stationSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
+        var technical = world.CreateEntity();
+        world.AddComponent(technical, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(technical, new TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+        var gunner = world.CreateEntity();
+        world.AddComponent(gunner, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(gunner, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(gunner, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)gunnerSeat });
+        var gun = world.CreateEntity();
+        var st = seats[stationSeat];
+        world.AddComponent(gun, new SimTransform { Position = at + new Vector3(st.X, st.Y, st.Z), Rotation = Quaternion.Identity });
+        world.AddComponent(gun, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
+        world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)stationSeat });
+        world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+        var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = (byte)seats.Count };
+        list.Passengers[gunnerSeat] = gunner; list.Passengers[stationSeat] = gun;
+        world.AddComponent(technical, list);
+        var stations = new Fdp.Toolkit.Behavior.Components.CarrierStations { StationMask = (ushort)(1 << stationSeat) };
+        stations.Seats[stationSeat] = new Fdp.Toolkit.Behavior.Components.StationSeat { OperatedBy = (sbyte)gunnerSeat, X = st.X, Y = st.Y, Z = st.Z };
+        world.AddComponent(technical, stations);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (_, e) => e == gun ? new ArticulationPose(MathF.PI / 2f, 0.1f) : ArticulationPose.Neutral);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(at + new Vector3(-1f, 0f, 1.6f), 8f, MathF.PI * 1.25f, -0.45f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce1202-gunner-turns.png"));
+        Assert.Equal(1, bodies.GunnersTurned);
+    }
+
+    /// <summary>
     /// ⭐ CE-1169 / CE-1172 / CE-1173 / CE-1174 (docs/DESIGN_People_Display.md §5 U7, U11, U12, U13) — the (V) acceptance for the people
     /// items of the overnight list: a man on his phone, one with binoculars up, one with a stone ready; the three police officers — the baton
     /// man (cap, vest, belt, baton), the shield man (riot helmet, visor, shield), the launcher man (his launcher's yellow band); and a TOY

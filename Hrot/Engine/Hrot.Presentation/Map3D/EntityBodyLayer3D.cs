@@ -96,7 +96,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public void Draw3D(RenderContext ctx)
     {
         AmbientDrawn = 0;
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = GunnersTurned = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
         _ropeUsers.Clear();
         _carried.Clear();
@@ -895,6 +895,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
                 body = Carriage.InSeat(Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
+                //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
+                body = TurnedWithStation(world, e, body, simTime);
                 // ⭐ CE-1088 (§6n N-2) — a gunner seat may say he STANDS or KNEELS at its weapon (the place is then his feet)
                 bool stands = seat.Pose is Fdp.Toolkit.Tkb.Domain.SeatPose.Stand or Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
                 float hips = stands ? BlockFigure.HipFraction(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel ? StanceId.Crouched : StanceId.Standing) * size.Z : 0f;
@@ -1032,6 +1035,37 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1085 — weapons drawn on a carrier's back by the last frame (rails).</summary>
     public int CarriedDrawn { get; private set; }
+    /// <summary>
+    /// ⭐ <c>CE-1202</c> (§6n N-2) — a station weapon's turn as its kit draws it: its traverse pivot in the WORLD (the kit's pivot placed by
+    /// the weapon's own transform) and its azimuth (the published turret pose, only once it is deployed — as the kit). False when it has no
+    /// kit with a pivot, or does not turn.
+    /// </summary>
+    internal bool StationTurn(EntityRepository world, Entity weapon, double now, out Vector3 pivot, out float azimuth)
+    {
+        pivot = default; azimuth = 0f;
+        if (!world.IsAlive(weapon) || !world.HasComponent<TkbIdentity>(weapon) || !world.HasComponent<SimTransform>(weapon) || _poseOf == null) return false;
+        var look = LookOf(world.GetComponentRO<TkbIdentity>(weapon).TkbType, _tkb());
+        if (look.Family != VisualFamily.WeaponSystem || DeploymentOf(world, weapon, now) < 1f) return false;
+        azimuth = _poseOf(world, weapon).TurretAzimuth;
+        if (azimuth == 0f) return false;
+        ref readonly var w = ref world.GetComponentRO<SimTransform>(weapon);
+        pivot = Vector3.Transform(WeaponKits.TraversePivot(look.Weapon, SizeOf(world, weapon, look)),
+                                  Matrix4x4.CreateFromQuaternion(w.Rotation) * Matrix4x4.CreateTranslation(w.Position));
+        return true;
+    }
+
+    /// <summary>⭐ <c>CE-1202</c> — <paramref name="seatFrame"/> (a seated man's frame in the world) swung with the station weapon his seat
+    /// operates (<see cref="SeatSwitch.StationOf"/>), about its traverse pivot by its azimuth; unchanged for any other seat.</summary>
+    internal Matrix4x4 TurnedWithStation(EntityRepository world, Entity man, Matrix4x4 seatFrame, double now)
+    {
+        if (!SeatSwitch.StationOf(world, man, out _, out _, out var gun) || !StationTurn(world, gun, now, out var pivot, out float azimuth)) return seatFrame;
+        GunnersTurned++;
+        return seatFrame * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot);
+    }
+
+    /// <summary>⭐ CE-1202 — seated gunners turned with their station's weapon by the last frame (rails).</summary>
+    public int GunnersTurned { get; private set; }
+
     /// <summary>⭐ CE-1088 — men drawn at their weapons by the last frame (rails).</summary>
     public int GunnersDrawn { get; private set; }
     /// <summary>⭐ CE-1090 — soldiers drawn with a launcher on the shoulder by the last frame (rails).</summary>
@@ -1150,6 +1184,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (carriage.Seat is { HasPlace: true } seat)
         {
             frame = Carriage.InSeat(weaponBody, seat);
+            // ⭐ CE-1202 — a seat the weapon itself declares turns with its traverse too (it was drawn where the seat was at azimuth 0)
+            if (StationTurn(world, weapon, now, out var axis, out float turn))
+                frame = frame * Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(turn) * Matrix4x4.CreateTranslation(axis);
             pose = seat.Pose;
             return true;
         }
