@@ -4104,9 +4104,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-2260</c> BC-4 (CB-68, CB-69) — "bang out": four AssaultRiflemen at a SUSPECTED room (the order says so); the way in reached,
-        /// #2 steps to the JAMB on his side (the opening's edge — never the door front: 📐 live, the defenders aimed at the doorway shot him
-        /// there) and throws a STUN grenade from his stun mount across, through the far half of the opening, far from the stack (the near point
-        /// would stun it — no wall in this world); he is back on his stack point for the bang; #1 is not released until after it. ✅ Red-proofs: the entry released on the throw ⇒ #1 into his own grenade; the friend check
+        /// #2 steps to the JAMB on his side (a shoulder in the opening — never the door front: 📐 live, the defenders aimed at the doorway shot
+        /// him there) and throws a STUN grenade from his stun mount through the opening, as near straight in as spares the stack (the near
+        /// point would stun it — no wall in this world); he is back on his stack point for the bang; #1 is not released until after it. ✅ Red-proofs: the entry released on the throw ⇒ #1 into his own grenade; the friend check
         /// dropped ⇒ the 3 m point.
         /// </summary>
         [Fact]
@@ -4125,8 +4125,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
             Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 is not released");
-            var jamb = new Vector3(plan.Door + plan.Along * plan.Half - plan.Into * RoomDrill.JambBackMetres, 0f);
-            Near(jamb, AdvanceOf(s, s.Members[1]), "#2 to the jamb on his side — the opening's edge, not the door front");
+            var jamb = new Vector3(plan.Door + plan.Along * (plan.Half - RoomDrill.JambInsetMetres) - plan.Into * RoomDrill.JambBackMetres, 0f);
+            Near(jamb, AdvanceOf(s, s.Members[1]), "#2 to the jamb on his side — a shoulder in the opening, not the door front");
             s.Teleport(s.Members[1], jamb);
             TickFor(s, 0.1);
             var fire = FireOf(s, s.Members[1]);
@@ -4134,11 +4134,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, fire.Rounds);
             var at = new Vector2(fire.X, fire.Y);
             Assert.True(RoomEntryPlan.Inside(new[] { 0f, 10f, 12f, 10f, 12f, 22f, 0f, 22f }, at), "the aim is inside the room");
-            var farHalf = plan.Door - plan.Along * plan.Half * 0.5f;
-            var line = Vector2.Normalize(farHalf - new Vector2(jamb.X, jamb.Y));
-            var toAim = at - new Vector2(jamb.X, jamb.Y);
-            Assert.True(MathF.Abs(toAim.X * line.Y - toAim.Y * line.X) < 0.05f, "thrown across, through the far half of the opening");
-            Assert.True(Vector2.Distance(at, new Vector2(plan.Stack(0).X, plan.Stack(0).Y)) > 6f, "far from the stack (the near point would stun it)");
+            // the throw passes the wall's plane inside the opening
+            var from = new Vector2(jamb.X, jamb.Y);
+            float a = Vector2.Dot(plan.Door - from, plan.Into), b = Vector2.Dot(at - from, plan.Into);
+            var cross = from + (at - from) * (a / b);
+            Assert.InRange(Vector2.Dot(cross - plan.Door, plan.Along), -plan.Half + RoomDrill.JambClearMetres - 0.01f, plan.Half - RoomDrill.JambClearMetres + 0.01f);
+            Assert.True(Vector2.Distance(at, new Vector2(plan.Stack(0).X, plan.Stack(0).Y)) > 7.5f, "far from the stack (the near point would stun it — no wall here)");
             var mount = Fdp.Toolkit.Combat.PersonHands.MountEntity(s.Repo, s.Members[1], 1);
             s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount).Ammo--;   // the throw
             TickFor(s, 0.1);

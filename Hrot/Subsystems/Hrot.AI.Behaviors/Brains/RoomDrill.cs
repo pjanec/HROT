@@ -247,6 +247,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// a hand grenade's speed for its flight time (m/s) · how far into the room it is thrown (m).</summary>
         /// <summary>CB-68 — the jamb point lies this far out from the wall (m) · reached within this (m).</summary>
         public const float JambBackMetres = 0.4f, JambArrival = 0.3f;
+        /// <summary>CB-68 — the jamb point lies this far inside the opening's edge (a shoulder exposed, m) · a throw passes the opening this far
+        /// clear of its edges (m).</summary>
+        public const float JambInsetMetres = 0.15f, JambClearMetres = 0.1f;
         public const float ToDoorTimeoutSeconds = 8f, ThrowTimeoutSeconds = 6f, AfterBangSeconds = 0.3f, ThrowSpeed = 15f, ThrowInMetres = 3f;
         /// <summary>CB-72 — fired on within this long holds the entry (s) · quiet this long releases it (s) · the pie points' distance (m) and
         /// their angles off the doorway's line (°, #1 then #2).</summary>
@@ -359,12 +362,24 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
-        /// <summary>CB-68 — the jamb he throws from: the opening's edge on his side, <see cref="JambBackMetres"/> out from the wall.</summary>
+        /// <summary>CB-68 — the jamb he throws from: just inside the opening's edge on his side (<see cref="JambInsetMetres"/>),
+        /// <see cref="JambBackMetres"/> out from the wall.</summary>
         private static unsafe Vector3 ThrowFrom(ref RoomDrillState d)
             => d.Thrower >= 0 && d.OrderOf[d.Thrower] != RoomDrillState.NotInIt
                 ? new Vector3(Jamb(ref d, JambSide(ref d, d.OrderOf[d.Thrower])), d.Plan.StackZ) : d.Plan.DoorFront;
 
-        private static Vector2 Jamb(ref RoomDrillState d, float side) => d.Plan.Door + d.Plan.Along * side * d.Plan.Half - d.Plan.Into * JambBackMetres;
+        private static Vector2 Jamb(ref RoomDrillState d, float side)
+            => d.Plan.Door + d.Plan.Along * side * MathF.Max(0f, d.Plan.Half - JambInsetMetres) - d.Plan.Into * JambBackMetres;
+
+        /// <summary>CB-68 — does a throw from <paramref name="from"/> to <paramref name="to"/> pass the wall's plane INSIDE the opening (clear of its
+        /// edges by <see cref="JambClearMetres"/>)?</summary>
+        private static bool ThrowClears(ref RoomDrillState d, Vector2 from, Vector2 to)
+        {
+            float a = Vector2.Dot(d.Plan.Door - from, d.Plan.Into), b = Vector2.Dot(to - from, d.Plan.Into);
+            if (b <= 1e-4f || a < 0f || a > b) return false;
+            var cross = from + (to - from) * (a / b);
+            return MathF.Abs(Vector2.Dot(cross - d.Plan.Door, d.Plan.Along)) <= d.Plan.Half - JambClearMetres;
+        }
 
         /// <summary>+1 when the <paramref name="k"/>-th stack point is on the <c>Along</c> side of the way in, −1 on the far side (a split stack).</summary>
         private static float JambSide(ref RoomDrillState d, int k)
@@ -398,27 +413,31 @@ namespace Hrot.AI.Behaviors.Brains
             var query = Fdp.Toolkit.World.WorldQuery.Of(ctx.World);
             var scratch = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
             float depth = Depth(ref d);
-            // ⭐ CB-68 (as built) — thrown from the jamb on his side, ACROSS through the far half of the opening
+            // ⭐ CB-68 (as built) — thrown from the jamb on his side. The aims sweep from STRAIGHT IN (the point the wall shields the stack
+            //   from) toward the far side; the first the throw clears through the opening AND that spares every friend is taken. 📐 live: a
+            //   throw across the room from the jamb is seen back through the opening by the men stacked beside him — every one refused.
             float side = JambSide(ref d, d.OrderOf[slot]);
             var jamb = Jamb(ref d, side);
-            var farHalf = d.Plan.Door - d.Plan.Along * side * d.Plan.Half * 0.5f;
-            var line = farHalf - jamb;
-            line = line.LengthSquared() > 1e-6f ? Vector2.Normalize(line) : d.Plan.Into;
             Span<float> corners = stackalloc float[8];
             for (int c = 0; c < 8; c++) corners[c] = d.Corners[c];
-            Span<float> ins = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f };
-            foreach (float into in ins)
-            {
-                float reach = into;
-                while (reach > 0.5f && !RoomEntryPlan.Inside(corners, farHalf + line * reach)) reach -= 0.25f;   // stay inside the room
-                var aim = new Vector3(farHalf + line * reach, d.FloorZ + 0.3f);
-                if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
-                d.Aim = aim;
-                d.Thrower = (sbyte)slot;
-                d.GrenadeMount = (byte)mount;
-                d.Fuze = warhead.FuzeDelayS > 0f ? warhead.FuzeDelayS : 1.5f;
-                return true;
-            }
+            Span<float> reaches = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f, MathF.Min(2f, depth * 0.4f) };
+            Span<float> drifts = stackalloc float[] { 0f, 0.5f, 1f, 1.5f };
+            foreach (float reach0 in reaches)
+                foreach (float drift in drifts)
+                {
+                    float reach = reach0;
+                    var lateral = -d.Plan.Along * side * drift;
+                    while (reach > 0.5f && !RoomEntryPlan.Inside(corners, d.Plan.Door + d.Plan.Into * reach + lateral)) reach -= 0.25f;   // inside the room
+                    var flat = d.Plan.Door + d.Plan.Into * reach + lateral;
+                    if (!ThrowClears(ref d, jamb, flat)) continue;
+                    var aim = new Vector3(flat, d.FloorZ + 0.3f);
+                    if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
+                    d.Aim = aim;
+                    d.Thrower = (sbyte)slot;
+                    d.GrenadeMount = (byte)mount;
+                    d.Fuze = warhead.FuzeDelayS > 0f ? warhead.FuzeDelayS : 1.5f;
+                    return true;
+                }
             return false;   // CB-70 — every aim point would hurt a friend
         }
 
