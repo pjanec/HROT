@@ -10,8 +10,9 @@ public enum Legwear : byte { Trousers, Shorts, Skirt }
 /// <summary>⭐ CE-1099 (§6q O-2) — a civilian's hair: short, long (down his back) or none.</summary>
 public enum HairStyle : byte { Short, Long, None }
 
-/// <summary>⭐ CE-1099 (§6q O-4) — a soldier's camouflage, by his side: Friend woodland, Hostile fleck, Neutral none.</summary>
-public enum CamoPattern : byte { None, Woodland, Fleck }
+/// <summary>⭐ CE-1099 (§6q O-4) — a soldier's camouflage, by his side: Friend woodland, Neutral none. ⭐ CE-1235 (O-4a, R-1020) — Hostile
+/// desert (was fleck, which stays a pattern a look may name).</summary>
+public enum CamoPattern : byte { None, Woodland, Fleck, Desert }
 
 /// <summary>
 /// ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q) — what one man wears: the colour of each part of his figure (<see cref="Outfits.ColourOfPart"/>)
@@ -78,14 +79,25 @@ public static class Outfits
     public static readonly Color PoliceUniform = new(34, 46, 82, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
     private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
-    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy: a hostile reads paler
+    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy
+    // ⭐ CE-1235 (§6q O-4a) — desert: tan, brown and pale sand over the khaki cloth, large patches like woodland's
+    private static readonly Color[] Desert = [new(158, 126, 84, 255), new(112, 84, 54, 255), new(224, 208, 168, 255)];
+
+    /// <summary>⭐ CE-1235 (docs/DESIGN_Map_3D_Mode.md §6q O-4a, R-1020) — a soldier's cloth when neither he nor his type names one: his
+    /// SIDE's — a friend (blue) green-olive, a hostile (red) desert khaki, a neutral olive — so the two sides read apart in a dim room,
+    /// not only by their pattern.</summary>
+    public static readonly Color WoodlandCloth = new(96, 110, 72, 255), DesertCloth = new(190, 170, 125, 255);
     private static readonly Color[] EyeColours = [new(60, 40, 28, 255), new(96, 64, 36, 255), new(70, 110, 160, 255), new(80, 120, 80, 255), new(110, 116, 120, 255)];
     private static readonly Color[] LipColours = [new(132, 52, 48, 255), new(150, 70, 66, 255), new(118, 60, 56, 255), new(170, 60, 70, 255)];
 
     /// <summary>⭐ CE-1101 (§6r S-2) — the three tones the shader paints a pattern in (over the uniform): woodland brown, black and light
-    /// green; fleck sand, olive and red-brown.</summary>
-    public static (Color, Color, Color) CamoTones(CamoPattern pattern) => pattern == CamoPattern.Fleck
-        ? (Fleck[0], Fleck[1], Fleck[2]) : (Woodland[0], Woodland[1], Woodland[2]);
+    /// green; fleck sand, olive and red-brown; ⭐ CE-1235 desert tan, brown and pale sand.</summary>
+    public static (Color, Color, Color) CamoTones(CamoPattern pattern) => pattern switch
+    {
+        CamoPattern.Fleck => (Fleck[0], Fleck[1], Fleck[2]),
+        CamoPattern.Desert => (Desert[0], Desert[1], Desert[2]),
+        _ => (Woodland[0], Woodland[1], Woodland[2]),
+    };
 
     /// <summary>⭐ CE-1101 — where a man's pattern starts in the noise (metres of offset), so no two men wear the same cloth cut.</summary>
     public static float CamoSeed(long seed) => (new Draw(seed, 0xC4A0).Next()) * 97f;
@@ -127,9 +139,10 @@ public static class Outfits
         }
         if (soldier)
         {
-            var uniform = own ?? new Color(96, 110, 72, 255);
+            // ⭐ CE-1235 (O-4a) — the side picks the CLOTH too (his own colour, or his type's, still wins)
+            var uniform = own ?? (side == ForceId.Hostile ? DesertCloth : WoodlandCloth);
             var trousers = Scale(uniform, 0.85f);
-            var camo = side switch { ForceId.Friend => CamoPattern.Woodland, ForceId.Hostile => CamoPattern.Fleck, _ => CamoPattern.None };
+            var camo = side switch { ForceId.Friend => CamoPattern.Woodland, ForceId.Hostile => CamoPattern.Desert, _ => CamoPattern.None };
             return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, camo, child, true,
                               FaceOf(seed, type, woman: false, child));
         }

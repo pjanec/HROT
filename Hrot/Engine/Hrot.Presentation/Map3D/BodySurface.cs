@@ -5,7 +5,7 @@ using Raylib_cs;
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r) — what the shader paints on a body part.</summary>
-public enum SurfaceKind { Plain = 0, Woodland = 1, Fleck = 2, Face = 3 }
+public enum SurfaceKind { Plain = 0, Woodland = 1, Fleck = 2, Face = 3, Desert = 4 }
 
 /// <summary>
 /// ⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r) — the figures' procedural surface: camouflage and faces painted by the 3-D map's shader
@@ -17,7 +17,7 @@ public sealed class BodySurface
 {
     /// <summary>The surface function (<see cref="LitShader.UseSurface"/>): plain unless <c>bodyPattern</c> says otherwise.</summary>
     public const string Glsl = @"
-uniform int bodyPattern;   // 0 plain, 1 woodland, 2 fleck, 3 face
+uniform int bodyPattern;   // 0 plain, 1 woodland, 2 fleck, 3 face, 4 desert
 uniform vec3 tone1;        // camouflage tones · a face: the hair (brows, beard)
 uniform vec3 tone2;        //                  · a face: the iris
 uniform vec3 tone3;        //                  · a face: the lips
@@ -53,10 +53,12 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
         c = mix(c, tone2, bodyBox(m, vec2(faceLook.x, 0.05), vec2(0.04, 0.055)));             // the irises
         return c;
     }
-    bool woodland = bodyPattern == 1;
-    vec3 q = metres * (woodland ? 5.5 : 17.0) + vec3(patternSeed);
+    bool woodland = bodyPattern == 1, desert = bodyPattern == 4;
+    vec3 q = metres * (woodland ? 5.5 : desert ? 4.5 : 17.0) + vec3(patternSeed);
     float a = bodyFbm(q), b = bodyFbm(q + vec3(31.7, 11.3, 5.9)), d = bodyFbm(q + vec3(-17.1, 23.9, 41.3));
-    if (woodland) { if (a > 0.60) return tone1; if (b > 0.62) return tone2; if (d > 0.64) return tone3; return base; }
+    // ⭐ CE-1235 (§6q O-4a) — woodland denser (was 0.60 / 0.62 / 0.64) and desert's large soft patches: the pattern reads at room distance
+    if (woodland) { if (a > 0.56) return tone1; if (b > 0.58) return tone2; if (d > 0.60) return tone3; return base; }
+    if (desert) { if (a > 0.57) return tone1; if (b > 0.60) return tone3; if (d > 0.64) return tone2; return base; }
     if (a > 0.64) return tone1; if (b > 0.66) return tone2; if (d > 0.70) return tone3; return base;
 }
 ";
