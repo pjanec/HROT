@@ -1278,7 +1278,7 @@ public sealed class Map3DTests
         Assert.Equal(olive, friend.Top);
         Assert.Equal(olive, Outfits.ColourOfPart(friend, 7));
         Assert.True(friend.Bottom.G < olive.G && friend.Bottom.G > friend.Bottom.R, "his trousers are the uniform's green, darker");
-        Assert.Equal((CamoPattern.Woodland, CamoPattern.Fleck, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));   // ⭐ CE-1235: desert, was fleck
 
         // ⭐ CE-1101 (§6r) — the pattern is the SHADER's: no patch boxes; its tones differ by side — fleck reads paler than woodland
         var d = new List<PartDetail>();
@@ -1287,9 +1287,58 @@ public sealed class Map3DTests
         Outfits.Details(hostile, 9, d);
         Assert.Empty(d);
         static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
-        Assert.True(Light(Outfits.CamoTones(CamoPattern.Fleck)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's fleck reads paler");
+        Assert.True(Light(Outfits.CamoTones(CamoPattern.Desert)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's desert reads paler");
         Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
         Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
+    }
+
+    /// <summary>⭐ CE-1235 (docs/DESIGN_Map_3D_Mode.md §6q O-4a, R-1020) — with no colour of his own, a soldier's SIDE picks his cloth, not only
+    /// his pattern: a friend green-olive woodland, a hostile khaki desert, a neutral plain olive — so blue and red read apart in a dim room
+    /// (📌 the pc-defend-house complaint: both sides wore the same olive under sparse spots). His own (or his type's) colour still wins,
+    /// and the shader paints the desert pattern as its own kind.</summary>
+    [Fact]
+    public void CE1235_ASoldiersSide_PicksHisCloth_FriendWoodland_HostileDesert_HisOwnColourStillWins()
+    {
+        var friend = Outfits.For(9, 2002, soldier: true, child: false, own: null, Fdp.Core.ForceId.Friend);
+        var hostile = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile);
+        var neutral = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Neutral);
+        Assert.Equal((Outfits.WoodlandCloth, Outfits.DesertCloth, Outfits.WoodlandCloth), (friend.Top, hostile.Top, neutral.Top));
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+        static float Gap(Raylib_cs.Color a, Raylib_cs.Color b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
+        Assert.True(Gap(friend.Top, hostile.Top) > 90f, $"the two sides' cloth reads apart ({Gap(friend.Top, hostile.Top):F0})");
+        Assert.True(Gap(friend.Bottom, hostile.Bottom) > 70f, "and so do their trousers");
+        Assert.True(hostile.Top.R > hostile.Top.B + 40 && hostile.Top.R + hostile.Top.G > friend.Top.R + friend.Top.G + 100, "desert is khaki: warm and pale");
+
+        var own = new Raylib_cs.Color(40, 60, 90, 255);
+        Assert.Equal(own, Outfits.For(9, 2002, true, false, own, Fdp.Core.ForceId.Hostile).Top);   // an authored / type colour still wins
+        Assert.Equal(Outfits.PoliceUniform, Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile, PersonKit.Security).Top);
+        Assert.Equal((int)SurfaceKind.Desert, 4);
+        Assert.Contains("bodyPattern == 4", BodySurface.Glsl);
+    }
+
+    /// <summary>⭐ CE-1235 (§6q O-4a, R-1020; 🔒 User, `2026-10-21`: "Yes") — a SOLDIER's type colour does not make his cloth: the type's colour is
+    /// stamped onto every spawned entity, so the BDC riflemen (olive `#556B2F` on the type) would wear olive on both sides. His own is one that
+    /// DIFFERS from his type's; a civilian keeps his type's colour (O-1), and a police officer his.</summary>
+    [Fact]
+    public void CE1235_ASoldiersTypeColour_DoesNotMakeHisCloth_AColourHeNamesStillDoes()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<EntityAppearance>();
+        var olive = new Raylib_cs.Color(0x55, 0x6B, 0x2F, 255);
+        var soldier = new EntityBodyLayer3D.TypeLook(VisualFamily.Person, Vector3.One, olive, Soldier: true, TypeColoured: true);
+        var stamped = w.CreateEntity();
+        w.AddComponent(stamped, EntityAppearance.FromHex("#556B2F"));      // what PresentationTkbTranslator stamps from his type
+        var named = w.CreateEntity();
+        w.AddComponent(named, EntityAppearance.Of(40, 60, 90));           // a colour the scenario gave HIM
+        var plain = w.CreateEntity();
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, stamped, soldier));
+        Assert.Null(EntityBodyLayer3D.OwnColourOf(w, plain, soldier));
+        Assert.Equal(new Raylib_cs.Color(40, 60, 90, 255), EntityBodyLayer3D.OwnColourOf(w, named, soldier));
+
+        var civilian = soldier with { Soldier = false };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, civilian));   // O-1 — a civilian wears his type's colour
+        var police = soldier with { Kit = PersonKit.Security };
+        Assert.Equal(olive, EntityBodyLayer3D.OwnColourOf(w, stamped, police));
     }
 
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
