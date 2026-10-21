@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-21 (R-2065) — user: "Aq99 Approved. You build it."; build: CE-2336
 updated: 2026-10-21 (A revised per type after the user's crowd question)
-build-state: BUILDING
+build-state: BUILT 2026-10-21 — A: TKB `VehicleParametersDto.AvoidanceRadius` per type · B: the twins' ③ by friendly fire (shot log) · C: Motion Domains §5h.1 (`NoWayRound`)
 current-answer: §0 the decision · §2 the sub-questions with leans
 stale-below: nothing
 known-rot: none yet
-known-conflict: docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §8.1 bc-room-clear ③ "no friend hit" — B below would move it to BC-4/BC-5; not reconciled until answered
+known-conflict: none — §8.1 ③ reconciled 2026-10-21 (B)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the room drill (§7.1, §7.1b as built) and the demo acceptance (§8.1) this question revisits
   - FDP/Engine/Fdp.ModuleHost/docs/car-kinem-implementation-design.md — OWNS RVO-Lite (§2), the avoidance A changes the person radius of

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
+updated: 2026-10-21 (AQ99 built — §7.1b, §8.1 ③; CE-2337 §6a) · 2026-10-20 (SL-0 built, §7.0; BC-1 built, §7.1a; BC-3 built, §7.2a; the drill on the real house, §7.1b — CE-2334)
 build-state: READY-TO-BUILD — CB-1…CB-18 APPROVED 2026-10-18 (R-2030, R-2031); slice SL-0 ✅ BUILT 2026-10-19 (§7.0); BC-1 ✅ BUILT 2026-10-19 on the BuildingSurvey (§7.1a), BC-3 ✅ BUILT 2026-10-19 (§7.2a) — not live yet, the CQB house is BR-1 · §5b report life and ageing: CB-31…CB-35 ✅ APPROVED 2026-10-18 (R-2039); CB-36 ✅ APPROVED (R-2040); §5c report concept ✅ APPROVED (R-2040), CB-41 superseded by CB-43; §5d CB-42…CB-47 ✅ approved as a CONCEPT (R-2041), detailed in docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md (CB-33 and CB-42 revised there: CC-1, CC-2)
 current-answer: §3–§5 the diagrams (platoon level) · §5a monitoring (lean, for review) · §6 decisions (approved) · §6a casualties and edge cases · §7 slices (§7.1a BC-1 as built) · §7a building blocks (the whole list) · §8 demos (designed, the CQB house picture) — §1 doctrine, §2 measured ground
 stale-below: nothing.
@@ -778,15 +778,17 @@ moved men by teleport, so three things only the real house showed:
 
 | ⭐ **CB-64 (new, behaviors' own, 2026-10-20)** — in the house the unbounded stack for room A's inner door ran west along the hallway and put two men OUTSIDE the front wall, one in the front doorway, where the next entry man could never pass him | CB-50 knew only the TARGET room, not the room the stack stands in | **the stack stands inside the room it stands in** (`RoomEntryPlan.Plan(…, stackRoom)`, the portal's other room from the survey, `RoomDrill.StackRoom`): CB-50's side when it holds the entry men 0.35 m clear of its walls, else the other side; the men who do not fit take the far side of the door — a **split stack** (`Result.Fit`). From outside: unbounded, as before |
 
-⚠ **Still open — yours, [`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md):** a person's
-avoidance shell is 1.6 m (Pedestrian `AvoidanceRadius` 0.8, RVO's hard shell ×2) — most of the stalls' common cause; and two alert posted
-defenders kill the first one or two entry men in most runs, against §8.1 ③ "no friend hit".
+✅ **[`AQ99`](../../blueprints/Architect_Question_99_Clearing_Demos_Person_Spacing_And_Losses.md) approved and built (`2026-10-21`, R-2065):**
+A — soldiers, fighters and security forces stand at the navmesh body (TKB `AvoidanceRadius` 0.3 m; civilians keep 0.8 — a crowd keeps
+its distance); B — §8.1 ③ is "no friend hit BY A FRIEND", the casualties reported; C — a man down is stepped over where nothing lets a
+walker round him (Motion Domains §5h.1). ~~Still open — a person's avoidance shell is 1.6 m … against §8.1 ③ "no friend hit"~~ (SUPERSEDED).
 
 ⚠ **Two deviations of the DEMO from §8.1's cast** (recorded, not silent): `bc-room-clear` stacks on room A's **north side door** from
 outside, not at the hallway's front door (that cast needs the hallway cleared first — it is `bc-house-clear`'s first room); and its
 insurgents hold A's **south** corners — the far side from that door.
 
-⚠ **Found on the way, not fixed here — `CE-2335` (backend's replication):** in one of two identical runs CGF read the north door
+⚠ **Found on the way — `CE-2335` (backend's replication; one defect fixed 2026-10-21: a ghost no longer publishes the door's state, the
+split itself not yet measured):** in one of two identical runs CGF read the north door
 `Open` for the whole run while it was closed (`TerrainDoorState.Open = 0` — a door whose state sample never applied reads open), so the
 drill skipped the breach. CB-53 reads the door live on the brain's node; that read is only as true as the replica.
 

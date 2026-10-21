@@ -75,6 +75,9 @@ namespace CarKinem.Controllers
             return true;
         }
 
+        /// <summary>⭐ AQ99 C — <paramref name="at"/> stands on the walkable mesh (its projection within <see cref="OnMeshTolerance"/>).</summary>
+        public static bool IsOnMesh(Fdp.Toolkit.Navigation.INavmeshProvider navmesh, uint layerMask, Vector2 at, float z) => OnMesh(navmesh, layerMask, at, z, out _);
+
         private static bool OnMesh(Fdp.Toolkit.Navigation.INavmeshProvider navmesh, uint layerMask, Vector2 at, float z, out Vector2? snapped)
         {
             snapped = null;

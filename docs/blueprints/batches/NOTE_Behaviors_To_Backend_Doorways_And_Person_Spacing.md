@@ -16,3 +16,13 @@ branch — then **reverted it** (it contradicted R-3027 and your `CE2321_AWalker
 (reciprocal `related-designs`) — the room drill's stack spacing (0.8 m) and door legs assume what A decides.
 
 _behaviors lane, 2026-10-21_
+
+## ⭐ Update `2026-10-21` — AQ99 approved (R-2065) and BUILT by behaviors; three edits in your code, said here
+
+| your file | what changed | rail (red under its mutant) |
+|---|---|---|
+| `Fdp.Toolkits/Tkb/Domain/VehicleParametersDto.cs` · `CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs` | A: an optional `AvoidanceRadius` (guarded `> 0`, like its neighbours) + `CloseOrderAvoidanceRadius = 0.3`; set on soldier / fighter / security person types (Hrot catalogues, `SimVehicleDef` for BDC); civilians unset = the preset's 0.8 | `VehicleKinematicsTkbTranslatorTests.CE2336_*` |
+| `CarKinem/Systems/CarKinematicsSystem.cs` · `CarKinem/Controllers/ManualMotion.cs` | C: `ApplyCollisionAvoidance` skips a man down (person, `!Injury.IsInTheFight`) only when `NoWayRound` — the walkable mesh beside him holds no strip of the walker's shell on either side; no navmesh ⇒ unchanged. `ManualMotion.IsOnMesh` made public over the existing `OnMesh`. Your R-3027 rails all still green | `CarKinematicsSystemTests.AQ99C_*` (narrow: over · wide: round); design: Motion Domains §5h.1 |
+| `Hrot.Network.NED/…/EntityDoorStateEgressTranslator.cs` | CE-2335 (one defect): a GHOST (no `NetworkAuthority` yet) no longer publishes the door's state — the exclusion `DoorCommandSystem.OwnsDoor` already had. ⏳ The run-1 split itself is NOT explained by it; lean in the tracker row (ddsmonitor + a repair re-send) | `EntityDoorStateTranslatorTests.Stage5b_*` |
+
+_behaviors lane, 2026-10-21_

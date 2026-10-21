@@ -1187,6 +1187,60 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>A corridor along x: the walkable mesh is |y| ≤ <c>half</c>; off it projects onto its edge, as Recast's nearest-poly does.</summary>
+        private sealed class Corridor : Fdp.Toolkit.Navigation.INavmeshProvider
+        {
+            private readonly float _half;
+            public Corridor(float half) => _half = half;
+            public bool IsWalkable(Vector3 p, uint layerMask = 0xFFFFFFFF) => MathF.Abs(p.Y) <= _half;
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 snapped, uint layerMask = 0xFFFFFFFF)
+            {
+                snapped = new Vector3(p.X, Math.Clamp(p.Y, -_half, _half), p.Z);
+                return true;
+            }
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => false;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.PositiveInfinity;
+            public uint QueryVersion() => 0;
+            public int PlanPath(Vector3 from, Vector3 to, Span<Fdp.Toolkit.Navigation.NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
+        }
+
+        /// <summary>
+        /// ⭐ AQ99 C (R-2065) — a man down in a corridor too narrow to pass him (a doorway's mesh) is STEPPED OVER: a soldier (close order,
+        /// 0.3 m) walking the corridor gets past him; in a corridor wide enough he still walks ROUND him (R-3027 — the control: he never
+        /// comes over him). 🔴 Red-proof: drop the step-over ⇒ the narrow walker never passes the body.
+        /// </summary>
+        [Theory]
+        [InlineData(0.3f, true)]    // the walkable strip is 0.6 m: no way round
+        [InlineData(2.0f, false)]   // a 4 m corridor: room to walk round
+        public void AQ99C_AManDown_IsSteppedOver_OnlyWhereThereIsNoWayRound(float half, bool over)
+        {
+            var preset = VehiclePresets.GetPreset(VehicleClass.Pedestrian);
+            preset.AvoidanceRadius = 0.3f;
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: preset);
+            repo.SetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>(new Corridor(half));
+            var lying = Stander(repo, new Vector3(5f, 0f, 0f));
+            Hurt(repo, lying, 0f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float closest = float.MaxValue, x = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                x = p.X;
+                closest = MathF.Min(closest, Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(5f, 0f)));
+            }
+            Assert.True(x > 7f, $"the walker never got past the man down (x {x:F2}, corridor ±{half})");
+            if (over) Assert.True(closest < 0.3f, $"he passed {closest:F2} m from him — round, not over: the narrow case proves nothing");
+            else Assert.True(closest > 0.3f, $"he came within {closest:F2} m — over him, where there was room to walk round");
+            var at = repo.GetComponent<SimTransform>(lying).Position;
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(5f, 0f)) < 0.01f, "the man down was pushed");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3287</c> — and a DRIVING vehicle still steers round a man in its way: a tank on its path past a man 1 m off the line bends
         /// away from him (avoidance kept where it belongs — on a vehicle that drives). 🔴 Red-proof: no avoidance at all ⇒ it runs straight.
