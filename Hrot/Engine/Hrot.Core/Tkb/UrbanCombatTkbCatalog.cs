@@ -279,7 +279,7 @@ namespace Hrot.Core.Tkb
             }
 
             // ⭐ CE-2260 BC-4 (CB-71) — AssaultRifleman (2009): the InfantrySoldier, plus stun grenades (mount 1) and M67 (mount 2) for the room
-            //   drill's "bang out" (§7.3); the pistol after them (the hands go to 4). Only the clearing demos field him — the InfantrySoldier
+            //   drill's "bang out" (§7.3); the hands go to 3 — no pistol (four mounts is all dtWeaponAmmo carries). Only the clearing demos field him — the InfantrySoldier
             //   stays grenade-free, so no other demo's weapon brain starts throwing (R-261).
             {
                 var t = new TkbTemplate("AssaultRifleman", TkbAssaultRifleman);
@@ -295,8 +295,7 @@ namespace Hrot.Core.Tkb
                     new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
                     new WeaponMountDto { InitialAmmunition = AssaultStunGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade },
                     new WeaponMountDto { InitialAmmunition = AssaultFragGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },
-                    Pistol(),
-                } });
+                } });   // ⚠ no pistol: the hands make mount 3, the last the replicated per-mount ammo carries (dtWeaponAmmo, 0…3)
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());

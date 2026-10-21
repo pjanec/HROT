@@ -26,8 +26,9 @@ namespace Hrot.AI.Behaviors.Brains
 
         public Vector3 Point;
         public float Speed;
-        /// <summary>⭐ CE-2260 (CB-65) — the order's intensity, for every room.</summary>
+        /// <summary>⭐ CE-2260 (CB-65) — the order's intensity, for every room · 1 when it says the building is held (every room suspected).</summary>
         public ClearIntensity Intensity;
+        public byte Suspected;
         /// <summary>1 once the survey was asked · when · 1 once the building is known · 1 once it failed · 1 once the building is clear.</summary>
         public byte Asked, Planned, Failed, Done;
         public double AskedAt;
@@ -105,7 +106,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.ClearBuilding)]
         public static void Resolve(in ClearBuildingParamsJsonDto authored, ref ClearBuildingBlackboard block, EntityRepository world, Entity self)
         {
-            block.Order = new ClearBuildingParams { Point = authored.Building, Speed = authored.Speed > 0f ? authored.Speed : 2f, Current = -1, Intensity = authored.Intensity };
+            block.Order = new ClearBuildingParams { Point = authored.Building, Speed = authored.Speed > 0f ? authored.Speed : 2f, Current = -1, Intensity = authored.Intensity, Suspected = authored.Suspected ? (byte)1 : (byte)0 };
             block.State = default;
         }
 
@@ -260,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
                                     out var room, out var way)) return false;
                 p.Current = room.Index;
                 RoomDrill.Begin(ref p.Drill, in ctx, room, way, p.Turn, RoomDrill.StackRoom(answer, room, way));
-                RoomDrill.Arm(ref p.Drill, p.Intensity, ordered: false);   // ⭐ CE-2260 (CB-65)
+                RoomDrill.Arm(ref p.Drill, p.Intensity, p.Suspected != 0);   // ⭐ CE-2260 (CB-65)
                 return true;
             }
         }

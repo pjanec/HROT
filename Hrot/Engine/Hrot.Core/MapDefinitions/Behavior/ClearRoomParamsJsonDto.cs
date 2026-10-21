@@ -64,6 +64,11 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Intensity")]
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public ClearIntensity Intensity;
+
+        /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-65) — the order says the building is held (intelligence): EVERY room is suspected before anything is
+        /// seen in it.</summary>
+        [JsonPropertyName("Suspected")]
+        public bool Suspected;
     }
 
     /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — the authored contract of <c>BreachDoor</c>: walk to the door, open it, and when it refuses

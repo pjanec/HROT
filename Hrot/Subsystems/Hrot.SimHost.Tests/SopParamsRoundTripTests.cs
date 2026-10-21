@@ -139,7 +139,9 @@ namespace Hrot.SimHost.Tests
                 if (Array.IndexOf(Numeric, f.FieldType) >= 0)
                 {
                     k++;
-                    f.SetValue(boxed, Convert.ChangeType(7 + k, f.FieldType));
+                    // ⭐ CE-2331 — a float sentinel is not a whole number: 8 (7 + 1) WAS FightFromCover's default quiet time, so the sent value
+                    //   and the default could not be told apart (a whole-number default is common; a half is not)
+                    f.SetValue(boxed, f.FieldType == typeof(int) ? 7 + k : Convert.ChangeType(7.5 + k, f.FieldType));
                     any = true;
                     continue;
                 }

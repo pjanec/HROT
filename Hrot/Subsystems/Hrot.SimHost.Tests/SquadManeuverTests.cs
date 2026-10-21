@@ -4124,6 +4124,7 @@ namespace Hrot.SimHost.Tests
             TickFor(s, 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "#2 to the door front to throw");
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
             Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 is not released");
 
             s.Teleport(s.Members[1], plan.DoorFront);
@@ -4137,6 +4138,7 @@ namespace Hrot.SimHost.Tests
             TickFor(s, 0.1);
             Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 back behind the wall");
             TickFor(s, 1.5);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // nothing newer than his stack order
             Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 waits for the bang");
             TickFor(s, 1.0);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "after the bang #1 goes first");
@@ -4200,6 +4202,7 @@ namespace Hrot.SimHost.Tests
 
             s.ClearPool();
             TickFor(s, RoomDrill.QuietSeconds - 0.5);
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not released again yet
             Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "not quiet long enough yet");
             TickFor(s, 1.0);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "quiet: #1 goes again");
