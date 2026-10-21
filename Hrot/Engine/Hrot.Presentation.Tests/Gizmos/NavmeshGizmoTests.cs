@@ -59,7 +59,7 @@ public sealed class NavmeshGizmoTests : IDisposable
         var lines = Lines();
         Assert.Equal(4 + 3, lines.Length);                                                       // a square and a triangle, closed
         Assert.Equal(4, lines.Count(l => l.Color.Equals(NavmeshGizmo.InfantryColor)));
-        Assert.Equal(3, lines.Count(l => l.Color.Equals(DoorLeafGizmo.ColorOf(TerrainDoorState.Open))));   // no terrain: as authored, open
+        Assert.Equal(3, lines.Count(l => l.Color.Equals(DoorLeafGizmo.ColorOf(TerrainDoorState.Closed))));   // no terrain: an unknown door is closed (CE-3290, R-3033 — was open)
         Assert.All(lines, l => Assert.Equal(NavmeshGizmo.Lift, l.LineStart.Z, 3));
     }
 

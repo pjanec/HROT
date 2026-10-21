@@ -49,7 +49,7 @@ public sealed class NavmeshGizmo : IGlobalStatelessGizmo
         {
             int door = mesh.DoorIndex[i];
             var c = door < 0 ? color
-                : DoorLeafGizmo.ColorOf(doors != null && door < doors.Count ? doors[door] : TerrainDoorState.Open);
+                : DoorLeafGizmo.ColorOf(doors != null && door < doors.Count ? doors[door] : TerrainDoorState.Closed);   // ⭐ CE-3290 — unknown = closed
             var poly = mesh.Polygon(i);
             for (int j = 0; j < poly.Length; j++)
                 draw.DrawLine(poly[j] + lift, poly[(j + 1) % poly.Length] + lift, c, door < 0 ? 1f : 2f, SizeMode.ScreenPixels,

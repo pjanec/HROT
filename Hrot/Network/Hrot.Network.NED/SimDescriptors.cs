@@ -74,7 +74,7 @@ namespace Hrot.NED.Descriptors
         [DdsKey]
         public int EntityId;
 
-        /// <summary><c>TerrainDoorState</c>: 0 Open · 1 Closed · 2 Locked · 3 Destroyed.</summary>
+        /// <summary><c>TerrainDoorState</c>: 0 Closed · 1 Open · 2 Locked · 3 Destroyed (CE-3290: Closed is 0, the default).</summary>
         public byte State;
 
         /// <summary>The terrain-object key, <c>"&lt;terrain&gt;/&lt;building&gt;/&lt;doorId&gt;"</c>.</summary>
