@@ -636,15 +636,31 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A burst of <c>BlindRounds</c> at the freshest evidence (D13) + <c>BlindAimHeight</c>; false = nowhere known.</summary>
         private static bool StartBurst(ref PeekAndFireState ws, in PeekAndFireParams p, Entity self, EntityRepository world, in ThreatAim threat)
         {
-            if (!FreshestEvidence(world, self, in threat, out var at, out _, p.HeardMatchRadius)) return false;
+            if (!FreshestEvidence(world, self, in threat, out var at, out long slotId, p.HeardMatchRadius)) return false;
+            // ⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — a body last SEEN there: the round names it (his feet + the stance he was seen in)
+            //   and the muscle aims it — his chest, or the band that showed over a cover. Heard only (no stance): the spot + the height.
+            byte stance = SeenStanceOf(world, self, slotId);
             ws.Blind = new FireAtPointNodeParams
             {
-                Point = at + new Vector3(0f, 0f, p.BlindAimHeight), CooldownSeconds = p.FireCooldownSeconds, Rounds = p.BlindRounds,
+                Point = stance != 0 ? at : at + new Vector3(0f, 0f, p.BlindAimHeight), BodyStance = stance,
+                CooldownSeconds = p.FireCooldownSeconds, Rounds = p.BlindRounds,
             };
             FireAtPointNodes.FireAtPoint(ref ws.Blind, self, world);
             ws.Phase = PeekPhase.Blind;
             ws.BlindAt = Now(world);   // ⭐ CE-2328
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-2326</c> — the stance the memory slot <paramref name="slotId"/> was last SEEN in, as <c>StanceId + 1</c>; 0 =
+        /// unknown (heard only, never seen, no memory).</summary>
+        private static unsafe byte SeenStanceOf(EntityRepository world, Entity self, long slotId)
+        {
+            if (!world.HasComponent<TargetMemory>(self)) return 0;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == slotId)
+                    return TargetMemory.StanceSeen(in mem, i) is { } s ? (byte)(s + 1) : (byte)0;
+            return 0;
         }
 
         /// <summary>

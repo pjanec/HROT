@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Tests
             public CoverKind Kind;
             public double Time;
             public readonly List<Vector3> Moves = new();
-            public readonly List<(ushort Action, int Rounds, Vector3 Point)> Fires = new();
+            public readonly List<(ushort Action, int Rounds, Vector3 Point, byte BodyStance)> Fires = new();
             public int AimedRounds, BlindRounds;
             /// <summary>⭐ <c>CE-3158</c> G2 — moves to these points FAIL (an unreachable point) instead of arriving.</summary>
             public readonly List<Vector3> Unreachable = new();
@@ -149,7 +149,8 @@ namespace Hrot.SimHost.Tests
                 {
                     _fireInst = ch.ActionInstanceId;
                     _fired = 0;
-                    Fires.Add((ch.ActiveAction, rounds, aimed ? default : Unsafe.As<byte, FireAtPointParams>(ref ch.Params[0]).Point));
+                    Fires.Add((ch.ActiveAction, rounds, aimed ? default : Unsafe.As<byte, FireAtPointParams>(ref ch.Params[0]).Point,
+                               aimed ? (byte)0 : Unsafe.As<byte, FireAtPointParams>(ref ch.Params[0]).BodyStance));
                     if (aimed) AimedAt.Add(Unsafe.As<byte, AimAndFireParams>(ref ch.Params[0]).Target);
                 }
                 if (aimed && Guiding)
@@ -658,6 +659,30 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
             Assert.Equal(0, d.AimedRounds);
             Assert.Equal(3, d.BlindRounds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a, the behaviors half) — a blind burst at a body last SEEN crouched names that body:
+        /// the round goes to his FEET with <c>BodyStance</c> = Crouched + 1 and the muscle aims it (his chest, or the band over the cover);
+        /// unseen (heard only, no stance known), the spot + <c>BlindAimHeight</c> as before. 🔴 Red-proof: drop the stance read ⇒ the
+        /// burst stays a plain point at the spot + 1 m.
+        /// </summary>
+        [Fact]
+        public void CE2326_ABlindBurstAtABodySeenCrouched_NamesThatBody_UnseenItIsAPlainPoint()
+        {
+            (Vector3 Point, byte Stance) BurstWith(byte seenStance)
+            {
+                var d = new Duel(Window(), seen: false);
+                unsafe { d.Repo.GetComponentRW<TargetMemory>(d.Self).SeenStance[0] = seenStance; }
+                d.Step();
+                d.Answer(PeekAndFireNodes.CoverSite, 5, (0f, 0f, StanceId.Crouched));
+                Assert.Equal(PeekPhase.Blind, d.RunUntil(PeekPhase.Blind));
+                var fire = Assert.Single(d.Fires);
+                return (fire.Point, fire.BodyStance);
+            }
+
+            Assert.Equal((EnemyAt, (byte)(StanceId.Crouched + 1)), BurstWith((byte)(StanceId.Crouched + 1)));
+            Assert.Equal((EnemyAt + new Vector3(0f, 0f, 1f), (byte)0), BurstWith(0));
         }
 
         /// <summary>
