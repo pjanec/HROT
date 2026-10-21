@@ -337,7 +337,11 @@ namespace Hrot.SimHost.Systems
 
             // Check if any candidate has FlagPendingRay set.
             // If so, yield without writing to pool — wait for ring buffer results.
-            for (int i = 0; i < activeCandidates.Length; i++)
+            // ⭐ CE-4039 — only on a template that RUNS the accurate line-of-sight test: a flag bit means something only to the test that
+            //   writes it. 📌 The acoustic answer carries the sound's family in bits 13–15; a rifle (6) set bit 15 and every hearing solve
+            //   with a rifle in it waited for raycasts that were never asked — a Regular ear was deaf to small arms.
+            bool awaitsRays = AwaitsRays(template);
+            for (int i = 0; awaitsRays && i < activeCandidates.Length; i++)
             {
                 if ((activeCandidates[i].Flags & AccurateLineOfSightTest.FlagPendingRay) != 0)
                 {
@@ -481,6 +485,15 @@ namespace Hrot.SimHost.Systems
             }
 
             return candidates.Slice(0, validCount);
+        }
+
+        // ⭐ CE-4039 — does the template run the test that writes FlagPendingRay? Only then is bit 15 a "wait for raycasts".
+        private static bool AwaitsRays(EqsQueryTemplate template)
+        {
+            if (template.ScoreExpensive == null) return false;
+            foreach (var test in template.ScoreExpensive)
+                if (test is AccurateLineOfSightTest) return true;
+            return false;
         }
 
         // Ranks the (already-compacted, already cheap-scored) span descending by Score and

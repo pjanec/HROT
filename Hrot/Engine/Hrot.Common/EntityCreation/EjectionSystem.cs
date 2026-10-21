@@ -31,6 +31,7 @@ namespace Hrot.Common.EntityCreation
     public sealed class EjectionSystem : IEcsModuleSystem
     {
         private readonly HashSet<Entity> _ejected = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (who has ejected)
         private readonly Dictionary<long, EjectionDto?> _byType = new();
         private readonly List<Entity> _toEject = new();
 
@@ -39,6 +40,7 @@ namespace Hrot.Common.EntityCreation
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _ejected.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Health>()) return;
             _toEject.Clear();
             if (repo.Bus.IsRegistered<EjectRequestEvent>())

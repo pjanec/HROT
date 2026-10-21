@@ -90,6 +90,7 @@ namespace Fdp.Toolkit.Perception.Systems
         // when an old entity is destroyed and a new one reuses the same index at a
         // stable entity count (the count-unchanged path skips FullRebuild).
         private readonly Dictionary<int, Entity> _liveByIndex;
+        private int _epoch;   // ⭐ CE-3294 — the world the remembered positions describe (the snapshot carries the epoch)
 
         /// <summary>
         /// Initialises the builder with a copy of the module's private grid.
@@ -114,6 +115,9 @@ namespace Fdp.Toolkit.Perception.Systems
             //   PhysicalPresence.IsHidden, and the incremental pass EVICTS an entity that became hidden (a boarding cancelled by a spawn
             //   keeps the count equal, so the count check alone would leave it in the grid).
             var query = view.Query().With<SimTransform>().Build();
+
+            // ⭐ CE-3294 — a reload is a new world under the same handles: forget every remembered position and rebuild
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _prevPositions.Clear(); _liveByIndex.Clear(); _lastEntityCount = -1; FullRebuild(view, query); return; }
 
             // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
             //    geometry) and invalidates every remembered position, which was hashed with the old geometry.

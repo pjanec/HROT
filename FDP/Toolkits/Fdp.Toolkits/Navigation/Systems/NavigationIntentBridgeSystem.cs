@@ -62,6 +62,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         private readonly IDtCrowdProvider? _dtCrowd;
 
         private uint _lastScanTick;
+        private int _epoch;   // ⭐ CE-3294 — the world the caches below describe
 
         /// <summary>⭐ CE-2171 — FollowRoute intents whose route entity is not compiled on this node yet: retried every tick.</summary>
         private readonly Dictionary<Entity, uint> _pendingRoute = new();
@@ -168,12 +169,17 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             // STRICT ARCHITECTURAL BOUNDARY: Detect time-travel (snapshot restore or world clear)
             // and invalidate tracking caches to force a full baseline re-evaluation.
-            if (repo.GlobalVersion < _lastScanTick)
+            // ⭐ CE-3294 — and a NEW WORLD: a reload's units come back under the same handles (the editor's SoftClear restarts the
+            //   generations) and GlobalVersion keeps counting, so the check above never saw it — an order whose ids matched last run's
+            //   was skipped as already applied.
+            bool newWorld = Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch);
+            if (newWorld || repo.GlobalVersion < _lastScanTick)
             {
                 _lastScanTick = 0;
                 _lastAppliedIntentId.Clear();
                 _pendingRoute.Clear();
             }
+            if (newWorld) { _lastAppliedActionInstanceId.Clear(); _pendingCrowd.Clear(); }
 
             // ⭐ CE-498 — Constructing entities too, not only Active (the query default). An intent written while the entity
             //   is still CONSTRUCTING was otherwise lost for good: becoming Active changes no component version, so this

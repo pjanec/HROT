@@ -32,6 +32,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly Dictionary<Entity, IEntityStatefulGizmo> _activeBehaviorGizmos;
+        private int _epoch;   // ⭐ CE-3294 — the world the gizmo instances belong to
         private readonly IActiveViewProvider? _breakpointManager;
 
         // ---- Construction ----------------------------------------------------------
@@ -62,6 +63,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ CE-3294 — a reload ends the world with no DestructionOrder: its gizmos go with it
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+                foreach (var e in new List<Entity>(_activeBehaviorGizmos.Keys)) TeardownEntity(e);
+
             // 1. Tear down gizmos for destroyed entities.
             var destructions = view.ReadEvents<DestructionOrder>();
             foreach (ref readonly var evt in destructions)

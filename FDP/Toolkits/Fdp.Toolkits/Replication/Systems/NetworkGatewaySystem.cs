@@ -85,6 +85,9 @@ namespace Fdp.Toolkit.Replication.Systems
         /// <summary>The gateway is a GLOBAL waiter — it inspects every constructed entity.</summary>
         protected override bool Participates(ISimulationView view, Entity entity, long blueprintId) => true;
 
+        /// <inheritdoc/>
+        protected override void OnWorldBoundary() { _pendingPeerAcks.Clear(); _phase1Received.Clear(); _deferFrame.Clear(); _phase1Checked.Clear(); }   // ⭐ CE-3294
+
         /// <summary>Ack immediately unless the entity is a reliable one with peers still to hear from.</summary>
         protected override bool TryImmediateComplete(ISimulationView view, Entity entity)
         {

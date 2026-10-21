@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-09-07
+updated: 2026-10-21 (§10 — the owner sends a stop, CE-2348 ②)
 approved: 2026-09-07 by the user ("go"). CE-211 is slice S0 of the Stride build order and is IN FLIGHT
   on claude/reset-working-branch-qd1qpv (started marker bbd976a7d).
 current-answer: the whole file. It is the ONE owning design for dead reckoning / remote-entity
@@ -311,3 +311,39 @@ HEADING-ONLY patch keeps the body's pitch and roll: `SimTransformBridgeSystem.Wi
 ±60° within 0.1°; a heading change keeps the bank) · `TheHeadingConversionIsSharedTests.AHeadingOnlyPatch_OnABankedBody_KeepsItsBank`,
 `TheDescriptorRoute_CarriesPitchAndRoll`.
 
+
+## 10. When the owner sends — a stop is a sample (`CE-2348` ②, `2026-10-21`)
+
+📐 **Measured live** (`uc-urban-battle`, `--mode all`, behaviors note ②): an APC killed while creeping kept its last `Vel` on CGF for
+~200 s, so R3 slid the wreck across the map. Three causes, all in the owner's send rule:
+
+```mermaid
+sequenceDiagram
+  participant E as GeoSpatialEgressTranslator (owner)
+  participant N as NetworkTransform (owner's shadow)
+  participant W as WorldPos
+  participant I as GeoSpatialIngressTranslator (same node, loopback)
+  E->>N: read LastPosition / LastRotation / LastVelocity / LastSentTick
+  Note over E: send if moved > 1 cm · turned · |ΔVel| > 5 cm/s ★ · Tick − LastSentTick ≥ 600 ★
+  E->>N: write all four (the just-sent values)
+  E->>W: sample
+  W-->>I: echo of its own sample
+  I->>N: LastPosition / LastRotation / SimStamp from the echo, LastVelocity / LastSentTick CARRIED OVER ★
+```
+
+*The picture shows what the code hid: the owner's shadow has TWO writers, and the echo's write came last every frame.*
+
+| ★ | was | now | why |
+|---|---|---|---|
+| ① a velocity change is a send | moved / turned / heartbeat only | ⭐ also `\|Vel − LastVelocity\| > 5 cm/s` | a hull that stops does not move another centimetre, so its last sample (still creeping) was all the others had |
+| ② the heartbeat counts ticks since the last send | `(Tick + salt) % 600 == 0` — one exact tick in 600 | ⭐ `Tick − LastSentTick ≥ 600` | a translator not called on every tick stepped over the one tick again and again |
+| ③ the loopback keeps the egress's fields | the echo wrote a fresh `NetworkTransform` ⇒ both new fields read 0 every frame | ⭐ `LastVelocity` / `LastSentTick` carried over | without it, ① never saw a stop (0 vs 0) and ② fired every frame — every entity sending every frame |
+
+⛔ **Rejected:** the echo skipping the write on the owner — split authority and the stamp may read the refreshed `SimStamp`; carrying two
+fields costs nothing. ⛔ A velocity-only DR freeze on the receiver when `Health` reaches 0 — R2 keeps the receiver dumb; the fix belongs
+to the sender, and it covers a stop for any reason (a mobility kill, a halt order).
+
+**As built:** `GeoSpatialEgressTranslator` (rule ①②), `NetworkTransform.LastVelocity` / `LastSentTick` (egress-only fields),
+`GeoSpatialIngressTranslator.Decode` (③). Rails: `GeoSpatialEgressTranslatorTests.AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348`,
+`AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348`; `GeoSpatialIngressTranslatorTests.TheOwnersLoopback_KeepsWhatItsEgressLastSent_CE2348`.
+⭐ BDC needs no change (R8 holds): `BdcWorldPosTranslator.ScanAndPublish` sends every owned entity EVERY scan (`:123-147`), so a stop is always a sample.

@@ -129,6 +129,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (ghosts waiting to be promoted)
         private readonly Stopwatch _stopwatch = new();
         private static readonly long PROMOTION_BUDGET_TICKS =
             (long)(0.002 * Stopwatch.Frequency);
@@ -170,6 +171,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _promotionQueue.Clear(); _inQueue.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             // ⛔ The log owns the world during playback — a restored ghost is the log's, not ours to promote.
             if (IsReplayActive != null && IsReplayActive()) return;
 

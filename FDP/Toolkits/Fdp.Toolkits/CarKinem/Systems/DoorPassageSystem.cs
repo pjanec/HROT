@@ -43,6 +43,7 @@ namespace CarKinem.Systems
         private readonly TrajectoryPoolManager _pool;
         private readonly Dictionary<Entity, Passage> _passages = new();
         private readonly Dictionary<string, Entity> _doorEntities = new(System.StringComparer.Ordinal);
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (passages in progress and the door entities)
         private readonly List<Entity> _stale = new();
 
         private struct Passage
@@ -68,6 +69,7 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _passages.Clear(); _doorEntities.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
             if (!repo.HasSingletonManaged<TerrainWorld>() || repo.GetSingletonManaged<TerrainWorld>() is not { Doors.Count: > 0 } terrain)
             {

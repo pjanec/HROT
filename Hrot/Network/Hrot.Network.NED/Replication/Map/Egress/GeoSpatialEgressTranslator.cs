@@ -127,6 +127,7 @@ namespace Hrot.Map.Common.Replication.Egress
             const float PositionThresholdSq = 0.0001f; // 1 cmÂ˛  â€” avoids spurious sends from float noise
             const float RotationDotThreshold = 0.9999f; // ~0.5Â° arc â€” Quaternion.Dot == 1 when identical
             const uint  HeartbeatInterval   = 600;      // 10 s at 60 Hz for UDP loss recovery
+            const float VelocityThresholdSq = 0.05f * 0.05f;   // ⭐ CE-2348 ② — 5 cm/s: dead reckoning drifts ≤ 0.5 m in a heartbeat
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
@@ -174,17 +175,25 @@ namespace Hrot.Map.Common.Replication.Egress
                 bool hasMoved   = Vector3.DistanceSquared(simTf.Position, netTf.LastPosition) > PositionThresholdSq;
                 bool hasRotated = Math.Abs(Quaternion.Dot(simTf.Rotation, netTf.LastRotation)) < RotationDotThreshold;
 
-                // Salted heartbeat: stagger entities by index so they don't all fire on tick 0.
-                uint salt      = (uint)(entity.Index % HeartbeatInterval);
-                bool heartbeat = ((view.Tick + salt) % HeartbeatInterval) == 0;
+                // ⭐ CE-2348 ② — a changed VELOCITY is sent too: a hull that stops (or is stopped by a mobility kill) does not move another
+                //   centimetre, so its last sample — still carrying its creep — was all the other nodes had, and their dead reckoning moved it.
+                var linear = view.HasComponent<SimVelocity>(entity) ? view.GetComponentRO<SimVelocity>(entity).Linear : Vector3.Zero;
+                bool velocityChanged = Vector3.DistanceSquared(linear, netTf.LastVelocity) > VelocityThresholdSq;
 
-                if (!hasMoved && !hasRotated && !heartbeat)
+                // ⭐ CE-2348 ② — the heartbeat counts the ticks SINCE THE LAST SEND. ⛔ It was `(Tick + salt) % 600 == 0`: one exact tick in
+                //   600, which a translator that is not called on every tick can step over again and again (measured: a stale velocity held
+                //   ~200 s, not 10 s). Entities fall out of step by themselves, as each sends when it moves.
+                bool heartbeat = view.Tick - netTf.LastSentTick >= HeartbeatInterval;
+
+                if (!hasMoved && !hasRotated && !velocityChanged && !heartbeat)
                     continue;
 
                 // Update shadow before publishing so the next tick comparison is against the
                 // just-sent values, not stale pre-move values.
                 netTf.LastPosition = simTf.Position;
                 netTf.LastRotation = simTf.Rotation;
+                netTf.LastVelocity = linear;
+                netTf.LastSentTick = view.Tick;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 

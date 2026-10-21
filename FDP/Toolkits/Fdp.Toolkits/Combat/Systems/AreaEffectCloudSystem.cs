@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         private readonly Dictionary<Entity, double> _lastStep = new();
         private readonly HashSet<Entity> _ending = new();   // ⭐ a networked cloud whose end was asked for (once)
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (each cloud's last pulse and asked end)
         private readonly List<Entity> _gone = new();
 
         /// <summary>Irritant hits this node published (a rail and a diagnostics counter read it).</summary>
@@ -36,6 +37,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _lastStep.Clear(); _ending.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AreaEffectCloud>()) return;
             double now = SimClock.Of(repo).TotalTime;
             var cmd = view.GetCommandBuffer();

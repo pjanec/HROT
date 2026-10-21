@@ -57,5 +57,13 @@ namespace Fdp.Toolkit.Replication.Components
         /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> — rules R2, R3 and R4.</para>
         /// </summary>
         public double SimStamp;
+
+        /// <summary>⭐ <c>CE-2348</c> ② — EGRESS only: the linear velocity last published. A change of velocity is a change worth sending:
+        /// 📐 a hull that coasted to a stop never moved another centimetre, so the last sample — still carrying its creep — stayed on every
+        /// other node for minutes (measured ~200 s on <c>uc-urban-battle</c>'s destroyed APC) and their dead reckoning read it as moving.</summary>
+        public Vector3 LastVelocity;
+
+        /// <summary>⭐ <c>CE-2348</c> ② — EGRESS only: the world tick of the last publish; the heartbeat counts from it.</summary>
+        public uint LastSentTick;
     }
 }

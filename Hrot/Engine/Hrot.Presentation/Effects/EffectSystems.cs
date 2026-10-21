@@ -351,6 +351,7 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
     private readonly Dictionary<long, bool> _burns = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
+    private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
 
     /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
     public int Spawned { get; private set; }
@@ -364,7 +365,8 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
             || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
         if (IsReplayActive?.Invoke() == true) { _wasDestroyed.Clear(); return; }
-        if (!ReferenceEquals(world, _queryWorld))
+        // ⭐ CE-3294 — a reload is a new world in the same repository (its units under the same handles): forget like a new instance
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
             _query = world.Query().With<Fdp.Toolkit.Combat.Components.Health>().With<TkbIdentity>().With<SimTransform>().Build();

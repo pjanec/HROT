@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Signatures;

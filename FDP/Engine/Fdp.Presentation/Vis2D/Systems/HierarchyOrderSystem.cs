@@ -30,6 +30,7 @@ public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
     
     // Cycle detection
     private readonly HashSet<Entity> _visited = new();
+    private int _epoch;   // ⭐ CE-3294 — the world the sorted buffer describes
 
     public HierarchyOrderSystem()
     {
@@ -42,6 +43,7 @@ public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
     public void Execute(ISimulationView view, float deltaTime)
     {
         var repo = (EntityRepository)view;
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) _isDirty = true;   // ⭐ CE-3294 — a new world re-sorts
         if (!_isDirty) return; // OPTIMIZATION: Skip when nothing changed
 
         // 1. Perform Topological Sort (Bottom-Up)

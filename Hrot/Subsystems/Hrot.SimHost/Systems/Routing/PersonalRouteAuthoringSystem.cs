@@ -50,6 +50,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
     /// the new/updated trajectory before we issue the follow command.
     /// </summary>
     private readonly List<(Entity vehicle, Entity routeEntity)> _pendingFollowCommands = new();
+    private int _epoch;   // ⭐ CE-3294 — the world the pending commands name
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
@@ -58,6 +59,9 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
             throw new InvalidOperationException(
                 $"{nameof(PersonalRouteAuthoringSystem)} requires direct EntityRepository access " +
                 $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+        // ⭐ CE-3294 — a command deferred across a reload names last world's handles, which the reload hands to new entities
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) _pendingFollowCommands.Clear();
 
         // -- 1. Dispatch deferred NavigationIntent (FollowRoute) from the previous frame --
         if (_pendingFollowCommands.Count > 0)

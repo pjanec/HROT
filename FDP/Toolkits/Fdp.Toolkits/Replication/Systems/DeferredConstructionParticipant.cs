@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly Dictionary<Entity, uint> _pendingStartFrame = new();
         // CE-289 (C3): optional per-entity timeout override (frames). Absent ⇒ the ctor default.
         private readonly Dictionary<Entity, int> _pendingTimeoutFrames = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the pending sets describe
 
         // Scratch buffers reused each tick to avoid per-frame allocation.
         private readonly List<Entity> _completeBuffer = new();
@@ -68,6 +69,13 @@ namespace Fdp.Toolkit.Replication.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ CE-3294 — a reload ends the world with no DestructionOrder (SoftClear): what was pending belongs to it. Left, the next
+            //   run's entity under the same handle was acked or timed out on the old one's account.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+            {
+                _pending.Clear(); _pendingStartFrame.Clear(); _pendingTimeoutFrames.Clear();
+                OnWorldBoundary();
+            }
             uint currentFrame = view is EntityRepository repo ? repo.GlobalVersion : 0u;
             var cmd = view.GetCommandBuffer();
 
@@ -76,6 +84,9 @@ namespace Fdp.Toolkit.Replication.Systems
             ProcessDestructionOrders(view, cmd);
             CheckTimeouts(view, cmd, currentFrame);
         }
+
+        /// <summary>⭐ CE-3294 — a new world began (a reload): a subclass forgets its own per-entity state.</summary>
+        protected virtual void OnWorldBoundary() { }
 
         /// <summary>CE-289 (C3): a subclass sets a per-entity timeout (frames) from its own state (e.g. the
         /// gateway reads the creator's <c>ReliableInitTimeout</c> off the stamped peer set). Call from

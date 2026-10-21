@@ -72,11 +72,17 @@ namespace Hrot.Map.Common.Replication.Ingress
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
             var rotation = SimTransformBridgeSystem.EulerDegToRotation(data.Ori.Heading, data.Ori.Pitch, data.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
 
+            // ⭐ CE-2348 ② — on a node that publishes this entity, the sample comes back by loopback; the EGRESS's own fields of the shadow
+            //   (the last velocity sent, the last send's tick) are carried over, never reset by the echo. 📐 Measured: they were reset every
+            //   frame, so a stop was never seen as a change and the heartbeat fired every frame.
+            var egressShadow = repo.HasComponent<NetworkTransform>(entity) ? repo.GetComponentRO<NetworkTransform>(entity) : default;
             cmd.SetComponent(entity, new NetworkTransform
             {
                 LastPosition = position,
                 LastRotation = rotation,
                 SimStamp     = DecodeSimStampOrComplain(data.Time, netId),
+                LastVelocity = egressShadow.LastVelocity,
+                LastSentTick = egressShadow.LastSentTick,
             });
 
             // Guard: do NOT override SimTransform for locally-owned entities.

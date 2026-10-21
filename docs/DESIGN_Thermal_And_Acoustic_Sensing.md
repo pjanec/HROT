@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -693,7 +693,7 @@ downstream carries only what that man could tell — the anonymity rule (§6 D) 
 | decision | why | rejected |
 |---|---|---|
 | the signature rides a new `ushort EqsResult.SignatureToken` in the struct's LAST two padding bytes; the ring maps token ↔ TKB type (append-only, per node), and the memory stage turns it back into the 64-bit type in the same solve | a field (the handoff), and the struct stays **32 bytes** — two rails pin that (`EqsComponentLayoutTests`, `EqsFlagsMeaningfulTests`: *"a jump to 40 … is the regression this guards"*) and recordings hold it (CE-3135 put `Stance` / `Kind` in padding for the same reason) | ⛔ a 64-bit `Tag` (32 → 40: both pins, the recordings); ⛔ a negative `EntityId` — the egress reads non-zero as an entity |
-| the family rides `Flags` bits 13–15 | bits 0–7 are the tests', 8–9 the kind, 10–12 the class: 13–15 are FREE (Q95 thought the flags full) | — |
+| the family rides `Flags` bits 13–15 | bits 0–7 are the tests', 8–9 the kind, 10–12 the class: 13–15 ~~are FREE~~ ⛔ **bit 15 was NOT free** — it is the SOLVER's `AccurateLineOfSightTest.FlagPendingRay`, read on every template ⇒ a family ≥ 4 (AA gun, launcher, **rifle**) parked the hearing solve as awaiting raycasts and nothing was heard (`CE-4039`, below) | — |
 | what the ear tells, by `ProficiencyOf.Tier` | below Regular: the class only · Regular: + the family · Veteran / Elite: + the type (Q95 A) | ⛔ everyone the type — omniscient |
 | the family is TKB data (`AcousticSignatureDto.Family`) | a ZU-23 is a 23 mm machine gun by category and an AA gun by role: only data says which | ⛔ derived from `WeaponCategory` |
 | ⚠ the family's members are `Untold` and `Rifle`, never `Unknown` / `SmallArms` | the TKB DTOs are generated to DDS IDL, where every enumerator shares ONE scope: `SoundSourceClass` already owns `Unknown` and `SmallArms` (📐 the codegen refused: *"Declaration 'Unknown' collides"*) | — |
@@ -709,6 +709,15 @@ the three bands on every firing weapon (`BdcTkbCatalog`, `UrbanCombatTkbCatalog`
 | `EqsModuleTests.CE3283_TheEar_TellsTheClass_TheFamily_OrTheType_ByItsProficiency` (Militia / Regular / Veteran) | the class always; the family from Regular; the TKB type from Veteran | ✅ measured: `IdentificationOf` returning 2 for every tier ⇒ the Militia AND Regular rows red, Veteran green |
 | `AudioTargetDetectedEgressTranslatorTests` | family and signature cross the wire | — (field mapping) |
 | `NedTkbBuilderCombatTests` (BR-14 rail) | every firing weapon has a family and a firing band; the ZU-23 is an `AaGun` | — (data) |
+
+**`CE-4039` (`2026-10-21`) — a Regular ear went DEAF to small arms.** 📐 `SoundFamily.Rifle = 6` sets `Flags` bits 14–15; bit 15 is
+`FlagPendingRay`, and `EqsSolverSystem` checked it on EVERY template's answers, so a hearing solve with a rifle (or AA gun, or launcher)
+in it returned "awaiting raycasts": never observed, never published — and the generator had already moved the ring cursor past the
+sound. Every civilian (no proficiency ⇒ Regular) stopped fearing gunfire (`PostureScenarioTests` CE2235/2236/2237 red), and every
+Regular+ soldier stopped hearing rifles. ⭐ **Fix: the solver reads `FlagPendingRay` only on a template that runs an
+`AccurateLineOfSightTest`** — a flag bit means something only to the test that writes it. ⛔ Rejected: moving the family to another
+field — the struct is pinned at 32 bytes, and any other high bit would meet the same reader. Rail:
+`EqsModuleTests.CE4039_ARegularEar_HearsEveryFamily_ThroughTheSolver` (all six families through the real solver).
 
 ### 8.5 `CE-3284` / `CE-3285` — the REAL carries, and a band per sound *(backend, `2026-10-20`; Q95 B1 / B3, approved; build-state: BUILT)*
 
@@ -738,6 +747,21 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 | `NedTkbBuilderCombatTests` (BR-14 rail) | each carry inside its sourced band, ordered 60 < 81 < 120 < 105 < 155; every firing weapon has a family and a band |
 | `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
 
+
+### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: DESIGN — a lean awaits the user)*
+
+📐 **Measured live** (`uc-urban-battle`, `--mode all`, behaviors note ③ — *"own-side shots become enemy contacts 33 m off"*): ⛔ **no
+own-side sound was heard.** The ear's own-force filter (`e.Force == ourForce`, in the ring read and in the movement broadphase) dropped
+every friendly shot, burst and footstep. ⭐ **The phantom contacts were the ENEMY's bursts**, heard where they landed — the RPG impacts
+at (643, 161), 2–24 m from the convoy's own men. Row **C** makes a detonation a source and **K3** gives it the `Explosion` class, so an
+enemy round bursting among us places an "enemy, about here" contact ON us, and it stays in memory for the decay time after the ambush.
+
+| | lean | why | rejected |
+|---|---|---|---|
+| ⭐ **lean** | a heard **burst** is a DANGER POINT, not an enemy position: memory keeps it (K2 *"hide from a point is OK"*), but the readers that ask *"is an enemy here?"* (contact in range, strength ratio, keep-in-contact) skip `Explosion`-class anonymous slots; the shooter is placed by his **shot's** report, which K3 already carries | a burst says where the round landed, never where the shooter is — the convoy's only true contact is the RPG's firing point | ⛔ dropping bursts from hearing — loses "hide from a burst" (§8 ③) · ⛔ dropping bursts near the listener — a burst 30 m off is just as much not-an-enemy |
+| ⚠ what would change it | a doctrine that wants "explosions near us" to keep a unit in contact on its own | | |
+
+⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
 
 ### 8.6 `CE-3281` — the BUILT-IN catalogue is heard: tanks, the Bradley, the HMMWV, every aircraft, every BDC person *(backend, `2026-10-20`; 🔒 user: "CE-3281 approved"; build-state: BUILT)*
 
