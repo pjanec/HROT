@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
+updated: 2026-10-21 (§ CE-1238 at the end — a man firing his own mortar crouches; a crewed tube's round no longer kills its gunner; bt-mortar-roof fires crewed tubes) · 2026-10-16
 build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); laying the gun BUILT (backend, ui handoff P2, 2026-10-15 — §3.10); IF-4 BUILT (behaviors, 2026-10-15 — §3.9, passes live); IF-5 smoke and IF-6 counter-battery are DESIGN
 current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built (§3.5 is the adjust sequence AS BUILT), §3.9 IF-4 as built, §3.10 laying the gun on the wire, §5 slices, §6 the demo
 stale-below: nothing
@@ -516,3 +516,17 @@ The live check (`utility-demo-check.py`): each vignette's shot, splash and round
 | `DESIGN_Operations_Behaviour_Catalogue.md` line 193 | ✅ `CallFireMission(point, effect)` (AIR-1, SQD-9) is IF-2 + IF-3 |
 | `DESIGN_Terrain_Combat_Tuning.md` | ⚠ its 60 / 81 / 120 numbers calibrate effect radii, not ranges — IF-1 takes ranges from the reference table |
 | `DESIGN_Visual_Effects.md` | ⚠ every round already has a TKB type to draw; the shell in flight is a ui item, not a rule |
+
+## CE-1238 — the mortarman crouches; the crewed tubes in `bt-mortar-roof` *(`2026-10-21`, ui — cross-lane at the user's request)*
+
+🔒 **User, `2026-10-21`:** *"Maybe the scenario is just wrong and mortars should be separate entities?"* · *"Maybe the guy operating a
+mortar is crouching next to it usually (for smaller mortars)."* · on doing both: *"Best if you do both changes yourself"*.
+
+| | as built |
+|---|---|
+| ⭐ the crouch | `FireAtPointBehavior.CrouchBesideOwnMortar` (a step before the shared fire node): a man firing a mortar of his OWN — `MunitionTkbCatalog.IsMortar` (category Mortar, or none + a bomb round: the MortarTeam 2005) — asks `StanceRequest.Set(Crouched)`; the sim sees and hits him crouched, the 3-D figure draws him so (People Display §7b). A crewed tube's gunner is not touched — he is in its seat. Rails `CrouchBesideOwnMortarTests` (red-proved) |
+| ⭐ one "is a mortar" rule | `MunitionTkbCatalog.IsMortar` — read by the figure (`HeldWeapons`) and the brain alike |
+| ⭐ `bt-mortar-roof` | the two MortarTeam shooters became riflemen SEATED as gunners of two crewed 81 mm tubes (610, IF-G — this design's shape for a gun), firing one bomb each through the tube (`FireAtPoint`, mount 32). ⚠ The tubes stand **250 m** south of their aim points: the 81 mm's lowest charge reaches 1.0 km (≈ 99 m/s), so at the old 84 m there is NO fire solution (≈ 170 m at 85°). Live `utility-demo-check.py --launch bt-mortar-roof` **PASS** `2026-10-21`: roof burst (104.7, 103.3, 6.1), courtyard (94.7, 91.3); downstairs 99.9 HP, the courtyard man killed |
+| 🔴 found on the way | every crewed tube's FIRST bomb killed its own gunner (he stands at the tube's origin in the sim) — fixed in the round's hit test (Weapon Systems §9 "riders and the ROUND") |
+| ⏳ not done | the MortarTeam 2005 stays (IF-G kept it; Urban Battle names it) — retiring it is this design's owner's call |
+

@@ -264,6 +264,7 @@ sequenceDiagram
 | figure | `BlockFigure.Held`: lengths machine gun 1.05 m, scoped 1.12 m, pistol 0.22 m at the right hand with the left forearm closed on it; tubes RPG 1.0 m × 0.08, MANPADS 1.5 m × 0.09, missile 1.10 m × 0.13 (N-4's), along the rifle line, on the shoulder when aimed; mortar: no weapon part, hands to `MortarMouth` (reach 0.62 m) or hanging |
 | details | `BlockFigure.WeaponDetails` (part details, §6q's mechanism): MG box + bipod · scope · RPG warhead + grip · MANPADS grip box + seeker cap · missile sight · slung launcher / mortar tube (+ baseplate) upright on the back |
 | mortar | `EntityBodyLayer3D.DrawMortar`: the deployed §6n kit at `MortarAt` (0.62 m ahead, 0.28 m right), laid at its default 60°; its mouth is the man's weapon tip (the muzzle flash) |
+| the mortarman's stance (`CE-1238`, R-1023) | ⭐ a man firing a mortar of his own CROUCHES beside it — the BRAIN's stance (Indirect Fire §CE-1238), so the figure draws the sim; his hands still reach the tube's mouth (they are measured from his actual shoulders) |
 | carried launcher | a controlled launcher in his hands (`ActiveMount` 32 + k) is drawn by the figure and NOT on his back (`_loadInHands`) |
 | rails | `Map3DTests.CE1236_EveryWeapon_IsDrawnAsWhatItIs` (red-proved); frame `Map3DFrameRail.CE1236_V_EveryWeapon_IsDrawnAsWhatItIs` |
 | deviation | ⚠ §2 named the classes `HandItems` / `HandItemLook`; built as `HeldWeapons` / `HeldLook` — the weapon half; the pocket items and the hands round join `HeldLook` when built (`CE-1169`) |
