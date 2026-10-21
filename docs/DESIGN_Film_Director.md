@@ -778,6 +778,6 @@ Director: reel or take, Play / Prepare / Stop / Next / Pause, speed, a row per t
 | B9 — the panels' cost | 📐 VM, live: 65 → 46 ms per frame with the panels off (×1.4); the renderer, not the panels, is the cost there | ✅ measured (VM) |
 | a take's layers never reach the user's file | `GZH011_Tests.CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick` (🔴 red-proven) | ✅ |
 | FPS always sounds | `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice` (🔴 red-proven) | ✅ |
-| filmed = scouted (B0′) | `Hrot.SystemTests.DirectorIdentityRails` — two scouts, every cut compared; a REPORT now, `HROT_DIRECTOR_IDENTITY_GATE=1` after CE-3293 S5 | ⏳ S5 |
+| filmed = scouted (B0′) | `Hrot.SystemTests.DirectorIdentityRails` — two scouts, every cut compared; a REPORT now, `HROT_DIRECTOR_IDENTITY_GATE=1` after CE-3293 S5 · 📐 `2026-10-21`: `ua-tank-ammo`, two loads in one process, one step per frame ⇒ **identical at every cut** (beats 9.150 / 17.883 s both runs) — ⚠ one take, one process; §0's acceptance is three loads, after S5 | ⏳ S5 |
 | the sound track of an OGG clip | ⛔ `WavReader` reads PCM WAV only — a clip from an `.ogg` file is left out of the film's track (the generated placeholders are all in) | ⛔ a known gap |
 | a 20 / 15 Hz take behaves as at 60 Hz | ⛔ not measured — the scout at that rate is the check (§5a row) | ⛔ open |

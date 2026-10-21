@@ -83,7 +83,19 @@ re-run the script for the current answer):
 ⚠ **Not triaged here** — each is either the scenario not doing the beat in a stepped preview, or the anchor naming it in a way the
 scout does not match (e.g. a `task` named differently from the registry's name). Filed as `CE-1241` for the take authors.
 
-GATES-PLACEHOLDER
+### Gates 1–3, 6–8 — the commands and counts
+
+| # | command | result | vs the dispatch base `36c225111` |
+|---|---|---|---|
+| 2 ⭐ T-1 | `dotnet test Hrot.Presentation.Tests --no-build --filter "FilmTests\|FilmFrameRail\|FilmDirectorTests"` | 34 / 0 / 3 (the skips: `FilmFrameRail`'s window rail and two audio rails that need a device) | `FilmTests` + `FilmFrameRail` unchanged green; +14 |
+| 2 | `dotnet test Hrot.SystemTests --no-build --filter "DeterminismRails"` (the load-readiness cases, now through the extracted `ScenarioReadyProbe`) | 5 / 0 | green before and after |
+| 3 | new rails: `DirectorRunnerTests` ×6, `FilmDirectorTests` ×14, `GZH011_Tests.CE4038_ATakesLayers_…`, `AudioTests.CE4038_ATakesSoundSwitch_…`, `DirectorIdentityRails` | all green | 🔴 red-proven: two steps in a frame · the old wait-for-each-step guard (one-frame lag) · the override written · FPS silenced |
+| 3 | B0′ `DirectorIdentityRails` (two scouts of `ua-tank-ammo`, every cut compared) | ⭐ **IDENTICAL at every cut** (s1 9.150, s2 17.883 both runs; 1494 steps; one per frame) | a REPORT until CE-3293 S5 (`CE-1240`) — ⚠ one take, one process: not yet the 3-load measurement §0 asks for |
+| T1 | `dotnet test <proj> --no-build`, every touched project | Presentation 806/0/41 · Editor 526/0/2 · Editor.AiShared 2121/0/2 · Fdp.Presentation 580/0/1 · SimHost 1797/**1**/6 | ⚠ SimHost's one red, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`, **passes alone** (record/replay; not touched here) — a suite-order flake, not filed by this batch |
+| 6 | test projects built (`dotnet build <tests.csproj> --no-restore`, after one restore post-merge); ⭐ one full-solution build `dotnet build HROT.sln --no-restore` at the end | the touched projects: 0 errors · ⛔ **the solution: 7 errors in 4 projects this batch did not touch** (`Hrot.NodeComposition`, `Hrot.SimHost.Integration.Tests`, `Hrot.Blueprints.Tests`, `ClusterRunner.Integration.Tests`: `Hrot.SimHost.Serializers` / `NodeBootstrapper` not found) | ⛔ **PRE-EXISTING**: they moved to `Hrot.EcsNode` in `650b381df`, which is in the base; `git diff --name-only 36c225111 HEAD` touches none of the four — backend's to fix |
+| 7 | `git status` after the suites · `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` · `mermaid-check.mjs docs/DESIGN_Film_Director.md` | clean · OK · 371/371 (staleness warnings only for the docs edited here) · OK · 8/8 blocks parse | — |
+| 8 | ids and design sections | below | — |
+
 
 ## Ids allocated (ui block)
 
