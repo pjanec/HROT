@@ -8,7 +8,7 @@ related-designs:
   - ../../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §11a, the convoy task the wreck stalls
 -->
 
-# NOTE — behaviors → backend: a destroyed APC keeps its passengers alive and seated (`CE-2348`), and its velocity freezes
+# NOTE — behaviors → backend: a destroyed APC keeps its passengers alive and seated (`CE-2348`), its velocity freezes, and own-side shots become enemy contacts
 
 **Found while measuring `uc-urban-battle`** (`--mode all`, `2026-10-21`, probe every 10 sim s through the debug API).
 
@@ -31,6 +31,17 @@ first things to compare between the two runs.
 |---|---|---|---|
 | ① | ⛔ **the passengers of a destroyed APC live on, seated, unhurt** | R-2011 C9: a vehicle's passengers die with it unless its type sets `DiesWithCarrier = false` (`CarrierSeats.PassengersSurvive`); the APC's carrier is `CarrierDefDto.PassengerSeats(8)` | `EmbarkedStateSystem` kills a passenger only when `damage` is set that frame, the vehicle `IsDestroyed`, and THIS node `OwnsHealth(passenger)` — measure on which node the vehicle's destroying hit lands versus who owns the passengers' health (CGF owns the squad) |
 | ② | ⚠ **a dead vehicle's replicated velocity freezes at its last sample** for ~140 s | a destroyed or immobile vehicle reads as still | the owner stops publishing it at death; a reader on another node keeps the last sample |
+
+## ③ Added `2026-10-21` — heard shots of the listener's OWN side become anonymous enemy contacts next to him
+
+📐 Measured with a temporary log on the platoon's convoy guards (`--mode all`, not committed): after the ambush was over (the insurgents
+dead, nothing hostile alive within 300 m — the IFV crew's memory held only the three dead and three neutrals), the platoon's picture kept
+getting **fresh one-man elements 33 m from the platoon** — `(639,174)`, `(668,172)` — reported by Squad A, plus one-man elements at the
+mortar impact points. They restarted the convoy's contact every remount (and a fresh one next to a halted carrier rightly makes a squad get
+out), so the convoy never got its 30 s of quiet. ⭐ `SensorMemoryStage.HearAll` turns every heard sound into an anonymous contact
+(`EntityId 0`) at the sound's estimate, with no reference to whose side fired. ⚠ Lean (yours — the ear, Q95): a listener does not make an
+enemy contact out of a shot whose emitter is on HIS side and close (his own squad / a friendly vehicle within, say, 50 m) — soldiers know
+their own fire. ⚠ Unmeasured: which friendly shooter stood at those two points (the shot log was not captured that run).
 
 ## What behaviors did about ②, in its own code
 
