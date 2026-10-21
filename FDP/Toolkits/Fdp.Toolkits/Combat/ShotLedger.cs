@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.Combat
         public static void Settle(EntityRepository world)
         {
             if (!world.Bus.IsRegistered<WeaponFireNotification>()) return;
-            foreach (var n in world.Bus.Read<WeaponFireNotification>())
+            foreach (var n in world.ReadEvents<WeaponFireNotification>())
             {
                 if (n.RequestId == 0 || !world.IsAlive(n.Shooter)) continue;
                 var mount = MountOf(world, n.Shooter, n.WeaponIndex);

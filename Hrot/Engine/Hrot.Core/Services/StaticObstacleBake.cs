@@ -45,6 +45,7 @@ public sealed class StaticObstacleBakery
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
 [SingleInstance]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 {
     /// <summary>R-244 — the wall-clock quiet period before a bake starts.</summary>

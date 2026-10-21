@@ -49,6 +49,7 @@ namespace Hrot.ScenarioEditor.Map
     /// (<c>GZH-003</c>), and that is not what this looks for.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class MapSelfCheckSystem : IEcsModuleSystem
     {
         private readonly DebugPrimitiveBuffer _buffer;

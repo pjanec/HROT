@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     // v241: promoted from internal → public so cross-assembly UpdateBefore
     // (e.g. AnimationCapabilityChangeReactorSystem in the animation project)
     // can reference this type via `typeof(...)`.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
         /// <summary>

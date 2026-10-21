@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Modules
     /// <c>AiHotReloadCoordinator</c> picked templates up on assembly load — it has no EQS code; there is
     /// no EQS hot reload (<c>CE-465</c>, design §16).</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EqsModule : IEcsModule, IDisposable
     {
         /// <inheritdoc/>
@@ -99,7 +100,15 @@ namespace Hrot.SimHost.Modules
         public EqsSolverSystem Solver => _solver;
 
         /// <inheritdoc/>
-        public void RegisterSystems(ISystemRegistry registry) { }
+        public void RegisterSystems(ISystemRegistry registry)
+        {
+            // ⭐ CE-3293 S2 — the module still ticks them itself (in this order), through the scheduler's one gate.
+            _gridBuilderRun = registry.RegisterManualSystem(_gridBuilder);
+            _solverRun      = registry.RegisterManualSystem(_solver);
+        }
+
+        private IEcsModuleSystem? _gridBuilderRun;
+        private IEcsModuleSystem? _solverRun;
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime)
@@ -121,10 +130,10 @@ namespace Hrot.SimHost.Modules
                 ref var gs = ref repo.GetSingletonUnmanaged<EqsSolverGlobalState>();
                 gs.AccurateRaysSubmittedThisTick = 0;
             }
-            if (deltaTime > 0f) _gridBuilder.Execute(view, deltaTime);   // the grid first: the visual template reads it
+            if (deltaTime > 0f) (_gridBuilderRun ?? _gridBuilder).Execute(view, deltaTime);   // the grid first: the visual template reads it
             // ⭐ CE-3292 (R-3035) — perception runs in SIM time: nothing is sensed on a frame where time does not move.
             //   📐 Measured before: paused 3 s ⇒ 70 senses, and the count depended on the wall clock.
-            if (deltaTime > 0f) _solver.Execute(view, deltaTime);
+            if (deltaTime > 0f) (_solverRun ?? _solver).Execute(view, deltaTime);
         }
 
         /// <summary>

@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     internal sealed class CognitiveCleanupSystem : IEcsModuleSystem
     {
         /// <summary>

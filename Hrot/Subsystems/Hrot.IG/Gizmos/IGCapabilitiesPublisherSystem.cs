@@ -8,6 +8,7 @@ namespace Hrot.IG.Gizmos
     // Publishes an IGCapabilitiesAnnounce record exactly once when the IG node starts up,
     // advertising supported pipeline targets, layer masks, and shape types to remote clients.
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class IGCapabilitiesPublisherSystem : IEcsModuleSystem
     {
         private readonly IDdsWriter<IGCapabilitiesAnnounce>? _writer; // null = local-only, no-op

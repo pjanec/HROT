@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class OwnershipEgressSystem : IEcsModuleSystem
     {
         private readonly int _localNodeId;

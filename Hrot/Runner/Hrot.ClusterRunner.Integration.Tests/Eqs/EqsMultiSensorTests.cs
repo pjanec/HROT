@@ -58,6 +58,7 @@ public sealed class EqsMultiSensorTests : IDisposable
     // in frame N are readable in frame N+1 PostSimulation (after the next SwapBuffers).
     // PumpUntil runs enough frames for the capture list to be populated.
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class EqsResultEventCaptureSystem : IEcsModuleSystem
     {
         private readonly List<EqsResultEvent> _captured = new();

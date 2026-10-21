@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DataDrivenGizmoSystem : IEcsModuleSystem
     {
         private readonly GizmoRegistry _registry;

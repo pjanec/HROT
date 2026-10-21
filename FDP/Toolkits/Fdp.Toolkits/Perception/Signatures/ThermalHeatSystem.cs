@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Perception.Signatures
     /// Runs on the main loop where the entity moves and fires (the thermal sensor solves on a background snapshot of it).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ThermalHeatSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

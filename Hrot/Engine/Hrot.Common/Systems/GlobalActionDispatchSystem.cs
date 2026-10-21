@@ -10,6 +10,7 @@ namespace Hrot.Common.Systems
     // The bus is injected at construction so this system is not coupled to any
     // particular view implementation.
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GlobalActionDispatchSystem : IEcsModuleSystem
     {
         private readonly GlobalActionRegistry _registry;

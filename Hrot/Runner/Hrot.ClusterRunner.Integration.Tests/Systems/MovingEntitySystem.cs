@@ -27,6 +27,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// ⭐ <c>PostSimulation</c> is the position-advancing slot — after the sim, before egress reads it.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 internal sealed class MovingEntitySystem : IEcsModuleSystem
 {
     private EntityQuery? _query;

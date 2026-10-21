@@ -27,6 +27,7 @@ namespace Fdp.ModuleHost.Tests
             _liveWorld.Dispose();
         }
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         class SlowModule : IEcsModule
         {
             public string Name => "SlowModule";
@@ -59,6 +60,7 @@ namespace Fdp.ModuleHost.Tests
             }
         }
         
+        [TickMode(TickPolicy.EveryFrame)]
         class FastModule : IEcsModule
         {
             public string Name => "FastModule";

@@ -38,6 +38,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// processed sample regardless of outcome so the sender can correlate replies.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class UpdateEntityDescriptorRequestSystem : IEcsModuleSystem, IDisposable
     {
         private const long GeoSpatialOrdinal        = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;

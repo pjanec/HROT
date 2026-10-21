@@ -137,6 +137,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
 
     // ---- null stubs -------------------------------------------------------
 
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     private sealed class NullReplicationModule : IReplicationModule
     {
         private readonly GhostCreationSystem _ghostCreationSystem = new(new NetworkEntityMap());

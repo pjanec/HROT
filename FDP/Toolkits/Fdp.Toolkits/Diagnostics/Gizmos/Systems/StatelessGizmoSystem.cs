@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class StatelessGizmoSystem : IEcsModuleSystem
     {
         private readonly StatelessGizmoRegistry _registry;

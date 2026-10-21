@@ -122,6 +122,7 @@ namespace Fdp.ModuleHost.Tests
     
     // Test systems
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     class TestSystemA : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -129,6 +130,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TestSystemA))]
+    [TickMode(TickPolicy.EveryFrame)]
     class TestSystemB : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -136,6 +138,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TestSystemB))]
+    [TickMode(TickPolicy.EveryFrame)]
     class TestSystemC : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -143,6 +146,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(CircularSystemB))]
+    [TickMode(TickPolicy.EveryFrame)]
     class CircularSystemA : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -150,12 +154,14 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(CircularSystemA))]
+    [TickMode(TickPolicy.EveryFrame)]
     class CircularSystemB : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     class InputSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -163,6 +169,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Export)]
     [UpdateAfterAttribute(typeof(InputSystem))] // Cross-phase - should be ignored
+    [TickMode(TickPolicy.EveryFrame)]
     class ExportSystemDependingOnInput : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
@@ -192,6 +199,7 @@ namespace Fdp.ModuleHost.Tests
 
     // Tracking systems for execution order verification
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     class TrackingSystemA : IEcsModuleSystem
     {
         private readonly List<string> _log;
@@ -201,6 +209,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TrackingSystemA))]
+    [TickMode(TickPolicy.EveryFrame)]
     class TrackingSystemB : IEcsModuleSystem
     {
         private readonly List<string> _log;
@@ -210,6 +219,7 @@ namespace Fdp.ModuleHost.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TrackingSystemB))]
+    [TickMode(TickPolicy.EveryFrame)]
     class TrackingSystemC : IEcsModuleSystem
     {
         private readonly List<string> _log;

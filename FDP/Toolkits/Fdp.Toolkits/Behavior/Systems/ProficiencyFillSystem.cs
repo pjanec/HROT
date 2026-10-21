@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// Idempotent: writes only on a change. 📄 Defend &amp; Attack §8a.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ProficiencyFillSystem : IEcsModuleSystem
     {
         public const int MaxChainDepth = 8;

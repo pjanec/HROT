@@ -49,6 +49,7 @@ namespace Hrot.CGF
     /// <c>SimulationLogicModule</c> for the <c>Brain</c> role
     /// (Mission → Cognitive → ActionDispatch).</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CgfLogicPack : IEcsModule
     {
         /// <inheritdoc/>

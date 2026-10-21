@@ -24,11 +24,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <c>EntityRepository</c> cast every sibling system performs.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     internal sealed class BehaviorFrameSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (deltaTime <= 0f) return;
+            // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
             BehaviorFrame.Advance();
         }
     }

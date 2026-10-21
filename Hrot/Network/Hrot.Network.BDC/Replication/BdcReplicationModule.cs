@@ -18,6 +18,7 @@ namespace Hrot.BDC.Replication
     /// BDC replication module implementing the protocol-neutral <see cref="Hrot.Common.Abstractions.IReplicationModule"/>.
     /// Provides entity state synchronisation using BDC DDS topics (BDC_EntityMaster, BDC_WorldPos).
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class BdcReplicationModule : Hrot.Common.Abstractions.IReplicationModule
     {
         public string Name => "BdcReplication";

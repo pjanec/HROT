@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </list>
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
         // CE-3039 — each perceiving unit's health as last seen, to publish the Hit edge. Two maps swapped each tick, so a

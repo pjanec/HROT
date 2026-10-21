@@ -22,6 +22,7 @@ namespace Fdp.ModuleHost.Scheduling
     /// listing, and a module called "SimHost" that contains a single spawning system tells a reader the
     /// wrong thing about which node it belongs to.</para>
     /// </remarks>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class SingleSystemModule : IEcsModule
     {
         private readonly IEcsModuleSystem _system;

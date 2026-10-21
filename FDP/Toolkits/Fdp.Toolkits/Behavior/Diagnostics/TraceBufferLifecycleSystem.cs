@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// </para>
     /// </remarks>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class TraceBufferLifecycleSystem : IEcsModuleSystem
     {
         // Buffer reused across ticks to avoid allocating per-call.

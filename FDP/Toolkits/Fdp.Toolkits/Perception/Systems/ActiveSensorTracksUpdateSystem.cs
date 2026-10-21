@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// publishes only on a change, so the lost contacts never came back.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ActiveSensorTracksUpdateSystem : IEcsModuleSystem
     {
         // ⭐ CE-3073 — this frame's working copy per observer, and the order observers were first seen (reused, no per-frame

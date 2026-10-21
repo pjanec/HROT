@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Squad.Systems
         /// </summary>
         public static void UnderFire(EntityRepository repo, bool gateOnAuthority)
         {
-            foreach (var evt in repo.Bus.Read<SensorChangedEvent>())
+            foreach (var evt in repo.ReadEvents<SensorChangedEvent>())
             {
                 if (evt.What != SensorChange.Hit && evt.What != SensorChange.NearMiss) continue;
                 if (!repo.IsAlive(evt.Unit)) continue;

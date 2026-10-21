@@ -79,7 +79,8 @@ namespace Fdp.ModuleHost.Tests.Time
             var staged = new FakeStagedWrites { Pending = 1 };
             var system = new ResumeAndDrainSystem(staged);
 
-            system.Execute(AView(), deltaTime: 0f);
+            // ⭐ CE-3293 S5 — through the gate: a halted frame does not call a step-only system (its hand gate is gone, rule 8)
+            new Fdp.ModuleHost.Scheduling.SystemScheduler().Run(system, AView(), deltaTime: 0f);
 
             Assert.Equal(0, staged.DrainCalls);
             Assert.True(staged.HasPending, "the staged edit must still be waiting");
@@ -124,12 +125,13 @@ namespace Fdp.ModuleHost.Tests.Time
             var staged = new FakeStagedWrites { Pending = 1 };
             var system = new ResumeAndDrainSystem(staged);
             var view   = AView();
+            var gate   = new Fdp.ModuleHost.Scheduling.SystemScheduler();   // ⭐ CE-3293 S5 — the pause guard is the gate's now
 
-            system.Execute(view, 0f);      // paused
-            system.Execute(view, 0f);      // still paused
+            gate.Run(system, view, 0f);      // paused
+            gate.Run(system, view, 0f);      // still paused
             Assert.True(staged.HasPending);
 
-            system.Execute(view, 0.016f);  // resumed
+            gate.Run(system, view, 0.016f);  // resumed
 
             Assert.Equal(1, staged.DrainCalls);
             Assert.False(staged.HasPending);
@@ -161,6 +163,7 @@ namespace Fdp.ModuleHost.Tests.Time
         // ── W1, end to end: the KERNEL runs PreFrame, and runs it first ──────
 
         /// <summary>Records the order in which the kernel executed the phases.</summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class OrderSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;
@@ -170,6 +173,7 @@ namespace Fdp.ModuleHost.Tests.Time
         }
 
         [UpdateInPhase(SystemPhase.PreFrame)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class PreFrameSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;
@@ -178,6 +182,7 @@ namespace Fdp.ModuleHost.Tests.Time
         }
 
         [UpdateInPhase(SystemPhase.Input)]
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class InputSpy : IEcsModuleSystem
         {
             private readonly List<string> _log;

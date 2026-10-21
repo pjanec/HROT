@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Physics.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HitResolutionSystem : IEcsModuleSystem
     {
         private readonly System.Collections.Generic.HashSet<Entity> _resolved = new();   // ⭐ CE-2204 — the rounds resolved this frame

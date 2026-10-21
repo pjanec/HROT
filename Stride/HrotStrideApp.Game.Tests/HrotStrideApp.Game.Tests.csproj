@@ -26,6 +26,7 @@
   <!-- Test target: EditorStrideSubsystem lives here -->
   <ItemGroup>
     <ProjectReference Include="..\HrotStrideApp.Game\HrotStrideApp.Game.csproj" />
+    <Compile Include="..\..\FDP\TestShared\TickModeProbe.cs" Link="Shared\TickModeProbe.cs" />   <!-- CE-3293: every system and module declares its TickMode -->
   </ItemGroup>
   <!-- ST-PORT drift: the coordinator line moved CycloneDDS.NET 0.2.3 -> 0.3.2, which requires
        Microsoft.CodeAnalysis.Common >= 4.8.0, while Stride.Core.Assets.CompilerApp 4.2.1.2487 pins

@@ -27,6 +27,7 @@ namespace Hrot.SimHost.Systems
     /// intent is always removed after the first tick regardless.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class GenesisMaterializationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;

@@ -24,9 +24,9 @@ public static class BlueprintEventDispatch
     /// with the instance's <paramref name="stateBytes"/> and the event's payload byte-span.
     /// </summary>
     public static void DispatchForSlot(
-        BlueprintDefinition def, Span<byte> stateBytes, FdpEventBus bus,
+        BlueprintDefinition def, Span<byte> stateBytes, EntityRepository world,
         ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
-        => Dispatch(def?.EventHandlers, stateBytes, bus, view, ecb, self, time, deltaTime);
+        => Dispatch(def?.EventHandlers, stateBytes, world, view, ecb, self, time, deltaTime);
 
     /// <summary>
     /// ⭐ <c>CE-446</c> — the same dispatch over a bare handler table: a blueprint BEHAVIOUR has no
@@ -35,16 +35,17 @@ public static class BlueprintEventDispatch
     /// </summary>
     public static void Dispatch(
         System.Collections.Generic.IReadOnlyDictionary<string, EventHandlerDelegate>? handlers, Span<byte> stateBytes,
-        FdpEventBus bus, ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
+        EntityRepository world, ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
     {
-        if (bus is null || handlers is null || handlers.Count == 0) return;
+        // ⭐ CE-3293 S3 (R-3036 rule 4) — through the repository's reads, never the bus: from S4 they answer the caller's window.
+        if (world is null || handlers is null || handlers.Count == 0) return;
 
         foreach (var kv in handlers)
         {
             int typeId = ResolveTypeId(kv.Key);
-            if (!bus.HasEvent(typeId)) continue;
+            if (!world.HasEventsByTypeId(typeId)) continue;
 
-            var raw = bus.ReadRawByTypeId(typeId, out int elementSize);
+            var raw = world.ReadRawEventsByTypeId(typeId, out int elementSize);
             if (elementSize <= 0 || raw.Length < elementSize) continue;
 
             int count = raw.Length / elementSize;

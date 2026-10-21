@@ -14,6 +14,7 @@ using Fdp.Toolkit.Replication.Components;
 namespace Fdp.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;

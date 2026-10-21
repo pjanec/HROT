@@ -9,13 +9,14 @@ namespace Fdp.ModuleHost.Providers
     /// Maintains persistent replica synced every frame.
     /// Zero-copy acquisition (returns EntityRepository as ISimulationView).
     /// </summary>
-    public sealed class DoubleBufferProvider : ISnapshotProvider, IDisposable
+    public sealed class DoubleBufferProvider : ISnapshotProvider, IDisposable, IEventHistoryReader
     {
         private readonly EntityRepository _liveWorld;
         private readonly EntityRepository _replica;
         private readonly EventAccumulator _eventAccumulator;
         private readonly BitMask512? _mask;
-        private uint _lastSyncTick;
+        // ⭐ CE-3293 S4 — a reader of the event history: it holds every event until this replica has had it
+        private EventReaderHandle _eventReader;
         
         // Constructor with Mask
         public DoubleBufferProvider(
@@ -61,22 +62,12 @@ namespace Fdp.ModuleHost.Providers
         /// </summary>
         public void Update()
         {
-            // Detect time-travel to prevent event dropping
-            if (_liveWorld.GlobalVersion < _lastSyncTick)
-            {
-                _lastSyncTick = 0;
-            }
-
             // Sync using the configured mask (or default snapshotable mask if null)
             _replica.SyncFrom(_liveWorld, _mask);
             _replica.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the module's view carries the frame's clock
 
-            // Flush event history
-            // We flush events that happened since the last sync
-            _eventAccumulator.FlushToReplica(_replica.Bus, _lastSyncTick);
-
-            // Track current tick for next flush
-            _lastSyncTick = _liveWorld.GlobalVersion;
+            // Flush every event this replica has not had (the history restarts by itself when time travels back)
+            _eventReader.Flush(_eventAccumulator, _replica.Bus);
         }
         
         /// <summary>
@@ -98,8 +89,12 @@ namespace Fdp.ModuleHost.Providers
             // GDB: No-op (replica is persistent, not pooled)
         }
         
+        /// <inheritdoc/>
+        public void ReleaseEventReader() => _eventReader.Release(_eventAccumulator);
+
         public void Dispose()
         {
+            _eventReader.Release(_eventAccumulator);
             _replica?.Dispose();
         }
     }

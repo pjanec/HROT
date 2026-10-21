@@ -10,6 +10,7 @@ namespace Hrot.IG.Modules;
 /// Follows the same thin-wrapper pattern as <see cref="StyleResolutionModule"/>
 /// so that tests can construct the system directly without a kernel.
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class HistoryTrailModule : IEcsModule
 {
     public string          Name   => "HistoryTrail";

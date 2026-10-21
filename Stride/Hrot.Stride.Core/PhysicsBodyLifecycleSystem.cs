@@ -62,6 +62,7 @@ namespace Hrot.Stride.Core;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.EveryFrame)]   // CE-3293: bodies follow a drag while paused (StridePhysicsBracket, CE-219)
 public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
 {
     // ── Diagnostics (DIAG-LC) ──────────────────────────────────────────────

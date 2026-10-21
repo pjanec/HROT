@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// is fired or a magazine changes.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WeaponAmmoMirrorSystem : IEcsModuleSystem
     {
         // ⭐ CE-3240 (found by the CE-3222 perf gate) — each unit's mount children, gathered in ONE pass per frame. Was

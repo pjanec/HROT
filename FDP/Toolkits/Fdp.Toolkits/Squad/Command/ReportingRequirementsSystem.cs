@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Squad.Command
     /// 📄 <c>docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md</c> §3, §8 CC-A.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ReportingRequirementsSystem : IEcsModuleSystem
     {
         /// <summary>Refused changes since this system was built (a test / diagnostics probe).</summary>
@@ -47,7 +48,7 @@ namespace Fdp.Toolkit.Squad.Command
 
             bool replicas = repo.IsComponentTypeRegistered<BehaviorState>()
                          && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-            foreach (var evt in repo.Bus.Read<SetReportingEvent>())
+            foreach (var evt in repo.ReadEvents<SetReportingEvent>())
             {
                 // ⭐ CE-3251 (BR-13, backend — the RoeSystem rule) — a NETWORKED unit whose brain runs on another node: the tactical-intent
                 //   egress forwards the event there and its owner applies it; applying it here too would be a second writer.

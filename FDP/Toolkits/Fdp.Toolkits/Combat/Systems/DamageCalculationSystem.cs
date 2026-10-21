@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class DamageCalculationSystem : IEcsModuleSystem
     {
         public DamageCalculationSystem()
@@ -41,7 +42,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(DamageCalculationSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.Read<DetonationNotification>();
+            var events = repo.ReadEvents<DetonationNotification>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)

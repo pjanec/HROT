@@ -40,6 +40,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class NavigationIntentBridgeSystem : IEcsModuleSystem
     {
         private static readonly Logger Log = LogManager.GetCurrentClassLogger();

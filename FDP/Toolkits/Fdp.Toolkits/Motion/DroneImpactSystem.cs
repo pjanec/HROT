@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Motion
     /// flies it, AI or an operator. Runs on the node that moves it (after <see cref="AirMotionSystem"/>).
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DroneImpactSystem : IEcsModuleSystem
     {
         /// <summary>Bodies farther than this from the flyer (plus their own radius) are not tested.</summary>
@@ -31,7 +32,7 @@ namespace Fdp.Toolkit.Motion
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<FlightState>() || deltaTime <= 0f) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<FlightState>()) return;   // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
             var world = WorldQuery.Of(repo);
             bool colliders = repo.IsComponentTypeRegistered<PhysicsCollider>();
             bool rounds = repo.IsComponentTypeRegistered<BallisticProjectile>();

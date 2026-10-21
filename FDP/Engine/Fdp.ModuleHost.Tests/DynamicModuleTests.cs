@@ -43,6 +43,7 @@ namespace Fdp.ModuleHost.Tests
     /// A simple synchronous Direct-strategy module that counts Tick() invocations.
     /// Can be installed/uninstalled dynamically.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class CountingDirectModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -63,6 +64,7 @@ namespace Fdp.ModuleHost.Tests
     /// A slowish background module that briefly sleeps in Tick().
     /// Useful for testing draining: the module may be mid-execution when uninstall is called.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     class SlowBackgroundModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -90,6 +92,7 @@ namespace Fdp.ModuleHost.Tests
     /// <summary>
     /// Module that registers a test system (to verify system lifecycle with hot-plug).
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class SystemRegisteringModule : IEcsModule
     {
         public string Name { get; }
@@ -106,6 +109,7 @@ namespace Fdp.ModuleHost.Tests
     }
 
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     class TrackingBeforeSyncSystem : IEcsModuleSystem
     {
         public int ExecuteCount;
@@ -780,6 +784,7 @@ namespace Fdp.ModuleHost.Tests
     /// Snapshot-on-Demand (SlowBackground) module that reads from a snapshot view.
     /// Declares its required component types so the kernel can compute a precise mask.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     class SodCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }
@@ -810,6 +815,7 @@ namespace Fdp.ModuleHost.Tests
     /// <summary>
     /// FrameSynced GDB module that reads from the DoubleBuffer replica.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     class GdbCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }

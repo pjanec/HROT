@@ -23,6 +23,7 @@ namespace Hrot.MuscleCharacter.Animation
     ///   7. AnimationStateReporterSystem            -- synthesizes completion events and Status
     ///   8. AnimationBackendCleanupSystem           -- unregisters destroyed entities (late)
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AnimationMuscleModule : IEcsModule
     {
         public string Name => "AnimationMuscle";

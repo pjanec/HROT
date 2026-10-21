@@ -40,6 +40,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class FireProcessingSystem : IEcsModuleSystem
     {
         private readonly System.Collections.Generic.List<Vector3> _bodyPoints = new(3);   // ⭐ P-2 scratch (main thread)
@@ -51,7 +52,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(FireProcessingSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.Read<WeaponFireIntent>();
+            var events = repo.ReadEvents<WeaponFireIntent>();
             if (events.Length == 0) return;
 
             uint currentTick = repo.HasSingleton<GlobalTime>()

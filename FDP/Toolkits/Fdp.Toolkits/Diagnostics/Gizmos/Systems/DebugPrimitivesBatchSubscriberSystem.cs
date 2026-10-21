@@ -46,6 +46,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// before anything renders them, and the publisher's counterpart runs at <c>Export</c>.</para>
     /// </remarks>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DebugPrimitivesBatchSubscriberSystem : IEcsModuleSystem
     {
         private readonly DebugPrimitiveBuffer _buffer;

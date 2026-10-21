@@ -44,6 +44,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⛔ Not <c>Simulation</c>: that runs on background threads and this touches ImGui-adjacent host state.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class CenterOnEntitySystem : IEcsModuleSystem
 {
     private readonly Func<MapCamera?> _camera;
@@ -61,7 +62,7 @@ public sealed class CenterOnEntitySystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
 
-        foreach (ref readonly var cmd in world.Bus.Read<CenterOnEntityCommand>())
+        foreach (ref readonly var cmd in world.ReadEvents<CenterOnEntityCommand>())
         {
             var camera = _camera();
             if (camera == null) continue;

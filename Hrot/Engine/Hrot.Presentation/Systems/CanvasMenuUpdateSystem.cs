@@ -19,6 +19,7 @@ namespace Hrot.Presentation.Systems
     /// Measurement Tool (action ID 200 = <c>GlobalActionIds.Measure</c>).</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CanvasMenuUpdateSystem : IEcsModuleSystem
     {
         private static readonly object MeasureItem = new { id = 200, label = "Measurement Tool" };

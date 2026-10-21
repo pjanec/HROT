@@ -33,6 +33,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class RouteContextSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────

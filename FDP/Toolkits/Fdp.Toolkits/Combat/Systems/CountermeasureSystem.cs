@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// ⛔ The count is NOT kept here: the brain spent the round when it released. Runs before <see cref="GuidedRoundSystem"/>.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CountermeasureSystem : IEcsModuleSystem
     {
         /// <summary>The seduction draw's salt (one site, one salt — <see cref="SimRng.FromSim"/>).</summary>

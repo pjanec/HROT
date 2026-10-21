@@ -52,6 +52,7 @@ namespace Hrot.CGF.Systems
     /// immediately after <c>MissionAdapterSystem</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class TacticalIntentResolutionSystem : IEcsModuleSystem
     {
         private static readonly Logger s_aiLog = LogManager.GetLogger("AI.Behavior.TacticalIntent");
@@ -98,7 +99,7 @@ namespace Hrot.CGF.Systems
                     $"EntityRepository access and cannot run on a read-only snapshot " +
                     $"({view.GetType().Name}).");
 
-            var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
 
             for (int i = 0; i < events.Count; i++)
             {

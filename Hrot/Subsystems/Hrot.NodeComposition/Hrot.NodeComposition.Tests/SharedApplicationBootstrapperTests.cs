@@ -45,6 +45,7 @@ public sealed class SharedApplicationBootstrapperTests
     private struct TestComponentA { public int Value; }
 
     /// <summary>Minimal ECS system used to verify PopulateSystems is called.</summary>
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class TestSimSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float dt) { }
@@ -282,6 +283,7 @@ public sealed class SharedApplicationBootstrapperTests
     /// <summary>
     /// Mock INedReplicationModule that tracks whether RegisterSystems was called.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class MockNedReplicationModule : INedReplicationModule
     {
         public bool WasRegistered { get; private set; }
@@ -532,6 +534,7 @@ public sealed class SharedApplicationBootstrapperTests
 
     // ── S2b / F-10 ────────────────────────────────────────────────────────────
 
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class CountingSystem : IEcsModuleSystem
     {
         public int Runs;

@@ -14,6 +14,7 @@ namespace Hrot.Network.NED.Attributes
     /// first successful publish are no-ops gated by the <c>_published</c> flag.
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EntityAttributeSchemaPublisherSystem : IEcsModuleSystem
     {
         private readonly int                                    _nodeId;

@@ -34,6 +34,7 @@ namespace Hrot.IG.Systems;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [UpdateBefore(typeof(VisualEffectCleanupSystem))]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class EventToEffectSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>
@@ -136,6 +137,7 @@ public class EventToEffectSystem : IEcsModuleSystem
 /// Zero allocations in <see cref="Execute"/> (§CODE-STANDARDS §4).
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class VisualEffectCleanupSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>

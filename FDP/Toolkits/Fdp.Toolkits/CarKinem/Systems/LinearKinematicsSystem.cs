@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.CarKinem.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LinearKinematicsSystem : IEcsModuleSystem
     {
         private readonly int[] _requiredComponentIds;

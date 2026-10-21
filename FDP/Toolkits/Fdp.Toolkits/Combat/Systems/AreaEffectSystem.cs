@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// (<see cref="DetonationNotification.IsRemote"/>) gets no area effect here, as it gets no direct damage.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AreaEffectSystem : IEcsModuleSystem
     {
         private readonly ColliderOcclusion _occlusion = new();
@@ -46,7 +47,7 @@ namespace Fdp.Toolkit.Combat.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            var events = repo.Bus.Read<DetonationNotification>();
+            var events = repo.ReadEvents<DetonationNotification>();
             if (events.Length == 0) return;
             if (!repo.HasSingletonManaged<ITkbDatabase>() || !repo.IsComponentTypeRegistered<Health>()) return;
             var db = repo.GetSingletonManaged<ITkbDatabase>();

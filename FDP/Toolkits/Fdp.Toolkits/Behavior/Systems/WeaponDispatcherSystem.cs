@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in ActionDispatchModule.
     // [UpdateAfter(typeof(BTreeTickSystem))] -- ordering maintained by array position in ActionDispatchModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class WeaponDispatcherSystem : DispatcherSystemBase<WeaponChannel>
     {
         private EntityQuery? _mounts;

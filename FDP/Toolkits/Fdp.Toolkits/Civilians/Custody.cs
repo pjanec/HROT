@@ -122,6 +122,7 @@ namespace Fdp.Toolkit.Civilians
     /// (<see cref="CustodyRules.Owns"/>, CU-2) and times a running search. In the <c>Interactions</c> capability on every node.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CustodySystem : IEcsModuleSystem
     {
         /// <summary>Asks refused here (not in reach, not complying, nothing to apply) — rails and diagnostics read it.</summary>
@@ -138,7 +139,7 @@ namespace Fdp.Toolkit.Civilians
             double now = HitModel.Now(world);
             if (world.Bus.IsRegistered<CustodyEvent>())
             {
-                var asks = world.Bus.Read<CustodyEvent>();
+                var asks = world.ReadEvents<CustodyEvent>();
                 for (int i = 0; i < asks.Length; i++)
                     if (!Apply(world, asks[i], now)) Refused++;
             }

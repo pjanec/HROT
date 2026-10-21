@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;
@@ -96,7 +97,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             _startedByNameThisFrame.Clear();
-            var events = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            var events = repo.ReadManagedEvents<AssignBehaviorEvent>();
 
             foreach (var evt in events)
             {
@@ -120,7 +121,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Forcibly resets the active behavior to BehaviorIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = repo.Bus.Read<ClearBehaviorEvent>();
+            var clearEvents = repo.ReadEvents<ClearBehaviorEvent>();
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
@@ -149,7 +150,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   (MissionAdapterSystem → tactical intent → TacticalIntentResolutionSystem). ⇒ when that one already started
             //   THIS behaviour on this entity in this Execute, the hash event is a duplicate and is dropped — the named one
             //   carries the parameters.
-            var hashEvents = repo.Bus.Read<AssignBehaviorHashEvent>();
+            var hashEvents = repo.ReadEvents<AssignBehaviorHashEvent>();
             foreach (var evt in hashEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
@@ -838,7 +839,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (!repo.IsComponentTypeRegistered<SopState>()) return;
 
-            foreach (var evt in repo.Bus.ReadManaged<AssignSopEvent>())
+            foreach (var evt in repo.ReadManagedEvents<AssignSopEvent>())
             {
                 if (evt == null || !repo.IsAlive(evt.Entity)) continue;
                 if (!_registry.TryGetId(evt.BehaviorName, out int id) || !_registry.TryGetDefinition(id, out var def))
@@ -851,7 +852,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 StartSop(repo, evt.Entity, evt.BehaviorName, id, def, evt.JsonParams ?? "{}", evt.Origin);
             }
 
-            foreach (var evt in repo.Bus.Read<ClearSopEvent>())
+            foreach (var evt in repo.ReadEvents<ClearSopEvent>())
             {
                 if (!repo.HasComponent<SopState>(evt.Entity)) continue;
                 var sop = repo.GetComponentRO<SopState>(evt.Entity);

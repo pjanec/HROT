@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class SubEntityCleanupSystem : IEcsModuleSystem
     {
         private EntityQuery? _partQuery;

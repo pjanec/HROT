@@ -11,6 +11,7 @@ namespace Hrot.Editor.Systems;
 /// <see cref="TargetMemory"/>.
 /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed unsafe class EditorPerceptionSetupSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>

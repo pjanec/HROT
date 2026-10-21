@@ -40,6 +40,7 @@ namespace Hrot.Network.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [UpdateAfter(typeof(GhostPromotionSystem))]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DeferredTakeoverSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap      _entityMap;

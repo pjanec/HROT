@@ -55,6 +55,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public unsafe class BrainTickSystem : IEcsModuleSystem, IProfiledSystem
     {
         private readonly BehaviorRegistry _registry;
@@ -132,7 +133,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _blueprintLayout.Clear();
             }
 
-            if (deltaTime <= 0f) return;
+            // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
@@ -154,9 +155,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             _ecb = view.GetCommandBuffer();
 
             // Prune the dedup cache using reliable lifecycle events.
-            foreach (var evt in repo.Bus.Read<DestructionOrder>())
+            foreach (var evt in repo.ReadEvents<DestructionOrder>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
-            foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
+            foreach (var evt in repo.ReadEvents<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
             SweepStaleDedupEntries(tiers.Count);
@@ -225,8 +226,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
 
             _sopWokenThisFrame.Clear();
-            foreach (var evt in repo.Bus.Read<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
-            foreach (var evt in repo.Bus.Read<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
+            foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
+            foreach (var evt in repo.ReadEvents<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
 
             foreach (var entity in _sopQuery)
             {

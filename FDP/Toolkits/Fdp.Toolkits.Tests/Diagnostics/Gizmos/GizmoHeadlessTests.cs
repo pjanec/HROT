@@ -87,6 +87,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     }
 
     // IEcsModuleSystem stub that counts Execute calls.
+    [TickMode(TickPolicy.EveryFrame)]
     internal sealed class CountingSystem : IEcsModuleSystem
     {
         public int ExecuteCount { get; private set; }

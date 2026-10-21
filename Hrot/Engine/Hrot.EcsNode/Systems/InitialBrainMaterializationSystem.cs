@@ -18,6 +18,7 @@ namespace Hrot.SimHost.Systems
     /// intent is dropped — the node that runs the brain is the one that loaded it too.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class InitialBrainMaterializationSystem : IEcsModuleSystem
     {
         private readonly List<Entity> _done = new();

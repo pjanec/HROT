@@ -45,6 +45,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⛔ Not <c>Simulation</c>: that runs on background threads and this touches ImGui-adjacent host state.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionRequestSystem : IEcsModuleSystem
 {
     private readonly Func<ISelectionState?> _selection;
@@ -78,7 +79,7 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
         // ⭐ SelectEntityCommand stays because panels and the orbat address entities by network id
         //   and must not learn about ECS handles. 🔒 §2.7.3 rule 7 — selection is host-local and the
         //   wire form is translated AT THE BOUNDARY. This loop is that boundary, and it is one line.
-        foreach (ref readonly var cmd in world.Bus.Read<SelectEntityCommand>())
+        foreach (ref readonly var cmd in world.ReadEvents<SelectEntityCommand>())
         {
             // ⭐ BP-508 — the ONE resolver (R-77).
             var target = NetworkIdResolver.FindEntityByNetworkId(world, cmd.NetworkId);
@@ -90,7 +91,7 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
         }
 
         // ── the ENTITY-addressed form with a set and a mode (UXI-11 S-2) ─────────
-        foreach (var req in world.Bus.ReadManaged<SelectionChangeRequest>())
+        foreach (var req in world.ReadManagedEvents<SelectionChangeRequest>())
         {
             if (req == null) continue;
 

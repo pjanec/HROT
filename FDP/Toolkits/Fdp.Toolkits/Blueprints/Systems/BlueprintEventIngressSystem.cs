@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 /// every mutation.  Events targeting dead entities are silently skipped.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class BlueprintEventIngressSystem : IEcsModuleSystem
 {
     private readonly BlueprintRegistry _registry;
@@ -41,14 +42,14 @@ public sealed class BlueprintEventIngressSystem : IEcsModuleSystem
         // ── Phase 1: Apply ALL Removes FIRST (Design §7) ──
 
         // Drain Remove events.
-        foreach (var evt in repo.Bus.Read<RemoveInstanceBlueprintEvent>())
+        foreach (var evt in repo.ReadEvents<RemoveInstanceBlueprintEvent>())
         {
             if (!repo.IsAlive(evt.Entity)) continue;
             BlueprintInstanceService.DetachFromEntity(repo, evt.BlueprintId, evt.Entity);
         }
 
         // Drain Replace events — detach the OLD blueprint (remove half).
-        foreach (var evt in repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>())
+        foreach (var evt in repo.ReadManagedEvents<ReplaceInstanceBlueprintEvent>())
         {
             if (!repo.IsAlive(evt.Entity)) continue;
             BlueprintInstanceService.DetachFromEntity(repo, evt.OldBlueprintId, evt.Entity);
@@ -57,7 +58,7 @@ public sealed class BlueprintEventIngressSystem : IEcsModuleSystem
         // ── Phase 2: Apply ALL Attaches AFTER all removes ──
 
         // Drain Attach events.
-        foreach (var evt in repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>())
+        foreach (var evt in repo.ReadManagedEvents<AttachInstanceBlueprintEvent>())
         {
             if (!repo.IsAlive(evt.Entity)) continue;
             BlueprintInstanceService.AttachToEntity(
@@ -70,7 +71,7 @@ public sealed class BlueprintEventIngressSystem : IEcsModuleSystem
         // it twice — once in Phase 1 for the old id, once in Phase 2 for the new id — is intentional
         // and correct, and is why converting these two events to the managed bus (Batch 70, so they
         // can carry params JSON) does not disturb the remove-before-add ordering above.
-        foreach (var evt in repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>())
+        foreach (var evt in repo.ReadManagedEvents<ReplaceInstanceBlueprintEvent>())
         {
             if (!repo.IsAlive(evt.Entity)) continue;
             BlueprintInstanceService.AttachToEntity(

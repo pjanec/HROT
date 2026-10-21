@@ -9,6 +9,7 @@ using PositionGeodetic = Fdp.Modules.Geographic.Components.PositionGeodetic;
 namespace Fdp.Modules.Geographic.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class CoordinateTransformSystem : IEcsModuleSystem
     {
         private readonly IGeographicTransform _geo;
