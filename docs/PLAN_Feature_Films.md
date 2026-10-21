@@ -145,7 +145,7 @@ caused.* The shot list in `clips.json` follows these rules; the `why` of each sh
 | G-6 | a car bomb (VBIED) | the pieces exist (`TriggerIed`, a cargo charge, ST-9), the composition was never measured | `ua-car-bomb`: a car with a cargo charge driven at a checkpoint, set off by its driver | behaviors | ⭐ one scenario proves the composition |
 | G-7 | insurgent technicals shoot and scoot | `ua-technical-scoot` parked (CE-2232: a hide is chosen with no line to the target) | fix CE-2232 | behaviors | — |
 | G-8 | a casualty caused by the fight itself | the casualty demos fake the fall because an authored `Roe` crashed the cluster (CE-2160) | re-test CE-2160; if gone, give the hostile ammo | backend | ⭐ re-measure first — it was not reproduced 2026-10-14 |
-| G-9 | the urban battle's beats (mortar, air strike, dismount) | CE-4032: mortar refused as danger close, IFV overtakes, squad A never dismounts | fixed in code 2026-10-21, live re-run pending | behaviors | ⭐ re-run before the showcase design moves on |
+| G-9 | the urban battle's beats | CE-4032: live PASS 4/4 on 2026-10-21 (behaviors, `73588989a`) — the mortar fires at ~62 s, the APC leads and is stopped by the charge, Squad A dismounts at 18 s. ⚠ Still open: the squads have no task once contact ends, and the aircraft beat was not reached in 180 s | the HQ → aircraft beat | behaviors | ⭐ film the IED / dismount / mortar beats now; the air beat after |
 | G-10 | a thermal sight | built, no unit type carries one | a thermal sight on the IFV kit; then G-3 can show night | behaviors | ⭐ with G-3 |
 | G-11 | an M2 firing, a Kornet team | `ua-weapon-systems` sets the M2 up but never fires it; there is no Kornet team (the overview says there is) | an intruder in the M2's arc; a Kornet team, or fix the overview row | behaviors | ⭐ add the intruder; the Kornet team only if wanted |
 
@@ -180,7 +180,7 @@ notes are [NOTE_Coordinator_To_Behaviors_Demo_Sweep.md](blueprints/batches/NOTE_
 | kind | scenarios |
 |---|---|
 | 🔴 **does not show what it is named for** | `ua-squad-danger-crossing-hold` shows BreakContact, not Hold · `ua-three-hosts` no longer compares hosts (CE-3160 retired them; all three run one tree) · `ua-eject` orders the eject (G-1) |
-| 🔴 **known broken or parked** | `sq-defend-house` (CE-2304) · `ua-technical-scoot` (CE-2232) · `uc-urban-battle` beats (CE-4032) · `uc-request-chain` a coin flip (CE-2315 E3) · `ua-universal-soldier` cannot pass its live load guard (CE-2243) |
+| 🔴 **known broken or parked** | `sq-defend-house` (CE-2304) · `ua-technical-scoot` (CE-2232) · `uc-urban-battle` air beat (CE-4032: mortar, APC lead and dismount fixed live; the aircraft not reached) · `uc-request-chain` a coin flip (CE-2315 E3) · `ua-universal-soldier` cannot pass its live load guard (CE-2243) |
 | ⚠ **not verified recently** | `hill-attack` and `hill-attack-close` (last measured 2026-10-02, before the CE-2230 rework) · `ua-tank-ammo` (causes fixed, not re-run) · `ua-civ-gathering`, `ua-civ-protest` (no live pass recorded) · `ua-eject` (the check was relaxed to 4.5 s, no pass recorded) |
 | ⚠ **not self-running** — the check drives the beat | `ua-posture`, `ua-three-hosts`, `ua-fire-distribution`, the three `ua-casualty-care*`, `ld-sentry-surprise`, `cc-platoon-bound`, `ua-civ-neutral-gate`, `ua-indirect-fire`, every `*-dry` |
 | ⚠ **no live check at all** | `ua-grenade-or-rifle`, `ua-weather-regions`, `test-fire`, `test-move`, `tt-nav-los`, `mission-demo-bp`, `hsm-channel-e2e`, the `tt-*` recipes (rails only), `demo-city` |

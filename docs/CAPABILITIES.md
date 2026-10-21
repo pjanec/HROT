@@ -160,8 +160,8 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   otherwise the battery fires. A reinforcement request sends a free unit, never the one asking. ▶ `uc-request-chain-dry` ✅ ·
   `uc-reinforce-dry` ✅ · `uc-a10-zu23-dry` ✅
 - **The flagship:** a convoy, an IED, an ambush round a corner, a spotter and a mortar, a ZU-23, an HQ with air and a reserve, and
-  civilians, all in one battle on demo-city. ▶ `uc-urban-battle` ✅ for its invariants, but the mortar, the air strike and the dismount do
-  not happen on screen (CE-4032)
+  civilians, all in one battle on demo-city. ▶ `uc-urban-battle` ✅ — the IED, the dismount and the mortar now happen on screen; the air
+  strike does not yet (CE-4032)
 
 ## 8. Buildings and close quarters
 
