@@ -366,6 +366,11 @@
       "UnitSubordinate": {
         "CommanderGuid": "d0cf0000-0000-4000-8000-000000009800",
         "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "PlatoonConvoy",
+        "Params": "{\"Route\": 9811, \"Speed\": 8}",
+        "Origin": "Superior"
       }
     },
     "d0cf0000-0000-4000-8000-000000009811": {

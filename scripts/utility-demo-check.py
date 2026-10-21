@@ -4418,8 +4418,9 @@ def run_uc_urban_battle(c, timeout):
     a market day; an IED and its covert trigger man; an insurgent fire team up the street; a covert spotter and his mortar in the north-east; a
     ZU-23 beside it; the convoy's platoon under an HQ owning an AH-64, an A-10 on its orbit and a reserve squad. NOTHING is faked or timed. The
     fight decides the story; the check asserts only what must hold whatever happens: ① the charge goes off only with a vehicle in its kill zone ·
-    ② no Blue round is aimed at a civilian · ③ nothing is sent without a report — every HQ order follows a REQUEST · ④ both sides fight. The
-    timeline is printed: what happened, in what order."""
+    ② no Blue round is aimed at a civilian · ③ nothing is sent without a report — every HQ order follows a REQUEST · ④ both sides fight ·
+    ⑤ CE-2347 (R-2069) — after the contact the platoon's convoy task has the squads secure (SquadDefend), remount (SquadEmbark) and the
+    convoy moves on (a vehicle back on FollowRoute). The timeline is printed: what happened, in what order."""
     ids = ids_by_name()
     need = ("Blue HQ", "Apache", "A-10", "Blue Reserve", "Blue Platoon", "Convoy APC", "Convoy IFV", "Squad A", "Squad B", "IED", "Trigger man", "Spotter")
     if not c.ok(all(ids.get(n) for n in need), f"the cast is loaded ({[n for n in need if not ids.get(n)] or 'all'})"):
@@ -4433,7 +4434,8 @@ def run_uc_urban_battle(c, timeout):
     ied_at = position(ied)
     call("POST", "/sim/timescale", {"scale": 2})
     call("POST", "/sim/play", {})
-    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(vehicles[0]) == "FollowRoute", 30), "the plays run")
+    c.ok(wait_for(lambda: task_name(hq) == "SupportCommand" and task_name(pl) == "PlatoonConvoy" and task_name(vehicles[0]) == "FollowRoute", 30),
+         "the plays run (the HQ, the platoon's convoy, the vehicles on the route)")
     log, last, det_seen, ied_ok, first_req = [], {}, 0, None, None
     def note(t, what):
         log.append(f"{t:7.1f}  {what}")
@@ -4468,12 +4470,19 @@ def run_uc_urban_battle(c, timeout):
                 note(t, f"{n}: {tk}")
                 if tk not in (None, "", "None", "FollowRoute") and first_req is None:
                     last["sent-unasked"] = (n, tk, t)
-        for v in vehicles + [ids["Squad A"], ids["Squad B"]]:
+        for v in [pl] + vehicles + [ids["Squad A"], ids["Squad B"]]:
             tk = task_name(v)
             name = next(k for k, x in ids.items() if x == v)
             if last.get(("task", name)) != tk:
                 last[("task", name)] = tk
                 note(t, f"{name}: {tk}")
+                # ⑤ CE-2347 — secure, then remount, then the convoy on the route again
+                if name.startswith("Squad") and tk == "SquadDefend" and "secured" not in last:
+                    last["secured"] = t
+                elif name.startswith("Squad") and tk == "SquadEmbark" and "secured" in last and "remounted" not in last:
+                    last["remounted"] = t
+                elif name.startswith("Convoy") and tk == "FollowRoute" and "remounted" in last and "moved-on" not in last:
+                    last["moved-on"] = t
         time.sleep(1.5)
     print("    timeline (sim s):")
     for line in log:
@@ -4489,6 +4498,8 @@ def run_uc_urban_battle(c, timeout):
     c.ok(not at_civ, f"② no Blue round aimed at a civilian ({len(at_civ)} of {by['Blue']})")
     c.ok("sent-unasked" not in last, f"③ nothing sent without a report ({last.get('sent-unasked') or 'every HQ order came after a REQUEST'})")
     c.ok(by["Blue"] > 0 and by["Red"] > 0, f"④ both sides fight (rounds: {by})")
+    c.ok("moved-on" in last, "⑤ after the contact the squads secure, remount and the convoy moves on "
+         f"(secured {last.get('secured')}, remounted {last.get('remounted')}, on the route again {last.get('moved-on')})")
 
 
 # ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ──────
