@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.ModuleHost.Providers
 {
-    public sealed class SharedSnapshotProvider : ISnapshotProvider, IDisposable
+    public sealed class SharedSnapshotProvider : ISnapshotProvider, IDisposable, IEventHistoryReader
     {
         private readonly EntityRepository _liveWorld;
         private readonly EventAccumulator _eventAccumulator;
@@ -14,7 +14,7 @@ namespace Fdp.ModuleHost.Providers
         
         private EntityRepository? _currentSnapshot;
         private int _activeReaders;               // NEW: Reference count
-        private uint _lastSeenTick;
+        private EventReaderHandle _eventReader;   // ⭐ CE-3293 S4 — holds every event until the convoy's snapshot has had it
         private readonly object _lock = new object();
         
         public SharedSnapshotProvider(
@@ -48,12 +48,7 @@ namespace Fdp.ModuleHost.Providers
                     // WRITE and then CLEARS it, destroying the just-injected events before any
                     // convoy module can read them.  (ReleaseView -> pool.Return -> SoftClear
                     // already resets both buffers when the snapshot is returned to the pool.)
-                    _eventAccumulator.FlushToReplica(
-                        _currentSnapshot.Bus,
-                        _lastSeenTick
-                    );
-
-                    _lastSeenTick = _liveWorld.GlobalVersion;
+                    _eventReader.Flush(_eventAccumulator, _currentSnapshot.Bus);
                 }
                 else 
                 {
@@ -107,10 +102,14 @@ namespace Fdp.ModuleHost.Providers
         /// </summary>
         internal int ActiveReaders { get { lock (_lock) { return _activeReaders; } } }
         
+        /// <inheritdoc/>
+        public void ReleaseEventReader() { lock (_lock) _eventReader.Release(_eventAccumulator); }
+
         public void Dispose()
         {
             lock (_lock)
             {
+                _eventReader.Release(_eventAccumulator);
                 if (_currentSnapshot != null && _activeReaders == 0)
                 {
                     _pool.Return(_currentSnapshot);

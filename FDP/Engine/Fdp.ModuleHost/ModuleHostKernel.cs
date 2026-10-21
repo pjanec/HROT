@@ -107,7 +107,9 @@ namespace Fdp.ModuleHost
         private bool   _advancingFrame;    // sim time moves this frame (dt > 0) — a step, not a paused frame
         private double _frameSimTime;
         private double _lastFrameSimTime = double.NegativeInfinity;
-        private int    _timelineEpoch;     // + 1 whenever sim time goes back (a load, a preview Stop)
+        private int    _timelineEpoch;     // + 1 whenever sim time goes back (a load, a preview Stop) or the clock snaps
+        private ITimeController? _epochClock;   // ⭐ CE-3293 — whose TimelineEpoch _clockEpochSeen is
+        private long   _clockEpochSeen;
         
         // Public Accessor for GlobalTime
         public GlobalTime CurrentTime { get; private set; }
@@ -116,6 +118,8 @@ namespace Fdp.ModuleHost
         {
             _liveWorld = liveWorld ?? throw new ArgumentNullException(nameof(liveWorld));
             _eventAccumulator = eventAccumulator ?? throw new ArgumentNullException(nameof(eventAccumulator));
+            // ⭐⭐ CE-3293 (R-3036 rule 5) — the live world's step windows read this history
+            _liveWorld.AttachEventHistory(_eventAccumulator);
         }
 
         /// <summary>
@@ -511,6 +515,37 @@ namespace Fdp.ModuleHost
             CurrentTime = globalTime;
             _currentFrame = (uint)globalTime.FrameNumber;
             
+            // ⭐⭐ CE-3292 (R-3035) — STEPPED MODE IS DETERMINISTIC (DESIGN_Time_Architecture.md §17). How many frames are drawn between
+            //   two steps is the wall clock's; nothing a step computes may depend on it. ⇒ in stepped mode a slow or asynchronous module
+            //   is dispatched only on a step (on a sim-time slot), and a background job is applied only at the next step, after waiting
+            //   for it. Live (continuous) play keeps its frame-counted, CPU-easing cadence.
+            _steppedFrame   = _timeController?.GetMode() == TimeMode.Deterministic;
+            _advancingFrame = deltaTime > 0f;
+            _frameSimTime   = globalTime.TotalTime;
+            // ⭐ CE-3293 (R-3036 rule 7) — the explicit discontinuity is the clock's SnapAndPause (TimelineEpoch); sim time going
+            //   back stays as the backstop (a slave sees only the master's snapped time). Decided BEFORE this frame's capture, so
+            //   the event history forgets the old timeline and keeps this frame's events (a load publishes as it lands).
+            bool clockSnapped = false;
+            if (_timeController != null)
+            {
+                long clockEpoch = _timeController.TimelineEpoch;
+                if (!ReferenceEquals(_epochClock, _timeController)) { _epochClock = _timeController; _clockEpochSeen = clockEpoch; }
+                else if (clockEpoch != _clockEpochSeen) { _clockEpochSeen = clockEpoch; clockSnapped = true; }
+            }
+            if (clockSnapped || _frameSimTime < _lastFrameSimTime - 1e-9)
+            {
+                // a load or a preview Stop snapped the clock back: a new timeline. Nothing of the old one may land in it.
+                _timelineEpoch++;
+                _eventAccumulator.Restart();
+                foreach (var entry in topology.Modules)
+                {
+                    entry.LastRunSlot          = long.MinValue;
+                    entry.AccumulatedDeltaTime = 0f;
+                    entry.FramesSinceLastRun   = 0;
+                }
+            }
+            _lastFrameSimTime = _frameSimTime;
+
             // ═══════════ PHASE: PreFrame ═══════════
             // Runs before Input, and after the GlobalTime singleton above — so a system here sees
             // this frame's delta and a world nothing has mutated yet. That is what the staged-write
@@ -574,26 +609,6 @@ namespace Fdp.ModuleHost
                 entry.Provider?.Update();
             }
             
-            // ⭐⭐ CE-3292 (R-3035) — STEPPED MODE IS DETERMINISTIC (DESIGN_Time_Architecture.md §17). How many frames are drawn between
-            //   two steps is the wall clock's; nothing a step computes may depend on it. ⇒ in stepped mode a slow or asynchronous module
-            //   is dispatched only on a step (on a sim-time slot), and a background job is applied only at the next step, after waiting
-            //   for it. Live (continuous) play keeps its frame-counted, CPU-easing cadence.
-            _steppedFrame   = _timeController?.GetMode() == TimeMode.Deterministic;
-            _advancingFrame = deltaTime > 0f;
-            _frameSimTime   = globalTime.TotalTime;
-            if (_frameSimTime < _lastFrameSimTime - 1e-9)
-            {
-                // a load or a preview Stop snapped the clock back: a new timeline. Nothing of the old one may land in it.
-                _timelineEpoch++;
-                foreach (var entry in topology.Modules)
-                {
-                    entry.LastRunSlot          = long.MinValue;
-                    entry.AccumulatedDeltaTime = 0f;
-                    entry.FramesSinceLastRun   = 0;
-                }
-            }
-            _lastFrameSimTime = _frameSimTime;
-
             // ═══════════ HARVEST PHASE (active modules) ═══════════
             foreach (var entry in topology.Modules)
             {
@@ -1920,6 +1935,8 @@ namespace Fdp.ModuleHost
                                 // Point all convoy members (+ new entry) at the new provider.
                                 // Old provider will be unreferenced and eligible for GC once
                                 // any in-flight views from the previous frame are released.
+                                // ⭐ CE-3293 S4 — it stops holding the event history now.
+                                (existingGdb as Fdp.ModuleHost.Providers.IEventHistoryReader)?.ReleaseEventReader();
                                 foreach (var e in allInConvoy)
                                 {
                                     e.Provider = newGdbProvider;
@@ -1986,6 +2003,8 @@ namespace Fdp.ModuleHost
                                 // Reroute all convoy members (+ new entry) to the new provider.
                                 // The old provider will naturally drain as in-flight views are
                                 // released back to it by the still-running harvest loop.
+                                // ⭐ CE-3293 S4 — it stops holding the event history now.
+                                existingShared.ReleaseEventReader();
                                 foreach (var e in allInConvoy)
                                 {
                                     e.Provider = newSharedProvider;
@@ -2003,6 +2022,8 @@ namespace Fdp.ModuleHost
 
                             foreach (var e in groupPlusnew)
                             {
+                                // ⭐ CE-3293 S4 — each member's own provider stops holding the event history
+                                (e.Provider as Fdp.ModuleHost.Providers.IEventHistoryReader)?.ReleaseEventReader();
                                 e.Provider = sharedProvider;
                                 e.HasExclusiveProvider = false;
                             }
