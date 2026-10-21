@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4c ③–④.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class DisposalMonitoringSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;

@@ -979,6 +979,7 @@ namespace Hrot.SimHost
 
         // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
         // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private sealed class SimHostSimulationModule : IEcsModule
         {
             private readonly TogglableSimulationGroup _group;
@@ -991,6 +992,7 @@ namespace Hrot.SimHost
     }
 
     /// <summary>No-op replication module used when no INetworkFactory is injected (unit-test / offline path).</summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     internal sealed class NullReplicationModule : Hrot.Common.Abstractions.IReplicationModule
     {
         private readonly GhostCreationSystem _gcs = new(new Fdp.Toolkit.Replication.Services.NetworkEntityMap());

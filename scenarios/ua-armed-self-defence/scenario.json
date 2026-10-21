@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A police line on its default NonLethal ceiling (rifleman, baton man, launcher man) faces a riot of an Instigator and three protesters round a stone source; a Gunman (Neutral until his act) draws a rifle and AIMS it at the police rifleman (AW-18). Judge: (1) lethal fire from the police rifle goes at THAT man only, and does (2) he is hit (3) every other rioter gets non-lethal force only: at least one is stunned, irritated or down, none dies. Fail: a protester is shot, or the gunman is only met with non-lethal force. Check: python3 scripts/utility-demo-check.py --launch ua-armed-self-defence"
   },
   "entities": {
     "c2390007-0000-4000-8000-000000000001": {

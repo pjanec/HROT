@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: a pilot ejects from a failing jet on basic-desert. An 'A-10' flies a route at 300 m and 150 m/s; its mission has a timer (40 s), then an Eject task - a scripted malfunction, not combat damage. A hostile patrol (Patrol 1-3) waits near (2150, 260). The pilot comes down under a round canopy and EvadeAndSignal takes him away. Judge: (1) exactly one new Pilot (type 206) appears (2) his canopy is open within about 3-4.5 s of ejecting (3) the jet is down (health 0, below 20 m) (4) the pilot lands at least 100 m from the nearest patrol man (250 m measured) and stays down (moves under 2 m in 6 s). Fail: no pilot, canopy late, or he lands beside the patrol. Check: python3 scripts/utility-demo-check.py --launch ua-eject"
   },
   "entities": {
     "a1118300-0000-4000-8000-000000000001": {

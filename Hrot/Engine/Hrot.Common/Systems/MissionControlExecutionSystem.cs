@@ -46,6 +46,7 @@ namespace Hrot.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class MissionControlExecutionSystem : IEcsModuleSystem, IIntentClearProvider
     {
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
@@ -159,7 +160,7 @@ namespace Hrot.Common.Systems
             }
 
             // ── 2. Process newly-arrived intents ─────────────────────────────
-            var intents = repo.Bus.ReadManaged<MissionControlIntent>();
+            var intents = repo.ReadManagedEvents<MissionControlIntent>();
             foreach (var intent in intents)
             {
                 ProcessIntent(repo, intent);

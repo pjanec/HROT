@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: On test-town, 'Squad' (Friend, TKB 302, BasicSquadSop, SquadHold) with 'Leader' and 'Rifleman 1-4' rides 'Convoy APC' (TKB 2001) at (300,276); 'Insurgent RPG' (338,306) and 'Insurgent rifleman' (346,300) advance on it (CombatPosture, objective the APC). Shows dismount under fire. Judge: (1) all five start aboard (on CGF and SimHost); (2) the RPG insurgent hits the APC; (3) the squad SOP's first row dismounts it - nobody aboard on either host; (4) the next row reacts to contact (the dismount drill ends, the hold is paused). Fail: the squad stays aboard after the hit, or dismounts with no hit. Check: none (no live check); rail SquadTacticsScenarioTests (CE-1056 I-2d, Hrot.ClusterRunner.Integration.Tests)."
   },
   "entities": {
     "2b105600-0000-4000-8000-0000000000a0": {

@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Time
     /// the replay restores it — removing it here as well would fight the playback.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class LifespanSystem : IEcsModuleSystem
     {
         private EntityRepository? _queryWorld;

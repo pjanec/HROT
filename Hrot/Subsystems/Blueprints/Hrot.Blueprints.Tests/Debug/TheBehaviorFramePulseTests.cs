@@ -53,8 +53,10 @@ public sealed class TheBehaviorFramePulseTests
         var system = PulseSystem();
         uint before = BehaviorFrame.Current;
 
-        system.Execute(view: null!, deltaTime: 0f);
-        system.Execute(view: null!, deltaTime: -1f);
+        // ⭐ CE-3293 S5 — through the gate: a frame that does not advance does not call the step-only pulse at all
+        var gate = new Fdp.ModuleHost.Scheduling.SystemScheduler();
+        gate.Run(system, view: null!, deltaTime: 0f);
+        gate.Run(system, view: null!, deltaTime: -1f);
 
         Assert.Equal(before, BehaviorFrame.Current);
     }

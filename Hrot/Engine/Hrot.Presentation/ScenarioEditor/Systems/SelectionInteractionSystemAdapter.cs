@@ -21,6 +21,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// on background threads and this touches host-adjacent state.
 /// </remarks>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class SelectionInteractionSystemAdapter : IEcsModuleSystem
 {
     private readonly SelectionInteractionSystem _system;

@@ -321,6 +321,12 @@ public sealed class RecastNavmeshFactoryTests
         Assert.False(vehicle.PassFilter(5, null!, poly));                            // N2 — vehicles never use a doorway
         Assert.True(vehicle.PassFilter(9, null!, poly));
         Assert.False(infantry.With(As(TerrainDoorState.Locked)).PassFilter(5, null!, poly));
+
+        // ⭐ CE-3290 (R-3033) — a door whose state is UNKNOWN (no table) is a closed door: passable, at a closed door's cost.
+        // 🔴 Red-proof: the old fallback (Open) charges the plain distance.
+        var unknown = infantry.With(null);
+        Assert.True(unknown.PassFilter(5, null!, poly));
+        Assert.Equal(1f + DoorAwareQueryFilter.ClosedDoorPenaltyMetres, Cost(unknown, 1, 5), 3);
     }
 
     // ── ⭐ CE-2122 — the EQS and NavigationSolver modules query ONE provider from two background threads ─────────

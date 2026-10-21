@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: On bt-range, 'Thrower' (Friend grenadier, TKB 2004) at (110,22) throws one M67 at (110,35), about 5 m short of the 0.5 m Low Wall; behind the wall two Friend riflemen hold a stance, 'Standing' at (107,43) and 'Prone' at (113,43). Shows fragments per body point of the stance and the gravity-arc throw (B4). Judge: (1) the grenade bursts on the ground near y=35 with the M67 warhead, after the ~1.5 s throw and the 4.5 s fuze; (2) the Standing man is exposed over the wall (fragment exposure >= 0.5) and loses health; (3) the Prone man's exposure is <= 0.1 and his health stays >= 99. Fail: no burst, or the Prone man is hurt / the Standing man is not. Check: python3 scripts/utility-demo-check.py --launch bt-grenade-posture"
  },
  "entities": {
   "2a970001-0000-4000-8000-000000000001": {

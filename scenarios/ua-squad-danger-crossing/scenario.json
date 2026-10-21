@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S8 (CE-2159 X-d) - a Squad (Leader + Rifleman 1-6, immortal, at (126-150,65)) marches east on test-town toward (300,100) with DangerAreas on, no enemy, and meets the north-south road (x 190-210). Shows the crossing drill: security watches, pairs cross, far side watches, security crosses last, reform. Judge: (1) the crossing drill starts; (2) security is set first, then crossers go; (3) never more than 2 men inside the road strip; (4) the far side is set before security leaves; (5) everyone crosses, the back-half security last; (6) the squad reforms beyond the road and the march resumes; (7) nobody fires; (8) crossing takes <= 120 s. Fail: More than a pair on the road at once, security leaves first, or anyone fires. Check: python3 scripts/utility-demo-check.py --launch ua-squad-danger-crossing"
   },
   "entities": {
     "a2159d00-0000-4000-8000-0000000000c0": {

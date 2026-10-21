@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: On bt-range, 'Window Rifleman' (Friend, upstairs in House A at (107.1,100.9), z 3) and 'Street Rifleman' (Hostile, in the open at (108.5,80) behind parked 'Van 1') each run the WindowDuel tree (PeekAndFire); 'Van 2' at (113,76) is the next cover. Nothing is scripted or written over HTTP. Judge: (1) both sides fire (each side's ammunition falls); (2) the Window Rifleman fires from at least two different House A windows; (3) the Street Rifleman bounds to Van 2's cover (within 4 m of (113,76)). Fail: only one side fires, the Window Rifleman never leaves one window, or the Street Rifleman never reaches Van 2. Check: python3 scripts/utility-demo-check.py --launch bt-window-duel"
  },
  "entities": {
   "2a970101-0000-4000-8000-000000000101": {

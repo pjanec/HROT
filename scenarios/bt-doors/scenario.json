@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: On bt-range, 'Visitor' (Friend) at (104.2,94) is ordered into House A's west room (102,104); 'Locksmith' (Friend, curated DoorLocksmith tree) at (102.5,93) is ordered through the front door to (102,103). Front door Locked, back door Closed, hall door Open: doors as route obstacles and as things a behaviour operates (B1-B3). Judge: (1) the Visitor goes round the locked front and opens the closed back door standing at it (within 3 m); (2) he walks on through the hall door to the west room, never through the front doorway; (3) the Locksmith unlocks and opens the front door, then walks in through it. Fail: Visitor enters by the front, back door never opens, or Locksmith stays outside. Check: python3 scripts/utility-demo-check.py --launch bt-doors"
  },
  "entities": {
   "2a960000-0000-4000-8000-000000000001": {

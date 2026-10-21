@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// (<see cref="NearMissSensingSystem"/>), beside V8a's <c>AirThreat</c>.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class MissileWarningSensingSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

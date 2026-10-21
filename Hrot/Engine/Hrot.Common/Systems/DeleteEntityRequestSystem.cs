@@ -51,6 +51,7 @@ namespace Hrot.Common.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class DeleteEntityRequestSystem : IEcsModuleSystem
     {
         private readonly IEntityDeletionRequestSource _requestSource;

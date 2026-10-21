@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert: a Bradley (\"Bradley\", 100,520, holding via CombatPosture) with a 25 mm gun and a TOW faces an idle \"Insurgent\" 300 m north (100,220) and an idle \"T-72\" ~520 m away (480,160). Shows weapon selection: the 25 mm at the man, the TOW at the tank (W4/W5). Judge: (1) the T-72 loses >= 1000 HP (only a TOW does that; the 25 mm grazes) (2) the Insurgent is killed (3) the 25 mm spent rounds, fewer than 60 (a burst, not the magazine into the tank). Fail: the T-72 is only grazed, or the 25 mm empties into the tank. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-choice"
   },
   "entities": {
     "a3089000-0000-4000-8000-000000000001": {

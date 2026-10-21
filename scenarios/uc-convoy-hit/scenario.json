@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, 'Convoy APC' (TKB 2001) with 'Convoy Squad' (leader + 4 riflemen aboard) drives north up Avenue E from (652,30) at 8 m/s; a placed charge 'IED' lies at (652,200), its 'Trigger man' (Hostile, phone) at (641,170); 'Insurgent RPG' and 'Insurgent rifleman' wait at (659,232-244). Nothing faked. Judge: (1) the APC drives north; (2) the charge goes off only with the APC within 15 m (kill zone 10 m); (3) the hit carrier pushes through or halts and its squad dismounts; (4) a halted APC's squad is out and fires; a pushing carrier keeps them aboard, runs 100 m past the charge and resumes its route. Fail: charge fires with no vehicle near or never goes off, or the squad stands by the vehicle without fighting. Check: python3 scripts/utility-demo-check.py --launch uc-convoy-hit"
   },
   "entities": {
     "d0c00000-0000-4000-8000-000000009500": {

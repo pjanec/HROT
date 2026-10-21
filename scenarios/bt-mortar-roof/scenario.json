@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: a mortar round on a roof, on the bt-range terrain. Two riflemen ('Mortar Roof', 'Mortar Yard') are seated as gunners of two 81mm tubes standing 250 m south, each firing one bomb (FireAtPoint): one at House A's roof (z about 6), one at the courtyard. 'Downstairs', 'Upstairs' and 'Courtyard' are friendly men standing in the building and yard. Judge: (1) both bombs burst (about 12 s of flight each) (2) one burst lands on the roof (z above 5.5), the other in the courtyard (z below 0.5) (3) the roof burst reaches Downstairs only through the slabs (no fragment exposure) and he keeps 90+ HP (99.9 measured) (4) the man in the open courtyard drops below 80 HP (killed in the last run). Fail: a bomb misses its target or Downstairs is hurt. Check: python3 scripts/utility-demo-check.py --launch bt-mortar-roof"
  },
  "entities": {
   "2a97000b-0000-4000-8000-00000000000b": {

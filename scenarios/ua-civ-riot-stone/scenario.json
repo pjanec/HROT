@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: An Instigator and two protesters stand inside a stone source (a polyline area) with a Policeman 12 m off (AW-8, CV-4). Demonstrates the stone throw and that the side follows the ACT. Judge: (0) the instigator riots (1) he fills his hands at the source (hand ammo above 0) (2) he throws, so the ammo drops (3) nobody is Hostile before his own throw is stamped, and every thrower is Hostile on CGF, SimHost and IG within 3 s of the act. Fail: a man turns Hostile without throwing, or a thrower stays Neutral on any node. Check: python3 scripts/utility-demo-check.py --launch ua-civ-riot-stone"
     },
     "entities": {
         "c2382001-0000-4000-8000-000000000001": {

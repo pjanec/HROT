@@ -147,6 +147,10 @@
                 "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
               },
               {
+                "Name": "SeenFrom",
+                "TypeId": "System.UInt16"
+              },
+              {
                 "Name": "Center",
                 "TypeId": "System.Numerics.Vector3"
               },
@@ -397,6 +401,10 @@
                   "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
                 },
                 {
+                  "Name": "SeenFrom",
+                  "TypeId": "System.UInt16"
+                },
+                {
                   "Name": "Center",
                   "TypeId": "System.Numerics.Vector3"
                 },
@@ -569,6 +577,10 @@
               {
                 "Name": "Kind",
                 "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
+              },
+              {
+                "Name": "SeenFrom",
+                "TypeId": "System.UInt16"
               },
               {
                 "Name": "Center",

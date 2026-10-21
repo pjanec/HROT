@@ -664,6 +664,7 @@ public abstract class SharedApplicationBootstrapper
     /// <c>RegisterGlobalSystem</c> rejects <see cref="SystemPhase.Simulation"/>; it
     /// must be registered via <c>RegisterModule</c> instead.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     private sealed class SimulationGroupModule : IEcsModule
     {
         private readonly TogglableSimulationGroup _group;

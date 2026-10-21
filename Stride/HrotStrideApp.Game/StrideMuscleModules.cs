@@ -209,6 +209,7 @@ public sealed class StrideMuscleModuleSet
 /// to assign the phase — no manual phase specification is needed here.
 /// </para>
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class StrideMuscleModule : IEcsModule
 {
     private readonly StrideMuscleModuleSet _set;

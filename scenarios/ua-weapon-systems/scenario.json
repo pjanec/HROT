@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "basic-desert"
+  "terrainName": "basic-desert",
+  "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him). Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
  },
  "entities": {
   "a2222d00-0000-4000-8000-000000000001": {

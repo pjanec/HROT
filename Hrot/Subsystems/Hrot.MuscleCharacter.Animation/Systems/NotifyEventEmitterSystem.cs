@@ -15,6 +15,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// (ANC-P7-09, DD-1 §11, §17)
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NotifyEventEmitterSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

@@ -46,6 +46,7 @@ public readonly record struct TrafficHit(string Name, bool IsVehicle, Vector3 Fr
 /// driver gets out a civilian in panic (§8.7 G4).</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficPanicSystem : IEcsModuleSystem
 {
     /// <summary>Incidents of one frame closer than this (and no wider) are one incident: a burst of fire is one fright.</summary>
@@ -83,18 +84,18 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
 
         _frame.Clear();
         if (world.Bus.IsRegistered<WeaponFireNotification>())
-            foreach (var shot in world.Bus.Read<WeaponFireNotification>())
+            foreach (var shot in world.ReadEvents<WeaponFireNotification>())
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a throw is no gunshot: it frightens nobody off the street (its blast, if any, does)
                 if (shot.Fired && !Fdp.Toolkit.Combat.PersonHands.Threw(world, in shot) && Origin(world, shot) is { } at) Add(net.Placement, at, demand.ShotRadius);   // ⭐ Q94 A-2
         if (world.Bus.IsRegistered<DetonationNotification>())
-            foreach (var blast in world.Bus.Read<DetonationNotification>())
+            foreach (var blast in world.ReadEvents<DetonationNotification>())
                 Add(net.Placement, new Vector3(blast.HitX, blast.HitY, blast.HitZ), demand.BlastRadius);
         double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0.0;
         if (_runtime.Current is not null)   // no SUMO running ⇒ no pedestrian to frighten (and nothing queued for later)
         {
             foreach (var i in _frame) _runtime.ReportIncident(i);
             if (world.Bus.IsRegistered<DamageAssessedEvent>() && world.IsComponentTypeRegistered<TrafficCar>())
-                foreach (var hit in world.Bus.Read<DamageAssessedEvent>()) Hit(world, hit, now);
+                foreach (var hit in world.ReadEvents<DamageAssessedEvent>()) Hit(world, hit, now);
         }
         Deliver(world, now);
 

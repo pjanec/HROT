@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert ridge (crest y 210): a platoon of four M1s (\"Tank 1\"-\"Tank 4\", commander \"Hill Platoon\" on PlatoonHillAttack) starts south of it at baseline y 120-140 against two idle T-72s (\"Enemy Tank 1\"/\"2\", y 380-395) in a target area beyond the crest. Shows the hull-down attack: alternating pairs, one round each, reverse back. Judge: (1) every round is fired from south of the crest (y < 210) (2) one round per exposure (3) at most a pair on the slope, and a pair crests together (within 6 s) (4) every exposure ends reversing nose-north back home (5) each pair comes up >= 8 m from where the last one did (6) both T-72s die. Fail: a round is fired from the crest, more than two tanks up at once, or a T-72 survives. Check: python3 scripts/utility-demo-check.py --launch ua-hill-attack"
   },
   "entities": {
     "a2230000-0000-4000-8000-000000000001": {

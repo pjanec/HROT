@@ -6,7 +6,8 @@
  "header": {
   "terrainName": "berlin",
   "subsystemType": "Hrot.Scenario",
-  "schemaVersion": "1.0"
+  "schemaVersion": "1.0",
+  "description": "What: Berlin (flat, no hill): same platoon of four M1s (\"Tank Platoon (Auto Spawn)-1\"..\"-4\") as hill-attack but a tighter attack: 20 m spacing and a short ~60 m firing line in front of a ~150 m baseline, against two idle \"M1 Abrams\" at (668,427) and (668,522) in a red target area. Judge: (1) the commander sends alternating waves that fire at the M1 Abrams (2) tanks reverse back to different baseline slots (the same-slot bug, CE-459) (3) both M1 Abrams reach Health 0 and the commander finishes (4) the four tanks end back near the baseline. Fail: a target survives, or the tanks end bunched on one baseline point. Check: none (no utility-demo-check live check); acceptance script scripts/hill-attack-check.py hill-attack-close 1000 on a --mode all cluster; HillAttackNodeTests carry its shape"
  },
  "entities": {
   "98e75951-8493-4db9-9197-785b9ba470bc": {

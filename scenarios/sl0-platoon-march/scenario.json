@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: SL-0 (CE-2262) - a body-less Platoon (305) with three squads - Alpha and Bravo (4 men each, immortal) and Charlie (4 men, all dead) - marches on test-town 110 m north from y 40 to (200,150), max lag 50 m. Shows the first nested hierarchy: platoon orders squads, each squad fulfils its order its own way. Judge: (1) the platoon runs SquadMarch; (2) Alpha and Bravo each run InfantrySquadMove (or Hold); (3) Charlie, every man dead, is given nothing; (4) every man of Alpha or Bravo ends within 40 m of (200,150); (5) the platoon stands with its live squads, more than 40 m ahead of Charlie. Fail: The platoon waits for or orders the dead squad, or the live squads do not reach the objective. Check: python3 scripts/utility-demo-check.py --launch sl0-platoon-march"
   },
   "entities": {
     "a2262000-0000-4000-8000-000000000001": {

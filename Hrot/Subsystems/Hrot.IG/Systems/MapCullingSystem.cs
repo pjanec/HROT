@@ -36,6 +36,7 @@ namespace Hrot.IG.Systems;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public class MapCullingSystem : IEcsModuleSystem
 {
     private readonly MapCameraViewport _viewport;

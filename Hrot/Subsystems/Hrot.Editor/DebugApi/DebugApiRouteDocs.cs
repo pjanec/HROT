@@ -941,11 +941,13 @@ namespace Hrot.Editor.DebugApi
             Group:   "D — Sim / preview / time",
             Summary: "Advance simulation by N discrete steps. Only meaningful in preview.",
             Returns: "ok:true envelope.",
-            Hint:    "No required params. Optional: count (number, def 1). Example: step({count:5})",
+            Hint:    "No required params. Optional: count (number, def 1), dt (seconds per step, def 1/60). Example: step({count:5})",
             Params: new RouteParam[]
             {
                 new("count", "number", false, "Number of steps to advance (default 1)",
                     DefaultJson: "1"),
+                new("dt", "number", false, "Seconds per step, in (0, 0.1] (default 1/60). The film director's coarser "
+                    + "rates: 0.05 (20 Hz) or 0.0667 (15 Hz), CE-4038 / DESIGN_Film_Director.md D-1"),
             },
             Notes: new[]
             {

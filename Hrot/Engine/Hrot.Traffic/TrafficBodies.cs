@@ -34,6 +34,7 @@ public readonly record struct TrafficBody(long NetworkId, TrafficBodyKind Kind, 
 /// <para>⭐ The footprint is <see cref="EntityFootprint.Dimensions"/> — the one size rule the map draws by.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
 {
     private int _toldVehicles = -1, _toldPersons = -1;

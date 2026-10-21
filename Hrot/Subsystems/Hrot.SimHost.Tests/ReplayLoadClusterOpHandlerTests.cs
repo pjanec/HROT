@@ -648,6 +648,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ Stands in for <c>CycloneNetworkIngressSystem</c>: same phase, same registration shape.</summary>
         [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
+        [Fdp.ModuleHost.Abstractions.TickMode(Fdp.ModuleHost.Abstractions.TickPolicy.EveryFrame)]
         private sealed class InputPhaseIngressProbe : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
         {
             public int Executions;

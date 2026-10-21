@@ -40,6 +40,16 @@ namespace Fdp.Toolkit.Terrain.Tests
         private static TerrainWorld Parse() => TerrainWorldParser.Parse(World);
 
         [Fact]
+        public void CE3290_ADoorWhoseStateWasNeverSet_IsClosed()
+        {
+            // ⭐ CE-3290 (R-3033; 🔒 user: "building doors are usually closed so 'closed' that is better default") — the zero value of
+            //   a door's state IS Closed: an unapplied component, a zeroed table, a fresh struct. 🔴 Red-proof: Open = 0 again.
+            Assert.Equal(TerrainDoorState.Closed, default(DoorState).State);
+            Assert.Equal(TerrainDoorState.Closed, (TerrainDoorState)0);
+            Assert.Equal("Closed", TerrainDoorState.Closed.ToString());   // files name the state: the renumber does not touch them
+        }
+
+        [Fact]
         public void Parse_ReadsEveryKind()
         {
             var w = Parse();

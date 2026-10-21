@@ -112,7 +112,10 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     }
 
     /// <inheritdoc/>
-    public void Step()
+    public void Step() => StepBy(1f / 60f);
+
+    /// <inheritdoc/>
+    public void StepBy(float seconds)
     {
         if (_currentState == ClusterState.OperatingEdit)
         {
@@ -129,7 +132,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
         }
         else
         {
-            _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = 1f / 60f });
+            _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = seconds });
         }
     }
 

@@ -25,6 +25,7 @@ namespace Hrot.ScenarioEditor.Map
     /// <para>⚠ Orders are issued only where an operator can pick: a host whose <see cref="PickService"/> answers nothing (headless)
     /// ignores the three ids — a menu action relayed from a remote station must not issue the order a second time.</para>
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class MenuOrders : IEcsModuleSystem
     {
         private readonly EntityRepository _world;

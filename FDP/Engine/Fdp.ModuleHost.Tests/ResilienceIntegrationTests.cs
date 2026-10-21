@@ -32,6 +32,7 @@ namespace Fdp.ModuleHost.Tests
 
         public void Dispose() => FdpConfig.FailFastOnModuleException = _originalFailFast;
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";

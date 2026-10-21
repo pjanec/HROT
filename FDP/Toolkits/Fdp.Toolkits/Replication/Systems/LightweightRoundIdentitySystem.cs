@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// its rounds stay local.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class LightweightRoundIdentitySystem : IEcsModuleSystem
     {
         private readonly INetworkIdAllocator? _ids;

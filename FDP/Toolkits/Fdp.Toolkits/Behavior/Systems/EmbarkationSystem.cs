@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// 📄 docs/DESIGN_Entity_Interactions.md §7, §7.1a.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class EmbarkationSystem : IEcsModuleSystem
     {
         /// <summary>Commands this node applied (a rail and a diagnostics counter read it).</summary>
@@ -27,7 +28,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             if (repo.Bus.IsRegistered<EmbarkEntityCommand>())
             {
-                var boards = repo.Bus.Read<EmbarkEntityCommand>();
+                var boards = repo.ReadEvents<EmbarkEntityCommand>();
                 for (int i = 0; i < boards.Length; i++)
                 {
                     ref readonly var c = ref boards[i];
@@ -37,7 +38,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             if (repo.Bus.IsRegistered<DisembarkEntityCommand>())
             {
-                var leaves = repo.Bus.Read<DisembarkEntityCommand>();
+                var leaves = repo.ReadEvents<DisembarkEntityCommand>();
                 for (int i = 0; i < leaves.Length; i++)
                 {
                     ref readonly var c = ref leaves[i];
@@ -49,7 +50,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ airborne insertion B-4 — a descent decided on the carrier's owner, applied where the man's position is owned
             if (repo.Bus.IsRegistered<StartDescentCommand>())
             {
-                var starts = repo.Bus.Read<StartDescentCommand>();
+                var starts = repo.ReadEvents<StartDescentCommand>();
                 for (int i = 0; i < starts.Length; i++)
                 {
                     ref readonly var c = ref starts[i];
@@ -59,7 +60,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             if (repo.Bus.IsRegistered<EjectPassengersCommand>())
             {
-                var ejects = repo.Bus.Read<EjectPassengersCommand>();
+                var ejects = repo.ReadEvents<EjectPassengersCommand>();
                 for (int i = 0; i < ejects.Length; i++)
                 {
                     ref readonly var c = ref ejects[i];

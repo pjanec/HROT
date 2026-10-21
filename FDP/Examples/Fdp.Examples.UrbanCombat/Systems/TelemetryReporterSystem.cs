@@ -17,6 +17,7 @@ namespace Fdp.Examples.UrbanCombat.Systems
     /// milestone strings in the captured output.
     /// </summary>
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class TelemetryReporterSystem : IEcsModuleSystem
     {
         // Shadow state for change detection.

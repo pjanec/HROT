@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S5 (CE-2158 F-b) - on test-town a Squad of Leader + Rifleman 1-5 (immortal) at (190-210,165) is ordered FireAndMovement to (200,285), 120 m from two tough Hostiles at (195/205,285). Shows a squad closing in contact by halves: one half suppresses while the other rushes to cover. Judge: (1) the halves split: at least 2 Suppress, at least 2 Hold/AdvanceTo; (2) a rush starts on 'Covering!' (real fire), at least one on real covering fire; (3) every rush is <= 17 m; (4) at least 3 swaps in 90 s; (5) the squad centre closes >= 30 m; (6) never both halves up for more than 1.5 s. Fail: Both halves move together, rushes start with no covering fire, or the squad stalls. Check: python3 scripts/utility-demo-check.py --launch ua-fire-and-movement"
   },
   "entities": {
     "a2158f00-0000-4000-8000-0000000000c0": {

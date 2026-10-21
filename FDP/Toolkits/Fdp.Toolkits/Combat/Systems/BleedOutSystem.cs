@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// gate — only the Health owner writes.
     /// </remarks>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class BleedOutSystem : IEcsModuleSystem
     {
         /// <summary>How much bleeding time is gathered before it is taken off the health (s).</summary>

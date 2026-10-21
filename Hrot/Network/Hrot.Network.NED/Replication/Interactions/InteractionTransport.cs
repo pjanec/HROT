@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Replication.Interactions
         public void ScanOutgoing(EntityRepository repo, NetworkEntityMap map, OutgoingSink send)
         {
             if (!repo.Bus.IsRegistered<TEvent>()) return;
-            var events = repo.Bus.Read<TEvent>();
+            var events = repo.ReadEvents<TEvent>();
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var e = ref events[i];

@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class CrowdAgentUpdateSystem : IEcsModuleSystem
     {
         private readonly IDtCrowdProvider _dtCrowd;

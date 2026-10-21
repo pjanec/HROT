@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: U2 (CP-2) - one Rifleman advances through test-town with four contacts in view or not: Civilian Near (neutral, 20 m), Armed Near (hostile, ~43 m), Armed Far (hostile, ~100 m) and Armed Hidden (hostile behind the Tower, never seen). Shows which contact he engages first. Judge: (1) the ranking settles with at least two contacts and a top score above 0; (2) Armed Near ranks first and is the one he shoots; (3) Armed Far ranks below Armed Near; (4) Civilian Near is remembered but scores 0 and is never the winner (neutral safety gate, CE-2233); (5) Armed Hidden is not ranked at all. Fail: A civilian or the far hostile is engaged first, or the hidden hostile shows up in the ranking. Check: python3 scripts/utility-demo-check.py --launch ua-threat-ranking"
   },
   "entities": {
     "a1020000-0000-4000-8000-000000000001": {

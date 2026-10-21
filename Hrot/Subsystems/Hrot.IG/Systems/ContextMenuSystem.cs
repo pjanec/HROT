@@ -41,6 +41,7 @@ namespace Hrot.IG.Systems;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public class ContextMenuSystem : IEcsModuleSystem
 {
     // â”€â”€ Cache-miss fallback writer (optional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

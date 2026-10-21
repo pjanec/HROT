@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Navigation.Modules
     /// Results are materialized on the main thread by
     /// <see cref="PathfindingResultMaterializationSystem"/>.</para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class NavigationSolverModule : IEcsModule
     {
         /// <inheritdoc/>
@@ -111,7 +112,16 @@ namespace Fdp.Toolkit.Navigation.Modules
         public void RegisterSystems(ISystemRegistry reg)
         {
             reg.RegisterSystem(new PathfindingResultMaterializationSystem());
+            _solverRun = reg.RegisterManualSystem(Solver());   // ⭐ CE-3293 S2 — ticked through the scheduler's one gate
         }
+
+        // ⭐ CE-3293 S2 — ONE solver for the module's life (it was built anew every tick): a system run through the scheduler
+        //   is known by its instance, and a fresh one per tick would be "first seen" on the worker thread every time. The solver
+        //   resolves its graph per Execute (R2), so nothing it holds goes stale between ticks.
+        private PathfindingSolverSystem? _solver;
+        private IEcsModuleSystem? _solverRun;
+        private PathfindingSolverSystem Solver()
+            => _solver ??= new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -125,9 +135,7 @@ namespace Fdp.Toolkit.Navigation.Modules
         /// </remarks>
         public void Tick(ISimulationView view, float dt)
         {
-            new PathfindingSolverSystem(
-                    _roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder)
-                .Execute(view, dt);
+            (_solverRun ?? Solver()).Execute(view, dt);
         }
     }
 }

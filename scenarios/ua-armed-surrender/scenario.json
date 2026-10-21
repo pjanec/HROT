@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: An 'Enemy Soldier' (Hostile) whose first task is Surrender {20 s} and second is to attack a rifleman 40 m off; the rifleman first attacks him, then CombatPosture (AW-5/AW-21: surrender, then the feint). Judge: (1) he lays his rifle down and raises his hands, on CGF, SimHost and IG (2) while surrendered the rifleman spends no round and he is not hurt (3) after about 20 s he takes the rifle up and lowers his hands (15-25 s window) (4) armed again, the rifleman engages him. Fail: the rifleman shoots a surrendered man, or no one fires once he re-arms. Check: python3 scripts/utility-demo-check.py --launch ua-armed-surrender"
     },
     "entities": {
         "c2410002-0000-4000-8000-000000000001": {

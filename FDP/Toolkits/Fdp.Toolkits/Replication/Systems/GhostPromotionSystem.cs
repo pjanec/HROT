@@ -61,6 +61,7 @@ namespace Fdp.Toolkit.Replication.Systems
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [UpdateAfter(typeof(GhostCreationSystem))]
     [SingleInstance]
+    [TickMode(TickPolicy.EveryFrame)]
     public class GhostPromotionSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;

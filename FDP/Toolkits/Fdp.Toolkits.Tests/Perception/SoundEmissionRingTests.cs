@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Signatures;
@@ -14,6 +14,28 @@ namespace Fdp.Toolkit.Perception.Tests
     public class SoundEmissionRingTests
     {
         private static SoundEmission Shot(float x, double time = 0d) => new() { Kind = (byte)SoundKind.Shot, At = new Vector3(x, 0f, 0f), Carry = 100f, Time = time };
+
+        /// <summary>
+        /// ⭐ <c>CE-3292</c> (R-3035) — the ring outlives a load and a preview Stop (it is a node singleton). 📐 Measured before: after a reload
+        /// every fresh sensor heard the previous runs' shots, and each reload heard more. ⇒ when the clock goes BACK, nothing made before it is
+        /// heard again — by a fresh sensor or by one whose cursor was rewound with the world. ✅ Red-proof: the marker removed ⇒ 3 heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3292_AfterTheClockGoesBack_NoSoundOfTheEarlierTimelineIsHeard()
+        {
+            var ring = new SoundEmissionRing();
+            ring.Tick(9.0);
+            for (int i = 1; i <= 3; i++) ring.Append(Shot(i, time: 9.0));   // the previous run's shots
+            ring.Tick(0.0);                                                  // a load snaps the clock back
+            ring.Tick(0.5);
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            Assert.Equal(0, ring.ReadAfter(0, into, out long last));         // a fresh sensor
+            Assert.Equal(0, ring.ReadAfter(1, into, out _));                 // a cursor rewound with the world
+            ring.Append(Shot(7, time: 0.5));                                 // this run's first shot
+            int n = ring.ReadAfter(last, into, out _);
+            Assert.Equal(1, n);
+            Assert.Equal(7f, into[0].At.X);
+        }
 
         [Fact]
         public void CE3282_AReader_GetsEverySoundAfterItsCursor_AndResumesWhereItStopped()
@@ -70,6 +92,27 @@ namespace Fdp.Toolkit.Perception.Tests
             Span<SoundEmission> into = stackalloc SoundEmission[4];
             Assert.Equal(0, ring.ReadAfter(0, into, out long last, notBefore: double.MinValue));
             Assert.Equal(1, last);                                    // passed over, not kept for later
+        }
+
+        /// <summary>⭐⭐ <c>CE-3293</c> — a reader as of a time reads only what was made before it, and its cursor stops there: the sounds
+        /// the writer appends while a background solve runs (the dispatching step's own) are the NEXT solve's, whatever the threads did.
+        /// 📐 Measured live (ua-tank-ammo, four loads): one run heard a burst a solve earlier than the other three.</summary>
+        [Fact]
+        public void CE3293_AReaderAsOfATime_ReadsOnlyWhatCameBefore_AndTheNextReadTakesTheRest()
+        {
+            var ring = new SoundEmissionRing();
+            ring.Tick(1.0);
+            ring.Append(Shot(1, time: 1.0));                                 // the step before
+            ring.Tick(1.1);
+            ring.Append(Shot(2, time: 1.1));                                 // the dispatching step's own, written beside the solve
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            int n = ring.ReadAfter(0, into, out long last, notBefore: 0.0, before: 1.1);
+            Assert.Equal(1, n);
+            Assert.Equal(1f, into[0].At.X);
+            Assert.Equal(1, last);                                           // the cursor waits before the step's own sound
+            n = ring.ReadAfter(last, into, out _, before: 1.2);
+            Assert.Equal(1, n);
+            Assert.Equal(2f, into[0].At.X);                                  // heard by the next solve, once
         }
     }
 }

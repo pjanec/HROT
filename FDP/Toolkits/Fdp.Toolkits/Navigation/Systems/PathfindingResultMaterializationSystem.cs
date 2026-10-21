@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// via <see cref="EntityRepository"/>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class PathfindingResultMaterializationSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

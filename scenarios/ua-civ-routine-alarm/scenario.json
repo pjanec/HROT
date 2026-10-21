@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: A street of six civilians at their homes (Near Civilian 1-2 about 35-40 m from a firefight, Far Civilian 1-4 over 150 m from both shooters) while a Rifleman fights a Hostile (CV-3, CE-2235). Demonstrates the civilian HSM: Routine, Alarmed, Casualty. Judge: (1) all six start in Routine and the far ones walk about (2) within 2.5 s of the first shot both near civilians are Alarmed or beyond, and no far civilian is ever alarmed (3) once the firing stops the near ones go back to Routine (4) a near civilian set to health 40 becomes a Casualty and stays where he fell. Fail: a far civilian reacts, or the near ones never calm. Check: python3 scripts/utility-demo-check.py --launch ua-civ-routine-alarm"
   },
   "entities": {
     "c1040000-0000-4000-8000-000000000001": {

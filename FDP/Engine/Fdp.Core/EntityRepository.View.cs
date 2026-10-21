@@ -93,14 +93,62 @@ namespace Fdp.Core
             return HasManagedComponent<T>(e);
         }
         
-        ReadOnlySpan<T> ISimulationView.ReadEvents<T>()
+        ReadOnlySpan<T> ISimulationView.ReadEvents<T>() => ReadEvents<T>();
+
+        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ReadManagedEvents<T>() => ReadManagedEvents<T>();
+
+        // ⭐⭐ CE-3293 (R-3036; docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md rules 4–5) — THE way a system, and any code a
+        //   system calls, reads world events: never Bus.Read*. With no step window open they answer the current frame (the bus
+        //   itself, zero copy). While the scheduler runs a step-only system whose last run was before the previous frame, they
+        //   answer every event since that run, from the live world's event history — the system does not know.
+
+        private EventAccumulator? _eventHistory;
+        private int _windowReader = -1;
+
+        /// <summary>The live world's event history (the kernel attaches it; a snapshot or a bare world has none).</summary>
+        public EventAccumulator? EventHistory => _eventHistory;
+
+        /// <summary>Attaches the event history that serves this world's step windows (the kernel's, once).</summary>
+        public void AttachEventHistory(EventAccumulator? history) => _eventHistory = history;
+
+        /// <summary>
+        /// Opens <paramref name="reader"/>'s step window around one system's run (the scheduler, main thread). A window that is
+        /// only the current frame opens nothing — the plain bus read already answers it. Returns the window to restore.
+        /// </summary>
+        public int OpenStepWindow(int reader)
         {
-            return Bus.Read<T>();
+            int previous = _windowReader;
+            _windowReader = _eventHistory != null && reader >= 0 && !_eventHistory.WindowIsCurrentFrame(reader) ? reader : -1;
+            return previous;
         }
 
-        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ReadManagedEvents<T>()
+        /// <summary>Closes the window <see cref="OpenStepWindow"/> opened, restoring <paramref name="previous"/>.</summary>
+        public void CloseStepWindow(int previous) => _windowReader = previous;
+
+        /// <summary>Every event of type <typeparamref name="T"/> the running system is owed (rule 5), oldest first.</summary>
+        public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged
+            => _windowReader >= 0 ? _eventHistory!.ReadWindow<T>(_windowReader) : Bus.Read<T>();
+
+        /// <summary>The managed twin of <see cref="ReadEvents{T}"/>.</summary>
+        public System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>()
+            => _windowReader >= 0 ? _eventHistory!.ReadManagedWindow<T>(_windowReader) : Bus.ReadManaged<T>();
+
+        /// <summary>Is there any managed event of type <typeparamref name="T"/> for this reader (rule 4)?</summary>
+        public bool HasManagedEvents<T>() => ReadManagedEvents<T>().Count > 0;
+
+        /// <summary>The raw bytes of every event of a type id (the blueprint dispatch, which knows types only by id) — rule 4.</summary>
+        public ReadOnlySpan<byte> ReadRawEventsByTypeId(int typeId, out int elementSize)
+            => _windowReader >= 0 ? _eventHistory!.ReadRawWindow(_windowReader, typeId, out elementSize) : Bus.ReadRawByTypeId(typeId, out elementSize);
+
+        /// <summary>Is there any event of a type id for this reader — the cheap gate in front of <see cref="ReadRawEventsByTypeId"/>.</summary>
+        public bool HasEventsByTypeId(int typeId)
+            => _windowReader >= 0 ? _eventHistory!.HasInWindow(_windowReader, typeId, native: true) : Bus.HasEvent(typeId);
+
+        /// <summary>Is there any event of a runtime type for this reader (the replay search and breakpoint scanners) — rule 4.</summary>
+        public bool HasEvents(Type eventType)
         {
-            return Bus.ReadManaged<T>();
+            if (_windowReader < 0) return Bus.HasEvent(eventType);
+            return FdpEventBus.TryGetTypeId(eventType, out int id, out bool native) && _eventHistory!.HasInWindow(_windowReader, id, native);
         }
         
         QueryBuilder ISimulationView.Query()

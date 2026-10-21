@@ -34,6 +34,7 @@ namespace Hrot.Editor.Systems;
 /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c (obstacles), §5.1, §6 (retirement), §9 (still open).
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
+[TickMode(TickPolicy.EveryFrame)]
 public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
 {
     private readonly Func<Hrot.Common.EntityCreation.EntityCreation?> _creation;

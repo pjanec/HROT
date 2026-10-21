@@ -16,6 +16,7 @@ namespace CarKinem.Systems
     /// Runs early to update NavState before physics.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class VehicleCommandSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
@@ -34,7 +35,7 @@ namespace CarKinem.Systems
         
         private void ProcessSpawnCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdSpawnVehicle>();
+            var events = repo.ReadEvents<CmdSpawnVehicle>();
             
             foreach (var cmd in events)
             {
@@ -101,7 +102,7 @@ namespace CarKinem.Systems
 
         private void ProcessCreateFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdCreateFormation>();
+            var events = repo.ReadEvents<CmdCreateFormation>();
             
             foreach (var cmd in events)
             {
@@ -138,7 +139,7 @@ namespace CarKinem.Systems
 
         private void ProcessJoinFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdJoinFormation>();
+            var events = repo.ReadEvents<CmdJoinFormation>();
             
             foreach (var cmd in events)
             {
@@ -175,7 +176,7 @@ namespace CarKinem.Systems
         
         private void ProcessLeaveFormationCommands(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdLeaveFormation>();
+            var events = repo.ReadEvents<CmdLeaveFormation>();
             
             foreach (var cmd in events)
             {
@@ -196,7 +197,7 @@ namespace CarKinem.Systems
 
         private void ProcessAssignSubordinateRejected(EntityRepository repo)
         {
-            var events = repo.Bus.Read<CmdAssignSubordinateRejected>();
+            var events = repo.ReadEvents<CmdAssignSubordinateRejected>();
 
             foreach (var evt in events)
             {

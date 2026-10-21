@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Test-town: an M1 (\"Tank\", 200,120, BasicVehicleSop) in the south street is attacked by two hidden technicals on LandPlatformAttack: \"ATGM Technical\" (185,295, behind a 20 m block) and \"HMG Technical\" (270,215). Shows shoot and scoot: a new hide after each exposure. Judge: (1) the ATGM technical fires from two points >= 5 m apart, drives >= 5 m after its first shot, or is killed by the tank after its shot (2) the HMG technical fires and scoots the same way (3) the tank's first round goes at the ATGM technical (the danger to its armour). Fail: a technical never fires or stays put, or the tank first fires at the HMG technical. Check: python3 scripts/utility-demo-check.py --launch ua-technical-scoot"
   },
   "entities": {
     "a2207d00-0000-4000-8000-000000000001": {

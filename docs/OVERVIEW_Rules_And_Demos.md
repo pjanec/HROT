@@ -5,6 +5,7 @@ current-answer: the whole file — an INDEX (rules → implementers → demos), 
 stale-below: none
 known-rot: statuses are a 2026-10-18 snapshot — re-check the owning design's demo table before relying on a ✅
 related-designs:
+  - CAPABILITIES.md — the reader's summary ABOVE this index (features by chapter, one demo each); PLAN_Feature_Films.md films them
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the machinery map (decision slots, sensors, EQS, library, groups, vehicles); this file is the RULES and DEMOS built on it
   - DESIGN_Civilians_And_Crowd_Control.md — OWNS §2–§3 here (CV-, AW-, CH-, KC-, CO-, FL-, EL-, BM- rules; §5c demo table)
   - DESIGN_Decision_Layer.md — OWNS ROE (Roe.Fire, ReturnFireWindowSeconds, ForceLevel) used by the firing gate (§1)

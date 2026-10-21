@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S10/S7 (CE-2161) - a Squad (Leader + Rifleman 1-6, in a file at (50-86,104) in Shed Row's south cover) marches on test-town to (175,60) with OpenGround on; the ~100 m open field ahead is listed as OpenGround. Shows the crossing choice picking BOUND and crossing by bounding overwatch. Judge: (1) the commander's route sensor lists the open field ahead (kind OpenGround, started in cover); (2) the squad runs BoundingOverwatch; (3) one half moves while the other watches (both moving at most 1.5 s); (4) the last bound ends beyond the far side (>= 3 of 7 men); (5) the march gathers all within 15 m of it; nobody fires. Fail: The squad walks the field as a file, both halves move together, or anyone shoots. Check: python3 scripts/utility-demo-check.py --launch ua-squad-bound-open-ground"
   },
   "entities": {
     "a2161f00-0000-4000-8000-0000000000c0": {

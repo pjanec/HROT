@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: Six civilians stand in a row on the line between patrol A (a rifleman at the west end) and an Insurgent holding a hidden rifle; patrol B is a second unit 170 m off at the act. The Insurgent draws and aims at A, conceals the rifle, walks along the line, then steps off it (AW-22: only the patrol that saw the act remembers him). Judge: (1) he turns Hostile when he aims and hides the rifle again within 15 s (2) patrol A holds while a civilian is in its line, then fires at him once clear, rifle still hidden (3) patrol B spends no round at him. Fail: A fires through the civilians, or B shoots a man it never saw armed. Check: python3 scripts/utility-demo-check.py --launch ua-armed-blend-back"
     },
     "entities": {
         "c2380005-0000-4000-8000-000000000001": {

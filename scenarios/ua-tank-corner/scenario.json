@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Test-town: an M1 (\"Tank\", BasicVehicleSop) at (250,70) beside a 4-storey block fights from hide and firing points against a Javelin team (\"AT Gunner\", 164 m, attacking it) and a rifleman (\"Rifleman\", 210 m). Shows the vehicle exposure cycle: rank the AT weapon first, peek, fire, withdraw. Judge: (1) the tank fires (2) its first rounds go at the AT gunner, not the rifleman (3) it fires from at least two points >= 4 m apart (or the gunner dies first) (4) it moves through hide and firing points (> 5 m from its start). Fail: the first rounds go at the rifleman, or the tank never moves or fires. Check: python3 scripts/utility-demo-check.py --launch ua-tank-corner"
   },
   "entities": {
     "a2195d00-0000-4000-8000-000000000001": {

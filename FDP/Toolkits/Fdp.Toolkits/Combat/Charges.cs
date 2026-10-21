@@ -115,6 +115,7 @@ namespace Fdp.Toolkit.Combat
     /// <c>Interactions</c> capability on every node.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ChargeSystem : IEcsModuleSystem
     {
         /// <summary>Charges set off on this node (rails read it).</summary>
@@ -123,7 +124,7 @@ namespace Fdp.Toolkit.Combat
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository world || !world.Bus.IsRegistered<DetonateChargeEvent>()) return;
-            var asks = world.Bus.Read<DetonateChargeEvent>();
+            var asks = world.ReadEvents<DetonateChargeEvent>();
             for (int i = 0; i < asks.Length; i++)
                 if (Charges.Detonate(world, asks[i].Charge, asks[i].By)) Detonated++;
         }

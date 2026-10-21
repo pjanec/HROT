@@ -241,6 +241,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
         /// Uses <c>ExecutionPolicy.Synchronous()</c> (DataStrategy.Direct) so the kernel
         /// passes the live <see cref="EntityRepository"/> directly to the module.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;

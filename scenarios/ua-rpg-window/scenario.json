@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: Bt-range, ~50 m south of House A: two Bradleys (\"IFV\", \"IFV 2\", BasicVehicleSop) are ambushed by \"RPG Man\" at an upper window (z 3) running WindowDuel, one rocket per window. Shows an AT man moving between windows and IFVs fighting back on the move (V12). Judge: (1) the RPG man fires at an IFV and hurts it (health < 500) (2) he relocates: fires from a second window >= 3 m away, or moves >= 3 m along the floor after firing (3) an IFV fires back. Fail: no rocket hits an IFV, he never changes window, or the IFVs never fire. Check: python3 scripts/utility-demo-check.py --launch ua-rpg-window"
  },
  "entities": {
   "a2209d00-0000-4000-8000-000000000001": {

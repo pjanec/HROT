@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: Berlin: a mission written as a blueprint (Demo_MissionPlan: Advance, Defend, Return). One tank (\"Tank Platoon (Auto Spawn)-1\", 446,421) drives east to (600,427), fires up to 3 rounds at the 50 HP hostile \"M1 Abrams\" (668,427) 68 m away, then drives home to (446.3,420.9). Judge: (1) the tank drives to ~(600,427) in about 35 s (2) it fires at \"M1 Abrams\" and the hostile reaches Health 0 (3) it drives back west and is home within 5 m by ~83 s, the behaviour finished. Fail: the tank never fires, aborts to retreat, or does not return home. Check: none (no live check); ids remap railed by CgfBehaviorSetupTests.CE2054_*"
   },
   "entities": {
     "4b484443-74d9-42af-9f7d-888d7fa6f822": {

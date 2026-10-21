@@ -12,6 +12,7 @@ namespace Hrot.IG.Modules;
 /// bitmask using the <see cref="MapLayerRegistry.All"/> predicate registry, enabling
 /// the rendering hot-path to perform O(1) bitwise layer filtering.</para>
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class MapLayerModule : IEcsModule
 {
     /// <inheritdoc/>

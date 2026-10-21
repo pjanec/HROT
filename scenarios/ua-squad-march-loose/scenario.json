@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S11 (CE-2159) - a Squad (Leader + Rifleman 1-6) strung out on a diagonal from (60,40) to (84,76) on test-town marches ~110 m east in file to (175,60) with no enemy. Shows followers closing up on the lead's trail while it walks, so the lead keeps a march pace. Judge: (1) the lead reaches the objective (within 6 m) inside 200 s; (2) at a march pace of at least 0.9 m/s of the asked 1.5; (3) the file closes up behind it - every man within 35 m of the goal. Fail: The lead keeps stopping for stragglers (pace under 0.9 m/s) or men stay far behind. Check: python3 scripts/utility-demo-check.py --launch ua-squad-march-loose"
   },
   "entities": {
     "a2159f00-0000-4000-8000-0000000000c0": {

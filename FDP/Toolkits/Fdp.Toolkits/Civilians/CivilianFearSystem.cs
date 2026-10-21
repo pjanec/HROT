@@ -48,6 +48,7 @@ namespace Fdp.Toolkit.Civilians
     /// a unit that carries <see cref="CivilianState"/> (added by his <c>CivilianHsm</c>) is touched. The HSM reads the result.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CivilianFearSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>
@@ -57,7 +58,7 @@ namespace Fdp.Toolkit.Civilians
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
 
             if (repo.Bus.IsRegistered<SoundContactEvent>())
-                foreach (ref readonly var heard in repo.Bus.Read<SoundContactEvent>())
+                foreach (ref readonly var heard in repo.ReadEvents<SoundContactEvent>())
                 {
                     if (!IsAfraidKind(repo, heard.Observer)) continue;
                     float distance = 0f;
@@ -79,7 +80,7 @@ namespace Fdp.Toolkit.Civilians
                 }
 
             if (repo.Bus.IsRegistered<SensorChangedEvent>())
-                foreach (var change in repo.Bus.Read<SensorChangedEvent>())
+                foreach (var change in repo.ReadEvents<SensorChangedEvent>())
                 {
                     if (!IsAfraidKind(repo, change.Unit)) continue;
                     if (change.What == SensorChange.NearMiss) Frighten(repo, change.Unit, CivilianFear.NearMissImpulse, now);

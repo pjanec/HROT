@@ -17,7 +17,8 @@ Shots (one per run):
 A PLAN (--plan plan.json) cuts between shots: a list of segments, each {"at": sim seconds, "seconds": n, <the shot's options>}, e.g.
   [{"at": 9.3, "seconds": 2, "over": "Tank", "toward": "Enemy Tank", "back": 16, "height": 5},
    {"at": 18.9, "seconds": 2.4, "follow": "Enemy Tank", "distance": 24, "yaw": 180, "pitch": -10}]
-Between segments the sim runs in real time to the next "at" (a cut). Option names are the flags' without the dashes.
+Between segments the sim gets to the next "at" (a cut): --mode editor STEPS there (frame-exact, the same every run); --mode all
+plays in real time (overshoots up to ~0.1 s). Option names are the flags' without the dashes.
 """
 import argparse, importlib.util, json, math, os, shutil, subprocess, sys, time
 
@@ -87,10 +88,24 @@ def _shot_for(args, t, follow, over, toward):
 SHOT_KEYS = ("follow", "over", "toward", "look_at", "distance", "yaw", "pitch", "orbit", "lift", "back", "height", "ahead", "fov")
 
 
-def run_to(t, step_fps):
-    """Lets the sim run in real time to sim time t, then pauses (a cut). Already past t: nothing."""
+def enter_preview_paused():
+    """⭐ --mode editor: a loaded editor sits in EDIT, where the clock does not run and every step is dropped — enter preview,
+    paused, so stepping advances a fixed dt (scripts/ui-snapshot.py, CE-202: two editor runs stepped alike are byte-identical)."""
+    must(udc.call("POST", "/preview/enter", {"startPaused": True}), "preview/enter")
+
+
+def run_to(t, step_fps, exact):
+    """Brings the sim to sim time t (a cut). Already past t: nothing. ⭐ exact (--mode editor): STEPS there — frame-exact, and the
+    same frame in every run; otherwise plays in real time and pauses (overshoots up to ~0.1 s)."""
     now = udc.sim_time() or 0.0
     if now >= t - 0.5 / step_fps:
+        return
+    if exact:
+        left = int(round((t - now) * 60))
+        while left > 0:
+            n = min(60, left)
+            must(udc.call("POST", "/sim/step", {"count": n}), "step to the cut")
+            left -= n
         return
     must(udc.call("POST", "/sim/play", {}), "play")
     udc.wait_for(lambda: (udc.sim_time() or 0.0) >= t, (t - now) * 20 + 60, every=0.05)
@@ -141,6 +156,7 @@ def main():
     ap.add_argument("--height", type=float, default=6.0)
     ap.add_argument("--ahead", type=float, default=0.35, help="share of the way to --toward the camera looks at")
     ap.add_argument("--port", type=int, default=8111)
+    ap.add_argument("--mode", default="all", help="the ClusterRunner mode: all (the cluster, one process) or editor (the editor's own world, no network)")
     ap.add_argument("--keep-frames", action="store_true")
     ap.add_argument("--attach", action="store_true", help="use a cluster already listening on --port (do not launch or load)")
     ap.add_argument("--plan", help="a JSON list of segments (see above) instead of one shot")
@@ -163,14 +179,17 @@ def main():
     proc = None
     try:
         if not args.attach:
-            proc = udc.launch(args.port)
+            proc = udc.launch(args.port, args.mode)
             udc.load(args.scenario)
         names = ids()
         steps = max(1, round(60 / args.fps))     # the sim runs 60 frames a second; one film frame = this many
+        exact = args.mode == "editor"
+        if exact:
+            enter_preview_paused()
         must(udc.call("POST", "/sim/pause", {}), "pause")
         started, i = time.time(), 0
         for seg in segments:
-            run_to(seg.at, args.fps)
+            run_to(seg.at, args.fps, exact)
             follow = resolve(seg.follow, names)
             over, toward = resolve(seg.over, names), resolve(seg.toward, names)
             count = int(float(seg.seconds) * args.fps)

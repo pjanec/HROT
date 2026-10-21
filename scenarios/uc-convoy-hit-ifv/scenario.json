@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, the Bradley variant: 'Convoy APC' here is a TKB 101 IFV with 'Convoy Squad' (leader + 4 riflemen) aboard, driving north up Avenue E from (652,30) at 8 m/s toward a placed 'IED' at (652,200); the 'Trigger man' (Neutral, covert) waits at (641,170). No other insurgents. Nothing faked. Judge: (1) the vehicle drives its route; (2) the charge goes off only with it within 15 m; (3) a mobile carrier hit with troops aboard pushes through with all five still aboard; (4) it ends 100 m past the charge and its route resumes. (On a halt instead, the squad must be out and firing.) Fail: charge fires with no vehicle near or never goes off, or the squad leaves the pushing carrier. Check: python3 scripts/utility-demo-check.py --launch uc-convoy-hit-ifv"
   },
   "entities": {
     "d0c00000-0000-4000-8000-000000009500": {

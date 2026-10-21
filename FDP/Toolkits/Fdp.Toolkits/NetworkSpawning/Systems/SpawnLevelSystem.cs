@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
     /// <c>EntityCreationPack</c> and scheduled on every host.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class SpawnLevelSystem : IEcsModuleSystem
     {
         private readonly List<Entity> _waiting = new();

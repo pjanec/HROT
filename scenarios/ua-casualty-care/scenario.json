@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: C1-C5 (CE-2152, R-e) - a body-less Squad (Leader, Medic, Rifleman 1-4) holds a building edge on test-town; Rifleman 1 sees an empty-rifled Hostile at (315,380). The check then drops Rifleman 3, 15 m out in the open, to 25 HP. Shows the squad's casualty-care drill: cover fire, then the Medic drags him to cover. Judge: (1) the squad knows a man is down and Rescue wins its decision within 15 s; (2) only the Medic goes, and every coverer's rounds go down before he is 1 m out; (3) he takes the man (casualty carries IsEmbarkedTag) and puts him down within 2.5 m of the cover point, alive (HP > 0); (4) the squad then leaves CasualtyCare; (5) the man down gets no order. Fail: Nobody goes, a non-Medic carries, or the Medic moves before covering fire. Check: python3 scripts/utility-demo-check.py --launch ua-casualty-care"
   },
   "entities": {
     "a2152c00-0000-4000-8000-0000000000c0": {

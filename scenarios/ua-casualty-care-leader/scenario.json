@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: C7 (CE-2152) - the same casualty-care scene (Leader, Medic, Rifleman 1-4, one empty-rifled Hostile at (315,380)) but the casualty is the Leader himself, dropped to 25 HP by the check. Shows succession and then the same rescue run by the new leader. Judge: (1) the next man in line, not the Medic, takes command (UnitSubordinate designation SquadLeader) within 5 s; (2) Rescue wins and only the Medic goes after covering fire; (3) he takes the Leader and puts him down alive within 2.5 m of the cover point; (4) the squad returns to the fight. Fail: The Medic takes command, no one takes command, or the Leader is left lying. Check: python3 scripts/utility-demo-check.py --launch ua-casualty-care-leader"
   },
   "entities": {
     "a2152c00-0000-4000-8000-0000000000c0": {

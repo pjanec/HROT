@@ -25,7 +25,10 @@ related-designs:
 | **`CE-2326`** backend half (R-3030): `TargetMemory.SeenStance`, `BodyStance` on the fire request, the muscle's `AimPoint.ForBodyAt`; backend's own AQ89 A blind round uses it. ⏭ behaviors switches `PeekAndFireNodes` | [Peek and Fire §11.6a/b](../DESIGN_Peek_And_Fire.md); [note](batches/NOTE_Backend_To_Behaviors_Blind_Burst_Body.md) |
 | **`CE-3177`** approved (R-3031) — behaviors' posture tree | [AQ89](Architect_Question_89_Suppress_And_Close.md); [note](batches/NOTE_Backend_To_Behaviors_Approvals_2026_10_21.md) |
 
-⏭ **Next:** the audit's PARTLY rows (§0000000000's table, item 2). ⏳ Waiting on the user: nothing.
+| **`CE-3289`** FILMING the 3-D map — a director camera + a scene-only capture (R-3032); ⭐ `--mode editor` preferred (frame-exact stepped cuts, ~0.8 s/frame) | [**RUNBOOK_Filming.md**](../RUNBOOK_Filming.md); design [Map 3D Mode §6ab](../DESIGN_Map_3D_Mode.md) |
+| behaviors' clearing notes: A/C reviewed + kept; **`CE-2335`** measured — one writer, no split, the re-send lean withdrawn | [note](batches/NOTE_Backend_To_Behaviors_Clearing_Notes_Taken.md); [Building Interiors §3j](../DESIGN_Building_Interiors.md) |
+
+⏭ **Next:** the audit's PARTLY rows (§0000000000's table, item 2). ⏳ Waiting on the user: watching the editor film (CE-3289 stays open until then).
 
 ## 0000000000. NOW (`2026-10-20`, overnight) — the user's overnight list is DONE *(🔒 user: "yes fix CE-2321 the same way, and audit the stale rows. Jets ok, sumo not heard ok, do 1206, 3200 (if still needed, after fixing the vehicle turning into the walls), 3158, do that autonomously overnight")*
 

@@ -6,7 +6,8 @@
     "header": {
         "subsystemType": "Hrot.Scenario",
         "schemaVersion": "1.0",
-        "terrainName": "test-town"
+        "terrainName": "test-town",
+        "description": "What: The twelve protesters of ua-civ-protest, each with a hidden Attitude (four at -1, never riot), and three policemen (Police shield, Police baton 1, Police baton 2) who walk in from 60 m to 15 m, hold the line facing the crowd 60 s, BatonCharge its front rank for 12 s, then hold the line again (CV-14). Judge: (1) nobody riots before the police are within 30 m (2) after the batons a protester is knocked down and at least one but fewer than all riot (3) every Hostile civilian rioted first, the same on CGF, SimHost and IG (4) no attitude -1 protester riots. Fail: all riot, none riot, or the sides differ per node. Check: python3 scripts/utility-demo-check.py --launch ua-civ-provocation"
     },
     "entities": {
         "c2410002-0000-4000-8000-000000000001": {

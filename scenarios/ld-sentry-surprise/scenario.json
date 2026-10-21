@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "bt-range"
+  "terrainName": "bt-range",
+  "description": "What: CE-2298 LD-5 - on bt-range a Sentry (Friend) at (185,80) with a 200-degree field of view holds (PersonHold); the check gives him a sector facing north. Hostile A crosses at y 150 (about 70 m); Hostile B walks up from (185,5) behind him to 40 m, then is ordered to fire. Shows the view cone hiding B until the shot. Judge: (1) his body turns north (within 10 degrees) within 8 s; (2) hostile A crossing in front of him is seen (visual); (3) B walks up to y 38 with no trace in his memory; (4) when B fires his eyes go to the sound behind him (within 80 degrees of south) and B is then seen. Fail: The Sentry sees B while it walks up behind him, or never turns to the shot. Check: python3 scripts/utility-demo-check.py --launch ld-sentry-surprise"
  },
  "entities": {
   "2a980301-0000-4000-8000-000000000301": {

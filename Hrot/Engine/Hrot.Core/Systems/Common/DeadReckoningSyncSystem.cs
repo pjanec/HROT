@@ -35,6 +35,7 @@ namespace Hrot.Common.Systems;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class DeadReckoningSyncSystem : IEcsModuleSystem
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();

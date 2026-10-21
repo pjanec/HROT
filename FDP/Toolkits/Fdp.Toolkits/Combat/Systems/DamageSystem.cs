@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class DamageSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

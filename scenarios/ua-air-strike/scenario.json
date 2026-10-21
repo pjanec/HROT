@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert"
+    "terrainName": "basic-desert",
+    "description": "What: the first bomb demo, on basic-desert. An 'A-10' starting 3.8 km out at 300 m altitude is ordered AirPlatformStrike on 'Target Technical' at (600, 300); a 'Far Technical' stands about 123 m away at (640, 420). Judge: (1) exactly one bomb bursts, within 25 m of the target (about 3 m measured) (2) the target technical is hit (Health below 100; destroyed in live runs) (3) the Far Technical is not destroyed (its fragments may hole it - Mk-82 by design) (4) the A-10 flies on out, still above 100 m. Fail: no bomb, a miss over 25 m, or the far technical destroyed. Check: python3 scripts/utility-demo-check.py --launch ua-air-strike"
   },
   "entities": {
     "a2173500-0000-4000-8000-000000000001": {

@@ -7,6 +7,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class GhostCreationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;

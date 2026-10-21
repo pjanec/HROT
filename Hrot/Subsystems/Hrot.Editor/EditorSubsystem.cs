@@ -5601,6 +5601,7 @@ namespace Hrot.Editor
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
         // they must be routed through a module.
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         private sealed class EditorSimulationModule : IEcsModule        {
             private readonly TogglableSimulationGroup _simulationGroup;
 

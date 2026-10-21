@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Replay
     /// <c>if (isRecording)</c> guards on the hot path.
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class RecordingModule : IEcsModule, IDisposable
     {
         private readonly RecordingConfiguration _config;

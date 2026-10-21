@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S9/S4 (CE-2159 D6) - the ua-squad-danger-crossing march with a Hostile at (345,128) north-east beyond the road, out of sight from the near side but visible from the far side. Shows contact arriving DURING the crossing: the split squad fights where it stands and then assaults. Judge: (1) the crossing starts; (2) it is replaced before it ends by ReactToContact; (3) the squad was split across the road at that moment; (4) the far side fires and the near side fires too; (5) the assault closes on the far contact by FireAndMovement. Fail: The squad finishes crossing ignoring the contact, or one side holds its fire. Check: python3 scripts/utility-demo-check.py --launch ua-squad-danger-crossing-contact"
   },
   "entities": {
     "a2159e00-0000-4000-8000-0000000000c0": {

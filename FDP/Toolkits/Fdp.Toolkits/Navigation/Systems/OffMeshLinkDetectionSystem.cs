@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [UpdateBefore(typeof(CrowdAgentUpdateSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class OffMeshLinkDetectionSystem : IEcsModuleSystem
     {
         private readonly IPathRegistry _pathRegistry;

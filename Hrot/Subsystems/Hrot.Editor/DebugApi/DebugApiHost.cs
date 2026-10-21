@@ -504,6 +504,11 @@ namespace Hrot.Editor.DebugApi
             {
                 int count = ctx.Body?["count"]?.GetValue<int>() ?? 1;
                 if (count < 1) count = 1;
+                // ⭐ CE-4038 — `dt` sizes each step (the film director's 20 / 15 Hz fallback, DESIGN_Film_Director.md D-1);
+                //    the master honours a StepTimeIntent's delta as sent. ⛔ Not above 0.1 s: movers and rounds are tuned near 1/60.
+                float? dt = ctx.Body?["dt"]?.GetValue<float>();
+                if (dt is { } d && !(d > 0f && d <= 0.1f))
+                    return Fail(400, $"dt must be in (0, 0.1] seconds; got {d}.");
 
                 // ⭐⭐⭐ CE-105 — ONE STEP PER FRAME, GATED EACH TIME. ⛔ `count` used to be looped INSIDE the
                 //    single main-thread job (`Service().Step(count)` → N × `_time.Step()`), which cannot work on
@@ -528,7 +533,7 @@ namespace Hrot.Editor.DebugApi
 
                     bool? previewBefore = await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull())
                                                          .ConfigureAwait(false);
-                    issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
+                    issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                     if (issued.Status != 200) return issued;
 
                     // ⭐⭐ CE-3077 — from EDIT the first step only ENTERS PREVIEW, paused, and does not tick: that is the editor's
@@ -540,7 +545,7 @@ namespace Hrot.Editor.DebugApi
                     if (previewBefore == false
                         && await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) == true)
                     {
-                        issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
+                        issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                         if (issued.Status != 200) return issued;
                     }
 

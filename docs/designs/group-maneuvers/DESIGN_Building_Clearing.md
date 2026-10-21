@@ -799,7 +799,7 @@ insurgents hold A's **south** corners — the far side from that door.
 
 ⚠ **Found on the way — `CE-2335` (backend's replication; one defect fixed 2026-10-21: a ghost no longer publishes the door's state, the
 split itself not yet measured):** in one of two identical runs CGF read the north door
-`Open` for the whole run while it was closed (`TerrainDoorState.Open = 0` — a door whose state sample never applied reads open), so the
+`Open` for the whole run while it was closed (`TerrainDoorState.Open = 0` then — ⭐ since `CE-3290` (R-3033, backend, `2026-10-21`) `Closed = 0`: a door whose state never applied reads CLOSED), so the
 drill skipped the breach. CB-53 reads the door live on the brain's node; that read is only as true as the replica.
 
 Rails: `SquadManeuverTests.CE2257_BC1_*` now assert the threshold leg (#1 `AdvanceTo` 1 m in, #2 0.6 s later, each man's point only once

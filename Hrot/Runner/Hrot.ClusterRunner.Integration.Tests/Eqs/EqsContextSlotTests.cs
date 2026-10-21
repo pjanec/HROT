@@ -74,6 +74,7 @@ public sealed class EqsContextSlotTests : IDisposable
 
     // Mock raycast solver: captures RaycastRequestEvent.End and writes a synthetic hit.
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class CapturingMockRaycastSolverSystem : IEcsModuleSystem
     {
         public Vector3 LastRaycastEnd { get; private set; }

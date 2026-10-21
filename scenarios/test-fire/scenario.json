@@ -6,7 +6,8 @@
   "header": {
     "terrainName": "berlin",
     "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0"
+    "schemaVersion": "1.0",
+    "description": "What: Berlin (flat): the simplest shooting test. A friendly M2 Bradley IFV at (493,363) has a mission FireAtTarget on a hostile M2 Bradley IFV 67 m east at (560,361), up to 5 rounds with a 2 s cooldown. Judge: (1) the friendly Bradley fires at the hostile (rounds in flight, its ammo drops) (2) the hostile Bradley takes damage (health 100). Fail: no shots leave, or the target is untouched. Check: none (no live check); a curated regression-net world, seeded by CuratedScenarios (copy behaviour railed by CuratedScenariosTests)"
   },
   "entities": {
     "29a45385-7db7-4de4-a43e-1990267ee30f": {

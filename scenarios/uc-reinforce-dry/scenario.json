@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, the request-chain cast plus 'Blue Reserve' (Friend squad, 4 men) at (40,25) under 'Blue HQ' (SupportCommand); 'Blue Platoon' (PlatoonDefend, 'Blue Squad 1-2') is at (8,8). The check fakes the crisis: it sets all four men of 'Blue Squad 2' to zero health and SPOTs a six-man enemy element at (8,110) from 'Blue Squad 1'. Judge: (1) the platoon asks the HQ to be reinforced (REQUEST Reinforce); (2) the HQ sends its free ground unit 'Blue Reserve' to defend at the platoon, never the requesting platoon; (3) the reserve actually moves more than 10 m. Fail: no request, nothing sent, or the requester is the one sent. Check: python3 scripts/utility-demo-check.py --launch uc-reinforce-dry"
   },
   "entities": {
     "d0c70000-0000-4000-8000-000000009700": {

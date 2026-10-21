@@ -15,6 +15,7 @@ namespace Fdp.Network.Cyclone.Systems
     /// Handles normal periodic publishing and force-publish requests.
     /// </summary>
     [UpdateInPhase(SystemPhase.Export)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class CycloneEgressSystem : IEcsModuleSystem
     {
         private readonly INetworkTranslator[] _translators;

@@ -143,6 +143,11 @@ namespace Fdp.Toolkit.Time.Controllers
 
         // ── ITimeController ──────────────────────────────────────────────────
 
+        private long _timelineEpoch;
+
+        /// <inheritdoc/>
+        public long TimelineEpoch => _timelineEpoch;
+
         /// <summary>
         /// Advances the controller one frame.  In Continuous / BarrierPending: accumulates
         /// wall-clock and sim time, publishes <see cref="TimePulseDescriptor"/> at ~1 Hz.
@@ -511,6 +516,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// <param name="slaveNodeIds">The slave roster that ACKs later steps; <see langword="null"/> keeps the current one.</param>
         public void SnapAndPause(GlobalTime position, HashSet<int>? slaveNodeIds = null)
         {
+            _timelineEpoch++;   // ⭐ CE-3293 (R-3036 rule 7) — the kernel restarts the event history on it
             _frameNumber       = position.FrameNumber;
             _totalTime         = position.TotalTime;
             _unscaledTotalTime = position.UnscaledTotalTime;

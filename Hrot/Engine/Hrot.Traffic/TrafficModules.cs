@@ -17,6 +17,7 @@ namespace Hrot.Traffic;
 /// <see cref="TrafficRuntime.SteppingTick"/>. It reads nothing from the world (the main thread hands it the target), so its snapshot
 /// is filtered to one tiny component.
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficSteppingModule : IEcsModule
 {
     private readonly TrafficRuntime _runtime;
@@ -58,6 +59,7 @@ public sealed class TrafficSteppingModule : IEcsModule
 /// interpolates between the two samples that bracket the instant.</para>
 /// </remarks>
 [UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficMirrorSystem : IEcsModuleSystem
 {
     /// <summary>⭐ AQ93 §12 N4 — <c>EDescriptorType.dtTrafficDemand</c> (Hrot.Network.NED); a rail pins the two equal.</summary>

@@ -115,6 +115,7 @@ namespace Fdp.Toolkit.Behavior
     /// capability on every node (B-13's pick-up runs there too).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CarryStationSystem : IEcsModuleSystem
     {
         /// <summary>Moves applied on this node (rails read it).</summary>
@@ -123,7 +124,7 @@ namespace Fdp.Toolkit.Behavior
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository world || !world.Bus.IsRegistered<RestationEvent>()) return;
-            var asks = world.Bus.Read<RestationEvent>();
+            var asks = world.ReadEvents<RestationEvent>();
             for (int i = 0; i < asks.Length; i++)
                 if (CarryStations.Move(world, asks[i].Man, asks[i].Thing, asks[i].Seat)) Moved++;
         }

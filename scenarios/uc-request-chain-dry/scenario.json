@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, the request chain with its one unreliable link faked: 'Blue HQ' (SupportCommand) owns the 'Apache' at (20,20,60); 'Blue Platoon' (PlatoonDefend) is at (8,8); the mortar cell ('Mortar Tube 1-2', crew) sits at (735-745,745). The check POSTs a SPOT IndirectFire from 'Blue Squad 1' at the tubes. Judge: (1) before the SPOT the Apache has no task (nothing sent without a report); (2) after it the platoon sends REQUEST FireSupport; (3) the HQ sends the Apache on an AirArmedSearch and it flies to the point (closes 300 m+); (4) it attacks what it finds (gun rounds or mortar-crew casualties). Fail: the Apache moves before the report, no request is made, or it never attacks. Check: python3 scripts/utility-demo-check.py --launch uc-request-chain-dry"
   },
   "entities": {
     "d0c70000-0000-4000-8000-000000009700": {

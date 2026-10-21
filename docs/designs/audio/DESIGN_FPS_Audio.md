@@ -4,9 +4,10 @@ updated: 2026-10-15
 build-state: BUILT (A0–A3, 2026-10-15) — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); A4 later
 current-answer: §1 the diagrams (as built), §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices, §8 AS BUILT and its deviations.
 stale-below: nothing — what the build changed is in §8 with the earlier wording quoted there.
-known-rot: none (§8 lists where the build refined §2 / §6 / AU-8).
+known-rot: AU-3 (sound only while possessed) is amended twice — §8 D11 (3-D camera sound, CE-1137) and R-4059 (2026-10-21: sound in every non-FPS view behind a menu switch, FPS always; the 2-D ear and the films' sound track are designed in docs/DESIGN_Film_Director.md §4c). §8 lists where the build refined §2 / §6 / AU-8.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Film_Director.md — §4c: the 2-D ear, the /audio route, a take's sound switch, and the films' sound track rendered offline from this mixer's cue log (R-4059)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: a per-weapon SIM signature (A) — a different consumer from the viewer's SoundSetDto
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S4: the ambient beds by time of day and the wind from WeatherField
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS what the AI HEARS (AcousticSignatureDto ranges, SoundSourceClass, SoundEmissionSystem, R-205); this file PLAYS sound to the operator and reuses those ranges and classes so the two agree (AU-4)

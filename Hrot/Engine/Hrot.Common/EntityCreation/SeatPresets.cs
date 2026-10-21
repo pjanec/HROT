@@ -56,6 +56,7 @@ namespace Hrot.Common.EntityCreation
     /// Runs on every node that builds the entity-creation pack; only the creating node holds an intent.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class SeatPresetSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;

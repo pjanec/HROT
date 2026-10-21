@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "demo-city"
+    "terrainName": "demo-city",
+    "description": "What: A near-empty shell on the demo-city terrain: one traffic entity (TKB 8850, TrafficDemand: 200 target cars, 160 target pedestrians, seed 1, 0.5 s step) that spawns SUMO traffic, plus two idle Friend riflemen ('Rifleman 1' at (386,386), 'Rifleman 2' at (414,414), InertSop) in the middle of the city. Judge: (1) cars (target 200) appear and drive the city's streets; (2) walkers (target 160) appear and move; (3) the two riflemen stand where placed, doing nothing. Fail: no traffic appears, or the riflemen move or react. Check: none (no live check); none loads this file; Hrot.Traffic.Tests (e.g. PedestriansPanicIntoCiviliansTests) use demo-city's net."
   },
   "entities": {
     "a9930000-0000-4000-8000-000000000001": {

@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </list>
     /// </para>
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
         // CE-3039 — each perceiving unit's health as last seen, to publish the Hit edge. Two maps swapped each tick, so a
@@ -58,12 +59,20 @@ namespace Fdp.Toolkit.Perception.Systems
 
         // ⭐ CE-3063 — this frame's heard contacts, grouped by the unit that heard them.
         private readonly System.Collections.Generic.Dictionary<Entity, System.Collections.Generic.List<SoundContactEvent>> _heard = new();
+        // ⭐ CE-3293 — the world these maps describe. A reload clears the world and the next run's units come back under the same
+        //   handles (SoftClear restarts the generations), so last run's counts would read as this run's: the first step published
+        //   AllClear for a tank that had never seen anything (measured live, ua-tank-ammo, every reload but the first).
+        private int _epoch;
 
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+            {
+                _lastHealth.Clear(); _nextHealth.Clear(); _lastThreats.Clear(); _nextThreats.Clear(); _heard.Clear();
+            }
             var ecb  = view.GetCommandBuffer();
-            uint tick = view.Tick;
+            uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
 
             // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.

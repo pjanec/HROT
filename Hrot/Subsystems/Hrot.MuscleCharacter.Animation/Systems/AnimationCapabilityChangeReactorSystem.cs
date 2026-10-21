@@ -27,6 +27,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(CognitiveInterruptSystem))]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class AnimationCapabilityChangeReactorSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

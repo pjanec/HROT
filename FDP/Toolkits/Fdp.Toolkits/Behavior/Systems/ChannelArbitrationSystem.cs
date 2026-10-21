@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     // [UpdateBefore(typeof(LocomotionDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
     // [UpdateBefore(typeof(WeaponDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
     // [UpdateBefore(typeof(InteractionDispatcherSystem))] -- ordering maintained by array position in ActionDispatchModule.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ChannelArbitrationSystem : IEcsModuleSystem
     {
         /// <summary>

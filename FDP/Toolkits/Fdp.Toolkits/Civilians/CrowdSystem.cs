@@ -95,6 +95,7 @@ namespace Fdp.Toolkit.Civilians
     /// member spikes his neighbours'.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CrowdSystem : IEcsModuleSystem
     {
         private readonly List<Entity> _civs = new();

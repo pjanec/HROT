@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// reads <see cref="DebugState"/> in <c>SystemPhase.Simulation</c>.
     /// </remarks>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class DebugStatePatchSystem : IEcsModuleSystem
     {
         public DebugStatePatchSystem()
@@ -32,7 +33,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                     $"{nameof(DebugStatePatchSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            foreach (var cmd in repo.Bus.ReadManaged<PatchDebugStateCommand>())
+            foreach (var cmd in repo.ReadManagedEvents<PatchDebugStateCommand>())
             {
                 if (cmd == null) continue;
                 if (!repo.IsAlive(cmd.Target)) continue;

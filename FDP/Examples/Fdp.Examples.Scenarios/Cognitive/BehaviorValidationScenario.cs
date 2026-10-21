@@ -405,6 +405,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         // ── Inner module ──────────────────────────────────────────────────────
 
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _systems;

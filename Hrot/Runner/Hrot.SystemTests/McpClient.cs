@@ -94,6 +94,14 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> StepAsync(int count = 1, CancellationToken ct = default)
         => PostAsync("/sim/step", new JsonObject { ["count"] = count }, ct);
 
+    /// <summary><c>POST /sim/step {count, dt}</c> — N steps of <paramref name="dt"/> seconds each (CE-4038: the film director's 20 / 15 Hz).</summary>
+    public Task<ApiResult> StepAsync(int count, float dt, CancellationToken ct = default)
+        => PostAsync("/sim/step", new JsonObject { ["count"] = count, ["dt"] = dt }, ct);
+
+    /// <summary><c>GET /combat/shots?last=N</c> — the shot log, each with its own <c>firedAt</c> sim time.</summary>
+    public Task<ApiResult> GetCombatShotsAsync(int last = 256, CancellationToken ct = default)
+        => GetAsync($"/combat/shots?last={last}", ct);
+
     public Task<ApiResult> SetTimeScaleAsync(float scale, CancellationToken ct = default)
         => PostAsync("/sim/timescale", new JsonObject { ["scale"] = scale }, ct);
 

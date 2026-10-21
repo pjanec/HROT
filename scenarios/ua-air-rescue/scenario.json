@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: a rescue round trip on test-town (CE-2223). A doors-off UH-60 carries a 'Rescue squad' (Leader, Medic, Rifleman 1-3) to the LZ at (190, 340), 22 m from a wounded 'Downed pilot' at (190, 318). The squad's mission is SquadRecover (the Medic carries the pilot to the aircraft) then SquadEmbark. Judge: (1) the helicopter lands within 12 m of the LZ and the squad dismounts (2) a squad man picks up the downed pilot (3) the pilot is seated in the UH-60 (4) all five men are back aboard (5) it lifts off only with them all aboard, and the pilot is still alive (HP above 0). Fail: the helicopter leaves without the pilot, or he bleeds out first. Check: python3 scripts/utility-demo-check.py --launch ua-air-rescue"
   },
   "entities": {
     "a2173400-0000-4000-8000-000000000001": {

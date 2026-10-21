@@ -9,6 +9,7 @@ using Fdp.Toolkit.Replication.Services;
 namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public class OwnershipIngressSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap      _entityMap;

@@ -28,6 +28,7 @@ namespace Hrot.CGF.Systems
     /// </para>
     /// </remarks>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class MissionAdapterSystem : IEcsModuleSystem
     {
         public MissionAdapterSystem() { }

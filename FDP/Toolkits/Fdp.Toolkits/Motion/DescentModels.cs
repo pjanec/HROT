@@ -501,6 +501,7 @@ namespace Fdp.Toolkit.Motion
     /// surface he landed on. Runs after <see cref="AirMotionSystem"/>, on the node that owns his position.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DescentLandingSystem : IEcsModuleSystem
     {
         /// <summary>How long a roped man takes to clear the rope (s).</summary>

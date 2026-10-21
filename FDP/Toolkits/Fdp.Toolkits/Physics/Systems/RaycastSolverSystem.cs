@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Physics.Systems
     /// See BATCH-08 report Q2 for the full analysis.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class RaycastSolverSystem : IEcsModuleSystem
     {
         /// <summary>

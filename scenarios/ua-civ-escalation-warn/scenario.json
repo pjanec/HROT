@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: The ua-civ-escalation line (rifleman, baton man, launcher man) and riot (Instigator, three protesters at a stone source, plus a Hostile Gunman who draws a hidden rifle) but under a WARN ceiling (EL-2). Demonstrates that a Warn ceiling holds every round for 40 s. Judge: (1) the riot starts (2) no police round and no baton blow at all: every police mount keeps its ammo, no rioter is stunned, irritated, down or hurt (3) the Warning cue is shown (4) rounds are held as 'hold: warning'. Fail: any police weapon fires, or any rioter is hurt by police. Check: python3 scripts/utility-demo-check.py --launch ua-civ-escalation-warn"
   },
   "entities": {
     "c2390006-0000-4000-8000-000000000001": {

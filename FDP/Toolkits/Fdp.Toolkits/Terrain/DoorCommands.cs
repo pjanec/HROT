@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Terrain
     /// <see cref="NetworkAuthority"/> (one node, the editor) this node owns every door.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class DoorCommandSystem : IEcsModuleSystem
     {
         /// <summary>
@@ -135,7 +136,7 @@ namespace Fdp.Toolkit.Terrain
         {
             if (view is not EntityRepository repo) return;
             if (!repo.Bus.IsRegistered<DoorCommandEvent>() || !repo.IsComponentTypeRegistered<DoorState>()) return;
-            var events = repo.Bus.Read<DoorCommandEvent>();
+            var events = repo.ReadEvents<DoorCommandEvent>();
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var cmd = ref events[i];

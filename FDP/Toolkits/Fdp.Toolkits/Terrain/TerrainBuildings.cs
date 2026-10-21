@@ -11,7 +11,11 @@ namespace Fdp.Toolkit.Terrain
     /// A door's state — the terrain's INITIAL value (template → instance override → scenario, §3a/§3b). The replicated
     /// runtime state (<c>DoorState</c>, Stage 5) uses the same values.
     /// </summary>
-    public enum TerrainDoorState : byte { Open = 0, Closed = 1, Locked = 2, Destroyed = 3 }
+    /// <remarks>⭐ <c>CE-3290</c> (R-3033; 🔒 user, <c>2026-10-21</c>: <i>"building doors are usually closed so 'closed' that is better default"</i>) —
+    /// <see cref="Closed"/> is 0, so a door whose state was never set (a zeroed table, an unapplied component) reads CLOSED. ⛔ It was
+    /// <c>Open = 0</c>. Files name the state (<c>"closed"</c>), so they are unaffected; ⚠ a replay recorded before this build reads its
+    /// doors' Open and Closed swapped.</remarks>
+    public enum TerrainDoorState : byte { Closed = 0, Open = 1, Locked = 2, Destroyed = 3 }
 
     /// <summary>An opening on a wall panel, in WORLD units: <see cref="At"/> metres along the panel from <c>A</c>, sill and
     /// head as absolute Z.</summary>

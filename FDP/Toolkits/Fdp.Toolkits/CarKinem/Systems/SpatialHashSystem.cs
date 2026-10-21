@@ -19,6 +19,7 @@ namespace CarKinem.Systems
     /// Publishes grid as singleton component.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class SpatialHashSystem : IEcsModuleSystem
     {
         /// <summary>The grid's current placement — a rail reads it; consumers read <c>SpatialGridData</c>.</summary>

@@ -12,6 +12,7 @@ namespace Fdp.ModuleHost.Tests
 {
     public class ReactiveSchedulingTests
     {
+        [TickMode(TickPolicy.EveryFrame)]
         class MockModule : IEcsModule
         {
             public string Name => "MockModule";
@@ -34,6 +35,7 @@ namespace Fdp.ModuleHost.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
 
+        [TickMode(TickPolicy.WhenTimeAdvances)]
         class MockAsyncModule : IEcsModule
         {
             public string Name => "MockAsyncModule";

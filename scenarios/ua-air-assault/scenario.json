@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Air Ops slice 3c (CE-2223) - a doors-off UH-60 flies the 'Insertion route' on test-town carrying a six-man air assault squad (Leader, Rifleman 1-5) to a landing zone at (190, 340); the squad's SOP rides, dismounts on landing, and its SquadMarch order resumes toward an objective at (200, 195). Judge: (1) the helicopter lands within 10 m of the LZ (phase Unloading) and nobody leaves it while still in the air (2) all six dismount at the LZ (3) the helicopter lifts off (30 m+ from the LZ) only after the last man is out (4) the squad's centre ends within 15 m of the objective. Fail: a man jumps out airborne, the helicopter leaves with men aboard, or the squad stays at the LZ. Check: python3 scripts/utility-demo-check.py --launch ua-air-assault"
   },
   "entities": {
     "a2173300-0000-4000-8000-000000000001": {

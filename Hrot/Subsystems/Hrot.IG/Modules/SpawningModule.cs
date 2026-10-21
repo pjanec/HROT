@@ -18,6 +18,7 @@ namespace Hrot.IG.Modules
     /// Must be registered in the kernel <em>before</em> <c>CycloneNetworkModule</c> so
     /// that entities are available for the first ingress tick.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public class SpawningModule : IEcsModule
     {
         public string          Name   => "NetworkSpawning";

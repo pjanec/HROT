@@ -10,6 +10,7 @@ namespace Hrot.IG.Modules;
 ///
 /// Follows the same system-based pattern as <see cref="SpawningModule"/>.
 /// </summary>
+[TickMode(TickPolicy.WhenTimeAdvances)]
 public class MapCullingModule : IEcsModule
 {
     public string          Name   => "MapCulling";

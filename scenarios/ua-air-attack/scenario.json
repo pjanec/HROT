@@ -6,7 +6,8 @@
  "header": {
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
-  "terrainName": "basic-desert"
+  "terrainName": "basic-desert",
+  "description": "What: the air showcase on basic-desert, five vignettes side by side against bare pickups that cannot shoot back. 'Bomber A-10' level-bombs a fortification point; 'Gunship A-10' gun-runs 'Column Lead' ('Column Second' behind it); 'Apache' rocket-runs then guns a position ('Position Truck') on the move; 'Door Gunship UH-60' orbits 'Orbit Truck' with its door guns, and the check shoots its left door gunner. Judge: (1) the bomb bursts within 25 m of the point (2) the gun run fires 10+ rounds and the lead truck dies (3) the Apache fires both its rockets and its gun and breaks off 300 m+ short (4) the UH-60 circles at 250-550 m, never hovering (20+ m/s) (5) after the left gunner falls his gun goes silent, the other door's gun takes over, the orbit reverses, and the Orbit Truck is destroyed. Fail: a vignette misses, or the orbit does not reverse. Check: python3 scripts/utility-demo-check.py --launch ua-air-attack"
  },
  "entities": {
   "a2173600-0000-4000-8000-000000000001": {

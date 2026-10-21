@@ -18,6 +18,7 @@ namespace Hrot.Common.Systems
     // GlobalActionDispatchSystem can read it in the same GizmoInteractionModule.Tick().
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(GlobalActionDispatchSystem))]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class ContextActionIngressSystem : IEcsModuleSystem
     {
         private readonly System.Func<NetworkEntityMap?> _entityMap;

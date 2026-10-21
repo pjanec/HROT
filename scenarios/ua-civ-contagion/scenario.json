@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: Fifteen civilians stand 8 m apart along a street, 30-142 m from a firefight at its west end (a Rifleman and a Hostile); each wanders only 3 m so they stay one crowd (CV-5, CE-2237). Demonstrates fear spreading through the crowd to people who never heard the shots. Judge: (0) they stand as ONE crowd (1) the rifleman opens fire and at least 5 hear it (2) at least 4 (100+ m away) never hear anything (3) at least 3 of those deaf ones panic, caught from the crowd. Fail: only the near ones react, or the crowd splits into two so the far end stays calm. Check: python3 scripts/utility-demo-check.py --launch ua-civ-contagion"
   },
   "entities": {
     "c2370002-0000-4000-8000-000000000001": {

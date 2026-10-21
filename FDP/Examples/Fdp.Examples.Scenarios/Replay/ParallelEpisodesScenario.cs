@@ -307,6 +307,7 @@ namespace Fdp.Examples.Scenarios.Replay
         /// Uses <c>ExecutionPolicy.Synchronous()</c> (DataStrategy.Direct) so the kernel
         /// passes the live <see cref="EntityRepository"/> without snapshot overhead.
         /// </summary>
+        [TickMode(TickPolicy.EveryFrame)]
         private sealed class LiveKinematicsModule : IEcsModule
         {
             private readonly SpatialHashSystem    _spatial;

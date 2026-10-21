@@ -19,6 +19,7 @@ namespace Fdp.ModuleHost.Time
     /// repository would write bytes that the restore then overwrites.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PreFrame)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ResumeAndDrainSystem : IEcsModuleSystem
     {
         private readonly IStagedWrites _staged;
@@ -55,12 +56,10 @@ namespace Fdp.ModuleHost.Time
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
-            // The delta PARAMETER, deliberately. The scheduler is handed GlobalTime.DeltaTime for
-            // this frame, so it is the same number the clock singleton carries — but asking a time
-            // CONTROLLER instead would be wrong: GetCurrentState() builds its state with a
-            // hard-coded zero delta and therefore reports "halted" on every frame, including the
-            // running ones.
-            if (deltaTime <= 0f) return;
+            // Halted = the frame's delta is zero, and on such a frame this system is not called at all.
+            // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps it off a frame that does not
+            //   advance. (⚠ Never a time CONTROLLER's state: GetCurrentState() builds it with a hard-coded zero delta and so reports
+            //   "halted" on every frame, including the running ones.)
 
             // Replay preparation halts the world without zeroing this parameter, so the delta alone
             // cannot tell us the world is about to be overwritten. Ask the kernel when we can.

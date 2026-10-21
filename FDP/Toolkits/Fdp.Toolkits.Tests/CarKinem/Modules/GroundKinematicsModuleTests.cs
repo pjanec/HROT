@@ -24,16 +24,17 @@ namespace CarKinem.Tests.Modules
 
             // Assert — 5 simulation + 3 post-simulation systems (⭐ 5d-3: + DoorPassageSystem; ⭐ CE-3117: + PathTraceSystem)
             Assert.Equal(5, module.SimulationSystems.Count);
-            Assert.Equal(4, module.PostSimulationSystems.Count);   // ⭐ CE-3252: + LookFollowSystem after the gait
+            Assert.Equal(5, module.PostSimulationSystems.Count);   // ⭐ CE-3252: + LookFollowSystem after the gait; ⭐ CE-3293: + the paused clamp
             Assert.IsType<SpatialHashSystem>(module.SimulationSystems[0]);
             Assert.IsType<FormationTargetSystem>(module.SimulationSystems[1]);
             Assert.IsType<VehicleCommandSystem>(module.SimulationSystems[2]);
             Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[3]);
             Assert.IsType<DoorPassageSystem>(module.SimulationSystems[4]);
             Assert.IsType<CarKinematicsSystem>(module.PostSimulationSystems[0]);
-            Assert.IsType<Fdp.Toolkit.Perception.Look.LookFollowSystem>(module.PostSimulationSystems[1]);   // the head, after the body moved
-            Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[2]);
-            Assert.IsType<PathTraceSystem>(module.PostSimulationSystems[3]);   // after the mover, so it traces this tick's path
+            Assert.IsType<GroundClampWhilePausedSystem>(module.PostSimulationSystems[1]);   // CarKinematics' paused half
+            Assert.IsType<Fdp.Toolkit.Perception.Look.LookFollowSystem>(module.PostSimulationSystems[2]);   // the head, after the body moved
+            Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[3]);
+            Assert.IsType<PathTraceSystem>(module.PostSimulationSystems[4]);   // after the mover, so it traces this tick's path
         }
 
         [Fact]

@@ -11,13 +11,15 @@ namespace Fdp.ModuleHost.Providers
     /// Maintains pool of EntityRepository snapshots.
     /// Acquires from pool, syncs with mask, releases back to pool.
     /// </summary>
-    public sealed class OnDemandProvider : ISnapshotProvider, IDisposable
+    public sealed class OnDemandProvider : ISnapshotProvider, IDisposable, IEventHistoryReader
     {
         private readonly EntityRepository _liveWorld;
         private readonly EventAccumulator _eventAccumulator;
         private readonly BitMask512 _componentMask;
         private readonly ConcurrentStack<EntityRepository> _pool;
-        private uint _lastSeenTick;
+        // ⭐ CE-3293 S4 — a reader of the event history: it holds every event until a snapshot has had it
+        private EventReaderHandle _eventReader;
+        private readonly object _eventReaderLock = new();
         
         private readonly Action<EntityRepository>? _schemaSetup;
         
@@ -61,12 +63,6 @@ namespace Fdp.ModuleHost.Providers
                 snapshot = CreateSnapshot();
             }
 
-            // Detect time-travel to prevent event dropping
-            if (_liveWorld.GlobalVersion < _lastSeenTick)
-            {
-                _lastSeenTick = 0;
-            }
-
             // Sync from live world (with component mask filtering)
             snapshot.SyncFrom(_liveWorld, _componentMask);
             snapshot.CopyClockFrom(_liveWorld);   // ⭐ CE-3267 — the module's view carries the frame's clock
@@ -77,9 +73,7 @@ namespace Fdp.ModuleHost.Providers
             // moves READ to WRITE and then CLEARS it, destroying the just-injected events.
             // ReleaseView calls SoftClear -> Bus.ClearAll() which already resets both buffers
             // before the snapshot is returned to the pool, so no manual clear is needed here.
-            _eventAccumulator.FlushToReplica(snapshot.Bus, _lastSeenTick);
-
-            _lastSeenTick = _liveWorld.GlobalVersion;
+            lock (_eventReaderLock) _eventReader.Flush(_eventAccumulator, snapshot.Bus);
 
             return snapshot;
         }
@@ -129,6 +123,9 @@ namespace Fdp.ModuleHost.Providers
             }
         }
         
+        /// <inheritdoc/>
+        public void ReleaseEventReader() { lock (_eventReaderLock) _eventReader.Release(_eventAccumulator); }
+
         private void WarmupPool(int count)
         {
             for (int i = 0; i < count; i++)
@@ -162,6 +159,7 @@ namespace Fdp.ModuleHost.Providers
         /// </summary>
         public void Dispose()
         {
+            ReleaseEventReader();
             while (_pool.TryPop(out var pooled))
             {
                 pooled.Dispose();

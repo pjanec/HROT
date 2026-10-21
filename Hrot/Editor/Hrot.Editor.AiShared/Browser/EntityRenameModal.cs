@@ -64,7 +64,7 @@ public sealed class EntityRenameModal
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
 
-        foreach (ref readonly var cmd in world.Bus.Read<OpenRenameDialogCommand>())
+        foreach (ref readonly var cmd in world.ReadEvents<OpenRenameDialogCommand>())
         {
             _targetNetworkId = cmd.NetworkId;
             _openThisFrame   = true;

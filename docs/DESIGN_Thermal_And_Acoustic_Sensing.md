@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — step-only systems, step windows and the reload probe (§7e) that measured the ring's thread race (§8.3)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — a sound signature per weapon (A), hearing bounded by distance not terrain (B), a lossless emission ring (C) — OPEN, leans await the user
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015, CE-1148): the shot / detonation ingress moves to every node with an own-sample skip, replacing §3a's Perception && !MuscleGround branch and its named limit.
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S2 gives thermal and hearing the weather and the time of day (row F's "not asked")
@@ -647,8 +648,8 @@ sequenceDiagram
   F->>E: WeaponFireNotification / DetonationNotification
   E->>R: Append {serial n, source, force, at, carry, kind, class, time}
   Note over R: slot n mod 4096 — Serial blanked, fields written, Serial = n, Head = n
-  G->>R: ReadAfter(my cursor) up to Head
-  Note over G: a slot whose Serial is not n was overwritten — counted in Overflow
+  G->>R: ReadAfter(my cursor, before = the snapshot's own time)
+  Note over G: a slot whose Serial is not n was overwritten — counted in Overflow. A sound made at or after the snapshot's time stops the read (CE-3293)
   G->>G: hear each by distance (loud: carry x weather, quiet: carry and ear)
   G->>C: AcousticCursor = last serial read
   Note over C: a timed-out run is DISCARDED with its cursor, so the next run reads the same sounds again
@@ -662,6 +663,7 @@ and with it the cursor, so a skipped or discarded solve re-reads instead of losi
 | a seqlock per slot, ONE writer (the main thread) | lock-free, no allocation per shot; the reader detects a torn read | ⛔ a lock — the solver would block the main loop |
 | the cursor is a component written through the command buffer | a discarded solve loses its cursor too ⇒ lossless | ⛔ a cursor table inside the ring — a discarded run would still advance it |
 | a new sensor starts at the current Head | it does not "hear" the minutes before it existed | ⛔ from 0 |
+| ⭐ **a read is AS OF the reader's own time** *(`CE-3293`, `2026-10-21`)*: only sounds made before the snapshot's clock are read, and the cursor stops at the first that is not | 📐 the writer goes on appending the DISPATCHING step's sounds while the background solve runs, so whether those were heard depended on the threads — measured live, four loads of `ua-tank-ammo` 15 Hz stepped: one run heard a burst at 18.40 s, the other three at 18.53 s (one solve later). Every sound before the snapshot's own time was written before the snapshot was taken ⇒ fixed. Cost: a sound is heard by the solve AFTER the step that made it (≤ one step). A view with no clock reads everything, as before | ⛔ copying the ring into the snapshot — 256 KB per dispatch · ⛔ a head captured at sync time — Fdp.Core would have to know the ring's type |
 | N = 4096 entries, T = 30 s | 4096 / 10 s (the circuit's worst skip) ≈ 400 shots / s sustained; T stops a long-silent sensor hearing old news | — the overflow counter tells when N is too small |
 
 ### 8.4 `CE-3283` — a SIGNATURE per weapon, and what the ear can tell *(backend, `2026-10-20`; Q95 A, approved; build-state: BUILT)*

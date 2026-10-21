@@ -4,18 +4,18 @@ using Fdp.Core;
 namespace Fdp.Toolkit.ReplayBrowser.Search
 {
     /// <summary>
-    /// Invoked once per simulation frame to scan event bus data and append results.
+    /// Invoked once per simulation frame to scan the frame's events and append results.
     /// </summary>
-    /// <param name="bus">The event bus containing data for the current frame.</param>
+    /// <param name="repo">The world whose events are scanned — read through its repository reads, never its bus
+    /// (CE-3293 S3, R-3036 rule 4: the live data breakpoints run in a step-only system).</param>
     /// <param name="frame">Zero-based frame index.</param>
     /// <param name="ticks">Wall-clock ticks for the frame (UTC).</param>
     /// <param name="results">Mutable output list; append SearchResultDto entries here.</param>
     public delegate void EventScannerDelegate(
-        FdpEventBus bus,
+        EntityRepository repo,
         int frame,
         long ticks,
         List<SearchResultDto> results,
-        EntityRepository repo,
         TargetEntityFilter? entityFilter);
 
     /// <summary>

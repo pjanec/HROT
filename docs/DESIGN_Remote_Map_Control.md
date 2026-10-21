@@ -23,6 +23,7 @@ verified: 2026-09-10 — every AS-IS claim measured from source, file:line inlin
 known-conflict: none. ⚠ The dispatcher role is claimed by MapCommandController's HEADER but not by its
   code; §3.2 measures what that class actually does, and §4.2 says which half it keeps.
 related-designs:
+  - docs/DESIGN_Film_Director.md — moves the map camera from a SCRIPT inside the editor (FilmStudio), deliberately not through CMD_SET_VIEW (its D-12)
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the selection store, request, notification and
     egress. This file owns only the remote COMMAND path that feeds it as one more requester.
   - docs/SNAPSHOT_Map_Interaction_Architecture.md — the measured AS-IS snapshot this design was built on.

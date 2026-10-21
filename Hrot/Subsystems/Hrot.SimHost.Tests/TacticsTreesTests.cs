@@ -1456,12 +1456,14 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             CanLook(w);
             w.Hear(0f, -50f, 5f);                                                           // behind him (south)
-            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = w.Repo.SimulationTick;
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(w.Repo);   // CE-3292: the step clock
             var p = new LookParams { BearingSet = 1, Bearing = 0f };                        // ordered to watch north
             var ws = new LookNodeState();
             Assert.Equal(LookChoice.Heard, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
             Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 180f) < 1f);
-            w.Repo.ResetGlobalVersion(w.Repo.SimulationTick + LookAt.HeardWindowTicks + 1);  // the sound is old now
+            var clock = w.Repo.GetSingletonUnmanaged<GlobalTime>();                          // the sound is old now (CE-3292: in sim steps)
+            clock.FrameNumber += LookAt.HeardWindowTicks + 1;
+            w.Repo.SetSingletonUnmanaged(clock);
             Assert.Equal(LookChoice.Bearing, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
             Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 0f) < 1f);
         }

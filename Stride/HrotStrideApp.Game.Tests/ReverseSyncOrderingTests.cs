@@ -104,6 +104,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
     /// specific entity each time it runs. Used to assert same-frame reads.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class ProbeCaptureSystem : IEcsModuleSystem
     {
         private readonly Entity _target;
@@ -126,6 +127,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
     /// <summary>
     /// Adapter to register a single simulation-phase system with the kernel.
     /// </summary>
+    [TickMode(TickPolicy.EveryFrame)]
     private sealed class ProbeModule : IEcsModule
     {
         private readonly IEcsModuleSystem _system;

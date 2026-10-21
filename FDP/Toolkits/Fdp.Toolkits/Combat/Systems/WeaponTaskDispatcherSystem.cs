@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// capability (<c>CombatModule</c> — the Muscle, or the editor as its one node) schedules this system.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WeaponTaskDispatcherSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)

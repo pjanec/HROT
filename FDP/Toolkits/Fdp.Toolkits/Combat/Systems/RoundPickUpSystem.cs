@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// each across nodes (kinds 9 and 10); in one world both halves run here.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class RoundPickUpSystem : IEcsModuleSystem
     {
         /// <summary>Asks granted / grants put in a man's hands on this node (rails and diagnostics read them).</summary>
@@ -27,7 +28,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (view is not EntityRepository repo) return;
             if (repo.Bus.IsRegistered<PickUpRoundEvent>() && repo.Bus.IsRegistered<PickUpGrantEvent>())
             {
-                var asks = repo.Bus.Read<PickUpRoundEvent>();
+                var asks = repo.ReadEvents<PickUpRoundEvent>();
                 for (int i = 0; i < asks.Length; i++)
                 {
                     ref readonly var ask = ref asks[i];
@@ -39,7 +40,7 @@ namespace Fdp.Toolkit.Combat.Systems
             }
             if (repo.Bus.IsRegistered<PickUpGrantEvent>())
             {
-                var grants = repo.Bus.Read<PickUpGrantEvent>();
+                var grants = repo.ReadEvents<PickUpGrantEvent>();
                 for (int i = 0; i < grants.Length; i++)
                 {
                     ref readonly var grant = ref grants[i];
@@ -56,6 +57,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// brain's node (where his hands are), in the <c>Interactions</c> capability.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class HandsFuzeSystem : IEcsModuleSystem
     {
         /// <summary>A cooked-off round flies with this fuze (s): it bursts at once, at his hands.</summary>

@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// All-in-one ECS module wiring engine-backed navigation providers.
     /// Mutually exclusive with NavigationFakesModule.
     /// </summary>
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EngineBackedNavigationModule : IEcsModule, IDisposable
     {
         /// <inheritdoc/>

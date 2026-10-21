@@ -6,7 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town"
+    "terrainName": "test-town",
+    "description": "What: S10 (CE-2159 D3) - the ua-squad-danger-crossing march (Leader + Rifleman 1-6 from (126-150,65) to (300,100)) with each man carrying only 3 rounds, and five Hostiles up the road at (196-204,150-156) in sight with empty rifles. Intended to show the crossing choice picking Hold under a threat while low on ammo. Judge: (1) no pass condition is asserted. As measured live (CE-2164): the squad picks BreakContact at 4.9 s, the second element bounds at ~22.5 s, the reaction ends and the march resumes at ~38.6 s. (2) It should not sit frozen in the open. (3) Rail SquadManeuverTests ..._AThreatenedArea_LowOnAmmo_Holds_ThenDecidesAgain pins Hold. Fail: The squad stands in the open for good (the old CE-2164 freeze). Check: none (no live check) - twin: none loads the scenario; rail SquadManeuverTests"
   },
   "entities": {
     "a2159e00-0000-4000-8000-0000000000c0": {

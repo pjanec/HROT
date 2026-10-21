@@ -418,7 +418,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = world.GetComponentRO<SimTransform>(target).Position;
                 ref var mem = ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
                 Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)target.PackedValue, at.X, at.Y, ReportedScore,
-                    ((Fdp.ModuleHost.Abstractions.ISimulationView)world).Tick, (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
+                    Fdp.Toolkit.Perception.PerceptionClock.Now(world), (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
             }
         }
 
