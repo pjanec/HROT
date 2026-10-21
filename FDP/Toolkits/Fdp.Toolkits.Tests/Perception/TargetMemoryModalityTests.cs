@@ -72,5 +72,45 @@ namespace Fdp.Toolkit.Perception.Tests
                 if (mem.EntityIds[i] == 1L) entity1Present = true;
             Assert.False(entity1Present, "Entity 1 (lowest score 10) should have been evicted.");
         }
+    
+        /// <summary>
+        /// ⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — the stance a contact was last SEEN in stays with HIS slot: a later sighting
+        /// with no stance (0) keeps it, one with a stance replaces it, it moves with him through <see cref="TargetMemory.Sort"/> and
+        /// <see cref="TargetMemory.Forget"/>, and a slot taken by eviction starts with the newcomer's. 🔴 Red-proof: drop the Sort carry ⇒
+        /// the stance stays at the slot while he moves.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2326_TheSeenStance_FollowsItsContact()
+        {
+            byte crouched = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1);
+            byte prone    = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1);
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, 1L, 0f, 0f, 10f, 1u, seenStance: crouched);
+            TargetMemory.AddOrUpdateTarget(ref mem, 2L, 0f, 0f, 5f,  1u);                       // heard / never seen ⇒ unknown
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, TargetMemory.StanceSeen(in mem, 0));
+            Assert.Null(TargetMemory.StanceSeen(in mem, 1));
+
+            TargetMemory.AddOrUpdateTarget(ref mem, 1L, 0f, 0f, 1f, 2u);                         // 0 keeps the last one seen
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, TargetMemory.StanceSeen(in mem, 0));
+
+            TargetMemory.AddOrUpdateTarget(ref mem, 2L, 0f, 0f, 50f, 2u, seenStance: prone);      // 2 overtakes 1
+            TargetMemory.Sort(ref mem);
+            Assert.Equal(2L, mem.EntityIds[0]);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, TargetMemory.StanceSeen(in mem, 0));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, TargetMemory.StanceSeen(in mem, 1));
+
+            TargetMemory.Forget(ref mem, 0);
+            Assert.Equal(1L, mem.EntityIds[0]);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, TargetMemory.StanceSeen(in mem, 0));
+            Assert.Null(TargetMemory.StanceSeen(in mem, 1));                                     // past Count
+
+            for (int i = 10; mem.Count < PerceptionConstants.MaxTrackedTargets; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, i, 0f, 0f, 100f, 3u, seenStance: prone);
+            TargetMemory.AddOrUpdateTarget(ref mem, 99L, 0f, 0f, 200f, 3u);                      // evicts 1 (the lowest), unseen
+            int slot = -1;
+            for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == 99L) slot = i;
+            Assert.True(slot >= 0);
+            Assert.Null(TargetMemory.StanceSeen(in mem, slot));
+        }
     }
 }

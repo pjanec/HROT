@@ -127,7 +127,7 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
             var shooter = SpawnShooter(netId: 1L, authoritative: true);
             var target  = SpawnTarget(netId: 2L);
-            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = 12.5, BurnSeconds = 37.25f, RequestId = 77u });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = 12.5, BurnSeconds = 37.25f, RequestId = 77u, BodyStance = 2 });
             _world.Bus.SwapBuffers();
 
             translator.ScanAndPublish(_world);
@@ -137,6 +137,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(12.5, msg.RaisedAt);   // ⭐ CE-2180 (R-169 appended) — when the brain raised it crosses too
             Assert.Equal(37.25f, msg.BurnSeconds);   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left
             Assert.Equal(77u, msg.RequestId);          // ⭐ Q94 A-1 (R-3018) — the brain's request id crosses
+            Assert.Equal(2, msg.BodyStance);           // ⭐ CE-2326 (R-3030) — the remembered body's stance crosses
 
             var ingress = new WeaponFireRequestIngressTranslator(participant: null, _entityMap);
             var cmd = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
@@ -148,6 +149,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(12.5, back.RaisedAt);
             Assert.Equal(37.25f, back.BurnSeconds);
             Assert.Equal(77u, back.RequestId);
+            Assert.Equal(2, back.BodyStance);
             Assert.True(back.IsRemote);
         }
 

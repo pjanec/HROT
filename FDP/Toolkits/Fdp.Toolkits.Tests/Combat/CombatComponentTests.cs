@@ -100,9 +100,9 @@ namespace Fdp.Toolkit.Combat.Tests
             // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes; ⭐ CE-1032 + AtPoint (bool) and
             // TargetPoint (Vector3) = 40, ⭐ M8 + AmmoGuid (long, 8-aligned) = 48, ⭐ IF-1 (I3) + Charge, HighArc (bytes) = 50,
             // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66,
-            // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70.
+            // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70, ⭐ CE-2326 (R-3030) + BodyStance (byte) = 71.
             // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
-            Assert.Equal(70, Marshal.SizeOf<WeaponFireIntent>());
+            Assert.Equal(71, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>

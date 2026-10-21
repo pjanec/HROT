@@ -243,6 +243,7 @@ namespace Hrot.SimHost.Systems
                     ptr->Freshness[count] = entry.Score;
                     ptr->LastSeenTick[count] = entry.LastSeenTick;
                     ptr->Modalities[count]   = entry.Modality;
+                    ptr->SeenStance[count]   = entry.SeenStance;
                     count++;
                 }
                 mem.Count = count;

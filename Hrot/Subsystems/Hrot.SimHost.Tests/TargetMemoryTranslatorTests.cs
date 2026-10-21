@@ -73,6 +73,7 @@ namespace Hrot.SimHost.Tests
                             ["Score"]    = 0.8f,
                             ["Tick"]     = 5L,
                             ["Modality"] = 3,
+                            ["Stance"]   = 2,   // ⭐ CE-2326 — StanceId + 1
                         }
                     }
                 }
@@ -91,6 +92,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0.8f, intent.Entries[0].Score, precision: 5);
             Assert.Equal(5u, intent.Entries[0].LastSeenTick);
             Assert.Equal(3, intent.Entries[0].Modality);
+            Assert.Equal(2, intent.Entries[0].SeenStance);
         }
 
         [Fact]
@@ -140,7 +142,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(soldier,   new NetworkIdentity { Value = 501L });
             _repo.SetComponent(insurgent, new NetworkIdentity { Value = 502L });
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)insurgent.PackedValue, posX: 1f, posY: 2f, scoreBoost: 100f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)insurgent.PackedValue, posX: 1f, posY: 2f, scoreBoost: 100f, tick: 0u, seenStance: 3);
             _repo.SetComponent(soldier, mem);
 
             var serializer = HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry());
@@ -158,6 +160,7 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(intent);
             Assert.Single(intent!.Entries);
             Assert.Equal(502L, intent.Entries[0].NetworkId.NetworkId);
+            Assert.Equal(3, intent.Entries[0].SeenStance);   // ⭐ CE-2326 (R-3030) — the stance he was last seen in survives the save
         }
     }
 }

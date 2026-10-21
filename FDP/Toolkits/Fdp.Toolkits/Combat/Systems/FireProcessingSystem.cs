@@ -127,6 +127,16 @@ namespace Fdp.Toolkit.Combat.Systems
                 shooterPos = ShotOrigin.Eye(repo, shooter, out var sightBody);   // ⭐ CE-2218 — the one origin rule (the brain's hold reads it too)
                 // ⭐⭐ Q94 A-4 (R-3018) — a DIRECT round at a POINT (blind fire at where he was last seen, a burst at a spot) is judged the
                 //   same way: the muzzle line on the live terrain. An arcing or dropped round is exempt (MuzzleMasked's own rule).
+                // ⭐⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — a point that is a REMEMBERED BODY's feet: aimed as at that body, by the same
+                //   rule as a live one (AimPoint.ForBodyAt — the chest, or the middle of the band over a cover that stops a round), then
+                //   the muzzle is judged on that line below. ⛔ Before: the brain raised the spot by a fixed metre, blind to the cover.
+                if (evt.AtPoint && evt.BodyStance != 0)
+                {
+                    var bodyMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                    float bodyPen = bodyMount != null && bodyMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, bodyMount) : 0f;
+                    targetPos = AimPoint.ForBodyAt(Fdp.Toolkit.World.WorldQuery.Of(repo), shooterPos, evt.TargetPoint,
+                                                   (Fdp.Toolkit.Tkb.Domain.StanceId)(evt.BodyStance - 1), bodyPen, _bodyPoints);
+                }
                 if (evt.AtPoint && LineOfFire.MuzzleMasked(repo, shooter, evt.WeaponIndex, evt.AmmoGuid, targetPos))
                 {
                     Refuse(repo, in evt, FireRefusal.Masked, now);

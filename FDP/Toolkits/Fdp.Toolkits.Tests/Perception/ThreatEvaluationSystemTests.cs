@@ -375,6 +375,61 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.True(ThreatDanger.OfClass(Footsteps) < ThreatDanger.OfClass(TrackedEngine));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — a SEEN person's logical stance is remembered with his slot, so a blind
+        /// burst at his spot later is aimed as at that body; a man only HEARD, and a vehicle (it has a hull, no stance), stay unknown.
+        /// 🔴 Red-proof: stamp 0 ⇒ the crouched man reads unknown.
+        /// </summary>
+        [Fact]
+        public void CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var view = (ISimulationView)world;
+
+            Entity Body(Vector3 at)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                return e;
+            }
+            var seen  = Body(new Vector3(30f, 0f, 0f));
+            world.AddComponent(seen, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            var heard = Body(new Vector3(40f, 0f, 0f));
+            world.AddComponent(heard, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Crouched });
+            var truck = Body(new Vector3(50f, 0f, 0f));
+            world.AddComponent(truck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2f, Height = 2.4f });
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new TargetMemory());
+            var tracks = new ActiveSensorTracks();
+            unsafe
+            {
+                tracks.EntityIds[0] = (long)seen.PackedValue;  tracks.Modalities[0] = (byte)SensorModality.Visual;
+                tracks.EntityIds[1] = (long)heard.PackedValue; tracks.Modalities[1] = (byte)SensorModality.Acoustic;
+                tracks.EntityIds[2] = (long)truck.PackedValue; tracks.Modalities[2] = (byte)SensorModality.Visual;
+            }
+            tracks.Count = 3;
+            world.AddComponent(observer, tracks);
+
+            new ThreatEvaluationSystem().Execute(view, 1.0f);
+            FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, StanceOf(mem, seen));
+            Assert.Null(StanceOf(mem, heard));
+            Assert.Null(StanceOf(mem, truck));
+        }
+
+        private static unsafe Fdp.Toolkit.Tkb.Domain.StanceId? StanceOf(TargetMemory mem, Entity e)
+        {
+            for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == (long)e.PackedValue) return TargetMemory.StanceSeen(in mem, i);
+            Assert.Fail($"{e} not remembered");
+            return null;
+        }
+
         private static long Target(EntityRepository world) => (long)world.CreateEntity().PackedValue;
 
         // ── Test 4: no crash with no TargetMemory entities ───────────────────────────

@@ -119,6 +119,7 @@ namespace Fdp.Toolkit.Perception.Systems
                             float posX = tracksRO.PositionsX[i];
                             float posY = tracksRO.PositionsY[i];
                             float posZ = 0f;
+                            byte seenStance = 0;
 
                             // If we have a live replica of the target, track its real-time 3D
                             // position — including the authoritative altitude (P3D-206).
@@ -129,6 +130,12 @@ namespace Fdp.Toolkit.Perception.Systems
                                 posX = targetTf.Position.X;
                                 posY = targetTf.Position.Y;
                                 posZ = targetTf.Position.Z;
+                                // ⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — and the LOGICAL stance he is in, so a blind burst at this spot
+                                //   later is aimed as at that body. Only a SEEN contact: a heard or thermal-only track says nothing of his pose;
+                                //   and only a PERSON (no hull — AimPoint.Middle's own test): a vehicle has no stance to remember.
+                                if ((tracksRO.Modalities[i] == 0 || (tracksRO.Modalities[i] & (byte)SensorModality.Visual) != 0)
+                                    && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, targetEntity) <= 0f)
+                                    seenStance = (byte)(Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(view, targetEntity) + 1);
                             }
 
                             // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
@@ -144,7 +151,8 @@ namespace Fdp.Toolkit.Perception.Systems
                                 // ⭐ CE-3060 — the kinds that actually hold the track (was: always Visual, so a thermal or heard
                                 //   contact read as "in sight" — StandardInputs.HasLineOfSight).
                                 modality:   tracksRO.Modalities[i] == 0 ? SensorModality.Visual : (SensorModality)tracksRO.Modalities[i],
-                                posZ:       posZ);
+                                posZ:       posZ,
+                                seenStance: seenStance);
                         }
                         changed = true;
                     }

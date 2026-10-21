@@ -112,6 +112,7 @@ namespace Hrot.Network.NED.SimHost
                 AmmoGuid    = request.AmmoGuid,   // ⭐ M8
                 Charge      = request.Charge,     // ⭐ IF-1 (I3)
                 HighArc     = request.HighArc,
+                BodyStance  = request.BodyStance,   // ⭐ CE-2326
                 RaisedAt    = request.RaisedAt,   // ⭐ CE-2180
                 FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
                 BurnSeconds = request.BurnSeconds,   // ⭐ CE-3236

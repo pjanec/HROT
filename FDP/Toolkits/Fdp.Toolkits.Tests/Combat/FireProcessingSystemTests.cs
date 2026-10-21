@@ -201,6 +201,45 @@ namespace Fdp.Toolkit.Combat.Tests
             AssertNear(Vector3.Normalize(mid - eye), FlightOfTheRound(), 1e-3f);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — a blind burst at a REMEMBERED man is aimed as at his body there: last seen
+        /// crouched behind the concrete sill, the round aims at the middle of the band that showed (the live rule, P-2 above: ≈ 0.89 m),
+        /// ⛔ not his chest (0.89 m crouched — AT the sill) and not the spot; last seen standing in the open, at his chest. A plain point
+        /// (no stance) still flies to the point.
+        /// </summary>
+        [Fact]
+        public void CE2326_ABlindBurstAtARememberedMan_IsAimedAsAtTheBodyLastSeenThere()
+        {
+            SillWorld();
+            var crouched = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1);
+            var standing = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Standing + 1);
+            float eye = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
+
+            Vector3 Fly(Vector3 from, Vector3 spot, byte stance)
+            {
+                foreach (var e in _world.Query().With<BallisticProjectile>().Build()) _world.DestroyEntity(e);
+                var shooter = SpawnShooter(from);
+                _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, AtPoint = true, TargetPoint = spot, BodyStance = stance });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+                return FlightOfTheRound();
+            }
+
+            // behind the sill, crouched ⇒ the band that showed (the same height P-2 gives a live crouched man there)
+            var d = Fly(Vector3.Zero, new Vector3(12f, 0f, 0f), crouched);
+            float lowestSeen = eye - 0.8f * 12f / 10.5f;
+            float top = 1.0f * Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched;
+            Assert.InRange(eye + d.Z / d.X * 12f, 0.5f * (lowestSeen + top) - 0.01f, 0.5f * (lowestSeen + top) + 0.01f);
+
+            // in the open, standing ⇒ his chest
+            float chest = AimPoint.Chest(Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, armed: true,
+                Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, down: false)).Z;
+            AssertNear(Vector3.Normalize(new Vector3(12f, 20f, chest) - new Vector3(0f, 20f, eye)), Fly(new Vector3(0f, 20f, 0f), new Vector3(12f, 20f, 0f), standing));
+
+            // a plain point ⇒ the point
+            AssertNear(Vector3.Normalize(new Vector3(12f, 20f, 1f) - new Vector3(0f, 20f, eye)), Fly(new Vector3(0f, 20f, 0f), new Vector3(12f, 20f, 1f), 0));
+        }
+
         [Fact]
         public void T4_EveryRound_IsRecordedInTheShotLog_WithItsInputs()
         {

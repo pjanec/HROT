@@ -1712,7 +1712,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>A burst-firing unit at the origin with a <see cref="FireAtPointParams"/> action at <paramref name="point"/>, a friend
         /// (radius 3.5) at (8, 1) on the line; optionally the unit's type fires <paramref name="ammoName"/> from mount 0.</summary>
-        private unsafe (Entity shooter, Entity friend) BurstWithAFriendOnTheLine(Vector3 point, string? ammoName = null)
+        private unsafe (Entity shooter, Entity friend) BurstWithAFriendOnTheLine(Vector3 point, string? ammoName = null, byte bodyStance = 0)
         {
             _world.RegisterComponent<EntityInfo>();
             _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
@@ -1739,7 +1739,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(friend, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
 
             ref var channel = ref _world.GetComponentRW<WeaponChannel>(shooter);
-            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, CooldownSeconds = 0.05f, Rounds = 3 });
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, CooldownSeconds = 0.05f, Rounds = 3, BodyStance = bodyStance });
             new FireAtPointExecutor().OnEnter(shooter, ref channel, _world);
             return (shooter, friend);
         }
@@ -1769,6 +1769,19 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, BurstStep(shooter));
             TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — a burst at a REMEMBERED body hands its stance to the muscle on every
+        /// round's intent (the muscle aims as at that body there); a plain point hands 0. 🔴 Red-proof: drop the copy ⇒ 0.</summary>
+        [Fact]
+        public void CE2326_ABurstAtARememberedBody_CarriesItsStance_ToTheMuscle()
+        {
+            var (shooter, friend) = BurstWithAFriendOnTheLine(new Vector3(20f, 0f, 0f), bodyStance: 2);
+            _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(8f, 5f, 0f);   // off the line
+            Assert.Equal(1, BurstStep(shooter));
+            var intent = _world.Bus.Read<WeaponFireIntent>()[0];
+            Assert.True(intent.AtPoint);
+            Assert.Equal(2, intent.BodyStance);
         }
 
         /// <summary>⭐⭐ <c>G3_R2</c> — an INDIRECT warhead (an 81 mm bomb, from the reference library) arcs over friends: the same
@@ -2310,6 +2323,27 @@ namespace Fdp.Toolkit.Combat.Tests
                          _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
             Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
             Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — the same blind round at a man last SEEN crouched names that body: the intent
+        /// carries his feet and <c>BodyStance</c>, and the muscle aims it (<c>FireProcessingSystemTests.CE2326_*</c>); unseen, the spot +
+        /// <see cref="AimAndFireExecutor.BlindAimHeightMetres"/> as before (the rail above). 🔴 Red-proof: drop the stance ⇒ 0 and + 0.5 m.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2326_ABlindRoundAtAManSeenCrouched_NamesHisBody()
+        {
+            var remembered = new Vector3(0f, 30f, 0f);
+            var (unit, _, channel, _) = Grenadier(remembered);
+            _world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(unit).SeenStance[0] = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1);
+            AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            Tick(unit, ref channel, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intent = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.True(intent.AtPoint);
+            Assert.Equal(remembered, intent.TargetPoint);
+            Assert.Equal((byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1), intent.BodyStance);
         }
 
         /// <summary>⭐ AQ89 A — no blind round without a LIVE memory of the target, nor when BlindFire is not asked (today's hold).</summary>

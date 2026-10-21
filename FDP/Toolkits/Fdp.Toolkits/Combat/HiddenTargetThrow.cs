@@ -84,9 +84,15 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>Where <paramref name="unit"/>'s memory last placed <paramref name="target"/> — a live, identified slot only.</summary>
-        public static unsafe bool LastKnown(EntityRepository world, Entity unit, Entity target, out Vector3 point)
+        public static bool LastKnown(EntityRepository world, Entity unit, Entity target, out Vector3 point)
+            => LastKnown(world, unit, target, out point, out _);
+
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — the same, and the stance he was last SEEN in
+        /// (<see cref="TargetMemory.SeenStance"/>: <c>StanceId + 1</c>, 0 = unknown), so a blind round is aimed as at that body.</summary>
+        public static unsafe bool LastKnown(EntityRepository world, Entity unit, Entity target, out Vector3 point, out byte seenStance)
         {
             point = default;
+            seenStance = 0;
             if (!world.IsComponentTypeRegistered<TargetMemory>() || !world.HasComponent<TargetMemory>(unit)) return false;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(unit);
             long id = (long)target.PackedValue;
@@ -95,6 +101,7 @@ namespace Fdp.Toolkit.Combat
                 if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
                 if (!ThreatFreshness.IsLive(world, unit, in mem, i)) return false;
                 point = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                seenStance = mem.SeenStance[i];
                 return true;
             }
             return false;

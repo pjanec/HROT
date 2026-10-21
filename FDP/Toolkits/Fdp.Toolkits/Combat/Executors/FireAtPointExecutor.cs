@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Combat.Executors
         public byte Mount;
         /// <summary>⭐ Indirect fire IF-1 (I6, IF-C) — the arc a fire solution prefers (a mount that declares an <c>IndirectArc</c>).</summary>
         public ArcPreference Arc;
+        /// <summary>⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a) — <see cref="Point"/> is the FEET of a body remembered in this stance
+        /// (<c>StanceId + 1</c>): the muscle aims as at that body (<c>AimPoint.ForBodyAt</c>). <b>0 = a plain point</b>, as before. In the
+        /// padding before <see cref="FireAt"/> — the params stay 32 bytes.</summary>
+        public byte BodyStance;
         /// <summary>⭐ IF-1 (I6, FM-4) — hold until this sim time (seconds; 0 = fire now): time on target fires each gun at T − its flight.</summary>
         public double FireAt;
     }
@@ -169,7 +173,8 @@ namespace Fdp.Toolkit.Combat.Executors
                                       ammo: loadedAmmo, weaponEntity: shooter, charge: charge, highArc: high,
                                       raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d,   // ⭐ CE-2180
                                       fuzeSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.FuzeLeft(world, entity, loadedAmmo) : 0f,   // ⭐ CE-3235
-                                      burnSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.BurnLeft(world, entity, loadedAmmo) : 0f);   // ⭐ CE-3236 (VC-7)
+                                      burnSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.BurnLeft(world, entity, loadedAmmo) : 0f,   // ⭐ CE-3236 (VC-7)
+                                      bodyStance: p.BodyStance);   // ⭐ CE-2326
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;
@@ -235,7 +240,8 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
             ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L,
-            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f, float burnSeconds = 0f)
+            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f, float burnSeconds = 0f,
+            byte bodyStance = 0)
         {
             // ⭐ IF-1 (I6) — a controlled weapon system fires as itself (its mount 0); the unit keeps the ROE and the line-of-fire check
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
@@ -285,6 +291,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
                 BurnSeconds = burnSeconds,   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left (0 = its own)
                 RequestId = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — asked; the muscle's answer spends it (CE-3136 P-5's magazine too)
+                BodyStance = bodyStance,   // ⭐ CE-2326 — the point is a remembered body's feet (0 = a plain point)
             });
             weapon.CooldownSecondsRemaining = cooldownSeconds;
             return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing;

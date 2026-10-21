@@ -972,7 +972,7 @@ as before.
 | ⑥ | ⭐⭐ **the same split at a STANCE peek** (a low wall, a window sill — what the platoon's defend posts and TakeCover fight from): he LOOKS at the lowest stance that sees; the muscle refusing his round as masked ⇒ he comes up ONE stance and keeps the exposure, and REMEMBERS it for that hide point (`ShootTaller`), so every later exposure there looks low and shoots one stance taller. Refused standing too ⇒ the spot burns (CE-2218). A step peek refused ⇒ the nearest marked spot; a frame post ⇒ its other point (D-2l, unchanged) — `CE-2330` | *mark the window and cover searches too* — their answers are HIDE points; the stance a round clears from is only known on the muscle, and its refusal costs no round (R-3018) · *always peek standing* — exposes him most just to look (the user) |
 | ⑦ | ⭐ **the attack's move to a firing position never goes to a look-only spot** (`EqsTacticsNodes` — FiringPosition, and every tactics move whose search marks) | *the top answer regardless* — he walks to a spot he cannot shoot from |
 
-### 11.6 ⏭ Open — `CE-2326` *(the memory keeps the stance he was last seen in)*
+### 11.6 `CE-2326` — a blind burst is aimed as at the body last seen there *(✅ R-3030 · backend builds the half below the node · ⏭ behaviors switches the node)*
 
 ⛔ **Not built — it needs a nod, and the window shows why.** A remembered spot is judged and burst at as a standing man (the EQS test's
 own rule; the burst at the spot + 1 m). ⭐ **Lean:** the burst at a remembered spot is aimed by the MUSCLE as at a body there — the last-seen
@@ -983,6 +983,92 @@ the geometry, i.e. the muscle.
 
 ⭐ **✅ APPROVED `2026-10-21` (R-3030; 🔒 user: *"Those 3 approved"*; `CE-2326`)** — the blind burst at a remembered spot is aimed as at
 the body last seen there (its chest, or the band that showed — R-2064 ③); backend's half: `TargetMemory` keeps the seen pose.
+
+#### 11.6a Design *(backend, `2026-10-21`)*
+
+```mermaid
+classDiagram
+  class TargetMemory {
+    <<EXISTS, grows>>
+    +SeenStance byte[16] NEW
+    +AddOrUpdateTarget(…, seenStance) grows
+    +StanceSeen(mem, slot) StanceId? NEW
+  }
+  class ThreatEvaluationSystem { <<EXISTS — Brain>> }
+  class TargetMemoryTranslator { <<EXISTS — save>> }
+  class FireAtPointParams { <<EXISTS, grows — 32 B kept>> +BodyStance byte NEW }
+  class FireAtPointExecutor { <<EXISTS — Brain>> }
+  class WeaponFireIntent { <<EXISTS, grows>> +BodyStance byte NEW }
+  class WeaponFireRequest { <<EXISTS wire, appended>> +BodyStance byte NEW }
+  class FireProcessingSystem { <<EXISTS — Muscle>> }
+  class AimPoint {
+    <<EXISTS>>
+    +For(view, world, eye, middle, target, …) unchanged
+    +ForBodyAt(world, eye, feet, stance, pen, scratch) NEW
+    -Resolve(world, eye, middle, pen, points) NEW, one band rule
+  }
+  ThreatEvaluationSystem --> TargetMemory : stamps the live replica's stance
+  TargetMemoryTranslator --> TargetMemory : saves and loads it
+  FireAtPointExecutor --> WeaponFireIntent : copies BodyStance
+  WeaponFireIntent ..> WeaponFireRequest : brain to muscle wire
+  FireProcessingSystem --> AimPoint : ForBodyAt when BodyStance
+```
+
+*Caption:* one new entry, `ForBodyAt`, shares `Resolve` with `For` — ③'s band rule stays ONE implementation; the remembered body is built
+from the stance (the pose's chest; `BodyProfile.Fractions` × the stance's default eye height) because the man is no longer there.
+
+```mermaid
+sequenceDiagram
+  participant T as ThreatEvaluationSystem (Brain)
+  participant M as TargetMemory
+  participant N as PeekAndFire blind burst (behaviors)
+  participant X as FireAtPointExecutor (Brain)
+  participant F as FireProcessingSystem (Muscle)
+  participant A as AimPoint
+  T->>M: sighting of a live replica: position + its LogicalStance
+  N->>M: the freshest slot: its spot + StanceSeen
+  N->>X: FireAtPoint(feet = the spot, BodyStance = seen stance + 1)
+  X->>F: WeaponFireIntent → WeaponFireRequest (BodyStance appended)
+  F->>A: ForBodyAt(eye, feet, stance, penetration)
+  A-->>F: the chest, or the middle of the band that shows over a cover that stops a round (③)
+  F->>F: muzzle mask judged on that line (④), then the round flies
+```
+
+*Caption:* the brain names WHO stood there and how; the muscle, which holds the geometry, decides where the round goes — the same split as
+an aimed shot at a live man (R-2037, R-3018).
+
+```mermaid
+graph TD
+  CGF["CGF (Brain)"] -->|every frame| TES["ThreatEvaluationSystem — stamps SeenStance"]
+  CGF -->|BTree tick| PAF["PeekAndFire blind burst (behaviors) — sets BodyStance"]
+  PAF --> FAPX["FireAtPointExecutor"]
+  FAPX -->|"WeaponFireIntent (IsRemote false)"| EG["WeaponFireIntentEgressTranslator"]
+  EG -->|"WeaponFireRequest + BodyStance"| IN["WeaponFireRequestIngressTranslator (SimHost)"]
+  IN --> FPS["FireProcessingSystem (Muscle) — AimPoint.ForBodyAt"]
+  SAVE["Scenario save / load"] --> TMT["TargetMemoryTranslator — key Stance"]
+```
+
+*Caption:* every edge is an existing path; the only new data on the wire is one appended byte.
+
+| ⭐ decision | rejected (one line) |
+|---|---|
+| `BodyStance` = `StanceId + 1`, 0 = a plain point (every existing caller unchanged) | a separate "body" fire action — a second producer of point fire (R-132) |
+| the stance is the LOGICAL stance at the last sighting (`HitModel.LogicalStance` on the replica) | the drawn pose — the fire chain and perception share the logical one (§3f) |
+| a turret's point task (`WeaponTask`) is unchanged | infantry only (G8): a blind burst is a person's |
+| only a SEEN PERSON is stamped (a Visual track — or an untyped one — of a body with no hull) | stamp every track — a heard man's pose is unknown, and a vehicle (`LogicalStance` reads Standing for it) has none |
+
+#### 11.6b As built *(backend, `2026-10-21`)* — matches §11.6a
+
+| | |
+|---|---|
+| memory | `PerceptionComponents.cs` — `TargetMemory.SeenStance` (a byte per slot), `StanceSeen(mem, slot)`; `AddOrUpdateTarget(…, seenStance)` (0 keeps the last one seen; a new or evicted slot takes the newcomer's), carried by `Sort` and `Forget` |
+| the stamp | `ThreatEvaluationSystem` — a live replica's `LogicalStance.Of` + 1, for a Visual/untyped track whose `PhysicsColliderReaders.HullHeight` is 0 |
+| the save | `TargetMemoryTranslator` key `Stance` → `TargetEntry.SeenStance` → `GenesisMaterializationSystem` |
+| the request | `FireAtPointParams.BodyStance` (the struct's padding, still 32 B) → `ShootAtPoint(…, bodyStance)` → `WeaponFireIntent.BodyStance` → `WeaponFireRequest.BodyStance` (appended, R-169) → ingress |
+| the aim | `FireProcessingSystem` — `AimPoint.ForBodyAt` before the muzzle mask; `AimPoint.For` and `ForBodyAt` share `Resolve` (③) |
+| ⭐ also: backend's own blind round | `AimAndFireExecutor.FireBlind` (AQ89 A — Suppress at a hidden target): `HiddenTargetThrow.LastKnown(…, out seenStance)`; a known stance ⇒ the feet + `BodyStance`, else the spot + `BlindAimHeightMetres` as before (its own checks still judge the line to the raised spot). ⚠ Beyond §11.6a's diagram, same rule: R-3030 names *a blind burst at a remembered spot*, and this is one |
+| rails | `TargetMemoryModalityTests.CE2326_TheSeenStance_FollowsItsContact` · `ThreatEvaluationSystemTests.CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot` · `FireProcessingSystemTests.CE2326_ABlindBurstAtARememberedMan_IsAimedAsAtTheBodyLastSeenThere` · `AimAndFireExecutorTests.CE2326_ABurstAtARememberedBody_CarriesItsStance_ToTheMuscle`, `CE2326_ABlindRoundAtAManSeenCrouched_NamesHisBody` · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+ `BodyStance`) · `TargetMemoryTranslatorTests` (save → load + inject); ⭐ 6/6 mutants caught (Sort carry · stamp · `Resolve` in `ForBodyAt` · the executor's copy · the blind round's copy · the egress mapping). Gates: Toolkits 3989/0, SimHost 1785/0, NED 149/0 — the one red met, `WeaponFireIntent`'s size pin, moved 70 → 71 (the appended byte) |
+| ⏭ behaviors | `PeekAndFireNodes`' blind burst: `FireAtPoint` at the slot's spot with `BodyStance` = `StanceSeen` + 1, instead of the spot + `BlindAimHeight` — `NOTE_Backend_To_Behaviors_Blind_Burst_Body.md` |
 
 ### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
 

@@ -439,12 +439,15 @@ namespace Fdp.Toolkit.Combat.Executors
             channel.Status = NodeStatus.Running;
             // ⭐ CE-2200 — nor does a mount that LOCKS: a blind round has no lock (M4 D-D, "the lock IS the aim time")
             if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || NeedsLock(world, mountDto, loadedAmmo)
-                || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
+                || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var feet, out byte seenStance))
             {
                 Say(world, entity, ActionReason.HoldNotSeen, p.Target);
                 return;
             }
-            point.Z += BlindAimHeightMetres;
+            // the brain's own checks below judge the line to a crouched man's middle there; ⭐⭐ CE-2326 (R-3030; Peek and Fire §11.6a) —
+            // when the memory knows the stance he was SEEN in, the round itself names that body (BodyStance) and the MUSCLE aims it (its
+            // chest, or the band that showed over a cover that stops a round). ⛔ Before: always the spot + 0.5 m, blind to the cover.
+            var point = feet with { Z = feet.Z + BlindAimHeightMetres };
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
@@ -468,7 +471,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 Target      = Entity.Null,
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
-                TargetPoint = point,
+                TargetPoint = seenStance != 0 ? feet : point,
+                BodyStance  = seenStance,   // ⭐ CE-2326
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round
                 RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 — asked; the muscle's answer spends it
