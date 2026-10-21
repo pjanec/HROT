@@ -58,6 +58,24 @@ available through the codebase-memory CLI; the counts above come from Roslyn, no
 | **6** | ⭐⭐ **The accumulator keeps a frame until its last reader has had it** — the step window's start and every background module's last-seen frame — ⛔ not a fixed 60 frames. A cap remains; what it drops is **counted** (`Overflow`), never silent. | 📐 `EventAccumulator.cs:16` keeps 60 frames: a background module held over a pause longer than 1 s at 60 fps loses events today |
 | **7** | ⭐ **A clock that goes back (a load, a preview Stop) restarts the window**: nothing from before it is delivered after it. | the CE-3292 timeline epoch, applied to events |
 | **8** | ⭐ **The 8 hand-written `deltaTime <= 0` returns go** once the mark gates them. | one mechanism (ruling 9) |
+| **9** | ⭐⭐⭐ **No allocation on the hot path** — capture every frame, the step-window read, the flush to a background module: **0 bytes per frame in steady state.** A buffer grows only when a new high-water mark is reached (a new event type, a busier frame than ever), and growth is counted. | 🔒 user, `2026-10-21`: *"The accumulator must be free of allocations on the hot path."* ⚠ today's accumulator is not (§1a) |
+
+
+### 1a. ⭐⭐ Zero allocation — **what allocates today, and what replaces it**
+
+📐 Read in the code `2026-10-21` (not yet measured — rail ⑤ in §7 measures it, red first):
+
+| today, every frame | allocates | replaced by |
+|---|---|---|
+| `SnapshotCurrentBuffers` makes two `new List<…>` per frame (`FdpEventBus.cs:607-609`) | 2 lists + their growth | a **fixed ring of frame slots**, created once at the cap; a slot is reused, never freed |
+| it walks `_nativeStreams.Values` / `_managedStreams.Values` — `ConcurrentDictionary.Values` builds a new collection on every call (`FdpEventBus.cs:612, 625`) | 2 snapshots per frame | an **append-only array of streams**, filled when a stream is created (rare), walked by index |
+| managed events copied through `InspectReadBuffer()`, a `yield` iterator returning `object` (`ManagedEventStream.cs:43-49`) | an iterator per stream with events · ⛔ **a box per event** for a managed struct (`PublishManaged` allows structs) | each managed stream owns a **typed history** (`StreamHistory<T>`): the stream copies its read buffer into it by a virtual call — no iterator, no `object`, no box |
+| native bytes copied into `ArrayPool` rentals and returned on trim | none after warm-up, but a rent and return per type per frame | a **byte arena per stream in each slot**, grown to its high-water mark and kept |
+| the flush to a background snapshot goes through `InjectManagedIntoCurrent`: `GetMethod` + `MakeGenericMethod` + `Invoke(new object[] …)` per managed type (`FdpEventBus.cs:580-590, 712`) | reflection + an argument array per type per flush | the typed history **injects itself** into the replica's stream of the same `T` — a virtual call, no reflection |
+
+**The step-window read** (`ReadSince`, rule 5):
+- **When the window is only the current frame** (live play, and a step with no paused frame before it), it returns **the bus span itself**: zero copy.
+- **Otherwise** it concatenates the window into the stream history's **reusable contiguous buffer** (`T[]` for native events, a reused `List<T>` for managed), once per type per frame. Every step-only reader of that type shares it.
 
 ⭐ **In live play every frame advances** ⇒ the window is always the current frame ⇒ `ReadEvents` returns the bus span itself
 (zero-copy). Nothing changes for live play.
@@ -150,6 +168,14 @@ classDiagram
     +Release(frame)
     +Overflow long
   }
+  class StreamHistory~T~ {
+    <<new>>
+    -slots T[] per frame slot
+    -window T[] reused
+    +Capture(slot, readBuffer)
+    +ReadSince(frame) span
+    +InjectInto(replicaStream)
+  }
   class EntityRepository {
     <<existing>>
     +ReadEvents() span
@@ -171,6 +197,7 @@ classDiagram
   ProfiledManualSystemWrapper --> SystemScheduler : ExecuteSystem
   EntityRepository ..|> ISimulationView
   EntityRepository --> EventAccumulator : ReadSince while the window is open
+  EventAccumulator "1" *-- "many" StreamHistory~T~ : one per event stream, slots in a fixed ring
 ```
 
 *What the picture shows that prose hid:* **only two types are new** (`TickPolicy`, `TickModeAttribute`). The accumulator, the
@@ -247,7 +274,7 @@ events to the same step.
 | **S1** | `TickPolicy` + `TickModeAttribute`; marks on all 202 production systems (Appendix A), the 48 test/example systems and every module (Appendix B); registration throws without one; rail: every `IEcsModuleSystem`/`IEcsModule` type in loaded assemblies carries exactly one | none — not yet read |
 | **S2** | reroute the 7 bypasses (§2) through `ExecuteSystem` | none |
 | **S3** | the 43 `repo.Bus.Read*` sites → `view.ReadEvents*` (mechanical; Roslyn-checked); rail: no `IEcsModuleSystem` calls `Bus.Read*` | none |
-| **S4** | accumulator retention by last reader + cap + `Overflow`; `ReadSince`; the live world's step window; clock-back restart | none yet (no window opened) |
+| **S4** | the allocation-free accumulator (§1a: frame-slot ring, stream array, `StreamHistory<T>`, typed injection); retention by last reader + cap + `Overflow`; `ReadSince`; the live world's step window; clock-back restart | none yet (no window opened); background modules lose the per-frame garbage |
 | **S5** | ⭐ turn the gate on (rule 2) and open the window (rule 5); remove the 8 hand gates | ⭐ step-only systems skip paused frames and read every event since the last step |
 
 **Acceptance (S5), each red before and green after:**
@@ -256,7 +283,10 @@ events to the same step.
 and `PhysicsBodyLifecycleSystem` at the next step (no body leak) ·
 ③ a background module held over 120 paused frames still sees every event (today: the 60-frame trim) ·
 ④ the three-reload probe of §17 at 15 Hz HTTP-stepped: identical including `RecentSenses.NearMiss` / `UnderFire.LastTime`, and
-paced vs HTTP stepping agree.
+paced vs HTTP stepping agree ·
+⑤ **zero allocation** (S4, red today): after a warm-up, `GC.GetAllocatedBytesForCurrentThread()` across 1 000 frames of capture +
+`ReadSince` over a 30-frame window + a flush to a replica, native and managed-struct events in every frame, is **0** — the
+precedent is `BlueprintAssetTickTests.cs:116`.
 
 ## 8. ⚠ Open — leans, for the user
 
