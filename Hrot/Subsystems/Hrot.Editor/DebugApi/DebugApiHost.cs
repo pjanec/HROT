@@ -147,6 +147,74 @@ namespace Hrot.Editor.DebugApi
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
+        /// <summary>⭐ CE-3289 — <c>POST /film/shot</c>: a pose, an eye and a target, or a unit to follow (§6ab's shot table).</summary>
+        private static RouteResult DirectFilm(JsonNode? body)
+        {
+            static float Deg(JsonNode? n, float fallback) => n is null ? fallback : n.GetValue<float>() * MathF.PI / 180f;
+            static System.Numerics.Vector3? V(JsonNode? n) => n is JsonArray { Count: 3 } a
+                ? new System.Numerics.Vector3(a[0]!.GetValue<float>(), a[1]!.GetValue<float>(), a[2]!.GetValue<float>()) : null;
+            try
+            {
+                Hrot.UI.Common.Map3D.FilmShot? shot;
+                if (body?["follow"] is JsonNode follow)
+                    shot = new Hrot.UI.Common.Map3D.FilmShot
+                    {
+                        Follow = follow.GetValue<long>(),
+                        Distance = body["distance"]?.GetValue<float>() ?? 30f,
+                        Yaw = Deg(body["yawDeg"], 0f),
+                        Pitch = Deg(body["pitchDeg"], -20f),
+                        Lift = body["lift"]?.GetValue<float>() ?? 1f,
+                    };
+                else if (V(body?["eye"]) is { } eye && V(body?["target"]) is { } target)
+                    shot = Hrot.UI.Common.Map3D.FilmShot.Looking(eye, target)
+                           ?? throw new ArgumentException("eye and target are the same point");
+                else if (V(body?["lookAt"]) is { } lookAt)
+                    shot = new Hrot.UI.Common.Map3D.FilmShot
+                    {
+                        Pose = new Fdp.Toolkit.Vis3D.CameraPose(lookAt, body!["distance"]?.GetValue<float>() ?? 100f,
+                                                                Deg(body["yawDeg"], 0f), Deg(body["pitchDeg"], -30f)),
+                    };
+                else
+                    return Fail(400, "a shot needs one of: {follow: networkId, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}");
+                if (body?["fovDeg"] is JsonNode fov) shot = shot with { FovDeg = fov.GetValue<float>() };
+                Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
+                return Ok(new JsonObject
+                {
+                    ["follow"] = shot.Follow == 0 ? null : shot.Follow,
+                    ["lookAt"] = shot.Pose is { } p ? new JsonArray(p.LookAt.X, p.LookAt.Y, p.LookAt.Z) : null,
+                    ["distance"] = shot.Pose?.Distance ?? shot.Distance,
+                    ["yawDeg"] = MathF.Round((shot.Pose?.Yaw ?? shot.Yaw) * 180f / MathF.PI, 2),
+                    ["pitchDeg"] = MathF.Round((shot.Pose?.Pitch ?? shot.Pitch) * 180f / MathF.PI, 2),
+                    ["fovDeg"] = shot.FovDeg,
+                });
+            }
+            catch (Exception ex) when (ex is FormatException or InvalidOperationException or ArgumentException)
+            {
+                return Fail(400, "bad shot: " + ex.Message);
+            }
+        }
+
+        /// <summary>⭐ CE-3289 — <c>POST /film/capture</c>: waits for the map on screen to write the scene (30 s at most).</summary>
+        private static async Task<RouteResult> CaptureFilmFrame(JsonNode? body)
+        {
+            var path = body?["path"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(path)) return Fail(400, "path is required (a .png file)");
+            var request = new Hrot.UI.Common.Map3D.FilmCaptureRequest(path,
+                body!["width"]?.GetValue<int>() ?? 1280, body["height"]?.GetValue<int>() ?? 720, body["supersample"]?.GetValue<int>() ?? 1);
+            var capture = Hrot.UI.Common.Map3D.FilmStudio.Capture(request);
+            if (await Task.WhenAny(capture, Task.Delay(TimeSpan.FromSeconds(30))).ConfigureAwait(false) != capture)
+                return Fail(504, "no map drew a frame within 30 s — is a window open (a headless runner has none: run under Xvfb), and the map visible?");
+            try
+            {
+                var frame = await capture.ConfigureAwait(false);
+                return Ok(new JsonObject { ["path"] = frame.Path, ["width"] = frame.Width, ["height"] = frame.Height, ["simTime"] = frame.SimTime });
+            }
+            catch (Exception ex)
+            {
+                return Fail(400, "capture failed: " + ex.Message);
+            }
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-107</c> — a SUCCESS that still carries advice. ⛔ Not an error: the request was served,
         /// but the caller may not have got what they meant *(a filter that was silently ignored, a default
@@ -283,6 +351,11 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
             // ⭐ CE-1145 — the map view's frame rate and camera (a process-wide snapshot, no main-thread hop)
             _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
+            // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
+            //   The mailbox is process-wide (no main-thread hop); the map that the window draws serves the capture in its own update.
+            _routes.Add(new("POST",   "/film/shot",    ctx => Task.FromResult(DirectFilm(ctx.Body))));
+            _routes.Add(new("DELETE", "/film/shot",    _   => { Hrot.UI.Common.Map3D.FilmStudio.Release(); return Task.FromResult(Ok(new JsonObject { ["released"] = true })); }));
+            _routes.Add(new("POST",   "/film/capture", ctx => CaptureFilmFrame(ctx.Body)));
 
             // ⭐⭐ /shutdown IS A ROUTE. 📌 It used to be handled inline before route dispatch, which made it
             //    invisible to GET /capabilities — a real endpoint the manifest did not list, in the very

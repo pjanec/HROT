@@ -20,7 +20,7 @@ namespace Hrot.UI.Common.Map3D;
 /// (<see cref="LogicalStance"/>), sized from the TKB and coloured by its <see cref="VisualData.ColorHex"/>. Units draw nothing —
 /// their members draw themselves. Nothing in 2-D.
 /// </summary>
-public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
+public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     private static readonly Color Dark = new(46, 46, 42, 255);
     private static readonly Color Glass = new(70, 92, 112, 255);

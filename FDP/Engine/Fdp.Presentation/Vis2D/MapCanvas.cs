@@ -150,6 +150,25 @@ namespace Fdp.Toolkit.Vis2D
         /// <summary>⭐ CE-1033 S1 (M1/M3) — the same layers, through their 3-D path, inside the 3-D camera.</summary>
         private void Draw3D()
         {
+            var ctx = DrawLayers3D(sceneOnly: false);
+            // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
+            foreach (var layer in _layers)
+                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay(ctx);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — the WORLD alone, as a film frame shows it: the 3-D camera's sky and the
+        /// visible <see cref="ISceneLayer"/>s, no overlay pass (no cards, labels, HUD). Into whatever target is bound (a render texture).
+        /// ⚠ 3-D only: in 2-D it draws nothing.
+        /// </summary>
+        public void DrawScene()
+        {
+            if (Camera.Is3D) DrawLayers3D(sceneOnly: true);
+        }
+
+        /// <summary>The 3-D layer pass both <see cref="Draw3D"/> and <see cref="DrawScene"/> run (one loop).</summary>
+        private RenderContext DrawLayers3D(bool sceneOnly)
+        {
             Camera.BeginMode();
             var ctx = new RenderContext
             {
@@ -164,13 +183,12 @@ namespace Fdp.Toolkit.Vis2D
             foreach (var layer in _layers)
             {
                 if (!IsLayerVisible(layer)) continue;
+                if (sceneOnly && layer is not ISceneLayer) continue;
                 if (layer.Has3D) layer.Draw3D(ctx); else without++;
             }
-            LayersWithout3D = without;
+            if (!sceneOnly) LayersWithout3D = without;
             Camera.EndMode();
-            // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
-            foreach (var layer in _layers)
-                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay(ctx);
+            return ctx;
         }
 
         private bool IsLayerVisible(IMapLayer layer)

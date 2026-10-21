@@ -19,5 +19,12 @@ namespace Fdp.Toolkit.Vis3D
 
         /// <summary>The driver is being replaced or removed (release what it locked, e.g. the cursor).</summary>
         void Detached(MapCamera3D camera) { }
+
+        /// <summary>
+        /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — true when the view is a pair of EYES (first person: fog from the lens, the
+        /// weather read at the eye); false when it looks AT a point like the free camera does (a film director: the weather read where
+        /// it looks, fog starting part way there). Default: eyes.
+        /// </summary>
+        bool ViewsFromEye => true;
     }
 }

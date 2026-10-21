@@ -1,19 +1,20 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.4 — OWNS the SUMO road layer: a 2-D symbol carrying PipelineTarget.FlatOnly, so the 3-D pass shows only the road meshes (R-4058); §15.8 (CE-4031) OWNS how SUMO's far people and cars (no entities) reach EntityBodyLayer3D's ambient pass — drawn with this design's figures, outfits (§6q) and car kits
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: the sun, the sky, fog and cloud layers come from WeatherField
   - designs/audio/DESIGN_FPS_Audio.md — OWNS the AudioLayer the pack attaches beside PossessionStation, and the audio files' CC0 licence table (AU-8)
@@ -2706,6 +2707,151 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ![](assets/map-3d/weather-free-camera-fog.png) |
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
+
+### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
+
+🔒 User, `2026-10-21`: *"I would like to make short videos demonstrating the engine features"* · *"videos of the 3d map content, not the imgui
+necessarily. Actually the imgui panels are clutter so they would rather be turned off during the filming"* · *"Yes pls implement the
+necessary engine additions yourself and lets take a short testing video."* (R-3032)
+
+**INVENTORY** *(measured `2026-10-21`)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*(Capture\|Screenshot\|Camera\|Film\|Director).*" label=Class` | 49 | ⛔ no runtime capture, no director. Camera: `MapCamera3D` + `CameraPose`, `MapViewSwitch`, `MapCameraLayer`; Stride's `CameraBookmarkStore` (Windows app, not the map) |
+| grep `TakeScreenshot\|LoadImageFromScreen\|ExportImage` (non-test) | 0 | the only PNG writer is the rail harness `UiFrameSession.Screenshot` (the whole window) |
+| grep production writers of `Camera3D.Pose` / `ShowPose` | `MapCameraLayer` (the scenario camera, adopted ONCE at load, `MapCameraLayer.cs:177`), `PossessionStation` (via `Driver`) | ⇒ nothing outside can place the camera; writing the camera ENTITY does not move the view after load |
+| grep `ICameraDriver` implementers | 2 | `FpsCameraDriver` (first person), `FallScreen` — ⭐ the seam that places the camera every frame (`MapCamera3D.cs:225`) and is never saved to the scenario (`MapCameraLayer.cs:165`) |
+| the layer list `MapInteractionPack.AttachMapLayers:476-551` | 18 layers | **scene** (the world): `TerrainLayer3D`, `TrafficLayer3D`, `EntityBodyLayer3D`, `EffectLayer`, `ProjectileLayer` · **not scene**: the gizmo layer (cards, rings, lines), `RubberBandOverlay3D`, `MapStatsOverlay`, `PossessionStation` (HUD), the rest draw nothing |
+| effects' clock | — | `EffectLayer` draws by `SimClock.TotalTime` and keeps no wall-clock state (`Update` empty) ⇒ a PAUSED, STEPPED sim films the same frame every time |
+
+```mermaid
+classDiagram
+  class IMapLayer { <<EXISTS>> }
+  class ISceneLayer { <<NEW marker>> draws the world itself }
+  class MapCanvas {
+    <<EXISTS, grows>>
+    +Draw() unchanged
+    +DrawScene() NEW scene layers only, no overlays
+    -DrawLayers3D(include) NEW, Draw3D and DrawScene share it
+  }
+  class ICameraDriver {
+    <<EXISTS, grows>>
+    +Update(camera, dt)
+    +HandleInput(camera, input)
+    +ViewsFromEye bool NEW, default true
+  }
+  class FpsCameraDriver { <<EXISTS>> }
+  class FilmDirector {
+    <<NEW ICameraDriver>>
+    +Shot FilmShot
+    +Place(camera)
+  }
+  class FilmShot { <<NEW record>> a fixed pose, or follow a networkId at distance / yaw / pitch / lift }
+  class FilmStudio {
+    <<NEW static mailbox, any thread>>
+    +Direct(shot) / Release()
+    +Capture(request) Task~FilmFrame~
+    +TryTake(out request)
+  }
+  class FilmCaptureLayer {
+    <<NEW IMapLayer, one per map>>
+    +Update(dt) sync the director, serve a capture
+    +Draw3D() marks drawn
+  }
+  class WeatherSkyLayer { <<EXISTS, reads ViewsFromEye>> }
+  class DebugApiHost { <<EXISTS, +3 routes>> }
+  IMapLayer <|-- ISceneLayer
+  ISceneLayer <|.. TerrainLayer3D
+  ISceneLayer <|.. TrafficLayer3D
+  ISceneLayer <|.. EntityBodyLayer3D
+  ISceneLayer <|.. EffectLayer
+  ISceneLayer <|.. ProjectileLayer
+  ICameraDriver <|.. FpsCameraDriver
+  ICameraDriver <|.. FilmDirector
+  FilmDirector --> FilmShot
+  FilmCaptureLayer --> FilmStudio : takes shots and requests
+  FilmCaptureLayer --> FilmDirector : sets as Camera3D.Driver
+  FilmCaptureLayer --> MapCanvas : DrawScene into a render texture
+  DebugApiHost --> FilmStudio : POST/DELETE /film/shot, POST /film/capture
+```
+
+*Caption:* what the picture shows that prose hid — the director is the SAME seam first person uses (one way to place the camera), and the
+capture is the SAME layer loop the window draws with, filtered by a marker (one way to draw the scene). Nothing new draws anything.
+
+```mermaid
+sequenceDiagram
+  participant S as film script (HTTP)
+  participant H as DebugApiHost (HTTP thread)
+  participant St as FilmStudio
+  participant C as MapCamera3D.Update (frame N)
+  participant L as FilmCaptureLayer.Update (frame N)
+  participant M as MapCanvas
+  S->>H: POST /sim/pause, then POST /film/shot {follow or pose}
+  H->>St: Direct(shot)
+  L->>L: Driver = FilmDirector(shot), the view in 3-D
+  S->>H: POST /film/capture {path, width, height}
+  H->>St: Capture(request) — awaits
+  C->>C: Driver.Update places the camera
+  L->>St: TryTake (only a map DRAWN last frame)
+  L->>L: Place the camera again (the shot may be new)
+  L->>M: BeginTextureMode, DrawScene (sky, scene layers), EndTextureMode
+  L->>St: PNG written, complete the request
+  St-->>H: FilmFrame {path, simTime}
+  H-->>S: 200
+  S->>H: POST /sim/step {count: 2} (one 30 fps frame)
+  S->>S: ... repeat, then ffmpeg the PNGs into an MP4
+```
+
+*Caption:* the sim is PAUSED and STEPPED, so a frame is a moment of sim time, not of the (slow, software-GL) wall clock — the video is
+smooth at any render speed and the same run films the same every time.
+
+```mermaid
+graph TD
+  LOOP["runner frame loop"] --> UPD["orchestrator.Update"]
+  UPD --> HOST["every map host (Editor, CGF, SimHost, ReplayBrowser, IG)"]
+  HOST -->|AttachMapLayers| FCL["FilmCaptureLayer, one per map"]
+  HTTP["DebugApiHost, HTTP thread"] --> ST["FilmStudio (static)"]
+  FCL -->|TryTake| ST
+  FCL --> DS["MapCanvas.DrawScene into a render texture"]
+  LOOP --> DRAW["BeginDrawing: DrawWorldAll, ImGui"]
+  DRAW -.->|"marks drawn"| FCL
+  HIDDEN["a map not drawn last frame"] -.->|"never serves a capture"| ST
+  style HIDDEN fill:#fdd,stroke:#c00
+```
+
+*Caption:* in `--mode all` several hosts each own a map in one process; only a map the window DREW last frame takes a capture (the dead
+edge, red) — so the film is of what is on screen, and a hidden host's map never answers. The capture runs in `Update`, outside
+`BeginDrawing` (`Program.cs:660-668`), so the offscreen pass never disturbs the window's frame.
+
+| ⭐ decision | rejected (one line) |
+|---|---|
+| **the scene layers are MARKED** (`ISceneLayer`) — opt-in, so a new overlay stays out of films by default | *an exclusion list of overlays* — every future overlay leaks into films until someone remembers |
+| **the director is an `ICameraDriver`** — first person's seam; never saved to the scenario camera (`MapCameraLayer.cs:165`); it holds the view until released | *write the camera entity* — adopted once at load, ignored after · *set `Camera3D.Pose` per frame from the layer* — a second way to place the camera, and it would be saved as a user move |
+| **`ViewsFromEye`** on the driver: a director looks AT a point like the free camera — weather read there, fog starting part way (as the free camera) | *treat any driver as first person* — fog from the lens and no weather (`WeatherSkyLayer` reads at the eye only for `FpsCameraDriver`) |
+| **capture = a render texture at the asked size** (default 1280×720), the sky by the camera's own `BeginMode`, then the scene layers' `Draw3D`, NO `DrawOverlay` | *grab the window* — panels, overlays and the window's size in every frame · *x11grab live* — choppy on software GL, no re-shoot |
+| **a frame = a paused sim stepped N frames** (`POST /sim/step {count}`, 1/60 s each); the script asks one capture per film frame | *film the running sim* — the frame rate is the renderer's, not the story's |
+| **follow** resolves the network id every frame (`NetworkIdResolver.ResolveNetworkId`, per-tick safe) | *the script computes every pose* — still possible (a pose shot); follow is the common case and saves a round trip per frame |
+
+| shot (`POST /film/shot`) | meaning |
+|---|---|
+| `{lookAt:[x,y,z], distance, yawDeg, pitchDeg}` | the free camera's pose (yaw from east, counter-clockwise; pitch negative looks down) |
+| `{eye:[x,y,z], target:[x,y,z]}` | a camera at `eye` looking at `target` |
+| `{follow: networkId, distance, yawDeg, pitchDeg, lift}` | looks at the unit's position + `lift` metres, from that distance and angle, every frame |
+| `DELETE /film/shot` | releases the view (the free camera keeps the last pose) |
+| `POST /film/capture {path, width?, height?}` | the next drawn frame's scene to `path` (PNG); answers `{path, width, height, simTime}`; 504 after 30 s (no map drawn) |
+
+#### 6ab-i As built `2026-10-21` — matches the diagrams above; two additions, measured on the first films
+
+| | |
+|---|---|
+| code | `Fdp.Presentation`: `ISceneLayer` (`Vis2D/Abstractions/CoreInterfaces.cs`), `MapCanvas.DrawScene` / `DrawLayers3D`, `ICameraDriver.ViewsFromEye`, `MapCamera3D.FogStart` · `Hrot.Presentation/Map3D/Film.cs`: `FilmShot`, `FilmStudio`, `FilmDirector`, `FilmCaptureLayer`; `WeatherSkyLayer` reads a look-AT driver at its point; `MapInteractionPack` adds the layer last · `DebugApiHost`: `/film/shot`, `/film/capture` · `scripts/film.py` |
+| ⭐ added: **the lens** | a shot may carry `fovDeg` (a telephoto): 📐 the first take, over the M1's shoulder, showed the T-72 at 240 m as a speck. The director sets `FovyDegrees` and gives the camera's own back in `Detached` |
+| ⭐ added: **cuts** | `film.py --plan` — segments at sim times; between them the sim PLAYS in real time to the next one. ⚠ real-time play overshoots by up to ~0.1 s, and the AI is not frame-identical between runs ⇒ 📐 the second take's cut landed just after the T-72 shot it was meant to catch. Aim a cut ≥ 0.5 s before the event |
+| ⚠ the first frame of a new shot | `WeatherSkyLayer` updates BEFORE the film layer, so the frame a shot first takes effect has the previous pose's atmosphere (📐 the first frame of the first take was the default sky, brighter). `film.py` throws that frame away |
+| 📐 cost | `--mode all`, 1280×720, Xvfb + llvmpipe: **~1.85 s per film frame** at 30 fps (2 sim steps + 1 capture; each step is a gated frame of the whole editor window) ⇒ 13 s of film in 12 min, 7 s in 7 min — run in the background |
+| rails | `FilmTests` ×6 (shot geometry, follow, fog, mailbox, layer takes / gives back the camera + undrawn map films nothing, the lens) · `FilmFrameRail` (Xvfb: the scene alone at the asked size, no clutter, sky on top) · the shared-layers pin · `EveryRouteIsDocumented` — 7/7 mutants caught |
+| ⏭ not built | a frame-exact cut (step, not play, to the next segment — slow but exact) · a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
 
 ## 7. NOT VERIFIED — say so before it is built on
 

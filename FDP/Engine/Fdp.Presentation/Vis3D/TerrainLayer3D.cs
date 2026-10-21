@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Vis3D
     /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes. Nothing in 2-D.
     /// 🔒 R-250/R-252: the map sees triangles and a kind, never how the terrain is modelled.
     /// </summary>
-    public sealed class TerrainLayer3D : IMapLayer, IDisposable
+    public sealed class TerrainLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
     {
         public static readonly Color GroundColor = new(112, 142, 86, 255);
         public static readonly Color WallColor = new(206, 200, 188, 255);
