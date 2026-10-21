@@ -12,7 +12,7 @@ related-designs:
   - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
   - docs/designs/audio/DESIGN_FPS_Audio.md — sound exists only while PossessionStation holds a unit; the ear is the FPS camera (AU-3)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-F: PossessionSystem also releases a unit when its station's node DEPARTS (today only Esc or death).
-  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016)
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016); its W-H is amended by §8n MS-2 (R-1018)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the simple pilot models that answer M-4 (mouse-aim plane, helicopter hover hold) and ControlScheme.FixedWing (R-2015)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — makes manual drive per locomotion class (a Vertical axis, a control scheme per class at the station) so every motion model is possessable (MD-D)
   - docs/DESIGN_Orders_Params_Entity_Classes.md — D4 (CE-2143): EntityOrders / HTTP / menu / RTS become generic over the params-DTO registry
@@ -1871,7 +1871,7 @@ that registers none would refuse the action, as it already would for a door.
 📐 **Rails:** `OperatorUseActionsTests.CE1207_*`, `RoundPickUpTests.CE1207_*`, `PossessionStationTests.CE1207_*` (×2,
 `PossessionStationTests.PickUp.cs`), `MenuOrdersTests.CE1205_*`.
 
-## 8n. S15 DESIGN — seat switching in a vehicle with several crewed weapons (`CE-1210`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (MW-1 R-1008; ✅ MS-1…MS-7 APPROVED `2026-10-21`, R-1018 — ⚠ MS-2 amends Weapon Systems W-H)
+## 8n. S15 DESIGN — seat switching in a vehicle with several crewed weapons (`CE-1210`, `2026-10-20`, ui) — build-state: BUILT (MW-1 R-1008; ✅ MS-1…MS-7 APPROVED `2026-10-21`, R-1018 — ⚠ MS-2 amends Weapon Systems W-H; as-built §8n.5)
 
 🔒 User, `2026-10-19`: *"what to do if we possess a vehicle that has multiple weapon systems, like the UH-60 has the gunner on both sides"* —
 *"Seat switching approved, record it."* (§8i MW-1)
@@ -1963,7 +1963,19 @@ which already crosses nodes (`EntityOrders.Possess`).
 | **MS-7** | leaving the gun | ⭐ G back to the pilot / driver seat possesses the vehicle again (its task pauses, as when driving); Esc releases as everywhere | a release to the map from a gunner seat — the operator would lose the aircraft |
 
 ⇒ ⚠ **Blast radius:** MS-2 changes the controller rule behaviors' and backend's fire paths read (`ControllerOf` is the W-D single controller) —
-⭐ narrowed to *possessed* gunners, so every AI path is unchanged; ⛔ **not built until the user rules.**
+⭐ narrowed to *possessed* gunners, so every AI path is unchanged. ✅ Ruled `2026-10-21` (R-1018).
+
+### 8n.5 AS-BUILT (`2026-10-21`, ui) — build-state: BUILT
+
+| design said | built | why / note |
+|---|---|---|
+| MS-1 possess the man | ✅ `SeatSwitch.Seats` (the vehicle, then the man at each station's operating seat, in seat order) / `Next`; G → `PossessionStation.SwitchTo` (the one Tab path) | `FpsCameraDriver.Aboard`: W/A/S/D send 0 |
+| MS-2 his gun | ✅ `WeaponSystems.ControllerOf`: the occupant of the station's `OperatedBy` seat when HE carries `PossessedBy` and the host does NOT (the driver seat keeps today's rule); `Controlled(man)` lists it (`StationsOperatedBy`); ⭐ `WeaponSystems.OperatesAStation` lets the dispatcher run his channel though boarding took his CanShoot (`WeaponDispatcherSystem`) | cross-lane FDP (backend's Combat, behaviors' dispatcher), additive |
+| MS-3 the key / HUD | ✅ `FpsCameraDriver.SeatKey` = G; `Hud.SeatLine` *"SEAT DRIVER  (G: next seat)"* / *"SEAT M2 …"* | |
+| MS-5 the eye and the arc | ✅ `SeatSwitch.TryEye` — the seat's place on the vehicle's pose + `EyeAboveHips` 0.72 m (the seat's Z is the hips); `SeatSwitch.Clamp` — yaw off the hull in Traverse min…max, pitch in Elevation min…max, after every mouse move; a gunner starts looking down the arc's middle | |
+| MS-7 back | ✅ G from the gun returns to the vehicle; ⭐ `ReleaseOrphanRiders` keeps the operator's own RIDER held while the station plays a seat of his vehicle (else switching to a gun released the man in the driver seat and lost the way back) | not stated in MS-7; needed for it |
+
+📐 **Rails:** `AimAndFireExecutorTests.CE1210_*` (FDP), `PossessionStationTests.CE1210_*` (`PossessionStationTests.Seats.cs`).
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

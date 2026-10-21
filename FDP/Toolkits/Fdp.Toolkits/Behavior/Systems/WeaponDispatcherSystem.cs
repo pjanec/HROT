@@ -95,7 +95,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Capability check: no shooting -- fail the channel immediately.
                 // Guard applies unconditionally (not only when Running) to prevent a
                 // first-activation bypass where Status is Inactive before OnEnter sets Running.
-                if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot))
+                // ⭐ CE-1210 (§8n MS-2) — a POSSESSED gunner in a vehicle's crew seat fires the station his seat operates
+                if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot) && !Fdp.Toolkit.Combat.WeaponSystems.OperatesAStation(repo, entity))
                 {
                     channel.Status = NodeStatus.Failure;
                     Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);

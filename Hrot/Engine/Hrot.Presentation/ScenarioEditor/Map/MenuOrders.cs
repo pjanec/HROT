@@ -35,6 +35,7 @@ namespace Hrot.ScenarioEditor.Map
         private OrderDraft? _draft;
         private DesignationKind? _designating;   // ⭐ CE-2149 — the pending pick sets a designation, not an order
         private long[] _designateFor = Array.Empty<long>();   // ⭐ CE-1059 (U6) — every unit the pending designation is for
+        private Entity _embarking = Entity.Null;              // ⭐ CE-1230 — the unit whose vehicle pick is pending
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -89,6 +90,25 @@ namespace Hrot.ScenarioEditor.Map
                 if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
                 Report(Orders()?.Possess(id));
             });
+            // ⭐ CE-1230 (canvas context menu §11 OM-2, OM-3, R-1019) — Disembark at once; Embark… picks the VEHICLE on the map (the pick
+            //   Engage uses), then the one embark path. LOCAL, and only where a pick exists, like the orders.
+            actions.RegisterLocal(GlobalActionIds.Disembark, (_, unit) =>
+            {
+                if (PickService?.Invoke() is null) return;
+                Hrot.Common.Orders.EmbarkOrders.Disembark(_world, unit);
+            });
+            actions.RegisterLocal(GlobalActionIds.Embark, (_, unit) =>
+            {
+                var pick = PickService?.Invoke();
+                if (pick is null || !_world.IsAlive(unit)) return;
+                _order = null;
+                _draft = null;
+                _designating = null;
+                _location = null;
+                _unit = TryNetworkId(unit, out long id) ? id : 0;
+                _embarking = unit;
+                _enemy = pick.PickEntityAsync(null);
+            });
         }
 
         /// <summary>⭐ CE-2143 (D4-E) / ⭐ <c>CE-2148</c> (F6) — the order goes as a DRAFT: complete ⇒ issued now; one missing
@@ -101,6 +121,7 @@ namespace Hrot.ScenarioEditor.Map
             _unit = id;
             _order = order;
             _designating = null;
+            _embarking = Entity.Null;
             _location = null;
             _enemy = null;
             _draft = OrderMenu.Draft(order, new[] { id }, OrderContext.None, json => Send(new[] { id }, order, json),
@@ -144,6 +165,7 @@ namespace Hrot.ScenarioEditor.Map
         {
             var pick = PickService?.Invoke();
             if (pick is null || !TryNetworkId(unit, out long id)) return;
+            _embarking = Entity.Null;
             _unit = id;
             _designateFor = UnitsOf(unit);
             _order = null;
@@ -182,10 +204,16 @@ namespace Hrot.ScenarioEditor.Map
                 _enemy = null;
                 if (enemy.Status == TaskStatus.RanToCompletion && enemy.Result > 0 && enemy.Result != _unit)
                 {
-                    if (_designating is DesignationKind kind) SetDesignation(kind, JsonValue.Create((long)enemy.Result));
+                    if (!_embarking.IsNull)   // ⭐ CE-1230 — the picked VEHICLE
+                    {
+                        if (Map() is { } map && map.TryGetEntity(enemy.Result, out var vehicle))
+                            Hrot.Common.Orders.EmbarkOrders.Embark(_world, _embarking, vehicle);
+                    }
+                    else if (_designating is DesignationKind kind) SetDesignation(kind, JsonValue.Create((long)enemy.Result));
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params, DesignationLookup())));
                 }
+                _embarking = Entity.Null;
             }
         }
 

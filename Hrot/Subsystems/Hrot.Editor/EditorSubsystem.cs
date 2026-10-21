@@ -2533,7 +2533,10 @@ namespace Hrot.Editor
                     EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),   // ⭐ CE-1059
                 };
                 _configPanel      = new ConfigPanel();
-                _sharedOrbatPanel = new SharedOrbatPanel();
+                _sharedOrbatPanel = new SharedOrbatPanel
+                {
+                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState),   // ⭐ CE-1230 — the map's entity menu
+                };
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
             }

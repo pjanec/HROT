@@ -341,7 +341,7 @@ AI-trace items, IG / CGF / SimHost "Center on entity" + "Select entity", CGF `Pu
 and the ReplayBrowser's own Center View / Select handlers. Rails `MapEntityMenuHandlerTests` (re-homing the deleted handler's rails).
 ⚠ Not yet seen in the GUI.
 
-## 11. DESIGN — the ORBAT tree's menu IS the map's entity menu; Embark / Disembark join it (`CE-1230`, `2026-10-20`, ui) — build-state: READY-TO-BUILD (R-1015; ✅ OM-1…OM-5 APPROVED `2026-10-21`, R-1019)
+## 11. DESIGN — the ORBAT tree's menu IS the map's entity menu; Embark / Disembark join it (`CE-1230`, `2026-10-20`, ui) — build-state: BUILT (R-1015; ✅ OM-1…OM-5 APPROVED `2026-10-21`, R-1019; as-built §11.4)
 
 🔒 User, `2026-10-20`: *"the contex menu in orbat tree panel should be the same as when right clicked on entity in 2d map or 3d map. not
 duplicated, but shared and unified. the embark/disembark command should go to the shared menu."* (`R-1015`)
@@ -419,4 +419,15 @@ logged no-op).
 | **OM-3** | Embark | ⭐ **Embark…** takes a VEHICLE pick on the map (the pick flow Engage already uses), then `EmbarkEntityCommand`; drag-and-drop in the tree stays and goes through the same `EmbarkOrders` | a submenu of nearby vehicles — the menu JSON is cached per flag set, a per-entity list defeats it |
 | **OM-4** | the tree's own popup and `IOrbatController.RequestDisembark` | ⭐ removed (the panel's popup) / kept only for ExCon's adapter until ExCon embarks over DDS | keeping both — two menus |
 | **OM-5** | ExCon | ⭐ no row menu (no map, nothing to share); said in the window | a fake menu with ExCon's no-op |
+
+### 11.4 AS-BUILT (`2026-10-21`, ui) — build-state: BUILT
+
+| design said | built | why / note |
+|---|---|---|
+| OM-1 | ✅ `SharedOrbatPanel.RowMenu` (a `MapEntityMenuHandler`) + `MapEntityMenuHandler.PopulateMenuFor(networkId, builder)` drawn with the FDP ImGui `ContextMenuBuilder`; the Editor and CGF set it from their inspector state | a host rail (`TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`) holds the silent-default rule |
+| OM-2 / OM-3 | ✅ `GlobalActionIds.Disembark` (26) on a unit aboard, `Embark` (25) — *"Embark…"* — on a unit that is neither aboard, a vehicle nor a weapon (`EmbarkOrders.CanOffer`); a menu-cache flag (32 / 64); handlers in `MenuOrders` (LOCAL, only where a pick exists): Disembark at once, Embark… an entity pick then `EmbarkOrders.Embark` | the items sit in the common part of the menu (not only on a live map with orders) — the tree is also an authoring tool |
+| one implementation | ✅ `Hrot.Common.Orders.EmbarkOrders` (`Embark`, `Disembark`, `IsAboard`, `CanOffer`); `ScenarioOrbatAdapter.RequestEmbark / RequestDisembark` route through it | `IOrbatController.RequestDisembark` kept (ExCon's adapter, a logged no-op, implements it; OM-4) — no caller in the panel any more |
+| OM-4 / OM-5 | ✅ the panel's own "Disembark" popup removed; ExCon sets no `RowMenu` ⇒ no row menu | |
+
+📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
 

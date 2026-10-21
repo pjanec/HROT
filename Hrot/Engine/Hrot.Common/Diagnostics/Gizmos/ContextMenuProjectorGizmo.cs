@@ -45,7 +45,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Flags, ulong Dis, bool Unit), string> UnitMenus = new();
         private static object? _menusBuiltFor;
 
-        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false, bool manned = false)
+        private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false, bool manned = false,
+                                          EmbarkItem embark = EmbarkItem.None)
         {
             var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
             if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
@@ -56,11 +57,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
             form &= orders;
             manned &= orders;
             int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0)   // ⭐ CE-1059 — 8: an order form here
-                      | (manned ? 16 : 0);                                                         // ⭐ CE-1205 — 16: a weapon (manned, not possessed)
-            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned));
+                      | (manned ? 16 : 0)                                                          // ⭐ CE-1205 — 16: a weapon (manned, not possessed)
+                      | ((int)embark << 5);                                                        // ⭐ CE-1230 — 32 / 64: Embark… / Disembark
+            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned, embark));
         }
 
-        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form, bool manned = false)
+        /// <summary>⭐ <c>CE-1230</c> (canvas context menu §11 OM-2, OM-3) — the embark item a unit's menu carries.</summary>
+        public enum EmbarkItem : byte { None = 0, Embark = 1, Disembark = 2 }
+
+        private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form, bool manned = false,
+                                        EmbarkItem embark = EmbarkItem.None)
         {
             var items = new System.Collections.Generic.List<ContextMenuItemDto>();
             if (orders)
@@ -104,6 +110,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     : new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" });   // ⭐ CE-3174
                 if (items.Count > 0) items.Add(new ContextMenuItemDto { IsSeparator = true });
             }
+            // ⭐ CE-1230 (OM-2, OM-3, R-1019) — the ONE place a unit is embarked / disembarked by hand: the map's menu, and through it the
+            //   ORBAT tree's (they are the same menu)
+            if (embark == EmbarkItem.Disembark) items.Add(new ContextMenuItemDto { Id = GlobalActionIds.Disembark, Label = "Disembark" });
+            else if (embark == EmbarkItem.Embark) items.Add(new ContextMenuItemDto { Id = GlobalActionIds.Embark, Label = "Embark…" });
+            if (embark != EmbarkItem.None) items.Add(new ContextMenuItemDto { IsSeparator = true });
             items.AddRange(new[]
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
@@ -226,7 +237,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
                 bool form = orders && repo!.HasSingletonManaged<Hrot.Common.Orders.IOrderForm>();             // ⭐ CE-1059
                 bool manned = Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(view, entity) != null;   // ⭐ CE-1205
-                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form, manned);
+                var embark = repo == null || isUnit ? EmbarkItem.None                                                  // ⭐ CE-1230
+                    : Hrot.Common.Orders.EmbarkOrders.IsAboard(repo, entity) ? EmbarkItem.Disembark
+                    : Hrot.Common.Orders.EmbarkOrders.CanOffer(repo, entity) ? EmbarkItem.Embark : EmbarkItem.None;
+                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form, manned, embark);
             }
 
             return menuJson;
