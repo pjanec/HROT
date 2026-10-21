@@ -97,6 +97,29 @@ namespace Fdp.Toolkits.Tests.Perception
             w.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-1204</c> (Entity Control §8l LK-3, R-1017) — his type's neck (<c>HeadYawLimitDeg</c>) stops the head, and
+        /// <see cref="LookOf.HeadLimit"/> reads it (0 / no type ⇒ 70°). ✅ Red-proof: <c>Execute</c> clamped to <c>MaxHeadYaw</c> ⇒ 70°, not 40°.</summary>
+        [Fact]
+        public void CE1204_HisTypesNeck_StopsTheHead()
+        {
+            var (w, man) = World();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            const long StiffNeck = 9101;
+            var t = new Fdp.Interfaces.TkbTemplate("StiffNeck", StiffNeck);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, HeadYawLimitDeg = 40f });
+            db.Register(t);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            Assert.Equal(70f, Deg(LookOf.HeadLimit(w, man)), 3);   // no type yet
+            w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = StiffNeck });
+            Assert.Equal(40f, Deg(LookOf.HeadLimit(w, man)), 3);
+
+            LookOf.Want(w, man, new Vector3(0f, 10f, 0f));   // 90° left
+            new LookFollowSystem().Execute(w, 0.1f);
+            Assert.Equal(40f, Deg(w.GetComponentRO<LookState>(man).HeadYaw), 1);
+            w.Dispose();
+        }
+
         /// <summary>No <see cref="LookState"/> (a vehicle, an aircraft) ⇒ the eye forward is the body's, exactly as before LD-2.</summary>
         [Fact]
         public void CE3252_NoLook_TheEyeIsTheBody()

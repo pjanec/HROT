@@ -129,6 +129,10 @@ namespace Fdp.Toolkit.Behavior
         /// <see cref="ActionIdDisembark"/>.</summary>
         public const ushort ActionIdPutDown = 10;
 
+        /// <summary>⭐ <c>CE-1207</c> (docs/DESIGN_Entity_Control.md §8m PK-4) — a man picks a lying stone / round up
+        /// (<see cref="Executors.PickUpRoundExecutor"/>; 12 is the next free id, 2026-10-20).</summary>
+        public const ushort ActionIdPickUpRound = 12;
+
         /// <summary>⭐ Buildings 5d — the door actions on the interaction channel (<see cref="Executors.DoorActionExecutor"/>, one per verb).</summary>
         public const ushort ActionIdOpenDoor = 4;
         /// <inheritdoc cref="ActionIdOpenDoor"/>

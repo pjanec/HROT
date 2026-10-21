@@ -73,6 +73,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("deg/s")]
         public float TurnRate { get; init; }
 
+        /// <summary>⭐ <c>CE-1204</c> (Entity Control §8l LK-3, R-1017) — a person's NECK: how far his head turns off his body, either way.
+        /// <c>0</c> = not authored ⇒ <c>LookOf.MaxHeadYaw</c> (70°). Read through <c>LookOf.HeadLimit</c> by his eyes (vision's cone) AND
+        /// the operator's free look, so the two never disagree.</summary>
+        [EditUnit("deg")]
+        public float HeadYawLimitDeg { get; init; }
+
         /// <summary>
         /// Kinematic vehicle class, selecting the <see cref="VehiclePresets"/> baseline
         /// (steer limits, accel gain, lookahead, avoidance radius).  <c>null</c> means the

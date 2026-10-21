@@ -32,6 +32,12 @@ namespace Fdp.Toolkit.Behavior.Possession
         Man,
         /// <summary>Leave the vehicle this one is aboard.</summary>
         GetOut,
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-2) — take a lying PORTABLE weapon into his first open station (Hands, then Back).</summary>
+        Take,
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-3, PK-4) — pick up a lying stone / round into his hands (<see cref="Fdp.Toolkit.Combat.RoundPickUp"/>).</summary>
+        PickUpRound,
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-6) — put down a weapon he carries in a station (hold list only).</summary>
+        Drop,
     }
 
     /// <summary>
@@ -72,7 +78,10 @@ namespace Fdp.Toolkit.Behavior.Possession
     /// </summary>
     public readonly record struct UseAction(
         UseVerbKind Verb, string Label, ushort ActionId, bool Available, UseReason Reason,
-        Entity Target, float Reach, CarryMode Mode = CarryMode.Seated, SeatRole Role = SeatRole.Passenger);
+        Entity Target, float Reach, CarryMode Mode = CarryMode.Seated, SeatRole Role = SeatRole.Passenger, bool HoldOnly = false)
+    {
+        // ⭐ CE-1207 (§8m PK-6) — HoldOnly: offered on the hold list only, never sent by a tap (Drop must never be a stray tap).
+    }
 
     /// <summary>
     /// ⭐⭐ <c>CE-1153</c> (DESIGN_Entity_Control §8h.6) — the brain's verdict on the operator's last use press, on the possessed unit:
@@ -132,17 +141,72 @@ namespace Fdp.Toolkit.Behavior.Possession
                     world.GetComponentRO<IsEmbarkedTag>(actor).VehicleEntity, 0f);
                 return n;
             }
-            // carrying a man: E again puts him down (U-6), whatever the crosshair rests on
-            var load = Embarkation.IsPersonCarrier(world, actor) && Has<PassengerBuffer>(world, actor) ? Embarkation.LoadOf(world, actor) : Entity.Null;
+            // carrying a man: E again puts him down (U-6), whatever the crosshair rests on — ⭐ CE-1207 (PK-5) a BODY, never a weapon in a station
+            var load = CarriedBody(world, actor);
             if (!load.IsNull)
                 into[n++] = new UseAction(UseVerbKind.PutDown, "Put down", BehaviorConstants.ActionIdPutDown, true, UseReason.Ok, load, 0f);
 
-            if (target.IsNull || target == actor || !world.IsAlive(target)) return n;
+            n = OnTarget(world, actor, target, load, into, n);
+            return Drops(world, actor, into, n);   // ⭐ CE-1207 (PK-6) — the hold list's last lines
+        }
 
+        private static int OnTarget(EntityRepository world, Entity actor, Entity target, Entity load, Span<UseAction> into, int n)
+        {
+            if (target.IsNull || target == actor || !world.IsAlive(target)) return n;
             if (Has<DoorState>(world, target)) return Doors(world, actor, target, into, n);
-            if (Embarkation.IsWeaponSystem(world, target) && Has<PassengerBuffer>(world, target)) return Weapon(world, actor, target, into, n);
+            if (Embarkation.IsWeaponSystem(world, target)) return Weapon(world, actor, target, into, n);   // a weapon is never Drag / Carry
             if (Has<PassengerBuffer>(world, target) && !Embarkation.IsPersonCarrier(world, target)) return Vehicle(world, actor, target, into, n);
             if (Has<Health>(world, target) && load.IsNull) return Body(world, actor, target, into, n);
+            if (Fdp.Toolkit.Combat.RoundPickUp.IsLying(world, target) && Fdp.Toolkit.Combat.RoundPickUp.IsHandItem(world, target))
+                return Round(world, actor, target, into, n);
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1207</c> (§8m PK-5) — the BODY <paramref name="carrier"/> carries (a man dragged, carried, on a stretcher): the first passenger in
+        /// a seat that is not a carry STATION. ⛔ <see cref="Embarkation.LoadOf"/> counts a weapon in his hands too, which would offer "Put down"
+        /// first and refuse Drag / Carry to a man holding a rifle he took. Only the use path and <see cref="PutDownExecutor"/> read it — the AI's
+        /// other <c>LoadOf</c> callers are left as they are (§8m.2).
+        /// </summary>
+        public static Entity CarriedBody(EntityRepository world, Entity carrier)
+        {
+            if (!world.IsAlive(carrier) || !Embarkation.IsPersonCarrier(world, carrier) || !Has<PassengerBuffer>(world, carrier)) return Entity.Null;
+            ref readonly var buffer = ref world.GetComponentRO<PassengerBuffer>(carrier);
+            bool stations = Has<CarrierStations>(world, carrier);
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+            {
+                if (buffer.Passengers[i].IsNull) continue;
+                if (stations && world.GetComponentRO<CarrierStations>(carrier).IsStation(i)) continue;
+                return buffer.Passengers[i];
+            }
+            return Entity.Null;
+        }
+
+        private static int Round(EntityRepository world, Entity actor, Entity round, Span<UseAction> into, int n)
+        {
+            if (!Embarkation.IsPersonCarrier(world, actor)) return n;
+            long ammo = Fdp.Toolkit.Combat.RoundPickUp.AmmoOf(world, round);
+            var reason = !Injury.IsInTheFight(world, actor) ? UseReason.Unfit
+                : !Fdp.Toolkit.Combat.RoundPickUp.InReach(world, actor, round) ? UseReason.OutOfReach
+                : !Fdp.Toolkit.Combat.PersonHands.HasRoom(world, actor, ammo) ? UseReason.Carrying
+                : UseReason.Ok;
+            into[n++] = new UseAction(UseVerbKind.PickUpRound, "Pick up", BehaviorConstants.ActionIdPickUpRound, reason == UseReason.Ok, reason, round,
+                Fdp.Toolkit.Combat.RoundPickUp.ReachM);
+            return n;
+        }
+
+        /// <summary>⭐ <c>CE-1207</c> (§8m PK-6) — "Drop" for every weapon he carries in an open station (Hands, Back), hold list only.</summary>
+        private static int Drops(EntityRepository world, Entity actor, Span<UseAction> into, int n)
+        {
+            if (!Embarkation.IsPersonCarrier(world, actor) || !Has<PassengerBuffer>(world, actor) || !Has<CarrierStations>(world, actor)) return n;
+            ref readonly var buffer = ref world.GetComponentRO<PassengerBuffer>(actor);
+            ref readonly var stations = ref world.GetComponentRO<CarrierStations>(actor);
+            for (int i = 0; i < PassengerBuffer.Capacity && n < into.Length; i++)
+            {
+                var thing = buffer.Passengers[i];
+                if (thing.IsNull || !stations.IsStation(i) || stations.IsConcealed(i) || !Embarkation.IsWeaponSystem(world, thing)) continue;
+                into[n++] = new UseAction(UseVerbKind.Drop, "Drop", BehaviorConstants.ActionIdPutDown, true, UseReason.Ok, thing, 0f, HoldOnly: true);
+            }
             return n;
         }
 
@@ -221,8 +285,28 @@ namespace Fdp.Toolkit.Behavior.Possession
 
         private static int Weapon(EntityRepository world, Entity actor, Entity weapon, Span<UseAction> into, int n)
         {
+            // ⭐ CE-1207 (§8m PK-2) — a PORTABLE weapon (a rifle, a pistol, a launcher) lying alone is TAKEN into his first open station; a
+            //   STATIC one (a tripod gun, a ZU-23) is manned (U-5). One already carried by someone is neither.
+            if (Has<Fdp.Toolkit.Combat.WeaponSystemParams>(world, weapon)
+                && world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon).Portable != (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static)
+                return Take(world, actor, weapon, into, n);
+            if (!Has<PassengerBuffer>(world, weapon)) return n;
             bool reach = Distance(world, actor, weapon) <= VehicleReach;
             into[n++] = Seat(UseVerbKind.Man, "Man", weapon, SeatRole.Gunner, Embarkation.CanEmbark(world, actor, weapon, SeatRole.Gunner), reach);
+            return n;
+        }
+
+        private static int Take(EntityRepository world, Entity actor, Entity weapon, Span<UseAction> into, int n)
+        {
+            if (!Embarkation.IsPersonCarrier(world, actor) || Has<IsEmbarkedTag>(world, weapon)) return n;
+            bool reach = Distance(world, actor, weapon) <= PickUpExecutor.DefaultReach;
+            var can = Embarkation.CanEmbark(world, weapon, actor, SeatRole.Passenger, CarryMode.Carried);
+            var reason = !Injury.IsInTheFight(world, actor) ? UseReason.Unfit
+                : can == EmbarkResult.Full ? UseReason.Carrying
+                : can == EmbarkResult.Invalid ? UseReason.NothingToDo
+                : reach ? UseReason.Ok : UseReason.OutOfReach;
+            into[n++] = new UseAction(UseVerbKind.Take, "Take", BehaviorConstants.ActionIdPickUp, reason == UseReason.Ok, reason, weapon,
+                PickUpExecutor.DefaultReach, CarryMode.Carried);
             return n;
         }
 
@@ -264,6 +348,14 @@ namespace Fdp.Toolkit.Behavior.Possession
                 case BehaviorConstants.ActionIdDisembark:
                     var leave = default(DisembarkParams);
                     MemoryMarshal.Write(into, in leave);
+                    break;
+                case BehaviorConstants.ActionIdPutDown:   // ⭐ CE-1207 (PK-6) — Drop names its weapon; Put down leaves it empty (the body)
+                    var down = new PutDownParams { Load = action.Verb == UseVerbKind.Drop ? action.Target : Entity.Null };
+                    MemoryMarshal.Write(into, in down);
+                    break;
+                case BehaviorConstants.ActionIdPickUpRound:
+                    var round = new PickUpRoundParams { Round = action.Target };
+                    MemoryMarshal.Write(into, in round);
                     break;
             }
         }

@@ -119,8 +119,11 @@ namespace Fdp.Toolkit.Behavior.Executors
         /// <inheritdoc/>
         public unsafe void Execute(Entity entity, ref InteractionChannel channel, EntityRepository world, float dt)
         {
-            var load = Embarkation.LoadOf(world, entity);
-            if (load.IsNull) { channel.Status = NodeStatus.Success; return; }
+            // ⭐ CE-1207 (§8m PK-5, PK-6) — the named load (a dropped weapon), else the BODY he carries; a weapon in his hands is not "the load"
+            ref readonly var named = ref Unsafe.As<byte, PutDownParams>(ref channel.Params[0]);
+            var load = !named.Load.IsNull ? named.Load : Possession.OperatorUseActions.CarriedBody(world, entity);
+            if (load.IsNull || !world.IsAlive(load) || !world.HasComponent<IsEmbarkedTag>(load)
+                || world.GetComponentRO<IsEmbarkedTag>(load).VehicleEntity != entity) { channel.Status = NodeStatus.Success; return; }
             PutDownState s;
             fixed (byte* p = channel.State) s = *(PutDownState*)p;
             if (s.Sent == 0)
@@ -131,6 +134,70 @@ namespace Fdp.Toolkit.Behavior.Executors
             }
             else channel.Status = (s.SinceSent += dt) > ResultTimeoutSeconds ? NodeStatus.Failure : NodeStatus.Running;
             fixed (byte* p = channel.State) *(PutDownState*)p = s;
+        }
+
+        /// <inheritdoc/>
+        public void OnExit(Entity entity, ref InteractionChannel channel, EntityRepository world) { }
+    }
+
+    /// <summary>⭐ <c>CE-1207</c> (§8m PK-6) — what <see cref="PutDownExecutor"/> puts down: <see cref="Load"/>, or (null) the body he carries.</summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct PutDownParams
+    {
+        public Entity Load;
+    }
+
+    /// <summary>⭐ <c>CE-1207</c> (§8m PK-4) — the round <see cref="PickUpRoundExecutor"/> asks for.</summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct PickUpRoundParams
+    {
+        public Entity Round;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1207</c> (docs/DESIGN_Entity_Control.md §8m PK-4, R-1007) — a man picks a lying stone / round up
+    /// (<see cref="BehaviorConstants.ActionIdPickUpRound"/>): <see cref="Fdp.Toolkit.Combat.RoundPickUp.Ask"/> ONCE (the round's owner grants
+    /// one man, Civilians §7.10 PU-5), then <c>Success</c> when his hands hold one more of it; a refused ask ⇒ <c>Failure</c>, and no grant
+    /// within <see cref="GrantTimeoutSeconds"/> (another man was faster, or the round is gone) ⇒ <c>Failure</c>.
+    /// </summary>
+    public class PickUpRoundExecutor : IActionExecutor<InteractionChannel>
+    {
+        /// <summary>How long the asker waits for the grant to land in his hands (s).</summary>
+        public const float GrantTimeoutSeconds = 2f;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct PickUpRoundState
+        {
+            public long Ammo;
+            public int HeldBefore;
+            public float Since;
+            public byte Asked;
+        }
+
+        /// <inheritdoc/>
+        public unsafe void OnEnter(Entity entity, ref InteractionChannel channel, EntityRepository world)
+        {
+            fixed (byte* p = channel.State) *(PickUpRoundState*)p = default;
+            channel.Status = NodeStatus.Running;
+        }
+
+        /// <inheritdoc/>
+        public unsafe void Execute(Entity entity, ref InteractionChannel channel, EntityRepository world, float dt)
+        {
+            ref readonly var p = ref Unsafe.As<byte, PickUpRoundParams>(ref channel.Params[0]);
+            PickUpRoundState s;
+            fixed (byte* sp = channel.State) s = *(PickUpRoundState*)sp;
+            if (s.Asked == 0)
+            {
+                s.Ammo = Fdp.Toolkit.Combat.RoundPickUp.AmmoOf(world, p.Round);
+                s.HeldBefore = Fdp.Toolkit.Combat.PersonHands.Rounds(world, entity, s.Ammo);
+                if (s.Ammo == 0 || !Fdp.Toolkit.Combat.RoundPickUp.Ask(world, entity, p.Round)) { channel.Status = NodeStatus.Failure; return; }
+                s.Asked = 1;
+                channel.Status = NodeStatus.Running;
+            }
+            else if (Fdp.Toolkit.Combat.PersonHands.Rounds(world, entity, s.Ammo) > s.HeldBefore) channel.Status = NodeStatus.Success;
+            else channel.Status = (s.Since += dt) > GrantTimeoutSeconds ? NodeStatus.Failure : NodeStatus.Running;
+            fixed (byte* sp = channel.State) *(PickUpRoundState*)sp = s;
         }
 
         /// <inheritdoc/>

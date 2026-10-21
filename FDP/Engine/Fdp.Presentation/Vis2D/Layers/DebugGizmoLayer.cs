@@ -142,6 +142,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view.
             _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
             Draw3D(primitives, camera.ZoomAt, Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared);
+            Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared.Flush();   // ⭐ CE-1196 — the fills (biased, no depth writes), then the lines
         }
 
         /// <summary>The drawing half of <see cref="Draw3D(RenderContext)"/>, with the camera's zoom and the sink injected — the

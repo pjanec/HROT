@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Combat;
@@ -190,6 +191,55 @@ namespace Fdp.Toolkit.Behavior.Tests
             OperatorUseActions.WriteParams(For(me, down)[1], buf);
             var pick = System.Runtime.InteropServices.MemoryMarshal.Read<PickUpParams>(buf);
             Assert.Equal((down, CarryMode.Carried, PickUpExecutor.DefaultReach), (pick.Casualty, pick.Mode, pick.Reach));
+        }
+
+        /// <summary>A pick-up rifle lying on the ground: a ONE-MAN weapon that fires while carried, with a gunner seat and health (as 616 is).</summary>
+        private Entity LyingRifle(Vector3 at)
+        {
+            var e = OfType(at, new CarrierDefDto { Seats = { new SeatDto { Role = SeatRole.Gunner } } },
+                new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Carried, Portable = WeaponPortability.OneMan, FireWhileCarried = true, NeedsOperator = true });
+            _world.AddComponent(e, new Health { Current = 50f, Max = 50f });
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1207 (docs/DESIGN_Entity_Control.md §8m PK-2, PK-5, PK-6) — a lying PORTABLE weapon is TAKEN (pick up 9, Carried) into his hands
+        /// then his back, a third says "hands full"; a weapon in his hands is not "the man he carries" (no Put down first, Drag still offered);
+        /// every weapon he carries offers a hold-only Drop that packs its weapon; a static gun is still manned. ✅ Red-proof: the portable branch
+        /// removed ⇒ the rifle offers Man.
+        /// </summary>
+        [Fact]
+        public unsafe void CE1207_ALyingRifle_IsTaken_HandsThenBack_AWeaponInHisHandsIsNoLoad_AndDropIsHoldOnly()
+        {
+            var me = Soldier(new Vector3(0, 0, 0));
+            var rifle = LyingRifle(new Vector3(1, 0, 0));
+            var take = For(me, rifle);
+            Assert.Equal((UseVerbKind.Take, true, BehaviorConstants.ActionIdPickUp, CarryMode.Carried), (take[0].Verb, take[0].Available, take[0].ActionId, take[0].Mode));
+            Assert.DoesNotContain(take, a => a.Verb is UseVerbKind.Man or UseVerbKind.Drag or UseVerbKind.Carry);
+            Assert.Equal((UseReason.OutOfReach, false), (For(me, LyingRifle(new Vector3(5, 0, 0)))[0].Reason, For(me, LyingRifle(new Vector3(5, 0, 0)))[0].Available));
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, rifle, me));   // what PickUpExecutor's command does
+            Assert.Equal(1, CarryStations.SeatOf(_world, rifle, out _));                    // his hands
+            Assert.True(OperatorUseActions.CarriedBody(_world, me).IsNull);
+            var down = Soldier(new Vector3(1, 0, 0), health: 10f);
+            var onDown = For(me, down);
+            Assert.Equal(UseVerbKind.Drag, onDown[0].Verb);                                   // ⛔ was: Put down (the rifle), and no Drag
+            var drop = Assert.Single(onDown, a => a.Verb == UseVerbKind.Drop);
+            Assert.True(drop.HoldOnly);
+            Assert.Equal(rifle, drop.Target);
+            Span<byte> buf = stackalloc byte[BehaviorConstants.ActionParamsByteSize];
+            OperatorUseActions.WriteParams(drop, buf);
+            Assert.Equal(rifle, System.Runtime.InteropServices.MemoryMarshal.Read<PutDownParams>(buf).Load);
+            OperatorUseActions.WriteParams(new UseAction(UseVerbKind.PutDown, "Put down", BehaviorConstants.ActionIdPutDown, true, UseReason.Ok, down, 0f), buf);
+            Assert.True(System.Runtime.InteropServices.MemoryMarshal.Read<PutDownParams>(buf).Load.IsNull);   // Put down: the body, as before
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, LyingRifle(new Vector3(1, 0, 0)), me));   // his back
+            var third = For(me, LyingRifle(new Vector3(1, 0, 0)));
+            Assert.Equal((UseVerbKind.Take, false, UseReason.Carrying), (third[0].Verb, third[0].Available, third[0].Reason));
+            Assert.Equal(2, third.Count(a => a.Verb == UseVerbKind.Drop));                    // one per weapon he carries
+
+            var tripod = OfType(new Vector3(0, 1, 0), new CarrierDefDto { Seats = { new SeatDto { Role = SeatRole.Gunner } } }, new WeaponSystemDto { NeedsOperator = true });
+            Assert.Equal(UseVerbKind.Man, For(me, tripod)[0].Verb);
         }
 
         /// <summary>⭐ One rule, no copy: <see cref="Embarkation.CanEmbark"/> answers what <see cref="Embarkation.TryEmbark"/> then does, and seats

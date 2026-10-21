@@ -702,5 +702,19 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(3L,  a.AnchorId);
             Assert.Equal(41L, b.AnchorId);
         }
+
+        /// <summary>⭐ CE-1228 — one filled triangle in the winding raylib keeps: counter-clockwise on its y-down screen (a negative cross
+        /// product) for a plain view, the other way for a view that mirrors the plane (the north-up map); either data winding comes out the
+        /// same way. ✅ Red-proof: KeptWinding returns its input ⇒ the clockwise datum keeps its order.</summary>
+        [Fact]
+        public void CE1228_AFilledTriangle_IsDrawnOnce_InTheWindingRaylibKeeps()
+        {
+            static float Cross((Vector2 A, Vector2 B, Vector2 C) t) => (t.B.X - t.A.X) * (t.C.Y - t.A.Y) - (t.B.Y - t.A.Y) * (t.C.X - t.A.X);
+            Vector2 a = new(0, 0), b = new(10, 0), c = new(0, 10);   // CCW in y-up world data: cross > 0
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, b, c, mirrored: false)) < 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, c, b, mirrored: false)) < 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, b, c, mirrored: true)) > 0f);
+            Assert.True(Cross(DebugPrimitiveRenderer2D.KeptWinding(a, c, b, mirrored: true)) > 0f);
+        }
     }
 }
