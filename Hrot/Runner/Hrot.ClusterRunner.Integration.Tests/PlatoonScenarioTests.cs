@@ -349,11 +349,25 @@ public sealed class PlatoonScenarioTests : IDisposable
         harness.PumpUntil(() => squads.All(n => Task(ByName(cgf, n)) != march), timeoutFrames: 1800);
         // how far each centre stands from the route's end, along the route (Main Street east to the Cross Road, then south)
         float ToEnd(Vector3 p) => p.Y < 190f && MathF.Abs(p.X - 200f) < 12f ? p.Y - 120f : 70f + MathF.Max(0f, 200f - p.X);
-        string Along() => string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:{ToEnd(At(n)):F0}"));
+        // a squad marches in file and its march ends on its point man's arrival: judge where it got to by its FRONT man
+        float Front(string n)
+        {
+            var squad = ByName(cgf, n);
+            if (!cgf.HasComponent<UnitRoster>(squad)) return ToEnd(At(n));
+            ref readonly var roster = ref cgf.GetComponentRO<UnitRoster>(squad);
+            float best = float.MaxValue;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (cgf.IsAlive(m) && cgf.HasComponent<SimTransform>(m)) best = MathF.Min(best, ToEnd(cgf.GetComponentRO<SimTransform>(m).Position));
+            }
+            return best == float.MaxValue ? ToEnd(At(n)) : best;
+        }
+        string Along() => string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:front {Front(n):F0}/centre {ToEnd(At(n)):F0}"));
         _out.WriteLine($"end: {Where()} · to the end {Along()} · platoon task {Task(platoon)} · closest lead–follower {closest:F1} m");
         Assert.True(ended, $"③ the task ends; {Where()}");
         Assert.True(Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(200f, 120f)) < 16f, $"③ the lead at the route's end; {Where()}");
-        Assert.True(ToEnd(At(squads[1])) > ToEnd(At(squads[0])) + 15f && ToEnd(At(squads[2])) > ToEnd(At(squads[1])) + 15f,
+        Assert.True(Front(squads[1]) > Front(squads[0]) + 15f && Front(squads[2]) > Front(squads[1]) + 15f,
             $"③ in order along the route, each a bound behind the one ahead; {Along()}");
         Assert.True(closest > 12f, $"② the follower never walked with the lead (closest {closest:F1} m)");
     }

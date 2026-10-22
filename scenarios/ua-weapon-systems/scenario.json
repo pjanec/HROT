@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). An 'Intruder 2' walks from (360,260) toward the M2 (to (280,170)), into its arc and beyond the sentry gun's reach; the M2 gunner, once set up, is on his type's default SOP, so he engages what he sees (CE-4035 G-11). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him) (4) the manned M2 fires on Intruder 2. Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
+    "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). The M2 and its gunner stand at (620,100), 560 m east of the sentry gun; an 'Intruder 2' walks from (700,230) toward the M2 (to (660,170)), into its arc and beyond the sentry gun's reach; the M2 gunner, once set up, is on his type's default SOP, so he engages what he sees (CE-4035 G-11). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him) (4) the manned M2 fires on Intruder 2. Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
   },
   "entities": {
     "a2222d00-0000-4000-8000-000000000001": {
@@ -88,7 +88,7 @@
     "a2222d00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          200,
+          620,
           100,
           0
         ],
@@ -117,7 +117,7 @@
     "a2222d00-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          208,
+          628,
           100,
           0
         ],
@@ -225,8 +225,8 @@
     "a2222d00-0000-4000-8000-000000000099": {
       "SimTransform": {
         "Position": [
-          360,
-          260,
+          700,
+          230,
           0
         ],
         "Rotation": [
@@ -255,7 +255,7 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"x\": 280, \"y\": 170, \"speed\": 1.2, \"arrivalRadius\": 1}",
+        "Params": "{\"x\": 660, \"y\": 170, \"speed\": 1.2, \"arrivalRadius\": 1}",
         "Origin": "Superior"
       },
       "Sop": {
