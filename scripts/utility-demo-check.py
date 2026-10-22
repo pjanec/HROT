@@ -4369,7 +4369,7 @@ def run_car_bomb(c, timeout):
     before = len(_detonations())
     call("POST", "/sim/timescale", {"scale": 2})
     call("POST", "/sim/play", {})
-    c.ok(wait_for(lambda: (position(car) or (-999, 0))[0] > -240, 30), f"① the car drives east (at {position(car)}; driver {task_name(drv)})")
+    c.ok(wait_for(lambda: (position(car) or (-999, 0))[0] > 160, 30), f"① the car drives east (at {position(car)}; driver {task_name(drv)})")
     det, at, track = None, None, []
     end = time.time() + timeout
     while time.time() < end:
