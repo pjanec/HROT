@@ -328,6 +328,108 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.True(noWorld.Observe(true, null, 0.2));
         Assert.False(noWorld.HadWorldAnchor);
     }
+
+    // ── CE-4042 — the Verify mode (docs/DESIGN_Scenario_Regression.md §2a) ──────────────────────────────────────────────────
+
+    /// <summary>The verifier's world over the fake editor: the units' transforms from the repo, a Health the checks may edit.</summary>
+    private sealed class FakeVerifyWorld : IVerifyWorld
+    {
+        private readonly FakeEditor _h;
+        public readonly Dictionary<long, double> Health = new();
+        /// <summary>Each edit, at the sim time it landed.</summary>
+        public readonly List<(double SimTime, long Id, string Component)> Edits = new();
+
+        public FakeVerifyWorld(FakeEditor host, IShotWorld units) { _h = host; Units = units; }
+
+        public EntityRepository? World => _h.Repo;
+        public IShotWorld Units { get; }
+        public string? BehaviourName(int hash) => null;
+
+        public System.Text.Json.Nodes.JsonObject? Components(long id)
+        {
+            foreach (var e in _h.Repo.Query().With<NetworkIdentity>().Build())
+            {
+                if (_h.Repo.GetComponentRO<NetworkIdentity>(e).Value != id) continue;
+                var p = _h.Repo.GetComponentRO<SimTransform>(e).Position;
+                return new System.Text.Json.Nodes.JsonObject
+                {
+                    ["SimTransform"] = new System.Text.Json.Nodes.JsonObject { ["Position"] = new System.Text.Json.Nodes.JsonObject { ["X"] = p.X, ["Y"] = p.Y, ["Z"] = p.Z } },
+                    ["Health"] = new System.Text.Json.Nodes.JsonObject { ["Current"] = Health.TryGetValue(id, out var hp) ? hp : 100d },
+                };
+            }
+            return null;
+        }
+
+        public System.Text.Json.Nodes.JsonArray Shots() => new();
+        public System.Text.Json.Nodes.JsonArray Blasts() => new();
+
+        public string? SetComponent(long id, string component, System.Text.Json.Nodes.JsonObject patch)
+        {
+            if (component != "Health") return "only Health here";
+            Health[id] = patch["Current"]!.GetValue<double>();
+            Edits.Add((_h.SimTime, id, component));
+            return null;
+        }
+    }
+
+    private const string RunnerChecks = """
+        { "runFor": 3, "golden": {"every": 1},
+          "do": [{"name": "hurt", "at": 1.5, "set": {"who": "Runner", "component": "Health", "patch": {"Current": 40}}}],
+          "expect": [{"name": "runs a metre", "on": "near", "who": "Runner", "point": [1, 0], "within": 0.05, "before": 2},
+                     {"name": "hurt after the action", "on": "field", "who": "Runner", "path": "Health.Current", "op": "<", "value": 50, "after": "hurt"},
+                     {"name": "never west", "never": {"on": "field", "who": "Runner", "path": "SimTransform.Position.X", "op": "<", "value": -1}},
+                     {"name": "ends east", "on": "field", "who": "Runner", "path": "SimTransform.Position.X", "op": ">", "value": 2.9, "atEnd": true}] }
+        """;
+
+    /// <summary>
+    /// ⭐⭐ A verify reel of two scenarios: each LOADED (a fresh run, never rewound), stepped EXACTLY ONCE per frame for runFor with no cinema
+    /// and no camera, the checks' action landing on its EXACT step (1.5 s = step 90), every expectation judged; capture writes the golden,
+    /// the next run compares SAME, and a run that moves differently is DIFFERENT with the first snapshot named — and fails. A host with no
+    /// verifier world refuses. 🔴 Red-proof: call ApplyDue after StepOnce ⇒ the edit lands at 1.5167 s.
+    /// </summary>
+    [Fact]
+    public void CE4042_AVerifyReel_JudgesTheChecks_LandsTheActionOnItsStep_AndKeepsTheGolden()
+    {
+        var store = Store();
+        foreach (var s in new[] { "s-a", "s-b" })
+            System.IO.File.WriteAllText(System.IO.Path.Combine(_root, s, ChecksJson.FileName), RunnerChecks);
+        var host = new FakeEditor(store);
+        var cinema = new Cinema();
+        FakeVerifyWorld? world = null;
+        var runner = new DirectorRunner(host, cinema, new Layers(), verifyWorld: u => world = new FakeVerifyWorld(host, u));
+        var reel = new Reel { Name = "verify", Items = new[] { "s-a", "s-b" }.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList() };
+
+        Assert.Empty(runner.Play(new PlayRequest(reel, Verify: new VerifyOptions(Capture: true))));
+        Run(runner, host);
+        Assert.Equal(new[] { "s-a", "s-b" }, host.Loads);
+        Assert.Equal(0, cinema.Enters);                                        // the editor left as it is
+        Assert.All(host.StepsPerFrame, n => Assert.Equal(1, n));                // ⭐ the stepping rule
+        Assert.All(runner.Reports, r => Assert.Equal("pass", r.Status));
+        Assert.All(runner.Reports, r => Assert.Equal(180, r.Steps));            // 3 s at 60 Hz
+        Assert.All(world!.Edits, e => Assert.Equal(1.5, e.SimTime, 6));        // ⭐ its exact step (step 90; a step is 0.0167 s)
+        Assert.Equal(2, world.Edits.Count);
+        var v = runner.Reports[0].Verify!;
+        Assert.Equal("captured", v.Golden);
+        Assert.Equal(1.0, v.Verdicts.Single(x => x.Name == "runs a metre").Time!.Value, 6);
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(_root, "s-a", ScenarioGolden.FileName)));
+
+        Assert.Empty(runner.Play(new PlayRequest(reel, Verify: new VerifyOptions())));
+        Run(runner, host);
+        Assert.All(runner.Reports, r => Assert.Equal("same", r.Verify!.Golden));
+
+        host.Moves = false;                                                    // a regression: the runner stands still
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions())));
+        Run(runner, host);
+        var bad = runner.Reports.Single();
+        Assert.Equal("fail", bad.Status);
+        Assert.Equal("different", bad.Verify!.Golden);
+        Assert.StartsWith("FIRST differing snapshot at t=1 s", bad.Verify.GoldenDiff[0]);
+        Assert.Contains("Runner", bad.Verify.GoldenDiff[0]);
+        Assert.False(bad.Verify.Verdicts.Single(x => x.Name == "runs a metre").Ok);
+
+        var refused = new DirectorRunner(host, cinema, new Layers()).Play(new PlayRequest(reel, Verify: new VerifyOptions()));
+        Assert.Contains(refused, p => p.Contains("cannot verify"));
+    }
 }
 
 [CollectionDefinition(Name, DisableParallelization = true)]

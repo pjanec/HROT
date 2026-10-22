@@ -111,6 +111,23 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
         public bool DryRun { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — verify these scenarios (comma-separated, or <c>all</c> = every one with a
+        /// <c>checks.json</c>) in the editor's stepped preview, each in a FRESH process, then exit 0 (all pass) or 1. With <c>--mode editor</c>.
+        /// </summary>
+        [Option("verify", Required = false,
+                HelpText = "With --mode editor: verify these scenarios (a,b,c or all) — each judged by its checks.json and compared with its "
+                         + "golden.json, each in a fresh process; exit 0 when every one passes, else 1")]
+        public string Verify { get; set; } = string.Empty;
+
+        /// <summary>⭐ CE-4042 — re-record each verified scenario's golden (refused for a failing run).</summary>
+        [Option("verify-capture", Required = false, Default = false, HelpText = "With --verify: re-record each scenario's golden.json")]
+        public bool VerifyCapture { get; set; }
+
+        /// <summary>⭐ CE-4042 — write the verify report (JSON) here.</summary>
+        [Option("verify-report", Required = false, HelpText = "With --verify: write the report (JSON) to this file")]
+        public string VerifyReport { get; set; } = string.Empty;
+
         // -- Parsed values ---------------------------------------------------
 
         /// <summary>Parsed set of requested subsystem names. Set by <see cref="Validate"/>.</summary>

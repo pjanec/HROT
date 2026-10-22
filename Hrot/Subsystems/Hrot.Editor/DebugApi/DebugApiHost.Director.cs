@@ -42,6 +42,10 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/director/pause", _ => Main(() => Transport(d => d.Pause()))));
             _routes.Add(new("POST", "/director/resume", _ => Main(() => Transport(d => d.Resume()))));
             _routes.Add(new("GET", "/director/status", _ => Main(() => _director is { } d ? Ok(d.Status()) : Fail(503, NoDirector))));
+            // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — the scenario regression check: author a scenario's checks, verify it
+            _routes.Add(new("GET", "/director/checks/{scenario}", ctx => Main(() => ChecksRead(ctx.RouteValue("scenario")!))));
+            _routes.Add(new("PUT", "/director/checks/{scenario}", ctx => Main(() => ChecksWrite(ctx.RouteValue("scenario")!, ctx.Body))));
+            _routes.Add(new("POST", "/director/verify", ctx => Main(() => DirectorVerify(ctx.Body))));
             _routes.Add(new("GET", "/map/layers", ctx => Main(() => LayersRead(ctx.Query("view")))));
             _routes.Add(new("POST", "/map/layers", ctx => Main(() => LayersWrite(ctx.Body))));
             _routes.Add(new("GET", "/audio", _ => Main(AudioRead)));
@@ -158,6 +162,68 @@ namespace Hrot.Editor.DebugApi
             var refused = director.Play(new PlayRequest(reel, speed, loop, capture, scout, inline, bake));
             if (refused.Count > 0) return Fail(400, "not started: " + string.Join("; ", refused));
             return Ok(director.Status());
+        }
+
+        // ── verify (CE-4042) ──────────────────────────────────────────────────────────────────
+
+        private RouteResult ChecksRead(string scenario)
+        {
+            if (_takes is not { } store) return Fail(503, NoDirector);
+            var loaded = store.LoadScenarioJson(scenario, ChecksJson.FileName);
+            if (loaded.Value is null) return Fail(404, string.Join("; ", loaded.Problems));
+            var problems = new List<string>();
+            ChecksJson.Parse(loaded.Value, scenario, problems);
+            var golden = store.LoadScenarioJson(scenario, ScenarioGolden.FileName);
+            return Ok(new JsonObject
+            {
+                ["scenario"] = scenario, ["path"] = store.ScenarioFilePath(scenario, ChecksJson.FileName), ["json"] = loaded.Value.DeepClone(),
+                ["problems"] = new JsonArray(problems.Select(p => (JsonNode?)p).ToArray()),
+                ["golden"] = golden.Value is { } g ? new JsonObject
+                {
+                    ["path"] = store.ScenarioFilePath(scenario, ScenarioGolden.FileName), ["steps"] = g["steps"]?.DeepClone(),
+                    ["snapshots"] = (g["snapshots"] as JsonArray)?.Count, ["shots"] = (g["shots"] as JsonArray)?.Count,
+                } : null,
+            });
+        }
+
+        private RouteResult ChecksWrite(string scenario, JsonNode? body)
+        {
+            if (_takes is not { } store) return Fail(503, NoDirector);
+            if (body is not JsonObject json) return Fail(400, "the body is the checks (a JSON object: runFor, golden, anchors, do, expect)");
+            var problems = new List<string>();
+            var parsed = ChecksJson.Parse(json, scenario, problems);
+            if (problems.Count > 0) return Fail(400, "the checks are not valid: " + string.Join("; ", problems));
+            var written = store.SaveScenarioJson(scenario, ChecksJson.FileName, json);
+            return Ok(new JsonObject
+            {
+                ["saved"] = new JsonArray(written.Select(p => (JsonNode?)p).ToArray()), ["expect"] = parsed.Expect.Count,
+                ["anchors"] = parsed.Anchors.Count, ["do"] = parsed.Do.Count, ["golden"] = parsed.GoldenEvery is { } e ? e : null,
+            });
+        }
+
+        private RouteResult DirectorVerify(JsonNode? body)
+        {
+            if (_director is not { } director || _takes is not { } store) return Fail(503, NoDirector);
+            var names = new List<string>();
+            if (body?["scenario"]?.ToString() is { Length: > 0 } one) names.Add(one);
+            if (body?["scenarios"] is JsonArray many) names.AddRange(many.Select(x => x?.ToString()).OfType<string>().Where(x => x.Length > 0));
+            if (body?["all"] is JsonValue av && av.TryGetValue<bool>(out var all) && all)
+                names.AddRange(System.IO.Directory.Exists(store.ScenariosRoot)
+                    ? System.IO.Directory.EnumerateDirectories(store.ScenariosRoot)
+                        .Where(d => System.IO.File.Exists(System.IO.Path.Combine(d, ChecksJson.FileName)))
+                        .Select(d => System.IO.Path.GetFileName(d)).OrderBy(n => n, StringComparer.Ordinal)
+                    : Enumerable.Empty<string>());
+            names = names.Distinct(StringComparer.Ordinal).ToList();
+            if (names.Count == 0) return Fail(400, "name what to verify: {scenario} or {scenarios:[…]} or {all:true}");
+            bool capture = body?["capture"] is JsonValue cv && cv.TryGetValue<bool>(out var c) && c;
+            var reel = new Reel { Name = "verify", Items = names.Select(n => new ReelItem { Scenario = n, Take = "_verify" }).ToList() };
+            var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(capture)));
+            if (refused.Count > 0) return Fail(400, "not started: " + string.Join("; ", refused));
+            var status = director.Status();
+            // ⚠ R-4065: one process per scenario is the regression rule (a reload still leaks, CE-3294) — said, not refused
+            if (names.Count > 1) status["note"] = "several scenarios in ONE process: each after the first is a reload (CE-3294 may leak state) — "
+                                                 + "for the regression verdict run each in a fresh process (Hrot.ClusterRunner --mode editor --headless --verify a,b)";
+            return Ok(status);
         }
 
         private RouteResult Transport(Action<DirectorRunner> act)

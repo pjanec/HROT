@@ -315,6 +315,8 @@ namespace Hrot.Editor
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
         private Hrot.Editor.Director.DirectorRunner? _director;
+        // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
+        private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
         private Hrot.Editor.Director.EditorLayerOverride? _directorLayers;
 
@@ -2321,9 +2323,14 @@ namespace Hrot.Editor
                 Hrot.Editor.Director.DirectorRunner? runner = null;
                 runner = new Hrot.Editor.Director.DirectorRunner(directorHost, cinema, _directorLayers,
                     _headless ? null : new Hrot.Editor.Director.FilmFrameSink(),
-                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN));
+                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
+                    // ⭐ CE-4042 — a verify run reads and edits through the debug service this method builds below (8b): late-bound
+                    verifyWorld: units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
+                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                        () => _debugApiService));
                 cinema.EscapePressed = () => runner.Stop();
                 _director = runner;
+                _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
@@ -2715,6 +2722,9 @@ namespace Hrot.Editor
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
             //   (§0, R-3038) — the runner asserts it.
             _director?.Tick();
+            // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
+            if (_director != null)
+                _commandLineVerify?.Tick(_director, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
             DrainStagingRemap();
 

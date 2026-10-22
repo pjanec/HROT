@@ -112,7 +112,7 @@ public sealed class AnchorBook
                 "shot" => CountShots(key, a, newShots, world, units),
                 "blast" => Count(key, a.N, newBlasts.Count) ? simTime : null,
                 "hit" => Hit(a, newBlasts, world, units) ? simTime : null,
-                _ => AnyUnit(a, world, units, e => Holds(a, world, e)) ? simTime : null,
+                _ => AnyUnit(a, world, units, e => Holds(a, world, e, _behaviourName)) ? simTime : null,
             };
             if (at is { } t) _live[key] = t;
         }
@@ -152,7 +152,15 @@ public sealed class AnchorBook
         return false;
     }
 
-    private bool Holds(AnchorSpec a, EntityRepository world, Entity e)
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §2) — whether a STATE cue (<c>near task side health embark gesture</c>) holds NOW
+    /// for any unit it names: the take's own reading, shared with the scenario verifier so a check and a take judge a cue alike.
+    /// </summary>
+    public static bool HoldsFor(AnchorSpec a, EntityRepository world, IShotWorld units, Func<int, string?> behaviourName)
+        => a.On is "near" or "task" or "side" or "health" or "embark" or "gesture"
+           && AnyUnit(a, world, units, e => Holds(a, world, e, behaviourName));
+
+    private static bool Holds(AnchorSpec a, EntityRepository world, Entity e, Func<int, string?> behaviourName)
     {
         switch (a.On)
         {
@@ -163,7 +171,7 @@ public sealed class AnchorBook
             case "task":
                 if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(e)) return false;
                 int hash = world.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash;
-                var name = hash == 0 ? "Idle" : _behaviourName(hash) ?? hash.ToString();
+                var name = hash == 0 ? "Idle" : behaviourName(hash) ?? hash.ToString();
                 return string.Equals(name, Text(a.Is), StringComparison.OrdinalIgnoreCase);
             case "side":
                 return world.HasComponent<EntityInfo>(e)

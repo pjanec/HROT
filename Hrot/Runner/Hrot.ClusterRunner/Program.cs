@@ -111,6 +111,27 @@ class Program
             return 0;
         }
 
+        // ── ⭐ CE-4042 — --verify: the scenario regression check from the command line (docs/DESIGN_Scenario_Regression.md §2a) ──
+        //    Several scenarios ⇒ this process is only the PARENT: each runs in a child of its own (a fresh process per scenario until
+        //    CE-3294's reload leak is fixed — R-4065), and the exit code is the verdict. One ⇒ this process IS the editor that verifies.
+        if (!string.IsNullOrWhiteSpace(config.Verify))
+        {
+            if (!(config.RequestedSubsystems.Count == 1 && config.RequestedSubsystems.Contains("editor")))
+            {
+                Console.Error.WriteLine("[Runner] --verify runs in the editor: use --mode editor (with --headless for no window).");
+                return 1;
+            }
+            var verify = Hrot.ClusterRunner.VerifyCommand.Scenarios(config.Verify);
+            if (verify.Count == 0)
+            {
+                Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify (none named, or none with a checks.json).");
+                return 1;
+            }
+            if (verify.Count > 1)
+                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport);
+            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport);
+        }
+
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
         // ⭐ CE-3218 — a scratch staging tree (the temp dir) keeps only its newest exercise recordings; a deployment's root is left
@@ -744,7 +765,7 @@ class Program
         }
 
         Console.WriteLine("[Runner] Shutdown complete.");
-        return 0;
+        return Environment.ExitCode;   // ⭐ CE-4042 — 0 unless a subsystem set a verdict (the editor's --verify run)
     }
 
     /// <summary>

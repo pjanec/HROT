@@ -1,0 +1,536 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Text.Json.Nodes;
+using Fdp.Core;
+using Fdp.Toolkit.ReplayBrowser.Diff;
+using Hrot.UI.Common.Map3D.Director;
+
+namespace Hrot.Editor.Director
+{
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §2) — what the verifier reads and changes in the world, through what the engine
+    /// already has: the entity dump (<c>GET /entities/{id}</c>), the shot and burst rows (<c>/combat/shots</c>, <c>/combat/detonations</c>) and
+    /// the component edit (<c>POST /entities/{id}/component</c>). ⭐ An interface so the rails verify with no editor. Main thread only.
+    /// </summary>
+    public interface IVerifyWorld
+    {
+        EntityRepository? World { get; }
+
+        /// <summary>The units by name (the director's <see cref="WorldUnits"/>).</summary>
+        IShotWorld Units { get; }
+
+        /// <summary>A behaviour's name by its hash (the <c>task</c> cue).</summary>
+        string? BehaviourName(int hash);
+
+        /// <summary>The unit's components as the entity dump writes them (<c>{"Health": {...}, ...}</c>); null when it is gone.</summary>
+        JsonObject? Components(long networkId);
+
+        /// <summary>The shot log's rows, newest first (the <c>/combat/shots</c> rows).</summary>
+        JsonArray Shots();
+
+        /// <summary>The detonation log's rows, newest first (the <c>/combat/detonations</c> rows).</summary>
+        JsonArray Blasts();
+
+        /// <summary>Patches one component; null when written, else why not.</summary>
+        string? SetComponent(long networkId, string component, JsonObject patch);
+    }
+
+    /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
+    public sealed record Verdict(string Name, bool Ok, double? Time, string Kind)
+    {
+        public JsonObject ToJson() => new()
+        {
+            ["name"] = Name, ["ok"] = Ok, ["t"] = Time is { } t ? Math.Round(t, 4) : null, ["kind"] = Kind,
+        };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (§3) — the scenario's conditions in this run: each anchor's, action's and expectation's first time, each <c>never</c>
+    /// broken. Read at the checks' sample cadence. A shot holds at its own firing time; a state cue at the sample that sees it.
+    /// </summary>
+    public sealed class ConditionBook
+    {
+        private readonly ScenarioChecks _checks;
+        private readonly IVerifyWorld _w;
+        private readonly double _t0;
+        private readonly Dictionary<string, double> _times = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, double> _broken = new(StringComparer.Ordinal);
+        private readonly SortedDictionary<long, JsonObject> _shots = new();
+        private readonly List<JsonObject> _blasts = new();
+        private long _shotFloor = -1, _blastFloor = -1, _blastSeen = -1;
+        private Dictionary<long, string> _nameOf = new();
+        private double _rel;
+        private readonly Dictionary<long, JsonObject?> _comps = new();
+
+        /// <param name="t0">The sim time the run started at (rows carry absolute sim times).</param>
+        public ConditionBook(ScenarioChecks checks, IVerifyWorld world, double t0)
+        {
+            _checks = checks ?? throw new ArgumentNullException(nameof(checks));
+            _w = world ?? throw new ArgumentNullException(nameof(world));
+            _t0 = t0;
+            // ⚠ the logs live beside the world and outlast a load: only what happens from now on counts
+            _shotFloor = MaxSeq(world.Shots());
+            _blastFloor = MaxSeq(world.Blasts());
+        }
+
+        /// <summary>Every name's first time in this run (anchors, actions, expectations).</summary>
+        public IReadOnlyDictionary<string, double> Times => _times;
+
+        /// <summary>The rounds of this run (seq ascending), names resolved.</summary>
+        public IEnumerable<JsonObject> ShotRows => _shots.Values;
+
+        public IReadOnlyList<JsonObject> BlastRows => _blasts;
+
+        public void Record(string name, double rel) => _times.TryAdd(name, rel);
+
+        public double? TimeOf(AtExpr? at) => at?.Resolve(n => _times.TryGetValue(n, out var t) ? t : null);
+
+        /// <summary>One sample: the rows since the last, then every anchor and expectation still open.</summary>
+        public void Observe(double rel)
+        {
+            _rel = rel;
+            _comps.Clear();
+            _nameOf = _w.Units.Names.Select(n => (n, id: _w.Units.Resolve(n))).Where(x => x.id is not null)
+                        .GroupBy(x => x.id!.Value).ToDictionary(g => g.Key, g => g.First().n);
+            ReadRows();
+            foreach (var (name, cue) in _checks.Anchors)
+                if (!_times.ContainsKey(name) && When(cue) is { } t) _times[name] = t;
+            foreach (var e in _checks.Expect)
+            {
+                if (e.AtEnd) continue;
+                double? lo = TimeOf(e.After), hi = TimeOf(e.Before);
+                if (e.After is { Anchor: not null } && lo is null) continue;   // its window opens on a beat not seen yet
+                if (e.Never)
+                {
+                    if (_broken.ContainsKey(e.Name) || (hi is { } h0 && rel > h0 + 1e-9)) continue;
+                    if (When(e.Cue, lo) is { } b && (lo is null || b >= lo - 1e-9) && (hi is null || b <= hi + 1e-9)) _broken[e.Name] = b;
+                }
+                else if (!_times.ContainsKey(e.Name) && When(e.Cue, lo) is { } t && (lo is null || t >= lo - 1e-9) && (hi is null || t <= hi + 1e-9))
+                    _times[e.Name] = t;
+            }
+        }
+
+        /// <summary>The run is over: a last sample, then the <c>atEnd</c> expectations.</summary>
+        public void Finish(double rel)
+        {
+            Observe(rel);
+            foreach (var e in _checks.Expect.Where(x => x.AtEnd))
+                if (When(e.Cue) is not null) _times[e.Name] = rel;
+        }
+
+        public IReadOnlyList<Verdict> Verdicts() => _checks.Expect.Select(e =>
+            e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never")
+                    : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once"))
+            .ToList();
+
+        // ── the cues ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>When the cue holds in this run (for an event, the n-th at or after <paramref name="from"/>); null when not (yet).</summary>
+        private double? When(CheckCue c, double? from = null)
+        {
+            var a = c.Spec;
+            switch (c.On)
+            {
+                case "shot":
+                {
+                    var rows = _shots.Values.Where(r => (a.By == null || Is(r["shooter"], a.By)) && (a.Target == null || Is(r["target"], a.Target))
+                                                        && (c.Hit == null || Is(r["hit"], c.Hit)) && WhereOk(r, c.Where))
+                        .Select(r => Rel(r["firedAt"])).Where(t => from is null || t >= from - 1e-9).ToList();
+                    return rows.Count >= a.N ? rows[a.N - 1] : null;
+                }
+                case "blast":
+                {
+                    var rows = _blasts.Where(r => (a.By == null || Is(r["shooter"], a.By)) && WhereOk(r, c.Where))
+                        .Select(r => Num(r["seenAt"])!.Value).Where(t => from is null || t >= from - 1e-9).ToList();
+                    return rows.Count >= a.N ? rows[a.N - 1] : null;
+                }
+                case "hit":
+                {
+                    if (a.Target == null) return null;
+                    var hits = _shots.Values.Where(r => r["outcome"]?.ToString() == "Hit" && Is(r["hit"], a.Target)).Select(r => Rel(r["firedAt"]))
+                        .Concat(_blasts.Where(r => r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
+                                       .Select(r => Num(r["seenAt"])!.Value))
+                        .Where(t => from is null || t >= from - 1e-9).OrderBy(t => t).ToList();
+                    return hits.Count >= a.N ? hits[a.N - 1] : null;
+                }
+                case "field":
+                {
+                    var units = UnitsNamed(a.Who!).ToList();
+                    var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
+                    int held = units.Count(id => Compare(At(Components(id), c.Path!), c.Op, want));
+                    bool ok = c.Quantifier switch
+                    {
+                        "any" => held > 0,
+                        "all" => units.Count > 0 && held == units.Count,
+                        _ => held >= int.Parse(c.Quantifier[8..], CultureInfo.InvariantCulture),
+                    };
+                    return ok ? _rel : null;
+                }
+                default:
+                {
+                    if (_w.World is not { } world) return null;
+                    // a task cue may name several behaviours: any of them
+                    var specs = a.Is is JsonArray many ? many.Select(x => a with { Is = x?.DeepClone() }) : new[] { a };
+                    return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                }
+            }
+        }
+
+        private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;
+
+        private JsonObject? Components(long id)
+        {
+            if (!_comps.TryGetValue(id, out var c)) _comps[id] = c = _w.Components(id);
+            return c;
+        }
+
+        private IEnumerable<long> UnitsNamed(string who)
+        {
+            if (who.StartsWith('*'))
+            {
+                var part = who[1..];
+                foreach (var (id, n) in _nameOf)
+                    if (n.Contains(part, StringComparison.Ordinal)) yield return id;
+            }
+            else if (_w.Units.Resolve(who) is { } id) yield return id;
+        }
+
+        /// <summary>A row's unit (a network id, or the name already resolved) against a name or <c>*part</c>.</summary>
+        private bool Is(JsonNode? unit, string who)
+        {
+            if (unit is null) return false;
+            string? name = Num(unit) is { } id ? (_nameOf.TryGetValue((long)id, out var n) ? n : null) : unit.ToString();
+            if (name == null) return false;
+            return who.StartsWith('*') ? name.Contains(who[1..], StringComparison.Ordinal) : string.Equals(name, who, StringComparison.Ordinal);
+        }
+
+        private void ReadRows()
+        {
+            foreach (var r in _w.Shots().OfType<JsonObject>())
+            {
+                long seq = (long)(Num(r["seq"]) ?? -1);
+                if (seq <= _shotFloor) continue;
+                // ⚠ a round is logged when FIRED and ends later in place: keep its latest row
+                var row = (JsonObject)r.DeepClone();
+                row.Remove("crossings");
+                foreach (var k in new[] { "shooter", "target", "hit" })
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
+                _shots[seq] = row;
+            }
+            var fresh = new List<JsonObject>();
+            foreach (var r in _w.Blasts().OfType<JsonObject>())
+            {
+                long seq = (long)(Num(r["seq"]) ?? -1);
+                if (seq <= _blastFloor || seq <= _blastSeen) continue;
+                var row = (JsonObject)r.DeepClone();
+                row.Remove("rays");
+                if (Num(row["shooter"]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row["shooter"] = n;
+                if (row["effects"] is JsonArray fx)
+                    foreach (var x in fx.OfType<JsonObject>())
+                        if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((long)eid, out var en)) x["entity"] = en;
+                row["seenAt"] = Math.Round(_rel, 4);
+                fresh.Add(row);
+            }
+            foreach (var row in fresh.OrderBy(r => Num(r["seq"])))
+            {
+                _blasts.Add(row);
+                _blastSeen = Math.Max(_blastSeen, (long)(Num(row["seq"]) ?? -1));
+            }
+        }
+
+        private static long MaxSeq(JsonArray rows) => rows.OfType<JsonObject>().Select(r => (long)(Num(r["seq"]) ?? -1)).DefaultIfEmpty(-1).Max();
+
+        // ── values ────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// A number, whatever CLR type the row or dump built it from. ⚠ <c>TryGetValue&lt;double&gt;</c> alone answers false for a value
+        /// created from a <c>long</c> or a <c>float</c> (a shot's <c>seq</c>, a position) — measured: every row was skipped as "no number".
+        /// </summary>
+        public static double? Num(JsonNode? n)
+        {
+            if (n is not JsonValue v) return null;
+            if (v.TryGetValue<double>(out var d)) return d;
+            if (v.TryGetValue<long>(out var l)) return l;
+            if (v.TryGetValue<int>(out var i)) return i;
+            if (v.TryGetValue<float>(out var f)) return f;
+            if (v.TryGetValue<ulong>(out var ul)) return ul;
+            if (v.TryGetValue<uint>(out var ui)) return ui;
+            if (v.TryGetValue<short>(out var sh)) return sh;
+            if (v.TryGetValue<ushort>(out var us)) return us;
+            if (v.TryGetValue<byte>(out var b)) return b;
+            if (v.TryGetValue<sbyte>(out var sb)) return sb;
+            if (v.TryGetValue<decimal>(out var m)) return (double)m;
+            return null;
+        }
+
+        /// <summary>The value at <c>A.B.C</c> (an array index is a number part).</summary>
+        public static JsonNode? At(JsonNode? node, string path)
+        {
+            foreach (var part in path.Split('.'))
+            {
+                node = node switch
+                {
+                    JsonObject o => o[part],
+                    JsonArray a when int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) && i >= 0 && i < a.Count => a[i],
+                    _ => null,
+                };
+                if (node is null) return null;
+            }
+            return node;
+        }
+
+        public static bool Compare(JsonNode? value, string op, JsonNode? want)
+        {
+            if (value is null) return op == "==" && want is null;
+            double? a = Num(value), b = Num(want);
+            switch (op)
+            {
+                case "==": return a is { } x && b is { } y ? Math.Abs(x - y) <= 1e-3 : Text(value) == Text(want);
+                case "!=": return !Compare(value, "==", want);
+                case "<": return a < b;
+                case "<=": return a <= b;
+                case ">": return a > b;
+                case ">=": return a >= b;
+                case "in": return want is JsonArray set && set.Any(w => Compare(value, "==", w));
+                case "contains": return Text(value).Contains(Text(want), StringComparison.Ordinal);
+                default: return false;
+            }
+        }
+
+        private static string Text(JsonNode? n) => n is JsonValue v ? v.ToString() : n?.ToJsonString() ?? "";
+
+        private static bool WhereOk(JsonObject row, IReadOnlyList<(string Field, string Op, JsonNode? Value)> where)
+            => where.All(w => Compare(At(row, w.Field), w.Op, w.Value));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (§4) — the run as a golden: the times, the rows, and every named unit at every <c>golden.every</c> seconds — its
+    /// position and health in full, every component as a short hash of its dump (a full dump of a 7-unit scenario was 1.7 MB a minute;
+    /// a hash still names the FIRST component to differ, which is where a bisect starts).
+    /// </summary>
+    public sealed class ScenarioGolden
+    {
+        public const string FileName = "golden.json";
+        private readonly IVerifyWorld _w;
+        private readonly JsonArray _snapshots = new();
+
+        public ScenarioGolden(IVerifyWorld world) => _w = world ?? throw new ArgumentNullException(nameof(world));
+
+        public int Snapshots => _snapshots.Count;
+
+        /// <summary>The time of the last snapshot (−∞ when none).</summary>
+        public double LastTime { get; private set; } = double.NegativeInfinity;
+
+        public void Snapshot(double rel)
+        {
+            var units = new JsonObject();
+            foreach (var name in _w.Units.Names.OrderBy(n => n, StringComparer.Ordinal))
+            {
+                if (_w.Units.Resolve(name) is not { } id || _w.Components(id) is not { } comps) continue;
+                var hashes = new JsonObject();
+                foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                    hashes[type] = Hash(value);
+                var p = ConditionBook.At(comps, "SimTransform.Position");
+                units[name] = new JsonObject
+                {
+                    ["position"] = p is JsonObject o ? new JsonArray(R(o["X"]), R(o["Y"]), R(o["Z"])) : p?.DeepClone(),
+                    ["health"] = ConditionBook.At(comps, "Health.Current")?.DeepClone(),
+                    ["components"] = hashes,
+                };
+            }
+            _snapshots.Add(new JsonObject { ["t"] = Math.Round(rel, 4), ["units"] = units });
+            LastTime = rel;
+        }
+
+        private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d ? JsonValue.Create(Math.Round(d, 3)) : n?.DeepClone();
+
+        /// <summary>FNV-1a 64 of the value's JSON — the dump writes a component's fields in one fixed order, so equal values hash alike.</summary>
+        public static string Hash(JsonNode? value)
+        {
+            ulong h = 14695981039346656037UL;
+            foreach (byte b in Encoding.UTF8.GetBytes(value?.ToJsonString() ?? "null")) { h ^= b; h *= 1099511628211UL; }
+            return h.ToString("x16", CultureInfo.InvariantCulture);
+        }
+
+        public JsonObject ToJson(string scenario, long steps, ConditionBook book) => new()
+        {
+            ["$doc"] = "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify "
+                       + scenario + " --verify-capture (or POST /director/verify {scenario, capture: true})",
+            ["scenario"] = scenario,
+            ["steps"] = steps,
+            ["times"] = new JsonObject(book.Times.OrderBy(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal)
+                                           .Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)Math.Round(kv.Value, 4)))),
+            ["shots"] = new JsonArray(book.ShotRows.Select(r => (JsonNode?)Pick(r, "seq", "firedAt", "shooter", "target", "hit", "outcome", "penetration", "weaponIndex")).ToArray()),
+            ["blasts"] = new JsonArray(book.BlastRows.Select(r => (JsonNode?)Pick(r, "seq", "seenAt", "shooter", "warheadSource", "burst")).ToArray()),
+            ["snapshots"] = _snapshots.DeepClone(),
+        };
+
+        private static JsonObject Pick(JsonObject row, params string[] keys)
+        {
+            var o = new JsonObject();
+            foreach (var k in keys) o[k] = row[k] is JsonValue v && ConditionBook.Num(v) is { } d ? JsonValue.Create(Math.Round(d, 4)) : row[k]?.DeepClone();
+            return o;
+        }
+
+        /// <summary>
+        /// Every difference of <paramref name="run"/> from <paramref name="golden"/> (numbers within 0.001 — <see cref="ComponentDiffService"/>,
+        /// the <c>/diff/compare</c> tolerance), ordered so the FIRST line answers "when did it start to differ, and in whom".
+        /// </summary>
+        public static IReadOnlyList<string> Compare(JsonObject golden, JsonObject run)
+        {
+            var diff = new ComponentDiffService();
+            var lines = new List<string>();
+            foreach (var key in new[] { "steps", "times", "shots", "blasts" })
+            {
+                var paths = Modified(diff.ComputeDiff(key, golden[key], run[key], 0.001), key).ToList();
+                if (paths.Count == 0) continue;
+                lines.Add($"{key}: {paths.Count} difference(s), first {paths[0]}");
+            }
+            var gs = golden["snapshots"] as JsonArray ?? new JsonArray();
+            var rs = run["snapshots"] as JsonArray ?? new JsonArray();
+            if (gs.Count != rs.Count) lines.Add($"snapshots: golden {gs.Count}, run {rs.Count}");
+            for (int i = 0; i < Math.Min(gs.Count, rs.Count); i++)
+            {
+                var paths = Modified(diff.ComputeDiff("t", gs[i], rs[i], 0.001), "").ToList();
+                if (paths.Count == 0) continue;
+                var t = gs[i]?["t"];
+                var units = paths.Select(p => p.Split('.', 3) is { Length: >= 2 } s && s[0] == "units" ? s[1] : "?").Distinct().ToList();
+                lines.Insert(0, $"FIRST differing snapshot at t={t} s — {paths.Count} value(s) in {string.Join(", ", units.Take(6))}{(units.Count > 6 ? " …" : "")}");
+                lines.InsertRange(1, paths.Take(8).Select(p => "    " + p));
+                break;
+            }
+            return lines;
+        }
+
+        private static IEnumerable<string> Modified(DiffNode? node, string path)
+        {
+            if (node is null || !node.IsModified) yield break;
+            switch (node)
+            {
+                case DiffValue v:
+                    yield return $"{path}: golden {Short(v.OldValue)} run {Short(v.NewValue)}";
+                    break;
+                case DiffObject o:
+                    foreach (var c in o.Children)
+                        foreach (var p in Modified(c, path.Length == 0 ? c.Name : c.Name.Length == 0 ? path : path + "." + c.Name))
+                            yield return p;
+                    break;
+            }
+        }
+
+        private static string Short(string s) => s.Length > 60 ? s[..57] + "…" : s;
+    }
+
+    /// <summary>What one verification found.</summary>
+    public sealed class VerifyResult
+    {
+        public List<Verdict> Verdicts { get; } = new();
+        /// <summary>none (a demo) · same · different · missing · captured · not-captured</summary>
+        public string Golden { get; set; } = "none";
+        public List<string> GoldenDiff { get; } = new();
+        public List<string> Problems { get; } = new();
+        public List<string> Written { get; } = new();
+        public JsonObject? GoldenJson { get; set; }
+
+        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is "none" or "same" or "captured";
+
+        public JsonObject ToJson() => new()
+        {
+            ["passed"] = Passed,
+            ["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode?)v.ToJson()).ToArray()),
+            ["golden"] = Golden,
+            ["goldenDiff"] = new JsonArray(GoldenDiff.Select(x => (JsonNode?)x).ToArray()),
+            ["written"] = new JsonArray(Written.Select(x => (JsonNode?)x).ToArray()),
+            ["problems"] = new JsonArray(Problems.Select(x => (JsonNode?)x).ToArray()),
+        };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4042</c> (§2a) — one scenario verified: the runner calls <see cref="Observe"/> and <see cref="ApplyDue"/> on EVERY frame (one
+    /// step each — so an action lands on its exact step), and <see cref="Finish"/> when <c>runFor</c> is reached.
+    /// </summary>
+    public sealed class ScenarioVerification
+    {
+        private readonly ScenarioChecks _checks;
+        private readonly JsonObject? _golden;
+        private readonly bool _capture;
+        private readonly IVerifyWorld _w;
+        private readonly ConditionBook _book;
+        private readonly ScenarioGolden? _run;
+        private readonly HashSet<CheckAction> _done = new();
+        private double _nextSample, _nextSnapshot;
+        public List<string> ActionProblems { get; } = new();
+
+        public ScenarioVerification(ScenarioChecks checks, JsonObject? golden, bool capture, IVerifyWorld world, double t0)
+        {
+            _checks = checks ?? throw new ArgumentNullException(nameof(checks));
+            _golden = golden;
+            _capture = capture;
+            _w = world ?? throw new ArgumentNullException(nameof(world));
+            _book = new ConditionBook(checks, world, t0);
+            _run = checks.GoldenEvery is null ? null : new ScenarioGolden(world);
+        }
+
+        public ScenarioChecks Checks => _checks;
+        public ConditionBook Book => _book;
+
+        /// <summary>The names the checks use that this scenario's cast does not carry (a <c>*part</c> needs one).</summary>
+        public static IReadOnlyList<string> MissingNames(ScenarioChecks checks, IShotWorld units) =>
+            checks.Names().Where(n => n.StartsWith('*') ? !units.Names.Any(x => x.Contains(n[1..], StringComparison.Ordinal)) : units.Resolve(n) is null)
+                  .Select(n => $"no unit named '{n}' in {checks.Scenario}").ToList();
+
+        public void Observe(double rel)
+        {
+            if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
+            if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _checks.GoldenEvery!.Value; }
+        }
+
+        /// <summary>Each action due by <paramref name="rel"/> is applied now (before this frame's step).</summary>
+        public void ApplyDue(double rel)
+        {
+            foreach (var a in _checks.Do)
+            {
+                if (_done.Contains(a) || _book.TimeOf(a.At) is not { } at || rel + 1e-9 < at) continue;
+                _done.Add(a);
+                var ids = a.Who.StartsWith('*')
+                    ? _w.Units.Names.Where(n => n.Contains(a.Who[1..], StringComparison.Ordinal)).Select(n => _w.Units.Resolve(n)).OfType<long>().ToList()
+                    : _w.Units.Resolve(a.Who) is { } one ? new List<long> { one } : new List<long>();
+                if (ids.Count == 0) ActionProblems.Add($"do at {rel:0.###} s: no unit '{a.Who}'");
+                foreach (var id in ids)
+                    if (_w.SetComponent(id, a.Component, a.Patch) is { } why) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{a.Component}: {why}");
+                if (a.Name != null) _book.Record(a.Name, rel);
+            }
+        }
+
+        public VerifyResult Finish(double rel, long steps)
+        {
+            _book.Finish(rel);
+            var r = new VerifyResult();
+            r.Verdicts.AddRange(_book.Verdicts());
+            r.Problems.AddRange(ActionProblems);
+            foreach (var a in _checks.Do.Where(a => !_done.Contains(a))) r.Problems.Add($"an action never ran (its time '{a.At}' was not reached)");
+            if (_run == null) return r;
+            if (_run.LastTime < rel - 1e-6) _run.Snapshot(rel);   // the end state is always in the golden
+            var json = _run.ToJson(_checks.Scenario, steps, _book);
+            json["verdicts"] = new JsonObject(r.Verdicts.Select(v => KeyValuePair.Create(v.Name, (JsonNode?)(v.Time is { } t ? Math.Round(t, 4) : null))));
+            r.GoldenJson = json;
+            if (_capture)
+            {
+                bool ok = r.Problems.Count == 0 && r.Verdicts.All(v => v.Ok);
+                r.Golden = ok ? "captured" : "not-captured";
+                if (!ok) r.GoldenDiff.Add("a golden of a failing run would bless the failure — fix the run, then capture");
+            }
+            else if (_golden == null) r.Golden = "missing";
+            else
+            {
+                var diff = ScenarioGolden.Compare(_golden, json);
+                r.Golden = diff.Count == 0 ? "same" : "different";
+                r.GoldenDiff.AddRange(diff);
+            }
+            return r;
+        }
+    }
+}
