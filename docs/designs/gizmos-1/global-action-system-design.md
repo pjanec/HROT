@@ -1,3 +1,12 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-22 (STATUS block added; §5.3 / §5.6's one-registry-per-host is what canvas-context-menu-design §12 HA-1 restores)
+current-answer: §5 (the components). ⚠ The registry's OWNER drifted into the map pack (2026-10-07) and is moved back to the host by CE-1150.
+stale-below: §9 migration plan — history.
+related-designs:
+  - canvas-context-menu-design.md — §12 (CE-1150): HostActions, one per host; the map pack, the inspector and the Details bundle register on it
+-->
+
 # Global Action System — Design Document
 
 **Status:** Proposed

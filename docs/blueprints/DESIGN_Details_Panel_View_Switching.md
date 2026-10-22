@@ -1,14 +1,15 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-22 (§8 BP-515 — tabs or stacked headers, a request for a view, Properties… → Details on the Editor)
+updated: 2026-10-22 (§8 BP-515 — tabs or stacked headers, a request for a view; DS-7 amended: Properties… opens Details on EVERY ECS host, canvas-context-menu-design §12)
 current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
   (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
   migrated, its remaining rows are BP-399, re-staged in §7.6); L6 is RE-STAGED as-built (see §6 L6
   and its sequence). Everything from "## HISTORY" down is the record of how the answer was reached.
 stale-below: "## HISTORY" and everything under it. Do NOT quote it as the design.
-known-rot: §1's "Hrot.Presentation and Hrot.Editor.AiShared do not reference each other" is STALE — AiShared references
+known-rot: §8's three diagrams and its as-built paragraph describe DS-7's SUPERSEDED request/answer shape (ShowEntityPropertiesEvent, FrameStarted, Answer) — the live picture is canvas-context-menu-design §12.
+  §1's "Hrot.Presentation and Hrot.Editor.AiShared do not reference each other" is STALE — AiShared references
   Presentation (CE-046, `Hrot.Editor.AiShared.csproj:37`); found 2026-10-22 for §8. L6's original wording (entity already-in-context, brain-equipped predicate exists,
   L6.1 as one item) was corrected 2026-08-22 in §6 L6 against the as-built; the prior phrasing is in HISTORY.
   §6 L3's "Node properties" row is SUPERSEDED BY §7.6 (see §7.7): it named two sources and no order.
@@ -24,6 +25,7 @@ known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInsp
   IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
   its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
 related-designs:
+  - ../designs/gizmos-1/canvas-context-menu-design.md — §12 (CE-1150): the Properties… action opens THIS shell on every ECS host (EntityDetailsBundle) — DS-7 below
   - docs/DESIGN_Orders_Params_Entity_Classes.md — a possible asset-level view for params DTO / classes
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3e (lean): a shared asset-level view details.behaviour (HasAsset) for the params type (own / an order DTO) and the asset's entity Classes, registered by the BTree, HSM and blueprint editors
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — names WHAT FILLS the Live arm of
@@ -1080,7 +1082,7 @@ On the Editor two windows could answer, so its inspector is told not to (`Answer
 | **DS-4 instances** | one per DRAWN view — tabs: one, switching disposes as before; stacked: one per open header; a view no longer offered is disposed; an empty offer still disposes nothing (unchanged). §2's `0..1` becomes `0..N` in stacked mode |
 | **DS-5 float / pin** | glyph buttons — tabs: trailing in the tab bar, acting on the selected tab; stacked: right-aligned on EACH header (`SetNextItemAllowOverlap`), acting on THAT header's view. `OpenFloat` / `Pin` gain a descriptor overload |
 | **DS-6 the request** | `RequestView(viewId)` is PENDING until the view is offered (at most `RequestFrames` = 120 frames), then `Pick` + reveal: tabs select it, stacked opens its header and scrolls it into view. ⭐ A method on the window the host already holds — ⏳ a bus event only once a caller cannot reach the window |
-| **DS-7 Properties… is a request** ⭐ *(R-1024)* | the one handler, in the pack on every map host, PUBLISHES: the selection request, and `ShowEntityPropertiesEvent { Target }` on the map's interaction bus — ⛔ it calls no window. The answering window drains it on `WindowManager.FrameStarted` (open or closed): the Editor's `scenario_details` (`DetailsWindow.Answer(requested, "details.components")` ⇒ focus itself + `RequestView`); CGF / SimHost / IG — the entity inspector (`DiagnosticsWindowsBundle.AnswerProperties`); the Editor's inspector does not answer (`AnswersProperties: false`). ⛔ SUPERSEDED the same day: the first build had the Editor REPLACE the pack's handler (`GlobalActionRegistry.Replace`, since removed) with one that called the window directly — 🔒 user: *"no direct calls"* |
+| **DS-7 Properties… opens THIS panel, on every ECS host** ⭐ *(R-1024, amended `2026-10-22`)* | ⭐ the Properties… handler is registered by the composition that builds the shell — `EntityDetailsBundle`, on every ECS host ([canvas-context-menu-design §12](../designs/gizmos-1/canvas-context-menu-design.md) HA-3 / HA-4): the selection request, `WindowManager.FocusWindow(detailsId)`, `RequestView("details.components")`. ⛔ The shell knows nothing of actions or menus. ⛔ SUPERSEDED twice the same day: ① the Editor REPLACED the pack's handler with one calling the window (`GlobalActionRegistry.Replace`) — 🔒 *"no direct calls"*; ② a `ShowEntityPropertiesEvent` the window ANSWERED on `WindowManager.FrameStarted` (the inspector on CGF / SimHost / IG) — 🔒 *"Windows themselves should not answer … the global action handler should open the detail panel"* · *"the details panel … should show it on every ECS host"* |
 | **DS-8 the model** | `DetailsWindowPanelViewModel` gains `Layout` — an additive dump field, a deliberate change, ⛔ not a regenerated golden; `ChosenViewId` / `OfferedViewIds` / `ShowsViewSwitch` keep their meaning |
 
 **Rejected — one line each:** *a second static link like `InspectorMapLink`* — CE-1150 is deleting that pattern; *`Pick` straight from the
