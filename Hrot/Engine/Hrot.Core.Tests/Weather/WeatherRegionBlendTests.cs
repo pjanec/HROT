@@ -96,14 +96,15 @@ namespace Hrot.Core.Tests.Weather
         }
 
         /// <summary>
-        /// ⭐ CE-4035 G-3 (📐 live <c>ua-weather-sensing</c>: the observer inside the fog bank saw at 148 m, as in the clear) — a man
-        /// inside a fog REGION samples its visibility, whichever way the region's outline winds. The scenario's exact numbers: the bank at
-        /// (110, 300), ±160 × ±70, fog 60 m to 40 m, feather 10 m; the observer at (0, 300), 50 m inside its west edge.
+        /// ⭐ CE-4035 G-3 — W-1 on the demo's own numbers (📐 live <c>ua-weather-sensing</c>: the observer stood 50 m inside the fog bank's
+        /// west edge, 69 % of the way from its centroid, and saw at 148 m as in the clear). A fog region is fog only at its CENTRE: the
+        /// weight is smoothstep(1 − t) along the centroid's ray, so 50 m inside a 160 m half-width the visibility is still ~208 m. Both
+        /// windings of the outline give the same answer. ✅ The demo now centres the bank on its observer.
         /// </summary>
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void G3_AManInsideAFogRegion_SamplesItsVisibility_WhicheverWayTheOutlineWinds(bool clockwise)
+        public void G3_AFogRegion_IsFogAtItsCentre_AndThinsTowardItsEdge_WhicheverWayItsOutlineWinds(bool clockwise)
         {
             var fog = WeatherConditions.Standard;
             fog.CloudCount = 0; fog.RelativeHumidity = 0.97f; fog.VisibilityM = 60f; fog.FogTopM = 40f; fog.FogVisibilityM = 60f; fog.FeatherM = 10f;
@@ -114,8 +115,9 @@ namespace Hrot.Core.Tests.Weather
                 : new List<Vector2> { new(-160, -70), new(160, -70), new(160, 70), new(-160, 70) };
             _w.SetManagedComponent(e, new EditablePolyline { Points = pts });
             _w.AddComponent(e, fog);
-            var s = WeatherField.At(_w, new Vector3(0, 300, 1.7f), ScenarioClock.Default.StartUtc, 0f);
-            Assert.InRange(s.VisibilityM, 55f, 65f);
+            float At(float x) => WeatherField.At(_w, new Vector3(x, 300, 1.7f), ScenarioClock.Default.StartUtc, 0f).VisibilityM;
+            Assert.InRange(At(110f), 55f, 65f);        // the centre: the fog's own 60 m
+            Assert.InRange(At(0f), 150f, 260f);        // 50 m inside the edge: thinned (measured 208 m) — what the demo first stood in
         }
 
         // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────────
