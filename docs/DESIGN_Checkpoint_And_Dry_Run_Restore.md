@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §6b as-built; B5 next)
+build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §6b as-built; B5 designed §1k, building)
 updated: 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
 known-conflict: docs/designs/mgmt-1/DESIGN.md §9.1/§9.3 still DESCRIBE the SyncFrom snapshot and the .dds supplement as the mechanism — both carry SUPERSEDED / WITHDRAWN banners pointing here (R-3040, R-3041).
 related-designs:
+  - DESIGN_Scenario_Regression.md — OWNS the editor verifier R1 runs on (a fresh process per run, one step per frame, full component snapshots, the golden compare); §1k adds the checkpoint around it
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7g (R-3039 system memory in components; R-3040 the recorder; R-3041 no network buffers) and §7g.0c the review this resolves. It owns the STATE rules; this owns the SAVE/RESTORE mechanism.
   - docs/designs/mgmt-1/DESIGN.md — §9 checkpoints and dry runs (the operator contract), §8.12 Always Recording, §8.10 lifecycle during replay.
   - docs/designs/replay-and-modules/DESIGN.md — §2.1d go live from recorded state (re-derive, do not restore, protocol state), §2.1m the ELM participant (built), §2.1l the rewind seam.
@@ -399,8 +400,9 @@ exact — it forces its keyframe in either mode.
 Rails: `RecordingModuleTests.CE3299_D17_*` (keyframes every 1 s over 3 s, none while paused, a named mark exact; FULL unchanged; a branch
 keeps its parent's mode) · `ClusterMasterBranchTests.D17_*` (the mode rides the PrepareLive fan-out) · `CheckpointClusterTests.CE3299_D17_*`
 (the in-process cluster, 1 s: simhost / IG / CGF wrote 4–5 keyframes over 4.5 s of sim time, only keyframes). ⚠ Found on the way, filed as
-CE-3313: a live recording's `.meta.json` is written only at a checkpoint mark or at finalize — a node killed mid-session leaves a recording
-with no manifest (the rail takes a checkpoint for that reason).
+CE-3313: a live recording's `.meta.json` was written only at a checkpoint mark or at finalize — a node killed mid-session left a recording
+with no manifest. ✅ Fixed the same day: every recording writes its manifest with its first keyframe (as a branch already did); finalize
+rewrites it.
 
 ### 1j. ✅ D7 — every registrable type declares its `DataPolicy` (`2026-10-22`; build-state: BUILT)
 
@@ -416,6 +418,94 @@ complete set the ECS can register — `ComponentType.cs:139` throws without the 
 ⭐ Rail `EveryComponentTypeDeclaresItsDataPolicyTests` (`Hrot.ClusterRunner.Tests`; walks > 250 types, 0 undeclared). ⚠ The Stride
 assemblies are not in that binary's folder and are not walked (CE-3307). ⭐ Side effect: CE-3305's state rail no longer needs its four
 "managed singleton — never recorded" exemptions — they are `NoReplay` now, so it skips them by policy.
+
+### 1k. B5 — R1, the restore-equivalence oracle (`2026-10-22`; build-state: READY-TO-BUILD)
+
+📐 **What B5 starts from** (graph `search_graph` `.*(WorldKeyframe|ScenarioGolden|ScenarioVerification|DirectorRunner|VerifyCommand|FreshVerifyJobs|IVerifyWorld).*` = 9 classes, `has_more:false`; grep; [Scenario Regression](DESIGN_Scenario_Regression.md) §2–§8):
+**only the editor's stepped dry run is MEASURED to repeat** across fresh processes (Scenario Regression §7: goldens SAME in fresh runs;
+R-3035 "live play is not required to be" deterministic) ⇒ R1's equality can only be asked there. The editor's verifier already loads a
+scenario in a fresh process, steps it once per frame and snapshots every unit's full component state (`ScenarioGolden`, `golden.full`) —
+R1 adds a checkpoint WRITTEN at T1 in one process and RESTORED in another. ⚠ The editor dry run has no recording, so the checkpoint is
+written by the recorder's writer as a one-frame recording — the format `CollectCheckpoint` already exports (§1g).
+
+```mermaid
+classDiagram
+  class VerifyCommand { <<existing, CLI parent>> --verify-restore-at T1 NEW : two children per scenario, then CompareFrom }
+  class CommandLineVerify { <<existing>> reads the R1 request from the environment NEW }
+  class VerifyOptions { <<existing>> Capture ; CheckpointAt NEW ; CheckpointFile NEW ; RestoreFrom NEW ; RunOut NEW }
+  class DirectorRunner { <<existing>> Verify: at T1 WriteCheckpoint · or at the start RestoreCheckpoint, rel continues from T1 }
+  class IDirectorHost { <<existing>> WriteCheckpoint(path, label) NEW ; RestoreCheckpoint(path) GlobalTime NEW }
+  class EditorDirectorHost { <<existing>> the editor's world, accumulator, ELM hook, ITimeCommands }
+  class ScenarioVerification { <<existing>> startAt NEW : actions before it count as done, samples aligned to it }
+  class ScenarioGolden { <<existing>> Snapshot · CompareFrom(a, b, t1) NEW }
+  class CheckpointFile { <<NEW, Toolkits.Replay>> Write(world, path, label) ; Read(path) keyframe + mark }
+  class AsyncRecorder { <<existing>> CaptureKeyframe · MarkCheckpoint }
+  class RecordingSlice { <<existing>> ReadFrame }
+  class ReferenceCheckpointHandler { <<existing>> PutBack(world, keyframe, accumulator, worldReplaced) NEW static — Commit calls it }
+  class CheckpointMark { <<existing>> ToGlobalTime() NEW — BeginRestore calls it too }
+  class EcsHostClusterHandlerInputs { <<existing>> EventAccumulator becomes required (CE-3314) }
+  VerifyCommand ..> CommandLineVerify : spawns A and B
+  CommandLineVerify --> DirectorRunner
+  DirectorRunner --> VerifyOptions
+  DirectorRunner --> IDirectorHost
+  IDirectorHost <|.. EditorDirectorHost
+  DirectorRunner --> ScenarioVerification
+  ScenarioVerification --> ScenarioGolden
+  EditorDirectorHost --> CheckpointFile
+  EditorDirectorHost --> ReferenceCheckpointHandler : PutBack
+  CheckpointFile --> AsyncRecorder
+  CheckpointFile --> RecordingSlice
+  CheckpointFile --> CheckpointMark
+```
+*What the picture shows that prose hid:* process B puts the world back through **the same three lines the cluster restore runs**
+(`PutBack` = `WorldKeyframes.Apply` → `AfterRestore.Run` → the ELM hook, extracted from `Commit`), and moves the clock with the same
+`ITimeCommands.SnapTo` from the same mark — so R1 proves the product's restore, not a copy written for the test. The only new type is the
+file writer/reader, and it is the recorder.
+
+```mermaid
+sequenceDiagram
+  participant P as VerifyCommand (parent)
+  participant A as editor A (fresh)
+  participant B as editor B (fresh)
+  P->>A: --verify s, checkpoint at T1 to s.r1.fdp, run out to s.r1-a.json
+  A->>A: load s, preview paused, step once a frame
+  A->>A: at rel T1 - snapshot, CheckpointFile.Write (keyframe + mark), then the due actions, then step
+  A->>A: on to runFor, snapshots every e s (full), write the run
+  P->>B: --verify s, restore from s.r1.fdp at T1, run out to s.r1-b.json
+  B->>B: load s, preview paused
+  B->>B: CheckpointFile.Read, PutBack, SnapTo(mark time)
+  B->>B: wait for the clock, rel = T1, actions before T1 done
+  B->>B: step to runFor, snapshots from T1, write the run
+  P->>P: CompareFrom(A, B, T1) - SAME, or the first differing snapshot, its units and components
+```
+*What the sequence shows:* A snapshots at T1 BEFORE writing the checkpoint and before the actions due at T1, and B's first snapshot is
+the restored world at T1 — so the first comparison is the restore itself, and every later one is what the restored world DID.
+
+```mermaid
+graph TD
+  CLI["Hrot.ClusterRunner --mode editor --headless --verify s --verify-restore-at T1"] -->|"two children"| ED["EditorSubsystem frame loop (each process)"]
+  ED -->|"every frame"| CLV["CommandLineVerify.Tick"]
+  CLV -->|"every frame"| DR["DirectorRunner.Tick (Verify)"]
+  DR -->|"once, at T1 (A) or at the start (B)"| H["EditorDirectorHost"]
+  H --> CF["CheckpointFile"]
+  H --> PB["ReferenceCheckpointHandler.PutBack"]
+  SL["ClusterSlave → ReferenceCheckpointHandler.Commit (the cluster restore, B4)"] --> PB
+  classDef dead stroke-dasharray: 5 5
+  SL:::dead
+```
+*What the module view shows:* nothing here runs on a cluster node or in a live session — the cluster's own restore (dashed) reaches the
+SAME `PutBack` through its slave, but R1 does not exercise the node-op ordering (B4's cluster rails do).
+
+| decision | why | rejected — one line |
+|---|---|---|
+| R1 runs in the editor's stepped dry run, two fresh processes | the only run measured to repeat (Scenario Regression §7; R-3035); R-4066 *"checking in editor is sufficient for now"* | a live cluster — its runs do not repeat, so no equality can be asked |
+| the checkpoint is a one-frame recording written by `AsyncRecorder` (`CheckpointFile`) | the recorder's own format, with its schema manifest and mark — what `CollectCheckpoint` exports (R-3044) | raw `WorldKeyframe` bytes to a file — a second format, no manifest |
+| B restores through `ReferenceCheckpointHandler.PutBack` + `SnapTo(mark)` | the product's restore, line for line | a restore written in the director — R1 would prove the test |
+| full component snapshots (`golden.full`) from T1, compared by `CompareFrom` | a red names the UNIT and the COMPONENT that diverged (design §7: "each red names the next violator") | hashes — say *that*, not *what* |
+| A's snapshot at T1 comes before the checkpoint and the actions due at T1 | B's restored world is exactly that moment | after the actions — B would re-apply them |
+| CE-3314 first: `EventAccumulator` becomes a required composition input | the editor and CGF held it and did not pass it, so a restore there never restarted the step window (D4) — R1's process B is such a restore | leave it optional — the silent-default pattern |
+
+⚠ **Expected result:** R1 is red until R-3039's remaining violators are moved — §7. A red is a work-list row, not a B5 failure.
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 

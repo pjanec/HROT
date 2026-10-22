@@ -257,7 +257,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
         var clock = Stopwatch.StartNew();
         while (clock.Elapsed < TimeSpan.FromSeconds(3.5)) harness.PumpFrames(1);
-        // a named checkpoint is still exact in this mode (R-3044) — and its mark puts each node's .meta.json on disk
+        // a named checkpoint is still exact in this mode (R-3044) — every node marks it
         await master.HandleClusterOpRequestAsync(new ClusterOpRequest
         {
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),

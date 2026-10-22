@@ -654,6 +654,29 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Equal(4, playback.TotalFrames);                              // 2 copied + its first keyframe (2.5) + 4.5; 3.0 skipped
         }
 
+        /// <summary>
+        /// ⭐ CE-3313 — EVERY recording (not only a branch) has its manifest on disk once its first keyframe is written, before it ends:
+        /// a node killed mid-session still leaves a recording that names its exercise, its mode and its schema.
+        /// </summary>
+        [Fact]
+        public void CE3313_ALiveRecording_HasItsManifestOnDisk_AfterItsFirstFrame_BeforeItEnds()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = TimedRecording(world, "manifest-early.fdp", checkpointingSeconds: 5.0);
+            try
+            {
+                Assert.False(File.Exists(path + ".meta.json"), "nothing is written before the first frame");
+                frame(0, 100);
+                var meta = WaitForMeta(path, "Manifest");   // the schema manifest is written with it
+                var m = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(meta);
+                Assert.Equal(5.0, m.CheckpointingSeconds);
+                Assert.NotEqual(Guid.Empty, m.ExerciseId);
+                Assert.NotEmpty(m.SchemaManifest!);
+            }
+            finally { module.Dispose(); }
+        }
+
         // ⭐ B4 — a record/replay controller over a hand-driven RecordingModule (the real one installs modules on kernel ticks).
         private sealed class HandDrivenController : Fdp.Core.Orchestration.IRecordReplayController
         {

@@ -381,7 +381,8 @@ namespace Fdp.Core.FlightRecorder
 
         /// <summary>
         /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — writes <c>.meta.json</c> as it is NOW (main thread: the manifests read the registry). A
-        /// branch calls it on its first frame, so its parent and the checkpoints it inherited are on disk at once (D10: a crash keeps them).
+        /// recording calls it on its first frame (CE-3313 — a branch's parent and inherited checkpoints, every recording's exercise, mode
+        /// and schema are on disk at once: a crash keeps them).
         /// </summary>
         public void WriteMetadata() => WriteMetadataSoon();
 

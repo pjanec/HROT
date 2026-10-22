@@ -97,10 +97,11 @@ namespace Fdp.Toolkit.Replay
                 _lastKeyframeSimTime = globalTime.TotalTime;   // D17 — the same in checkpointing mode
                 foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks, globalTime);
                 _due.Clear();
-                // ⭐ CE-3299 B4 / D18 — a branch's manifest (its parent, its inherited checkpoints) goes to disk with its first frame
-                if (!_wroteBranchManifest && _recorder.Metadata.ParentExerciseId != Guid.Empty)
+                // ⭐ CE-3313 — every recording's manifest goes to disk with its first frame (a branch's carries its parent and inherited
+                //   checkpoints — CE-3299 B4 / D18), so a node killed mid-session leaves a recording that names itself; finalize rewrites it
+                if (!_wroteManifest)
                 {
-                    _wroteBranchManifest = true;
+                    _wroteManifest = true;
                     _recorder.WriteMetadata();
                 }
             }
@@ -113,7 +114,7 @@ namespace Fdp.Toolkit.Replay
         }
 
         private readonly System.Collections.Generic.List<string> _due = new();
-        private bool _wroteBranchManifest;
+        private bool _wroteManifest;
         private readonly double _checkpointingSeconds;   // D17 — 0 = FULL
         private double? _lastKeyframeSimTime;
 
