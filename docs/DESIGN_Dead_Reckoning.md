@@ -346,4 +346,4 @@ to the sender, and it covers a stop for any reason (a mobility kill, a halt orde
 **As built:** `GeoSpatialEgressTranslator` (rule ①②), `NetworkTransform.LastVelocity` / `LastSentTick` (egress-only fields),
 `GeoSpatialIngressTranslator.Decode` (③). Rails: `GeoSpatialEgressTranslatorTests.AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348`,
 `AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348`; `GeoSpatialIngressTranslatorTests.TheOwnersLoopback_KeepsWhatItsEgressLastSent_CE2348`.
-⭐ BDC needs no change (R8 holds): `BdcWorldPosTranslator.ScanAndPublish` sends every owned entity EVERY scan (`:123-147`), so a stop is always a sample.
+📐 **Measured live after the fix** (`uc-urban-battle` unscripted, `--mode all`, 160 sim s, `2026-10-22`): the APC and the IFV both destroyed in combat — on CGF each reads `NetworkVelocity` (0, 0, 0) at the muscle's exact position from the first probe after death, and holds it (before: (2.11, 1.22) for 100+ s). ⭐ BDC needs no change (R8 holds): `BdcWorldPosTranslator.ScanAndPublish` sends every owned entity EVERY scan (`:123-147`), so a stop is always a sample.
