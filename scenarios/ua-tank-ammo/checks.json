@@ -1,0 +1,7 @@
+{
+  "runFor": 60,
+  "golden": {"every": 10},
+  "expect": [
+    {"name": "the M1 fires at the T-72", "on": "shot", "by": "Tank", "at": "Enemy Tank"}
+  ]
+}

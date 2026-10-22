@@ -1,0 +1,7 @@
+{
+  "runFor": 20,
+  "golden": {"every": 5},
+  "expect": [
+    {"name": "the grenade bursts", "on": "blast"}
+  ]
+}
