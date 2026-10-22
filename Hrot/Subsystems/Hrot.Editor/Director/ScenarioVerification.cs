@@ -26,6 +26,10 @@ namespace Hrot.Editor.Director
         /// <c>test-fire</c>'s two Bradleys) — a name in a check matches every unit that carries it.</summary>
         IReadOnlyList<(long Id, string Name)> Named();
 
+        /// <summary>The name of the unit at entity INDEX <paramref name="index"/> (the dump writes a held handle as <c>"[index, vGen]"</c>);
+        /// null when it has none.</summary>
+        string? NameOfEntityIndex(int index);
+
         /// <summary>A behaviour's name by its hash (the <c>task</c> cue).</summary>
         string? BehaviourName(int hash);
 
@@ -357,7 +361,10 @@ namespace Hrot.Editor.Director
                 if (_w.Components(id) is not { } comps) continue;
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                    hashes[type] = _full ? value?.DeepClone() : Hash(value);
+                {
+                    var meant = ByMeaning(value?.DeepClone());
+                    hashes[type] = _full ? meant : Hash(meant);
+                }
                 var p = ConditionBook.At(comps, "SimTransform.Position");
                 units[name] = new JsonObject
                 {
@@ -373,6 +380,31 @@ namespace Hrot.Editor.Director
             }
             _snapshots.Add(new JsonObject { ["t"] = Math.Round(rel, 4), ["units"] = units });
             LastTime = rel;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex HandleShape = new(@"^\[(\d+), v\d+\]$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// ⭐ A held entity handle (<c>"[12, v1]"</c> — its INDEX, i.e. allocation order) becomes the unit it means (<c>"@Technical"</c>, or
+        /// <c>"@?"</c> unnamed): ⛔ otherwise one entity more or less renumbers every later handle and every holder's hash changes with no
+        /// change in meaning. 📌 Measured by backend on <c>ua-tank-ammo</c> (CE-2349 created one item fewer ⇒ <c>IsEmbarkedTag</c> and
+        /// <c>PassengerBuffer</c> differed). ⚠ A network id held as a NUMBER is not rewritten — it cannot be told from any other number.
+        /// </summary>
+        private JsonNode? ByMeaning(JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    foreach (var k in o.Select(kv => kv.Key).ToList()) o[k] = ByMeaning(o[k]);
+                    return o;
+                case JsonArray a:
+                    for (int i = 0; i < a.Count; i++) a[i] = ByMeaning(a[i]);
+                    return a;
+                case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
+                    return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
+                default:
+                    return n;
+            }
         }
 
         private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d ? JsonValue.Create(Math.Round(d, 3)) : n?.DeepClone();

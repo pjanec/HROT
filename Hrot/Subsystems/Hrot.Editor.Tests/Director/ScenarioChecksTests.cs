@@ -74,6 +74,7 @@ public sealed class ScenarioChecksTests
         public IReadOnlyList<(long Id, string Name)> Named() => U.Ids.Select(kv => (kv.Value, kv.Key)).Concat(Extra).ToList();
         /// <summary>Units that share a name with another (the name index keeps only one).</summary>
         public readonly List<(long Id, string Name)> Extra = new();
+        public string? NameOfEntityIndex(int index) => U.Ids.FirstOrDefault(kv => kv.Value == index).Key;
         public JsonArray Shots() => (JsonArray)ShotRows.DeepClone();
         public JsonArray Blasts() => (JsonArray)BlastRows.DeepClone();
         public string? SetComponent(long networkId, string component, JsonObject patch) => null;
@@ -176,6 +177,27 @@ public sealed class ScenarioChecksTests
         w.BlastRows.Insert(0, new JsonObject { ["seq"] = 0, ["shooter"] = 2, ["struck"] = 1, ["effects"] = new JsonArray() });
         book.Observe(2.5);
         Assert.Equal(2.5, book.Verdicts().Single().Time!.Value, 6);
+    }
+
+    /// <summary>
+    /// ⭐ A held handle hashes as the unit it MEANS: the passenger points at "Technical" under index 2 in one run and index 3 in another
+    /// (one entity created more before it — allocation order) and the golden is the SAME. 🔴 Red-proof: hash the raw value ⇒ different.
+    /// </summary>
+    [Fact]
+    public void CE4042_AHeldHandle_HashesAsTheUnitItMeans()
+    {
+        var checks = Parse("""{ "runFor": 1, "golden": {"every": 1}, "expect": [{"name": "x", "on": "field", "who": "Rider", "path": "Health.Current", "op": ">", "value": 0}] }""", out _);
+        JsonObject Run(int technicalId)
+        {
+            var w = new FakeWorld().Unit("Rider", 1, 100, 0).Unit("Technical", technicalId, 100, 0);
+            w.Comps[1]["IsEmbarkedTag"] = new JsonObject { ["VehicleEntity"] = $"[{technicalId}, v1]" };
+            var g = new ScenarioGolden(w);
+            g.Snapshot(0);
+            var book = new ConditionBook(checks, w, 0);
+            book.Finish(0);
+            return g.ToJson("s", 1, book);
+        }
+        Assert.Empty(ScenarioGolden.Compare(Run(2), Run(3)));
     }
 
     /// <summary>

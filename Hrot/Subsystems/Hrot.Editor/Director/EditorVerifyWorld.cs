@@ -45,6 +45,15 @@ namespace Hrot.Editor.Director
             return list;
         }
 
+        public string? NameOfEntityIndex(int index)
+        {
+            if (_world() is not { } w || index < 0 || index > w.MaxEntityIndex) return null;
+            var e = w.GetEntityByIndex(index);
+            if (!w.IsAlive(e) || !w.HasComponent<EntityInfo>(e)) return null;
+            var name = w.GetComponentRO<EntityInfo>(e).Name.ToString();
+            return name.Length > 0 ? name : null;
+        }
+
         public JsonObject? Components(long networkId) => Service.DumpEntity(networkId)?["Components"] as JsonObject;
 
         public JsonArray Shots() => Service.GetShots(int.MaxValue, null, null)["shots"] as JsonArray ?? new JsonArray();

@@ -380,6 +380,8 @@ public sealed class DirectorRunnerTests : IDisposable
             return list;
         }
 
+        public string? NameOfEntityIndex(int index) => null;
+
         public System.Text.Json.Nodes.JsonArray Shots() => new();
         public System.Text.Json.Nodes.JsonArray Blasts() => new();
 
