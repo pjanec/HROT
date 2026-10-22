@@ -117,6 +117,54 @@ public class MissionControlExecutionSystemTests
         Assert.True(ack.Value.NewVersion > 0);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #7) — the mission's version and task order survive a checkpoint restored
+    /// into a FRESH system: a three-task plan (version 1), keyframe, applied to a new world with a NEW system; then a jump to the third task lands
+    /// on phase 2, and a replace built on version 2 is accepted. 🔴 Red-proof: either back in a system field ⇒ the jump lands on 0 / the replace
+    /// is refused as a conflict ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R3039_TheMissionsVersionAndTaskOrder_SurviveACheckpointRestoredIntoAFreshSystem()
+    {
+        using var repo = CreateWorld();
+        var entity = repo.CreateEntity();
+        var map = new NetworkEntityMap();
+        map.Register(1L, entity);
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
+        new Hrot.Common.Systems.MissionControlExecutionSystem(map, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry())
+            .TestHook_ProcessIntent(repo, new MissionControlIntent
+            {
+                RequestId = Guid.NewGuid(), TargetEntityId = 1L, BaseVersion = 0,
+                Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(a, b, c) },
+            });
+
+        var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+        using var fresh = CreateWorld();
+        Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+        var freshMap = new NetworkEntityMap();
+        freshMap.Register(1L, entity);
+        var sys = new Hrot.Common.Systems.MissionControlExecutionSystem(freshMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+
+        sys.TestHook_ProcessIntent(fresh, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1L,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_JUMP_TO_TASK, TargetTaskId = c },
+        });
+        Assert.Equal(2, fresh.GetComponent<MissionPlanQueue>(entity).CurrentPhase);
+
+        var replace = Guid.NewGuid();
+        sys.TestHook_ProcessIntent(fresh, new MissionControlIntent
+        {
+            RequestId = replace, TargetEntityId = 1L, BaseVersion = 2,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(a) },
+        });
+        fresh.Bus.SwapBuffers();
+        var ack = FindAck(fresh, replace);
+        Assert.NotNull(ack);
+        Assert.Equal(0, ack!.Value.ErrorCode);
+        Assert.Equal(3L, ack.Value.NewVersion);
+    }
+
     // â”€â”€ SC-2: Wrong BaseVersion emits version-conflict NACK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>

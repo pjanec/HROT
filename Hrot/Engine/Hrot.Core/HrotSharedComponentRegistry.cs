@@ -101,6 +101,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();      // ⭐ CE-3252 — where a person looks (dtLookState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
+        world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
@@ -201,6 +202,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>(); // CE-3092 — the TKB mobility-kill opt-in
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>(); // ⭐ CE-2155 — a type's injury band (Gen.Injury), stamped on every node
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BleedOut>();         // ⭐ R-3039 S1 — the bleed gathered between steps (BleedOutSystem)
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.CoverClaim>();   // CE-3158 G5 — squad-mates keep off each other's cover
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();   // AQ89 B (R-269) — bravery / obedience; the editor saves it too
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>();   // ⭐ CE-2273 DA-A — what he CAN do; the hit model reads it where fire resolves
@@ -300,6 +302,9 @@ public static class HrotSharedComponentRegistry
         // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
         //    materialise on an entity that actually becomes a commander.
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        // ⭐ R-3039 S1 — the squad sense's memory (SquadSenseChanges), on the man and the commander, beside the squad state it reads.
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadMemberSense>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadUnitSense>();
         // ⭐ CE-2125 (R-272) — a unit is not a body (the TKB translator stamps it on every node) and its leadership (CGF).
         world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
         world.RegisterComponent<Fdp.Toolkit.Perception.MapGraphic>();   // ⭐ CE-2324 — a map graphic is not a body (TKB-stamped, like UnitEntity)

@@ -108,6 +108,12 @@ namespace Fdp.Toolkit.Perception.Components
         /// body (<see cref="StanceSeen"/>).</summary>
         public fixed byte SeenStance[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>⭐ <c>R-3039</c> S1 — the unit's OWN health as <c>ThreatEvaluationSystem</c> last saw it, for the Hit edge (valid when
+        /// <see cref="HasLastHealth"/> is 1). Was a field of the system: a checkpoint restored into a fresh system lost it, and a hit in the first
+        /// step after the restore raised no Hit. 📄 docs/DESIGN_System_State_Inventory.md §6 #6.</summary>
+        public float LastHealth;
+        public byte HasLastHealth;
+
         /// <summary>⭐ <c>CE-2326</c> — the stance slot <paramref name="slot"/> was last seen in, or null when unknown.</summary>
         public static Fdp.Toolkit.Tkb.Domain.StanceId? StanceSeen(in TargetMemory mem, int slot)
         {

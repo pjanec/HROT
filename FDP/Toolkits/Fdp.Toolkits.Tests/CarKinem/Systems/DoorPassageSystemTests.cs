@@ -42,6 +42,7 @@ namespace CarKinem.Tests.Systems
                 var r = Repo;
                 r.RegisterComponent<NavState>(); r.RegisterComponent<SimTransform>(); r.RegisterComponent<DoorState>();
                 r.RegisterComponent<NavigationIntent>(); r.RegisterComponent<NavigationStatus>(); r.RegisterComponent<FrustrationTicks>();
+                r.RegisterComponent<DoorPassage>();   // ⭐ R-3039 S1 — the passage lives on the walker
                 r.RegisterManagedComponent<TerrainObjectKey>();
                 r.RegisterEvent<DoorCommandEvent>(); r.RegisterEvent<PathfindingRequestEvent>(); r.RegisterEvent<PathReplannedEvent>();
                 r.RegisterEvent<NavigationPathDetailsResponseEvent>(); r.RegisterEvent<MoveCompletedEvent>();
@@ -103,6 +104,28 @@ namespace CarKinem.Tests.Systems
             Assert.False(f.Held);                                                // walks on
             Assert.Equal(1, f.System.OpenCommandsSent);
             Assert.Equal(NavResult.InProgress, f.Repo.GetComponent<NavigationStatus>(f.Agent).Result);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #4) — a half-opened door survives a checkpoint restored into a FRESH
+        /// system: 0.6 s of the 1 s opening, keyframe, applied to a second world with a NEW system, 0.5 s more ⇒ the one Open goes out (as an
+        /// uninterrupted run). 🔴 Red-proof: the passage back in a system field ⇒ the fresh system restarts the opening ⇒ no command ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_AHalfOpenedDoor_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            using var f = new Fixture(TerrainDoorState.Closed, agentY: 18.5f);
+            for (int i = 0; i < 6; i++) Assert.Equal(0, f.Tick());
+            Assert.True(f.Held);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(f.Repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new Fixture(TerrainDoorState.Closed, agentY: 18.5f);   // the same content, a NEW system
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh.Repo, kf);
+            Assert.True(fresh.Held);
+
+            int commands = 0;
+            for (int i = 0; i < 5; i++) commands += fresh.Tick();
+            Assert.Equal(1, commands);
         }
 
         /// <summary>

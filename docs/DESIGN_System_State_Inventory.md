@@ -58,32 +58,14 @@ The rail allows these rows only as the moves still to do; ⛔ a NEW C or X fails
 
 ### 2a. S1 — per-entity memory onto the entity it is about (a component)
 
-| key | class | why empty is wrong | evidence |
-|---|---|---|---|
-| `CarKinem.Systems.DoorPassageSystem._passages` | **C** | per-walker door hold/open-command timers (Elapsed, Sent, SinceSent) | FDP/Toolkits/Fdp.Toolkits/CarKinem/Systems/DoorPassageSystem.cs:162 |
-| `Fdp.Toolkit.Behavior.Systems.DispatcherSystemBase<*>._previousAction` | **C** | last dispatched action per entity (5 channels: interaction, locomotion, weapon, animation, look-at); empty skips the outgoing action's OnExit | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationDispatcherSystem.cs:106 |
-| `Fdp.Toolkit.Civilians.CrowdSystem._crowdEntity` | **C** | crowd id -> crowd entity map; components hold CrowdId; empty spawns duplicate crowd entities | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:362 |
-| `Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem._lastStep` | **C** | per-cloud last pulse/drift time; empty pulses at once and jumps drift | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectCloudSystem.cs:59 |
-| `Fdp.Toolkit.Combat.Systems.BleedOutSystem._pending` | **C** | bleed time accumulator per incapacitated entity | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/BleedOutSystem.cs:45 |
-| `Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem._lastAppliedActionInstanceId` | **C** | already-applied locomotion action latch; empty re-runs crowd registration | FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/NavigationIntentBridgeSystem.cs:387 |
-| `Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem._lastAppliedIntentId` | **C** | already-applied intent latch; empty re-applies every intent, restarting routes | FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/NavigationIntentBridgeSystem.cs:215 |
-| `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._lastHealth` | **C** | previous health for the Hit edge; no fallback, a hit in the first step after a restore raises nothing | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:221 |
-| `Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem._last` | **C** | hysteresis latch (threatened/feature) deciding AreaThreatened/Cleared events | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/DangerAreaSensorSystem.cs:183 |
-| `Hrot.CGF.Systems.Routing.RouteContextSystem._elapsed` | **C** | throttle accumulator of sim time; reset shifts when BrainInterrupts danger is written | Hrot/Subsystems/Hrot.CGF/Systems/Routing/RouteContextSystem.cs:82 |
-| `Hrot.Common.EntityCreation.EjectionSystem._ejected` | **C** | latch: pilot already ejected per aircraft | Hrot/Engine/Hrot.Common/EntityCreation/EjectionSystem.cs:67 |
-| `Hrot.Common.Systems.MissionControlExecutionSystem._missionVersions` | **C** | per-entity mission version for optimistic concurrency; empty resets to 0 | Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs:106 |
-| `Hrot.Common.Systems.MissionControlExecutionSystem._taskOrder` | **C** | per-entity task order; empty makes CMD_JUMP_TO_TASK jump to index 0 | Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs:232 |
-| `Hrot.MuscleCharacter.Animation.Systems.AnimationRuntimeBridgeSystem._entityClassIds` | **C** | entity registered with backend; empty re-registers using encoded handle as classId (backend itself X) | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs:58 |
-| `Hrot.SimHost.Systems.Routing.PersonalRouteAuthoringSystem._pendingFollowCommands` | **C** | deferred FollowRoute intent dispatch next frame; lost means vehicle never follows | Hrot/Subsystems/Hrot.SimHost/Systems/Routing/PersonalRouteAuthoringSystem.cs:124 |
-| `Hrot.Traffic.TrafficPanicSystem._held` | **C** | damage hit held 10 s awaiting its civilian; lost hit never applied | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:120 |
-| `Hrot.Traffic.TrafficShadowFollowSystem._follow` | **C** | per-entity shadow Seen latch and last pose/time; empty holds body blocked forever | Hrot/Engine/Hrot.Traffic/TrafficShadowFollowSystem.cs:62 |
-| `type:SquadSenseChanges` | **C** | edge latches, round windows, asked-at timers per man/squad | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/SquadSenseChanges.cs:62 |
+⭐ **Empty — S1 is built** (`2026-10-22`, §6): every per-entity C field is on its entity or derived, each with a *restore into a fresh
+system* rail.
+
 
 ### 2b. S2 — world-wide memory into singleton components (pools and counters that components point into)
 
 | key | class | why empty is wrong | evidence |
 |---|---|---|---|
-| `Fdp.Toolkit.Civilians.CrowdSystem._nextId` | **C** | crowd id counter; issued ids stored in CivilianState.CrowdId, reset collides | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:339 |
 | `Hrot.SimHost.Systems.Routing.RouteTrajectorySyncSystem._knownTrajectories` | **C** | entity to trajectory-pool id; components point into pool, empty leaks/never frees | Hrot/Subsystems/Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs:143 |
 | `type:BlockIdManager` | **C** | pool of network ids held; issued ids live in components; capture/restore exists | FDP/Toolkits/Fdp.Toolkits/Replication/Services/BlockIdManager.cs:11 |
 | `type:EngineBackedPathRegistry` | **C** | per-handle path meta keyed by TrajectoryId; IsCached gates FetchPathDetails success | FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathRegistry.cs:20 |
@@ -91,6 +73,12 @@ The rail allows these rows only as the moves still to do; ⛔ a NEW C or X fails
 | `type:TrajectoryPoolManager` | **C** | trajectory pool; NavState.TrajectoryId in components points into it | FDP/Toolkits/Fdp.Toolkits/CarKinem/Trajectory/TrajectoryPoolManager.cs:15 |
 
 ### 2c. X — state in an engine outside the ECS (a checkpoint cannot hold it by moving a field)
+
+⏳ **Lean, not ruled** (backend, `2026-10-22`): a restore RESTARTS traffic — SUMO's own state is not in the ECS and none of these is a
+field move; after a restore the traffic node starts SUMO again from the scenario's demand and the mirror rebuilds its replicas. The two
+per-body memories beside it are moved or classified (§6 #14): the shadow follow is on the body; a hit held for a converting civilian
+(`TrafficPanicSystem._held`) is in flight with SUMO and is lost with it (B, `R-3041`). Re-seeding SUMO from the restored replicas instead
+is the alternative — larger, and only worth it if a restored run must keep its traffic.
 
 | key | class | why empty is wrong | evidence |
 |---|---|---|---|
@@ -158,6 +146,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:AnimationCapabilityChangeReactorSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationCapabilityChangeReactorSystem.cs:31 |
 | `type:AnimationDispatcherSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationDispatcherSystem.cs:23 |
 | `type:AnimationRuntimeBridgeSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs:20 |
+| `type:SquadSenseChanges` | **K** | R-3039 S1 (was C): holds nothing between frames — its memory is SquadMemberSense on the man and SquadUnitSense on the commander | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/SquadSenseChanges.cs |
 | `type:AnimationStateReporterSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationStateReporterSystem.cs:21 |
 | `type:BehaviorGizmoRegistry` | **K** | startup-time factory table, only registered at init | FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Systems/BehaviorGizmoRegistry.cs:10 |
 | `type:BehaviorIngressSystem` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs:38 |
@@ -422,7 +411,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._trackedLightweight` | **B** | owned lightweight rounds awaiting wire dispose; rescanned from world | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:86 |
 | `Fdp.Toolkit.Behavior.Systems.BrainTickSystem._publishedTerminalForInstanceId` | **B** | terminal-event published-once latch; cleared on WorldEpoch | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs:443 |
 | `Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem._killSent` | **B** | kill-damage already-sent latch per passenger; cleared on WorldEpoch | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/EmbarkedStateSystem.cs:147 |
-| `Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem._ending` | **B** | once-only ask to destroy ended networked cloud | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectCloudSystem.cs:92 |
 | `Fdp.Toolkit.Lifecycle.EntityLifecycleModule._pendingConstruction` | **B** | in-flight construction handshake; re-derived by ResumeFromRestoredWorld | FDP/Toolkits/Fdp.Toolkits/Lifecycle/EntityLifecycleModule.cs:248 |
 | `Fdp.Toolkit.Lifecycle.EntityLifecycleModule._pendingDestruction` | **B** | in-flight destruction handshake; re-derived by ResumeFromRestoredWorld | FDP/Toolkits/Fdp.Toolkits/Lifecycle/EntityLifecycleModule.cs:294 |
 | `Fdp.Toolkit.Lifecycle.EntityLifecycleModule._resumePending` | **B** | armed flag to re-derive handshakes after world replacement | FDP/Toolkits/Fdp.Toolkits/Lifecycle/EntityLifecycleModule.cs:488 |
@@ -484,6 +472,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Map.Common.Replication.Egress.EntityTrafficDemandEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityTrafficDemandTranslators.cs:59 |
 | `Hrot.Map.Common.Replication.Egress.EntityTurretPoseEgressTranslator._lastPublished` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/EntityTurretPoseEgressTranslator.cs:66 |
 | `Hrot.Map.Common.Replication.Egress.EntityUnderFireEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityUnderFireTranslators.cs:68 |
+| `Hrot.Traffic.TrafficPanicSystem._held` | **B** | R-3039 S1 (was C): a hit held ≤ 10 s for the civilian SUMO is converting the replica into — the conversion is in flight between this node and SUMO, and SUMO (X) restarts at a restore, so the hit is lost with it (R-3041 accepts in-flight losses) | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:120 |
 | `Hrot.Map.Common.Replication.Egress.EntityUtteranceEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityUtteranceTranslators.cs:64 |
 | `Hrot.Map.Common.Replication.Egress.EntityWeaponAmmoEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityWeaponAmmoTranslators.cs:53 |
 | `Hrot.Map.Common.Replication.Egress.EntityWeaponPostureEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/EntityWeaponPostureEgressTranslator.cs:65 |
@@ -610,7 +599,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Civilians.CustodySystem.<Searched>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Civilians/Custody.cs:159 |
 | `Fdp.Toolkit.Combat.ChargeSystem.<Detonated>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Combat/Charges.cs:129 |
 | `Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem.<Pulses>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectCloudSystem.cs:137 |
-| `Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem._gone` | **A** | scratch cleared at top | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectCloudSystem.cs:44 |
 | `Fdp.Toolkit.Combat.Systems.AreaEffectSystem.<Assessed>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs:78 |
 | `Fdp.Toolkit.Combat.Systems.AreaEffectSystem._crossings` | **A** | scratch list refilled per use | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs:38 |
 | `Fdp.Toolkit.Combat.Systems.AreaEffectSystem._partDamage` | **A** | scratch array cleared per target | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs:288 |
@@ -618,7 +606,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Combat.Systems.AreaEffectSystem._shares` | **A** | scratch array refilled per target | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs:295 |
 | `Fdp.Toolkit.Combat.Systems.AreaEffectSystem._traces` | **A** | scratch trace results refilled per use | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs:166 |
 | `Fdp.Toolkit.Combat.Systems.BallisticsSystem.t_impacts` | **A** | thread-static scratch list | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/BallisticsSystem.cs:73 |
-| `Fdp.Toolkit.Combat.Systems.BleedOutSystem._gone` | **A** | scratch cleared after use | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/BleedOutSystem.cs:56 |
 | `Fdp.Toolkit.Combat.Systems.FireProcessingSystem._bodyPoints` | **A** | scratch refilled per shot | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/FireProcessingSystem.cs:139 |
 | `Fdp.Toolkit.Combat.Systems.HandsFuzeSystem.<BurntOut>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/RoundPickUpSystem.cs:104 |
 | `Fdp.Toolkit.Combat.Systems.HandsFuzeSystem.<CookedOff>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Combat/Systems/RoundPickUpSystem.cs:128 |
@@ -662,7 +649,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem._warned` | **A** | warn-once set, log throttle | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/LocalGridBuilderSystem.cs:211 |
 | `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._heard` | **A** | this frame's heard contacts, cleared each tick | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:79 |
 | `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._lastThreats` | **A** | empty falls back to ThreatCount of the restored memory (:203) — same edge | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:203 |
-| `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._nextHealth` | **A** | swap buffer cleared each tick | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:88 |
 | `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._nextThreats` | **A** | swap buffer cleared each tick | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:89 |
 | `Fdp.Toolkit.Physics.Systems.HitResolutionSystem._resolved` | **A** | per-frame resolved-round set, cleared at top | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/HitResolutionSystem.cs:71 |
 | `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._candidateOverflows` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:179 |
@@ -686,7 +672,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Replication.Systems.PartialOwnerReclaimSystem._moves` | **A** | scratch cleared before each use | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/PartialOwnerReclaimSystem.cs:75 |
 | `Fdp.Toolkit.Replication.Systems.SimulatedInitReadinessParticipant._stallLogged` | **A** | stall log throttle set | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/SimulatedInitReadinessParticipant.cs:107 |
 | `Fdp.Toolkit.Squad.Command.StaffComposerSystem._launches` | **A** | scratch cleared at top of Execute | FDP/Toolkits/Fdp.Toolkits/Squad/Command/StaffSystems.cs:88 |
-| `Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem._next` | **A** | double-buffer cleared at top of Rate, swapped | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/DangerAreaSensorSystem.cs:163 |
 | `Fdp.Toolkit.Terrain.DoorCommandSystem.<Applied>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only |  |
 | `Fdp.Toolkit.Time.LifespanSystem.<Alive>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only |  |
 | `Fdp.Toolkit.Time.LifespanSystem.<Removed>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only |  |
@@ -785,8 +770,10 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Traffic.TrafficPanicSystem._conversions` | **A** | scratch cleared before TakeConversions | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:102 |
 | `Hrot.Traffic.TrafficPanicSystem._done` | **A** | scratch cleared before each use | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:61 |
 | `Hrot.Traffic.TrafficPanicSystem._frame` | **A** | scratch cleared at top of Execute | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:85 |
-| `Hrot.Traffic.TrafficShadowFollowSystem._gone` | **A** | scratch cleared and refilled each Execute | Hrot/Engine/Hrot.Traffic/TrafficShadowFollowSystem.cs:49 |
 | `Hrot.Traffic.TrafficShadowFollowSystem._shadows` | **A** | scratch cleared and refilled each Execute from TrafficFrame | Hrot/Engine/Hrot.Traffic/TrafficShadowFollowSystem.cs:44 |
+| `Fdp.Toolkit.Civilians.CrowdSystem._crowdEntity` | **A** | R-3039 S1: rebuilt every frame from the Crowd entities (Crowd.Id) — was C | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:136 |
+| `Fdp.Toolkit.Civilians.CrowdSystem._nextId` | **A** | R-3039 S1: derived every frame — one past every id a crowd or member holds — was C | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:137 |
+| `Hrot.MuscleCharacter.Animation.Systems.AnimationRuntimeBridgeSystem._registered` | **A** | R-3039 S1 (was C `_entityClassIds`): which entities this process's backend has registered — the backend (X) is this process's, so a fresh one starts empty and re-registers each under its class — the raw template id in BackendHandle, or, past a handle encoded by an earlier process, the entity's TkbIdentity.TkbType (AnimationRuntimeBridgeSystem.ClassOf) | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs |
 | `Hrot.UI.Common.Effects.EffectSpawnSystem.<ImpactsDrawn>k__BackingField` | **A** | diagnostics counter | Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs:178 |
 | `Hrot.UI.Common.Effects.EffectSpawnSystem.<InertLandings>k__BackingField` | **A** | diagnostics counter | Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs:149 |
 | `Hrot.UI.Common.Effects.EffectSpawnSystem.<Spawned>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only |  |
@@ -890,3 +877,99 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.SimHost.SimHostCoreLogicPack.<SimulationSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.SimHost/SimHostCoreLogicPack.cs:150 |
 | `Hrot.SimHost.Systems.EqsSolverSystem.<BudgetUnits>k__BackingField` | **K** | work-unit budget configuration, default 150000 | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:72 |
 | `Hrot.Traffic.TrafficMirrorSystem.EmptyLights` | **K** | static empty sentinel dictionary | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:87 |
+
+## 6. ⭐ S1 — where each C field goes (design `2026-10-22`; build-state: BUILT `2026-10-22`)
+
+**INVENTORY** (the S1 set): the C rows are the probe's own enumeration (§1 — reflection over every system, module and translator; `total`
+1 516 fields, 23 C). The one place a row stood for a FAMILY was checked in the graph: `scripts/cbm.sh search_graph
+'{"name_pattern":".*DispatcherSystem$","label":"Class"}'` ⇒ **total 7** — the five `DispatcherSystemBase<T>` subclasses (Locomotion,
+Weapon, Interaction, Animation, LookAt; `grep "DispatcherSystemBase<"` agrees, 5 files), `MockDispatcherSystem` (a test double, no base)
+and `WeaponTaskDispatcherSystem` (no base; its fields are classified on their own). ⚠ `check_index_coverage` is not available through the
+CLI, so the graph count is corroborated by grep, not proven complete.
+
+```mermaid
+classDiagram
+  direction LR
+  class EjectionSystem { -_ejected (REMOVED) }
+  class BleedOutSystem { -_pending (REMOVED) }
+  class AreaEffectCloudSystem { -_lastStep, _ending (REMOVED) }
+  class DoorPassageSystem { -_passages (REMOVED) }
+  class NavigationIntentBridgeSystem { -_lastApplied* (REMOVED) }
+  class ThreatEvaluationSystem { -_lastHealth (REMOVED) }
+  class MissionControlExecutionSystem { -_missionVersions, _taskOrder (REMOVED) }
+  class RouteContextSystem { -_elapsed (REMOVED: interval crossing of GlobalTime) }
+  class CrowdSystem { -_crowdEntity, _nextId (DERIVED each frame from Crowd) }
+  class DispatcherSystemBase~TChannel~ { -_previousAction, ForgetLastWorld (REMOVED) }
+  class DangerAreaSensorSystem { -_last, _next (REMOVED) }
+  class PersonalRouteAuthoringSystem { -_pendingFollowCommands (REMOVED) }
+  class SquadSenseChanges { -_members, _units (REMOVED) }
+  class TrafficShadowFollowSystem { -_follow (REMOVED) }
+  class AnimationRuntimeBridgeSystem { -_entityClassIds (REMOVED) +HashSet _registered (DERIVED) +ClassOf() }
+  class EjectionDone { <<NEW 441>> }
+  class BleedOut { <<NEW 442>> +float Pending }
+  class DoorPassage { <<NEW 443>> +door, holding, timers }
+  class NavigationApplied { <<NEW 444>> +uint IntentId +uint ActionInstanceId }
+  class SquadMemberSense { <<NEW 445>> +WindowStart +Rounds +Flanker +Down }
+  class SquadUnitSense { <<NEW 446>> +fixed long Inside[16] +HeardInside +AskedAt +LastAsk +Source }
+  class TrafficShadowFollow { <<NEW 447>> +Seen +LastX +LastY +At }
+  class PersonalRouteRef { <<existing>> +byte FollowPending NEW }
+  class TkbIdentity { <<existing>> +long TkbType }
+  class AreaEffectCloud { <<existing>> +double LastStepSimSeconds NEW +byte Ending NEW }
+  class MissionPlanQueue { <<existing>> +long Version NEW }
+  class ActiveMissionPlan { <<existing, managed>> +List TaskOrder NEW }
+  class DangerAreaCognitiveBuffer { <<existing>> +EdgeFeature, EdgeThreatened, EdgeRated NEW }
+  class Channel { <<existing x5: Locomotion / Interaction / Weapon channel, AnimationChannelStatus, LookAtChannelStatus>> +ushort DispatchedAction NEW }
+  class Crowd { <<existing>> +int Id }
+  EjectionSystem ..> EjectionDone : on the aircraft
+  BleedOutSystem ..> BleedOut : on the bleeding man
+  DoorPassageSystem ..> DoorPassage : on the walker
+  NavigationIntentBridgeSystem ..> NavigationApplied : on the mover
+  AreaEffectCloudSystem ..> AreaEffectCloud
+  MissionControlExecutionSystem ..> MissionPlanQueue
+  MissionControlExecutionSystem ..> ActiveMissionPlan
+  DangerAreaSensorSystem ..> DangerAreaCognitiveBuffer : on the sensor child
+  DispatcherSystemBase~TChannel~ ..> Channel
+  PersonalRouteAuthoringSystem ..> PersonalRouteRef : on the vehicle
+  SquadSenseChanges ..> SquadMemberSense : on the man
+  SquadSenseChanges ..> SquadUnitSense : on the commander
+  TrafficShadowFollowSystem ..> TrafficShadowFollow : on the body
+  AnimationRuntimeBridgeSystem ..> TkbIdentity : the class, past a handle from another process
+  CrowdSystem ..> Crowd : reads every frame
+```
+*What the picture shows that the table hides:* every arrow lands on the entity the memory is ABOUT, and only seven boxes are new — the
+other memories fit a component that already sits on that entity. Component ids are the constraint (512-bit mask, backend's block 434–449;
+441–447 now used, 448–449 free): an existing component first, a new one only where nothing on the entity fits.
+
+| # | C field | ⭐ home | why there, and not | lane |
+|---|---|---|---|---|
+| 1 | `EjectionSystem._ejected` | NEW `EjectionDone` (441, tag) on the aircraft | the aircraft carries `Health` / `TkbIdentity` / `SimTransform` — none is the ejection's | backend |
+| 2 | `BleedOutSystem._pending` | NEW `BleedOut { Pending }` (442) on the bleeding man, removed when he stops bleeding | ⛔ not `Health` (two floats every node reads; its layout is recorded everywhere) · ⛔ not `InjuryThresholds` (TKB configuration) | backend |
+| 3 | `AreaEffectCloudSystem._lastStep` / `_ending` | fields on `AreaEffectCloud` | the cloud's own component; only its owner steps it, and the egress translator copies named fields | backend |
+| 4 | `DoorPassageSystem._passages` | NEW `DoorPassage` (443) on the walker (the private `Passage` struct, as is) | nothing on a walker holds a door passage | backend |
+| 5 | `NavigationIntentBridgeSystem._lastAppliedIntentId` / `_lastAppliedActionInstanceId` | NEW `NavigationApplied` (444) on the mover | ⛔ not `NavState` (infantry on a path has none, `:221`) · ⛔ not `NavigationIntent` (egressed: a write republishes it) | backend |
+| 6 | `ThreatEvaluationSystem._lastHealth` | a field on the unit's `TargetMemory` (the memory this system already owns, `:195`) | the Hit edge is part of what the unit remembers | backend |
+| 7 | `MissionControlExecutionSystem._missionVersions` / `_taskOrder` | `MissionPlanQueue.Version` (survives `EmptyPlan`) · `ActiveMissionPlan.TaskOrder` (null with the plan) | both already on the mission's entity | backend |
+| 8 | `RouteContextSystem._elapsed` | ⭐ **no state:** run when `GlobalTime.TotalTime` crosses a multiple of the interval | the clock is restored with the world (D5), so the phase is too | backend (CGF) |
+| 9 | `CrowdSystem._crowdEntity` / `_nextId` | ⭐ **derived:** rebuilt every frame from the `Crowd` entities (`Crowd.Id`) — reclassified A | the crowd entity already carries its id (`CrowdSystem.cs:24`) | backend |
+| 10 | `DangerAreaSensorSystem._last` | `EdgeFeature` / `EdgeThreatened` / `EdgeRated` on the sensor child's `DangerAreaCognitiveBuffer` (as built) | ⛔ not `DangerAreaSensor` as designed — that is the sensor's CONFIGURATION, handed to the solver; the buffer is the brain-side answer the rating already writes, and a route change clears only its answer fields | ⚠ behaviors' code — built here (user, `2026-10-22`) |
+| 11 | `DispatcherSystemBase<T>._previousAction` (×5) | `DispatchedAction` beside `DispatchedInstanceId` — in the pad of the three Brain channels (size unchanged), appended to the two Muscle report components | the lifecycle's two halves sit together; an index reused by the next world gets a fresh channel, so `ForgetLastWorld` (CE-3076) went with the array | ⚠ behaviors (3) + ui (2) — built here, said |
+| 12 | `PersonalRouteAuthoringSystem._pendingFollowCommands` | `PersonalRouteRef.FollowPending` on the vehicle (the ref already names the route) | ⛔ no new id — the one-frame deferral stays (the trajectory compiles between the frames) | backend (SimHost) |
+| 13 | `SquadSenseChanges._members` / `_units` | NEW `SquadMemberSense` (445) on the man · NEW `SquadUnitSense` (446) on the commander — written only when changed; absent = fresh | ⛔ not `SquadCognitiveState` (1 KB, the merged pool — its layout is pinned) · registered beside it in `HrotSharedComponentRegistry` | ⚠ behaviors' code — built here (user, `2026-10-22`) |
+| 14 | `TrafficShadowFollowSystem._follow` · `TrafficPanicSystem._held` | NEW `TrafficShadowFollow` (447, backend's block, not traffic's 450–459) on the body · `_held` → **B** (in flight with SUMO, `R-3041`) | the X rows: §2c's lean — a restore restarts traffic | ⚠ traffic owner's code — built here (user, `2026-10-22`) |
+| 15 | `AnimationRuntimeBridgeSystem._entityClassIds` | ⭐ **derived:** `_registered` (this process's backend) + `ClassOf` — the raw class in `BackendHandle`, else the entity's `TkbIdentity.TkbType` | ⛔ a `ClassId` field on `CharacterAnimationDefRuntime` was tried — it broke its 16 B layout contract, and the class was already on the entity | ⚠ ui's code — built here (user, `2026-10-22`) |
+
+```mermaid
+sequenceDiagram
+  participant T as rail (one per move)
+  participant W as world
+  participant S1 as system (instance 1)
+  participant S2 as system (a FRESH instance)
+  T->>W: build the case (a jet, a bleeding man, a cloud, ...)
+  T->>S1: step until the memory is set (ejected once, half a bleed step, ...)
+  T->>W: WorldKeyframes.Capture
+  T->>W: WorldKeyframes.Apply (as a checkpoint restore does)
+  T->>S2: step on - a new process holds nothing
+  T->>T: assert S2 does what S1 would have (no second pilot, the bleed continues, ...)
+```
+*What the picture shows:* the rail is the §7f.1 `EjectionSystem` probe generalised — ⭐ a FRESH system after a keyframe restore. A move is
+done when its rail is green and its inventory row has gone from §2 (the ratchet in the S4 rail drops with it).

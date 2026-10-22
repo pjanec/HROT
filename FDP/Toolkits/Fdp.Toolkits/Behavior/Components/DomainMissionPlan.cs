@@ -46,5 +46,10 @@ namespace Fdp.Toolkit.Behavior.Components
     public class ActiveMissionPlan
     {
         public DomainMissionPlan Plan { get; set; } = new();
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the plan's task ids in phase order, what <c>CMD_JUMP_TO_TASK</c> resolves against. Was a field of
+        /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system jumped every request to phase 0.
+        /// 📄 docs/DESIGN_System_State_Inventory.md §6 #7.</summary>
+        public List<Guid> TaskOrder { get; set; } = new();
     }
 }

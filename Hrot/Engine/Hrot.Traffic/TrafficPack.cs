@@ -92,10 +92,14 @@ public sealed class TrafficPack : INodeCapability, IDisposable
             // ⭐ AQ93 §14 G2 — the intents this node reads (NED ingress on the traffic node, local in the editor)
             if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>())
                 context.World.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationApplied>())
+                context.World.RegisterComponent<Fdp.Toolkit.Navigation.NavigationApplied>();   // ⭐ R-3039 S1
             input.Add(new TrafficHandoverSystem(Runtime));
             var mirror = Mirror;
             input.Add(new TrafficPanicSystem(Runtime, () => mirror.Replicas, context.EntityMap));   // ⭐ AQ93 §15 K4/K5 — after the mirror: its replicas are current
         }
+        if (!context.World.IsComponentTypeRegistered<TrafficShadowFollow>())
+            context.World.RegisterComponent<TrafficShadowFollow>();   // ⭐ R-3039 S1 — the follow's memory, on the body
         simulation.Add(new TrafficShadowFollowSystem());   // ⭐ AQ93 §14 — a handed-over body follows its SUMO shadow where it is moved
     }
 

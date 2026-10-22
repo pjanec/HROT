@@ -97,6 +97,8 @@ namespace Hrot.SimHost.Tests
         {
             using var world = CreateEmptyWorld();
             world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadMemberSense>();   // ⭐ R-3039 S1 — as HrotSharedComponentRegistry registers them
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadUnitSense>();
             world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
             world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();

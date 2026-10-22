@@ -27,22 +27,25 @@ namespace Hrot.SimHost.Tests
         private readonly EntityRepository _w = new();
         private readonly EjectionSystem _sys = new();
 
-        public EjectionSystemTests()
+        public EjectionSystemTests() => Setup(_w);
+
+        private static void Setup(EntityRepository w)
         {
-            _w.RegisterComponent<SimTransform>();
-            _w.RegisterComponent<SimVelocity>();
-            _w.RegisterComponent<Health>();
-            _w.RegisterComponent<TkbIdentity>();
-            _w.RegisterComponent<NetworkAuthority>();
-            _w.RegisterManagedComponent<DescriptorOwnership>();
-            _w.RegisterEvent<EjectRequestEvent>();
-            _w.RegisterEvent<DamageAssessedEvent>();
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<SimVelocity>();
+            w.RegisterComponent<Health>();
+            w.RegisterComponent<TkbIdentity>();
+            w.RegisterComponent<NetworkAuthority>();
+            w.RegisterComponent<EjectionDone>();   // ⭐ R-3039 S1 — the latch lives on the aircraft
+            w.RegisterManagedComponent<DescriptorOwnership>();
+            w.RegisterEvent<EjectRequestEvent>();
+            w.RegisterEvent<DamageAssessedEvent>();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var jet = new Fdp.Interfaces.TkbTemplate("Jet", JetType);
             jet.AddDescriptor(new EjectionDto { PilotType = PilotType, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
             db.Register(jet);
-            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            _w.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the pilot is requested on the bus
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the pilot is requested on the bus
         }
 
         public void Dispose() => _w.Dispose();
@@ -123,6 +126,31 @@ namespace Hrot.SimHost.Tests
             _w.AddComponent(jet, parts);
             Assert.Single(Frame().Spawned);
             Assert.Empty(Frame().Spawned);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #1) — a checkpoint restored into a FRESH process does not eject a second
+        /// pilot: the jet below its threshold ejects once, the world is captured as the recorder's keyframe and applied to a new world with a NEW
+        /// system (a new process holds nothing), and the jet — still below its threshold — stays ejected.
+        /// 🔴 Red-proof: the latch back in a system field ⇒ the fresh system ejects again ⇒ red (📐 §7f.1 measured exactly that).
+        /// </summary>
+        [Fact]
+        public void R3039_ACheckpointRestoredIntoAFreshSystem_DoesNotEjectASecondPilot()
+        {
+            var jet = Jet(health: 90f);
+            Assert.Single(Frame().Spawned);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            Setup(fresh);
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            Assert.True(fresh.IsAlive(jet) && fresh.HasComponent<EjectionDone>(jet), "the keyframe carries the latch");
+
+            var sys = new EjectionSystem();
+            fresh.Bus.SwapBuffers();
+            sys.Execute(fresh, 1f / 60f);
+            fresh.Bus.SwapBuffers();
+            Assert.Empty(fresh.Bus.ReadManaged<EntityCreationRequest>());
         }
 
         /// <summary>

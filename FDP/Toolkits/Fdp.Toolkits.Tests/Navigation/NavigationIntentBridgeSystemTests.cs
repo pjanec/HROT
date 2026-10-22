@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NavigationIntent>();
+            repo.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             repo.RegisterComponent<NavState>();
             return repo;
         }
@@ -53,6 +54,35 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(3.0f, nav.ArrivalRadius);
 
             repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #5) — an intent already applied is not applied AGAIN after a checkpoint
+        /// restored into a FRESH system: applied, the mover then arrives (<c>HasArrived</c> = 1), keyframe, applied to a new world with a NEW
+        /// bridge ⇒ he stays arrived. 🔴 Red-proof: the applied-id back in a system field ⇒ the fresh bridge re-applies ⇒ HasArrived 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_AnAppliedIntent_IsNotReappliedAfterACheckpointRestoredIntoAFreshSystem()
+        {
+            using var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(100f, 200f, 0f), TargetSpeed = 10f, ArrivalRadius = 3f, IntentId = 7u,
+            });
+            repo.AddComponent(entity, new NavState());
+            repo.Bus.SwapBuffers();
+            new NavigationIntentBridgeSystem().Execute(repo, 0.016f);
+            var nav = repo.GetComponent<NavState>(entity);
+            nav.HasArrived = 1;   // the kinematics brought him there
+            repo.SetComponent(entity, nav);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = CreateWorld();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            fresh.Bus.SwapBuffers();
+            new NavigationIntentBridgeSystem().Execute(fresh, 0.016f);
+            Assert.Equal(1, fresh.GetComponent<NavState>(entity).HasArrived);
         }
 
         /// <summary>

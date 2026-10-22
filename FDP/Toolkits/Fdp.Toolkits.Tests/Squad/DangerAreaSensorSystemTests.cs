@@ -268,6 +268,33 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(new[] { SensorChange.AreaCleared }, Edges());
         }
 
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #10) — the edges' memory is on the sensor's buffer (recorded), so a
+        /// FRESH system — a checkpoint restored into a new process — neither re-raises the area ahead nor its threat, and still owes the
+        /// clear. 🔴 Red-proof: as the system's <c>_last</c>, the fresh one raised AreaAhead + AreaThreatened again and never AreaCleared.
+        /// </summary>
+        [Fact]
+        public void R3039_TheEdges_SurviveARestoreIntoAFreshSystem()
+        {
+            var unit = Unit(new Vector3(150, 300, 0));
+            var child = DangerAreaChildSensor.Ensure(_repo, unit, 1, DangerAreaSettings.ToPoint(new Vector3(300, 300, 0)));
+            var watcher = Hostile(new Vector3(260, 300, 0));
+            Remember(unit, watcher, new Vector3(260, 300, 0));
+            SolveAndTick(child, new DangerAreaSensorSystem());
+            Assert.Contains(SensorChange.AreaThreatened, Edges());
+            var kept = _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child);
+            Assert.Equal(1, kept.EdgeRated);
+            Assert.Equal(1, kept.EdgeThreatened);
+
+            var fresh = new DangerAreaSensorSystem();
+            fresh.Execute(_repo, 0.1f);
+            Assert.Empty(Edges());                                       // nothing new: no second AreaAhead / AreaThreatened
+
+            Remember(unit, watcher, new Vector3(290, 340, 0));           // gone behind the building
+            SolveAndTick(child, fresh);
+            Assert.Equal(new[] { SensorChange.AreaCleared }, Edges());   // the clear it owed
+        }
+
         [Fact]
         public void CE2224_ARefreshOfTheSameArea_KeepsItsHandles_WhileTheUnitWalks()
         {

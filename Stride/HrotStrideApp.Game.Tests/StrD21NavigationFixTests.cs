@@ -303,6 +303,8 @@ public sealed class StrD21NavigationFixTests : IDisposable
         var repo    = new EntityRepository();
 
         repo.RegisterComponent<NavigationIntent>();
+
+        repo.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
         repo.RegisterComponent<NavigationStatus>();
         repo.RegisterComponent<FrustrationTicks>();
         repo.RegisterComponent<SimTransform>();
@@ -373,6 +375,7 @@ public sealed class StrD21NavigationFixTests : IDisposable
 
         var repo = new EntityRepository();
         repo.RegisterComponent<NavigationIntent>();
+        repo.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
         repo.RegisterComponent<VehicleState>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<NavigationStatus>();
@@ -424,6 +427,7 @@ public sealed class StrD21NavigationFixTests : IDisposable
 
         var repo = new EntityRepository();
         repo.RegisterComponent<NavigationIntent>();
+        repo.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
         repo.RegisterComponent<VehicleState>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<NavigationStatus>();

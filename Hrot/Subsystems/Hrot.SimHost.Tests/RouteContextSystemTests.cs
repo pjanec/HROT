@@ -175,10 +175,25 @@ public class RouteContextSystemTests
 
         _system.TickIntervalSeconds = 1f;
 
-        _system.Execute(_repo, 0f); // deltaTime=0 => _elapsed=0 => 0 < 1.0 => skip
+        _system.Execute(_repo, 0f); // deltaTime=0 => no interval boundary crossed => skip (R-3039: no accumulator)
 
         var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #8) — the cadence lives in the SIM clock, not in the system: a FRESH
+    /// system (as after a checkpoint restored into a new process) stepping 0.4 → 0.6 s on a 0.5 s interval runs, as the old one would have.
+    /// 🔴 Red-proof: an accumulator again ⇒ the fresh one has gathered 0.2 s ⇒ skips ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R3039_AFreshSystem_KeepsTheCadence_OfTheRestoredClock()
+    {
+        var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":77}");
+        _repo.SetSingletonUnmanaged(new Fdp.Core.GlobalTime { TotalTime = 0.6, DeltaTime = 0.2f, TimeScale = 1f });
+        var fresh = new RouteContextSystem { TickIntervalSeconds = 0.5f };
+        fresh.Execute(_repo, 0.2f);
+        Assert.Equal(77, (int)_repo.GetComponent<BrainInterrupts>(vehicle).ExpectedThreatLevel);
     }
 
     // =========================================================================

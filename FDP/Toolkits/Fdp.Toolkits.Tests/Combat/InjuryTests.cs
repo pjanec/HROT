@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<InjuryThresholds>();
+            _world.RegisterComponent<BleedOut>();   // ⭐ R-3039 S1 — the bleed between steps lives on the man
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterComponent<MobilityKill>();
             _world.RegisterComponent<NetworkAuthority>();
@@ -122,6 +123,36 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(20f, _world.GetComponentRO<Health>(replica).Current);
             Assert.Equal(40f, _world.GetComponentRO<Health>(wounded).Current);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #2) — the bleed gathered between steps survives a checkpoint restored
+        /// into a FRESH system: half a step, keyframe, apply to a new world, a NEW system, the other half ⇒ the step lands (19.75), exactly as an
+        /// uninterrupted run. 🔴 Red-proof: the bleed back in a system field ⇒ the fresh system starts from 0 ⇒ still 20 after the half ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_TheBleedBetweenSteps_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            var dto = new InjuryDefDto { IncapacitatedBelow = 0.25f, BleedOutSeconds = 100f };
+            var man = Soldier(20f, dto);
+            Hit(man);
+            new BleedOutSystem().Execute(_world, 0.5f);
+            Assert.Equal(0.5f, _world.GetComponentRO<BleedOut>(man).Pending, 3);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_world, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<Health>();
+            fresh.RegisterComponent<InjuryThresholds>();
+            fresh.RegisterComponent<BleedOut>();
+            fresh.RegisterComponent<ActorCapabilityState>();
+            fresh.RegisterComponent<MobilityKill>();
+            fresh.RegisterComponent<NetworkAuthority>();
+            fresh.RegisterComponent<IsEmbarkedTag>();
+            fresh.RegisterComponent<SimTransform>();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+
+            new BleedOutSystem().Execute(fresh, 0.5f);
+            Assert.Equal(19.75f, fresh.GetComponentRO<Health>(man).Current, 3);
         }
 
         /// <summary>⭐ I1 — every node reads the same state from the same replicated health: a second world with the same type and health

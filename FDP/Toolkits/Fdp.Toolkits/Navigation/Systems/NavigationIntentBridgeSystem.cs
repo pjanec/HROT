@@ -45,15 +45,10 @@ namespace Fdp.Toolkit.Navigation.Systems
     {
         private static readonly Logger Log = LogManager.GetCurrentClassLogger();
 
-        // FIX: Cache by the full Entity struct (Index + Generation) to prevent
-        // false-positives when entity indices are recycled by the free-list.
-        private readonly Dictionary<Entity, uint> _lastAppliedIntentId = new();
-
-        // Cache for LocomotionChannel action idempotency (keyed by full Entity).
-        // IMPORTANT (STR-D21 F6 fix): the ActionInstanceId is only cached when crowd
-        // registration succeeds.  If RegisterAgent returns false (crowd not yet initialized)
-        // we do NOT update this dict so the bridge retries on the next tick.
-        private readonly Dictionary<Entity, uint> _lastAppliedActionInstanceId = new();
+        // ⭐ R-3039 S1 — what was already applied (the intent id, the locomotion action instance) is on the mover (NavigationApplied), not
+        //   here: a checkpoint restored into a fresh system would otherwise apply every intent again. IMPORTANT (STR-D21 F6 fix): the action
+        //   instance is only recorded when crowd registration succeeds — if RegisterAgent returns false (crowd not yet initialized) it is NOT
+        //   recorded, so the bridge retries on the next tick.
 
         // ⭐ CE-3026 — PathToPoint intents whose crowd registration is waiting for the crowd provider (by IntentId).
         private readonly Dictionary<Entity, uint> _pendingCrowd = new();
@@ -160,12 +155,38 @@ namespace Fdp.Toolkit.Navigation.Systems
             return intent.RouteEntityId != 0 && RouteSource != null ? 0 : intent.TrajectoryId;
         }
 
+        /// <summary>⭐ R-3039 S1 — the intent already applied to <paramref name="e"/> (null: none).</summary>
+        private static uint? AppliedIntent(EntityRepository repo, Entity e) =>
+            repo.HasComponent<NavigationApplied>(e) && repo.GetComponentRO<NavigationApplied>(e) is { HasIntent: 1 } a ? a.IntentId : null;
+
+        /// <summary>⭐ R-3039 S1 — the locomotion action instance already applied to <paramref name="e"/> (null: none).</summary>
+        private static uint? AppliedAction(EntityRepository repo, Entity e) =>
+            repo.HasComponent<NavigationApplied>(e) && repo.GetComponentRO<NavigationApplied>(e) is { HasAction: 1 } a ? a.ActionInstanceId : null;
+
+        private static void MarkIntentApplied(EntityRepository repo, Entity e, uint intentId)
+        {
+            var a = repo.HasComponent<NavigationApplied>(e) ? repo.GetComponentRO<NavigationApplied>(e) : default;
+            a.IntentId = intentId; a.HasIntent = 1;
+            repo.SetComponent(e, a);
+        }
+
+        private static void MarkActionApplied(EntityRepository repo, Entity e, uint actionInstanceId)
+        {
+            var a = repo.HasComponent<NavigationApplied>(e) ? repo.GetComponentRO<NavigationApplied>(e) : default;
+            a.ActionInstanceId = actionInstanceId; a.HasAction = 1;
+            repo.SetComponent(e, a);
+        }
+
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(NavigationIntentBridgeSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+            // ⭐ R-3039 S1 — loud, not a silent no-op: without its memory component the bridge would re-apply every intent each scan.
+            if (!repo.IsComponentTypeRegistered<NavigationApplied>())
+                throw new InvalidOperationException(
+                    $"{nameof(NavigationIntentBridgeSystem)} needs {nameof(NavigationApplied)} registered (what each mover already applied).");
 
             // STRICT ARCHITECTURAL BOUNDARY: Detect time-travel (snapshot restore or world clear)
             // and invalidate tracking caches to force a full baseline re-evaluation.
@@ -175,11 +196,10 @@ namespace Fdp.Toolkit.Navigation.Systems
             bool newWorld = Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch);
             if (newWorld || repo.GlobalVersion < _lastScanTick)
             {
-                _lastScanTick = 0;
-                _lastAppliedIntentId.Clear();
+                _lastScanTick = 0;   // a full re-scan; what was applied is on each mover, restored with the world
                 _pendingRoute.Clear();
             }
-            if (newWorld) { _lastAppliedActionInstanceId.Clear(); _pendingCrowd.Clear(); }
+            if (newWorld) _pendingCrowd.Clear();
 
             // ⭐ CE-498 — Constructing entities too, not only Active (the query default). An intent written while the entity
             //   is still CONSTRUCTING was otherwise lost for good: becoming Active changes no component version, so this
@@ -212,11 +232,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 var intent = repo.GetComponent<NavigationIntent>(entity);
 
                 // 2. Fine-grained filter using the full Entity struct
-                if (_lastAppliedIntentId.TryGetValue(entity, out uint lastId) 
-                    && lastId == intent.IntentId)
-                {
-                    continue;
-                }
+                if (AppliedIntent(repo, entity) == intent.IntentId) continue;
 
                 bool hasNav = repo.HasComponent<NavState>(entity);
                 if (!hasNav && intent.Mode != NavigationMode.PathToPoint) continue;   // nothing to drive (as before)
@@ -248,7 +264,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.TargetSpeed   = intent.TargetSpeed > 0f ? intent.TargetSpeed : nav.TargetSpeed;
                         nav.ArrivalRadius = intent.ArrivalRadius;
                         repo.SetComponent(entity, nav);
-                        _lastAppliedIntentId[entity] = intent.IntentId;
+                        MarkIntentApplied(repo, entity, intent.IntentId);
                         continue;
 
                     case NavigationMode.PathToPoint:
@@ -325,7 +341,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 }
             
                 // Cache against the generation-safe handle
-                _lastAppliedIntentId[entity] = intent.IntentId;
+                MarkIntentApplied(repo, entity, intent.IntentId);
             }
 
             _lastScanTick = repo.GlobalVersion;
@@ -349,7 +365,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                     nav.HasArrived   = 0;
                     nav.ProgressS    = StartProgress(repo, pending, in pendingIntent, trajectory);   // ⭐ CE-4032
                     repo.SetComponent(pending, nav);
-                    _lastAppliedIntentId[pending] = pendingIntent.IntentId;
+                    MarkIntentApplied(repo, pending, pendingIntent.IntentId);
                     _pendingRoute.Remove(pending);
                 }
             }
@@ -369,7 +385,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             // ── Route LocomotionChannel actions into the nav v2 pipeline ──────────────
             // Iterate ALL entities with LocomotionChannel each tick; use the
-            // _lastAppliedActionInstanceId dict for fine-grained idempotency since a
+            // NavigationApplied (on the mover) for fine-grained idempotency since a
             // change to ActionInstanceId does not alter the component mask (QueryDelta
             // would miss the transition).
             if (!repo.IsComponentTypeRegistered<LocomotionChannel>())
@@ -384,11 +400,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 ref var ch = ref repo.GetComponentRW<LocomotionChannel>(entity);
 
                 // Idempotency: skip if this ActionInstanceId was already applied.
-                if (_lastAppliedActionInstanceId.TryGetValue(entity, out uint lastActionId)
-                    && lastActionId == ch.ActionInstanceId)
-                {
-                    continue;
-                }
+                if (AppliedAction(repo, entity) == ch.ActionInstanceId) continue;
 
                 // STR-D21 F6 fix: when crowd registration is deferred (RegisterAgent returns
                 // false because the navmesh is not yet baked), we must NOT cache the
@@ -497,7 +509,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 // If cacheActionId=false (deferred crowd not ready), we skip caching so the
                 // bridge retries this action on every subsequent tick.
                 if (cacheActionId)
-                    _lastAppliedActionInstanceId[entity] = ch.ActionInstanceId;
+                    MarkActionApplied(repo, entity, ch.ActionInstanceId);
             }
         }
     

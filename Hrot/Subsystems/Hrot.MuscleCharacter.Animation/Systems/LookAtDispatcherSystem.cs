@@ -29,7 +29,6 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public override void Execute(ISimulationView view, float deltaTime)
         {
-            ForgetLastWorld(view);   // ⭐ CE-3076 — _previousAction is per entity INDEX, reused across worlds
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(LookAtDispatcherSystem)} requires direct EntityRepository access.");
@@ -44,14 +43,14 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             {
                 if (!repo.HasComponent<LookAtChannel>(evt.Entity)) continue;
                 int index = evt.Entity.Index;
-                ushort entered = index < _previousAction.Length ? _previousAction[index] : (ushort)0;
+                var work = Load(repo, evt.Entity);
+                ushort entered = work.Report.DispatchedAction;
                 if (entered == 0) continue;
 
-                var work = Load(repo, evt.Entity);
                 _executors[entered]?.OnExit(evt.Entity, ref work, repo);
                 work.Report.Status = NodeStatus.Failure;
+                work.Report.DispatchedAction = 0;
                 Store(repo, evt.Entity, work.Report);
-                _previousAction[index] = 0;
                 _tornDown.Add(index);
             }
 
@@ -76,14 +75,13 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 {
                     if (work.Request.ActionInstanceId != work.Report.DispatchedInstanceId)
                     {
-                        EnsurePreviousActionCapacity(entity.Index + 1);
-                        ushort oldAction = _previousAction[entity.Index];
+                        ushort oldAction = work.Report.DispatchedAction;
 
                         _executors[oldAction]?.OnExit(entity, ref work, repo);
                         _executors[work.Request.ActiveAction]?.OnEnter(entity, ref work, repo);
 
                         work.Report.DispatchedInstanceId = work.Request.ActionInstanceId;
-                        _previousAction[entity.Index] = work.Request.ActiveAction;
+                        work.Report.DispatchedAction = work.Request.ActiveAction;
                     }
 
                     if (work.Request.ActiveAction != 0 && work.Report.Status == NodeStatus.Running)
@@ -92,7 +90,8 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                     }
                 }
 
-                if (work.Report.Status != before.Status || work.Report.DispatchedInstanceId != before.DispatchedInstanceId)
+                if (work.Report.Status != before.Status || work.Report.DispatchedInstanceId != before.DispatchedInstanceId
+                    || work.Report.DispatchedAction != before.DispatchedAction)
                     Store(repo, entity, work.Report);
             }
         }

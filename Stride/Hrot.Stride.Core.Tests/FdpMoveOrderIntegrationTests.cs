@@ -56,6 +56,7 @@ public sealed class FdpMoveOrderIntegrationTests : IDisposable
         _world.RegisterComponent<NavState>();
         _world.RegisterComponent<NavigationStatus>();
         _world.RegisterComponent<NavigationIntent>();
+        _world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
         _world.RegisterComponent<NavAgentProfile>();
         _world.RegisterComponent<CrowdAgent>();
         _world.RegisterComponent<CrowdMotorIntent>();

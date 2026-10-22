@@ -22,7 +22,6 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public override void Execute(ISimulationView view, float deltaTime)
         {
-            ForgetLastWorld(view);   // ⭐ CE-3076 — _previousAction is per entity INDEX, reused across worlds
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(WeaponDispatcherSystem)} requires direct EntityRepository access " +
@@ -107,8 +106,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Lifecycle: detect when a new action has been dispatched.
                 if (channel.ActionInstanceId != channel.DispatchedInstanceId)
                 {
-                    EnsurePreviousActionCapacity(entity.Index + 1);
-                    ushort oldAction = _previousAction[entity.Index];
+                    ushort oldAction = channel.DispatchedAction;
 
                     // Note: at the time OnExit is called, channel.ActiveAction and channel.ActionInstanceId
                     // still hold the OUTGOING action's values. DispatchedInstanceId is updated after this call.
@@ -117,7 +115,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
 
                     channel.DispatchedInstanceId = channel.ActionInstanceId;
-                    _previousAction[entity.Index] = channel.ActiveAction;
+                    channel.DispatchedAction = channel.ActiveAction;
                 }
 
                 // Execute: drive the current action each tick.

@@ -68,8 +68,8 @@ namespace Hrot.Common.Systems
         private readonly BehaviorRegistry _behaviorRegistry;
         private readonly TacticalIntentMapperRegistry _mapperRegistry;
 
-        private readonly Dictionary<long, long> _missionVersions = new();
-        private readonly Dictionary<long, List<Guid>> _taskOrder = new();
+        // ⭐ R-3039 S1 — each mission's version is on its queue (MissionPlanQueue.Version) and its task order on its plan
+        //   (ActiveMissionPlan.TaskOrder), not here: a checkpoint restored into a fresh system carries both on.
         private readonly Queue<(MissionControlIntent Intent, int FramesLeft)> _retryQueue = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id state belongs to ONE world (WorldEpoch, CE-2101)
 
@@ -102,17 +102,16 @@ namespace Hrot.Common.Systems
             if (!_entityMap.TryGetNetworkId(entity, out long networkId)) networkId = 0;
 
             EmptyPlan(repo, entity, networkId);
-            if (networkId != 0)
-                _missionVersions[networkId] = (_missionVersions.TryGetValue(networkId, out var v) ? v : 0) + 1;
+            BumpVersion(repo, entity);
         }
 
         /// <summary>⭐ <c>CE-3167</c> — the plan emptied, replicated, and this system's task order forgotten.</summary>
         private void EmptyPlan(EntityRepository repo, Entity entity, long networkId)
         {
-            repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f });
+            // ⭐ R-3039 S1 — the version outlives the plan (it is on the queue); the task order goes with the plan (ActiveMissionPlan).
+            repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
             repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
             SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
-            if (networkId != 0) _taskOrder[networkId] = new List<Guid>();
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -128,8 +127,6 @@ namespace Hrot.Common.Systems
             //   retry would land on the new entity carrying that id. Only this system writes them, so clearing here is safe.
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
             {
-                _missionVersions.Clear();
-                _taskOrder.Clear();
                 _retryQueue.Clear();
             }
 
@@ -178,9 +175,7 @@ namespace Hrot.Common.Systems
                 return;
             }
 
-            long currentVersion = _missionVersions.TryGetValue(intent.TargetEntityId, out var version)
-                ? version
-                : 0;
+            long currentVersion = VersionOf(repo, entity);
 
             switch (intent.Payload.CommandType)          
             {
@@ -223,16 +218,15 @@ namespace Hrot.Common.Systems
                             }) ?? new List<DomainMissionTrigger>(),
                         }) ?? new List<DomainMissionTask>()
                     };
+                    currentVersion++;
+                    queue.Version = currentVersion;
                     repo.SetComponent(entity, queue);
                     repo.SetManagedComponent(entity, new ActiveMissionPlan
                     {
-                        Plan = domainPlan
+                        Plan = domainPlan,
+                        TaskOrder = orderedTaskIds,
                     });
                     SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
-                    _taskOrder[intent.TargetEntityId] = orderedTaskIds;
-
-                    currentVersion++;
-                    _missionVersions[intent.TargetEntityId] = currentVersion;
 
                     PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
@@ -240,8 +234,9 @@ namespace Hrot.Common.Systems
 
                 case eMissionCommandType.CMD_JUMP_TO_TASK:
                 {
-                    if (!_taskOrder.TryGetValue(intent.TargetEntityId, out var orderedTaskIds))
-                        orderedTaskIds = new List<Guid>();
+                    var orderedTaskIds = repo.HasManagedComponent<ActiveMissionPlan>(entity)
+                        ? ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.TaskOrder ?? new List<Guid>()
+                        : new List<Guid>();
 
                     int targetIndex = orderedTaskIds.IndexOf(intent.Payload.TargetTaskId);
                     if (targetIndex < 0)
@@ -262,7 +257,7 @@ namespace Hrot.Common.Systems
                     }
 
                     currentVersion++;
-                    _missionVersions[intent.TargetEntityId] = currentVersion;
+                    queue.Version = currentVersion;
 
                     PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
@@ -275,7 +270,7 @@ namespace Hrot.Common.Systems
                     repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });   // ⭐ CE-3034 — mission-control abort (R-193)
 
                     currentVersion++;
-                    _missionVersions[intent.TargetEntityId] = currentVersion;
+                    repo.GetComponentRW<MissionPlanQueue>(entity).Version = currentVersion;   // EmptyPlan left the queue on
 
                     PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
@@ -285,6 +280,16 @@ namespace Hrot.Common.Systems
                     PublishAck(repo, intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
                     return;
             }
+        }
+
+        /// <summary>⭐ R-3039 S1 — the mission's version, on its queue (0: none yet).</summary>
+        private static long VersionOf(EntityRepository repo, Entity entity) =>
+            repo.HasComponent<MissionPlanQueue>(entity) ? repo.GetComponentRO<MissionPlanQueue>(entity).Version : 0;
+
+        private static void BumpVersion(EntityRepository repo, Entity entity)
+        {
+            if (!repo.HasComponent<MissionPlanQueue>(entity)) repo.AddComponent(entity, new MissionPlanQueue());
+            repo.GetComponentRW<MissionPlanQueue>(entity).Version++;
         }
 
         private void PublishAck(EntityRepository repo, Guid requestId, NedStatusCode errorCode, long newVersion)

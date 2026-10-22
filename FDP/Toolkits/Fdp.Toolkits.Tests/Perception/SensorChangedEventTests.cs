@@ -214,6 +214,29 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Empty(Run(w, sys));                                   // healing is not a hit
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #6) — the Hit edge's last health survives a checkpoint restored into a
+        /// FRESH system: 100 recorded, keyframe, applied to a new world with a NEW system, then 70 ⇒ Hit (as an uninterrupted run).
+        /// 🔴 Red-proof: the last health back in a system field ⇒ the fresh system has none ⇒ the drop only records ⇒ no Hit ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_TheHitEdge_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            w.AddComponent(unit, new Health { Current = 100f, Max = 100f });
+            Assert.Empty(Run(w, new ThreatEvaluationSystem()));                        // first sight only records the value
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var fresh = World();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            fresh.SetComponent(unit, new Health { Current = 70f, Max = 100f });
+            var hit = Assert.Single(Run(fresh, new ThreatEvaluationSystem()));
+            Assert.Equal(SensorChange.Hit, hit.What);
+        }
+
         /// <summary>⭐⭐ <c>CE-3293</c> — a reload starts a new world: last run's threat counts and health are not this run's. 📐 Measured
         /// live (ua-tank-ammo, four loads): every reload's first step published AllClear for a tank that had seen nothing — the
         /// editor's reload (<c>SoftClear</c>) brings the units back under the SAME handles, so the system's own maps matched them.</summary>

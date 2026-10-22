@@ -29,9 +29,7 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
     /// ≤ 7 m): a shadow that arrived is last seen ~14 m short (measured 2026-10-17, demo-city). 25 m keeps the margin.</summary>
     public const float ArrivalSlackMetres = 25f;
 
-    private readonly Dictionary<long, (bool Seen, Vector2 Last, double At)> _follow = new();
     private readonly Dictionary<string, TrafficCarPose> _shadows = new(StringComparer.Ordinal);
-    private readonly List<long> _gone = new();
 
     public static string ShadowIdOf(long networkId) => ShadowPrefix + networkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -39,6 +37,9 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<NavState>()) return;
         if (!world.IsComponentTypeRegistered<NetworkIdentity>()) return;
+        // ⭐ R-3039 S1 — the follow's memory is a component on the body (TrafficPack registers it). ⛔ Never a silent fallback to "never seen".
+        if (!world.IsComponentTypeRegistered<TrafficShadowFollow>())
+            throw new InvalidOperationException("TrafficShadowFollowSystem needs TrafficShadowFollow registered (TrafficPack registers it).");
         double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0.0;
 
         _shadows.Clear();
@@ -46,28 +47,24 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
             foreach (var car in frame.Cars)
                 if (car.Id is { } id && id.StartsWith(ShadowPrefix, StringComparison.Ordinal)) _shadows[id] = car;
 
-        _gone.Clear();
-        foreach (var k in _follow.Keys) _gone.Add(k);
         foreach (var e in world.Query().With<NavState>().With<SimTransform>().WithOwned<SimTransform>().With<NetworkIdentity>().Build())
         {
             var nav = world.GetComponent<NavState>(e);
             if (nav.Mode != KinematicsMode.Traffic) continue;
             long id = world.GetComponentRO<NetworkIdentity>(e).Value;
-            _gone.Remove(id);
-            _follow.TryGetValue(id, out var f);
+            var f = world.HasComponent<TrafficShadowFollow>(e) ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
 
             if (_shadows.TryGetValue(ShadowIdOf(id), out var shadow))
             {
                 Follow(world, e, shadow, f, now);
-                _follow[id] = (true, new Vector2(shadow.X, shadow.Y), now);
+                world.AddComponent(e, new TrafficShadowFollow { Seen = 1, LastX = shadow.X, LastY = shadow.Y, At = now });
                 if (nav.IsBlocked != 0) { nav.IsBlocked = 0; world.SetComponent(e, nav); }
                 continue;
             }
-            if (!f.Seen)
+            if (f.Seen == 0)
             {
                 // Waiting for SUMO to spawn the shadow: a deliberate hold, not "stuck".
                 if (nav.IsBlocked == 0) { nav.IsBlocked = 1; world.SetComponent(e, nav); }
-                _follow[id] = f;
                 continue;
             }
             // The shadow is gone: arrived near the destination, or lost.
@@ -80,12 +77,19 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
             nav.HasArrived = arrived ? (byte)1 : (byte)0;
             world.SetComponent(e, nav);
             ResetMotion(world, e);
-            _follow.Remove(id);
+            world.RemoveComponent<TrafficShadowFollow>(e);
         }
-        foreach (var k in _gone) _follow.Remove(k);   // left the mode some other way (a new intent): forget it
+        // A body that left the mode some other way (a new intent), or that this node no longer moves: forget its follow.
+        // (EntityQuery walks an index, so removing the queried component here is safe.)
+        foreach (var e in world.Query().With<TrafficShadowFollow>().Build())
+        {
+            bool following = world.HasComponent<NavState>(e) && world.GetComponentRO<NavState>(e).Mode == KinematicsMode.Traffic
+                             && world.HasComponent<SimTransform>(e) && world.HasAuthority<SimTransform>(e) && world.HasComponent<NetworkIdentity>(e);
+            if (!following) world.RemoveComponent<TrafficShadowFollow>(e);
+        }
     }
 
-    private static void Follow(EntityRepository world, Entity e, in TrafficCarPose shadow, (bool Seen, Vector2 Last, double At) f, double now)
+    private static void Follow(EntityRepository world, Entity e, in TrafficCarPose shadow, in TrafficShadowFollow f, double now)
     {
         var tf = world.GetComponent<SimTransform>(e);
         tf.Position = new Vector3(shadow.X, shadow.Y, shadow.Z);
@@ -93,7 +97,7 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
         world.SetComponent(e, tf);
 
         var here = new Vector2(shadow.X, shadow.Y);
-        var v = f.Seen && now > f.At ? (here - f.Last) / (float)(now - f.At) : Vector2.Zero;
+        var v = f.Seen != 0 && now > f.At ? (here - new Vector2(f.LastX, f.LastY)) / (float)(now - f.At) : Vector2.Zero;
         if (world.IsComponentTypeRegistered<SimVelocity>() && world.HasComponent<SimVelocity>(e))
         {
             var vel = world.GetComponent<SimVelocity>(e);

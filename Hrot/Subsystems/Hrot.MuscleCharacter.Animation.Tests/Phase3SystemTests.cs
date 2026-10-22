@@ -355,6 +355,52 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             Assert.Equal(ReloadId, slotState.ActiveMontage.Hash);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #15) — after a checkpoint restored into a FRESH process (a new world, a
+        /// new bridge, a new backend) the character registers again under its CLASS (its TkbIdentity), so a montage still plays. 🔴 Red-proof:
+        /// the encoded handle read as the class (as before) ⇒ the backend knows no such class ⇒ the slot stays idle ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_AfterACheckpointRestoredIntoAFreshProcess_TheCharacterRegistersUnderItsClass()
+        {
+            var (repo, backend, cache) = CreateFixture();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var entity = CreateAnimatedEntity(repo);
+            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = ClassId });   // as every TKB-spawned body
+            new AnimationRuntimeBridgeSystem(backend, cache).Execute(repo, 0.016f);   // registered: BackendHandle now holds the encoded handle
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var (fresh, freshBackend, freshCache) = CreateFixture();
+            if (!fresh.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                fresh.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            var bridge = new AnimationRuntimeBridgeSystem(freshBackend, freshCache);
+            var dispatch = new AnimationDispatcherSystem(freshBackend, freshCache);
+            bridge.Execute(fresh, 0.016f);
+
+            unsafe
+            {
+                ref var ch = ref fresh.GetComponentRW<AnimationChannel>(entity);
+                ch.ActiveAction = AnimationActionIds.PlayMontage;
+                ch.ActionInstanceId = 1;
+                fresh.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
+                var p = new PlayMontageParams { MontageId = ReloadId, PlayRate = 1.0f, BlendInTime = 0.1f };
+                fixed (byte* dst = ch.Params)
+                    *(PlayMontageParams*)dst = p;
+            }
+            dispatch.Execute(fresh, 0.016f);
+            bridge.Execute(fresh, 0.016f);
+
+            var def = fresh.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+            Assert.Equal(1, freshBackend.QuerySlotState(handle, 1).IsActive);
+        }
+
         // ─── PlayMontageQueueExecutor tests (D-11, ANC-P3-04) ────────────────
 
         private static Entity CreateQueueEntity(EntityRepository repo)

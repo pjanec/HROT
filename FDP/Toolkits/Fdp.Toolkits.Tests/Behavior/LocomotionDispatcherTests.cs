@@ -83,6 +83,45 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #11) — the action a dispatcher entered is on the channel
+        /// (<c>DispatchedAction</c>), so after a checkpoint restored into a FRESH process (a new world, a new dispatcher) the next action
+        /// still exits the one running — for MoveTo, the STOP the mover follows. 🔴 Red-proof: as the dispatcher's <c>_previousAction</c>,
+        /// the fresh one read 0 and skipped the OnExit (the unit kept driving the old path).
+        /// </summary>
+        [Fact]
+        public void R3039_TheRunningAction_IsExitedAfterACheckpointRestoredIntoAFreshDispatcher()
+        {
+            var world = TestWorldFactory.Create();
+            var sys = new LocomotionDispatcherSystem();
+            sys.RegisterExecutor(1, new SpyExecutor<LocomotionChannel>());
+            var e = world.CreateEntity();
+            world.AddComponent(e, new LocomotionChannel { ActiveAction = 1, ActionInstanceId = 1, Status = NodeStatus.Running });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+            sys.Execute(world, 0.016f);   // action 1 entered
+            Assert.Equal(1, world.GetComponent<LocomotionChannel>(e).DispatchedAction);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(world, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var fresh = TestWorldFactory.Create();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            var freshSys = new LocomotionDispatcherSystem();
+            var spy1 = new SpyExecutor<LocomotionChannel>();
+            var spy2 = new SpyExecutor<LocomotionChannel>();
+            freshSys.RegisterExecutor(1, spy1);
+            freshSys.RegisterExecutor(2, spy2);
+
+            ref var ch = ref fresh.GetComponentRW<LocomotionChannel>(e);
+            ch.ActiveAction = 2;
+            ch.ActionInstanceId = 2;
+            freshSys.Execute(fresh, 0.016f);
+
+            Assert.Equal(1, spy1.OnExitCallCount);   // the action running at the checkpoint is ended
+            Assert.Equal(1, spy2.OnEnterCallCount);
+            Assert.Equal(2, fresh.GetComponent<LocomotionChannel>(e).DispatchedAction);
+            world.Dispose();
+            fresh.Dispose();
+        }
+
         [Fact]
         public void Dispatcher_FailsChannel_WhenCannotMove()
         {

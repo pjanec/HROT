@@ -286,4 +286,33 @@ public class PersonalRouteAuthoringSystemTests
         var intent = _repo.GetComponent<NavigationIntent>(vehicle);
         Assert.Equal(5u, intent.IntentId);
     }
+
+    /// <summary>
+    /// ⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #12) — a checkpoint taken in the frame between the waypoint and its
+    /// deferred follow command, restored into a FRESH process (a new world, a new system), still sends the vehicle along its route: the
+    /// deferral is <c>PersonalRouteRef.FollowPending</c> on the vehicle. 🔴 Red-proof: as the system's list, the fresh system had nothing
+    /// pending and the vehicle never followed the route it was given.
+    /// </summary>
+    [Fact]
+    public void R3039_ADeferredFollow_SurvivesACheckpointRestoredIntoAFreshSystem()
+    {
+        var vehicle = CreateVehicle(Vector3.Zero);
+        PublishWaypoint(vehicle, new Vector3(10f, 0f, 10f));
+        Tick();   // the route exists; the follow waits a frame
+        var child = FindChildRouteEntity(vehicle)!.Value;
+        Assert.Equal(1, _repo.GetComponent<PersonalRouteRef>(vehicle).FollowPending);
+
+        var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+        using var fresh = CreateWorld();
+        Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+        fresh.SetComponent(child, new RouteTrajectoryCache { TrajectoryId = 9 });   // the trajectory compiled between the frames
+
+        fresh.Bus.SwapBuffers();
+        new PersonalRouteAuthoringSystem().Execute(fresh, 0.016f);
+
+        var intent = fresh.GetComponent<NavigationIntent>(vehicle);
+        Assert.Equal(NavigationMode.FollowRoute, intent.Mode);
+        Assert.Equal(9, intent.TrajectoryId);
+        Assert.Equal(0, fresh.GetComponent<PersonalRouteRef>(vehicle).FollowPending);
+    }
 }

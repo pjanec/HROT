@@ -52,6 +52,15 @@ namespace Fdp.Toolkit.Combat
         /// cloud does not drift; once it is known gone (picked up, burnt out) the owner sets 0 and the cloud drifts free. 0 = free.</summary>
         public long SourceNetworkId;
 
+        /// <summary>⭐ <c>R-3039</c> S1 — the OWNER's step clock (APPENDED; ⛔ not on the wire — the translator copies named fields): the sim time of
+        /// its last step, valid once <see cref="Stepped"/> is 1. Was a field of <c>AreaEffectCloudSystem</c>: a checkpoint restored into a fresh
+        /// system lost it and the cloud stepped at once, drifting on the wind for its whole age. 📄 docs/DESIGN_System_State_Inventory.md §6 #3.</summary>
+        public double LastStepSimSeconds;
+        /// <summary>1 once the owner has stepped it (the first step comes at once).</summary>
+        public byte Stepped;
+        /// <summary>1 once the owner asked the lifecycle to end it (a networked cloud's teardown, asked once).</summary>
+        public byte Ending;
+
         /// <summary>True once its time is up.</summary>
         public readonly bool IsOver(double now) => now >= BornAtSimSeconds + Seconds;
 

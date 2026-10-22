@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
@@ -61,6 +60,37 @@ namespace Fdp.Toolkit.Civilians.Tests
 
         private static void Move(EntityRepository w, Entity e, float x, float y)
             => w.GetComponentRW<SimTransform>(e).Position = new Vector3(x, y, 0);
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #9) — a crowd survives a checkpoint restored into a FRESH system as ONE
+        /// crowd: formed, keyframe, applied to a new world with a NEW system, a frame on ⇒ still one crowd entity with the same id, and a NEW crowd
+        /// formed after it gets a fresh id. 🔴 Red-proof: the id → entity map back in a system field ⇒ the fresh system makes a second crowd
+        /// entity for the same id ⇒ red; the counter back ⇒ the new crowd reuses id 1 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_ACrowd_SurvivesACheckpointRestoredIntoAFreshSystem_AsOneCrowd()
+        {
+            var w = World();
+            var chain = new[] { Civ(w, 0, 0), Civ(w, 10, 0), Civ(w, 20, 0) };
+            Frame(w, new CrowdSystem());
+            int id = Mind(w, chain[0]).CrowdId;
+            Assert.NotEqual(0, id);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            var fresh = World();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            var crowds = new CrowdSystem();
+            var other = new[] { Civ(fresh, 300, 0), Civ(fresh, 310, 0), Civ(fresh, 320, 0) };   // a second crowd forms after the restore
+            Frame(fresh, crowds);
+
+            int crowdsAlive = 0;
+            foreach (var _ in fresh.Query().With<Crowd>().Build()) crowdsAlive++;
+            Assert.Equal(2, crowdsAlive);
+            Assert.All(chain, e => Assert.Equal(id, Mind(fresh, e).CrowdId));
+            int second = Mind(fresh, other[0]).CrowdId;
+            Assert.NotEqual(0, second);
+            Assert.NotEqual(id, second);
+        }
 
         [Fact]
         public void CE2237_CiviliansStandingLinked_AreOneCrowd_ALoneOneIsNot_TheIdSurvivesAMove_AndABrokenCrowdIsGone()

@@ -59,6 +59,10 @@ namespace Hrot.MuscleCharacter.Animation.Components
 
         /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
         public NodeStatus Status;
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the action the Muscle last ENTERED (its OnExit is owed when the next one arrives); was the
+        /// dispatcher's <c>_previousAction[entity.Index]</c>. Muscle-local: the report's wire message does not carry it.</summary>
+        public ushort DispatchedAction;
     }
 
     /// <summary>
@@ -95,6 +99,10 @@ namespace Hrot.MuscleCharacter.Animation.Components
 
         /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
         public NodeStatus Status;
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the action the Muscle last ENTERED (its OnExit is owed when the next one arrives); was the
+        /// dispatcher's <c>_previousAction[entity.Index]</c>. Muscle-local: the report's wire message does not carry it.</summary>
+        public ushort DispatchedAction;
     }
 
     /// <summary>

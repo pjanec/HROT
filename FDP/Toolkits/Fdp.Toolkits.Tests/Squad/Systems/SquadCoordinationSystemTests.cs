@@ -27,6 +27,8 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
             _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadMemberSense>();   // ⭐ R-3039 S1 — the squad sense's memory, as HrotSharedComponentRegistry registers it
+            _repo.RegisterComponent<SquadUnitSense>();
             _repo.RegisterComponent<TargetMemory>();
             _repo.RegisterComponent<SquadLeadership>();
             _repo.RegisterComponent<UnitEntity>();

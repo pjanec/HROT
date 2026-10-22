@@ -41,24 +41,12 @@ namespace CarKinem.Systems
         public const float ReplanQuietSeconds = 2f;
 
         private readonly TrajectoryPoolManager _pool;
-        private readonly Dictionary<Entity, Passage> _passages = new();
+        // ⭐ R-3039 S1 — each walker's passage is on the walker (DoorPassage), not here: a checkpoint restored into a fresh system carries it on.
         private readonly Dictionary<string, Entity> _doorEntities = new(System.StringComparer.Ordinal);
-        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (passages in progress and the door entities)
+        private int _epoch;   // ⭐ CE-3294 — the world the door-entity cache below describes
         private readonly List<Entity> _stale = new();
         // ⭐ CE-4040 — per door this frame, the walker whose TURN it is: in reach, not yet through, nearest the door's centre
         private readonly Dictionary<int, (Entity Who, float Distance)> _turn = new();
-
-        private struct Passage
-        {
-            public int DoorIndex;
-            public bool Holding;
-            public float Elapsed;
-            public bool Sent;
-            public float SinceSent;
-            public float SinceReplan;   // < ReplanQuietSeconds ⇒ a replan for DoorIndex is already on its way
-            public bool Replanned;
-            public int Seen;            // frame stamp, to forget agents that left the query
-        }
 
         private int _frame;
 
@@ -71,8 +59,8 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _passages.Clear(); _doorEntities.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
-            if (view is not EntityRepository repo) return;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _doorEntities.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<DoorPassage>()) return;
             if (!repo.HasSingletonManaged<TerrainWorld>() || repo.GetSingletonManaged<TerrainWorld>() is not { Doors.Count: > 0 } terrain)
             {
                 ReleaseAll(repo);
@@ -111,8 +99,9 @@ namespace CarKinem.Systems
                     continue;
                 }
 
-                _passages.TryGetValue(e, out var p);
-                if (p.DoorIndex != doorIndex) p = new Passage { DoorIndex = doorIndex };
+                bool had = repo.HasComponent<DoorPassage>(e);
+                var p = had ? repo.GetComponentRO<DoorPassage>(e) : default;
+                if (!had || p.DoorIndex != doorIndex) p = new DoorPassage { DoorIndex = doorIndex };
                 p.Seen = _frame;
                 p.SinceReplan += deltaTime;
 
@@ -142,13 +131,13 @@ namespace CarKinem.Systems
                     default:   // Closed
                         if (!inReach || door.IsNull) { Unhold(repo, e, ref p); break; }   // not there yet / nothing to command
                         Hold(repo, e, ref p);
-                        if (!p.Sent)
+                        if (p.Sent == 0)
                         {
                             p.Elapsed += deltaTime;
                             if (p.Elapsed >= DoorRules.ActionSeconds(DoorVerb.Open))
                             {
                                 repo.Bus.Publish(new DoorCommandEvent { Door = door, Verb = DoorVerb.Open, Actor = e });
-                                p.Sent = true;
+                                p.Sent = 1;
                                 OpenCommandsSent++;
                             }
                         }
@@ -159,12 +148,12 @@ namespace CarKinem.Systems
                         }
                         break;
                 }
-                _passages[e] = p;
+                if (had) repo.GetComponentRW<DoorPassage>(e) = p; else repo.AddComponent(e, p);
             }
 
             // agents that left the query (despawned, lost their path component) must not stay held
             _stale.Clear();
-            foreach (var kv in _passages) if (kv.Value.Seen != _frame) _stale.Add(kv.Key);
+            foreach (var e in repo.Query().With<DoorPassage>().Build()) if (repo.GetComponentRO<DoorPassage>(e).Seen != _frame) _stale.Add(e);
             foreach (var e in _stale) Release(repo, e);
         }
 
@@ -235,9 +224,9 @@ namespace CarKinem.Systems
             return cameFrom is { } g && DoorApproach.Through(terrain, door, g, at) ? null : door;
         }
 
-        private void CannotPass(EntityRepository repo, Entity e, ref Passage p)
+        private void CannotPass(EntityRepository repo, Entity e, ref DoorPassage p)
         {
-            if (p.Replanned && p.SinceReplan < ReplanQuietSeconds) return;   // one request per door, until it lands
+            if (p.Replanned != 0 && p.SinceReplan < ReplanQuietSeconds) return;   // one request per door, until it lands
             if (!repo.HasComponent<NavigationIntent>(e) || !repo.HasComponent<NavigationStatus>(e)) return;
             var intent = repo.GetComponentRO<NavigationIntent>(e);
             var status = repo.GetComponent<NavigationStatus>(e);
@@ -249,44 +238,45 @@ namespace CarKinem.Systems
                 DoorReplans++;
             }
             else NavigationExecutionSystem.FailBlocked(repo, e, in intent, ref status);
-            p.Replanned = true;
+            p.Replanned = 1;
             p.SinceReplan = 0f;
-            p.Sent = false; p.Elapsed = 0f; p.SinceSent = 0f;
+            p.Sent = 0; p.Elapsed = 0f; p.SinceSent = 0f;
         }
 
-        private static void Hold(EntityRepository repo, Entity e, ref Passage p)
+        private static void Hold(EntityRepository repo, Entity e, ref DoorPassage p)
         {
-            if (p.Holding) return;
+            if (p.Holding != 0) return;
             var nav = repo.GetComponent<NavState>(e);
             nav.IsBlocked = 1;
             repo.SetComponent(e, nav);
-            p.Holding = true;
+            p.Holding = 1;
         }
 
-        private static void Unhold(EntityRepository repo, Entity e, ref Passage p)
+        private static void Unhold(EntityRepository repo, Entity e, ref DoorPassage p)
         {
-            if (!p.Holding) return;
+            if (p.Holding == 0) return;
             if (repo.IsAlive(e) && repo.HasComponent<NavState>(e))
             {
                 var nav = repo.GetComponent<NavState>(e);
                 nav.IsBlocked = 0;
                 repo.SetComponent(e, nav);
             }
-            p.Holding = false;
+            p.Holding = 0;
         }
 
         private void Release(EntityRepository repo, Entity e)
         {
-            if (!_passages.TryGetValue(e, out var p)) return;
+            if (!repo.IsAlive(e) || !repo.HasComponent<DoorPassage>(e)) return;
+            var p = repo.GetComponentRO<DoorPassage>(e);
             Unhold(repo, e, ref p);
-            _passages.Remove(e);
+            repo.RemoveComponent<DoorPassage>(e);
         }
 
         private void ReleaseAll(EntityRepository repo)
         {
-            if (_passages.Count == 0) return;
+            if (!repo.IsComponentTypeRegistered<DoorPassage>()) return;
             _stale.Clear();
-            _stale.AddRange(_passages.Keys);
+            foreach (var e in repo.Query().With<DoorPassage>().Build()) _stale.Add(e);
             foreach (var e in _stale) Release(repo, e);
         }
 

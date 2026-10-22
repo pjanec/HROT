@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.RegisterComponent<UnitRoster>();
             Repo.RegisterComponent<UnitSubordinate>();
             Repo.RegisterComponent<SquadCognitiveState>();
+            Repo.RegisterComponent<SquadMemberSense>();   // ⭐ R-3039 S1 — the squad sense's memory, as HrotSharedComponentRegistry registers it
+            Repo.RegisterComponent<SquadUnitSense>();
             Repo.RegisterComponent<SimTransform>();
             Repo.RegisterComponent<UtilityDebugFlags>();
             Repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
