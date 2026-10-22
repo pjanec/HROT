@@ -2617,6 +2617,11 @@ namespace Hrot.Editor.DebugApi
                     Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             if (_isRecording)
                 throw new InvalidOperationException("Recording already active. Stop it first.");
+            // ⭐ D15 — this is the editor's ONE recorder (the shared host composition's). A recording the cluster started
+            //   (a live run) is not this endpoint's to replace: replacing it would orphan that recording, never finalized.
+            if (_rrController.ActiveRecordingModule != null)
+                throw new InvalidOperationException(
+                    "The editor's recorder is already recording (a cluster run). Stop that run first.");
 
             if (string.Equals(mode, "preview", StringComparison.OrdinalIgnoreCase))
             {

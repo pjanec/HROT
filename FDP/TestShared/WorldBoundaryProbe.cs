@@ -68,7 +68,8 @@ namespace Fdp.TestShared
         {
             for (var t = type; t != null && t != typeof(object); t = t.BaseType)
                 foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
-                    if (Calls(m, "Fdp.Toolkit.Replication.Services.WorldEpoch", "Moved")) return true;
+                    if (Calls(m, "Fdp.Toolkit.Replication.Services.WorldEpoch", "Moved")
+                     || Calls(m, "Fdp.Toolkit.Replication.Services.WorldEpoch", "Ended")) return true;   // ⭐ D4 — Ended: forgets at a boundary, not at a restore
             return false;
         }
 

@@ -450,6 +450,8 @@ registration API in the FDP kernel) to be called at startup.
 
 ### 4.G — `EditorPreviewAdapter` (`IPreviewController`)
 
+> ⚠ **`2026-10-22` (D14, [restore design §1b](../../DESIGN_Checkpoint_And_Dry_Run_Restore.md)):** `PreviewClusterOpHandler` is DELETED — this adapter now wraps the ONE dry-run handler, `ReferencePreviewHandler` (its `TriggerLoadingPreview` / `TriggerUnloadingPreview`). ⚠ The production editor drives its own `EditorPreviewController` (it also snaps the clock back, CE-3156); this adapter is used by tests only.
+
 `Hrot.Editor/Adapters/EditorPreviewAdapter.cs`
 
 - `IsInPreviewMode` → derived from the `ScenarioEditorModule`'s current cluster state.

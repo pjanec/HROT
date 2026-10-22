@@ -21,7 +21,10 @@ known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview
   ("the two pooled ones do not implement it") is SUPERSEDED by §4c — all five implement it. Do not quote
   §4 ③/④ or §4b's recommendation without §4c and §4d.
 related-designs:
+  - DESIGN_Scenario_Regression.md — relies on §11 (ids repeat per world) to compare scenario goldens without masking
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — §1b U1/D14: the two preview handlers (§2b) become ONE dry-run handler; the dry run moves off SyncFrom to the recorder keyframe; the §2b participants shrink to the allocator until it is a singleton (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f (CE-3294): every SYSTEM holding entities now pulls `WorldEpoch` too, not only the translators.
+  - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f.1 (CE-3298): ⚠ a preview's Stop rewinds the world but moves no epoch, so the systems' resets and the egress "published once" sets (`EntityMasterEgressTranslator._publishedNetIds`) keep the last Play's state while §4d's allocator reissues the same ids.
   - DESIGN_Building_Interiors.md §3b — terrain-provided objects (doors) get runtime ids from THIS one allocator; their stable key is a string, mapped by TerrainObjectMap
   - docs/designs/replay-and-modules/DESIGN.md — §2.1h–§2.1m — the SAME ELM rewind defect reached from REPLAY and SEEK, and the unified plan that extends this document's bracket.
   - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — what must happen to entity lifecycle during replay; the other rewind trigger.
@@ -122,6 +125,8 @@ preview 1's ids into a map that still holds them ⇒ **`InvalidOperationExceptio
 ⇒ ⭐⭐ **item ① MUST NOT ship without the map.** 📌 Exactly what item ⓪ exists to catch.
 
 ### 🔴🔴 AND THERE ARE **TWO** PREVIEW HANDLERS — one concept, already diverging
+
+> ✅ **RESOLVED `2026-10-22` (D14, [restore design §1b](DESIGN_Checkpoint_And_Dry_Run_Restore.md)):** `PreviewClusterOpHandler` is deleted; the editor drives the SAME `ReferencePreviewHandler` its cluster slave holds (composed once for every ECS host, `EcsHostClusterHandlers`). The table below is the as-was record.
 
 | | `ReferencePreviewHandler` | `PreviewClusterOpHandler` |
 |---|---|---|

@@ -81,6 +81,8 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
             InspectorState: () => new Fdp.Presentation.Abstractions.InspectorState(),
             EventBrowser:   new EventBrowserPanel(),
             TitleBarColor:  color,
+            Host:           () => null,
+            World:          () => null,
             ArchitecturePanel: withKernel ? Panel() : null,
             ExecutionStats:    withKernel ? () => null : null,
             PickBroker:        null);

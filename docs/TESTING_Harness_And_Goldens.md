@@ -10,6 +10,7 @@ design-basis: DESIGN_MCP_System_Test_Harness.md (the harness) · DESIGN_UI_Obser
   DESIGN_Headless_Testability.md (the taxonomy) · MCP_Integration.md (the API).
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Scenario_Regression.md — the scenario goldens (Goldens/scenarios/<s>.json, SCENARIO_GOLDEN_CAPTURE=1) and checks.json
   - docs/blueprints/Architect_Question_92_Per_World_Component_Registry.md — owns the OTHER process-wide residue of a test: the static component registry and its 81 Clear() callers (§4-G).
 -->
 # RUNBOOK — how we test the system, and how we keep goldens honest

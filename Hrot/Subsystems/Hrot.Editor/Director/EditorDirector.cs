@@ -39,8 +39,12 @@ namespace Hrot.Editor.Director
         }
 
         public EntityRepository? World => _world();
-        public void LoadScenario(string scenario) => _load(scenario);
+        private bool _loaded;
+
+        public void LoadScenario(string scenario) { _loaded = true; _load(scenario); }
         public bool IsOperatingEdit => _operatingEdit();
+        /// <summary>The director loaded one, or the user did (the editor is then OperatingEdit).</summary>
+        public bool HasLoadedAScenario => _loaded || _operatingEdit();
         public int? EntityCount => _world()?.EntityCount;
         public bool InPreview => _inPreview();
         public void EnterPreview(bool startPaused) => _enterPreview(startPaused);

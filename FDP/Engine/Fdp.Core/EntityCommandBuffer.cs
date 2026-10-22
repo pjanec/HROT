@@ -297,7 +297,7 @@ namespace Fdp.Core
         {
             if (evt == null) throw new ArgumentNullException(nameof(evt));
             
-            int typeId = typeof(T).FullName!.GetHashCode() & 0x7FFFFFFF;
+            int typeId = FdpEventBus.ManagedTypeId<T>.Id;   // ⭐ CE-3302 — the bus's one id, not a second copy of its formula
             int objectIndex = _managedObjects.Count;
             _managedObjects.Add(evt);
             

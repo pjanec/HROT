@@ -3,6 +3,9 @@ using Fdp.Core;
 
 namespace Fdp.Modules.Geographic
 {
+    // ⭐ D7 (restore design) — content / service / index, never world state: a keyframe must not carry it, and an apply must
+    //   not replace the loaded instance (R-3043).
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.IGeographicTransform)]
     public interface IGeographicTransform
     {

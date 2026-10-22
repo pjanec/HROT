@@ -292,6 +292,10 @@ namespace Hrot.SimHost
         /// <param name="nodeConfig">
         /// Optional <see cref="NodeConfiguration"/>; defaults are used when <c>null</c>.
         /// </param>
+        /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+        /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+        public Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
         public SimHostApp(
             int?              domainOverride = null,
             NodeRole          role           = DefaultRole,
@@ -395,6 +399,7 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
+                        Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                         // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                         Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, _behaviorRegistry),
                         GizmoUiPublisher = _gizmoUiHub,

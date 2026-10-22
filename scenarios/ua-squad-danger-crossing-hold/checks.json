@@ -1,0 +1,15 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10 (CE-2159 D3): the crossing under a threat while low on ammo; the header asserts no pass condition. Only the Fail point is encoded: the squad must not stand frozen in the open (old CE-2164 freeze) — proxy: the Leader (start x 150) gets past x 170 (the measured live run resumes the march at ~38.6 s). The 170 is a loose proxy, not from the Judge. The measured BreakContact pick is a maneuver/drill, not a readable task, so it is left out. DEMO (13 units, no winner asserted): no golden. CE-4042 triage MEASURED (200 s probe): BreakContact drill at 3.25 s, SquadMarch drill from 47 s (live: 38.6 s), the Leader reaches x 168.x at ~70 s, the crossing task re-engages at 70.5 s, the drill is SquadHold from 75 s and the Leader never passes x 169 in the 125 s after — no rounds left from 32 s (3 each). The x>170 proxy is the first draft's, not the Judge's: left RED as a C finding for a ruling — designed Hold under threat, or the CE-2164 freeze.",
+  "runFor": 90,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the squad does not sit frozen: the Leader gets past x 170",
+      "on": "field",
+      "who": "Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 170
+    }
+  ]
+}

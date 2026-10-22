@@ -68,10 +68,12 @@ namespace Hrot.ScenarioEditor.Map
         public required EntityRepository World { get; init; }
 
         /// <summary>
-        /// The interaction bus. Optional: when null the pack creates one and runs
-        /// <c>InteractionEventRegistry.RegisterAll</c> over it, which is what every host does by hand today.
+        /// ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1 / HA-2) — THE HOST'S actions (registry, interaction bus, dispatch), made by
+        /// the host at its start (<see cref="SharedHostActions.Create"/>). The pack registers only the MAP's actions on it. Optional for a
+        /// test (the pack makes one); 🔒 every host HOLDS one and PASSES it (R-67). ⛔ SUPERSEDED: an optional <c>InteractionBus</c> here, and
+        /// the registry + dispatch built inside the pack.
         /// </summary>
-        public FdpEventBus? InteractionBus { get; init; }
+        public Hrot.Common.Interactions.HostActions? Host { get; init; }
 
         /// <summary>
         /// The settings store. Optional: when null the pack creates a private one.

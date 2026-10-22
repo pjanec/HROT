@@ -1,0 +1,73 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-3: weather shortens sight. Judge (1) the clear observer first sees his target at about his full 150 m (>= 120), (2) the fog observer only at <= 60 m (<= 65). Read through the observer's first memory entry being VISUAL (`TargetMemory.Entries.0.Modality` carries bit 1 — the dump has no `Count`; the first draft's path never held) against the target's distance (a `near` anchor: within 120 / within 65). CE-4042 triage: with this path both observers see their target at 150 m at 51.5 s (the fog one too) on the OLD fog geometry — behaviors has since re-centred the fog bank on its observer (W-1), so RE-VERIFY after that merge; thresholds untouched.",
+  "runFor": 140,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "clear target inside 120 m": {
+      "on": "near",
+      "who": "Target Clear",
+      "point": [
+        0,
+        0
+      ],
+      "within": 120
+    },
+    "fog target inside 65 m": {
+      "on": "near",
+      "who": "Target Fog",
+      "point": [
+        0,
+        300
+      ],
+      "within": 65
+    }
+  },
+  "expect": [
+    {
+      "name": "the clear observer sees his target while it is still beyond 120 m",
+      "on": "field",
+      "who": "Observer Clear",
+      "path": "TargetMemory.Entries.0.Modality",
+      "op": "in",
+      "value": [
+        1,
+        3,
+        5,
+        7
+      ],
+      "before": "clear target inside 120 m"
+    },
+    {
+      "name": "the fog observer sees nothing while the target is beyond 65 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Fog",
+        "path": "TargetMemory.Entries.0.Modality",
+        "op": "in",
+        "value": [
+          1,
+          3,
+          5,
+          7
+        ]
+      },
+      "before": "fog target inside 65 m"
+    },
+    {
+      "name": "the fog observer sees him once he is inside 65 m",
+      "on": "field",
+      "who": "Observer Fog",
+      "path": "TargetMemory.Entries.0.Modality",
+      "op": "in",
+      "value": [
+        1,
+        3,
+        5,
+        7
+      ],
+      "after": "fog target inside 65 m"
+    }
+  ]
+}

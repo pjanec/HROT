@@ -1,0 +1,63 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — B1-B3: doors as route obstacles and as things a behaviour operates. Judge (1)-(3) as positions: the Visitor stands at the back door, ends in the west room and never crosses the locked front doorway; the Locksmith walks in through the front doorway it opened. ⚠ The door states themselves (Locked/Closed/Open) are on door entities that carry no unit name, so 'unlocks and opens' is judged only by what it lets the men do.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Visitor stands at the back door (within 3 m of its doorway)",
+      "on": "near",
+      "who": "Visitor",
+      "point": [
+        107.4,
+        108
+      ],
+      "within": 3
+    },
+    {
+      "name": "the Visitor arrives in the west room",
+      "on": "near",
+      "who": "Visitor",
+      "point": [
+        102,
+        104
+      ],
+      "within": 1.5,
+      "after": "the Visitor stands at the back door (within 3 m of its doorway)"
+    },
+    {
+      "name": "the Visitor never walks through the locked front doorway",
+      "never": {
+        "on": "near",
+        "who": "Visitor",
+        "point": [
+          104.2,
+          100.25
+        ],
+        "within": 0.75
+      }
+    },
+    {
+      "name": "the Locksmith walks through the front doorway",
+      "on": "near",
+      "who": "Locksmith",
+      "point": [
+        104.2,
+        100.25
+      ],
+      "within": 1.1
+    },
+    {
+      "name": "the Locksmith ends inside, at (102,103)",
+      "on": "near",
+      "who": "Locksmith",
+      "point": [
+        102,
+        103
+      ],
+      "within": 1.5,
+      "after": "the Locksmith walks through the front doorway"
+    }
+  ]
+}

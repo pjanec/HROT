@@ -38,10 +38,21 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// skip the copy safely.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <c>D14</c> (<c>R-3046</c>) — <b>THE ONE dry-run handler.</b> The editor's twin
+    /// (<c>PreviewClusterOpHandler</c>, driven directly by the editor's Play/Stop and registered on no slave) is gone:
+    /// the editor's controller calls <see cref="TriggerLoadingPreview"/> / <see cref="TriggerUnloadingPreview"/> on the
+    /// SAME instance its cluster slave holds (<c>EcsHostClusterHandlers</c>), so a dry run started from the toolbar
+    /// and one started by the cluster master take one path. 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b U1.
+    /// </remarks>
     public sealed class ReferencePreviewHandler : IClusterStateHandler
     {
         private readonly EntityRepository? _liveRepo;
         private EntityRepository? _snap;
+
+        // ⚠ The one difference the two handlers had (HN-016): the editor's copied Transient components too. Kept as a
+        //   constructor input until B2 replaces the SyncFrom copy with a keyframe (D12's keep list).
+        private readonly bool _includeTransient;
 
         // ⭐⭐⭐ HN-017 — the SAME bracket the editor's handler uses. 📄 DESIGN_Deterministic_Network_Ids.md §4c.
         // ⭐⭐ This is the handler on the 2PC path — registered on FIVE production ClusterSlaves (IG, CGF ×2,
@@ -67,13 +78,27 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <para>⚠ Null/empty for the nodes that pass <c>liveRepo: null</c> — they carry no ECS state and no
         /// allocator to rewind.</para>
         /// </param>
+        /// <param name="includeTransient">Copy Transient components too (the editor's dry run did, HN-016).</param>
         public ReferencePreviewHandler(
             EntityRepository? liveRepo,
-            System.Collections.Generic.IEnumerable<IPreviewRewindable>? rewindables = null)
+            System.Collections.Generic.IEnumerable<IPreviewRewindable>? rewindables = null,
+            bool includeTransient = false)
         {
-            _liveRepo = liveRepo;
-            _bracket  = rewindables is null ? null : new PreviewStateBracket(rewindables);
+            _liveRepo         = liveRepo;
+            _bracket          = rewindables is null ? null : new PreviewStateBracket(rewindables);
+            _includeTransient = includeTransient;
         }
+
+        /// <summary>⭐ <c>D14</c> — the local entry point (the editor's Play): the same capture the master's
+        /// <c>LoadingPreview</c> commits.</summary>
+        public void TriggerLoadingPreview() => LoadingPreviewCommit();
+
+        /// <summary>⭐ <c>D14</c> — the local entry point (the editor's Stop): the same rewind the master's
+        /// <c>UnloadingPreview</c> commits.</summary>
+        public void TriggerUnloadingPreview() => UnloadingPreviewCommit();
+
+        /// <summary>True between a capture and its rewind.</summary>
+        public bool HasSnapshot => _snap != null;
 
         /// <summary>⭐ Exposed for rails — a rail must reach the CONSTRUCTED object.</summary>
         public PreviewStateBracket? TestHook_Bracket => _bracket;
@@ -144,8 +169,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 return;
             }
 
+            // ⭐ D14 — two entry points reach this one handler (the master's LoadingPreview, the editor's Play). A second
+            //   capture while one is held would move the rewind point forward; the first one stands.
+            if (_snap != null)
+            {
+                FdpLog<ReferencePreviewHandler>.Warn(
+                    "[ReferencePreviewHandler] LoadingPreview: a dry run is already captured — kept, not re-captured.");
+                return;
+            }
+
             var snap = new EntityRepository();
-            snap.SyncFrom(_liveRepo);
+            snap.SyncFrom(_liveRepo, includeTransient: _includeTransient);
             _snap = snap;
 
             _bracket?.Capture();
@@ -173,7 +207,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 return;
             }
 
-            _liveRepo.SyncFrom(_snap);
+            _liveRepo.SyncFrom(_snap, includeTransient: _includeTransient);
             _snap.Dispose();
             _snap = null;
 

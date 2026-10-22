@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-22 (§6aa.CL cloud layers — approved and built, CE-1146) · 2026-10-21 (§6aa.PR-1 precipitation over the 3-D scene + §6aa.next leans CL, MO, NL, SW, CE-1146) · 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -1692,7 +1692,7 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 | decision (✅ user, `2026-10-14`) | rule |
 |---|---|
 | **N-1 weapon systems** (CE-1087) | one family `WeaponSystem`; the kind from the class chain (HMG, Minigun, ATGM, Launcher, Sentry; + `Mortar`, `TowedArtillery`); each kind a STOWED and a DEPLOYED kit with the same parts in the same order, blended over `Deploying` / `Packing` by `Until`; a station weapon is drawn where the sim put it; its turret and gun articulate |
-| **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` |
+| **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` | ⭐ **As built `CE-1202` (`2026-10-21`)** — 🔒 user, live: *"the gun operator on a mounted weapon is not moving when the weapon turns"*. Measured: the gunner of a VEHICLE STATION (the technical's bed pintle, the HMMWV ring — a `Gunner` seat with its own place, `CarriageKind.Seated`) was placed by his seat alone, and a weapon's own seat with a place ignored the traverse too; only the kit's gunner spot turned. Now both are swung about the weapon's traverse pivot (the kit's, placed by the weapon's transform) by its published azimuth once deployed — `EntityBodyLayer3D.StationTurn` / `TurnedWithStation`, the station found by `SeatSwitch.StationOf` (the seat that OPERATES it). Rails `Map3DTests.CE1202_*`, frame `Map3DFrameRail.CE1202_V_*` (`docs/assets/map-3d/ce1202-gunner-turns.png`).
 | **N-3 carried** (CE-1085) | the classifier fix; a carried stowed weapon is drawn slung across the back |
 | **N-4 launcher in hands** (CE-1090) | a soldier AIMED within 4 s of firing a launcher (an ATGM mount, or a carried ATGM / Launcher weapon) holds the tube on his shoulder instead of the rifle (the carried weapon is not drawn twice); the flash leaves the tube's front; a recoilless launcher throws a BACKBLAST cone behind it; a mortar / gun throws a ground BLAST ring |
 | **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction). ✅ `2026-10-15` backend P2 (`b6ad14c83`): mortars 609–611 and the towed 612 have a laying turret, and every indirect gun is LAID (W-9 `TurretPose`) before it fires — `LaidPose` already reads the turret pose first, so a laid tube shows the mission's azimuth and elevation on every node before its first round; the defaults are only for a gun nobody has laid. ⭐ **CE-1114 (`2026-10-15`, user: "the barrel elevation needs to be read and used")** — ⛔ it read the elevation only when NON-ZERO and otherwise guessed it from the gun's newest round on the combat node (60 s): a published level gun (a ZU-23 on the horizon) drew at the default, and the guess existed only where combat runs. Now `ArticulationPose.Published` (set by `TurretPoseSource`) ⇒ the replicated pose is used as is, azimuth and elevation, a 0 included; only a gun with NO turret part gets the default. The round guess (`UpdateLaid`, `RememberLaid`, `LaidSeconds`) is retired — SUPERSEDED by W-9's replicated pose, as this row foresaw. Rail `Map3DTests.CE1114_*`. SP howitzer: a tank hull, a big boxy turret, a long barrel |
@@ -2433,6 +2433,16 @@ Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the ca
 |---|---|
 | ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
 
+#### 6w.U2 — the ejection seat (`CE-1119` U-2, `2026-10-21`, ui) — AS-BUILT
+
+Backend B-7…B-9 landed (`EjectionSystem` spawns the pilot 206 with a `Descent { Kind = Ejection, Phase = Exit }`; after `SeatSeconds`
+1.5 s the canopy deploys). Drawn: the Exit phase's figure is **sitting** (`DescentDraw.PoseOf(Ejection, Exit)` = SittingOut, blended into
+the canopy pose while it deploys); `DescentDraw.EjectionSeat` (pure) puts the seat in his frame — the pan under him, the back and headrest
+behind — and the rocket's flame under it for `RocketSeconds` 1 s, a cone that shrinks and flickers as it burns out; from the canopy's
+deployment the EMPTY seat falls away beneath and behind him, tumbling, for `SeatAwaySeconds` 1.2 s. `EntityBodyLayer3D.DrawEjectionSeat`
+draws it (seat grey, flame `RocketFlame`). The abandoned jet's fall is the existing crash drawing. Rails `Map3DTests.CE1119_U2_*` (red-proved:
+a flame after burn-out), frame `Map3DFrameRail.CE1119_V_U2_*` (`docs/assets/map-3d/airborne-5-ejection.png`).
+
 ### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
 
 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built
@@ -2709,6 +2719,172 @@ compiles and lights; the night is darker than noon and brighter than a quarter o
 | ![](assets/map-3d/weather-free-camera-fog.png) |
 
 *Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
+
+#### 6aa.PR-1 — precipitation over the 3-D scene — DESIGN + AS-BUILT `2026-10-21` (ui, overnight #35)
+
+🔒 User, `2026-10-19`: *"depending from what place the 3d map camera is looking, the weather effects should be shown (fog density/distance,
+precipitation overlay...)"* — the overlay is named, so it is the uncontroversial slice; the rest of the item stays a discussion (below).
+
+| the slice rests on | code — how it is | design basis |
+|---|---|---|
+| the sample already carries the precipitation kind and rate | ✅ `WeatherSample.Precipitation` / `PrecipitationMmPerHour` (`WeatherField.cs:73`, set at `:313`) | Weather §4 (R-3012, user-approved precipitation) |
+| the wind is the direction it blows TOWARD, X east, Y north | ✅ `WeatherSample.Wind` (`WeatherField.cs:57`) | Weather §4 |
+| screen-right on the ground is `(sin yaw, −cos yaw)` | ✅ `MapCamera3D.Forward`/`Right` (`MapCamera3D.cs:110,126`, `Right = Forward × Up`) | §3 |
+| a 3-D layer's overlay draws only if it says `Has3D` | ✅ `MapCanvas.Draw` (`MapCanvas.cs:156`) | §3.6 |
+| nothing else draws precipitation | ⛔ searched (`scripts/find.sh Precipitation`, graph `.*Precip.*`) — only the field, its conditions, their replication (`EntityWeatherTranslators`) and perception (`PerceptionWeather`) touch it; ⚠ coverage not checkable through the CLI | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class WeatherSkyLayer { <<existing, grows>> Update: keeps the sample · DrawOverlay: the drops · Has3D · DropsDrawn }
+    class Precipitation { <<NEW, pure>> MaxDrops 700 · CountOf(kind, rate) · Drops(kind, rate, windAcross, time, screen, into) · Colour(kind) }
+    class WeatherField { <<existing, backend>> At(world, point): WeatherSample }
+    class MapCamera3D { <<existing>> Yaw · Viewport }
+    WeatherSkyLayer ..> WeatherField : the same sample as the sky
+    WeatherSkyLayer ..> Precipitation
+    WeatherSkyLayer ..> MapCamera3D : the wind across the view
+```
+
+*What the picture shows that prose hid: the drops come from the SAME sample the sky and fog already read (at the eye in first person, at the
+look-at point in the free camera), so the overlay can never disagree with the fog about where the camera is; and `Precipitation` takes no
+world and keeps no state — a drop is a hash of its index moved by the time, so the field is identical on every frame at a time.*
+
+| decision | rule |
+|---|---|
+| **PR-1a the look** | rain, sleet and hail as short streaks falling fast (1100 px/s), drizzle as faint fine streaks (700 px/s), snow as flakes drifting down (70 px/s) with a small sway |
+| **PR-1b how many** | 100 + 45 × mm/h for rain (80 + 40 × for drizzle, 120 + 60 × for snow), at most 700 — a cloudburst is a cap, not a frame-rate cliff |
+| **PR-1c the wind** | the component of the sample's wind ACROSS the view slants the streaks (run per unit of fall = wind / 12 m/s, at most 0.8) and drifts the flakes |
+| **PR-1d where** | only in 3-D; the 2-D map draws none (the layer's own rule since the first slice) |
+
+**Rejected — one line each:** *3-D particle drops in the world* — hundreds of billboards near the eye cost a draw each and read the same at FPS
+scale; *a scrolling rain texture* — needs an asset and cannot slant with the wind without a shader; *a particle system with state* — a pause,
+a replay jump or a second view would each need it kept in step.
+
+**As-built `2026-10-21`** — matches the diagram. Rail `WeatherSkyTests.CE1146_PR1_Rain_AsStreaksWithTheWind_Snow_AsFlakes_AsManyAsTheRate`
+(none when dry · more for a heavier rate · capped · streaks fall with the wind and flip with it · flakes · same field at the same time, moving
+with time) — ✅ red-proved: the slant's sign flipped ⇒ 280 / 280 streaks fail. Frame rail `Map3DFrameRail.CE1146_V_PR1_RainAndSnow_FromTheWorldsWeather`
+through the PRODUCTION path (a World Environment entity raining 6 mm/h with an 8 m/s wind, `WeatherSkyLayer.Update` sampling it): dry ⇒ 0
+drops, rain ⇒ exactly `CountOf` and the frame differs from the dry one, then snow.
+
+| rain, 6 mm/h, the wind blowing to screen-right | snow, 2 mm/h |
+|---|---|
+| ![](assets/map-3d/weather-rain.png) | ![](assets/map-3d/weather-snow.png) |
+
+#### 6aa.next — the rest of CE-1146: leans for the discussion (taken overnight `2026-10-21`, NOT built — the user decides)
+
+| # | what | ⭐ lean | cost | what would change the lean |
+|---|---|---|---|---|
+| **CL** ✅ *approved* | cloud LAYERS — 🔒 user, `2026-10-22`: *"yes exactly that"* ⇒ built, §6aa.CL below | one flat, translucent quad per deck at its base height (`WeatherSample.Clouds`, the field's strongest deck), textured by ONE procedural noise texture made at start-up (256², tiled, scrolled by the wind at that height), its alpha from the octas; seen from below and from above (a helicopter) | ⭐ one draw per deck (≤ 3), one texture | the user wanting volume (puffy cumulus) — that is a raymarch, an order of magnitude more |
+| **MO** | the MOON | ⛔ the field has no lunar position ⇒ **a backend ask**: `MoonElevationDeg`, `MoonAzimuthDeg`, `MoonIllumination` on `WeatherSample` (a low-precision ephemeris, ~40 lines); ui then draws a disc and lifts the twilight floor by up to +0.1 under a full moon | backend ~½ day, ui an hour | the user content with the twilight floor alone (the scene is already never dark) |
+| **NL** | lights that light their SURROUNDINGS at night (a flare lighting the ground) | up to 8 nearest point lights from the live light-emitting effects (flare, fire, explosion, muzzle flash) as a uniform array in `LitShader`, added with a 1/(1+d²) fall-off, only while the light is under 0.5 | one loop of 8 in the fragment shader | Mesa / the Windows GL measuring too slow on the frame-rate telemetry (§6z) — then flares only |
+| **SW** | smoke drifting on the WIND | the effect smoke column's fixed breeze (`EffectLayer.Puffs`, *"a fixed light breeze until weather exists"*) reads `WeatherField.WindAt` at the column | ⭐ trivial | — ✅ built as PR-2, below, because the code itself named it as waiting on the weather |
+
+#### 6aa.PR-2 — a wreck's smoke drifts on the world's wind — AS-BUILT `2026-10-21` (ui, overnight #35)
+
+Owning design for the column itself: [Visual Effects](DESIGN_Visual_Effects.md) W3 (VE-P, the stateless puffs); the weather design's S3 names
+*"smoke drifts on the wind"*. `EffectLayer.Resolve` reads `WeatherField.WindAt` half way up a smoke column (it rises six sizes) into
+`Resolved.Wind`; `Puffs` drifts the column by `SmokeDrift(wind)` = wind / 4 m/s, at most 3 — so a 4 m/s breeze is exactly the old look, calm
+rises straight, a gale leans three times as far. ⚠ **A world that models no weather** (`WeatherConditions` unregistered) keeps the old fixed
+north-east breeze — `Wind` is null there, never zero, so an old host does not silently change. The area clouds (CE-1165) are untouched: their
+owner already drifts them on the wind (CE-3219).
+
+Rail `EffectTests.CE1146_PR2_TheSmokeColumn_DriftsOnTheWorldsWind` through `Resolve` (a World Environment blowing 8 m/s west ⇒ the column's
+top leans west; calm ⇒ straight; no weather ⇒ the old breeze; a gale capped) — ✅ red-proved: `Resolve` not passing the wind ⇒ fails.
+
+#### 6aa.CL — cloud layers — DESIGN + AS-BUILT `2026-10-22` (ui, CE-1146)
+
+🔒 User, `2026-10-22`, on lean CL (*"one flat, translucent quad per deck at its base height, textured by ONE procedural noise texture…"*):
+*"yes exactly that"*. Owning data: [Weather §6.3](designs/weather/DESIGN_Weather_And_Time.md) — `WeatherSample.Clouds` (`CloudDeck`, ≤ 4
+layers: base m MSL, thickness, octas, kind) *"is what S3's renderer draws"*.
+
+**INVENTORY** (`2026-10-22`): graph `search_graph name_pattern=".*(Cloud|Noise|Perlin).*" label=Class` → 13, every one the gas / smoke AREA
+cloud (`AreaEffectCloud`, CE-1165) or the weather data (`CloudDeck`, `CloudCovers`) — ⛔ no sky-cloud renderer, no noise generator;
+`scripts/find.sh "GenImagePerlinNoise|Fbm|ValueNoise|PerlinNoise"` → none (graph and grep agree; coverage not checkable through the CLI).
+
+| the build rests on | code — how it is | design basis |
+|---|---|---|
+| the scene's Z is metres above sea level, like a deck's base | ✅ `WeatherField.WindAt` reads *"the height is the point's Z above sea level"* (`WeatherField.cs:250-252`) | Weather §4 |
+| `BeginMode` draws the BACKGROUND (sky gradient, sun) before the 3-D pass, and a film frame runs the same `BeginMode` | ✅ `MapCamera3D.BeginMode` (`MapCamera3D.cs:568`), `MapCanvas.DrawScene` → `DrawLayers3D` → `Camera.BeginMode` | §6ab |
+| the far clip at eye height is 2 km — a deck 1.5 km up would be a small clipped patch | ✅ `FarClip => Max(2000, Distance·60)` (`MapCamera3D.cs:532`) | §6z |
+| HROT (x, y, z) is Raylib (x, z, −y) | ✅ `HrotToRaylib.Position` | §3 |
+
+```mermaid
+classDiagram
+    direction LR
+    class SceneAtmosphere { <<existing, grows>> + Clouds: SceneCloudLayer[]? }
+    class SceneCloudLayer { <<NEW value, FDP Vis3D>> HeightZ · Coverage 0..1 · Look · TileM · Drift · Tint }
+    class CloudLook { <<NEW enum>> Puffy · Sheet · Streaks }
+    class CloudDeckRenderer { <<NEW, FDP Vis3D>> Alpha(look, coverage, u, v) pure · TextureFor(look, coverage) cached · Draw(camera, layers) }
+    class MapCamera3D { <<existing, grows>> BeginMode: sky, sun, then the clouds as background }
+    class WeatherSky { <<existing, grows>> CloudsOf(sample, drift) }
+    class WeatherSkyLayer { <<existing, grows>> Update: drift = wind at each base x sim time }
+    class WeatherField { <<existing, backend>> At · WindAt }
+    SceneAtmosphere *-- "0..4" SceneCloudLayer
+    SceneCloudLayer --> CloudLook
+    MapCamera3D ..> CloudDeckRenderer
+    WeatherSky ..> SceneCloudLayer : maps the CloudDeck
+    WeatherSkyLayer ..> WeatherField
+    WeatherSkyLayer ..> WeatherSky
+```
+
+```mermaid
+sequenceDiagram
+    participant L as WeatherSkyLayer.Update
+    participant F as WeatherField
+    participant C as MapCamera3D.BeginMode
+    participant R as CloudDeckRenderer
+    L->>F: At(world, eye or look-at) - the deck
+    L->>F: WindAt(base of each layer) - its drift x sim time
+    L->>C: Atmosphere = WeatherSky.Of(sample) with Clouds
+    C->>C: sky gradient, sun disc (2-D, behind everything)
+    C->>R: Draw(camera, clouds) - inside BeginMode3D
+    R->>R: depth test OFF, no depth write, both faces
+    R->>R: per layer, farthest first - a grid around the eye, scaled toward the eye into the far clip
+    Note over C: then every layer draws the world OVER the clouds
+```
+
+```mermaid
+graph TD
+    P[MapInteractionPack.AttachMapLayers - every map host] --> W[WeatherSkyLayer]
+    W -->|Update| A[MapCamera3D.Atmosphere.Clouds]
+    D[MapCanvas.Draw3D] --> B[MapCamera3D.BeginMode]
+    S[MapCanvas.DrawScene - a film frame] --> B
+    B -->|background, before the world| R[CloudDeckRenderer.Draw]
+    T[the 2-D map] -.->|never| R
+    style T stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the clouds are BACKGROUND like the sky — drawn in `BeginMode`, before any layer, with no depth — so
+the world is always drawn over them: a hill rising into a deck hides it, and a deck BELOW a free camera never covers the map (the user's
+2026-10-16 worry: weather must not obstruct the view). Because `BeginMode` also runs for a film frame, films get clouds for free.*
+
+| decision | rule |
+|---|---|
+| **CL-1 the texture** | one tileable fbm value-noise image per (look, coverage) — 128², made on the CPU once and cached (≤ 4 decks ⇒ ≤ 4 alive); its alpha is a soft step at the noise's own (1 − coverage) quantile, so the covered share of the sky IS the octas / 8 |
+| **CL-2 the looks** | cumulus, cumulonimbus, stratocumulus ⇒ **Puffy** (crisp edges; tile 3 km, 2 km for stratocumulus); stratus ⇒ **Sheet** (soft, tile 6 km); cirrus ⇒ **Streaks** (the noise stretched six-fold along one axis, faint, tile 8 km); cumulonimbus greyer, stratus a little greyer |
+| **CL-3 where** | a deck ABOVE the eye: its base; BELOW the eye: its top (base + thickness); inside it: none (the fog of the visibility is the cloud). As background it never hides the world — from above it shows only past the ground's edge |
+| **CL-4 the extent** | a 24 × 24 grid centred under the eye, radius 10 × the height above or below (6–30 km), fading to nothing over its outer half; every vertex moved toward the eye by one factor so all of it lies inside half the far clip — a uniform scale about the eye changes nothing on screen |
+| **CL-5 the drift and the light** | the texture moves with the wind AT THE LAYER'S BASE (`WeatherField.WindAt`) × the SIM time (paused ⇒ still, as the effects); white lit by the scene's ambient + sun, so a night deck is a dark grey |
+
+**Rejected — one line each:** *a cloud shader* — the fixed-function texture × vertex colour does it, and a second shader is one more thing
+the Windows GL must compile; *depth-tested clouds in the world* — at eye height the far clip would cut a 1.5 km deck to a patch, and from above
+it would cover the map; *one texture with the coverage in a shader* — needs that shader.
+
+**As-built `2026-10-22`** — matches the diagrams. `CloudDeckRenderer` + `SceneCloudLayer` + `CloudLook` (FDP `Vis3D`, cross-lane FDP
+engine), `SceneAtmosphere.Clouds`, the hook in `MapCamera3D.BeginMode`; `WeatherSky.LookOf` / `CloudsOf` and `Of(sample, drift)`;
+`WeatherSkyLayer` passes each layer's drift. ⚠ **One trap, measured:** flushing rlgl's batch (`DrawRenderBatchActive`) resets the bound texture
+to the default white one ⇒ the texture is bound again for every grid row (the first build drew a solid white deck).
+Rails `WeatherSkyTests.CE1146_CL_*` ×3 (the covered share IS the coverage ±6 % for every look; tiles; cirrus varies > 2.5× faster across than
+along · base from below, top from above, none inside, inside the far clip, the rim fade · the deck → looks, coverage, drift, a dark Cb, a
+grey night) — ✅ red-proved: the quantile taken at the coverage instead of its complement ⇒ out of range. Frame rail
+`Map3DFrameRail.CE1146_V_CL_CloudLayers_FromBelow_AndTheMapStaysVisibleFromAbove` (Mesa under Xvfb) — ✅ red-proved: the clouds drawn WITH
+the depth test ⇒ the deck covers the map from above (grey 131,133,135 where the ground is). ⚠ Not yet seen on the Windows GL.
+
+| scattered cumulus (4 octas, 1.5 km) | an overcast stratus (600 m) — the dim light under it is WS-2 |
+|---|---|
+| ![](assets/map-3d/weather-clouds-scattered-cumulus.png) | ![](assets/map-3d/weather-clouds-overcast-stratus.png) |
+| **cirrus streaks (3 octas, 7 km)** | **a free camera 3 km up over an overcast at 600 m: the map stays in view (CL-3)** |
+| ![](assets/map-3d/weather-clouds-cirrus.png) | ![](assets/map-3d/weather-clouds-from-above-overcast.png) |
 
 ### 6ab. CE-3289 — filming the 3-D map: a director camera and a clean capture of the scene — DESIGN + AS-BUILT `2026-10-21` (backend, cross-lane into ui's map)
 

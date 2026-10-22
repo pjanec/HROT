@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Vis3D;
 using Fdp.Toolkit.Weather;
@@ -82,5 +83,113 @@ public sealed class WeatherSkyTests
         float clear = cam.FogDensityFor(WeatherSky.Of(Sample(30, 180, 1f, visibility: 50000f)));
         Assert.Equal(SceneAtmosphere.FogFor(cam.FarClip * 0.9f), clear, 6);   // clamped: faded fully before the far clip
         Assert.Equal(1.1f / (5f * 6f + 600f), cam.FogDensityFor(SceneAtmosphere.Default), 6);   // the free camera's haze, unchanged
+    }
+    /// <summary>
+    /// ⭐ CE-1146 PR-1 (Map 3-D §6aa) — the precipitation overlay: none without precipitation; more drops for a heavier rate (a cap for a
+    /// cloudburst); rain falls as streaks slanted WITH the wind across the view, snow as flakes; the same field at the same time (no state),
+    /// moving with time; every drop on the screen. ✅ Red-proof: the slant's sign flipped ⇒ the streaks lean into the wind.
+    /// </summary>
+    [Fact]
+    public void CE1146_PR1_Rain_AsStreaksWithTheWind_Snow_AsFlakes_AsManyAsTheRate()
+    {
+        Assert.Equal(0, Precipitation.CountOf(PrecipitationKind.None, 10f));
+        Assert.True(Precipitation.CountOf(PrecipitationKind.Rain, 10f) > Precipitation.CountOf(PrecipitationKind.Rain, 1f));
+        Assert.Equal(Precipitation.MaxDrops, Precipitation.CountOf(PrecipitationKind.Rain, 500f));
+
+        var screen = new Vector2(1280f, 800f);
+        var a = new List<(Vector2 A, Vector2 B, float Size)>();
+        var b = new List<(Vector2 A, Vector2 B, float Size)>();
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, windAcross: 8f, time: 3f, screen, a);
+        Assert.Equal(Precipitation.CountOf(PrecipitationKind.Rain, 4f), a.Count);
+        Assert.All(a, d => Assert.True(d.Size == 0f && d.B.Y > d.A.Y && d.B.X > d.A.X, "a streak falling to the right with the wind"));
+        Assert.All(a, d => Assert.True(d.A.X >= 0f && d.A.X <= screen.X && d.A.Y >= -20f && d.A.Y <= screen.Y + 20f, $"on screen: {d.A}"));
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, 8f, 3f, screen, b);
+        Assert.Equal(a, b);                                                           // the same field at the same time
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, 8f, 3.05f, screen, b);
+        Assert.NotEqual(a[0].A, b[0].A);                                             // and it falls
+        Precipitation.Drops(PrecipitationKind.Rain, 4f, -8f, 3f, screen, b);
+        Assert.All(b, d => Assert.True(d.B.X < d.A.X, "the other wind, the other slant"));
+        Precipitation.Drops(PrecipitationKind.Snow, 2f, 0f, 3f, screen, b);
+        Assert.All(b, d => Assert.True(d.Size > 0f, "flakes"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1146 CL-1 / CL-2 (Map 3-D §6aa.CL) — the cloud texture covers the sky as the octas say: its opaque share is the coverage (a
+    /// few, half, nearly all; an overcast everywhere), it tiles seamlessly, and cirrus is STREAKY (it varies far faster across its streaks
+    /// than along them). ✅ Red-proof: the threshold taken at the coverage instead of its complement ⇒ two octas cover three quarters.
+    /// </summary>
+    [Fact]
+    public void CE1146_CL_TheTexture_CoversTheSkyAsTheOctasSay_Tiles_AndCirrusIsStreaky()
+    {
+        foreach (var look in new[] { CloudLook.Puffy, CloudLook.Sheet, CloudLook.Streaks })
+            foreach (var cover in new[] { 0.25f, 0.5f, 0.875f })
+            {
+                var a = CloudDeckRenderer.Opacity(look, cover);
+                float share = a.Count(x => x >= 0.5f * CloudDeckRenderer.Density(look)) / (float)a.Length;
+                Assert.InRange(share, cover - 0.06f, cover + 0.06f);
+            }
+        Assert.All(CloudDeckRenderer.Opacity(CloudLook.Sheet, 1f), x => Assert.Equal(CloudDeckRenderer.Density(CloudLook.Sheet), x, 3));
+        Assert.All(CloudDeckRenderer.Opacity(CloudLook.Puffy, 0f), x => Assert.Equal(0f, x));
+
+        Assert.Equal(CloudDeckRenderer.Noise(CloudLook.Puffy, 0.13f, 0.71f), CloudDeckRenderer.Noise(CloudLook.Puffy, 1.13f, -0.29f), 4);   // tiles
+
+        float along = 0f, across = 0f;
+        for (int i = 0; i < 400; i++)
+        {
+            float u = (i * 37 % 400) / 400f, v = (i * 91 % 400) / 400f;
+            along += System.MathF.Abs(CloudDeckRenderer.Noise(CloudLook.Streaks, u + 0.01f, v) - CloudDeckRenderer.Noise(CloudLook.Streaks, u, v));
+            across += System.MathF.Abs(CloudDeckRenderer.Noise(CloudLook.Streaks, u, v + 0.01f) - CloudDeckRenderer.Noise(CloudLook.Streaks, u, v));
+        }
+        Assert.True(across > 2.5f * along, $"streaks: across {across:F2} vs along {along:F2}");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1146 CL-3 / CL-4 (§6aa.CL) — the geometry: a deck above the eye is drawn at its base, below at its top, none inside; its radius
+    /// grows with the height (bounded); every vertex is scaled into the far clip; it fades to nothing at the rim.
+    /// </summary>
+    [Fact]
+    public void CE1146_CL_ThePlane_BaseFromBelow_TopFromAbove_NoneInside_AndAllInsideTheFarClip()
+    {
+        var deck = new SceneCloudLayer(1500f, 600f, 0.5f, CloudLook.Puffy, 3000f, Vector2.Zero, Raylib_cs.Color.White);
+        Assert.True(CloudDeckRenderer.PlaneOf(deck, 2f, out float z) && z == 1500f);
+        Assert.True(CloudDeckRenderer.PlaneOf(deck, 3000f, out z) && z == 2100f);
+        Assert.False(CloudDeckRenderer.PlaneOf(deck, 1800f, out _), "inside the cloud: the fog is the cloud");
+
+        float h = 1498f, radius = CloudDeckRenderer.RadiusFor(h), far = 2000f;
+        Assert.Equal(14980f, radius);
+        float k = CloudDeckRenderer.ScaleFor(radius, h, far);
+        Assert.True(System.MathF.Sqrt(radius * radius + h * h) * k <= far * 0.5f, "the farthest corner lies inside the far clip");
+        Assert.Equal(CloudDeckRenderer.MinRadius, CloudDeckRenderer.RadiusFor(20f));
+        Assert.Equal(CloudDeckRenderer.MaxRadius, CloudDeckRenderer.RadiusFor(9000f));
+        Assert.Equal(1f, CloudDeckRenderer.Fade(0f, radius));
+        Assert.Equal(0f, CloudDeckRenderer.Fade(radius, radius), 4);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1146 CL-2 / CL-5 (§6aa.CL) — the sample's deck becomes the drawn layers: none when clear; an overcast stratus is a full SHEET, a
+    /// cirrus STREAKS, a cumulonimbus a dark heap; at night the deck is grey, not white; the drift is passed through per layer.
+    /// </summary>
+    [Fact]
+    public void CE1146_CL_TheDeck_BecomesTheLayers_LookedAndLitByTheWeather()
+    {
+        Assert.Null(WeatherSky.Of(Sample(50, 180, 1f)).Clouds);
+
+        var w = WeatherConditions.Standard;
+        w.CloudCount = 3;
+        w.SetCloud(0, 600f, 400f, CloudCover.Overcast, CloudKind.Stratus);
+        w.SetCloud(1, 7000f, 300f, CloudCover.Scattered, CloudKind.Cirrus);
+        w.SetCloud(2, 1200f, 6000f, CloudCover.Few, CloudKind.Cumulonimbus);
+        var day = Sample(50, 180, 1f) with { Clouds = CloudDeck.Of(w) };
+        var drift = new[] { new Vector2(10f, 0f), new Vector2(0f, 20f), new Vector2(-5f, 5f) };
+        var layers = WeatherSky.Of(day, drift).Clouds!;
+        Assert.Equal(3, layers.Length);
+        Assert.Equal((600f, 1f, CloudLook.Sheet), (layers[0].HeightZ, layers[0].Coverage, layers[0].Look));
+        Assert.Equal((CloudLook.Streaks, 0.5f), (layers[1].Look, layers[1].Coverage));
+        Assert.Equal(new Vector2(0f, 20f), layers[1].Drift);
+        Assert.True(layers[2].Tint.R < layers[1].Tint.R * 0.7f, "a cumulonimbus is dark");
+        Assert.True(layers[1].Tint.R > 230, $"a cirrus by day is white: {layers[1].Tint}");
+
+        var night = WeatherSky.Of(Sample(-30, 0, 0.001f) with { Clouds = CloudDeck.Of(w) }).Clouds!;
+        Assert.True(night[1].Tint.R < 140, $"at night the deck is grey: {night[1].Tint}");
     }
 }

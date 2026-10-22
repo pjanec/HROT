@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Orchestration.Preview
     /// leave the other without it</b> — for the editor-only handler that is exactly the hardwiring the
     /// user's steer forbids. ⭐ Both assemblies can reach this one, so there is ONE implementation of
     /// "what preview saves" even while <c>HN-016</c>'s duplicate handlers stand.</para>
+    /// <para>⭐ <c>D14</c> (<c>2026-10-22</c>) — the duplicate is GONE: <c>PreviewClusterOpHandler</c> was deleted and the editor
+    /// drives the same <c>ReferencePreviewHandler</c> its slave holds (docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b U1).</para>
     ///
     /// <para>⭐⭐ <b>How it is cluster-wide with NO new protocol.</b> Both handlers answer
     /// <c>PrepareState(LoadingPreview / UnloadingPreview)</c>: the master broadcasts, and <b>every node

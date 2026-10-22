@@ -1,0 +1,38 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U4 (CE-3084) the attack approach. From the header's Judge (3) and the take: he advances under CombatPosture, fires at the hostile at once, and fires at it AGAIN after its own mission has walked it to (360,80) behind the wall. NOT expressed: (1) the posture winner AdvanceAndAttack and (2) the approach winner Flank/FiringPosition - utility decision winners are not readable (DESIGN_Scenario_Regression §7); the golden's positions are what would show a straight walk at the last-seen spot.",
+  "runFor": 70,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rifleman advances under CombatPosture",
+      "on": "task",
+      "who": "Rifleman",
+      "is": "CombatPosture"
+    },
+    {
+      "name": "the rifleman fires at the hostile",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Hidden Hostile"
+    },
+    {
+      "name": "the hostile has walked behind the wall",
+      "on": "near",
+      "who": "Hidden Hostile",
+      "point": [
+        360,
+        80
+      ],
+      "within": 3
+    },
+    {
+      "name": "he regains sight and fires after it is behind the wall",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Hidden Hostile",
+      "after": "the hostile has walked behind the wall"
+    }
+  ]
+}

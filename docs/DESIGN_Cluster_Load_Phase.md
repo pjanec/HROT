@@ -22,6 +22,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — a checkpoint restore is a load: CheckpointLoadPart applies the keyframe in place of the scenario step (CE-3299).
   - docs/DESIGN_Film_Director.md — a CONSUMER of ScenarioLoadSequence (§9) for its playlist
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — a Player that joins LATE runs this same per-role load chain,
     replayed to the one node by the orchestrator (§4-E there); it adds nothing to the chain.

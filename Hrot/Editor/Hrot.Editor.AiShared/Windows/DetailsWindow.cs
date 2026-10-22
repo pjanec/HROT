@@ -33,10 +33,20 @@ public sealed record DetailsWindowPanelViewModel(
     string Mode,
     string Focus,
     int SelectionCount,
-    int EntityCount) : IPanelViewModel
+    int EntityCount,
+    string Layout = "Tabs") : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
+}
+
+/// <summary>⭐ <c>BP-515</c> DS-1 (DESIGN_Details_Panel_View_Switching.md §8) — how the shell lays out its offered views.</summary>
+public enum DetailsLayout
+{
+    /// <summary>One tab per view; the selected tab is the chosen view.</summary>
+    Tabs,
+    /// <summary>Every view in its own collapsing header, one under another.</summary>
+    Stacked,
 }
 
 /// <summary>
@@ -142,8 +152,16 @@ public sealed class DetailsWindow
     private readonly IDetailsContextSource  _context;
     private readonly DetailsViewSelector    _selector = new();
 
-    private IDetailsViewInstance? _instance;
+    /// <summary>⭐ <c>BP-515</c> DS-4 — the live instance of each DRAWN view: one in tabs, one per open header when stacked.</summary>
+    private readonly Dictionary<string, IDetailsViewInstance> _instances = new(StringComparer.Ordinal);
     private string?               _instanceId;
+
+    // ⭐ BP-515 DS-6 — a request for a view, pending until the view is offered; then the view to REVEAL on the next draw.
+    private string? _requestedViewId;
+    private int     _requestFramesLeft;
+    private string? _revealViewId;
+    // ⭐ BP-515 DS-2 — the tab ImGui last showed, so a choice changed from outside is pushed to the tab bar.
+    private string? _shownTabId;
 
     /// <param name="id">Unique ImGui window id (e.g. <c>"ai_details_btree"</c>). ⚠ Persisted — see the
     /// class remarks on the rename.</param>
@@ -312,15 +330,85 @@ public sealed class DetailsWindow
     /// </summary>
     private IDetailsViewInstance InstanceFor(DetailsViewDescriptor descriptor)
     {
-        if (_instance != null && string.Equals(_instanceId, descriptor.Id, StringComparison.Ordinal))
-            return _instance;
+        // ⭐ BP-515 DS-4 — one view drawn (tabs): every OTHER instance is disposed, as the single slot always did
+        foreach (var id in _instances.Keys.Where(k => !string.Equals(k, descriptor.Id, StringComparison.Ordinal)).ToList())
+        {
+            _instances[id].Dispose();
+            _instances.Remove(id);
+        }
+        _instanceId = descriptor.Id;
+        return StackedInstanceFor(descriptor);
+    }
 
-        _instance?.Dispose();
-        _instance   = descriptor.Create()
+    /// <summary>⭐ <c>BP-515</c> DS-4 — the instance of one of SEVERAL drawn views (stacked): created on first need, the others kept.</summary>
+    private IDetailsViewInstance StackedInstanceFor(DetailsViewDescriptor descriptor)
+    {
+        if (_instances.TryGetValue(descriptor.Id, out var live)) return live;
+        var created = descriptor.Create()
                       ?? throw new InvalidOperationException(
                           $"Details view '{descriptor.Id}' returned a null instance from its factory.");
-        _instanceId = descriptor.Id;
-        return _instance;
+        _instances[descriptor.Id] = created;
+        return created;
+    }
+
+    /// <summary>⭐ <c>BP-515</c> DS-4 — disposes the instances of views no longer offered. ⚠ An EMPTY offer disposes nothing (as before).</summary>
+    private void PruneInstances(IReadOnlyList<DetailsViewDescriptor> offered)
+    {
+        if (offered.Count == 0) return;
+        foreach (var id in _instances.Keys.Where(k => !offered.Any(d => string.Equals(d.Id, k, StringComparison.Ordinal))).ToList())
+        {
+            _instances[id].Dispose();
+            _instances.Remove(id);
+            if (string.Equals(_instanceId, id, StringComparison.Ordinal)) _instanceId = null;
+        }
+    }
+
+    /// <summary>⭐ <c>BP-515</c> — every view instantiated right now (a rail surface: one in tabs, one per open header when stacked).</summary>
+    public IReadOnlyCollection<string> InstantiatedViewIds => _instances.Keys;
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ BP-515 — THE LAYOUT AND THE REQUEST FOR A VIEW (DESIGN_Details_Panel_View_Switching.md §8)
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>BP-515</c> DS-1 — tabs (one per view) or stacked collapsing headers; tabs by default. Remembered for the session.</summary>
+    public DetailsLayout Layout { get; set; } = DetailsLayout.Tabs;
+
+    /// <summary>⭐ <c>BP-515</c> DS-6 — how many frames a request waits for its view to be offered (the selection lands a frame later).</summary>
+    public const int RequestFrames = 120;
+
+    /// <summary>
+    /// ⭐ <c>BP-515</c> DS-6 — ask this shell to SHOW <paramref name="viewId"/>: pending until the view is offered (at most
+    /// <see cref="RequestFrames"/>), then picked and revealed — its tab selected, or its header opened and scrolled into view.
+    /// 🔒 User, 2026-10-22: <i>"'Properties…' … should open the 'Details' panel"</i> — the Editor's Properties handler asks for the
+    /// Components view through this. ⚠ Not a <see cref="Pick"/>: the selector drops a pick for a view not offered yet.
+    /// </summary>
+    public void RequestView(string viewId)
+    {
+        _requestedViewId   = viewId ?? throw new ArgumentNullException(nameof(viewId));
+        _requestFramesLeft = RequestFrames;
+    }
+
+    /// <summary>⭐ The view a request is still waiting for, or null (a rail surface).</summary>
+    public string? PendingViewRequest => _requestedViewId;
+
+    /// <summary>⭐ The view the next draw reveals, or null (a rail surface).</summary>
+    public string? RevealViewId => _revealViewId;
+
+    /// <summary>⭐ <c>BP-515</c> DS-6 — this frame, with a pending request applied once its view is offered (re-resolved after the pick).</summary>
+    public DetailsFrame FrameForDraw()
+    {
+        var frame = Frame();
+        if (_requestedViewId is not { } wanted) return frame;
+        foreach (var d in frame.Choice.Offered)
+        {
+            if (!string.Equals(d.Id, wanted, StringComparison.Ordinal)) continue;
+            Pick(frame.Context, wanted);
+            _revealViewId    = wanted;
+            _requestedViewId = null;
+            return Frame();
+        }
+        if (--_requestFramesLeft <= 0) _requestedViewId = null;
+        return frame;
     }
 
     /// <summary>
@@ -340,7 +428,8 @@ public sealed class DetailsWindow
             ShowsFloatAndPin,
             ctx.Asset?.AssetId, ctx.Asset?.Name, ctx.Perspective,
             ctx.Mode.ToString(), ctx.Focus.ToString(),
-            ctx.Selection.Count, ctx.Entities.Count);
+            ctx.Selection.Count, ctx.Entities.Count,
+            Layout.ToString());
 
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
         return vm;
@@ -367,13 +456,16 @@ public sealed class DetailsWindow
     /// </summary>
     internal DetailsWindowPanelViewModel SimulateDrawClientArea()
     {
-        var frame = Frame();
+        var frame = FrameForDraw();
         var vm    = BuildAndPublish(frame);
 
         // ⛔ An empty shell hosts no view — there is nothing further to publish, and inventing an entry
         //   would claim a panel the user cannot see.
         if (frame.EmptyState == null && frame.Choice.View != null)
+        {
+            _revealViewId = null;   // ⭐ BP-515 — what a draw consumes, the headless draw consumes too
             InstanceFor(frame.Choice.View).Draw(frame.Context, _drawId);
+        }
 
         return vm;
     }
@@ -384,7 +476,7 @@ public sealed class DetailsWindow
     /// </remarks>
     protected override void DrawClientArea()
     {
-        var frame = Frame();
+        var frame = FrameForDraw();
         BuildAndPublish(frame);
 
         if (frame.EmptyState != null)
@@ -396,8 +488,9 @@ public sealed class DetailsWindow
             return;
         }
 
-        DrawToolbar(frame);
-        InstanceFor(frame.Choice.View!).Draw(frame.Context, _drawId);
+        // ⭐⭐ BP-515 — the switch is a TAB BAR or STACKED HEADERS (DS-1…DS-5); ⛔ the radio buttons are gone
+        if (Layout == DetailsLayout.Stacked) DrawStacked(frame);
+        else                                 DrawTabs(frame);
     }
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
@@ -475,9 +568,14 @@ public sealed class DetailsWindow
     public DetailsViewWindow? OpenFloat(WindowManager windowManager)
     {
         ArgumentNullException.ThrowIfNull(windowManager);
+        return Frame().Choice.View is { } descriptor ? OpenFloat(windowManager, descriptor) : null;
+    }
 
-        var frame = Frame();
-        if (frame.Choice.View is not { } descriptor) return null;
+    /// <summary>⭐ <c>BP-515</c> DS-5 — float THIS view (a stacked header's own button), not necessarily the chosen one.</summary>
+    public DetailsViewWindow? OpenFloat(WindowManager windowManager, DetailsViewDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(windowManager);
+        ArgumentNullException.ThrowIfNull(descriptor);
 
         var id = FloatIdFor(OwningPerspective, descriptor.Id);
         if (windowManager.TryGetWindow(id, out var existing))
@@ -513,10 +611,16 @@ public sealed class DetailsWindow
     public DetailsViewWindow? Pin(WindowManager windowManager)
     {
         ArgumentNullException.ThrowIfNull(windowManager);
+        return Frame().Choice.View is { } descriptor ? Pin(windowManager, descriptor) : null;
+    }
+
+    /// <summary>⭐ <c>BP-515</c> DS-5 — pin THIS view at the current context (a stacked header's own button).</summary>
+    public DetailsViewWindow? Pin(WindowManager windowManager, DetailsViewDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(windowManager);
+        ArgumentNullException.ThrowIfNull(descriptor);
 
         var frame = Frame();
-        if (frame.Choice.View is not { } descriptor) return null;
-
         var id = PinIdFor(frame.Context, descriptor.Id);
         if (windowManager.TryGetWindow(id, out var existing))
         {
@@ -539,58 +643,134 @@ public sealed class DetailsWindow
     }
 
     /// <summary>
-    /// ⭐⭐ <b><c>L2.2</c> — the toolbar.</b> 📌 <c>R-98</c>: <i>"the toolbar is a panel switch."</i>
+    /// ⭐⭐⭐ <b><c>BP-515</c> DS-2 — the TABBED layout.</b> 📌 <c>R-98</c>: <i>"the toolbar is a panel switch"</i> — still: the
+    /// selected tab IS the selector's choice, and a click on a tab is <see cref="Pick"/>. One tab per offered view, in <c>Rank</c>
+    /// order, drawn even for one view: the bar carries the layout, float and pin buttons (DS-5, trailing).
     ///
-    /// <para>⚠ <b>The SWITCH is drawn only when more than one view applies</b> — ⭐ a judgement call,
-    /// stated: with a single offer the row would be one permanently-pressed button that does nothing,
-    /// and the view's own heading already names it. ⛔ Nothing is lost — the SELECTOR still runs, so
-    /// the moment a second view claims the context the switch appears.</para>
-    ///
-    /// <para>⛔⛔ <b><c>VC-1</c> — that rule used to swallow the FLOAT/PIN affordances too, and that was
-    /// wrong.</b> 📐 The early return sat above both, so a context offering exactly ONE view had no
-    /// float and no pin. ⚠ Floating is at its most useful precisely there — one view, and the designer
-    /// wants it beside something else rather than docked — and §6 <c>L4.4</c>'s reason for entry points
-    /// is <i>"so a float is reachable"</i>, which says nothing about how many views apply.
-    /// ⇒ ⭐ the guard now covers the SWITCH ONLY; float/pin draw whenever a view is showing.</para>
+    /// <para>⚠ ImGui keeps its own selected tab. ⇒ when the CHOICE changed from outside (a <c>Rank</c> fallback, a request) the
+    /// chosen tab is pushed with <c>SetSelected</c>; a frame where ImGui shows a different tab WITHOUT a push is the designer's
+    /// click.</para>
+    /// <para>⛔ The radio buttons' "click the active one to clear the pick" is gone — a tab does not toggle; the <c>Rank</c> default
+    /// still returns when the pick stops applying (unchanged).</para>
     /// </summary>
-    private void DrawToolbar(in DetailsFrame frame)
+    private void DrawTabs(in DetailsFrame frame)
     {
-        var offered = frame.Choice.Offered;
+        var chosen = frame.Choice.View!;
+        bool push = _revealViewId != null || !string.Equals(_shownTabId, chosen.Id, StringComparison.Ordinal);
+        _revealViewId = null;
 
-        // ⭐⭐⭐ VC-1 — the two decisions are NAMED and INDEPENDENT (see the properties below).
-        //   ⛔ They used to be one `if (offered.Count < 2) return;` above both blocks, which is exactly
-        //      how the switch's rule came to govern the float.
-        if (ShowsViewSwitch(frame))
-        for (int i = 0; i < offered.Count; i++)
+        DetailsViewDescriptor? shown = null;
+        float barLeft = ImGuiNET.ImGui.GetCursorScreenPos().X, barTop = ImGuiNET.ImGui.GetCursorScreenPos().Y;
+        float barWidth = ImGuiNET.ImGui.GetContentRegionAvail().X;
+        if (ImGuiNET.ImGui.BeginTabBar($"##{Id}_tabs", ImGuiNET.ImGuiTabBarFlags.FittingPolicyScroll))
         {
-            var d = offered[i];
-            if (i > 0) ImGuiNET.ImGui.SameLine();
-
-            bool active = ReferenceEquals(d, frame.Choice.View);
-            // ⭐ A radio-shaped toggle: clicking the ACTIVE one clears the pick, so the designer can
-            //   get back to the Rank default without hunting for a "reset" — ⛔ and without a second
-            //   affordance to explain.
-            if (ImGuiNET.ImGui.RadioButton($"{d.Title}##{Id}_tab_{d.Id}", active))
+            foreach (var d in frame.Choice.Offered)
             {
-                if (active) ClearPick(frame.Context);
-                else        Pick(frame.Context, d.Id);
+                var flags = push && ReferenceEquals(d, chosen) ? ImGuiNET.ImGuiTabItemFlags.SetSelected : ImGuiNET.ImGuiTabItemFlags.None;
+                if (BeginTab($"{d.Title}##{Id}_tab_{d.Id}", flags))
+                {
+                    shown = d;
+                    ImGuiNET.ImGui.EndTabItem();
+                }
             }
+            ImGuiNET.ImGui.EndTabBar();
         }
 
-        // ⭐⭐ L4.4 — the float/pin affordances live on the toolbar, at the right edge.
-        //   ⚠ A DRAW, and unrailed by construction (R-21/R-62) — everything it DOES is OpenFloat/Pin,
-        //     which are railed directly; WHETHER it draws is ShowsFloatAndPin, which is railed too.
-        // ⚠ The `is { } wm` half is the compiler's, not a second rule — ShowsFloatAndPin already
-        //   requires a manager, but flow analysis cannot carry that across a property.
-        if (ShowsFloatAndPin && _windowManager is { } wm)
+        // ⭐ DS-5 — the buttons RIGHT-ALIGNED on the tab bar's row (ImGui's "trailing" tab buttons would sit right after the tabs):
+        //   the layout switch, then float and pin of the shown tab's view. ⚠ Many wide tabs can run under them — four views fit.
+        var target = shown ?? chosen;
+        var after = ImGuiNET.ImGui.GetCursorScreenPos();
+        var labels = new System.Collections.Generic.List<string> { Fdp.Presentation.Fonts.IconsFontAwesome6.LayerGroup };
+        bool floatPin = ShowsFloatAndPin && _windowManager is not null;
+        if (floatPin) { labels.Add(Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare); labels.Add(Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack); }
+        float pad = ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f, spacing = ImGuiNET.ImGui.GetStyle().ItemSpacing.X;
+        float width = labels.Sum(l => ImGuiNET.ImGui.CalcTextSize(l).X + pad) + spacing * (labels.Count - 1);
+        ImGuiNET.ImGui.SetCursorScreenPos(new System.Numerics.Vector2(barLeft + barWidth - width, barTop));
+        if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.LayerGroup}##{Id}_layout")) Layout = DetailsLayout.Stacked;
+        Tooltip("Show the views stacked, each in its own header");
+        if (floatPin && _windowManager is { } wm)
         {
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"float##{Id}_float")) OpenFloat(wm);
+            if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare}##{Id}_float")) OpenFloat(wm, target);
+            Tooltip($"Float {target.Title} in its own window (follows the selection)");
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"pin##{Id}_pin"))     Pin(wm);
+            if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack}##{Id}_pin")) Pin(wm, target);
+            Tooltip($"Pin {target.Title} at this selection");
         }
+        ImGuiNET.ImGui.SetCursorScreenPos(after);
 
-        ImGuiNET.ImGui.Separator();
+        var draw = target;
+        if (!push && !ReferenceEquals(draw, chosen)) Pick(frame.Context, draw.Id);   // ⭐ the designer clicked a tab
+        _shownTabId = draw.Id;
+        InstanceFor(draw).Draw(frame.Context, _drawId);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-515</c> DS-3 — the STACKED layout:</b> every offered view in its own collapsing header, <c>Rank</c> order. On
+    /// first sight only the chosen view's header is open (ImGui keeps each header's state after); OPENING a header is
+    /// <see cref="Pick"/>; a requested view's header is opened and scrolled into view (DS-6). Float and pin are right-aligned on
+    /// EACH header and act on THAT view (DS-5, allow-overlap).
+    /// </summary>
+    private void DrawStacked(in DetailsFrame frame)
+    {
+        var reveal = _revealViewId;
+        _revealViewId = null;
+        PruneInstances(frame.Choice.Offered);
+        float right = ImGuiNET.ImGui.GetCursorPosX() + ImGuiNET.ImGui.GetContentRegionAvail().X;   // the content's right edge (window-local)
+
+        // the layout switch, right-aligned above the headers
+        float glyph = ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.TableColumns).X
+                      + ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f;
+        ImGuiNET.ImGui.SetCursorPosX(MathF.Max(ImGuiNET.ImGui.GetCursorPosX(), right - glyph));
+        if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.TableColumns}##{Id}_layout")) Layout = DetailsLayout.Tabs;
+        Tooltip("Show the views as tabs");
+
+        bool buttons = ShowsFloatAndPin && _windowManager is not null;
+        float spacing = ImGuiNET.ImGui.GetStyle().ItemSpacing.X;
+        foreach (var d in frame.Choice.Offered)
+        {
+            if (string.Equals(reveal, d.Id, StringComparison.Ordinal)) ImGuiNET.ImGui.SetNextItemOpen(true, ImGuiNET.ImGuiCond.Always);
+            else ImGuiNET.ImGui.SetNextItemOpen(ReferenceEquals(d, frame.Choice.View), ImGuiNET.ImGuiCond.Once);
+            ImGuiNET.ImGui.SetNextItemAllowOverlap();
+            bool open = ImGuiNET.ImGui.CollapsingHeader($"{d.Title}##{Id}_hdr_{d.Id}", ImGuiNET.ImGuiTreeNodeFlags.AllowOverlap);
+            bool opened = open && ImGuiNET.ImGui.IsItemToggledOpen();
+            if (string.Equals(reveal, d.Id, StringComparison.Ordinal)) ImGuiNET.ImGui.SetScrollHereY(0f);
+            if (buttons && _windowManager is { } wm)
+            {
+                float w = ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack).X
+                          + ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare).X
+                          + ImGuiNET.ImGui.GetStyle().FramePadding.X * 4f + spacing;
+                ImGuiNET.ImGui.SameLine(right - w);
+                if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare}##{Id}_float_{d.Id}")) OpenFloat(wm, d);
+                Tooltip($"Float {d.Title} in its own window (follows the selection)");
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack}##{Id}_pin_{d.Id}")) Pin(wm, d);
+                Tooltip($"Pin {d.Title} at this selection");
+            }
+            if (opened) Pick(frame.Context, d.Id);
+            if (!open) continue;
+            ImGuiNET.ImGui.PushID(d.Id);
+            StackedInstanceFor(d).Draw(frame.Context, _drawId);
+            ImGuiNET.ImGui.PopID();
+        }
+    }
+
+    /// <summary>A tab with flags and NO close button — ImGui.NET's managed overload with flags takes a <c>p_open</c>, which would add one.</summary>
+    private static unsafe bool BeginTab(string label, ImGuiNET.ImGuiTabItemFlags flags)
+    {
+        int count = System.Text.Encoding.UTF8.GetByteCount(label);
+        byte* utf8 = stackalloc byte[count + 1];
+        fixed (char* chars = label) System.Text.Encoding.UTF8.GetBytes(chars, label.Length, utf8, count);
+        utf8[count] = 0;
+        return ImGuiNET.ImGuiNative.igBeginTabItem(utf8, null, flags) != 0;
+    }
+
+    /// <summary>⭐ <c>BP-515</c> — the real draw, for a frame rail inside a live ImGui frame (the window manager is not needed).</summary>
+    internal void DrawClientAreaForRail() => DrawClientArea();
+
+    private static void Tooltip(string text)
+    {
+        if (ImGuiNET.ImGui.IsItemHovered()) ImGuiNET.ImGui.SetTooltip(text);
     }
 
     /// <summary>
@@ -614,69 +794,11 @@ public sealed class DetailsWindow
     /// <para>⭐⭐ <b>Registration is the one event both roots already perform</b>, so hanging the wiring
     /// off it makes forgetting unrepresentable — 📌 <c>R-126</c>'s PULL argument, one floor up.</para>
     ///
-    /// <para>⭐⭐ It also contributes <c>L4.4</c>'s <b>View-menu</b> entry points *(<c>BP-403</c>)* —
-    /// see <see cref="RegisterViewMenu"/>.</para>
+    /// <para>⭐ <c>CE-1150</c> (canvas-context-menu-design §12 HA-7) — ⛔ SUPERSEDED: it also registered the View ▸ Details menu items
+    /// here (<c>BP-403</c>). 🔒 User, 2026-10-22: <i>"Windows themselves should not answer, they should have no idea there is any
+    /// 'Properties...' menu or some global ui actions"</i> ⇒ the items are actions registered by <c>EntityDetailsBundle</c>, which acts on
+    /// this shell's public <see cref="OpenFloat(WindowManager)"/> / <see cref="Pin(WindowManager)"/>.</para>
     /// </summary>
     public override void OnRegistered(WindowManager manager)
-    {
-        _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
-        RegisterViewMenu(manager);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>L4.4</c>'s SECOND entry point — <c>BP-403</c>, the View menu.</b>
-    /// 📄 §6 <c>L4.4</c>, verbatim: <i>"entry points — toolbar affordance <b>+ the View menu, so a float
-    /// is reachable with Details closed</b>."</i>
-    ///
-    /// <para>⭐⭐⭐ <b>ONE pair of items for ALL perspectives, resolved at CLICK time.</b> ⛔ Not one pair
-    /// per <c>DetailsWindow</c>: 📐 three perspectives host one each, so a per-window path would put
-    /// three near-identical entries in the bar and a shared path would have the last registration win
-    /// — ⚠ silently pointing the menu at whichever perspective happened to register last. ⭐ Resolving
-    /// from <c>CurrentPerspective</c> at click time is the only shape that is correct for all three
-    /// <b>and</b> keeps working when a fourth is added.</para>
-    ///
-    /// <para>⭐ <b>Idempotent by construction</b> — <c>RegisterItem</c> keys on the path, so N windows
-    /// registering the same two paths leave exactly two items *(<see cref="OnRegistered"/>'s
-    /// contract)*.</para>
-    ///
-    /// <para>⚠ <b>Greyed with a REASON rather than hidden</b> when nothing is showing — 📌 the user's
-    /// <c>2026-08-17</c> ruling: <i>"showing explanatory tooltip would be better than allowing user to
-    /// click the button and then saying that it is not possible."</i> ⛔ A vanishing menu item teaches
-    /// nothing.</para>
-    /// </summary>
-    private static void RegisterViewMenu(WindowManager manager)
-    {
-        manager.GlobalMenu.RegisterItem(
-            "View/Details/Float current view",
-            () => ActiveDetails(manager)?.OpenFloat(manager));
-
-        manager.GlobalMenu.RegisterItem(
-            "View/Details/Pin current view",
-            () => ActiveDetails(manager)?.Pin(manager));
-
-        foreach (var (name, verb) in new[] { ("Float current view", "float"), ("Pin current view", "pin") })
-        {
-            var node = manager.GlobalMenu.Root.Children["View"].Children["Details"].Children[name];
-            node.GetEnabled   = () => ActiveDetails(manager)?.CurrentDescriptor() is not null;
-            node.DynamicLabel = () => ActiveDetails(manager)?.CurrentDescriptor() is { } d
-                ? $"{name} ({d.Title})"
-                : $"{name} (nothing to {verb} — no view is showing)";
-        }
-    }
-
-    /// <summary>
-    /// ⭐ The <see cref="DetailsWindow"/> of the perspective the designer is actually in, or
-    /// <see langword="null"/>. ⚠ Scans the registered windows because the manager keys by id and this
-    /// question is about the OWNING PERSPECTIVE — ⛔ and the id is per-host *(`scenario_details`,
-    /// `btree_details`, …)*, so it cannot be derived.
-    /// </summary>
-    private static DetailsWindow? ActiveDetails(WindowManager manager)
-    {
-        foreach (var id in manager.RegisteredWindowIds)
-            if (manager.TryGetWindow(id, out var w)
-             && w is DetailsWindow d
-             && d.OwningPerspective == manager.CurrentPerspective)
-                return d;
-        return null;
-    }
+        => _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
 }

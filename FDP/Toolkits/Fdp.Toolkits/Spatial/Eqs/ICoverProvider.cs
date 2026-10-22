@@ -9,6 +9,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// Implementations may be designer-authored (ManualCoverProvider) or
     /// auto-computed from navmesh edges (future stage).
     /// </summary>
+    // ⭐ D7 (restore design) — content / service / index, never world state: a keyframe must not carry it, and an apply must
+    //   not replace the loaded instance (R-3043).
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.ICoverProvider)]
     public interface ICoverProvider
     {

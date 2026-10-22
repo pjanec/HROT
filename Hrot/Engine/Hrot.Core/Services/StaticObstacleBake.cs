@@ -202,7 +202,8 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         {
             foreach (var v in p.Footprint) { Mix(v.X); Mix(v.Y); }
             Mix(p.BaseZ); Mix(p.TopZ);
-            h ^= (ulong)(p.Material?.Name.GetHashCode() ?? 0); h *= 1099511628211UL;
+            h ^= (p.Material?.Name is { } m ? Fdp.Core.StableHash.Fnv1a32(m) : 0u);   // ⭐ CE-3302 — not string.GetHashCode (per process)
+            h *= 1099511628211UL;
         }
         return h;
     }

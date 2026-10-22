@@ -1,12 +1,17 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
-current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
+updated: 2026-10-22 (§7g.0c critical review — 12 findings, 4 red) · 2026-10-22 (§7g.0b the solution — four operations on the recorder keyframe; R-3041 no network buffers, in-flight losses accepted) · 2026-10-22 (§7g.0 R0″ R-3040 the dry run on the flight recorder; §7g.0a why SyncFrom was chosen — the record) · 2026-10-22 (§7g.0 R0′ — a checkpoint is a recorder keyframe, a restore is the replay load + go live; R0a′ superseded) · 2026-10-22 (§7g.0 R0a — singletons are valid storage, but SyncFrom snapshots carry only 11, borrowed; checkpoint/Stop/dry run need a copy mode) · 2026-10-22 (§7g.0 the order: checkpoint restore first as the test, CE-3299; the inventory measured incomplete) · 2026-10-22 (§7g R-3039 — systems keep their working memory in components, a checkpoint is a plain ECS snapshot; the change list S1–S4) · 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+current-answer: §7g R-3039 for system state and checkpoints · §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+<<<<<<< HEAD
+  - ../DESIGN_Scenario_Regression.md — the consumer that turns "stepped runs repeat" into a regression suite: every scenario judged and compared with its golden, a fresh process each (CE-3294)
+=======
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the SAVE/RESTORE mechanism (CE-3299): the recorder keyframe, AfterRestore, the pause-first checkpoint; resolves §7g.0c F1–F12 as D1–D12.
+>>>>>>> origin/backend
   - docs/blueprints/DESIGN_Time_Architecture.md — owns time: who changes it, the zero-delta pause, §17 stepped-mode determinism
     (sim-time cadence, the step wait). Its §17 OPEN item "event visibility across paused frames" is what THIS document settles.
   - docs/designs/mgmt-1/DESIGN.md — owns editing while paused ("Entities placed/modified", :431) and Always Recording (:1941):
@@ -15,6 +20,8 @@ related-designs:
   - FDP/Engine/Fdp.ModuleHost/docs/UserGuide/05_EventBus.md — owns the bus and its one-frame double buffer.
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b / §11g.5a own the world boundary and `WorldEpoch` (CE-2101), which §7f's reset pulls.
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
+  - docs/designs/mgmt-1/DESIGN.md — §9 owns checkpoints and dry runs (a checkpoint is a recorder keyframe; restoring one must continue the run) — the contract §7f.1's classes A/B/C serve.
+  - docs/designs/replay-and-modules/DESIGN.md — owns what runs during replay and the rewind seam (§2.1l, PreviewStateBracket); §7f.1 is the same rewind reached by Stop.
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
 
@@ -420,6 +427,189 @@ loader into every system — and a background module needs the number in its sna
 | reset — with care | `NavigationIntentBridgeSystem` (its time-travel reset now also fires on a new world, and clears the action and crowd caches it never did) · `WreckSpawnSystem` (as for a new world instance) · `RouteTrajectorySyncSystem` (frees last world's pool entries) · `StaticObstacleBakeSystem` (bakes as the first load did; a bake still running acks nothing) · `DeferredConstructionParticipant` + `OnWorldBoundary()` for `NetworkGatewaySystem` / `SimulatedInitReadinessParticipant` · `DataDrivenGizmoSystem` / `BehaviorGizmoManagerSystem` (tear the gizmos down) · `PhysicsBodyLifecycleSystem` (Stride: `DestroyAll`) · `LocalGridBuilderSystem` (full rebuild) · `HierarchyOrderSystem` (re-sorts) · `ThreatEvaluationSystem` (§7e) |
 | the rail | `EverySystemForgetsTheLastWorldTests` (`FDP/TestShared/WorldBoundaryProbe.cs`): every production system with an instance field holding `Entity` (a collection, tuple or array; a callback is not state) calls `WorldEpoch.Moved` — read from its IL, base classes included — or each such field is EXEMPT with its reason (31 scratch fields, rebuilt each run) |
 | ⛔ rejected | `SoftClear` keeping generations — the replay seek restores recorded handles through `Clear` · an `IWorldBoundaryAware` interface called by the loader — a second mechanism beside the epoch the translators already pull |
+
+> ⚠ **`2026-10-22` (CE-3301) — the rail's blind spot, measured.** `WorldBoundaryProbe` flags only fields holding an `Entity`. ⛔ A cache keyed
+> by NETWORK ID is invisible to it, and a reload reuses network ids as surely as handles: `EqsSolverSystem._surveys` (keyed by network id + child
+> index) kept the old timeline's solve times, so every survey read *not due* after a reload. Fixed with the same `WorldEpoch.Moved` rule. ⭐ And
+> since B1 of the restore design, `Moved` also fires on an in-place RESTORE (a dry-run Stop, a checkpoint restore), while the new `Ended`
+> fires on a boundary only ([restore design §1c](../DESIGN_Checkpoint_And_Dry_Run_Restore.md)).
+
+### 7f.1 🔴 THE BOUNDARY THIS DOES NOT REACH — the editor's **Stop** (`CE-3298`, measured `2026-10-22`, ⏳ fix awaits the user)
+
+📐 `WorldEpoch.Advance` has two callers, both a world that ENDS: `WorldBoundaryReset.Clear` (a load from `Idle`, entering `Idle`) and
+`ScenarioFileService` (`ClusterMaster.IsWorldBoundaryLoad`). ⛔ **Stop is not one.** Play from edit mode enters `OperatingPreview`
+(`ClusterTimeTransportAdapter.StepBy`), and Stop rewinds the world to the edit-mode snapshot — `live.SyncFrom(snap)` in
+`ReferencePreviewHandler` (SimHost, IG, CGF) and `PreviewClusterOpHandler` (the editor) — plus the `PreviewStateBracket` participants
+(allocator, entity map, ELM; [Deterministic Network Ids §2b](../DESIGN_Deterministic_Network_Ids.md)). No epoch moves, so every reset
+above stays asleep, and the next Play's units come back under the **same handles** (the snapshot's own).
+
+| what keeps last Play's state into the next | effect | |
+|---|---|---|
+| `EjectionSystem._ejected` (never removed) | the second Play's jet never ejects its pilot | ✅ **measured**: `EjectionSystemTests` rail below, red |
+| `ThreatEvaluationSystem` counts | the first step publishes edges against last Play's end (the §7e "AllClear for a tank that saw nothing") | by reading |
+| `AreaEffectCloudSystem._lastStep` / `_ending` | a cloud under a reused handle skips its steps (the clock restarted below the stored time) or is never ended | by reading |
+| `CrowdSystem._crowdEntity` | a crowd id's stale handle can alias a new entity (the reload defect CE-3294 measured) | by reading |
+| `DangerAreaSensorSystem._last/_next` | entered/left edges against last Play's end | by reading |
+| `EntityMasterEgressTranslator._publishedNetIds` (and the other per-id egress sets) | Stop restores the id allocator, so the next Play reissues the same ids; the set still holds them ⇒ the master descriptor is skipped ⇒ on a cluster the ghost is never promoted (CE-2101's symptom) | ⚠ by reading, **not run on a cluster** |
+| self-healing: `EmbarkedStateSystem._killSent`, `BleedOutSystem._pending`, `OwnershipEgressSystem` (an equality cache) | none lasting | by reading |
+
+⛔ **The epoch cannot simply be advanced at Stop**: `CycloneNetworkCleanupSystem.cs:52` reads a moved epoch as *"the world ended"* and
+deletes on the wire every entity the node owns — the edit-mode units that survive the rewind included. ⇒ "the world ended" and "the world
+was rewound" are two signals; the first implies the second, not the reverse.
+
+⭐ **Replay**, measured: the simulation group is disabled during playback (§2.1 of the [replay design](../designs/replay-and-modules/DESIGN.md)), and a
+replay session is entered from `Idle` and left through it, so the epoch moves around it; ⚠ the systems registered OUTSIDE the togglable
+groups (that design's §2.1a) and the per-id egress sets at a seek are not classified here.
+
+⛔ **SUPERSEDED the same day — the earlier lean here was "a *rewinds* count beside the epoch; every caller clears on it".** 🔒 User
+(`2026-10-22`): *"There is also checkpointing feature solely relying on all non-auto-recoverable state saved in ecs components. So the
+simulation can continue when checkpoint snapshot is restored. Not sure that relying on world counter fixes this."* ⇒ ⭐ **right, and
+measured**: a counter can only CLEAR, and clearing is exactly what a checkpoint restored into a FRESH process does — 📐 the CE-3215 rail
+(a jet wrecked by its tail), the world restored by `SyncFrom` and a NEW `EjectionSystem` ⇒ **a second pilot** (the wreck still qualifies;
+only the field said "done"). A checkpoint is a recorder keyframe (`CheckpointIOWorker` → `RecorderSystem.RecordKeyframe`), so continuing
+from one is the same act as going live from a replay — [replay design §2.1d](../designs/replay-and-modules/DESIGN.md): *restore the world,
+re-derive the protocol*. ⚠ The named-checkpoint RESTORE op is not built (`ClusterOpType` has none; the debug API's `/checkpoint/restore`
+is the preview Stop) — the contract still binds, because `PrepareLive` from a replay is shipped.
+
+#### ⭐ The checkpoint test — one question per field: *with this field EMPTY and the world restored, does the run continue as if nothing happened?*
+
+| class | answer | examples | home |
+|---|---|---|---|
+| **A — recoverable** | ✅ yes: rebuilt from the world, or falls back to a component | scratch (the 31 exemptions) · caches (`LocalGridBuilderSystem`, sort order) · engine-object maps reconciled each frame (Stride bodies, gizmos) · `ThreatEvaluationSystem` (an empty map falls back to `ThreatCount(memRO)`, `:203`) | ✅ a field; any restore may clear it |
+| **B — protocol** | re-derived at the boundary, never recorded (a peer will not resend) | ELM queues · ghost promotion · deferred construction acks · egress "published once" sets (empty ⇒ republish) | ✅ a field + the re-derivation (§2.1d / §2.1m) |
+| **C — simulation memory** | ⛔ **no** — empty ≠ what happened | 📐 `EjectionSystem._ejected` (second pilot) · `AreaEffectCloudSystem._lastStep` (empty ⇒ the step runs from the cloud's BIRTH: it jumps wind × its age, `:59`/`:71`) · `DangerAreaSensorSystem._last` (re-announces; the hysteresis lost) · `BleedOutSystem._pending` (the bleed so far forgotten) | ⛔ **a component** — CE-3297 |
+
+✅ **RESOLVED by `R-3039` (§7g, `2026-10-22`).** The lean as it stood: ① **CE-3297 is the fix, not a "when touched" cleanup** — class C moves into components (each its own
+small change, with a *restore into a fresh system* rail: the CE-3215 probe above is the template); a component is cleared by a load,
+captured by a checkpoint, restored by Stop and by a replay seek, with no signal at all. ② the CE-3294 probe gains the class: every
+entity-holding field is exempted AS class A or B with its reason, and ⛔ there is no exemption for class C. ③ only then, Stop's remaining
+class-A/B fields (the egress sets above all) take a "the world was restored" signal — where clearing IS correct by definition of A/B.
+
+```csharp
+// EjectionSystemTests — red today (the second Play's Single() is empty); restore it with the fix
+[Fact] public void CE3297_PlayStopPlay_TheSecondPlayStillEjects() {
+    var jet = Jet(); using var editSnapshot = new EntityRepository(); editSnapshot.SyncFrom(_w);   // Play
+    _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet }); Assert.Single(Frame().Spawned);
+    _w.SyncFrom(editSnapshot); Assert.True(_w.IsAlive(jet));                                      // Stop
+    _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet }); Assert.Single(Frame().Spawned); }   // Play again
+```
+
+## 7g. ⭐⭐⭐ `R-3039` — **A SYSTEM'S WORKING MEMORY IS ENTITIES AND COMPONENTS; A CHECKPOINT IS A PLAIN ECS SNAPSHOT** (`2026-10-22`, ⏳ build: CE-3297 / CE-3298)
+
+🔒 **User, verbatim:** *"There is also checkpointing feature solely relying on all non-auto-recoverable state saved in ecs components. So
+the simulation can continue when checkpoint snapshot is restored."* · *"Does it make sense to invent some parallel save/load system for
+systems? Could all be converted to stateles using entities and components?"* · *"Shoukdnt the syatems use entities ans component as their
+working memory?"* · *"Yes write the ruling and summarize what needs changing"*
+
+```mermaid
+graph TD
+  subgraph ECS["the world: entities + components (+ singleton components)"]
+    M["working memory<br/>(class C: latches, last values, timers, route progress)"]
+    P["protocol state, Transient<br/>(class B: acks, promotion, construction)"]
+    G["global sim state as singletons<br/>(trajectory pool, id allocator position)"]
+  end
+  S["a system<br/>(stateless: reads and writes the world each frame)"]
+  K["derived copy only<br/>(class A: caches, physics bodies, gizmos)"]
+  CP["checkpoint / recording / Stop snapshot<br/>= SyncFrom + keyframe, nothing else"]
+  R["restore boundary<br/>(load a checkpoint, go live from replay, Stop)"]
+  S -->|reads / writes| M
+  S -->|reads / writes| P
+  S -->|reads / writes| G
+  S -.->|rebuilds from the world| K
+  CP -->|copies| ECS
+  R -->|re-derives class B from LifecycleState| P
+  R -.->|may clear| K
+```
+*What the picture shows that prose hid:* the checkpoint has **no edge to any system** — it copies the world and nothing else; the only
+thing a restore does beyond the copy is re-derive class B (a peer will not resend its acks) and let class A rebuild. A system holds no
+arrow INTO itself: there is nothing in it to save.
+
+| | the rule |
+|---|---|
+| ① | a system keeps its working memory **in components on the entity it is about** (or a singleton component for world-wide state — ⚠ which every snapshot must then copy: §7g.0 R0a) — every frame, never a private copy saved at checkpoint time. ⛔ No per-system save/load interface |
+| ② | a checkpoint, a recording and Stop's snapshot are **plain ECS snapshots**; `DataPolicy` (`NoPreview` / `NoReplay` / `NoScenario` / `Transient`) is the one knob for what each keeps |
+| ③ | a system may still hold **derived** data — a cache or an engine object rebuilt from components (class A); losing it changes nothing |
+| ④ | protocol state (class B) lives in `Transient` components and is **re-derived** at a restore from the recorded `LifecycleState` ([replay design §2.1d](../designs/replay-and-modules/DESIGN.md)), never trusted as restored |
+| ⑤ | **the test, per field: empty, with the world restored, does the run continue as if nothing happened?** No ⇒ it belongs in a component |
+| ⑥ | write a persistent component once and update it; ⛔ no tag add/remove churn per frame. A background system on a snapshot writes through the command buffer |
+
+⛔ **Rejected:** a per-system save/load interface — a second persistence path (`PreviewStateBracket` is one already: it serves Stop and
+**not** the checkpoint handler) · a world counter that clears — cannot restore class C (📐 the second pilot, §7f.1) · recording protocol
+progress as-is — deadlocks (§2.1d).
+
+### 7g.0 ⭐⭐ THE ORDER — **checkpoint restore FIRST, because it is the test** (`2026-10-22`; 🔒 user: *"Add the checkpoint restore to your plan, maybe as the first item … How else could we tests that your refactor actually work? Are all the systems and places violating the rules enumerated in the refactor tasks?"*)
+
+| # | item | why here | measured basis |
+|---|---|---|---|
+| **R0** | ⭐⭐ **DESIGN the checkpoint restore** (`CE-3299`) — its own design doc with UML before code: the file it reads, who orders it on a cluster (every node its own file, the same frame, then paused), the re-derive step for class B (§2.1d), what the network does across it | it does not exist, and the design has open questions a build cannot settle | 📐 checkpoints are **write-only**: `CheckpointIOWorker` writes its own `'FDPC'` container (one keyframe, `:206`) and **nothing reads it — not even a test**; ⚠ **no `.meta.json` schema manifest** (a recording has one, `PlaybackController` validates it), so a struct-layout change would load garbage silently; ⛔ the `.dds` in-flight supplement mgmt-1 §9.1 describes is **not written**; `ClusterOpType` has no restore op |
+| **R0′** | ⭐⭐⭐ **SUPERSEDES R0a / R0a′ for checkpoints (`2026-10-22`, 🔒 user: *"why would we change something Is flight recorder already does everything what we actually need?"*) — A CHECKPOINT IS A FLIGHT-RECORDER KEYFRAME; A RESTORE IS THE REPLAY LOAD + GO LIVE.** 📐 The recorder already writes, from the LIVE world (`RecorderTickSystem` → `AsyncRecorder.CaptureKeyframe`, a buffer flushed by its worker), every component chunk, the entity index with lifecycle, every recordable singleton and the event history (`RecordKeyframe:346–364`), every 60 frames (`KeyframeInterval`), in a format with a schema manifest (`.meta.json`, `PlaybackController`); playback restores a keyframe (`PlaybackSystem`, `repo.Clear()` + apply) and going live from a replay is shipped (`PrepareLive`); recording runs always (mgmt-1 §8.12). ⇒ a checkpoint = *write a keyframe now* (into the running recording, or as a standalone one-keyframe recording); a restore = load it, seek, go live. ⛔ The `'FDPC'` writer retires (nothing reads it); ⛔ no `SyncFrom` persistence mode for checkpoints. ⏳ Lean (awaits the user): the editor's Stop and the dry run move to the same mechanism (a keyframe in RAM at Play, applied at Stop) — one save/restore for everything, `SyncFrom` back to a background-solver tool; ⚠ the one measurement that could reverse it: a keyframe restore much slower than `SyncFrom` on a large scenario (R0 measures it first). ⚠ What still needs the ECS: S2 (the trajectory pool, the id allocator) — the recorder records only what is in it | reuse over a second path | 📐 read `2026-10-22`: `RecorderSystem.cs:346–364/836`, `AsyncRecorder.cs:206–225`, `RecorderTickSystem.cs:21`, `PlaybackSystem.cs:55/382`, mgmt-1 §8.12 |
+| **R0″** | ⭐⭐⭐ **`R-3040` — THE DRY RUN (the editor's Play → Stop) SAVES AND RESTORES WITH THE FLIGHT RECORDER** (`2026-10-22`). 🔒 User, verbatim: *"The restoration time at the end of editor's dry run is not a big issue. For sure, reuse the flight recorder mechanics for dry run save and dry run restore. Actually, I have no idea why this mechanism hasn't been used already and why we chose to make a snapshot using sync from."* ⇒ at Play (`LoadingPreview` / `LoadingDryRun`) a keyframe of the live world is written to RAM; at Stop it is applied (`PlaybackSystem`), then class B re-derives. One save/restore for the dry run, the checkpoint and replay; `SyncFrom` stays a background-solver tool. ⛔ The restore-time objection is withdrawn by the user | the user's decision | 📐 the history below |
+| **R0‴** | ⭐⭐ **TWO PATHS, SPLIT BY HOW OFTEN THEY RUN** (`2026-10-22`). 🔒 User, verbatim: *"Snapshots for the use by the background modules are of course necessary to be maximally fast, but here we are talking about dry run enter and dry run exit, and also checkpoint save and checkpoint restore. This is not something what is happening every frame, while the background snapshots, they are happening very often. They must be optimized."* | ⭐ **every frame → `SyncFrom`** (background-module snapshots): stays minimal and maximally fast — components plus the 11 BORROWED singletons the solvers read; ⛔ never widened to copy every singleton, never given a "persistence mode" (that would tax every background snapshot for a rare operation) · ⭐ **rare → the flight recorder** (dry run enter / exit, checkpoint save / restore): complete and correct over fast — every recordable component and singleton, the entity index, the events, a schema manifest | 📐 R0a's singleton gap is therefore NOT a `SyncFrom` defect: it is `SyncFrom` used for a job it was never built for |
+| **R0a** | ⚠ *(kept as the finding; its remedy SUPERSEDED by R0′)* ⭐⭐ **SINGLETONS INTO EVERY SNAPSHOT** — R-3039 names a singleton component as valid storage, and the FLIGHT RECORDER agrees: it records every recordable singleton from the LIVE world (`RecorderTickSystem` → `RecordSingletons`, filtered by `DataPolicy`) and playback restores them (`PlaybackSystem.RestoreSingleton`). ⛔ **But the RAM snapshot does not**: `SyncFrom` copies component tables and only **11 listed singletons** (the EQS / terrain / sound-ring / `WorldEpoch` set for background solvers, `EntityRepository.Sync.cs` step 3) — and **borrows** those by reference instead of copying them. ⇒ a **checkpoint** (it records `snap.SyncFrom(live)`, not the live world) **holds 11 singletons, shared with the live world while the I/O thread writes them**; **Stop and the dry run** rewind **no** singleton (`PreviewParticipants` already says so for the entity map). | ⭐ the fix belongs in the restore design: `SyncFrom` gets a PERSISTENCE mode (copy every snapshotable singleton by value, by `DataPolicy`) beside today's BACKGROUND mode (borrow the listed ones — its comment's reason, *"would expose live-world state to unrelated SoD modules"*, is about that use only); checkpoint, Stop and dry run use the first | 📐 read `2026-10-22`: `EntityRepository.Sync.cs:103–127`, `RecorderSystem.cs:836`, `ReferenceCheckpointHandler.Commit`, `ReferencePreviewHandler` |
+| **R0a′** | ⛔ **SUPERSEDED by R0′ the same day** — ⭐ THE PERSISTENCE MODE, as designed `2026-10-22`: ① a singleton IS a component table with one slot (`ComponentTable<T>` / `ManagedComponentTable<T>` at index 0, `EntityRepository.cs:1928–1959`) ⇒ copy it with the table's own `SyncFrom`, which already deep-clones a `SnapshotViaClone` managed type and shares an immutable one (`ManagedComponentTable.SyncDirtyChunks:306`) — no new copy code · ② WHICH singletons: the same `DataPolicy` bit the snapshot kind already honours for components — `NoPreview` for Stop / dry run, `NoReplay` for a checkpoint (as the recorder does, `ComponentTypeRegistry.IsRecordable`) · ⚠ CONTENT singletons (terrain, TKB, navmesh provider, EQS templates, cover, geo transform) are NOT copied: the target loaded the same content; ⚠ several carry NO `DataPolicy` today (`ITkbDatabase`, `INavmeshProvider`, `NetworkEntityMap`, `SoundEmissionRing`, `GlobalTime` — measured) ⇒ each singleton type gets an explicit policy, and the rail fails on one without · ③ `GlobalTime` is `NoPreview` (Stop never rewinds the clock through `SyncFrom` — [Time Architecture §12a](DESIGN_Time_Architecture.md), `CopyClockFrom`'s comment) but recorded (a checkpoint continues from its time) · ④ the slot is OWNED, never borrowed: a persistence copy replaces a borrowed table with an owned one; the background mode keeps borrowing its 11 · ⑤ consequence for systems: ⛔ never hold a singleton OBJECT across frames (a constructor-injected `TrajectoryPoolManager`, a cached `GetSingletonManaged<T>()`) — a restore puts a NEW object in the slot; ⭐ look it up from the world each frame | it reuses what exists: the table copy, the clone policy, the recorder's filter | 📐 `ManagedComponentTable.cs:306–345`, `EntityRepository.cs:1928–1959`, `EntityRepository.Sync.cs` (`CopyClockFrom`) |
+| **R1** | ⭐⭐⭐ **THE ORACLE — a restore-equivalence test.** A stepped run (deterministic, R-3035) to T1 → checkpoint → on to T2 → capture A. Restore the checkpoint into a **fresh process** → step to T2 → capture B. **A must equal B in full component state** (`scripts/determinism-probe.py --compare`, ids masked — the tool that proved four reloads identical, §7e ④). In-process form: SyncFrom + new system instances, every system registered | ⭐ it catches **every** violator a scenario exercises, enumerated or not — the inventory then only plans the work. ⚠ It is RED until S1–S3 land; that red, diffed, NAMES the next violator (the component that diverged on which entity) | the CE-3215 probe is its one-system form (a second pilot) |
+| **R2** | ⭐⭐ **THE FULL INVENTORY** — every production system, module, translator, the SERVICE objects they hold, and static state, classified A / B / C in this document | ⛔ **the S1–S3 lists below are NOT complete** — see the measurement → | 📐 a widened probe (reflection, throwaway, `2026-10-22`): **200 systems, 38 modules, 148 translators** — **82 systems** hold a collection field and **65** a mutable non-epoch scalar (timers, counters, cadence); **59 translators** hold collections; **7 modules** (the ELM's queues among them); static mutable state in **60** fields (e.g. `BehaviorFrame._counter`, `PhaseRegistry._nextId`) plus static collections. ⚠ Most are config, registration or scratch (class A) — but S1–S3 below classified **~25 fields in ~20 systems**, read by hand. ⛔ Service objects behind a system field (the trajectory pool was found this way, by chance) are not walked at all |
+| **S1–S3** | the moves, below — **driven by R1's reds and R2's classes**, each with its one-system restore rail | | |
+| **S4** | the widened probe as the permanent rail (fields keyed by `Entity`, an entity index or a network id; services; statics) — every hit classified A/B with a reason, no C | R1 proves behaviour on the scenarios run; S4 stops the next violator being written | |
+
+⚠ **What neither test sees, said up front:** R1 only covers what its scenarios exercise ⇒ it runs on a SET of scenarios chosen to touch every mechanism (vehicles on routes and paths, civilians, gas, ejection, door passage, embark, squads, fire missions); R2/S4 only see field TYPES, not meaning ⇒ the A/B/C call per field is a read, recorded here with its reason.
+
+#### 7g.0b ⭐⭐ THE SOLUTION — four operations, one mechanism (the flight-recorder KEYFRAME; `R-3040`, `R-3041`)
+
+| operation | each node | then |
+|---|---|---|
+| **dry run enter** (Play) | writes a keyframe of its live world into a RAM buffer (no disk, no compression) | the simulation starts |
+| **dry run exit** (Stop) | applies the RAM keyframe (`PlaybackSystem`: clear, restore under the recorded handles) · ⚠ the clock is left to the time system ([Time Architecture §12a](DESIGN_Time_Architecture.md) — one writer) | the AFTER-RESTORE step → edit mode |
+| **checkpoint save** | ⛔ *(superseded `2026-10-22`, R-3042)* ~~writes a keyframe as a one-frame recording file~~ ⇒ ⭐ **a MARK (a time) in the running recording** — no capture, no pause; periodic checkpoints are free ([restore design §0](../DESIGN_Checkpoint_And_Dry_Run_Restore.md)) | — |
+| **checkpoint restore** | ⭐ (R-3043) every node SEEKS its own recording to the mark — the cluster replay seek; singletons stay, so loaded content stays | the AFTER-RESTORE step → a new recording segment → live, paused |
+
+**The AFTER-RESTORE step** — re-derive what is deliberately not saved: protocol state from the restored `LifecycleState` (ELM queues ✅ already, ghost promotion, deferred construction); the network-id ↔ entity map rebuilt from the world; the egress "already sent" state cleared ⇒ every owner republishes its full state and peers resync.
+
+⭐ **`R-3041` — no network buffers are captured; what was in flight is LOST, accepted.** 🔒 User, verbatim: *"No capturing of network buffers. accepting the losses."* ⇒ a one-shot message in flight at the save (a shot crossing to another node) never arrives after a restore; STATE heals by the republish above. ⛔ mgmt-1 §9.1's `.dds` in-flight supplement is withdrawn (it was never built).
+
+**Preconditions** — a keyframe holds only what is in the ECS: R-3039 (system memory in components) and S2 (the trajectory pool, the id allocator into singletons; until then the allocator keeps its `PreviewStateBracket` participant). **Proof:** R1 — checkpoint at T1 → run to T2 ≡ restore in a fresh process → run to T2.
+
+#### 7g.0c 🔴 CRITICAL REVIEW of §7g / §7g.0b (`2026-10-22`, at the user's request) — each row read in code; ⏳ leans await the user
+
+| # | flaw | evidence | lean |
+|---|---|---|---|
+| **F1** 🔴 | **"in a component" ≠ "in a keyframe".** The recorder drops every `NoReplay`/`Transient` component, and some carry simulation meaning — the R-3039 test passes and the restore still loses them. The old dry run kept them (`includeTransient: true`), so moving the dry run to the recorder REGRESSES it | 86 `NoReplay`/`Transient` types; among them `SubordinateOrders`, `AirPath`, `PausedTask`, `TrafficCar`, `MissionAdapterState`, `OutgoingGrantsPending`, `GhostStateTracker`, `PendingNetworkAck`; `PlaybackSystem` keyframe = `repo.Clear()` (every table) + what was recorded | R2 classifies `DataPolicy` too: a `NoReplay` type that an empty restore gets wrong is recorded or re-derived. R-3039's test becomes *"empty AFTER A KEYFRAME RESTORE"* |
+| **F2** 🔴 | **events are re-processed.** Applying a keyframe injects its recorded events into the CURRENT buffers; the checkpoint records the read buffer too ⇒ events already consumed before the save run again after it (a damage applied twice). And CE-3293's step window lives in the `EventAccumulator`, outside the keyframe | `PlaybackSystem.ReadAndInjectEvents` → `InjectIntoCurrent`; `RecordKeyframe(…, serializeReadBuffer: true)`; `ReferenceCheckpointHandler` flushes the accumulator into the snapshot bus | dry-run exit applies with `processEvents: false`; a checkpoint keeps only the UNCONSUMED step window and restores it into the accumulator, not the bus |
+| **F3** 🔴 | **a cluster checkpoint is not one moment.** The master fans out `TakeSnapshot`; each node snapshots when the command ARRIVES — in a running live cluster, different frames ⇒ a replica with no owner, an owner with a stale replica. R-3041's republish heals values, not existence | `ClusterMaster.cs:507/799` `FanOutNodeOp(TakeSnapshot)`; `ClusterSlave.Commit` on receipt | ⛔ ~~pause the cluster~~ (R-3042) ⇒ ⭐ the mark is a time on the shared wall-clock zero; each node's seek finds its own state there (restore design D3) |
+| **F4** ⚠ | **§7g.0b's after-restore step misses class A.** A keyframe apply moves no `WorldEpoch` (a `Transient` singleton; `Clear` keeps singletons), so no CE-3294 reset fires and every class-A cache keeps the pre-restore world | `EntityRepository.Clear` clears the index, tables and bus only | the after-restore step raises the S3 "world restored" signal (class A clears, class B re-derives) |
+| **F5** ⚠ | **the clock contradicts itself.** §7g.0b says Stop leaves the clock to the time system, but a keyframe restores every recorded singleton | `PlaybackSystem` step 3 restores singletons; `GlobalTime` carries no `DataPolicy` | an explicit per-operation exclusion: dry-run exit skips the clock, checkpoint restore applies it |
+| **F6** ⚠ | **one filter, two meanings.** The recorder honours only `IsRecordable` (`NoReplay`); the dry run's rule was `NoPreview` | `ComponentTypeRegistry.IsRecordable` | collapse to one rule if the two sets agree (R2 lists both); otherwise the keyframe call takes the operation's filter |
+| **F7** ⚠ | **what a keyframe holds is decided at REGISTRATION**, not by `DataPolicy` alone — an unregistered type reads as not recordable | `IsRecordable` = `_isRecordable.TryGetValue(…) && v` | R0 lists the singletons and components a keyframe actually holds, before anything relies on it |
+| **F8** ⚠ | **`GlobalVersion` goes backwards.** A keyframe sets it to the recorded tick ⇒ the always-on recorder's deltas (version > `prevTick`) skip changes until its next keyframe (≤ 60 frames); delta queries see time travel. ⚠ `SyncFrom` did the same | `PlaybackSystem`: `repo.SetGlobalVersion(tick)` | keep it monotonic: restore under `max(now, recorded) + 1`, or force a keyframe in the running recording right after |
+| **F9** ⚠ | **a fixed 32 MB buffer.** A keyframe of a large world may not fit | `AsyncRecorder.BUFFER_SIZE = 32 MB`; size of a 300-civilian world unmeasured | R0 measures the largest scenario's keyframe |
+| **F10** ⚠ | **a fresh process needs the content first and the same node ids.** The recording names only the terrain and geo origin; owners in the keyframe are node ids assigned per session (R-4009) | `RecorderTickSystem.StampWorld` | restore = load the content (terrain, TKB) → apply; the master restores with the same node ids or remaps owners |
+| **F11** ⚠ | **the oracle can hide the bug it is for.** The probe masks instance / trajectory / route ids as process counters — the trajectory pool hides exactly there | §7e ④ | R1 compares what an id POINTS AT (the path), not the id |
+| **F12** · | editor-only `Transient` state (debug settings, `DebugState`) is wiped at Stop — today it survives | F1's mechanism | fold into F1's classification |
+
+#### 7g.0a 📜 WHY `SyncFrom` WAS CHOSEN — the design record (searched `2026-10-22`: `docs/` then `.dev/`)
+
+| source | what it says | ⇒ |
+|---|---|---|
+| `.dev/_DONE/mgmt-1/design-talk.md:32` — the user's original requirement | *"a `dry run` … a very quick switch from a scenario editing mode … take a snapshot of the current live state … re-load the snapshot taken initially"* | the driver was **speed** |
+| `design-talk.md:362` §3 *"Checkpoints (Lightning-Fast RAM Snapshots)"* | *"a snapshot during a live simulation in under a few tens of milliseconds"* ⇒ a raw `memcpy` of the 64 KB chunks, *"< 2 milliseconds"*, then *"compresses it via LZ4 (like the FlightRecorder)"* | memcpy chosen for the 2 ms budget; the FILE was meant to be recorder-like |
+| `design-talk.md:748` §12 *"Edit Scenario from Checkpoint"* | *"Open `checkpoint_Bug01_node[id].fdp`. Because it's a full keyframe, `PlaybackSystem.ApplyFrame()` blasts the exact state"* | ⭐ **the original intent WAS a recorder keyframe read by the recorder's playback** — the as-built `'FDPC'` container (no header, no manifest, no reader) broke it |
+| `.dev/_DONE/mgmt-1/GAP-ANALYSIS.md` GAP-3 | *"`EntityRepository.SyncFrom()` already exists … and handles the full snapshot use-case. No new kernel API is needed … exactly the pattern used by `DoubleBufferProvider.Update()`"* | ⭐ **the decision**: reuse the background-solver snapshot API as the persistence API. ⛔ It did not consider singletons — `SyncFrom` copies component tables; its singleton list (today 11, borrowed) was added later for the solvers |
+| `docs/designs/mgmt-1/DESIGN.md` §12.2 | *"`EntityRepository.SyncFrom()` \| Dry Run / Checkpoint \| Binary unmanaged dump — fast but not portable"* | the as-built, recorded |
+
+⇒ **No record weighs the flight recorder against `SyncFrom`.** The choice was speed (a 2 ms budget for a LIVE checkpoint) plus reuse of an API that already existed, judged complete for *"the full snapshot use-case"* — which it was for components and never was for singletons. ⭐ The user's ruling (`R-3040`) removes the speed constraint for the dry run; the checkpoint's own speed is the recorder's keyframe cost, already paid every 60 frames when recording (R0′).
+
+### 7g.1 What needs changing — the inventory **SO FAR** (⛔ NOT complete — R2 replaces it; CE-3294's probe: systems holding `Entity` fields; ⚠ fields keyed by an entity INDEX or a NETWORK ID are outside it and were found by reading)
+
+| stage | what | items | why |
+|---|---|---|---|
+| **S1** class C → components (one small change each, each with a *restore into a fresh system* rail; §7f.1's CE-3215 probe is the template) | per-entity memory | `EjectionSystem._ejected` (📐 a second pilot) · `AreaEffectCloudSystem._lastStep` (a cloud jumps wind × its age) · `DangerAreaSensorSystem._last/_next` (edges + hysteresis) · `BleedOutSystem._pending` (bleed so far) · `DoorPassageSystem._passages` (a door being opened) · `VehicleNavigationIntentSystem._routes` (Stride: route progress — restarts at corner 0) · `DispatcherSystemBase._previousAction` (by entity index: action edges) · `NavigationIntentBridgeSystem` applied-intent / applied-action ids (⚠ unmeasured: a re-applied order may replan) · `CrowdSystem` crowd membership | empty ≠ what happened |
+| **S2** global sim state → singleton components | world-wide memory | 🔴 **the trajectory pool** — `NavState.TrajectoryId` points into `GroundKinematicsModule`'s private `TrajectoryPoolManager` (⚠ its doc comment says *"singleton (managed component)"* — it is not), so a checkpoint keeps the id and loses the path · the network-id allocator's position (today restored for Stop only, by the bracket) · `CrowdSystem._nextId` | a checkpoint must carry what ids point into |
+| **S3** class B → re-derived at every restore | protocol | ghost promotion queue · deferred construction (`NetworkGatewaySystem`, `SimulatedInitReadinessParticipant`) · `BrainTickSystem._publishedTerminalForInstanceId` · the egress per-id "published once" sets (onto `EgressPublicationState`, or cleared at the restore) · the ELM queues (✅ already: §2.1m's participant) | one "the world was restored" step on every restore path — Stop, dry run, go-live-from-replay, checkpoint restore — replacing the bracket participants that S2 turns into components |
+| **S4** the rail | enforcement | the CE-3294 probe widened to fields keyed by `Entity`, an entity index or a network id; every such field EXEMPT as class A or B with its reason; ⛔ no exemption for C · one generic Play → Stop → Play rail | a convention nothing checks decays |
+| stays (class A) | derived | `ThreatEvaluationSystem` (an empty map falls back to the memory component) · `EmbarkedStateSystem._killSent` (self-heals) · `OwnershipEgressSystem` (an equality cache) · `WreckSpawnSystem` (first sight records, by design) · `LocalGridBuilderSystem` · `HierarchyOrderSystem` · `StaticObstacleBakeSystem` · `RouteTrajectorySyncSystem` (re-made from route entities) · gizmos · Stride physics bodies · `EffectSystems` · the 31 scratch exemptions | rebuilt from the world |
+
+⚠ **Out of scope:** the named-checkpoint RESTORE operation itself (not built). The contract binds now through go-live-from-replay.
+⭐ Order: S1 and S2 first (they are the behaviour a checkpoint loses); S3 makes Stop and every restore one path; S4 locks it.
 
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 

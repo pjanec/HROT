@@ -111,6 +111,12 @@ namespace Hrot.SimHost.Systems
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
+            // ⭐ CE-3301 — the survey memo is keyed by (network id, child index), and a reload reuses both: its SolvedAt is the OLD
+            //   timeline's, so every survey read "not due" (1 unit) until the new clock caught up — stale answers, and a solve budget
+            //   left free that a fresh process spends on the surveys (hearing sensors solved 4–8 steps earlier on a reload: the red
+            //   DeterminismRails.A_reload_rebuilds_the_same_authored_world). Forget it with the world (CE-3294's rule).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _surveys.Clear();
+
             _currentView = view;
             _currentCmd  = view.GetCommandBuffer();
             _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
@@ -415,6 +421,7 @@ namespace Hrot.SimHost.Systems
         // ⭐ CE-3249 (WS-7) — per survey: when it was last solved and published, and what it said (node-local; the epoch restarts it).
         private readonly record struct SurveyMemo(uint Epoch, double SolvedAt, double PublishedAt, ulong Hash);
         private readonly Dictionary<(long, int), SurveyMemo> _surveys = new();
+        private int _worldEpoch;   // ⭐ CE-3301 — the world _surveys describes
         private readonly List<Fdp.Toolkit.World.TraceCrossing> _surveyScratch = new();
 
         /// <summary>⭐ CE-3249 — the survey heartbeat: an unchanged answer is still published this often (s), so its age is measurable (WS-8).</summary>

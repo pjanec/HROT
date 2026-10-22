@@ -1,0 +1,76 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L2 (Bradley variant): hit but drives through with the squad still aboard. Judge (1) the vehicle drives its route, (2) the charge goes off only with it within 15 m (take: blast at 21.47 s), (3) it pushes through (PushThrough) with all five still aboard, (4) it ends 100 m past the charge (y > 300) and its route resumes. The 'halt' alternative is not asserted. Feature (10 units, no fight): golden every 10.",
+  "runFor": 50,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Bradley drives its route north (FollowRoute)",
+      "on": "task",
+      "who": "Convoy APC",
+      "is": "FollowRoute"
+    },
+    {
+      "name": "the Bradley is at the charge",
+      "on": "near",
+      "who": "Convoy APC",
+      "point": [
+        652,
+        200
+      ],
+      "within": 15
+    },
+    {
+      "name": "the charge never goes off before the Bradley is within 15 m",
+      "never": {
+        "on": "blast",
+        "by": "Trigger man"
+      },
+      "before": "the Bradley is at the charge"
+    },
+    {
+      "name": "the charge goes off",
+      "on": "blast",
+      "by": "Trigger man"
+    },
+    {
+      "name": "the hit Bradley pushes through (PushThrough)",
+      "on": "task",
+      "who": "Convoy APC",
+      "is": "PushThrough",
+      "after": "the charge goes off"
+    },
+    {
+      "name": "the Leader stays aboard",
+      "never": {
+        "on": "embark",
+        "who": "Convoy Leader",
+        "is": false
+      }
+    },
+    {
+      "name": "no rifleman leaves the pushing carrier",
+      "never": {
+        "on": "embark",
+        "who": "*Convoy Rifleman",
+        "is": false
+      }
+    },
+    {
+      "name": "it ends 100 m past the charge (y > 300)",
+      "on": "field",
+      "who": "Convoy APC",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 300
+    },
+    {
+      "name": "its route resumes (FollowRoute)",
+      "on": "task",
+      "who": "Convoy APC",
+      "is": "FollowRoute",
+      "after": "the hit Bradley pushes through (PushThrough)"
+    }
+  ]
+}

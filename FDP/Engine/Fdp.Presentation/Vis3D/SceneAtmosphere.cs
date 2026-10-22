@@ -23,5 +23,9 @@ namespace Fdp.Toolkit.Vis3D
 
         /// <summary>True when the sun disc is drawn (a colour was given and the sun is not below the horizon).</summary>
         public bool SunVisible => SunDisc.A > 0 && ToSun.Z > -0.03f;
+
+        /// <summary>⭐ CE-1146 (§6aa.CL) — the cloud layers, drawn as background by <see cref="MapCamera3D.BeginMode"/>
+        /// (<see cref="CloudDeckRenderer"/>); null or empty ⇒ a clear sky.</summary>
+        public SceneCloudLayer[]? Clouds { get; init; }
     }
 }

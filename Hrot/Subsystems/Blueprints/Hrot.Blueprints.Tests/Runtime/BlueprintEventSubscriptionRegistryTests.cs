@@ -22,8 +22,8 @@ public sealed class BlueprintEventSubscriptionRegistryTests
             k => k, k => (EventHandlerDelegate)NoOp, System.StringComparer.Ordinal),
     };
 
-    // Deterministic resolver mirroring the bus's custom-event FQN hash.
-    private static int Hash(string s) => s.GetHashCode() & 0x7FFFFFFF;
+    // The bus's managed/custom-event id: the stable hash of the FQN (CE-3302).
+    private static int Hash(string s) => Fdp.Core.StableHash.NonNegativeId(s);
 
     [Fact]
     public void Build_IndexesSubscribersByTypeId()

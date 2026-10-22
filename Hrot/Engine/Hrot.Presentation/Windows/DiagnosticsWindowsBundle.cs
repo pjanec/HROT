@@ -57,10 +57,9 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
             h.TitleBarColor));
 
         // ⭐⭐ CE-1134 (canvas-context-menu-design §9) — the inspector's right-click menu STARTS with the map's entity menu (the same
-        //    items, run by the same map actions); the inspector's own items (Inspect…, and each host's) follow. And the map's
-        //    Properties… shows THIS window. Both find each other through the inspector state the host gives the map and this bundle.
-        h.Inspector.RegisterContextMenuHandler(new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => h.InspectorState()));
-        Hrot.UI.Common.Menus.InspectorMapLink.RegisterWindow(ctx.Windows, InspectorId(h.IdPrefix), () => h.InspectorState());
+        //    items, run by the same actions); the inspector's own items (Inspect…, and each host's) follow. ⭐ CE-1150 (§12 HA-5) — it
+        //    reads the HOST's actions and world, handed to this bundle; ⛔ no map, no lookup table.
+        h.Inspector.RegisterContextMenuHandler(new Hrot.UI.Common.Menus.MapEntityMenuHandler(h.Host, h.World));
 
         // ⭐ The component-editor reflector + the "Inspect…" context menu.
         // ⚠ This registers NOTHING eagerly — the helper's own RegisterWindow sits inside the
@@ -147,6 +146,9 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
 /// ⚠ The PERSPECTIVE, not a display name. It is also the "Inspect…" watch windows' id prefix
 /// (lower-cased by the helper), so <c>"Scenario"</c> on CGF/Editor and the host name on IG/SimHost.
 /// </param>
+/// <param name="Host">⭐ CE-1150 (canvas-context-menu-design §12 HA-5) — the host's actions: the inspector menu offers what they run and
+/// requests a click on them. A host with no actions (Stride mode 2 composes no map) passes <c>() =&gt; null</c> and gets no map menu.</param>
+/// <param name="World">⭐ CE-1150 — the world the inspected entities live in (the menu is computed from it).</param>
 /// <param name="ArchitecturePanel">⛔ null ⇒ the window is NOT registered (ruling 49, and <c>G1</c>).</param>
 /// <param name="ExecutionStats">⛔ null ⇒ the profiler is NOT registered.</param>
 /// <param name="TitleBarColor">
@@ -164,6 +166,8 @@ public sealed record DiagnosticsHostServices(
     Func<InspectorState> InspectorState,
     EventBrowserPanel EventBrowser,
     Vector4? TitleBarColor,
+    Func<Hrot.Common.Interactions.HostActions?> Host,
+    Func<Fdp.Core.EntityRepository?> World,
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
     MapPickBroker? PickBroker = null);

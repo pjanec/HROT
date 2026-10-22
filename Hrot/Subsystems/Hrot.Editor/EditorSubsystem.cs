@@ -53,7 +53,6 @@ using Hrot.CGF.Systems;
 using Hrot.Editor.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.Common.Diagnostics;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
@@ -315,6 +314,8 @@ namespace Hrot.Editor
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
         private Hrot.Editor.Director.DirectorRunner? _director;
+        // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
+        private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
         private Hrot.Editor.Director.EditorLayerOverride? _directorLayers;
 
@@ -323,6 +324,8 @@ namespace Hrot.Editor
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
         private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
         private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
+        /// <summary>⭐ D16 — what the shared host composition built: the ONE recorder and the ONE dry-run handler.</summary>
+        private Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers? _clusterHandlers;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
 
@@ -483,6 +486,14 @@ namespace Hrot.Editor
         /// <summary>⭐ <c>L6.1c</c> — the Scenario perspective's Details panel. ⭐ Exposed for rails:
         /// 📌 <c>R-67</c>, a rail must reach the CONSTRUCTED object.</summary>
         internal Hrot.Editor.AiShared.Windows.DetailsWindow? ScenarioDetails { get; private set; }
+
+        /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+        /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+        internal readonly Hrot.Common.Interactions.HostActions HostActions = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
+        /// <summary>⭐ CE-1150 (HA-4) — builds the Scenario Details panel (the shared one every ECS host builds) and its actions.</summary>
+        private Hrot.Editor.AiShared.Windows.EntityDetailsBundle? _scenarioDetailsBundle;
+
 
         /// <summary>⭐ <c>L6.1c</c> — exposed so a rail can assert the Scenario workspace was built and
         /// carries a REAL entity source *(<c>R-67</c>)</summary>
@@ -647,12 +658,12 @@ namespace Hrot.Editor
         // ?? Private helpers ???????????????????????????????????????????????????
 
         /// <summary>
-        /// Lightweight IPreviewController that wraps <see cref="PreviewClusterOpHandler"/>
+        /// Lightweight IPreviewController over the ONE dry-run handler (<c>D14</c>)
         /// and tracks preview state internally without requiring <c>IScenarioStateProvider</c>.
         /// </summary>
         private sealed class EditorPreviewController : IPreviewController
         {
-            private readonly PreviewClusterOpHandler _handler;
+            private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
             private readonly MasterSyncController    _timeController;
             private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
             private bool _inPreview;
@@ -677,28 +688,21 @@ namespace Hrot.Editor
             /// </summary>
             private GlobalTime _enteredAt;
 
-            /// <param name="rewindables">
-            /// ⭐⭐ <b><c>HN-017</c> — the non-ECS state the preview must also put back.</b>
-            /// 📄 <c>DESIGN_Deterministic_Network_Ids.md</c> §2b/§4c.
-            /// <para>⛔⛔ Passed from <c>Initialize</c>, where the allocator and the entity map are BUILT —
-            /// 📌 the <c>2026-08-16</c> rule: a production caller that HAS a dependency must PASS it. ⚠ This
-            /// controller is constructed in the same method, a few lines later, which is why the list is a
-            /// constructor argument and not something attached afterwards.</para>
+            /// <param name="dryRun">
+            /// ⭐⭐ <c>D14</c> — THE dry-run handler, the same instance this node's cluster slave holds
+            /// (<c>EcsHostClusterHandlers</c>); it also puts back the id pool, entity map and ELM queues (HN-017/HN-018).
             /// </param>
             /// <param name="timeCommands">
             /// ⭐ <c>CE-3156</c> — the seam through which Stop asks the clock to go back
             /// (<c>DESIGN_Time_Architecture.md</c> §12a: <i>"callers outside the clock no longer call it — they
-            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it
-            /// (<c>_timeCommands</c>, built at <c>Initialize</c>) — the same silent-default rule as
-            /// <paramref name="rewindables"/>.
+            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it.
             /// </param>
             internal EditorPreviewController(
-                EntityRepository world,
+                Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler dryRun,
                 MasterSyncController timeController,
-                Fdp.Toolkit.Time.ITimeCommands timeCommands,
-                System.Collections.Generic.IEnumerable<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable> rewindables)
+                Fdp.Toolkit.Time.ITimeCommands timeCommands)
             {
-                _handler        = new PreviewClusterOpHandler(world, rewindables);
+                _handler        = dryRun ?? throw new System.ArgumentNullException(nameof(dryRun));
                 _timeController = timeController;
                 _timeCommands   = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
@@ -1598,12 +1602,6 @@ namespace Hrot.Editor
             // ?? 3c. Offline scenario load handler ?????????????????????????????
             var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(storageProvider));
-
-            // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
-            // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
-            var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-                _kernel, EditorNodeId, _world!);
             // ⭐⭐⭐ L2/L4/L4a — ONE chain, ONE scenario step, for BOTH the edit and the live target.
             //
             // ⛔ HrotEditLoadHandler and HrotScenarioLoadHandler are GONE. Registering both here was the
@@ -1634,35 +1632,12 @@ namespace Hrot.Editor
                 scenarioSerializer, scenarioLoader, extractor, _world!.Bus, idAllocator,
                 behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry)));
 
-            clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-                EditorCapabilities.DefaultRole, editorLoadProviders, _world,
-                recordingController: rrController,
-                storageDirectory:    isolatedTempRoot,
-                hostLabel:           "Editor",
-                entityMap:           _entityMap));   // CE-2101 — the world boundary clears it
+            // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register): on a SaveScenarioJson
+            //   fan-out it writes the editor's owned slice via the shared ScenarioSaveCore. There is NO editor-only save path.
+            //   📄 DESIGN_Distributed_Scenario_Persistence.md §4. Registered by the shared composition (D16), below.
+            var editorScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                scenarioSerializer, _world!, EditorNodeId);
 
-            // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register). When the
-            //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared
-            //   ScenarioSaveCore. There is NO editor-only save path: identical everywhere, differing only by
-            //   the injected serializer / zone service / world. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-            //   CE-279 Layer A — registered via the shared registrar. The editor reports no .fdp archive today,
-            //   so its archive handler is null; the save handler is placed uniformly, payload-aware.
-            Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
-                clusterSlave,
-                new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, _world!, EditorNodeId),
-                recordingRoot: isolatedTempRoot, nodeId: EditorNodeId);   // ⭐ P5b — the editor's recording is archived too
-            // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
-            //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and
-            //   the editor IS a single-node cluster, so its own zone load arrives here as a NodeOp.
-            //   ⚠ service: null until the editor composes a terrain loader — it still ACKs (§8.3).
-            Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
-                clusterSlave, service: null, world: _world, nodeId: EditorNodeId,
-                // ⚠ localStagingRoot: null is DELIBERATE and not a silent default — the editor is a
-                //   single-node cluster that reads assets from the asset roots directly and stages no
-                //   scenario header, so there is no file for the D5 identity check to read. The check is
-                //   disarmed here because its input does not exist, not because the check was forgotten.
-                localStagingRoot: null);
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),
@@ -1836,22 +1811,39 @@ namespace Hrot.Editor
             // Simulation-phase systems must go through a module (kernel forbids global registration).
             _kernel.RegisterModule(new EditorSimulationModule(toggleSim));
 
-            // Register replay handler before live handler so the replay branch can claim
-            // PrepareLive while replay is active.
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
-                rrController,
-                inputGroup:            toggleInput,
-                simGroup:              toggleSim,
-                postSimGroup:          togglePostSim,
-                lifecycleGroup:        null,
-                bypassLifecycleToggle: null,
-                storageDirectory:      isolatedTempRoot,
-                suspendGlobalTimePush: _kernel.SuspendGlobalTimePush,
-                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush));
-            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
-                checkpointWorker: null,
-                controller: rrController,
-                storageDirectory: isolatedTempRoot));
+            // ⭐⭐⭐ D16 (R-3046) — the cluster handlers of an ECS host, composed in ONE place for every host (NodeBootstrapper,
+            //   CgfSubsystem, this one). 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b.
+            // ⭐⭐ D15 — the editor's recorder is now the ONE composition every ECS host uses (ForNode): a seek clears the ELM's
+            //   bookkeeping and the ELM is gated during replay — ⛔ it was `new EcsRecordReplayController(...)` with neither,
+            //   and its replay handler had no world-replacement hook. ⭐ D14 — the dry run is the ONE handler, held by this
+            //   slave (the cluster master's Preview) AND driven by the toolbar's Play/Stop (EditorPreviewController, below).
+            // ⭐⭐ CE-3012 — the chain is composed from the editor's COMPOSED role (Brain | MuscleGround | Perception |
+            //   NavigationSolver): a one-node cluster that runs kinematics, perception and navigation loads what they need.
+            // ⚠ TerrainService: null until the editor composes a terrain loader (it still ACKs, §8.3); TerrainStagingRoot:
+            //   null is DELIBERATE — the editor stages no scenario header, so the D5 identity check has no input to read.
+            _clusterHandlers = Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers.Compose(
+                new Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlerInputs
+                {
+                    Slave                   = clusterSlave,
+                    Kernel                  = _kernel,
+                    World                   = _world,
+                    NodeId                  = EditorNodeId,
+                    Role                    = EditorCapabilities.DefaultRole,
+                    HostLabel               = "Editor",
+                    StagingRoot             = isolatedTempRoot,
+                    TransportAfterSeek      = null,   // offline: no transport — the controller rebuilds the map itself
+                    Elm                     = elm,
+                    InputGroup              = toggleInput,
+                    SimGroup                = toggleSim,
+                    PostSimGroup            = togglePostSim,
+                    IdAllocator             = _idAllocator,
+                    EntityMap               = _entityMap,   // CE-2101 — the world boundary clears it
+                    DryRunIncludesTransient = true,          // the editor's dry run copied Transient components (HN-016)
+                    LoadProviders           = editorLoadProviders,
+                    ScenarioSaveHandler     = editorScenarioSaveHandler,
+                    TerrainService          = null,
+                    TerrainStagingRoot      = null,
+                });
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-3141 — the obstacle tool creates through the pack
@@ -2045,6 +2037,7 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
@@ -2075,7 +2068,7 @@ namespace Hrot.Editor
                     {
                         // ⭐ CE-1226 (R-1012, user: "When preview, adding new entities is disabled in the menu, i need it enabled") —
                         //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview
-                        //   lives until Stop: leaving Preview rewinds the whole world and the id allocator (PreviewClusterOpHandler).
+                        //   lives until Stop: leaving Preview rewinds the whole world and the id allocator (the one dry-run handler, D14).
                         HostPickers     = () => _shellPickers,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
@@ -2150,7 +2143,7 @@ namespace Hrot.Editor
                 var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
                 if (intent is { } i) _orchestrationBus?.PublishManaged(i);
             });
-            // ⭐ CE-1134 — Center View, Select and Properties… are MapInteractionPack.RegisterViewActions (every map host).
+            // ⭐ CE-1134 / CE-1150 — Center View and Select are SharedHostActions' (every host); Properties… is the Details bundle's.
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -2279,23 +2272,12 @@ namespace Hrot.Editor
             }
 
             // ?? 8. Preview controller (works headless too ? no canvas dep) ????
-            // ⭐⭐⭐ HN-017 — THE PREVIEW'S "PUT IT BACK" LIST, and it is BOTH participants or neither.
-            // 📄 DESIGN_Deterministic_Network_Ids.md §2b (the enumeration) · §4c (the user's approach).
-            // ⛔⛔ The allocator ALONE would be worse than nothing: NetworkEntityMap.Register throws on a
-            //    duplicate id, and the allocator's drift is currently the only thing stopping preview 2
-            //    from colliding ⇒ exact id repetition without the map rewind is a guaranteed exception.
-            // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. It CLEARS and
-            //    RE-DERIVES rather than restoring a snapshot, so no Entity handle crosses the rewind.
-            //    📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
-            var previewRewindables = new[]
-            {
-                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_idAllocator!),
-                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
-                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
-            };
+            // ⭐⭐⭐ D14 — the toolbar's Play/Stop drives the ONE dry-run handler the shared host composition registered on this
+            //   node's slave (above), so the editor's world, id pool, entity map and ELM queues (HN-017/HN-018 — the
+            //   participants are listed there, once) come back the same way whoever starts the dry run.
             // ⭐ CE-3156 — _timeCommands is handed over because this method HOLDS it (built above, at the
             //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
-            _previewController = new EditorPreviewController(_world, _timeController!, _timeCommands!, previewRewindables);
+            _previewController = new EditorPreviewController(_clusterHandlers!.DryRun, _timeController!, _timeCommands!);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -2321,9 +2303,14 @@ namespace Hrot.Editor
                 Hrot.Editor.Director.DirectorRunner? runner = null;
                 runner = new Hrot.Editor.Director.DirectorRunner(directorHost, cinema, _directorLayers,
                     _headless ? null : new Hrot.Editor.Director.FilmFrameSink(),
-                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN));
+                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
+                    // ⭐ CE-4042 — a verify run reads and edits through the debug service this method builds below (8b): late-bound
+                    verifyWorld: units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
+                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                        () => _debugApiService));
                 cinema.EscapePressed = () => runner.Stop();
                 _director = runner;
+                _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
@@ -2357,10 +2344,9 @@ namespace Hrot.Editor
                     // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
                     // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
                     _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world);
-                    // The record/replay controller (already exists in Hrot.SimHost); a dedicated instance
-                    // for the API's /recording/* and /replay/* endpoints.
-                    _debugApiRrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-                        _kernel!, EditorNodeId, _world);
+                    // ⭐ D15 — the API's /recording/* and /replay/* endpoints drive the editor's ONE recorder (the shared host
+                    //   composition's), ⛔ not a second instance on the same world.
+                    _debugApiRrController = _clusterHandlers!.RecordReplayController;
 
                     var debugService = new Hrot.Editor.DebugApi.DebugApiService(
                         _world,
@@ -2658,7 +2644,7 @@ namespace Hrot.Editor
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel
                 {
-                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState),   // ⭐ CE-1230 — the map's entity menu
+                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _world),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
                 };
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
@@ -2715,6 +2701,9 @@ namespace Hrot.Editor
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
             //   (§0, R-3038) — the runner asserts it.
             _director?.Tick();
+            // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
+            if (_director != null)
+                _commandLineVerify?.Tick(_director, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
             DrainStagingRemap();
 
@@ -3425,46 +3414,25 @@ namespace Hrot.Editor
             //    Scenario authors entities, not AI assets.
             // ⭐⭐⭐ A1 — the persisted key IS "Scenario" now: L6.1b is DONE, not deferred.
             //    📄 DESIGN_Perspective_Unification.md §3 A1 · charter D2.
-            _scenarioWorkspace = new Hrot.Editor.AiShared.Shell.PerspectiveWorkspace(
-                perspectiveName: "Scenario",
-                selectionStore:  _aiEditorSelectionStore,
-                // ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a
-                //   second rule. 📌 M-38/M-40: this editor already had five notions of "stopped".
-                runState:        Hrot.Editor.AiShared.Variables.RunStateSource.For(
-                                     isSimUpSignal, isFrozenSignal),
-                // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World, so ctx.Entities flows on
-                //   Scenario exactly as it does on the AI perspectives. ⚠ A SECOND instance, and that
-                //   is correct: the same-instance guarantee is per PERSPECTIVE (every context THIS
-                //   workspace builds reads one source), ⛔ not process-wide.
-                entitySelection: new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world));
-
-            ScenarioDetails = new Hrot.Editor.AiShared.Windows.DetailsWindow(
-                id:                "scenario_details",
-                owningPerspective: "Scenario",
-                // ⭐ Scenario has no host-specific decoder — the raw one is the honest default here,
-                //   ⛔ not a silent fallback: there is no blueprint session to decode through.
-                formatter:         new Hrot.Editor.AiShared.Variables.VariableValueFormatter(
-                                       Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance),
-                views:             _scenarioWorkspace.DetailsViews,
-                context:           _scenarioWorkspace.ContextSource());
-
-            // ⭐⭐ The window CONTRIBUTES its own variables view through the claim chain — 📌 §6 L1.2
-            //    (R-67): windows self-wire, so there is nothing extra for this root to remember.
-            _scenarioWorkspace.Contribute(ScenarioDetails);
-
-            // ⭐⭐⭐ L6.3 — THE COMPONENTS VIEW, added by the ROOT and only by the root.
-            // 📄 §6 L6 stage 4 · §3's reference wall: EntityInspectorPanel is in Fdp.Presentation and
-            //    IDetailsViewInstance is in Hrot.Editor.AiShared (below it) ⇒ ⛔ this assembly is the
-            //    ONLY one that can see both, so the adapter cannot self-wire through the claim chain.
-            // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the
-            //   buffer-view providers, the serializer and the mutation interceptor. ⛔ A fresh panel
-            //   would render components with none of that (the 2026-08-16 silent-default shape).
-            _scenarioWorkspace.DetailsViews.Add(
-                Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.For(
-                    panel:   () => _fdpEntityInspector,
-                    // ⭐ Re-asked every frame: the repository adapter is null until a scenario is open,
-                    //   and it is REPLACED on reload — ⛔ caching it would pin a dead World.
-                    session: () => _fdpRepoAdapter));
+            // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the SHARED Details panel every ECS host builds: the workspace, the shell,
+            //   its own view and the Components view, plus Properties… and View ▸ Details on this host's actions. The Editor keeps its id
+            //   and adds its own views below. ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a second rule.
+            //   ⭐ R-122 — the entities come from the World. ⛔ SUPERSEDED: the workspace + shell built here by hand, and (BP-515 DS-7) the
+            //   shell ANSWERING a "show its properties" event — 🔒 user, 2026-10-22: "the global action handler should open the detail panel".
+            _scenarioDetailsBundle = new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                WindowId:       "scenario_details",
+                Perspective:    "Scenario",
+                World:          () => _world,
+                // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the buffer-view providers, the
+                //   serializer and the mutation interceptor (§6 L6.3).
+                Inspector:      () => _fdpEntityInspector,
+                // ⭐ Re-asked every frame: null until a scenario is open, REPLACED on reload.
+                Session:        () => _fdpRepoAdapter,
+                RunState:       Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
+                Host:           () => HostActions,
+                SelectionStore: _aiEditorSelectionStore));
+            _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
+            ScenarioDetails    = _scenarioDetailsBundle.Window;
 
             // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
             //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
@@ -3773,7 +3741,11 @@ namespace Hrot.Editor
 
             // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
             //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
-            if (ScenarioDetails is not null) windowManager.RegisterWindow(ScenarioDetails);
+            // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
+            if (_scenarioDetailsBundle is not null)
+                Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                    new Fdp.Toolkit.Runner.IUiBundle[] { _scenarioDetailsBundle },
+                    new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
             // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
@@ -5096,6 +5068,8 @@ namespace Hrot.Editor
                         InspectorState: () => _fdpInspectorState,
                         EventBrowser:   _fdpEventBrowser,
                         TitleBarColor:  EditorWindowColor.TitleBar,
+                        Host:           () => HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => _world,
                         ArchitecturePanel: editorArchitecturePanel,
                         ExecutionStats:    editorExecutionStats,
                         PickBroker: _mapPickAdapter != null

@@ -6,7 +6,6 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Replication;
 using Xunit;
@@ -84,10 +83,8 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(100f, tfBeforePreview.Position.X, precision: 2);
 
         // â”€â”€ Step 5: Capture snapshot (LoadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var handler = new PreviewClusterOpHandler(harness.Repo);
-        handler.Commit(
-            new NodeOpCommand { PayloadJson = "{\"TargetState\": 20}" },
-            null);
+        var handler = new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(harness.Repo, includeTransient: true);
+        handler.TriggerLoadingPreview();
 
         // â”€â”€ Step 6: Move entity to (999, 0, 0) in preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new UpdateEntityCommand
@@ -105,9 +102,7 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(999f, tfDuringPreview.Position.X, precision: 2);
 
         // â”€â”€ Step 8: Rewind (UnloadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        handler.Commit(
-            new NodeOpCommand { PayloadJson = "{\"TargetState\": 22}" },
-            null);
+        handler.TriggerUnloadingPreview();
 
         // â”€â”€ Step 9: Assert state restored to snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var tfAfterRewind = harness.Repo.GetComponent<SimTransform>(spawnedEntity);

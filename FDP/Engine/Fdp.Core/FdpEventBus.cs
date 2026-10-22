@@ -511,8 +511,8 @@ namespace Fdp.Core
         }
 
         /// <summary>
-        /// Gets a stable type ID for managed types.
-        /// Uses hash of full type name (stable across sessions).
+        /// Gets a stable type ID for managed types: the FNV-1a hash of the full type name (<see cref="StableHash"/>).
+        /// ⛔ It was <c>string.GetHashCode()</c>, which is randomised per process — "stable across sessions" was not true (CE-3302).
         /// </summary>
         private int GetManagedTypeId<T>() => ManagedTypeId<T>.Id;
 
@@ -522,7 +522,7 @@ namespace Fdp.Core
         /// </summary>
         internal static class ManagedTypeId<T>
         {
-            public static readonly int Id = typeof(T).FullName!.GetHashCode() & 0x7FFFFFFF;
+            public static readonly int Id = StableHash.NonNegativeId(typeof(T).FullName!);   // ⭐ CE-3302 — the same in every process
         }
 
         /// <summary>
@@ -532,7 +532,7 @@ namespace Fdp.Core
         internal static bool TryGetTypeId(Type type, out int id, out bool native)
         {
             native = type.IsValueType;
-            if (!native) { id = type.FullName!.GetHashCode() & 0x7FFFFFFF; return true; }
+            if (!native) { id = StableHash.NonNegativeId(type.FullName!); return true; }
             if (_unmanagedEventIdCache.TryGetValue(type, out id)) return true;
             try
             {

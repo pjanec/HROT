@@ -684,6 +684,44 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐ CE-1170 (docs/DESIGN_People_Display.md §5 U9) — AIMED AT A PERSON: a line from his weapon (his shoulder, a rifleman's type has no
+    /// muzzle data) to the target's chest; none when he only holds it ready, none at a vehicle, none at a dead man. On UnitDetails (off by
+    /// default). ✅ Red-proof: the person check removed ⇒ the vehicle case draws.
+    /// </summary>
+    [Fact]
+    public void CE1170_AimedAtAPerson_ALineFromHisShoulderToTheTargetsChest_OnlyThen()
+    {
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            if (!world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) world.RegisterComponent<CarKinem.Core.VehicleParams>();
+            var shooter = Man(world, new Vector3(0f, 0f, 2f));
+            var target = Man(world, new Vector3(10f, 0f, 2f));
+            world.AddComponent(target, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.Pedestrian });
+            var car = world.CreateEntity();
+            world.AddComponent(car, new SimTransform { Position = new Vector3(0f, 10f, 2f), Rotation = Quaternion.Identity });
+            world.AddComponent(car, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.PersonalCar });
+            var posture = new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready, Target = target };
+            world.AddComponent(shooter, posture);
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));   // ready, not aimed
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed;
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out var from, out var to));
+            Assert.Equal(new Vector3(10f, 0f, 2f + Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.ChestZ), to);
+            Assert.Equal(2f + Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.ShoulderZ, from.Z, 3);
+            Assert.True(from.X > 0.4f && from.X < 0.6f, $"half a metre toward him: {from}");
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Target = car;
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));   // a vehicle: the posture shows it
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(shooter).Target = target;
+            world.DestroyEntity(target);
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.AimLineGizmo.Of(world, shooter, out _, out _));
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1081 … CE-1083 — ONE classifier says how a man is held, from what every map host already has: the embarked tag (carried /
     /// dragged by a person carrier, seated in an exposed seat with a place), the carrier's own list (he carries / drags), and the injury
     /// state off the replicated health (wounded — combinable; incapacitated — down). An ENCLOSED seat, or an open one with no place, is
@@ -1084,6 +1122,60 @@ public sealed class Map3DTests
             Assert.Equal(tube, Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, bearer, Fdp.Toolkit.Combat.WeaponSystems.ControlledMountBase));
             Assert.True(Shoulders(bearer, Fdp.Toolkit.Combat.WeaponSystems.ControlledMountBase), "the carried launcher selected");
             Assert.False(Shoulders(bearer, 0), "his own rifle selected");
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1169 (People Display §5 U8) — the exercise-control layer "Concealed (ExCon)": a pistol in a man's HIDDEN station is outlined at
+    /// his hip on the Concealed layer only (gone with the layer hidden); the same pistol in his HANDS is not (the figure draws it); the layer
+    /// is OFF by default and inside the toggled range. ✅ Red-proof: the gizmo asking <c>IsStowed</c> instead of <c>IsConcealed</c> ⇒ the
+    /// pistol on his back is outlined too, and the rail fails.
+    /// </summary>
+    [Fact]
+    public void CE1169_TheConcealedLayer_OutlinesOnlyWhatIsCarriedHidden()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            var man = Man(world, new Vector3(10f, 20f, 0f));
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(world, man, ((TkbDatabase)db).GetByType(TkbEntityTypes.Infantry_Rifleman)!);
+            var pistol = world.CreateEntity();
+            world.AddComponent(pistol, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(pistol, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_PickUpPistol });
+            void CarryIn(int seat)
+            {
+                var list = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(man);
+                for (int i = 0; i < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity; i++) if (list.Passengers[i] == pistol) list.Passengers[i] = Entity.Null;
+                list.Passengers[seat] = pistol;
+                list.Count = 1;
+                world.SetComponent(man, list);
+                var tag = new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man, Exposed = 1, Seat = (byte)seat };
+                if (world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(pistol)) world.SetComponent(pistol, tag);
+                else world.AddComponent(pistol, tag);
+            }
+            var gizmo = new Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo();
+
+            int hidden = Fdp.Toolkit.Behavior.CarryStations.Hidden(world, man);
+            Assert.True(hidden >= 0, "a rifleman has a hidden station");
+            CarryIn(hidden);
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out var carrier, out var at));
+            Assert.Equal(man, carrier);
+            Assert.Equal(new Vector3(10f, 20f, Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.HipZ), at);
+            Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(world, pistol, d), Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed);
+
+            CarryIn(Fdp.Toolkit.Behavior.CarryStations.Back(world, man));
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out _, out _), "slung on his back: seen, not concealed");
+            CarryIn(Fdp.Toolkit.Behavior.CarryStations.Hands(world, man));
+            Assert.False(Hrot.Common.Diagnostics.Gizmos.ConcealedItemGizmo.Of(world, pistol, out _, out _), "in his hands: the figure draws it");
+
+            var all = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto().ToMask();
+            Assert.False(all.IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed), "off by default");
+            Assert.True(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed < Hrot.Common.Diagnostics.Gizmos.LayerControlDto.FirstUntoggledLayer, "inside the toggled range");
+            Assert.True(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Units = { Concealed = true } }.ToMask().IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Concealed));
         }
     }
 
@@ -1721,6 +1813,384 @@ public sealed class Map3DTests
             shots.Record(man, 0, 20.0);                                                                                                          // his rifle
             Assert.Same(plain, EntityBodyLayer3D.Thrown(world, man, false, FigureCarriage.Free, plain, 20.2));
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1169 (People Display §5 U7) — what he holds that is not his weapon (the replicated <c>HeldItem</c>): the phone at his ear while
+    /// he stands and in front of him while he walks (a slab in the hand), the binoculars up at his eyes in both hands (a box between them),
+    /// a throwable low in the right hand with its round as its munition looks; a soldier's rifle slung meanwhile; a carried or cowering man,
+    /// or nothing held, draws the figure as it is. ✅ Red-proof: <c>HeldItemShown</c> returning the parts untouched.
+    /// </summary>
+    [Fact]
+    public void CE1169_APhoneAtTheEar_BinocularsAtTheEyes_AStoneInTheHand()
+    {
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        Vector3 HandR(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 5].Centre * new Vector3(0.35f, 0.55f, 1.8f);   // metres
+        Vector3 HandL(KitPart[] parts) => parts[BlockFigure.TorsoIndex + 3].Centre * new Vector3(0.35f, 0.55f, 1.8f);
+        var Phone = Fdp.Toolkit.Combat.Components.HeldItemKind.Phone;
+        var Bino = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars;
+        var Stone = Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable;
+
+        var call = BlockFigure.HeldItemArms(plain, Phone, crouched: false, soldier: false, walking: false);
+        var look = BlockFigure.HeldItemArms(plain, Phone, crouched: false, soldier: false, walking: true);
+        Assert.True(HandR(call).Z > 1.35f, $"at his ear: the forearm up by his head ({HandR(call)})");
+        Assert.True(HandR(look).Z < 1.25f && HandR(look).X > 0.1f, $"walking: in front of him, low ({HandR(look)})");
+        Assert.Equal(plain.Length + 1, call.Length);                                                             // the phone
+        var bino = BlockFigure.HeldItemArms(plain, Bino, false, false, false);
+        Assert.True(HandR(bino).Z > 1.4f && HandL(bino).Z > 1.4f, $"both hands up at his eyes ({HandL(bino)}, {HandR(bino)})");
+        Assert.Equal(plain.Length + 1, bino.Length);                                                             // the binoculars
+        var stone = BlockFigure.HeldItemArms(plain, Stone, false, false, false);
+        Assert.True(HandR(stone).Z < 1.3f && HandR(stone).X > 0.05f, $"low and ready ({HandR(stone)})");
+        Assert.Equal(plain.Length, stone.Length);                                                                // its round is a detail
+        var round = BlockFigure.ThrowableDetail(stone, 0.08f, 0.07f, new Raylib_cs.Color(130, 128, 120, 255));
+        Assert.NotNull(round);
+        Assert.Equal(BlockFigure.TorsoIndex + 5, round!.Value.Part);
+        Assert.True(round.Value.Centre.X > 0.5f, "beyond the end of the forearm: in the hand");
+        Assert.Same(plain, BlockFigure.HeldItemArms(plain, Fdp.Toolkit.Combat.Components.HeldItemKind.None, false, false, false));
+
+        var armed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var slung = BlockFigure.HeldItemArms(armed, Bino, false, soldier: true, walking: false)[BlockFigure.WeaponIndex];
+        Assert.True(slung.Centre.X < 0f, $"a soldier's rifle slung on his back ({slung.Centre})");
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var man = Man(world, Vector3.Zero);
+            world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { HeldItem = Phone });
+            var (shown, item) = EntityBodyLayer3D.HeldItemShown(world, man, false, FigureCarriage.Free, plain, MotionPose.Still);
+            Assert.Equal(Phone, item);
+            Assert.NotEqual(plain, shown);
+            Assert.Same(plain, EntityBodyLayer3D.HeldItemShown(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain, MotionPose.Still).Parts);   // busy
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(man).HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Weapon;
+            Assert.Same(plain, EntityBodyLayer3D.HeldItemShown(world, man, false, FigureCarriage.Free, plain, MotionPose.Still).Parts);         // his weapon: Held's
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1173 / CE-1174 (People Display §5 U12, U13) — a held weapon's colour tells the truth: a mount that LOOKS like a rifle or pistol
+    /// and names no round is a toy (orange — covered whole), one that fires only non-lethal rounds (the baton launcher) wears a yellow band;
+    /// a rifle, the hands and a grenade wear nothing; a weapon-system TYPE with a toy mount is drawn orange. ✅ Red-proof: <c>IsToy</c> ⇒
+    /// false.
+    /// </summary>
+    [Fact]
+    public void CE1173_CE1174_AToyIsOrange_ABatonLauncherHasAYellowBand()
+    {
+        var toy = new WeaponMountDto { Category = WeaponCategory.SmallArms, Appearance = new ItemAppearanceDto { Look = ItemLook.Rifle, Lethal = true } };
+        var oldMount = new WeaponMountDto { Category = WeaponCategory.SmallArms };   // names no round, states no look: a weapon
+        Assert.True(HeldWeapons.IsToy(toy));
+        Assert.False(HeldWeapons.IsToy(oldMount));
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);   // the rounds' warheads (production registers them with every catalogue)
+            world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            Assert.Equal(HeldMarking.Toy, HeldWeapons.MarkingOf(world, toy));
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, oldMount));
+            var launcher = new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbBatonRound };
+            Assert.Equal(HeldMarking.LessLethal, HeldWeapons.MarkingOf(world, launcher));
+            var rifle = new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball };
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, rifle));
+            Assert.Equal(HeldMarking.None, HeldWeapons.MarkingOf(world, Fdp.Toolkit.Combat.PersonHands.Mount()));
+        }
+        var into = new List<PartDetail>();
+        BlockFigure.MarkingDetail(HeldMarking.Toy, into);
+        BlockFigure.MarkingDetail(HeldMarking.LessLethal, into);
+        BlockFigure.MarkingDetail(HeldMarking.None, into);
+        Assert.Equal(2, into.Count);
+        Assert.All(into, d => Assert.Equal(BlockFigure.WeaponIndex, d.Part));
+        Assert.Equal(BlockFigure.ToyOrange, into[0].Colour);
+        Assert.True(into[0].Extent.X > 1f, "the toy covered whole");
+        Assert.Equal(BlockFigure.LessLethalYellow, into[1].Colour);
+        Assert.True(into[1].Extent.X < 0.3f, "a band, not a cover");
+
+        Assert.True(db.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
+        var toyType = new TkbTemplate("Toy rifle", 99_616) { DisType = pickUp!.DisType };
+        toyType.AddDescriptor(new WeaponSuiteDto { Mounts = { toy } });
+        Assert.True(EntityBodyLayer3D.Resolve(toyType).Toy);
+        Assert.False(EntityBodyLayer3D.Resolve(pickUp).Toy);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1172 (People Display §5 U11) — the police look: a police officer's head wears a peaked cap (crown, white band, black peak), the
+    /// shield man a riot helmet with a visor; his outfit carries a vest, two pouches and a belt; the baton man holds a baton, the shield man
+    /// a shield — from his type. 🔒 Live, 2026-10-20: <i>"Police officer not rendered with baton even if he is hittingn someone."</i>
+    /// ✅ Red-proof: <c>PoliceKit</c> returning the parts untouched.
+    /// </summary>
+    [Fact]
+    public void CE1172_ThePoliceLook_CapOrRiotHelmet_VestAndBelt_BatonOrShield()
+    {
+        Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.Peak);
+        Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.CapBand);
+        Assert.Contains(BlockFigure.PoliceHead(riot: true), p => p.Shade == FaceShade.Visor);
+        Assert.Equal(Outfits.CapBand, EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform));
+
+        var baton = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
+        var shield = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
+        Assert.True(baton.Police && !baton.Riot);
+        Assert.True(shield.Police && shield.Riot);
+        var details = new List<PartDetail>();
+        Outfits.Details(baton, 7, details);
+        Assert.Contains(details, d => d.Colour.Equals(Outfits.PoliceBelt));
+        Assert.Contains(details, d => d.Colour.Equals(Outfits.PoliceVest));
+        var civilian = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, false, false, null, ForceId.Neutral);
+        Assert.False(civilian.Police);
+
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            var man = Man(world, Vector3.Zero, type: Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton);
+            var withBaton = EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, FigureCarriage.Free, plain);
+            Assert.Equal(plain.Length + 1, withBaton.Length);
+            var stick = withBaton[^1].Centre * new Vector3(0.35f, 0.55f, 1.8f);
+            Assert.True(stick.Z < 0.9f && stick.Y < 0f, $"the baton hangs from his right hand ({stick})");
+            var withShield = EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, FigureCarriage.Free, plain);
+            Assert.True(withShield[^1].Centre.X > 0f && withShield[^1].Centre.Y > 0f, "the shield in front of his left side");
+            Assert.Same(plain, EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, FigureCarriage.Free, plain));
+            Assert.Same(plain, EntityBodyLayer3D.PoliceKit(world, man, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, new FigureCarriage(CarriageKind.Carrying), plain));
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1176 / CE-1177 (People Display §5 U15, U16) — ONE mark per person, by the priority rule: what he says (G1's Utterance, fading
+    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Demeanour,
+    /// from the second quarter); calm and silent shows nothing. His FACE shows the feeling whatever he says. ✅ Red-proof: speech checked
+    /// after the mood ⇒ the insult case shows anger.
+    /// </summary>
+    [Fact]
+    public void CE1176_CE1177_OneMarkPerPerson_SpeechFirst_ThenHowHeFeels_AndHisFace()
+    {
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var M = Hrot.Common.Diagnostics.Gizmos.MarkKind.None;
+            var man = Man(world, Vector3.Zero);
+            Assert.Equal(M, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);                      // calm and silent
+
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);   // anger before fear
+
+            Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.Insult, Entity.Null, now: 10.0, seconds: 2f);
+            var (kind, alpha) = Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.5);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Insult, kind);                                     // speech wins
+            Assert.Equal(1f, alpha);
+            Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 11.75).Alpha, 3);               // fading its last half second
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 12.0).Kind);   // over: his mood again
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.MoodOf(world, man));       // the face, whatever he says
+
+            Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.CmdHandsUp, Entity.Null, now: 20.0, seconds: 2f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Order, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 20.5).Kind);  // a command is an order
+
+            var officer = Man(world, new Vector3(5f, 0f, 0f));
+            world.AddComponent(officer, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.Warning });
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Warning, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, officer, 10.0).Kind);
+
+            var hurt = Man(world, new Vector3(10f, 0f, 0f), health: 50f);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Pain, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, hurt, 10.0).Kind);
+        }
+        foreach (var k in Enum.GetValues<Hrot.Common.Diagnostics.Gizmos.MarkKind>())
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.Marks.Glyph(k).Length <= 3, $"{k}: a small mark");
+        Assert.Equal(Vector3.Zero, BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.None));
+        var afraid = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear);
+        var angry = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger);
+        var pain = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind.Pain);
+        Assert.True(afraid.X > 0f && afraid.Y > 0f, "afraid: brows raised, mouth open");
+        Assert.True(angry.X < 0f && angry.Y < 0f, "angry: brows knitted, mouth tight");
+        Assert.True(pain.Z > 0f, "in pain: eyes squeezed");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1179 (People Display §5 U18) — the rest of the items on the ground: a weapon LAID DOWN (surrender) lies at his feet, across his
+    /// path, its length kept; a PLACED charge blinks red a quarter second each second, the same on every node, and a carried or stationed one
+    /// does not. ✅ Red-proof: <c>LaidDownInHands</c> ⇒ false.
+    /// </summary>
+    [Fact]
+    public void CE1179_ALaidDownWeapon_LiesAtHisFeet_APlacedChargeBlinks()
+    {
+        var armed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Ready);
+        var laid = BlockFigure.LaidAtFeet(armed);
+        var (a, b) = BlockFigure.Ends(laid[BlockFigure.WeaponIndex]);
+        Assert.True(a.Z < 0.1f && b.Z < 0.1f, $"on the ground ({a}, {b})");
+        var (ra, rb) = BlockFigure.Ends(armed[BlockFigure.WeaponIndex]);
+        Assert.Equal(Vector3.Distance(ra, rb), Vector3.Distance(a, b), 2);   // its length kept
+
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var man = Man(world, Vector3.Zero);
+            world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            Assert.False(EntityBodyLayer3D.LaidDownInHands(world, man));
+            Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, man, 0);
+            Assert.True(EntityBodyLayer3D.LaidDownInHands(world, man));
+
+            var charge = world.CreateEntity();
+            Assert.True(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.1));
+            Assert.False(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.5));
+            world.AddComponent(charge, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man });
+            Assert.False(EntityBodyLayer3D.ChargeLightOn(world, charge, 10.1));   // worn or carried: dark
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1202 (Map 3-D §6n N-2) — 🔒 user, live: <i>"the gun operator on a mounted weapon is not moving when the weapon turns"</i>. The
+    /// gunner in a vehicle's seat that OPERATES a station (the technical's bed pintle) turns with the station's weapon: his place swung about
+    /// the weapon's traverse pivot by its azimuth, so he stays behind it; a man in any other seat, or a weapon not deployed, does not turn.
+    /// ✅ Red-proof: <c>TurnedWithStation</c> returning the seat frame unchanged.
+    /// </summary>
+    [Fact]
+    public void CE1202_TheGunnerOfAStationWeapon_TurnsWithIt()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            var technical = world.CreateEntity();
+            world.AddComponent(technical, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(technical, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+            var gunner = Man(world, Vector3.Zero);
+            var gun = world.CreateEntity();
+            world.AddComponent(gun, new SimTransform { Position = new Vector3(-1.3f, 0f, 1.0f), Rotation = Quaternion.Identity });
+            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
+            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+            var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 3 };
+            list.Passengers[1] = gunner; list.Passengers[2] = gun;
+            world.AddComponent(technical, list);
+            var stations = new Fdp.Toolkit.Behavior.Components.CarrierStations { StationMask = 1 << 2 };
+            stations.Seats[2] = new Fdp.Toolkit.Behavior.Components.StationSeat { OperatedBy = 1, X = -1.3f, Z = 1.0f };
+            world.AddComponent(technical, stations);
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = 1 });
+
+            float azimuth = MathF.PI / 2f;   // the gun swung to the left
+            var layer = new EntityBodyLayer3D(() => world, () => db, (_, e) => e == gun ? new ArticulationPose(azimuth, 0f) : ArticulationPose.Neutral);
+            var seat = Matrix4x4.CreateTranslation(-2.0f, 0f, 0.9f);   // kneeling behind the pintle, in the bed
+            var turned = layer.TurnedWithStation(world, gunner, seat, 0d);
+            Assert.True(layer.StationTurn(world, gun, 0d, out var pivot, out _));
+            float before = Vector2.Distance(new Vector2(seat.Translation.X, seat.Translation.Y), new Vector2(pivot.X, pivot.Y));
+            float after = Vector2.Distance(new Vector2(turned.Translation.X, turned.Translation.Y), new Vector2(pivot.X, pivot.Y));
+            Assert.Equal(before, after, 3);                                           // the same distance behind the gun …
+            Assert.True(turned.Translation.Y < seat.Translation.Y - 0.3f, $"… swung round with it ({seat.Translation} → {turned.Translation})");
+            var facing = Vector3.TransformNormal(Vector3.UnitX, turned);
+            Assert.True(facing.Y > 0.9f, $"and facing where the gun points ({facing})");
+
+            var rider = Man(world, Vector3.Zero);
+            world.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = 0 });
+            Assert.Equal(seat, layer.TurnedWithStation(world, rider, seat, 0d));    // the driver's seat operates nothing
+            world.GetComponentRW<Fdp.Toolkit.Combat.WeaponSystemState>(gun).Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed;
+            Assert.Equal(seat, layer.TurnedWithStation(world, gunner, seat, 0d));   // stowed: it does not turn, nor he
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1200 (Entity Control §8o CR-2) — every vehicle and aircraft kind has a CREW eye: inside its cab / canopy / cockpit glass (that
+    /// box culls itself from inside, the rest of the vehicle stays in view), on the left where two sit side by side; a tank, an AFV and a
+    /// self-propelled gun a commander's eye above the turret's roof. A person and a unit have none. ✅ Red-proof: the glass branch removed ⇒
+    /// a car's eye falls back to none.
+    /// </summary>
+    [Fact]
+    public void CE1200_EveryVehicleKind_HasACrewEye_InsideItsGlass_OrAboveItsTurret()
+    {
+        foreach (var family in new[] { VisualFamily.WheeledCar, VisualFamily.WheeledUtility, VisualFamily.Helicopter, VisualFamily.Jet,
+                                       VisualFamily.CargoPlane, VisualFamily.AttackJet, VisualFamily.AttackHelicopter, VisualFamily.Drone })
+        {
+            var size = ShapeKits.DefaultSize(family);
+            var eye = EntityBodyLayer3D.CrewEye(family, size);
+            Assert.True(eye.HasValue, $"{family}: a crew eye");
+            var glass = ShapeKits.For(family).Parts.First(p => p.Colour == ColourRole.Glass);
+            var lo = (glass.Centre - glass.Extent / 2f) * size;
+            var hi = (glass.Centre + glass.Extent / 2f) * size;
+            Assert.True(eye!.Value.X > lo.X && eye.Value.X < hi.X && eye.Value.Y > lo.Y && eye.Value.Y < hi.Y && eye.Value.Z > lo.Z && eye.Value.Z < hi.Z,
+                $"{family}: the eye {eye} inside its glass {lo}..{hi} — the box culls itself from inside");
+            Assert.True(eye.Value.X > glass.Centre.X * size.X, $"{family}: in the front half of it");
+        }
+        Assert.True(EntityBodyLayer3D.CrewEye(VisualFamily.WheeledCar, ShapeKits.DefaultSize(VisualFamily.WheeledCar))!.Value.Y > 0f, "a car's driver sits on the left");
+        foreach (var family in new[] { VisualFamily.Tank, VisualFamily.Afv, VisualFamily.SpArtillery })
+        {
+            var size = ShapeKits.DefaultSize(family);
+            var turret = ShapeKits.For(family).Parts.First(p => p.Role == PartRole.Turret);
+            var eye = EntityBodyLayer3D.CrewEye(family, size);
+            Assert.True(eye.HasValue && eye.Value.Z > (turret.Centre.Z + turret.Extent.Z / 2f) * size.Z + 0.3f, $"{family}: above the turret's roof ({eye})");
+        }
+        Assert.Null(EntityBodyLayer3D.CrewEye(VisualFamily.Person, ShapeKits.DefaultSize(VisualFamily.Person)));
+        Assert.Null(EntityBodyLayer3D.CrewEye(VisualFamily.Unit, Vector3.One));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1201 (Entity Control §8p OS-2, OS-4) — the over-the-shoulder camera: a person's 2.2 m behind his eye along the LEVEL look,
+    /// 0.55 m to his right, a little up — looking down does not dig it into him; a vehicle's and a flyer's a chase camera straight behind
+    /// and above; never under the ground. ✅ Red-proof: the right offset's sign flipped ⇒ the camera is on his left.
+    /// </summary>
+    [Fact]
+    public void CE1201_TheShoulderCamera_BehindAndRightOfHisEye_AChaseCameraForAVehicle()
+    {
+        var eye = new Vector3(10f, 20f, 1.7f);
+        var east = Vector3.UnitX;
+        var c = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Person, null);
+        Assert.Equal(eye.X - Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderBack, c.X, 3);
+        Assert.True(c.Y < eye.Y - 0.5f, $"on his right (facing east, right is -y): {c}");
+        Assert.True(c.Z > eye.Z, "a little above his eyes");
+        var down = Vector3.Normalize(new Vector3(1f, 0f, -1f));
+        var cDown = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, down, Hrot.UI.Common.Map3D.ControlScheme.Person, null);
+        Assert.Equal(c, cDown);   // the level look: looking down does not move it into him
+        var car = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Vehicle, null);
+        Assert.True(car.X < eye.X - 5f && Math.Abs(car.Y - eye.Y) < 1e-3f && car.Z > eye.Z + 2f, $"a chase camera: behind, above ({car})");
+        var heli = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Rotorcraft, null);
+        Assert.True(heli.X < car.X, "a flyer's further back");
+        var hill = Hrot.UI.Common.Map3D.FpsCameraDriver.ShoulderCamera(eye, east, Hrot.UI.Common.Map3D.ControlScheme.Person, (_, _) => 5f);
+        Assert.True(hill.Z >= 5f + Hrot.UI.Common.Map3D.FpsCameraDriver.CameraAboveGround - 1e-4f, "never under the ground");
+
+        // OS-1 — View › First Person: Over the Shoulder reaches the station through the view-mode layer
+        using var world = new EntityRepository();
+        world.Bus.Register<Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent>();
+        world.Bus.Register<Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent>();
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var layer = new MapViewModeLayer(new MapViewSwitch(canvas, new Fdp.Toolkit.Vis2D.Components.MapCamera()), world.Bus);
+        bool over = false;
+        layer.ToggleShoulder = () => over = !over;
+        world.Bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent());
+        world.Bus.SwapBuffers();
+        layer.Update(0.016f);
+        Assert.True(over, "the menu item toggled the view");
+        Assert.Equal(256, Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1119 U-2 (Map 3-D §6w; airborne §7 U-2) — the EJECTION: on the seat he sits (the seat's pan under him, its back behind), its
+    /// rocket's flame under it for the first second, shrinking; once his canopy deploys the empty seat falls away beneath him, tumbling,
+    /// then is gone; no seat for any other descent. ✅ Red-proof: the flame's condition dropped ⇒ a flame after burn-out.
+    /// </summary>
+    [Fact]
+    public void CE1119_U2_TheEjectionSeat_ItsFlame_ThenTheSeatFallingAway()
+    {
+        var seat = new List<(PartShape Shape, Matrix4x4 Local, bool Flame)>();
+        Fdp.Toolkit.Motion.Descent D(Fdp.Toolkit.Motion.DescentPhase phase, double since)
+            => new() { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = 100.0 - since, Canopy = Fdp.Toolkit.Motion.CanopyKind.Round };
+
+        Assert.Equal(DescentPose.SittingOut, DescentDraw.PoseOf(Fdp.Toolkit.Motion.DescentKind.Ejection, Fdp.Toolkit.Motion.DescentPhase.Exit));
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Exit, 0.2), 100.0, seat);
+        Assert.Equal(4, seat.Count);
+        Assert.Single(seat, p => p.Flame);
+        var flame = seat.Single(p => p.Flame).Local;
+        Assert.True(Vector3.Transform(new Vector3(0f, 0f, 1f), flame).Z < -0.5f, "the flame points down from under the seat");
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Exit, 1.3), 100.0, seat);
+        Assert.Equal(3, seat.Count);                                               // burnt out: the seat alone
+        Assert.DoesNotContain(seat, p => p.Flame);
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Deploying, 0.6), 100.0, seat);
+        Assert.Equal(3, seat.Count);
+        Assert.True(seat[0].Local.Translation.Z < -1.5f, $"falling away beneath him ({seat[0].Local.Translation})");
+        DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Deploying, 2.0), 100.0, seat);
+        Assert.Empty(seat);                                                        // gone
+        DescentDraw.EjectionSeat(new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit, PhaseSince = 99.8 }, 100.0, seat);
+        Assert.Empty(seat);                                                        // a paratrooper has no seat
     }
 
     /// <summary>⭐ CE-1171 (People Display §5 U10) — a blow struck is drawn: a fist punches out and back at the chin, a knife stabs low with

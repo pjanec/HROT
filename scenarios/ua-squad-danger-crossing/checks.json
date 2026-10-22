@@ -1,0 +1,122 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S8 (CE-2159 X-d): the squad danger-crossing drill. Judge (1) crossing starts [Rifleman 1 at the road centre, the take's cue], (3 partly) order of crossing, (5) everyone crosses and the back-half security (Rifleman 3-6) last, (6) the march resumes, (7) nobody fires, (8) crossing <= 120 s [from the first man on the road]. NOT expressible: (2) 'security set first' and (4) 'far side set before security leaves' and (3) 'at most 2 men in the strip' (maneuver phase / a count in a range are not readable); 'across' = x > 215 (road strip x 190-210).",
+  "runFor": 170,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the first man reaches the road",
+      "on": "near",
+      "who": "Rifleman 1",
+      "point": [
+        200,
+        75
+      ],
+      "within": 3
+    },
+    {
+      "name": "the Leader is across the road",
+      "on": "field",
+      "who": "Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 215,
+      "before": "the first man reaches the road+120"
+    },
+    {
+      "name": "Rifleman 1 is across the road",
+      "on": "field",
+      "who": "Rifleman 1",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 215,
+      "before": "the first man reaches the road+120"
+    },
+    {
+      "name": "Rifleman 2 is across the road",
+      "on": "field",
+      "who": "Rifleman 2",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 215,
+      "before": "the first man reaches the road+120"
+    },
+    {
+      "name": "security Rifleman 3 does not cross before the crossers",
+      "never": {
+        "on": "field",
+        "who": "Rifleman 3",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 215
+      },
+      "before": "Rifleman 2 is across the road"
+    },
+    {
+      "name": "security Rifleman 4 does not cross before the crossers",
+      "never": {
+        "on": "field",
+        "who": "Rifleman 4",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 215
+      },
+      "before": "Rifleman 2 is across the road"
+    },
+    {
+      "name": "security Rifleman 5 does not cross before the crossers",
+      "never": {
+        "on": "field",
+        "who": "Rifleman 5",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 215
+      },
+      "before": "Rifleman 2 is across the road"
+    },
+    {
+      "name": "security Rifleman 6 does not cross before the crossers",
+      "never": {
+        "on": "field",
+        "who": "Rifleman 6",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 215
+      },
+      "before": "Rifleman 2 is across the road"
+    },
+    {
+      "name": "all riflemen are across the road",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 215,
+      "quantifier": "all",
+      "before": "the first man reaches the road+120"
+    },
+    {
+      "name": "the squad's march resumes (SquadMarch)",
+      "on": "task",
+      "who": "Squad",
+      "is": "SquadMarch",
+      "after": "all riflemen are across the road"
+    },
+    {
+      "name": "the Leader marches on beyond the road",
+      "on": "field",
+      "who": "Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 250,
+      "atEnd": true
+    },
+    {
+      "name": "nobody fires (watching, not shooting)",
+      "never": {
+        "on": "shot"
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-15 (§13.3a CE-3119: the exercise archive carries a copy of its scenario)
 current-answer: §8.10 "Distributed Entity Lifecycle During Replay" + §8.5 are the RULING on what runs
   during replay. The rest of this document is the drill-management / DSM design.
-known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
+known-rot: ⛔ §9.1's `.dds` in-flight capture is WITHDRAWN (R-3041). ⛔ §9.3's dry-run mechanics (SyncFrom) are SUPERSEDED by R-3040 — the dry run and the checkpoint use the flight recorder (Paused and Stepped §7g.0). ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
   GhostPromotionSystem and NetworkGatewaySystem never run". MEASURED 2026-09-12: none of those three is
   ever passed to that group, ExecuteGroup has exactly ONE caller (NedReplicationModule.cs:493) so the
   group never ticks on the editor or on BDC nodes, and relocating them into it would STOP entity
@@ -20,6 +20,8 @@ known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = fals
 known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — §9's dry run and checkpoint as REBUILT on the flight recorder (R-3040/R-3041; CE-3299).
+  - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f.1 (CE-3297/CE-3298): which SYSTEM state a §9 checkpoint must find in components (class C) and which may stay a field (recoverable A, re-derived protocol B); measured: a latch in a field ejects a second pilot after a restore.
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run while time is paused; editing while paused (:431) and
     Always Recording (:1941) here are why ~40 % of systems carry EveryFrame there (CE-3293); its rule 10: replay stays with §8.10's gates here, and a replayed frame with dt > 0 counts as advancing
   - docs/DESIGN_Terrain_Combat_Tuning.md — §5a: the terrain NAME in the recording metadata (CE-3118) and the user ruling
@@ -2336,6 +2338,8 @@ sequenceDiagram
     Master-->>IOS: ClusterOpStatus(Success, Req_B)
 ```
 
+> ⛔ **WITHDRAWN `2026-10-22` by `R-3041`** (user: *"No capturing of network buffers. accepting the losses."*): the `.dds` in-flight capture in the box above is not built and will not be — a restore loses what was in flight; state resyncs by the owners' republish ([Paused and Stepped §7g.0b](../../blueprints/DESIGN_Paused_And_Stepped_Execution.md)). ⚠ And the `.fdp` is now a flight-recorder keyframe (`R-3040`).
+
 **Teardown Barrier (graceful `UnloadingLive`):**  
 The `CheckpointIOWorker` may still be draining its queue when the operator ends the
 exercise.  The `LiveLoadDsmHandler` must not destroy the `EntityRepository` or uninstall
@@ -2375,6 +2379,8 @@ OS-imposed inbound SMB connection limits.
 | Concurrent | No (edit mode, single session) | Yes (IOS can fire in quick succession) |
 | ACK timing | Synchronous (RAM only, no disk) | Deferred until local SSD write complete |
 
+> ⛔ **SUPERSEDED `2026-10-22` by `R-3040`** ([Paused and Stepped §7g.0 R0″ / R0′](../../blueprints/DESIGN_Paused_And_Stepped_Execution.md)): the dry run and the checkpoint save and restore with the **flight recorder** (a keyframe; `PlaybackSystem` applies it), not `SyncFrom` — 📐 `SyncFrom` carries only 11 singletons, borrowed by reference, so neither a dry-run rewind nor a checkpoint ever held the rest. The text below is the prior as-built.
+>
 > **Dry Run mechanics:** On `LoadingDryRun` the slave calls `snap.SyncFrom(liveRepo)`
 > (same path as named checkpoints) but retains the snapshot purely in RAM.  The
 > simulation is unpaused → `RunningDryRun`.  On `UnloadingDryRun` the slave calls

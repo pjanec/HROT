@@ -49,7 +49,9 @@ namespace Fdp.Network.Cyclone.Systems
             //   world reuses the ids". The deletes now go out when the cluster ENTERS Idle, a load cycle before any id is
             //   reused, and a receiver ignores a delete from a node that is not the entity's owner.
             //   📄 docs/DESIGN_Cluster_Load_Phase.md §8.2.
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            // ⭐ D4 — Ended, not Moved: an in-place restore (a dry-run exit, a checkpoint restore) replaces the world but does
+            //   not END it — the entities are still this node's, so nothing is deleted on the wire.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Ended(view, ref _worldEpoch))
             {
                 foreach (var netId in _trackedEntities.Keys.ToList())
                     DisposeAll(netId);

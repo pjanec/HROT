@@ -1,0 +1,136 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — C3 (CE-2152) the rescue score stays low while the fight is hot. From the header's Judge (1)-(4): at contact the check drops Rifleman 3 to 25 HP; for 30 s no CasualtyCare task, no CarryCasualty task, nobody carries him; then the check sets the three hostiles to 0 HP and the squad goes (CasualtyCare within 20 s), the Medic carries, puts him down alive. 30 s and 20 s are the Judge's own windows. NOT expressed: the 'return to the fight' and the 2.5 m cover point (HTTP maneuver data). TRIAGE (CE-4042, 2026-10-22, after behaviors' SquadHold change): the squad's care is its DRILL (SquadDrillTrace.Kind 11), not a task — the squad's task is now SquadHold; carried / put down is the embark cue (IsEmbarkedTag.Mode is not in the dump), as in ua-casualty-care-leader.",
+  "runFor": 130,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "at": "*Hostile"
+    }
+  },
+  "do": [
+    {
+      "name": "the check drops Rifleman 3 to 25 HP under fire",
+      "at": "contact",
+      "set": {
+        "who": "Rifleman 3",
+        "component": "Health",
+        "patch": {
+          "Current": 25
+        }
+      }
+    },
+    {
+      "name": "the check sets the three hostiles to 0 HP",
+      "at": "the check drops Rifleman 3 to 25 HP under fire+30",
+      "set": {
+        "who": "*Hostile",
+        "component": "Health",
+        "patch": {
+          "Current": 0
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the squad is in contact (a round at a Hostile)",
+      "on": "shot",
+      "at": "*Hostile"
+    },
+    {
+      "name": "for 30 s the squad does not start CasualtyCare",
+      "never": {
+        "on": "field",
+        "who": "Squad",
+        "path": "SquadDrillTrace.Kind",
+        "op": "==",
+        "value": 11
+      },
+      "after": "the check drops Rifleman 3 to 25 HP under fire",
+      "before": "the check drops Rifleman 3 to 25 HP under fire+30"
+    },
+    {
+      "name": "for 30 s the Medic gets no CarryCasualty",
+      "never": {
+        "on": "task",
+        "who": "Medic",
+        "is": "CarryCasualty"
+      },
+      "after": "the check drops Rifleman 3 to 25 HP under fire",
+      "before": "the check drops Rifleman 3 to 25 HP under fire+30"
+    },
+    {
+      "name": "for 30 s no rifleman gets CarryCasualty",
+      "never": {
+        "on": "task",
+        "who": "*Rifleman",
+        "is": "CarryCasualty"
+      },
+      "after": "the check drops Rifleman 3 to 25 HP under fire",
+      "before": "the check drops Rifleman 3 to 25 HP under fire+30"
+    },
+    {
+      "name": "for 30 s the Leader gets no CarryCasualty",
+      "never": {
+        "on": "task",
+        "who": "Leader",
+        "is": "CarryCasualty"
+      },
+      "after": "the check drops Rifleman 3 to 25 HP under fire",
+      "before": "the check drops Rifleman 3 to 25 HP under fire+30"
+    },
+    {
+      "name": "for 30 s nobody carries him",
+      "never": {
+        "on": "embark",
+        "who": "Rifleman 3",
+        "is": true
+      },
+      "after": "the check drops Rifleman 3 to 25 HP under fire",
+      "before": "the check drops Rifleman 3 to 25 HP under fire+30"
+    },
+    {
+      "name": "with the enemy down the squad runs the care drill (CasualtyCare)",
+      "on": "field",
+      "who": "Squad",
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 11,
+      "after": "the check sets the three hostiles to 0 HP",
+      "before": "the check sets the three hostiles to 0 HP+20"
+    },
+    {
+      "name": "the Medic goes for him (CarryCasualty)",
+      "on": "task",
+      "who": "Medic",
+      "is": "CarryCasualty",
+      "after": "the check sets the three hostiles to 0 HP"
+    },
+    {
+      "name": "the Medic takes the man (the casualty is carried)",
+      "on": "embark",
+      "who": "Rifleman 3",
+      "is": true,
+      "after": "the Medic goes for him (CarryCasualty)"
+    },
+    {
+      "name": "he puts him down (no longer carried)",
+      "on": "embark",
+      "who": "Rifleman 3",
+      "is": false,
+      "after": "the Medic takes the man (the casualty is carried)"
+    },
+    {
+      "name": "the casualty is alive",
+      "on": "field",
+      "who": "Rifleman 3",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

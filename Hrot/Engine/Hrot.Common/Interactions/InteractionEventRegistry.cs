@@ -21,6 +21,7 @@ namespace Hrot.Common.Interactions
             bus.Register<GlobalActionRequestedEvent>();
             bus.Register<OpenLayerEditorEvent>();
             bus.Register<ToggleMap3DEvent>();   // ⭐ CE-1033
+            bus.Register<ToggleShoulderViewEvent>();   // ⭐ CE-1201
             bus.Register<GizmoInspectorClosedEvent>();   // ⭐ CE-1066 — a StructInspector panel's [X]
             bus.Register<MapShortcutKeyEvent>();         // ⭐ CE-1076 — a menu shortcut typed on the map
 

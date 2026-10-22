@@ -1,0 +1,42 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AW-20 a neutral in the spread holds the shot. From the header's Judge (2)-(3): the rifleman fires once the line is clear, the Insurgent goes down (out of the fight = Health below 30, the default IncapacitatedBelow 0.3 the live check used), no civilian is hit. NOT expressed: (1) the 'hold: neutral on line' status - an HTTP weapon-status string, and the header gives no window for how long he holds.",
+  "runFor": 80,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rifleman fires",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Insurgent"
+    },
+    {
+      "name": "the Insurgent goes down (out of the fight)",
+      "on": "field",
+      "who": "Insurgent",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 30,
+      "after": "the rifleman fires"
+    },
+    {
+      "name": "no round of his hits a civilian",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "hit": "*Civilian"
+      }
+    },
+    {
+      "name": "no civilian is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Civilian",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

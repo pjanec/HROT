@@ -1,0 +1,14 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — A7/A8: the weapon brain picks the round by the target. From the header's Judge (1)-(2).",
+  "runFor": 60,
+  "golden": {"every": 10},
+  "expect": [
+    {"name": "the M1 fires a kinetic round (>= 600 mm) at the T-72", "on": "shot", "by": "Tank", "at": "Enemy Tank", "where": {"penetration": [">=", 600]}, "before": 20},
+    {"name": "the T-72 is destroyed", "on": "field", "who": "Enemy Tank", "path": "Health.Current", "op": "<=", "value": 0, "before": 40},
+    {"name": "the M1 fires a soft-target round (< 100 mm) at the technical", "on": "shot", "by": "Tank", "at": "Technical", "where": {"penetration": ["<", 100]}, "before": 50},
+    {"name": "the M1 fires a soft-target round at a rifleman", "on": "shot", "by": "Tank", "at": "*Rifleman", "where": {"penetration": ["<", 100]}, "before": 58},
+    {"name": "never a kinetic round at the technical", "never": {"on": "shot", "by": "Tank", "at": "Technical", "where": {"penetration": [">=", 600]}}},
+    {"name": "never a kinetic round at a rifleman", "never": {"on": "shot", "by": "Tank", "at": "*Rifleman", "where": {"penetration": [">=", 600]}}},
+    {"name": "the M1 survives", "on": "field", "who": "Tank", "path": "Health.Current", "op": ">", "value": 0, "atEnd": true}
+  ]
+}

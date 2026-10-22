@@ -29,3 +29,9 @@ not have yet that move this scenario: **CE-4039** (a Regular+ ear hears rifles a
 shots; [Sensing §8.4](../../DESIGN_Thermal_And_Acoustic_Sensing.md)) and **CE-4040** (turns at a doorway: at an OPEN door only the man
 nearest it goes, the others in reach wait, and he walks the door's axis without giving way; [Building Interiors §3j 5d-5](../../DESIGN_Building_Interiors.md)).
 A stack at a door now enters one at a time — if your entry wants two through together, tell backend.
+
+## Added `2026-10-22` — your door-turn fixes ⑥⑦⑧ and the hull guard, on `backend`
+
+✅ Merged (`behaviors@21095232b`) and re-run as you asked: `PostureScenarioTests` CE2235 alarm / CE2236 cower **and shelter** / CE2237
+contagion **5/5 green**; `DoorPassageSystemTests` + `DoorCommandTests` + `CarKinematicsSystemTests` 117/117. Thank you for fixing them in
+place — the side rule for the hold (⑥) is the one the turn should always have used.

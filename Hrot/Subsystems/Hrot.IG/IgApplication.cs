@@ -509,6 +509,10 @@ public class IgApplication : IDisposable
     public PerformanceOverlay    PerformanceOverlay   => _performanceOverlay;
     /// <summary>The FDP entity inspector panel.</summary>
     public FdpEntityInspectorPanel FdpEntityInspector => _fdpEntityInspector;
+
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+    public Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
     /// <summary>The FDP event browser panel.</summary>
     public FdpEventBrowserPanel  FdpEventBrowser      => _fdpEventBrowser;
     /// <summary>Getter for the FDP repository adapter (available after first DrawUI call).</summary>
@@ -801,6 +805,7 @@ public class IgApplication : IDisposable
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = ctx.World,
+                    Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors. IG holds no BehaviorRegistry: its labels
                     //   carry the id and the hit points, not the behaviour name (has data = can draw).
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(ctx.GeoTransform),
@@ -2644,13 +2649,14 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ⭐ CE-3169 — an id the shared map registry knows (Move Here · Engage · Stop, the pins, the AI trace…) runs HERE, as the
+        // ⭐ CE-3169 — an id the host's registry knows (Move Here · Engage · Stop, the pins, the AI trace…) runs HERE, as the
         //   map menu's own clicks do. 📐 It used to fall through to the ContextActionTriggered below, which nothing on IG reads
-        //   and no translator sends — so these items did nothing from this menu.
-        if (_igMapInteraction != null && _igMapInteraction.Actions.TryGetHandler(actionId, out var handler))
+        //   and no translator sends — so these items did nothing from this menu. ⭐ CE-1150 (§12 HA-6) — REQUESTED, so the dispatch
+        //   system runs it like every other click. ⛔ SUPERSEDED: the handler fetched from the map's registry and called here.
+        if (HostActions.Actions.Has(actionId))
         {
             _entityMap.TryGetEntity(anchorId, out var target);
-            handler(_world, target);
+            HostActions.Request(actionId, target);
             return;
         }
 

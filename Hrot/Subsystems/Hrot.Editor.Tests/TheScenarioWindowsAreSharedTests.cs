@@ -255,6 +255,34 @@ public sealed class TheScenarioWindowsAreSharedTests
     public void EveryMapHostGivesTheOrbatRowTheMapsMenu(string project, string file)
     {
         var text = HostSource.Read(project, file);
-        Assert.Contains("RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState)", text);
+        Assert.Contains("RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions,", text);   // ⭐ CE-1150 — the host's actions
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1150</c> (docs/designs/gizmos-1/canvas-context-menu-design.md §12 HA-1 / HA-4; 🔒 user, 2026-10-22: <i>"the details
+    /// panel is not something just the editor has, it is shared and unified across hosts and the "properties..." click should show it on
+    /// every ECS host"</i>) — EVERY ECS host composes the shared Details panel, and every host with a map hands it ITS actions.
+    /// 📐 Before: the Details panel with the Components view on the Editor only. ⛔ Forgetting either half on a host leaves Properties… dead
+    /// there or the panel missing — this rail is the error. ✅ Red-proof: removing the bundle from any one host reddens its row.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",               true)]
+    [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                     true)]
+    [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",             false)]
+    [InlineData("Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                       false)]
+    [InlineData("Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", true)]
+    [InlineData("Stride/HrotStrideApp.Game/StrideNodeShell.cs",                 false)]
+    public void EveryEcsHostComposesTheSharedDetailsPanel(string file, bool buildsItsMapHere)
+    {
+        var text = HostSource.ReadRelative(file.Split('/'));
+        Assert.Contains("new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(", text);
+        if (buildsItsMapHere) Assert.Contains("Host  = HostActions,", text);
+    }
+
+    /// <summary>⭐ CE-1150 (HA-1) — the two hosts that build their map in their application class hand it the host's actions there.</summary>
+    [Theory]
+    [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs")]
+    [InlineData("Hrot/Subsystems/Hrot.IG/IgApplication.cs")]
+    public void TheMapIsHandedTheHostsActions(string file)
+        => Assert.Contains("Host  = HostActions,", HostSource.ReadRelative(file.Split('/')));
 }

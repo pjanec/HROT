@@ -153,10 +153,19 @@ namespace Fdp.Core
 
                 _typeToId[type] = id;
                 _idToType[id] = type;
-                _isSnapshotable[id] = true;  // Default: snapshotable
-                _isRecordable[id] = true;    // Default: recordable
-                _isSaveable[id] = true;      // Default: saveable
-                _needsClone[id] = false;     // Default: shallow copy
+
+                // ⭐⭐ D7 (R-3046) — the type's own [DataPolicy] decides from the FIRST registration. 📐 Measured (restore design
+                //   §6a M1): a SINGLETON is registered only here (SetSingleton* → ManagedComponentType<T>.ID), never through
+                //   EntityRepository.RegisterComponent, so every singleton was recordable whatever it declared — WorldEpoch
+                //   ([Transient]) and NetworkEntityMap were written into every keyframe, and a keyframe apply put a stale world
+                //   number back. Without an attribute the defaults stand (RegisterComponent still applies its conventions).
+                //   📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md D7.
+                var policy = type.GetCustomAttribute<DataPolicyAttribute>(inherit: false)?.Policy ?? DataPolicy.Default;
+                bool clone = policy.HasFlag(DataPolicy.SnapshotViaClone);
+                _isSnapshotable[id] = clone || !policy.HasFlag(DataPolicy.NoPreview);
+                _isRecordable[id]   = !policy.HasFlag(DataPolicy.NoReplay);
+                _isSaveable[id]     = !policy.HasFlag(DataPolicy.NoScenario);
+                _needsClone[id]     = clone;
 
                 return id;
             }

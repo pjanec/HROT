@@ -98,6 +98,10 @@ public static class EqsSolverStartup
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282
         if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
             context.World.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
+        // ⭐ CE-3301 — the ring the hearing sensors read exists from the start, not from SoundEmissionSystem's first step: a solve
+        //   that ran before it existed planted no cursor, so a FIRST load heard nothing until the solver's next slot while a reload
+        //   (the ring is a node singleton that outlives a load) heard at once — two loads of one scenario, two timelines.
+        Fdp.Toolkit.Perception.Signatures.SoundEmissionRing.Of(context.World);
         // ⭐ CE-3038 — the module carries vision too (its grid, the visual template, 3-D sight): design §5.5.
         var module = Modules.EqsModule.ForTerrainHost(context.World);
         context.Kernel.RegisterModule(module);

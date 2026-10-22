@@ -38,7 +38,7 @@ namespace CarKinem.Controllers
 
         /// <summary>A key for the move (its path and destination), never 0 — so a standing start is checked once per move.</summary>
         public static int MoveKey(in NavState nav)
-            => HashCode.Combine(nav.TrajectoryId, (int)MathF.Round(nav.FinalDestination.X * 10f), (int)MathF.Round(nav.FinalDestination.Y * 10f)) | 1;
+            => Fdp.Core.StableHash.Combine(nav.TrajectoryId, (int)MathF.Round(nav.FinalDestination.X * 10f), (int)MathF.Round(nav.FinalDestination.Y * 10f)) | 1;   // ⭐ CE-3303 — it lands in FrustrationTicks: not HashCode (seeded per process)
 
         /// <summary>
         /// Start a try: drive <paramref name="dir"/> (−1 back, +1 forward — against the held motion) with the wheels locked so the nose swings
