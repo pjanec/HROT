@@ -43,6 +43,9 @@ namespace Hrot.Common.Interactions
         public bool TryGetHandler(int actionId, out GlobalActionHandler handler)
             => _handlers.TryGetValue(actionId, out handler!);
 
+        // ⭐ CE-1150 (HA-6) — this node runs <paramref name="actionId"/>: a menu offers it, a relay requests it.
+        public bool Has(int actionId) => _handlers.ContainsKey(actionId);
+
         // ⭐ CE-3178 — as above, and false for a RegisterLocal action that was relayed from another node.
         public bool TryGetHandler(int actionId, bool relayed, out GlobalActionHandler handler)
         {
