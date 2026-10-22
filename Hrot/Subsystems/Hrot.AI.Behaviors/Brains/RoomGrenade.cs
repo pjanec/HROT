@@ -46,7 +46,7 @@ namespace Hrot.AI.Behaviors.Brains
             var pool = MemoryMarshal.CreateReadOnlySpan(
                 ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
-            uint now = world.SimulationTick;
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // the clock LastSeenTick is stamped in (CE-3292)
             for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
             {
                 if (pool[c].PositionZ < floorZ - 1f || pool[c].PositionZ > floorZ + 2.8f) continue;

@@ -156,7 +156,7 @@ namespace Hrot.AI.Behaviors.Brains
             || RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, UnderFireSeconds);
 
         /// <summary>The freshest HEARD contact (an anonymous memory slot — <c>TopThreat</c> ranks entities only) stamped within
-        /// <see cref="HeardWindowTicks"/> of now (<c>SimulationTick</c>, the clock perception stamps it with).</summary>
+        /// <see cref="HeardWindowTicks"/> of now (<c>PerceptionClock.Now</c>, the clock perception stamps it with — CE-3292).</summary>
         public static unsafe bool FreshHeard(EntityRepository world, Entity self, out Vector3 at)
         {
             at = default;

@@ -252,7 +252,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var e = new Entity((ulong)mem.EntityIds[i]);
                     if (mem.EntityIds[i] <= 0 || !world.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, carrier, e)) continue;
-                    if (!Fresh(mem.LastSeenTick[i], world.SimulationTick)) continue;
+                    if (!Fresh(mem.LastSeenTick[i], Fdp.Toolkit.Perception.PerceptionClock.Now(world))) continue;
                     if (new Vector2(mem.PositionsX[i] - at.X, mem.PositionsY[i] - at.Y).LengthSquared() <= r2) return true;
                 }
             }
@@ -264,7 +264,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
             {
                 if (pool[i].EntityId > 0 && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, new Entity((ulong)pool[i].EntityId))) continue;
-                if (!Fresh(pool[i].LastSeenTick, world.SimulationTick)) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
+                if (!Fresh(pool[i].LastSeenTick, Fdp.Toolkit.Perception.PerceptionClock.Now(world))) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
                 if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
             }
             return false;

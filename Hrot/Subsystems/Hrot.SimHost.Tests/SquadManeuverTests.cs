@@ -5225,7 +5225,7 @@ namespace Hrot.SimHost.Tests
             void Seen(float x)
             {
                 ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
-                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, x, 0f, 1f, s.Repo.SimulationTick);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, x, 0f, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             }
 
             Seen(50f);
@@ -5279,8 +5279,8 @@ namespace Hrot.SimHost.Tests
             var enemy = s.Repo.CreateEntity();
             s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
             s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
-            uint seen = s.Repo.SimulationTick;
-            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Repo.Tick();                 // 11 s pass
+            uint seen = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);                                          // as perception stamps it (CE-3292)
+            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Tick();                    // 11 s pass
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
             Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, seen);
             Ticks(s, 20);
@@ -5305,7 +5305,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
             s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
-            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, s.Repo.SimulationTick);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             Ticks(s, 20);
             Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // it drives: ride on
             s.Repo.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.None });           // dead in the water
@@ -6698,7 +6698,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = force });
             if (vehicle) s.Repo.AddComponent(e, new global::CarKinem.Core.VehicleState());
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(spotter);
-            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, s.Repo.SimulationTick);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             return e;
         }
 
