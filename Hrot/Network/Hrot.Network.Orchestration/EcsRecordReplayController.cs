@@ -8,6 +8,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Fdp.Core;
 using Fdp.Core.Orchestration;
+using Fdp.Core.FlightRecorder;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replay;
 using Fdp.Toolkit.Replication.Components;
@@ -163,7 +164,14 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// after this call the <see cref="RecorderTickSystem"/> is live in the
         /// topological graph and every frame is captured.
         /// </summary>
-        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
+            => PrepareRecordingAsync(exerciseId, storageDirectory, branch: null);
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — a recording that branches: <paramref name="branch"/>'s frames up to the branch
+        /// point are copied in first, then every frame is captured after them. ⛔ Never over an existing recording (a loud failure).
+        /// </summary>
+        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch)
         {
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
@@ -173,6 +181,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 EntityFilter = null,   // record all entities above MinRecordableId
                 ExerciseId      = exerciseId,
                 NodeId = _nodeId,
+                Branch = branch,
             };
             _activeRecordingModule = new RecordingModule(config);
             await _kernel.InstallModuleAsync(_activeRecordingModule);
@@ -342,6 +351,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// by <see cref="ReplayModule"/> into the kernel scheduler.
         /// </summary>
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
+
+        /// <inheritdoc />
+        public RecordingBranch? CurrentReplayBranch =>
+            _activeReplayModule is { HasRecording: true, CurrentFrame: >= 0 } replay
+                ? new RecordingBranch(replay.FilePath, replay.CurrentFrame + 1, replay.RecordedExerciseId, replay.CurrentFrameWallTicks)
+                : null;
 
         /// <inheritdoc />
         public GlobalTime GetCurrentReplayTime() =>

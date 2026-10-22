@@ -73,6 +73,14 @@ public sealed class LiveBranchProcessManager
                 // branch a cluster step stopped waiting for the slaves' ACKs.
                 _time.SnapTo(lbr.HistoricalTime);
             }
+            // ⭐ CE-3299 B4 (D5) — a checkpoint restore is a branch too (D18), from a LIVE cluster: no replay freeze to undo; the
+            //   clock goes back to the earliest node's checkpoint and the cluster stays paused (SnapTo pauses).
+            else if (ev.ResultPayload is CheckpointRestoreResult crr && crr.RestoredTime.TotalWallTicks != 0)
+            {
+                Fdp.Core.Logging.FdpLog<LiveBranchProcessManager>.Info(
+                    "[Orchestrator] checkpoint restore: the clock goes back to sim time {0:F3} s and stays paused.", crr.RestoredTime.TotalTime);
+                _time.SnapTo(crr.RestoredTime);
+            }
         }
     }
 }

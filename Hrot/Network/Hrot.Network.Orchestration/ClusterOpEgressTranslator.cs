@@ -151,6 +151,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = LabelJson(intent.Label),
             });
 
+        foreach (var intent in _bus.ReadManaged<RestoreCheckpointIntent>())   // ⭐ CE-3299 B4
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.RestoreCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
+            });
+
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
             _writer.Write(new ClusterOpRequest
             {

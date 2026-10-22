@@ -51,6 +51,31 @@ namespace Fdp.Core.FlightRecorder
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 — frame <paramref name="frame"/> of <paramref name="sourcePath"/>, decompressed: exactly the bytes the
+        /// recorder captured (a keyframe is what <c>RecorderSystem.RecordKeyframe</c> wrote). The source may still be recording.
+        /// </summary>
+        public static byte[] ReadFrame(string sourcePath, int frame, out FrameType frameType)
+        {
+            if (frame < 0) throw new ArgumentOutOfRangeException(nameof(frame));
+            using var source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var header = new byte[GlobalHeaderSize];
+            source.ReadExactly(header);
+            if (System.Text.Encoding.ASCII.GetString(header, 0, 6) != "FDPREC")
+                throw new InvalidDataException($"'{sourcePath}' is not a recording");
+
+            Span<byte> outer = stackalloc byte[FrameOuterHeader.Size];
+            for (int i = 0; i < frame; i++)
+                source.Seek(SkipFrame(source, outer, i, sourcePath), SeekOrigin.Current);
+            int size = ReadOuter(source, outer, frame, sourcePath, out var head);
+            var compressed = new byte[size];
+            source.ReadExactly(compressed);
+            var raw = new byte[head.UncompressedSize];
+            K4os.Compression.LZ4.LZ4Codec.Decode(compressed, 0, size, raw, 0, raw.Length);
+            frameType = (FrameType)head.FrameType;
+            return raw;
+        }
+
         // Reads frame `frame`'s outer header; returns its payload size.
         private static int ReadOuter(FileStream source, Span<byte> outer, int frame, string path, out FrameOuterHeader head)
         {

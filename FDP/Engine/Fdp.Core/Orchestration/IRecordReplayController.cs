@@ -26,6 +26,22 @@ namespace Fdp.Core.Orchestration
         Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory);
 
         /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — opens a recording that BRANCHES: its first frames are a copy of
+        /// <paramref name="branch"/>'s parent up to the branch point, then every frame is captured after them. Null = an empty start
+        /// (<see cref="PrepareRecordingAsync(Guid, string)"/>). ⚠ The default supports only null — a controller that records implements it.
+        /// </summary>
+        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, FlightRecorder.RecordingBranch? branch)
+            => branch == null
+                ? PrepareRecordingAsync(exerciseId, storageDirectory)
+                : throw new NotSupportedException($"{GetType().Name} cannot record a branch");
+
+        /// <summary>
+        /// ⭐ <c>D18</c> — where a branch from the replay on screen would start: this node's recording up to the frame it shows.
+        /// Null when no replay is open, or this node has no recording of it (a listener — its branch starts empty).
+        /// </summary>
+        FlightRecorder.RecordingBranch? CurrentReplayBranch => null;
+
+        /// <summary>
         /// Finalizes and closes the active recording.  Blocks until all LZ4
         /// buffers are flushed and the <c>.meta.json</c> manifest is written.
         /// </summary>

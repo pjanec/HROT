@@ -46,5 +46,9 @@ namespace Fdp.Toolkit.Orchestration
         //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
         PublishAssets = 19,
         RefreshAssets = 20,
+
+        // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
+        RestoreCheckpoint = 21,
     }
 }

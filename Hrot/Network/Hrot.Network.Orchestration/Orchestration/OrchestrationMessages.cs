@@ -51,6 +51,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
         PublishAssets = 19,
         RefreshAssets = 20,
+
+        // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
+        RestoreCheckpoint = 21,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -90,6 +94,11 @@ namespace Hrot.NED.Descriptors.Orchestration
 
         // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
         ExportCheckpoint = 31,
+
+        // ⭐ CE-3299 B4 — phase 1 of a checkpoint restore: read keyframe X and stage it (nothing changes). Phase 2 is the dead
+        //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
+        //   ⛔ PERMANENT WIRE VALUE (R-42).
+        PrepareRestore = 32,
     }
 
     [DdsTopic("ClusterState")]

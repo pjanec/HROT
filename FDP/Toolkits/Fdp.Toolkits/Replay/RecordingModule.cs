@@ -51,13 +51,48 @@ namespace Fdp.Toolkit.Replay
         public void RegisterSystems(ISystemRegistry registry)
         {
             var metadata = new RecordingMetadata { ExerciseId = _config.ExerciseId, NodeId = _config.NodeId };
-            _recorder = new AsyncRecorder(_config.FilePath, metadata);
+            // ⭐ D18 (R-3047) — a branch copies its parent's frames up to the branch point and appends after them; ⛔ never over a file.
+            _recorder = _config.Branch is { } branch
+                ? new AsyncRecorder(_config.FilePath, StartBranch(branch, _config.FilePath, metadata), branch.FrameCount)
+                : new AsyncRecorder(_config.FilePath, metadata, appendAfterFrames: 0);
 
             if (_config.EntityFilter != null)
                 _recorder.EntityFilter = _config.EntityFilter;
 
             registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — writes <paramref name="branch"/>'s copied history into <paramref name="filePath"/> (a byte
+        /// copy, <see cref="RecordingSlice.CopyFrames"/>) and fills <paramref name="metadata"/> with what it inherits: the parent's
+        /// checkpoints at or before the branch point, its terrain and geo origin, and the parent's id and branch time.
+        /// </summary>
+        internal static RecordingMetadata StartBranch(RecordingBranch branch, string filePath, RecordingMetadata metadata)
+        {
+            if (branch.FrameCount < 1) throw new ArgumentOutOfRangeException(nameof(branch), "a branch copies at least the branch point's frame");
+            RecordingSlice.CopyFrames(branch.SourcePath, filePath, 0, branch.FrameCount);
+            var parentMeta = branch.SourcePath + ".meta.json";
+            if (System.IO.File.Exists(parentMeta))
+            {
+                var parent = MetadataSerializer.Deserialize(System.IO.File.ReadAllText(parentMeta));
+                metadata.Checkpoints = parent.Checkpoints.FindAll(m => m.Frame < branch.FrameCount);
+                metadata.TerrainName = parent.TerrainName;
+                metadata.GeoOrigin   = parent.GeoOrigin;
+                metadata.MaxNetworkId = parent.MaxNetworkId;
+            }
+            metadata.ParentExerciseId = branch.ParentExerciseId;
+            metadata.BranchWallTicks  = branch.BranchWallTicks;
+            return metadata;
+        }
+
+        /// <summary>⭐ B4 — the checkpoint <paramref name="label"/> of this recording, or null.</summary>
+        public CheckpointMark? FindCheckpoint(string label) => _recorder?.Metadata.Checkpoints.Find(m => m.Label == label);
+
+        /// <summary>⭐ B4 — the exercise this module records.</summary>
+        public Guid ExerciseId => _config.ExerciseId;
+
+        /// <summary>⭐ B4 — waits until every frame captured so far is on disk (<see cref="AsyncRecorder.WaitForWrites"/>).</summary>
+        public void WaitForWrites() => _recorder?.WaitForWrites();
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime) { /* driven by RecorderTickSystem */ }
@@ -96,7 +131,8 @@ namespace Fdp.Toolkit.Replay
             var meta = MetadataSerializer.Deserialize(MetadataSerializer.Serialize(recorder.Metadata));
             meta.TotalFrames = 1;
             meta.Checkpoints = new System.Collections.Generic.List<CheckpointMark>
-                { new CheckpointMark { Label = mark.Label, Frame = 0, WallTicks = mark.WallTicks } };
+                { new CheckpointMark { Label = mark.Label, Frame = 0, WallTicks = mark.WallTicks, TotalTime = mark.TotalTime,
+                                       UnscaledTotalTime = mark.UnscaledTotalTime, FrameNumber = mark.FrameNumber } };
             System.IO.File.WriteAllText(outputPath + ".meta.json", MetadataSerializer.Serialize(meta));
         }
 

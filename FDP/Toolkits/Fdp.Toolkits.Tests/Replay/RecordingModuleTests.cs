@@ -236,9 +236,12 @@ namespace Fdp.Toolkit.Replay.Tests
             module.Dispose();
 
             // The registry retains captured references but they are dead (recorder disposed).
-            // A new module for the same path registers exactly one new RecorderTickSystem;
-            // it is a different object from the disposed one.
-            var module2   = new RecordingModule(config);
+            // A new module registers exactly one new RecorderTickSystem; it is a different object from the disposed one.
+            // ⭐ CE-3299 B4 / D18 ③ — on a NEW file: the exercise recorder never reopens a recording (that was a truncation).
+            var module2   = new RecordingModule(new RecordingConfiguration
+            {
+                FilePath = Path.Combine(_tempDir, "sc_uninstall_2.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 0,
+            });
             var registry2 = new CapturingSystemRegistry();
             module2.RegisterSystems(registry2);
 
@@ -395,6 +398,210 @@ namespace Fdp.Toolkit.Replay.Tests
                 Assert.True(File.Exists(written), $"no export at {written}");
             }
             finally { module.Dispose(); }
+        }
+
+        // ── ⭐ CE-3299 B4 / D18 — a branch keeps its history; a restore puts the world back to a checkpoint ──────────────
+
+        // the recording's bytes up to the END of frame `lastFrame` (global header + frames 0..lastFrame, as written)
+        private static byte[] PrefixThrough(string path, int lastFrame)
+        {
+            var bytes = File.ReadAllBytes(path);
+            int pos = RecordingSlice.GlobalHeaderSize;
+            for (int i = 0; i <= lastFrame; i++) pos += FrameOuterHeader.Size + BitConverter.ToInt32(bytes, pos);
+            return bytes.AsSpan(0, pos).ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3299 B4 / D18 ② (R-3047) — a BRANCH recording opens with a byte copy of its parent up to the branch point, inherits the
+        /// parent's checkpoints up to there and names its parent, then records on — its own first frame a keyframe, its own marks counted
+        /// in the whole file. The parent is not written.
+        /// </summary>
+        [Fact]
+        public void CE3299_B4_ABranch_StartsWithItsParentsFramesUpToTheBranchPoint_AndRecordsOn()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(1, 2, 3) });
+            var (parent, frame, parentPath) = Recording(world, "parent.fdp");
+            Fdp.Core.FlightRecorder.Metadata.CheckpointMark mark;
+            try
+            {
+                frame(100); frame(200);
+                parent.RequestCheckpoint("x", 0);
+                frame(300);                                                     // the keyframe named x
+                frame(400); frame(500);                                         // frames after x: NOT part of the branch
+                mark = parent.FindCheckpoint("x")!;
+            }
+            finally { parent.Dispose(); }
+            var parentBytes = File.ReadAllBytes(parentPath);
+            var parentId = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(parentPath)).ExerciseId;
+
+            var branchId = Guid.NewGuid();
+            var branchPath = Path.Combine(_tempDir, "branch.fdp");
+            var branch = new RecordingModule(new RecordingConfiguration
+            {
+                FilePath = branchPath, ExerciseId = branchId, NodeId = 3,
+                Branch = new RecordingBranch(parentPath, mark.Frame + 1, parentId, mark.WallTicks),
+            });
+            var captured = new CapturingSystemRegistry();
+            branch.RegisterSystems(captured);
+            int ownMark;
+            try
+            {
+                void Frame(long t)
+                {
+                    world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f, TotalWallTicks = t });
+                    world.Tick();
+                    foreach (var sys in captured.Systems) sys.Execute(world, 0.016f);
+                }
+                Frame(310);
+                branch.RequestCheckpoint("y", 0);
+                Frame(320);
+                Assert.Throws<InvalidOperationException>(() => branch.RequestCheckpoint("x", 0));   // x is inherited: still unique
+                ownMark = branch.FindCheckpoint("y")!.Frame;
+            }
+            finally { branch.Dispose(); }
+
+            Assert.Equal(parentBytes, File.ReadAllBytes(parentPath));                             // D18 ④ — the parent is untouched
+            Assert.Equal(PrefixThrough(parentPath, mark.Frame), PrefixThrough(branchPath, mark.Frame));
+            using var playback = new PlaybackController(branchPath);
+            Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(mark.Frame + 1).FrameType);   // its own first frame
+            Assert.Equal(310L, playback.GetFrameMetadata(mark.Frame + 1).WallClockTicks);
+            Assert.True(ownMark > mark.Frame + 1, $"a mark in the branch counts the copied frames too ({ownMark})");
+            Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(ownMark).FrameType);
+
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(branchPath));
+            Assert.Equal((branchId, parentId, mark.WallTicks), (meta.ExerciseId, meta.ParentExerciseId, meta.BranchWallTicks));
+            Assert.Equal(new[] { "x", "y" }, meta.Checkpoints.Select(m => m.Label));
+            Assert.Equal(playback.TotalFrames, meta.TotalFrames);
+        }
+
+        /// <summary>⭐ D18 ③ — the exercise recorder never opens over an existing recording (a loud failure, not a truncation).</summary>
+        [Fact]
+        public void CE3299_B4_TheExerciseRecorder_NeverOverwritesARecording()
+        {
+            var path = Path.Combine(_tempDir, "taken.fdp");
+            File.WriteAllText(path, "an earlier recording");
+            var module = new RecordingModule(new RecordingConfiguration { FilePath = path, ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            Assert.Throws<IOException>(() => module.RegisterSystems(new CapturingSystemRegistry()));
+            Assert.Equal("an earlier recording", File.ReadAllText(path));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3299 B4 (§1h) — the handler's RESTORE: phase 1 stages keyframe X and changes nothing (a node with no mark X fails it;
+        /// an abort drops the stage, so a later phase 2 is refused); phase 2 stops the recording, the commit puts the world back to X,
+        /// and the node records on as the new exercise, its first frames the old one's up to X.
+        /// </summary>
+        [Fact]
+        public async Task CE3299_B4_TheHandler_RestoresTheWorldToTheMark_InTwoPhases()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(1, 2, 3) });
+            var controller = new HandDrivenController(this, world);
+            await controller.PrepareRecordingAsync(Guid.NewGuid(), _tempDir);
+            controller.Frame(100);
+            controller.Module!.RequestCheckpoint("x", 0);
+            controller.Frame(200);                                                  // keyframe x, the world at (1,2,3)
+            Move(world, e, new System.Numerics.Vector3(9, 9, 9));
+            controller.Frame(300);
+            string parentPath = controller.Module.FilePath!;
+
+            var handler = new Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler(
+                () => controller.Module, controller, world, accumulator: null, worldReplaced: null, storageDirectory: _tempDir);
+            var exercise = Guid.NewGuid();
+            Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent Op(Fdp.Toolkit.Orchestration.NodeOpType op, Guid tx, string label = "x") => new()
+            {
+                TransactionId = tx, Operation = op,
+                DomainPayload = new Fdp.Toolkit.Orchestration.RestoreCheckpointPayload(label, exercise),
+            };
+
+            // a node without the mark fails phase 1; nothing staged
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                handler.PrepareAsync(Op(Fdp.Toolkit.Orchestration.NodeOpType.PrepareRestore, Guid.NewGuid(), "missing"), default));
+
+            // phase 1, then an abort of THAT round: the stage is dropped and phase 2 is refused
+            var aborted = Guid.NewGuid();
+            await handler.PrepareAsync(Op(Fdp.Toolkit.Orchestration.NodeOpType.PrepareRestore, aborted), default);
+            Assert.Equal(new System.Numerics.Vector3(9, 9, 9), Assert.Single(Positions(world)));   // phase 1 changes nothing
+            var abort = new Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(), Operation = Fdp.Toolkit.Orchestration.NodeOpType.AbortTransaction,
+                DomainPayload = new Fdp.Toolkit.Orchestration.AbortTransactionPayload(aborted),
+            };
+            Assert.True(handler.CanHandle(abort));
+            await handler.PrepareAsync(abort, default);
+            Assert.False(handler.CanHandle(abort));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                handler.PrepareAsync(Op(Fdp.Toolkit.Orchestration.NodeOpType.RestoreSnapshot, aborted), default));
+
+            // the real round
+            var round = Guid.NewGuid();
+            await handler.PrepareAsync(Op(Fdp.Toolkit.Orchestration.NodeOpType.PrepareRestore, round), default);
+            var result = Assert.IsType<Fdp.Toolkit.Orchestration.CheckpointRestoreResult>(
+                await handler.PrepareAsync(Op(Fdp.Toolkit.Orchestration.NodeOpType.RestoreSnapshot, round), default));
+            Assert.Equal((200L, exercise), (result.RestoredTime.TotalWallTicks, result.ExerciseId));
+            Assert.Null(controller.Module);                                        // the old recording stopped
+            handler.Commit(Op(Fdp.Toolkit.Orchestration.NodeOpType.RestoreSnapshot, round), null);
+
+            Assert.Equal(new System.Numerics.Vector3(1, 2, 3), Assert.Single(Positions(world)));
+            await controller.Started!;
+            controller.Frame(210);
+            var branchPath = controller.Module!.FilePath!;
+            Assert.NotEqual(parentPath, branchPath);
+            var branchMark = controller.Module.FindCheckpoint("x")!;               // inherited: the branch's copy ends at x
+            controller.Module.Dispose();
+            Assert.Equal(PrefixThrough(parentPath, branchMark.Frame), PrefixThrough(branchPath, branchMark.Frame));
+        }
+
+        // sync helpers: an async test cannot hold a ref to a component or enumerate a ref-struct query
+        private static System.Collections.Generic.List<System.Numerics.Vector3> Positions(EntityRepository world)
+        {
+            var found = new System.Collections.Generic.List<System.Numerics.Vector3>();
+            foreach (var x in world.Query().With<SimTransform>().Build()) found.Add(world.GetComponentRO<SimTransform>(x).Position);
+            return found;
+        }
+
+        private static void Move(EntityRepository world, Entity e, System.Numerics.Vector3 to) => world.GetComponentRW<SimTransform>(e).Position = to;
+
+        // ⭐ B4 — a record/replay controller over a hand-driven RecordingModule (the real one installs modules on kernel ticks).
+        private sealed class HandDrivenController : Fdp.Core.Orchestration.IRecordReplayController
+        {
+            private readonly RecordingModuleTests _t;
+            private readonly EntityRepository _world;
+            private CapturingSystemRegistry? _systems;
+            public RecordingModule? Module { get; private set; }
+            public Task? Started { get; private set; }
+            public HandDrivenController(RecordingModuleTests t, EntityRepository world) { _t = t; _world = world; }
+            public void Frame(long t)
+            {
+                _world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f, TotalWallTicks = t });
+                _world.Tick();
+                foreach (var sys in _systems!.Systems) sys.Execute(_world, 0.016f);
+            }
+            public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => PrepareRecordingAsync(exerciseId, storageDirectory, null);
+            public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch)
+            {
+                Module = new RecordingModule(new RecordingConfiguration
+                {
+                    FilePath = Path.Combine(storageDirectory, $"{exerciseId:N}.fdp"), ExerciseId = exerciseId, NodeId = 3, Branch = branch,
+                });
+                Module.RegisterSystems(_systems = new CapturingSystemRegistry());
+                return Started = Task.CompletedTask;
+            }
+            public Task FinalizeRecordingAsync(long maxNetworkId = 0) { Module?.Dispose(); Module = null; return Task.CompletedTask; }
+            public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+            public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
+            public void ProcessPlaybackTick(GlobalTime currentTime) { }
+            public Task TeardownReplayAsync() => Task.CompletedTask;
+            public bool IsReplayActive => false;
+            public GlobalTime GetCurrentReplayTime() => default;
+            public float ActiveReplayDurationSeconds => 0;
+            public long ActiveRecordingStartWallTicks => 0;
+            public long ActiveRecordingEndWallTicks => 0;
+            public long ReplayAnchorWallTicks { get; set; }
+            public bool IsRestoringReplay => false;
+            public long ActiveMaxNetworkId => 0;
         }
 
         // The mark is written by a pool thread right after the keyframe: wait for it (bounded).

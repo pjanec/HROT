@@ -102,7 +102,9 @@ namespace Hrot.SimHost.Modules.Orchestration
 
             // 2. Checkpoint — ⭐ CE-3299 B3 (R-3044): a keyframe the node's LIVE recording writes on request, on EVERY host (the
             //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
-            slave.RegisterHandler(new ReferenceCheckpointHandler(() => controller.ActiveRecordingModule));
+            //    ⭐ B4 (§1h): and the RESTORE — so it is handed everything a restore touches (the silent-default rule).
+            slave.RegisterHandler(new ReferenceCheckpointHandler(
+                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot));
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();

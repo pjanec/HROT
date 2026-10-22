@@ -291,6 +291,15 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 catch { return null; }
             }
 
+            // ⭐ CE-3299 B4 — both phases of a checkpoint restore carry the label and the exercise the node records on as.
+            case NedNodeOpType.PrepareRestore:
+            case NedNodeOpType.RestoreSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<RestoreCheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
             default:
                 return null;
         }

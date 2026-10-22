@@ -116,4 +116,116 @@ public sealed class CheckpointClusterTests : IDisposable
                        $"M5 frame times over {frameMs.Count} frames: median {sorted[sorted.Count / 2]:F1} ms, p95 {sorted[(int)(sorted.Count * 0.95)]:F1} ms, max {sorted[^1]:F1} ms");
         Assert.True(spreadMs <= 250, $"the nodes' checkpoint keyframes are {spreadMs:F0} ms apart — one wall time should land within a frame or two");
     }
+
+    // ── ⭐⭐ CE-3299 B4 (§1h) — RESTORE: every node goes back to its keyframe and records on as a new exercise ──
+
+    private static IEnumerable<(string Path, RecordingMetadata Meta)> Recordings(Guid exercise)
+    {
+        // every node records under its OWN staging root (nodes/node-N/exercises/<id>/), so search the whole staging root
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        if (!Directory.Exists(root)) yield break;
+        var metas = Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+            .Where(d => Path.GetFileName(Path.GetDirectoryName(d)) == OrchestrationConstants.ExercisesDirectoryName)
+            .SelectMany(d => Directory.EnumerateFiles(d, "*.fdp.meta.json")).ToList();
+        foreach (var meta in metas)
+        {
+            RecordingMetadata? m = null;
+            try { m = MetadataSerializer.Deserialize(File.ReadAllText(meta)); } catch (IOException) { } catch (JsonException) { }
+            if (m != null) yield return (meta[..^".meta.json".Length], m);
+        }
+    }
+
+    private static Dictionary<int, System.Numerics.Vector3> Positions(Fdp.Core.EntityRepository world)
+    {
+        var at = new Dictionary<int, System.Numerics.Vector3>();
+        foreach (var e in world.Query().With<Fdp.Core.SimTransform>().Build()) at[e.Index] = world.GetComponentRO<Fdp.Core.SimTransform>(e).Position;
+        return at;
+    }
+
+    private static double Farthest(Dictionary<int, System.Numerics.Vector3> a, Dictionary<int, System.Numerics.Vector3> b)
+        => a.Where(kv => b.ContainsKey(kv.Key)).Select(kv => (double)System.Numerics.Vector3.Distance(kv.Value, b[kv.Key])).DefaultIfEmpty(0).Max();
+
+    [Fact]
+    public async Task CE3299_B4_ARestoreOnALiveCluster_PutsEveryNodeBackToTheCheckpoint_AndRecordsOnAsANewExercise()
+    {
+        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        var first = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = first }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        harness.PumpFrames(120);
+
+        // take X, and catch the world as it was when every node's mark is on disk
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => Recordings(first).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
+            $"simhost, ig and cgf must each mark '{_label}'");
+        var world = harness.SimHost.World!;
+        var atMark = Positions(world);
+        var marks = Recordings(first).Select(r => r.Meta.Checkpoints.Single(c => c.Label == _label)).ToList();
+
+        // the world moves on
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(3)) harness.PumpFrames(1);
+        double moved = Farthest(atMark, Positions(world));
+
+        // restore X
+        var beforeRestore = world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>();
+        var restore = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = restore, OperationType = ClusterOpType.RestoreCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => master.ActiveExerciseId != first && Recordings(master.ActiveExerciseId).Count() >= 3, timeoutFrames: 1200),
+            $"every recording node must record on as the new exercise (master exercise {(master.ActiveExerciseId == first ? "UNCHANGED" : master.ActiveExerciseId.ToString())}, "
+            + $"state {master.CurrentClusterState}, recordings of it: {Recordings(master.ActiveExerciseId).Count()})");
+        harness.PumpFrames(30);
+        Assert.Equal((int)ClusterState.OperatingLive, (int)master.CurrentClusterState);
+
+        // ① the world is back at X (within the nodes' PLL skew and a frame), not where it had moved to
+        double back = Farthest(atMark, Positions(world));
+        _out.WriteLine($"[B4] after the checkpoint the units moved up to {moved:F2} m; after the restore they are within {back:F2} m of the checkpoint");
+        Assert.True(back < 0.75, $"the restored world is {back:F2} m from the checkpoint");
+        Assert.True(moved > back, "the run must have moved on before the restore, or the rail proves nothing");
+
+        // ② the clock is back at X, and paused: SIM time stands still at a mark's (wall ticks flow on while paused, by design).
+        //   The snap follows the round's completion on the master, then reaches the nodes through the time sync.
+        Assert.True(harness.PumpUntil(() => world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime < beforeRestore.TotalTime, timeoutFrames: 600),
+            $"the sim clock must go back to the checkpoint (it stays at {world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime:F3} s)");
+        harness.PumpFrames(5);
+        var restored = world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>();
+        harness.PumpFrames(30);
+        Assert.Equal(restored.TotalTime, world.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime);
+        Assert.InRange(restored.TotalTime, marks.Min(m => m.TotalTime) - 1e-6, marks.Max(m => m.TotalTime) + 1e-6);
+        Assert.True(restored.TotalTime < beforeRestore.TotalTime, "the sim clock went back to the checkpoint");
+        // ⚠ the WALL clock is not: a snap moves the master's, and each node's wall ticks keep physical time (the replay seek's
+        //   behaviour too) — so a branch's own frames resume after a wall-time GAP, never before its copied history (③ below)
+
+        // ③ D18 — each node's new exercise opens with its old recording up to X, names its parent, and the old recording keeps its frames after X
+        foreach (var (path, meta) in Recordings(master.ActiveExerciseId))
+        {
+            Assert.Equal(first, meta.ParentExerciseId);
+            var parentPath = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(path))!, first.ToString(), Path.GetFileName(path));
+            var mark = meta.Checkpoints.Single(c => c.Label == _label);
+            using var parent = new PlaybackController(parentPath);
+            using var branch = new PlaybackController(path);
+            Assert.True(parent.TotalFrames > mark.Frame + 1, "the old recording keeps the frames after the checkpoint");
+            Assert.Equal(parent.GetFrameMetadata(mark.Frame).WallClockTicks, branch.GetFrameMetadata(mark.Frame).WallClockTicks);
+            Assert.Equal(FrameType.Keyframe, branch.GetFrameMetadata(mark.Frame + 1).FrameType);
+            Assert.True(branch.GetFrameMetadata(mark.Frame + 1).WallClockTicks >= mark.WallTicks, "the branch's own frames come after its history");
+        }
+    }
 }

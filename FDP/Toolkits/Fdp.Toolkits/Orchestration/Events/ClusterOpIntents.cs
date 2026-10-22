@@ -143,6 +143,18 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// ⭐ CE-3299 B4 — restore checkpoint <see cref="Label"/> on every node and go on live, paused, as a NEW exercise (D18).
+    /// Published by <c>ClusterOpMasterTranslator</c> for a DDS <c>RestoreCheckpoint</c>.
+    /// </summary>
+    [EventId(9068)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct RestoreCheckpointIntent
+    {
+        public Guid RequestId;
+        public string? Label;
+    }
+
+    /// <summary>
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
     /// with <c>OperationType == LoadZone</c> arrives.
     /// <para>

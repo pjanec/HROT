@@ -85,8 +85,14 @@ namespace Fdp.Toolkit.Replay
                 StampWorld(repo, _recorder.Metadata);   // CE-3126 — cheap; once per keyframe keeps it current
                 _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
                 _framesSinceKeyframe = 0;   // ⭐ CE-3299 B3 — a checkpoint IS this interval's keyframe: the next periodic one moves on
-                foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks);
+                foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks, globalTime);
                 _due.Clear();
+                // ⭐ CE-3299 B4 / D18 — a branch's manifest (its parent, its inherited checkpoints) goes to disk with its first frame
+                if (!_wroteBranchManifest && _recorder.Metadata.ParentExerciseId != Guid.Empty)
+                {
+                    _wroteBranchManifest = true;
+                    _recorder.WriteMetadata();
+                }
             }
             else
             {
@@ -97,6 +103,7 @@ namespace Fdp.Toolkit.Replay
         }
 
         private readonly System.Collections.Generic.List<string> _due = new();
+        private bool _wroteBranchManifest;
 
         // ⭐ CE-3299 B3 — moves every request whose wall time has come into due; true when there is one.
         private bool CheckpointsDue(long wallClockTicks, System.Collections.Generic.List<string> due)

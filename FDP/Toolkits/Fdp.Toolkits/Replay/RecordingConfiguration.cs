@@ -55,5 +55,11 @@ namespace Fdp.Toolkit.Replay
         /// </para>
         /// </summary>
         public bool Blocking { get; init; } = false;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — when set, this recording is a BRANCH: its first frames are copied from the parent up
+        /// to the branch point, then it records on (null: a recording that starts empty).
+        /// </summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; init; }
     }
 }

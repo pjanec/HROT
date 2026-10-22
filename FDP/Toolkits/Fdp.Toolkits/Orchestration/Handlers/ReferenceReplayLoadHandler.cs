@@ -251,16 +251,24 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // Capture the historical time BEFORE teardown; after TeardownReplayAsync the
                 // replay module is gone and _controller.GetCurrentReplayTime() returns default.
                 GlobalTime historicalTime = _controller.GetCurrentReplayTime();
+                // ⭐ D18 (R-3047) — the branch keeps its history: this node's recording up to the frame on screen is copied into
+                //   the new exercise first (null on a listener — its branch starts empty). Read BEFORE the teardown closes it.
+                var history = _controller.CurrentReplayBranch;
 
+                // ⭐ D18 ① — the MASTER mints the branch's id (ClusterMaster.ExecuteTransitionTrajectory); ⛔ an empty id would send
+                //   every branch to one folder.
                 var branchedExerciseId = ResolveExerciseId(intent.DomainPayload);
+                if (branchedExerciseId == Guid.Empty)
+                    throw new InvalidOperationException("a branch from a replay needs the exercise id the master minted for it");
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
-                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory)
+                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
                     .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}).",
+                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}, history {2}).",
                     branchedExerciseId,
-                    historicalTime.TotalWallTicks);
+                    historicalTime.TotalWallTicks,
+                    history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
                 return new LiveBranchResult(historicalTime);
             }

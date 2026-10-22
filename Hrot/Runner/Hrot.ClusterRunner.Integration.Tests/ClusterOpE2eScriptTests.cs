@@ -88,7 +88,7 @@ public sealed class ClusterOpE2eScriptTests
 
         ILogger logger = NullLogger.Instance;
 
-        var executor = new HeadlessTestExecutor(orchestrator, ScriptPath(scriptFileName), logger);
+        var executor = new HeadlessTestExecutor(orchestrator, ScriptRecordings.Fresh(ScriptPath(scriptFileName)), logger);
 
         // ⭐⭐ QA-018 — QUEUE the position-advancing system BEFORE the orchestrator initialises.
         //

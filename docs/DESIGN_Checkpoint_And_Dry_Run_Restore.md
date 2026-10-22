@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (B1a, B1, B2, B3 built 2026-10-22 — §1b, §1c, §1f, §1g as-built; B4 next)
-updated: 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+build-state: BUILDING (B1a, B1, B2, B3, B4 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h as-built; D1/D7/D17 + B5 next)
+updated: 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -217,6 +217,113 @@ the window also holds the periodic keyframes, so 112 ms is an UPPER bound for th
 📐 **Reds at B3's gate, both pre-existing** (red at `a0c2e318b`, a clean build before B2/B3, in a worktree):
 `ClusterOpE2eScriptTests.RecordAndReplaySeek_Passes` (already `QA-031`) · `RecordReplayIntegrationTests.NodeBootstrapper_ImageGeneratorRole_NoControllerRegistered`
 — it asserts the role gate R-4011 retired (`CE-3311`).
+
+### 1h. B4 — restore a checkpoint, and a branch that keeps its history (D18) (`2026-10-22`; build-state: BUILT — as-built table at the end)
+
+📐 **What B4 starts from** (graph `search_graph .*(Restore|Branch|Seek|GoLive|LiveFrom).*` = 29 classes, + grep, `2026-10-22`):
+- **The branch from a replay already exists:** `OperatingReplay → LoadingLive` (`HrotStateGraph.cs:50`); `ReferenceReplayLoadHandler` claims `PrepareLive` while a replay is open, tears it down and records the exercise id the REQUEST carries (`:255–257`). `LiveBranchProcessManager` freezes time first and `SnapTo`s the branch time after (`:62`, `:74`).
+- **A live cluster cannot reach a replay without unloading:** Live → Replay goes `UnloadingLive → Idle → LoadingReplay` (`HrotStateGraph.cs:45–48`), and passing Idle tears the session down. ⇒ a restore from LIVE is its own op, not a DSM path (R-3043: what is loaded stays loaded).
+- **The cluster op was always meant:** mgmt-1 §9.3 names `ClusterOpRequest(RestoreCheckpoint)` and no enum carries it. `NodeOpType.RestoreSnapshot = 5` is a dead slot ("restores ECS from recording snapshot", `Hrot-Simulation-Pipeline.md:678`) — it is REUSED, not a new value.
+- **A two-phase round already exists:** the zone load (`StartZoneLoadRound`, `ClusterMaster.cs:1019`): phase 1 stages under the round's id on every node, phase 2 runs only when all staged, and a failed phase 1 sends `AbortTransaction` so the nodes drop what they staged. ⚠ `ClusterSlave` commits each node right after ITS OWN prepare (`ClusterSlave.cs:306`), so a one-phase restore could leave half the cluster restored.
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing>> RestoreCheckpoint X: pause, phase 1, phase 2 ; live branch: mints the exercise id NEW }
+  class RestoreCheckpointPayload { <<NEW>> Label ; NewExerciseId }
+  class CheckpointRestoreResult { <<NEW>> RestoredTime ; ExerciseId }
+  class CheckpointRestoreAggregator { <<NEW>> the earliest restored time }
+  class LiveBranchProcessManager { <<existing>> SnapTo the branch time ; and a restore's NEW }
+  class ReferenceCheckpointHandler { <<existing>> PrepareRestore: read keyframe X, stage ; RestoreSnapshot: apply NEW }
+  class ReferenceReplayLoadHandler { <<existing>> PrepareLive from a replay: branch WITH its history NEW }
+  class EcsRecordReplayController { <<existing>> PrepareRecordingAsync(id, dir, branch) NEW ; CurrentReplayBranch NEW }
+  class RecordingBranch { <<NEW, Fdp.Core>> SourcePath ; FrameCount ; ParentExerciseId ; BranchWallTicks }
+  class RecordingModule { <<existing>> copies the prefix, then appends }
+  class AsyncRecorder { <<existing>> CreateNew ; append after a copied prefix NEW }
+  class RecordingSlice { <<existing B3>> CopyFrames ; ReadFrame NEW }
+  class WorldKeyframes { <<existing B1>> Apply }
+  class AfterRestore { <<existing B1>> Run }
+  ClusterMaster --> RestoreCheckpointPayload : fans out
+  ClusterMaster ..> CheckpointRestoreAggregator
+  CheckpointRestoreAggregator --> CheckpointRestoreResult
+  LiveBranchProcessManager ..> CheckpointRestoreResult : SnapTo
+  ReferenceCheckpointHandler ..> RecordingSlice : ReadFrame
+  ReferenceCheckpointHandler ..> WorldKeyframes : Apply
+  ReferenceCheckpointHandler ..> AfterRestore
+  ReferenceCheckpointHandler ..> EcsRecordReplayController : stop, record the branch
+  ReferenceReplayLoadHandler ..> EcsRecordReplayController : record the branch
+  EcsRecordReplayController --> RecordingBranch
+  EcsRecordReplayController --> RecordingModule
+  RecordingModule ..> RecordingSlice : CopyFrames
+  RecordingModule --> AsyncRecorder
+```
+*What the picture shows that prose hid:* a restore and a replay branch END the same way — "record a new exercise whose first frames are a
+copy of the old one up to the branch point" — so ONE `RecordingBranch` feeds both, and the restore's only new world code is the existing
+keyframe apply and `AfterRestore`.
+
+```mermaid
+sequenceDiagram
+  participant Op as Operator
+  participant M as ClusterMaster
+  participant N as each node (ReferenceCheckpointHandler)
+  participant R as its recording
+  participant L as LiveBranchProcessManager
+  Op->>M: RestoreCheckpoint X (OperatingLive only)
+  M->>M: pause, mint exercise E2
+  M->>N: phase 1 PrepareRestore {X, E2}
+  N->>R: wait for writes, find mark X, read keyframe X
+  Note over N: staged under the round id, nothing changed yet
+  alt a node fails (not recording, no mark X)
+    M->>N: AbortTransaction (drop the staged keyframe)
+  else every node staged
+    M->>N: phase 2 RestoreSnapshot {X, E2}
+    N->>R: stop the recording E1
+    N->>N: copy E1 frames 0..X into E2 (D18)
+    N->>N: apply keyframe X, AfterRestore, ELM re-derive
+    N->>R: record E2 after the copied frames
+    N->>M: CheckpointRestoreResult (time at X)
+    M->>L: ClusterOpCompleted
+    L->>L: SnapTo the earliest node time (stays paused)
+  end
+```
+*What the picture shows that prose hid:* the first phase changes nothing, so the only failure that can leave nodes apart is an I/O error in
+phase 2 — and the recording E1 is never written again after X, so every later restore of E1 still finds its frames (D8).
+
+| decision | why | rejected — one line |
+|---|---|---|
+| ⭐ RESTORE = a two-phase round: phase 1 reads and stages keyframe X, phase 2 applies | phase 1 fails on any node ⇒ no node is touched | one phase — `ClusterSlave` commits each node at once, so a node with no mark leaves the rest restored |
+| restore only from `OperatingLive` (else Rejected, named) | a replay already has seek + go-live; B4 does not add a second path to it | Live → Idle → Replay → seek → branch — Idle unloads the session (R-3043) |
+| the master mints the branch's exercise id on BOTH branches (restore, and replay → live); the requester's id is ignored and logged | D18 ① — one HTTP client with the wrong id truncated an exercise | trust the request |
+| ⭐ a branch COPIES its parent's frames up to the branch point, then appends (D18 ②): `RecordingBranch` + `RecordingSlice.CopyFrames`; the copied marks and the parent's id + branch time go into the new `.meta.json` | every exercise replays straight through its branch point, alone | an empty branch from T (today) — its replay starts at T |
+| the recorder opens `FileMode.CreateNew` (D18 ③) | a branch never overwrites | `Create` (today) — the truncation D18 found |
+| the clock: each node returns ITS mark's recorded time; the master `SnapTo`s the EARLIEST, and stays paused | D5; the marks differ by ≤ one PLL residual (94 ms measured, §1g) | the master's T — no node holds a keyframe at exactly T |
+| events: the keyframe's events are NOT re-injected (`RestoreOptions` default) | D2's step-window refill is ⏳ (no step window in a running live cluster) | re-inject — acts twice |
+| ids: no allocator reset | ids only grow; an id used after X is a gap, never a collision | reset to the recording's high-water mark |
+
+⏳ Not in B4: a restore from `OperatingReplay` by label · a FRESH process (D10: load chain first) · R1 (B5).
+
+**As built (`2026-10-22`).**
+
+| piece | where | ⚠ deviation / finding |
+|---|---|---|
+| `RecordingBranch` · `RecordingSlice.ReadFrame` · `RecordingMetadata.ParentExerciseId` / `BranchWallTicks` · `CheckpointMark.TotalTime` / `UnscaledTotalTime` / `FrameNumber` (the clock a restore goes back to) | Fdp.Core | — |
+| `AsyncRecorder(path, meta, appendAfterFrames)`: 0 = `CreateNew`, N = append after a copied prefix, counting from N | Fdp.Core | ⚠ **`CreateNew` is the EXERCISE recorder's** (`RecordingModule` uses this constructor); the old `AsyncRecorder(path, meta)` keeps `Create` — the examples (Showcase, CarKinem) and ~100 tests record to fixed or pre-created files, and D18's hazard is the cluster's exercise recording |
+| `RecordingConfiguration.Branch` → `RecordingModule.StartBranch` (copy, inherit the parent's marks / terrain / geo origin / max network id, name the parent) | Toolkits | — |
+| `IRecordReplayController.PrepareRecordingAsync(id, dir, branch)` + `CurrentReplayBranch` (default interface members) · `EcsRecordReplayController` implements both · `ReplayModule.CurrentFrame` / `CurrentFrameWallTicks` / `FilePath` / `RecordedExerciseId` | Fdp.Core / Network | — |
+| the replay branch: `ReferenceReplayLoadHandler` (`PrepareLive` from a replay) records the branch WITH its history, and refuses an empty id · `ClusterMaster.ExecuteTransitionTrajectory` mints the id for `OperatingReplay → LoadingLive` | Toolkits / Orchestrator | — |
+| `ClusterOpType.RestoreCheckpoint = 21` (both enums) · `NodeOpType.PrepareRestore = 32` · `RestoreSnapshot = 5` reused · `RestoreCheckpointPayload` / `CheckpointRestoreResult` · `RestoreCheckpointIntent` (9068) · the three translators | Toolkits / Network | — |
+| `ClusterMaster.StartRestore` / `CommitRestore` (the zone round's two phases) · `CheckpointRestoreAggregator` (registered by `OrchestratorCore`) · `LiveBranchProcessManager` snaps on a `CheckpointRestoreResult` | Orchestrator | — |
+| `ReferenceCheckpointHandler`: `PrepareRestore` stages (off the main thread), `RestoreSnapshot` stops the recording, `Commit` applies + `AfterRestore` + the ELM re-derive + starts the branch recording; an abort of the staged round drops it. `EcsHostClusterHandlers.Compose` passes it the controller, world, accumulator, ELM hook and staging root | Toolkits / Network | ⚠ the branch recording's install completes on a later tick, AFTER the node answered: a failure to start it is logged, not reported in the round |
+| a branch writes its `.meta.json` with its FIRST frame (`RecorderTickSystem` → `AsyncRecorder.WriteMetadata`) | Toolkits / Fdp.Core | D10: the parent and the inherited marks are on disk at once, not only at the next mark or the end |
+| 🔴 `NodeOpMasterTranslator` decoded a node's result for FOUR ops and dropped every other to `null` — so a restore's `CheckpointRestoreResult` (and B3's export path) never reached the master on a DDS cluster; typed cases added for `RestoreSnapshot` and `ExportCheckpoint` | Network | 📐 found by the cluster rail: the world came back, the clock did not. ⚠ The same gap drops a replay branch's `LiveBranchResult`, and nothing aggregates `PrepareLive` — so `LiveBranchProcessManager`'s branch snap never fires on a cluster → `CE-3312` |
+| 🔴 `LoadPhaseChain` kept its load's exercise id after starting the recording, so the `OperatingLive` step of a REPLAY BRANCH (which the chain did not load) started a second recording under the ORIGINAL id — truncating the recording being replayed. Now the id is consumed by its one recording | Hrot.Core | 📐 found because `CreateNew` turned the silent truncation into a loud failure (`e2e_live_from_replay_branch`, red since `QA-031`, now GREEN) |
+| the clock: a snap moves sim time (`TotalTime`, `FrameNumber`) on every node and the MASTER's wall clock; ⚠ each node's wall ticks keep physical time (the replay seek's behaviour too) | Time | ⇒ a branch's own frames resume after a wall-time GAP — never before its copied history, so wall ticks stay monotonic in every recording |
+
+| rail | proves |
+|---|---|
+| `RecordingModuleTests.CE3299_B4_*` (3) | a branch opens with its parent's bytes up to the branch point, inherits its marks, names its parent, counts its own marks in the whole file; the parent is untouched · the exercise recorder never opens over a file · the handler's two phases: phase 1 changes nothing, a missing mark fails it, an abort drops the stage, phase 2 puts the world back and records the branch |
+| `ClusterMasterCheckpointTests.CE3299_B4_*` (4) | pause → stage → restore in ONE round as a minted exercise, the earliest time reported · a failed stage aborts the round and restores nothing · rejected without a label or outside live · the aggregator picks the earliest |
+| `ClusterMasterBranchTests.D18_*` · `LiveBranchProcessManagerTests.CE3299_B4_*` · `FullBranchPipelineTests` (its `Broken` mark removed) | the master mints a replay branch's id · a restore result snaps the clock, paused, with no replay freeze · a replay branch keeps its history byte-for-byte and leaves the parent byte-identical |
+| ⭐ `CheckpointClusterTests.CE3299_B4_*` (the in-process cluster: simhost, ig, excon, cgf, live `tt-take-cover`) | 📐 the units moved up to 1.86 m after the checkpoint; after the restore every SimHost unit is within **0.00 m** of it · sim time back at the checkpoint and paused · each node records a new exercise opening with its old one up to X, the old one keeps its frames after X |
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
@@ -464,7 +571,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 ## 8. Build order
 
 **B0** M1–M5 → **B1a** D16 one shared host composition + D15 the editor's recorder through `ForNode` + its rail → **B1** `AfterRestore` (+ `WorldEpoch.Restored`) and `WorldKeyframes` for the dry run → **B2** the dry run moves into ONE handler (D14 — both entry points; `SyncFrom` leaves them; `PreviewStateBracket` keeps only the allocator until S2) → ✅ **B3** *(built `2026-10-22`, §1g)* checkpoints as labelled keyframes (`RecorderTickSystem` takes a *keyframe at T, label X* request; the label → frame index goes into
-the recording's metadata; `CheckpointIOWorker`'s `'FDPC'` capture retires; `CollectCheckpoint` exports keyframe X) → **B4**
+the recording's metadata; `CheckpointIOWorker`'s `'FDPC'` capture retires; `CollectCheckpoint` exports keyframe X) → ✅ **B4** *(built `2026-10-22`, §1h)*
 `RestoreCheckpoint X` = pause → every node seeks to keyframe X → `AfterRestore` → a new recording segment → live paused; a fresh process loads first → **B5** R1
 live. ⚠ R1 stays red until R-3039's S1/S2 (Paused and Stepped §7g.1) land — that red is the work list, not a failure of this design.
 

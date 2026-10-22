@@ -102,7 +102,7 @@ public sealed class AllSubsystemsClusterTransitionTests
 
         var executor = new HeadlessTestExecutor(
             orchestrator,
-            ScriptPath("e2e_all_subsystems_loading_live.json"),
+            ScriptRecordings.Fresh(ScriptPath("e2e_all_subsystems_loading_live.json")),
             NullLogger.Instance);
 
         executor.AfterInitialize = () =>
@@ -132,7 +132,7 @@ public sealed class AllSubsystemsClusterTransitionTests
 
         var executor = new HeadlessTestExecutor(
             orchestrator,
-            ScriptPath("e2e_all_subsystems_full_cycle.json"),
+            ScriptRecordings.Fresh(ScriptPath("e2e_all_subsystems_full_cycle.json")),
             NullLogger.Instance);
 
         executor.AfterInitialize = () =>

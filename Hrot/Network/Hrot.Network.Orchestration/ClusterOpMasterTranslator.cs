@@ -249,6 +249,16 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            case NedClusterOpType.RestoreCheckpoint:   // ⭐ CE-3299 B4
+            {
+                _bus.PublishManaged(new RestoreCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
+                });
+                break;
+            }
+
             case NedClusterOpType.LoadZone:
             {
                 // ⭐ D2 — a purpose-built DTO. This arm used to deserialize ArchivePayloadDto and

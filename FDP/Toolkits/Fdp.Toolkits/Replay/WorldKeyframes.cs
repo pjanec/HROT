@@ -21,6 +21,17 @@ namespace Fdp.Toolkit.Replay
         public uint Tick { get; }
 
         public int SizeBytes => Bytes.Length;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 — a keyframe READ FROM A RECORDING (<see cref="RecordingSlice.ReadFrame"/>, decompressed): the recorder
+        /// wrote exactly this format, its tick in the first 8 bytes.
+        /// </summary>
+        public static WorldKeyframe FromRecordedFrame(byte[] frame)
+        {
+            if (frame is null) throw new ArgumentNullException(nameof(frame));
+            if (frame.Length < 8) throw new ArgumentException("a recorded frame starts with its 8-byte tick", nameof(frame));
+            return new WorldKeyframe(frame, (uint)BinaryPrimitives.ReadUInt64LittleEndian(frame));
+        }
     }
 
     /// <summary>⭐ B2 — which component types a keyframe carries.</summary>

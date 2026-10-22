@@ -116,4 +116,33 @@ public sealed class ClusterMasterBranchTests
         Assert.True(completed.Any(e => !e.StatusCode.IsError()),
             "ClusterMaster must publish ClusterOpCompletedEvent(Success) after all ACKs arrive.");
     }
+
+    /// <summary>
+    /// ⭐⭐ D18 ① (R-3047, CE-3299 B4) — a branch from a replay records a NEW exercise whose id the MASTER mints: the request's id
+    /// (here the REPLAYED exercise's, the case that truncated a recording) never reaches the nodes, and the cluster reports the new one.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void D18_ABranchFromAReplay_RecordsAnExerciseTheMasterMints_NeverTheRequestedOne()
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        BootstrapToOperatingReplay(bus, master);
+
+        var replayed = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":\"OperatingLive\",\"ExerciseId\":\"{replayed}\"}}",
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var minted  = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).ExerciseId;
+        Assert.NotEqual(Guid.Empty, minted);
+        Assert.NotEqual(replayed, minted);
+        Assert.Equal(minted, master.ActiveExerciseId);
+    }
 }

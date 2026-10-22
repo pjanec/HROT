@@ -43,5 +43,10 @@ namespace Fdp.Toolkit.Orchestration
 
         // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
         ExportCheckpoint = 31,
+
+        // ⭐ CE-3299 B4 — phase 1 of a checkpoint restore: read keyframe X and stage it (nothing changes). Phase 2 is the dead
+        //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
+        //   ⛔ PERMANENT WIRE VALUE (R-42).
+        PrepareRestore = 32,
     }
 }

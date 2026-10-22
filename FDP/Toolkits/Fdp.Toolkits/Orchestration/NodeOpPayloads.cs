@@ -29,6 +29,19 @@ namespace Fdp.Toolkit.Orchestration
     public readonly record struct ExportCheckpointPayload(string Label);
 
     /// <summary>
+    /// ⭐ <c>CE-3299</c> B4 — payload of both phases of a checkpoint restore (<see cref="NodeOpType.PrepareRestore"/>, then
+    /// <see cref="NodeOpType.RestoreSnapshot"/>): restore checkpoint <paramref name="Label"/> and record on as the exercise
+    /// <paramref name="NewExerciseId"/>, which the master minted (D18).
+    /// </summary>
+    public readonly record struct RestoreCheckpointPayload(string Label, Guid NewExerciseId);
+
+    /// <summary>
+    /// ⭐ <c>CE-3299</c> B4 — a node's answer to <see cref="NodeOpType.RestoreSnapshot"/>: the clock its checkpoint was written at
+    /// (D5 — the master snaps the cluster to the earliest one) and the exercise it records now.
+    /// </summary>
+    public readonly record struct CheckpointRestoreResult(GlobalTime RestoredTime, Guid ExerciseId);
+
+    /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.
     /// Carries the <see cref="GlobalTime"/> the recording landed on after the seek.
     /// </summary>
