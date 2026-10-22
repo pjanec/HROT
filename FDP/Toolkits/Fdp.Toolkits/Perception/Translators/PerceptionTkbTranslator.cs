@@ -76,7 +76,16 @@ namespace Fdp.Toolkit.Perception.Translators
 
             // ⭐ The unit's SENSORS — one child per entry, built the same way on every node (R-185 K, design §5.1).
             for (int i = 0; i < dto.Sensors.Count; i++)
-                Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(repo, entity, i, dto.Sensors[i]);
+            {
+                var child = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(repo, entity, i, dto.Sensors[i]);
+                // ⭐ CE-2349 — an entry that reads the live receptor is tagged as the implicit sensor is (VisualPerception.Optics)
+                if (dto.Sensors[i].FromReceptor && !child.IsNull && repo.HasComponent<SensorTag>(child))
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(child);
+                    tag.Implicit = 1;
+                    repo.SetComponent(child, tag);
+                }
+            }
 
             // ⭐⭐ CE-3038 — a TKB that lists no sensors but can SEE gets ONE implicit visual sensor (part 1000): vision is a
             //    sensor like any other, solved by the EQS solver and debounced by its memory stage (design §5.5). ⛔ The

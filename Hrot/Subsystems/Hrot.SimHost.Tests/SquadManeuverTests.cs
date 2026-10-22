@@ -640,6 +640,30 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2284</c> — an objective the squad cannot reach (📌 pc-urban-ambush: a flank point behind the buildings; both elements
+        /// stood at the wall face while every bound re-issued the same blocked line for 9 minutes, so the squad never reported Set and the
+        /// platoon never assaulted): after <see cref="BoundingOverwatchPlay.StallsToSet"/> bounds in a row that time out having gained
+        /// under <see cref="BoundingOverwatchPlay.StallMetres"/>, the drill ends SUCCEEDED — set where it stands. One stall alone does not.
+        /// ✅ Red-proof: the stall rule removed ⇒ it runs on.
+        /// </summary>
+        [Fact]
+        public void CE2284_BoundingOverwatch_BoundsThatGainNothing_EndSet_WhereTheSquadStands()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundTimeoutSeconds\":0.1}");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            bool done = false;
+            for (int i = 0; i < 10 && !done; i++) { s.Tick(); done = s.Finished(out _); }   // the first bound times out, nobody moved
+            Assert.False(done, "one stall: still bounding");
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+            var result = Fbt.NodeStatus.Running;
+            for (int i = 0; i < 30 && !done; i++) { s.Tick(); done = s.Finished(out result); }   // the second stalls too
+            Assert.True(done, "two stalls in a row: set where it stands");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         // ── ⭐ CE-2123 (S1) — suppress and manoeuvre on the generic runner ─────────────────────────────────────────────────────────
 
         private static Entity Enemy(Squad s, Vector3 at)

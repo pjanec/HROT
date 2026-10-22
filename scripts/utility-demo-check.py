@@ -2763,7 +2763,10 @@ def run_airborne_drop(c, timeout):
     c.ok(len(jumped) == 8, f"① the whole stick jumped — {len(jumped)}")
     times = sorted(v[0] for v in jumped.values())
     gaps = [round(b - a, 2) for a, b in zip(times, times[1:])]
-    c.ok(gaps and min(gaps) >= 0.7, f"① one man at a time — gaps {gaps}")
+    # ⭐ the drill ORDERS a man no sooner than MinGapShare (0.8) × the interval after the last; the exit read here is his descent's own
+    #   start, which trails the order by his walk to the door — so a gap can read a little under the floor (📐 sweep 2026-10-22:
+    #   [0.78 … 1.06], one 0.65). "One at a time" is the claim: no two out together, which is what 0.0 meant (2026-10-16).
+    c.ok(gaps and min(gaps) >= 0.5, f"① one man at a time — gaps {gaps}")
     land = {m: position(m) for m in men}
     miss = {m: round(flat(land[m], targets[m]), 1) for m in men if m in targets and land[m]}
     print("    landing misses (m):", list(miss.values()))
@@ -4110,7 +4113,7 @@ def run_sq_defend_house(c, timeout):
     for nid in reds:
         post = ((((data(call("GET", f"/entities/{nid}/order")) or {}).get("task") or {}).get("params") or {}).get("post") or {})
         if post.get("window"):
-            windows.append((nid, post.get("point"), post.get("setBack")))
+            windows.append((nid, post.get("point"), post.get("setBack"), post.get("frame")))
     print(f"    posts {posts}; window posts {windows}")
     c.ok(len(storeys) >= 2, f"① the posts hold more than one storey of OBJ (storeys {storeys})")
     roof = []
@@ -4120,7 +4123,10 @@ def run_sq_defend_house(c, timeout):
             roof.append((nid, post.get("point")))
     # ⭐ CE-2275 D-2g (DA-5, DA-22, DA-47) — the roof is the ask after the windows; a roof man hides prone behind the parapet
     c.ok(len(roof) >= 1 and all(pt and pt[2] >= 5.0 for _, pt in roof), f"① the roof is manned, by roof posts (D-2g): {roof}")
-    c.ok(len(windows) >= 1 and all(sb for _, _, sb in windows), f"① window posts, set back (a Regular squad, DA-6): {windows}")
+    # ⭐ CE-2275 D-2l (DA-77, R-2059) — a Regular squad fights a window from BESIDE ITS FRAME, never set back (only Veteran+ sets
+    #   back); a window with no frame within 2.5 m stays a sill post (DA-84). ⛔ SUPERSEDED `2026-10-19`: "set back (a Regular squad, DA-6)".
+    c.ok(len(windows) >= 1 and any(fr for *_, fr in windows) and not any(sb for _, _, sb, _ in windows),
+         f"① window posts at the frame, none set back (a Regular squad, D-2l): {windows}")
 
     first_in, red_shots, blue_shots, seen, queued = [None], {}, {}, set(), set()
     t0 = sim_time() or 0.0

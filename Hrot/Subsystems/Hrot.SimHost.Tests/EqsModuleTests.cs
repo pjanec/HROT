@@ -1573,5 +1573,40 @@ namespace Hrot.SimHost.Tests
             new PerceptionTkbTranslator().Inject(_world, listed, t4);
             Assert.True(UnitSensors.Of(_world, listed, SensorModality.Acoustic).IsNull);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2349</c> — the M1 and the Bradley carry a THERMAL sight, and still see and hear: their TKB lists all three sensors
+        /// (a listed TKB gets no implicit ones), the visual at the vehicle's sensor range, the ears at 1.5 × it, the thermal at its own
+        /// range; the listed eyes still read the live receptor (a scenario's narrower tank stays narrow — DESIGN_Thermal_And_Acoustic_Sensing §8.1's
+        /// rejected alternative). A vehicle with no thermal sight keeps its implicit pair. 📌 Before: no template listed any sensor, so no demo could show a
+        /// thermal sight (G-10). ✅ Red-proof: the builder ignoring ThermalRange ⇒ no thermal sensor ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2349_AVehicleWithAThermalSight_CarriesIt_AndStillSeesAndHears()
+        {
+            // ⭐ the builder path, on test vehicles: the catalogue carries no thermal sight yet (withdrawn — see BdcTkbCatalog, M1)
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var builder = new Hrot.Map.Definitions.Tkb.NedTkbBuilder(db);
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
+                builder.DefineVehicle(type, $"thermal test {type}").WithCombat(type, c => { c.SensorRange = vision; c.ThermalRange = thermal; });
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
+            {
+                var unit = _world.CreateEntity();
+                new PerceptionTkbTranslator().Inject(_world, unit, db.GetByType(type));
+                var eye = UnitSensors.Of(_world, unit, SensorModality.Visual);
+                var ear = UnitSensors.Of(_world, unit, SensorModality.Acoustic);
+                var heat = UnitSensors.Of(_world, unit, SensorModality.Thermal);
+                Assert.False(eye.IsNull, $"{type}: still sees");
+                Assert.False(ear.IsNull, $"{type}: still hears");
+                Assert.False(heat.IsNull, $"{type}: carries a thermal sight");
+                Assert.True(AcousticPerception.Ears(_world, ear, out float hearing, out _));
+                Assert.Equal(vision * 1.5f, hearing);
+                Assert.Equal(thermal, ((ISimulationView)_world).GetManagedComponentRO<SensorCapability>(heat).Current.Thermal!.Range);
+                Assert.Equal(vision, ((ISimulationView)_world).GetManagedComponentRO<SensorCapability>(eye).Current.Visual!.Range);
+                // ⭐ the listed eyes still read the live receptor: a scenario that narrows the tank (hill-attack: 100 m, 180°) narrows them
+                Assert.Equal(1, _world.GetComponentRO<SensorTag>(eye).Implicit);
+                Assert.Equal(0, _world.GetComponentRO<SensorTag>(heat).Implicit);
+            }
+        }
     }
 }
