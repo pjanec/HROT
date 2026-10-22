@@ -95,7 +95,7 @@ namespace Hrot.Editor.Director
             if (!string.IsNullOrWhiteSpace(_report))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_report))!);
-                File.WriteAllText(_report, report.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(_report, report.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented));
             }
             Environment.ExitCode = code;
             exit();

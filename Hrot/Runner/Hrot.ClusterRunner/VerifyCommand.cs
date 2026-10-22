@@ -89,7 +89,7 @@ internal static class VerifyCommand
             ["passed"] = failed.Count == 0, ["count"] = scenarios.Count, ["failed"] = new JsonArray(failed.Select(f => (JsonNode?)f).ToArray()),
             ["scenarios"] = reports,
         };
-        var text = all.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        var text = all.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented);
         File.WriteAllText(Path.Combine(dir, "summary.json"), text);
         File.WriteAllText(Path.Combine(dir, "junit.xml"), JUnit(cases, started0.Elapsed.TotalSeconds));
         if (!string.IsNullOrWhiteSpace(report)) File.WriteAllText(Path.GetFullPath(report), text);

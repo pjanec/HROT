@@ -57,7 +57,7 @@ public static class BlueprintEventDispatch
     /// <summary>
     /// Resolves an event key (the Event graph's name = the event identity — an event-type FQN, or a custom
     /// event name) to its runtime bus type-id: <c>[EventId].Id</c> for a typed event (matching
-    /// <c>EventType&lt;T&gt;.Id</c>), else the FQN hash (matching the bus's custom/untyped fallback).
+    /// <c>EventType&lt;T&gt;.Id</c>), else the FQN's stable hash (matching the bus's managed-type id, <see cref="Fdp.Core.StableHash"/>).
     /// </summary>
     public static int ResolveTypeId(string eventKey) => _typeIdCache.GetOrAdd(eventKey, ResolveUncached);
 
@@ -66,7 +66,7 @@ public static class BlueprintEventDispatch
         var type = FindType(eventKey);
         var attr = type?.GetCustomAttribute<EventIdAttribute>();
         if (attr != null) return attr.Id;
-        return eventKey.GetHashCode() & 0x7FFFFFFF;
+        return Fdp.Core.StableHash.NonNegativeId(eventKey);   // ⭐ CE-3302 — the bus's managed-type id formula, the same in every process
     }
 
     private static Type? FindType(string fqn)
