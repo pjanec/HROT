@@ -404,7 +404,8 @@ public sealed class PlatoonScenarioTests : IDisposable
                     {
                         var c = StaffComposerSystem.CentreOf(cgf, ByName(cgf, n));
                         return $"({c.X:F0},{c.Y:F0})";
-                    })));
+                    })) + " progress " + string.Join(",", Enumerable.Range(0, squads.Length).Select(i =>
+                        Fdp.Toolkit.Squad.Command.CommandPictureOps.ProgressOf(cgf, platoon, i))));
                     last = now;
                 }
             }
