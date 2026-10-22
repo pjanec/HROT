@@ -1,6 +1,6 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2284 U-3: fire from SNP, ~100 m off the route: a Regular platoon BYPASSES it. DEMO (18 units). Judge (2) no ReactToFireFromBuilding, no squad sent into SNP (never ClearBuilding, never a man inside SNP at (305,209)), (3) the movement reaches its end (platoon Idle, the lead near (200,110)). Left out: the squad's FiredOnFromStructure contact (a report). runFor 300 is the cap; the twin allowed 500 s.",
-  "runFor": 300,
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-2284 U-3: fire from SNP, ~100 m off the route: a Regular platoon BYPASSES it. DEMO (18 units). Judge (2) no ReactToFireFromBuilding, no squad sent into SNP (never ClearBuilding, never a man inside SNP at (305,209)), (3) the movement reaches its end (platoon Idle, the lead near (200,110)). Left out: the squad's FiredOnFromStructure contact (a report). runFor 300 is the cap; the twin allowed 500 s. \u26d4 class C (CE-4042 triage): the 'insurgents fire' condition is LEFT RED on purpose \u2014 probed 300 s: NO round at all (no shot by anyone), the nearest any Blue man comes to SNP is 100-130 m; the 'never' conditions are therefore vacuously true. runFor 200: lead squad at the route end 108 s, platoon Idle 165 s (probed).",
+  "runFor": 200,
   "golden": false,
   "expect": [
     {
