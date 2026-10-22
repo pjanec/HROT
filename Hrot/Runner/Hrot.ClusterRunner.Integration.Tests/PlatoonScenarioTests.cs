@@ -353,8 +353,17 @@ public sealed class PlatoonScenarioTests : IDisposable
     }
     /// <summary>The platoon task's name hash and the squads' own task hashes, sampled each frame, for the U-2 twins.</summary>
     private static (bool Reacted, bool Cleared, bool Resumed) WatchAmbush(HrotRunnerHarness harness, EntityRepository cgf, Entity platoon,
-                                                                          string[] squads, int frames, Func<bool>? stop = null)
+                                                                          string[] squads, int frames, Func<bool>? stop = null,
+                                                                          Action<string>? log = null)
     {
+        // the task names by hash, for the timeline a failing run prints
+        var names = typeof(Hrot.Map.Definitions.Behavior.BehaviorNames).GetFields()
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .GroupBy(n => Fdp.Toolkit.Behavior.BehaviorHash.FromName(n)).ToDictionary(g => g.Key, g => g.First());
+        string Name(int h) => h == 0 ? "-" : names.TryGetValue(h, out var n) ? n : h.ToString();
+        int frame = 0;
+        string last = "";
         int urban = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.UrbanMovement);
         int react = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.ReactToFireFromBuilding);
         int clear = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.ClearBuilding);
@@ -366,6 +375,11 @@ public sealed class PlatoonScenarioTests : IDisposable
             if (t == react) reacted = true;
             else if (reacted && t == urban) resumed = true;
             if (squads.Any(n => Task(ByName(cgf, n)) == clear)) cleared = true;
+            if (log != null && frame++ % 120 == 0)
+            {
+                string now = $"{Name(t)} | " + string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:{Name(Task(ByName(cgf, n)))}"));
+                if (now != last) { log($"f{frame - 1}: {now}"); last = now; }
+            }
             return (stop?.Invoke() ?? false) || (reacted && resumed);
         }, timeoutFrames: frames);
         return (reacted, cleared, resumed);
@@ -386,7 +400,7 @@ public sealed class PlatoonScenarioTests : IDisposable
         string[] squads = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && squads.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
             "the platoon and its squads must spawn");
-        var (reacted, cleared, resumed) = WatchAmbush(harness, cgf, ByName(cgf, "Blue Platoon"), squads, 36000);
+        var (reacted, cleared, resumed) = WatchAmbush(harness, cgf, ByName(cgf, "Blue Platoon"), squads, 36000, log: _out.WriteLine);
         _out.WriteLine($"reacted {reacted} · a squad cleared {cleared} · resumed {resumed} · insurgents down {Down(cgf, "Insurgent", 4)}/4");
         Assert.True(reacted, "① the platoon reacts to the fire from H5 with ReactToFireFromBuilding");
         Assert.True(cleared, "② a squad clears H5");
@@ -408,7 +422,7 @@ public sealed class PlatoonScenarioTests : IDisposable
         var platoon = ByName(cgf, "Blue Platoon");
         bool Ended() => cgf.HasComponent<BehaviorState>(platoon) && cgf.GetComponent<BehaviorState>(platoon).ActiveBehaviorHash == 0;   // the task done
         harness.PumpFrames(600);
-        var (reacted, cleared, _) = WatchAmbush(harness, cgf, platoon, squads, 30000, Ended);
+        var (reacted, cleared, _) = WatchAmbush(harness, cgf, platoon, squads, 30000, Ended, _out.WriteLine);
         _out.WriteLine($"reacted {reacted} · a squad cleared {cleared} · ended {Ended()}");
         Assert.False(reacted, "① no ReactToFireFromBuilding — SNP is off the route");
         Assert.False(cleared, "② no squad sent into SNP");
