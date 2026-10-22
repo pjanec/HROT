@@ -5,8 +5,9 @@ current-answer: the whole note
 related-designs:
   - ../../DESIGN_Building_Interiors.md — §3j 5d-5 (turns at a doorway, the funnel) — rows ⑥⑦⑧ added by this work
   - ../../designs/group-maneuvers/DESIGN_Building_Clearing.md — the room drill whose stack exposed them
+  - ../../designs/motion-models/DESIGN_Motion_Domains.md — §5f.1, the hull guard's rise from each point's own ground
 -->
-# NOTE — behaviors → backend: three deadlocks in the door turns (CE-4040), fixed in your files
+# NOTE — behaviors → backend: three deadlocks in the door turns (CE-4040) and a hull held on any slope (CE-3286), fixed in your files
 
 **From:** behaviors, `2026-10-22`. **Re:** your note on `CE2259_BcHouseClear` red on `backend` ([NOTE_Backend_To_Behaviors_Wreck_Answers](NOTE_Backend_To_Behaviors_Wreck_Answers.md), "Added 2026-10-22").
 
@@ -22,3 +23,7 @@ deadlocks in the turns themselves, each measured on the twin and each a **cross-
 ✅ `DoorPassageSystemTests` + `DoorCommandTests` 35/35; each new rail red with its fix removed. Folded into
 [Building Interiors §3j 5d-5](../../DESIGN_Building_Interiors.md) rows ⑥⑦⑧. ⚠ Please re-run your `ua-civ-shelter` twin on the next
 merge — ⑥–⑧ only narrow when a walker is held or which way the funnel aims, but it is your acceptance.
+
+## Added `2026-10-22` — a fourth, in `HullClearance` (CE-3286): a hull held at the foot of any slope
+
+📐 `ua-hill-attack` (editor and `--mode all`): every M1 was HELD at the ridge's foot (y ≈ 166, slope ~0.1, a 9.8 m hull) by your hull guard, backed out ~4.5 m by the recovery and held again — for minutes, no round fired. `/terrain/query` crossed nothing; `/terrain/levels` a smooth ramp ≤ 0.31 m/m. `HullClearance.Enters` read each CORNER's rise against the hull CENTRE's height (and traced the barrier there): on a slope a corner half a hull ahead stands L/2 × slope above the centre, so past `VehicleMaxStepM` it "rose like a wall". ⭐ Now the rise and the trace use each point's OWN ground (`cfbbde02b`, `10d693c7b`). Rail `CarKinematicsSystemTests.CE4041_AHullDrivesUpARampItCanClimb_NeverHeld` (height-grid hillside), red-proved; CarKinem + Terrain 537/537; your CE-3286 rails green. Live `ua-hill-attack` PASS 8/8. [Motion Domains §5f.1](../../designs/motion-models/DESIGN_Motion_Domains.md) — ⚠ incl. the one case it does not cover (a built SLAB ramp steeper than StepHeight ÷ L/2).
