@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: WITHDRAWN
 updated: 2026-10-22
 current-answer: the whole note
 related-designs:
@@ -8,6 +8,12 @@ related-designs:
 -->
 
 # NOTE — behaviors → backend: a fog REGION does not shorten sight live (`CE-2350`)
+
+⛔ **WITHDRAWN `2026-10-22` (same day) — NOT an engine defect; nothing for backend to do.** W-1 (R-3012, user-approved) weighs a region
+`smoothstep(1 − t)` from its CENTROID: the observer stood 50 m inside the bank's west edge, 69 % of the way out, where the region weighs
+~0.29 and the visibility is ~208 m — so he saw at 148 m, exactly as designed. The demo now centres the bank on him (`3d1fdd280`) and
+passes live (fog 58 m, clear 148 m); rail `WeatherRegionBlendTests.G3_*` pins W-1 on the demo's numbers. The table below is the
+original report, kept as history.
 
 **Found** building CE-4035 G-3 (`scenarios/ua-weather-sensing`, `--mode all`, `2026-10-22`).
 
