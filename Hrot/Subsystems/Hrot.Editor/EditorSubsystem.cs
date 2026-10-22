@@ -1838,6 +1838,7 @@ namespace Hrot.Editor
                     PostSimGroup            = togglePostSim,
                     IdAllocator             = _idAllocator,
                     EntityMap               = _entityMap,   // CE-2101 — the world boundary clears it
+                    EventAccumulator        = _node!.EventAccumulator,   // CE-3314 — a restore restarts the step window (D4)
                     DryRunIncludesTransient = true,          // the editor's dry run copied Transient components (HN-016)
                     LoadProviders           = editorLoadProviders,
                     ScenarioSaveHandler     = editorScenarioSaveHandler,
@@ -2296,7 +2297,19 @@ namespace Hrot.Editor
                     pause:          () => { if (!directorTime.IsPaused) directorTime.TogglePlayPause(); },
                     stepBy:         seconds => _timeCommands!.StepBy(seconds),
                     behaviourName:  hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
-                    takes:          _takeStore);
+                    takes:          _takeStore,
+                    // ⭐ CE-3299 B5 (R1, restore design §1k) — a checkpoint file written by the recorder, and put back by the SAME
+                    //   sequence the cluster restore runs (PutBack: keyframe, after-restore with this node's step window, the ELM),
+                    //   then the clock asked to the mark (D5)
+                    writeCheckpoint: (path, label) => Fdp.Toolkit.Replay.CheckpointFile.Write(_world!, path, label),
+                    restoreCheckpoint: path =>
+                    {
+                        var (keyframe, mark) = Fdp.Toolkit.Replay.CheckpointFile.Read(path);
+                        Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.PutBack(
+                            _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced);
+                        _timeCommands!.SnapTo(mark.ToGlobalTime());
+                        return mark.TotalTime;
+                    });
                 var cinema = new Hrot.Editor.Director.EditorCinema(() => _wm);
                 _directorLayers = new Hrot.Editor.Director.EditorLayerOverride(
                     () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);

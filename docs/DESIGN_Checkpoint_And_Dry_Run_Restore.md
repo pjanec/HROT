@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §6b as-built; B5 designed §1k, building)
-updated: 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17, B5 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §1k, §6b as-built; R1's reds are the work list: CE-3315, CE-3316)
+updated: 2026-10-22 (B5 BUILT — R1 runs in the editor verifier, §1k; 2 of 4 pilot scenarios restore to the same run; CE-3315, CE-3316 filed, CE-3317 fixed) · 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -419,7 +419,7 @@ complete set the ECS can register — `ComponentType.cs:139` throws without the 
 assemblies are not in that binary's folder and are not walked (CE-3307). ⭐ Side effect: CE-3305's state rail no longer needs its four
 "managed singleton — never recorded" exemptions — they are `NoReplay` now, so it skips them by policy.
 
-### 1k. B5 — R1, the restore-equivalence oracle (`2026-10-22`; build-state: READY-TO-BUILD)
+### 1k. B5 — R1, the restore-equivalence oracle (`2026-10-22`; build-state: BUILT — as-built and first results at the end)
 
 📐 **What B5 starts from** (graph `search_graph` `.*(WorldKeyframe|ScenarioGolden|ScenarioVerification|DirectorRunner|VerifyCommand|FreshVerifyJobs|IVerifyWorld).*` = 9 classes, `has_more:false`; grep; [Scenario Regression](DESIGN_Scenario_Regression.md) §2–§8):
 **only the editor's stepped dry run is MEASURED to repeat** across fresh processes (Scenario Regression §7: goldens SAME in fresh runs;
@@ -506,6 +506,24 @@ SAME `PutBack` through its slave, but R1 does not exercise the node-op ordering 
 | CE-3314 first: `EventAccumulator` becomes a required composition input | the editor and CGF held it and did not pass it, so a restore there never restarted the step window (D4) — R1's process B is such a restore | leave it optional — the silent-default pattern |
 
 ⚠ **Expected result:** R1 is red until R-3039's remaining violators are moved — §7. A red is a work-list row, not a B5 failure.
+
+**✅ As-built `2026-10-22`** — the diagrams hold, with three deviations, each forced by a measurement:
+
+| deviation | why |
+|---|---|
+| the R1 request is one record, `RestoreCheck(At, File, Restore, RunOut, Every)`, on `VerifyOptions.R1` (not four loose fields); a child gets it as JSON in `HROT_VERIFY_R1` | one value to pass from the parent to a child |
+| ⭐ **the verdict compares only what the checkpoint CARRIES** — the components its own schema manifest lists (+ position, health); a not-carried (`NoReplay`) component's difference is listed apart, "not carried by a checkpoint, by design" (`CompareFrom` / `CompareNotCarried`) | 📐 the first run differed on every unit by `PendingNetworkAck` alone — a protocol marker M4 classified *"absent ⇒ fast mode, harmless"*, which the editor (no network gateway) never strips. What a not-carried component changes still shows in the carried state |
+| ⭐ **CE-3317 — a fresh process now registers a component a frame carries and the world has not used** (`ComponentTypeRegistry.FindType` by `[ComponentId]`; `PlaybackSystem` registers the table, `RestoreSingleton` finds the type) | 📐 `ua-tank-ammo`'s restore threw *"Component type ID 360 not found"* — `DesignatedTarget` registers on first use (25 components do). A replay reaching such a keyframe threw the same way. This is D10's "a fresh process loads first" for types |
+
+The command: `Hrot.ClusterRunner --mode editor --headless --verify <a,b|all> --verify-restore-at <T1> [--verify-out dir]` — per scenario two
+fresh children (`<s>.r1-a.*`, `<s>.r1-b.*`, the checkpoint `<s>.r1.fdp`), then `summary.json` and `junit.xml`; exit 0 when every one matches.
+Rails: `DirectorRunnerTests.CE3299_B5_*` (both halves on the runner's fake: the checkpoint on its moment, an action before T1 not applied
+again, SAME; a lossy checkpoint DIFFERENT naming the unit and component; the carried split), `PlaybackRegistersRecordedTypesTests` 2/2.
+
+📐 **First results** (checkpoint at 3 s, the cloud VM): **2 of 4 restore to the same run** — `bt-grenade-posture` (12 s) and `ua-tank-ammo`
+(60 s) SAME in every carried component of every unit. 🔴 `ua-civ-routine-alarm` — the near civilians do not hear the 3.1 s shot after a
+restore: the sound ring is not carried while each ear's read position is (**CE-3315**, and in the same process the reverse — the abandoned
+timeline's sounds heard again). 🔴 `ua-civ-melee` — the Policeman's threat freshness drifts a few float ULPs a step (**CE-3316**, not run down).
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
@@ -742,7 +760,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 
 | rail | proves |
 |---|---|
-| **R1 — the oracle** (in-process, then live): a stepped run to T1 → checkpoint → on to T2 = capture A; restore into a FRESH process → step to T2 = capture B; A ≡ B in full component state (`scripts/determinism-probe.py --compare`) | the whole contract; ⚠ red until R-3039 S1/S2 land — each red names the next violator |
+| **R1 — the oracle** ✅ *built `2026-10-22` as two fresh editor verify runs (§1k); first results there* (in-process, then live): a stepped run to T1 → checkpoint → on to T2 = capture A; restore into a FRESH process → step to T2 = capture B; A ≡ B in full component state (`scripts/determinism-probe.py --compare`) | the whole contract; ⚠ red until R-3039 S1/S2 land — each red names the next violator |
 | dry run: Play → Stop → Play again equals the first Play, step by step | D1, D2, D4, D12 |
 | a restore never moves `WorldEpoch.Moved` (no delete on the wire) and always moves `Restored` | D4 |
 | a checkpoint save changes nothing in the running world and costs no frame time beyond the recorder's | D3 (R-3042) |
@@ -755,7 +773,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 **B0** M1–M5 → **B1a** D16 one shared host composition + D15 the editor's recorder through `ForNode` + its rail → **B1** `AfterRestore` (+ `WorldEpoch.Restored`) and `WorldKeyframes` for the dry run → **B2** the dry run moves into ONE handler (D14 — both entry points; `SyncFrom` leaves them; `PreviewStateBracket` keeps only the allocator until S2) → ✅ **B3** *(built `2026-10-22`, §1g)* checkpoints as labelled keyframes (`RecorderTickSystem` takes a *keyframe at T, label X* request; the label → frame index goes into
 the recording's metadata; `CheckpointIOWorker`'s `'FDPC'` capture retires; `CollectCheckpoint` exports keyframe X) → ✅ **B4** *(built `2026-10-22`, §1h)*
 `RestoreCheckpoint X` = pause → every node seeks to keyframe X → `AfterRestore` → a new recording segment → live paused; a fresh process loads first → **B5** R1
-live. ⚠ R1 stays red until R-3039's S1/S2 (Paused and Stepped §7g.1) land — that red is the work list, not a failure of this design.
+live. ⚠ R1 stays red until R-3039's S1/S2 (Paused and Stepped §7g.1) land — that red is the work list, not a failure of this design. ✅ **B5 built `2026-10-22` (§1k)** — R1 in the editor's stepped dry run; its first reds are CE-3315 and CE-3316.
 
 ## ⛔ HISTORY
 

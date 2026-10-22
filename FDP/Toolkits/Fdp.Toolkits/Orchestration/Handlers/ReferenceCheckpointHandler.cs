@@ -156,13 +156,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 await _controller!.FinalizeRecordingAsync().ConfigureAwait(false);
                 _committing = staged;
                 var mark = staged.Mark;
-                return new CheckpointRestoreResult(
-                    new GlobalTime
-                    {
-                        TotalWallTicks = mark.WallTicks, TotalTime = mark.TotalTime,
-                        UnscaledTotalTime = mark.UnscaledTotalTime, FrameNumber = mark.FrameNumber,
-                    },
-                    staged.Payload.NewExerciseId);
+                return new CheckpointRestoreResult(mark.ToGlobalTime(), staged.Payload.NewExerciseId);
             }
         }
 
@@ -174,9 +168,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.Operation != NodeOpType.RestoreSnapshot || _committing is not { } restore) return;
             _committing = null;
 
-            WorldKeyframes.Apply(_world!, restore.Keyframe);   // D2: no events re-injected · D8: versions only grow
-            AfterRestore.Run(_world!, _accumulator);           // entity map · WorldEpoch.Restored · the step window (D4)
-            _worldReplaced?.Invoke(true);                     // the ELM: clear, and re-derive the protocols the restored world implies
+            PutBack(_world!, restore.Keyframe, _accumulator, _worldReplaced);
 
             var exercise = restore.Payload.NewExerciseId;
             _controller!.PrepareRecordingAsync(exercise, _storageDirectory!, restore.History).ContinueWith(t =>
@@ -191,6 +183,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4/B5 — <b>a checkpoint's world put back</b>: the keyframe in place, the after-restore step, the ELM's world
+        /// replacement — the ONE sequence every checkpoint restore runs (this handler's commit, and R1's restore in a fresh process,
+        /// restore design §1k). ⚠ The clock is not moved here: the caller snaps it to the mark (D5).
+        /// </summary>
+        public static void PutBack(EntityRepository world, WorldKeyframe keyframe, EventAccumulator? accumulator, Action<bool>? worldReplaced)
+        {
+            WorldKeyframes.Apply(world, keyframe);   // D2: no events re-injected · D8: versions only grow
+            AfterRestore.Run(world, accumulator);    // entity map · WorldEpoch.Restored · the step window (D4)
+            worldReplaced?.Invoke(true);             // the ELM: clear, and re-derive the protocols the restored world implies
+        }
 
         /// <summary>
         /// Where checkpoint <paramref name="label"/> of the recording <paramref name="recordingPath"/> is exported: a

@@ -129,6 +129,16 @@ namespace Hrot.ClusterRunner.Configuration
                 HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]
         public string VerifyOut { get; set; } = string.Empty;
 
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 — R1, the restore-equivalence oracle (docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1k): each scenario runs
+        /// twice, each in a fresh process — straight, writing a checkpoint at this many seconds; then restored from it — and the two must
+        /// hold the same full component state from then on. 0 = off.
+        /// </summary>
+        [Option("verify-restore-at", Required = false, Default = 0d,
+                HelpText = "With --verify: R1 — checkpoint each scenario at this sim time (s), restore it in a second fresh process, and require "
+                         + "the same full component state from then on; exit 0 when every one matches")]
+        public double VerifyRestoreAt { get; set; }
+
         /// <summary>⭐ CE-4042 — write the verify report (JSON) here.</summary>
         [Option("verify-report", Required = false, HelpText = "With --verify: write the report (JSON) to this file")]
         public string VerifyReport { get; set; } = string.Empty;

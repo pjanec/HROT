@@ -83,6 +83,33 @@ public sealed class DirectorRunnerTests : IDisposable
         public string? BehaviourName(int hash) => null;
         public TakeStore Takes { get; }
 
+        // ⭐ CE-3299 B5 — the fake's checkpoint: the clock and the verify world's health (the position follows the clock)
+        public FakeVerifyWorld? Verifier;
+        public double? CheckpointWrittenAt;
+        public int Restores;
+        /// <summary>A checkpoint that does not carry the health — what R1 exists to catch.</summary>
+        public bool LoseHealthOnRestore;
+        private double? _snapTo;
+
+        public void WriteCheckpoint(string path, string label)
+        {
+            CheckpointWrittenAt = SimTime;
+            var health = new System.Text.Json.Nodes.JsonObject();
+            foreach (var (id, hp) in Verifier!.Health) health[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] = hp;
+            System.IO.File.WriteAllText(path, new System.Text.Json.Nodes.JsonObject { ["t"] = SimTime, ["health"] = health }.ToJsonString());
+        }
+
+        public double RestoreCheckpoint(string path)
+        {
+            Restores++;
+            var o = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!;
+            Verifier!.Fresh();
+            if (!LoseHealthOnRestore)
+                foreach (var (id, hp) in o["health"]!.AsObject()) Verifier.Health[long.Parse(id, System.Globalization.CultureInfo.InvariantCulture)] = hp!.GetValue<double>();
+            _snapTo = o["t"]!.GetValue<double>();   // the clock moves on a later frame, as ITimeCommands.SnapTo does
+            return _snapTo.Value;
+        }
+
         /// <summary>The rest of the frame after the director's tick: the kernel takes the step, a load progresses, the map draws.</summary>
         public void EndFrame()
         {
@@ -97,6 +124,13 @@ public sealed class DirectorRunnerTests : IDisposable
                 retired++;
             }
             RetiredPerFrame.Add(retired);
+            if (_snapTo is { } snap)
+            {
+                SimTime = snap;
+                _snapTo = null;
+                if (Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
+                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+            }
             if (retired > 0 && Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
                 Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
             _frame++;
@@ -349,7 +383,7 @@ public sealed class DirectorRunnerTests : IDisposable
         private int _loads;
 
         /// <summary>A load rebuilds the world: the edited health goes with the old one (⛔ a fake that kept it would leak like CE-3294).</summary>
-        private void Fresh()
+        public void Fresh()
         {
             if (_h.Loads.Count == _loads) return;
             _loads = _h.Loads.Count;
@@ -393,6 +427,67 @@ public sealed class DirectorRunnerTests : IDisposable
             Edits.Add((_h.SimTime, id, component));
             return null;
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3299</c> B5 — R1's two halves (restore design §1k): A runs straight and writes the checkpoint at T1 (after that moment's
+    /// snapshot, before its actions); B puts it back at the start and runs on from T1 — its snapshots on A's grid, an action A applied
+    /// before T1 NOT applied again, one after T1 applied on its exact step — and the two runs compare SAME from T1. A checkpoint that does
+    /// not carry a value is DIFFERENT, naming the unit and the component. 🔴 Red-proof: drop <c>MarkDone</c> ⇒ the T1 = 2 s half applies
+    /// the 1.5 s action again (one edit, not zero).
+    /// </summary>
+    [Fact]
+    public void CE3299_B5_R1_ARestoredRun_GoesOnFromTheCheckpoint_AndMatchesTheStraightRun()
+    {
+        var store = Store();
+        System.IO.File.WriteAllText(System.IO.Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var cinema = new Cinema();
+        (DirectorRunner Runner, FakeEditor Host) Fresh()
+        {
+            var h = new FakeEditor(store);
+            return (new DirectorRunner(h, cinema, new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+        }
+        System.Text.Json.Nodes.JsonObject RunOf(string path) => System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!.AsObject();
+        (string Straight, string Restored) Halves(double at, bool lose)
+        {
+            string cp = System.IO.Path.Combine(_root, $"r1-{at}.fdp"), a = cp + ".a.json", b = cp + ".b.json";
+            var (straight, sh) = Fresh();
+            Assert.Empty(straight.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, false, a)))));
+            Run(straight, sh);
+            Assert.Equal(at, sh.CheckpointWrittenAt!.Value, 6);                  // on its moment, once
+            var (restored, rh) = Fresh();
+            rh.LoseHealthOnRestore = lose;
+            Assert.Empty(restored.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, true, b)))));
+            Run(restored, rh);
+            Assert.Equal(1, rh.Restores);
+            Assert.Null(rh.CheckpointWrittenAt);                                  // the restored half writes none
+            Assert.All(rh.StepsPerFrame, n => Assert.Equal(1, n));                // the stepping rule holds after a restore
+            Assert.Equal(at < 1.5 ? 1 : 0, rh.Verifier!.Edits.Count);             // ⭐ the 1.5 s action: applied once, in one half or the other
+            if (at < 1.5) Assert.Equal(1.5, rh.Verifier.Edits.Single().SimTime, 6);
+            Assert.Equal(at, ConditionBook.Num(RunOf(b)["snapshots"]![0]!["t"])!.Value, 6);   // B's snapshots begin at the checkpoint
+            return (a, b);
+        }
+
+        foreach (var at in new[] { 1d, 2d })   // before the action, and after it
+        {
+            var (a, b) = Halves(at, lose: false);
+            Assert.Empty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), at));
+        }
+
+        var (la, lb) = Halves(2d, lose: true);   // ⛔ a checkpoint that does not carry the health
+        var diff = ScenarioGolden.CompareFrom(RunOf(la), RunOf(lb), 2d);
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", diff[0]);
+        Assert.Contains("Runner", diff[0]);
+        Assert.Contains(diff, d => d.Contains("Health"));
+
+        // ⭐ a component the checkpoint does not carry BY DESIGN is not the verdict's — it is listed apart
+        Func<string, bool> carried = name => name != "Health";
+        var straightRun = RunOf(la);
+        var restoredRun = RunOf(lb);
+        foreach (var unit in new[] { straightRun, restoredRun }.SelectMany(r => r["snapshots"]!.AsArray()).SelectMany(sn => sn!["units"]!.AsObject()))
+            unit.Value!.AsObject()["health"] = null;   // the unit-level health field mirrors the component; drop it for this half
+        Assert.Empty(ScenarioGolden.CompareFrom(straightRun, restoredRun, 2d, carried));
+        Assert.Contains(ScenarioGolden.CompareNotCarried(straightRun, restoredRun, 2d, carried), d => d.Contains("Health"));
     }
 
     private const string RunnerChecks = """

@@ -127,6 +127,9 @@ class Program
                 Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify (none named, or none with a checks.json).");
                 return 1;
             }
+            // ⭐ CE-3299 B5 — R1: this process is the parent of two children per scenario (a child carries its half in the environment)
+            if (config.VerifyRestoreAt > 0 && Hrot.Editor.Director.CommandLineVerify.RestoreCheckFromEnvironment() == null)
+                return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut);
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
                 return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut);
             Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport);

@@ -14,7 +14,19 @@ namespace Hrot.Editor.Director
     public enum DirectorMode { Live, Capture, Scout, Verify }
 
     /// <summary>⭐ <c>CE-4042</c> — a verify run: <see cref="Capture"/> re-records each scenario's golden (refused for a failing run).</summary>
-    public sealed record VerifyOptions(bool Capture = false);
+    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null);
+
+    /// <summary>
+    /// ⭐ <c>CE-3299</c> B5 — one half of R1, the restore-equivalence oracle (restore design §1k). <see cref="Restore"/> false: run from 0 and
+    /// write checkpoint <c>r1</c> to <see cref="File"/> at <see cref="At"/> (after that moment's snapshot, before its actions). True: put
+    /// <see cref="File"/> back at the start and run on from <see cref="At"/>. Both snapshot every <see cref="Every"/> s, every component in
+    /// full, and write the run to <see cref="RunOut"/>; the command line compares the two from <see cref="At"/>.
+    /// </summary>
+    public sealed record RestoreCheck(double At, string File, bool Restore, string RunOut, double Every = 1d)
+    {
+        /// <summary>Beside the checkpoint: the time it was written and the actions already applied (the restored run must not repeat them).</summary>
+        public string SidecarPath => File + ".r1.json";
+    }
 
     /// <summary>Where and how a capture writes: frames under <see cref="Dir"/>, one movie at <see cref="Movie"/> (§4a: a reel is ONE movie).</summary>
     public sealed record CaptureOptions(string Dir, int Fps = 30, int Width = 1280, int Height = 720, int Supersample = 1,
@@ -147,6 +159,10 @@ namespace Hrot.Editor.Director
         private readonly WorldUnits _units;
         private ScenarioVerification? _verification;
         private bool _firstLoad;
+        // ⭐ CE-3299 B5 — R1: the clock a restored checkpoint moves to, the frames waited for it, and whether the checkpoint was written
+        private double _r1Target = double.NaN;
+        private int _r1Frames;
+        private bool _r1Written;
 
         private PlayRequest? _request;
         private int _item;
@@ -315,6 +331,7 @@ namespace Hrot.Editor.Director
             _item = index;
             _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0; _verification = null;
+            _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -354,7 +371,7 @@ namespace Hrot.Editor.Director
             if (!_host.InPreview) { if (++_enterFrames > 120) Fail("the preview did not start"); return; }
             if (!_host.Paused) { _host.Pause(); return; }
 
-            if (_request!.Mode == DirectorMode.Verify) { BeginVerify(); return; }
+            if (_request!.Mode == DirectorMode.Verify) { if (!RestoringCheckpoint()) BeginVerify(); return; }
             var loaded = LoadTake(_request!, Item);
             if (loaded.Value is not { } take) { Fail(string.Join("; ", loaded.Problems)); return; }
             _units.Reset();
@@ -399,14 +416,55 @@ namespace Hrot.Editor.Director
             _take = new Take { Scenario = Item.Scenario, Name = "_verify", TickHz = 60, EndAt = new AtExpr(checks.RunFor) };
             Report.TickHz = 60;
             _book = new AnchorBook(_take.Anchors, null, _host.BehaviourName);
-            _t0 = _host.SimTime;
+            var r1 = _request!.Verify!.R1;
+            bool restored = r1 is { Restore: true };
+            _t0 = restored ? _host.SimTime - r1!.At : _host.SimTime;   // ⭐ B5 — a restored run goes on from At, on the same grid
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
-            _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0);
+            _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0,
+                startAt: restored ? r1!.At : 0, snapshotEvery: r1?.Every);
+            if (restored) _verification.MarkDone(ReadDoneActions(r1!));
             Replan();
             _clock = new PacedClock(60, 1d);
             Phase = DirectorPhase.Playing;
             Report.Status = "playing";
             _clock.Start(_host.WallNow);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 — R1's restoring half: the checkpoint is put back (the cluster restore's own sequence) and the clock asked to
+        /// its mark, then the run waits until the clock is there. True while that is still going on.
+        /// </summary>
+        private bool RestoringCheckpoint()
+        {
+            if (_request!.Verify?.R1 is not { Restore: true } r1) return false;
+            if (double.IsNaN(_r1Target))
+            {
+                try { _r1Target = _host.RestoreCheckpoint(r1.File); }
+                catch (Exception ex) { Fail($"R1: the checkpoint {r1.File} could not be restored — {ex.Message}"); }
+                return true;
+            }
+            if (Math.Abs(_host.SimTime - _r1Target) <= 1e-6) return false;
+            if (++_r1Frames > 120) Fail($"R1: the clock did not reach the checkpoint's {_r1Target} s (at {_host.SimTime} s)");
+            return true;
+        }
+
+        // ⭐ B5 — R1's writing half: the world at At, and beside it the actions already applied
+        private void WriteCheckpoint(RestoreCheck r1, double rel)
+        {
+            _r1Written = true;
+            if (File.Exists(r1.File)) File.Delete(r1.File);
+            if (File.Exists(r1.File + ".meta.json")) File.Delete(r1.File + ".meta.json");
+            _host.WriteCheckpoint(r1.File, "r1");
+            var done = new System.Text.Json.Nodes.JsonArray(_verification!.DoneActions.Select(i => (System.Text.Json.Nodes.JsonNode?)i).ToArray());
+            File.WriteAllText(r1.SidecarPath, new System.Text.Json.Nodes.JsonObject { ["at"] = rel, ["doneActions"] = done }.ToJsonString());
+        }
+
+        private static IEnumerable<int> ReadDoneActions(RestoreCheck r1)
+        {
+            if (!File.Exists(r1.SidecarPath)) return Array.Empty<int>();
+            var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(r1.SidecarPath));
+            return (node?["doneActions"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray())
+                .Select(n => (int?)n ?? -1).Where(i => i >= 0).ToList();
         }
 
         private Loaded<ScenarioChecks> LoadChecks(string scenario)
@@ -468,6 +526,7 @@ namespace Hrot.Editor.Director
             {
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
+            if (_request.Verify?.R1 is { Restore: false } r1 && !_r1Written && rel + 1e-9 >= r1.At) WriteCheckpoint(r1, rel);
             _verification?.ApplyDue(rel);   // ⭐ an action lands on its exact step (every frame is a step boundary)
             StepOnce();
         }
@@ -587,6 +646,11 @@ namespace Hrot.Editor.Director
             {
                 var v = _verification.Finish(Rel, r.Steps);
                 if (!_firstLoad) v.MarkReload();
+                if (_request!.Verify?.R1 is { } r1)   // ⭐ B5 — the run goes to the command line, which compares the two halves
+                {
+                    if (!r1.Restore && !_r1Written) v.Problems.Add($"R1: the run ended before the checkpoint time {r1.At} s");
+                    if (v.GoldenJson != null) { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(r1.RunOut))!); File.WriteAllText(r1.RunOut, v.GoldenJson.ToJsonString()); }
+                }
                 if (v.Golden == "captured" && v.GoldenJson != null)
                     v.Written.AddRange(_host.Takes.SaveScenarioJson(Item.Scenario, ScenarioGolden.FileName, v.GoldenJson));
                 r.Verify = v;

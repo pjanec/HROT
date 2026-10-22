@@ -17,6 +17,8 @@ namespace Hrot.Editor.Director
         public const string ScenariosVariable = "HROT_VERIFY";
         public const string CaptureVariable = "HROT_VERIFY_CAPTURE";
         public const string ReportVariable = "HROT_VERIFY_REPORT";
+        /// <summary>⭐ <c>CE-3299</c> B5 — this child is one half of R1: a <see cref="RestoreCheck"/> as JSON (restore design §1k).</summary>
+        public const string RestoreCheckVariable = "HROT_VERIFY_R1";
         /// <summary>Frames to wait in Idle before the first load (the editor's own start-up settles first).</summary>
         private const int SettleFrames = 30;
         /// <summary>The editor never reaching Idle is a failure, not a wait forever.</summary>
@@ -25,15 +27,23 @@ namespace Hrot.Editor.Director
         private readonly string[] _scenarios;
         private readonly bool _capture;
         private readonly string? _report;
+        private readonly RestoreCheck? _r1;
         private int _frames, _idleFrames;
         private bool _started, _done;
 
-        private CommandLineVerify(string[] scenarios, bool capture, string? report)
+        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1)
         {
             _scenarios = scenarios;
             _capture = capture;
             _report = report;
+            _r1 = r1;
         }
+
+        /// <summary>⭐ B5 — the R1 half this child runs, from <see cref="RestoreCheckVariable"/>; null when it is a plain verify.</summary>
+        public static RestoreCheck? RestoreCheckFromEnvironment()
+            => Environment.GetEnvironmentVariable(RestoreCheckVariable) is { Length: > 0 } json
+                ? JsonSerializer.Deserialize<RestoreCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
+                : null;
 
         /// <summary>The request the runner left in the environment; null when this is not a verify run.</summary>
         public static CommandLineVerify? FromEnvironment()
@@ -41,7 +51,8 @@ namespace Hrot.Editor.Director
             var s = Environment.GetEnvironmentVariable(ScenariosVariable);
             if (string.IsNullOrWhiteSpace(s)) return null;
             return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable));
+                Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable),
+                RestoreCheckFromEnvironment());
         }
 
         /// <param name="ready">The editor can load a scenario now (its cluster is Idle).</param>
@@ -63,7 +74,7 @@ namespace Hrot.Editor.Director
                     Name = "verify",
                     Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
                 };
-                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture)));
+                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1)));
                 if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
                 _started = true;
                 return;
@@ -117,6 +128,7 @@ namespace Hrot.Editor.Director
             foreach (var a in args) psi.ArgumentList.Add(a);
             psi.Environment.Remove("HROT_DEBUG_API_PORT");   // a child takes a free port of its own
             psi.Environment.Remove(ScenariosVariable);
+            psi.Environment.Remove(RestoreCheckVariable);   // ⭐ B5 — set per child by the parent that wants one
             return psi;
         }
 

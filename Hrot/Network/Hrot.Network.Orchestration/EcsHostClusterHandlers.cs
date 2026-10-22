@@ -42,7 +42,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         public Action<bool>?                 BypassLifecycle { get; init; }
 
         // ── the dry run's event history (D2) ──
-        public EventAccumulator?   EventAccumulator { get; init; }
+        /// <summary>⭐ <c>CE-3314</c> — the step-event window a restore restarts (dry-run exit and checkpoint restore, D4). ⛔ REQUIRED:
+        /// the editor and CGF held it (<c>HrotNodeContext.EventAccumulator</c>) and did not pass it, so a restore there kept the old
+        /// window (the silent-default rule). A host with no step window says so with an explicit null.</summary>
+        public required EventAccumulator? EventAccumulator { get; init; }
 
         // ── dry run: the non-ECS state it also puts back (DESIGN_Deterministic_Network_Ids.md §2b) ──
         public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? IdAllocator { get; init; }
