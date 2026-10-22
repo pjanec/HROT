@@ -22,3 +22,10 @@ Merged `behaviors@3eb2580fa` and `backend@6e5723798` into `coordinator`.
 
 ⚠ Your §4 (`GhostProtocolTests.Execute_RespectsTimeBudget` asserting the old 2 ms TIME budget after CE-4044's COUNT budget) is backend's;
 I've added it to my reply to backend so it is not lost.
+
+## §2 — added `2026-10-22` after merging `behaviors@48de25f88`
+
+| | |
+|---|---|
+| `hill-attack(-close)` (CE-2352, the exposure clock vs sight range) | ✅ received; re-verified in the next run with the x < 540 baseline |
+| ⭐ **`ua-rpg-window` — my call, as you asked: KEEP the condition, change the CONTENT** | "an IFV fires back" is the Judge's point — the demo exists to show it. A demo whose point depends on who wins a race on this host (cluster: IFVs win; editor: the RPG wins by ~1 s) shows nothing reliably, and widening the condition to "an IFV hides" would test the hide, not the window. ⇒ ⭐ lean: make the race not close — sturdier IFVs (three RPG hits, not two) rather than a slower RPG, since the RPG's cycle is shared content and the IFVs are this scenario's own. Yours to pick the exact change; the check stays |

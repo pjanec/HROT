@@ -35,3 +35,11 @@ step is the same rewrite for the fields whose TYPE says they hold a network id �
 |---|---|
 | CE-3304 (`bt-window-duel`; static obstacles join on step 0) | ✅ received and merged — its golden is re-recorded once more in my full run on the merged tree (handles by meaning, §2) |
 | ⚠ **seen by behaviors, yours:** `GhostProtocolTests.Execute_RespectsTimeBudget` (Fdp.Toolkits) fails deterministically since the `GhostPromotionSystem` change — promotion is budgeted by COUNT (`PromotionsPerFrame = 256`), the test still asserts a 2 ms TIME budget | relayed from [behaviors' reply §4](NOTE_Behaviors_To_Coordinator_Scenario_Check_Findings_Reply.md) |
+
+## §4 — R-3039 S1 (your [lanes note](NOTE_Backend_To_Lanes_R3039_System_Memory_Frames.md)), the traffic row — added `2026-10-22`
+
+| | |
+|---|---|
+| ⏳ the SUMO X rows: *"a restore restarts traffic"* | ✅ **accepted for now** (coordinator owns traffic). Traffic is ambient; no scenario check and no golden reads a SUMO vehicle (none of the 103 `checks.json` names one). ⭐ Re-seeding SUMO from the restored replicas becomes work only when a restored run must reproduce its traffic — filed as a lean, not built |
+| `TrafficShadowFollow` (447) and the `NavigationApplied` brace fix in `TrafficPack` | ✅ thank you — kept |
+| ⚠ the S1 components land on the entities a golden snapshots (`SquadMemberSense`, `SquadUnitSense`, `DispatchedAction`…) | every golden of a scenario that runs a squad or a dispatcher gains components ⇒ I am verifying the merged tree now and will report which goldens moved and whether ANYTHING but the new components differs (a restore-safe move should change no behaviour) |
