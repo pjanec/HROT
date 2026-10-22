@@ -1,231 +1,273 @@
 {
- "$meta": {
-  "docType": "Hrot.Scenario",
-  "schemaVersion": 1
- },
- "header": {
-  "subsystemType": "Hrot.Scenario",
-  "schemaVersion": "1.0",
-  "terrainName": "basic-desert",
-  "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him). Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
- },
- "entities": {
-  "a2222d00-0000-4000-8000-000000000001": {
-   "SimTransform": {
-    "Position": [
-     60,
-     100,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9301
-   },
-   "TkbIdentity": {
-    "TkbType": 608
-   },
-   "EntityInfo": {
-    "Name": "Sentry Gun",
-    "ForceId": "Friend"
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "Behavior": {
-    "Name": "WeaponSystemHold",
-    "Params": "{}",
-    "Origin": "Superior"
-   }
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
   },
-  "a2222d00-0000-4000-8000-000000000002": {
-   "SimTransform": {
-    "Position": [
-     60,
-     190,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9302
-   },
-   "TkbIdentity": {
-    "TkbType": 2002
-   },
-   "EntityInfo": {
-    "Name": "Intruder",
-    "ForceId": "Hostile"
-   },
-   "Health": {
-    "Current": 100,
-    "Max": 100
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "Behavior": {
-    "Name": "MoveToLocation",
-    "Params": "{\"x\": 60, \"y\": 120}",
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": "{}",
-    "Origin": "Superior"
-   }
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). An 'Intruder 2' walks from (200,200) toward the M2 (to (200,150)), into its arc (CE-4035 G-11). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him) (4) the manned M2 fires on Intruder 2. Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
   },
-  "a2222d00-0000-4000-8000-000000000003": {
-   "SimTransform": {
-    "Position": [
-     200,
-     100,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9303
-   },
-   "TkbIdentity": {
-    "TkbType": 600
-   },
-   "EntityInfo": {
-    "Name": "M2 HMG",
-    "ForceId": "Friend"
-   },
-   "WeaponSystemState": {
-    "Deploy": "Stowed",
-    "Until": 0
-   }
-  },
-  "a2222d00-0000-4000-8000-000000000004": {
-   "SimTransform": {
-    "Position": [
-     208,
-     100,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9304
-   },
-   "TkbIdentity": {
-    "TkbType": 2002
-   },
-   "EntityInfo": {
-    "Name": "M2 Gunner",
-    "ForceId": "Friend"
-   },
-   "Health": {
-    "Current": 100,
-    "Max": 100
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "Behavior": {
-    "Name": "SetUpWeapon",
-    "Params": "{\"weapon\": 9303}",
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": "{}",
-    "Origin": "Superior"
-   }
-  },
-  "a2222d00-0000-4000-8000-000000000005": {
-   "SimTransform": {
-    "Position": [
-     300,
-     100,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9305
-   },
-   "TkbIdentity": {
-    "TkbType": 603
-   },
-   "EntityInfo": {
-    "Name": "Javelin",
-    "ForceId": "Friend"
-   },
-   "WeaponSystemState": {
-    "Deploy": "Stowed",
-    "Until": 0
-   }
-  },
-  "a2222d00-0000-4000-8000-000000000006": {
-   "SimTransform": {
-    "Position": [
-     308,
-     100,
-     0
-    ],
-    "Rotation": [
-     0,
-     0,
-     0,
-     1
-    ]
-   },
-   "NetworkIdentity": {
-    "Value": 9306
-   },
-   "TkbIdentity": {
-    "TkbType": 2002
-   },
-   "EntityInfo": {
-    "Name": "Javelin Man",
-    "ForceId": "Friend"
-   },
-   "Health": {
-    "Current": 100,
-    "Max": 100
-   },
-   "TargetMemory": {
-    "Entries": []
-   },
-   "Behavior": {
-    "Name": "CarryWeapon",
-    "Params": "{\"weapon\": 9305}",
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": "{}",
-    "Origin": "Superior"
-   }
+  "entities": {
+    "a2222d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          60,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9301
+      },
+      "TkbIdentity": {
+        "TkbType": 608
+      },
+      "EntityInfo": {
+        "Name": "Sentry Gun",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "WeaponSystemHold",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          60,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9302
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Intruder",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 60, \"y\": 120}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          200,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9303
+      },
+      "TkbIdentity": {
+        "TkbType": 600
+      },
+      "EntityInfo": {
+        "Name": "M2 HMG",
+        "ForceId": "Friend"
+      },
+      "WeaponSystemState": {
+        "Deploy": "Stowed",
+        "Until": 0
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          208,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9304
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "M2 Gunner",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "SetUpWeapon",
+        "Params": "{\"weapon\": 9303}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          300,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9305
+      },
+      "TkbIdentity": {
+        "TkbType": 603
+      },
+      "EntityInfo": {
+        "Name": "Javelin",
+        "ForceId": "Friend"
+      },
+      "WeaponSystemState": {
+        "Deploy": "Stowed",
+        "Until": 0
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          308,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9306
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Javelin Man",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CarryWeapon",
+        "Params": "{\"weapon\": 9305}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2222d00-0000-4000-8000-000000000099": {
+      "SimTransform": {
+        "Position": [
+          200,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9307
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Intruder 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 200, \"y\": 150, \"speed\": 1.2, \"arrivalRadius\": 1}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
   }
- }
 }

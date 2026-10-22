@@ -380,7 +380,7 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
-| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, Kornet team | sentry fires on its own; the M2 deploys and fires; carried weapons fire | W1–W10 | ✅ 5/5 |
+| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, an intruder walking into the M2's arc *(CE-4035 G-11; the Kornet team this row named is not in the file — removed)* | sentry fires on its own; the M2 deploys and fires on Intruder 2; the Javelin is carried | W1–W10 | ⏳ re-run after G-11 |
 | `ua-fast-rope-roof` | 8 men rope onto a roof | 8 down in 7.6 s, a ring on the roof; helicopter leaves after | AB2, AB3, AB7, AB8 | ✅ |
 | `ua-airborne-drop` | a stick of 8 jumps | each lands 7.8–10.5 m from his point; squad assembles | AB4–AB7 | ✅ |
 | `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ⚠ 4/5 — canopy at 3.96 s vs the check's 3.5 s |

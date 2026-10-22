@@ -2098,6 +2098,18 @@ def run_rpg_window(c, timeout):
     print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
 
 
+def run_weather_regions(c, timeout):
+    """⭐ CE-4035 F-01 — ua-weather-regions: the IFV drives east through the fog bank and the overcast region by itself."""
+    ids = ids_by_name()
+    ifv = ids.get("IFV (drive east)")
+    if not c.ok(ifv is not None, "the IFV is loaded"):
+        return
+    x0 = (position(ifv) or [0, 0, 0])[0]
+    call("POST", "/sim/play", {})
+    ok = wait_for(lambda: (position(ifv) or [0, 0, 0])[0] > 360, timeout)
+    c.ok(ok, f"the IFV drives east through both regions by itself (x {x0:.0f} -> {(position(ifv) or [0, 0, 0])[0]:.0f})")
+
+
 # ── ua-weapon-systems (Weapon Systems §10, WS-6) — a sentry gun holds a gate, a soldier sets up an M2, a soldier picks up a Javelin ─────
 #   basic-desert (x, y 0…600 — ⚠ y −4 is off the map: an M2 at y 0 put its boarding point there and every walk to it failed
 #   FailedUnreachable), three vignettes south of the y 210 ridge. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 90 m:
@@ -2147,6 +2159,16 @@ def run_weapon_systems(c, timeout):
     c.ok(manned is not None, f"② the gunner mans the M2 — aboard after {manned} s ({_aboard(gunner)})")
     c.ok(deployed is not None, f"② the M2 is set up — Deployed after {deployed} s (now {deploy(m2)})")
     c.ok(carried is not None, f"③ the Javelin man carries the Javelin — after {carried} s ({_aboard(jav)})")
+    # ⭐ CE-4035 G-11 — the manned M2 fires on the man walking into its arc (watched for up to 90 s more)
+    intruder2 = ids.get("Intruder 2")
+    if intruder2 is not None:
+        end2 = time.time() + 90
+        while time.time() < end2 and not any(x.get("shooter") in (m2, gunner) for x in shots.values()):
+            for x in _if_shots_all():
+                shots[x.get("seq")] = x
+            time.sleep(1.0)
+        by_m2 = [x for x in shots.values() if x.get("shooter") in (m2, gunner)]
+        c.ok(len(by_m2) >= 1, f"④ the manned M2 fires on Intruder 2 — {len(by_m2)} round(s), his health {health(intruder2)}")
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
@@ -4749,6 +4771,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-technical-scoot": run_technical_scoot,
              "ua-rpg-window": run_rpg_window,
              "ua-weapon-systems": run_weapon_systems,
+             "ua-weather-regions": run_weather_regions,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2230 H-3 — the hull-down hill attack on the ridge (hill-attack DESIGN §0, R-2022)
