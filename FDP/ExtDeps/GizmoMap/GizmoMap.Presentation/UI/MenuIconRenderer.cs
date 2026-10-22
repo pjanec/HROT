@@ -48,6 +48,25 @@ namespace GizmoMap.Presentation
         /// when the resolver is null, the key is empty, or the key does not resolve.
         /// </summary>
         public static void DrawIcon(MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx)
+            => DrawIcon(resolver, key, rowStart, gutterPx, ImGui.GetWindowDrawList());
+
+        /// <summary>
+        /// ⭐ CE-1027 — a SUBMENU row: captures the row's own draw list BEFORE <c>BeginMenu</c>, then draws the icon onto it.
+        /// 📐 Measured: <c>BeginMenu</c> returning true has already begun the submenu's popup, so <c>GetWindowDrawList()</c> after it
+        /// is the POPUP's list — the icon was drawn at the row's position into the popup and clipped away, so a menu's icon vanished
+        /// whenever it was open (on the menu bar: as soon as it is hovered with another menu open). Returns what <c>BeginMenu</c>
+        /// returned; the caller ends the menu as usual.
+        /// </summary>
+        public static bool BeginMenu(string paddedLabel, bool enabled, MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx)
+        {
+            var rowList = ImGui.GetWindowDrawList();
+            bool open = ImGui.BeginMenu(paddedLabel, enabled);
+            DrawIcon(resolver, key, rowStart, gutterPx, rowList);
+            return open;
+        }
+
+        /// <summary>As <see cref="DrawIcon(MenuIconResolver?, string?, Vector2, float)"/>, onto <paramref name="target"/>.</summary>
+        public static void DrawIcon(MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx, ImDrawListPtr target)
         {
             if (resolver == null || string.IsNullOrEmpty(key) || gutterPx <= 0f)
                 return;
@@ -65,7 +84,7 @@ namespace GizmoMap.Presentation
             float cy = (rmin.Y + rmax.Y) * 0.5f - sz * 0.5f;
 
             var min = new Vector2(rowStart.X + (gutterPx - sz) * 0.5f, cy);
-            ImGui.GetWindowDrawList().AddImage(tex, min, min + new Vector2(sz, sz), uv0, uv1);
+            target.AddImage(tex, min, min + new Vector2(sz, sz), uv0, uv1);
         }
 
         /// <summary>True when any item at this menu level carries an icon — meaning the whole

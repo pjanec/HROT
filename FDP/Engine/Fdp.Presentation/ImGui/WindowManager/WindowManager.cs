@@ -768,8 +768,7 @@ public class WindowManager
                 string subLabel = reserve
                     ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
                     : child.Name;
-                bool open = Gui.BeginMenu(subLabel);
-                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                bool open = GizmoMap.Presentation.MenuIconRenderer.BeginMenu(subLabel, true, MenuIcons, child.Icon, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
                     RenderGlobalMenu(child);
