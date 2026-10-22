@@ -789,7 +789,7 @@ eyes on the receptor, as the implicit ones are.
 
 ✅ Rail `EqsModuleTests.CE2349_TheM1AndBradley_CarryAThermalSight_AndStillSeeAndHear` (all three sensors, the ranges, the listed eyes on
 the receptor), red with the builder ignoring `ThermalRange` and with the translator not tagging `FromReceptor`; SimHost suite 1840/1840.
-⏳ The night demo with a thermal sight (G-10's thermal half) is the next step.
+⛔ **Measured after the build: no catalogue template carries a heat signature** (`SignaturesDto.Thermal` is never set), so the sight has nothing to see yet. ⏳ Next: `ThermalSignatureDto` values per type (lean: a person ~0.5 base, a vehicle ~0.2 base + running heat), then G-10's thermal half.
 
 ### 8.6 `CE-3281` — the BUILT-IN catalogue is heard: tanks, the Bradley, the HMMWV, every aircraft, every BDC person *(backend, `2026-10-20`; 🔒 user: "CE-3281 approved"; build-state: BUILT)*
 
