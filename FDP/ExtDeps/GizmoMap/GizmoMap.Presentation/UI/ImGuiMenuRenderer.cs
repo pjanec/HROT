@@ -64,8 +64,7 @@ namespace GizmoMap.Presentation
 
             if (hasChildren)
             {
-                bool open = ImGui.BeginMenu(label, enabled);
-                MenuIconRenderer.DrawIcon(icons, item.Icon, p0, gutter);
+                bool open = MenuIconRenderer.BeginMenu(label, enabled, icons, item.Icon, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
                     var children = item.Children!;

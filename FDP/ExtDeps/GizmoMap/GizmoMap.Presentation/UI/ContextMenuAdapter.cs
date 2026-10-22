@@ -141,8 +141,7 @@ namespace GizmoMap.Presentation
             if (item.TryGetProperty("children", out var children)
                 && children.ValueKind == JsonValueKind.Array)
             {
-                bool open = ImGui.BeginMenu(label, enabled);
-                MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
+                bool open = MenuIconRenderer.BeginMenu(label, enabled, IconResolver, iconKey, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
                     bool childReserve = IconResolver != null && LevelHasIcon(children);
