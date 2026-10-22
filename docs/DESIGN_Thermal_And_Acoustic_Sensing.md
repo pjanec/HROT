@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -762,6 +762,34 @@ enemy round bursting among us places an "enemy, about here" contact ON us, and i
 | ⚠ what would change it | a doctrine that wants "explosions near us" to keep a unit in contact on its own | | |
 
 ⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
+
+### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: BUILT)*
+
+📐 **Measured:** `ThermalPerception` (CE-3061) and its weather cap were built, but no TKB template listed a sensor, so every unit ran
+the implicit visual + acoustic pair (§8.1) and no demo could show a thermal sight (CE-4035 G-10). ⭐ The open question — does listing a
+`Thermal` entry drop the implicit pair? — **yes**: `PerceptionTkbTranslator` builds both only for a TKB that lists NO sensors.
+
+```mermaid
+graph LR
+  BDC["SimCombatDef: SensorRange, ThermalRange"] -->|"ThermalRange = 0"| IMP["no list ⇒ implicit eyes + ears (§8.1)"]
+  BDC -->|"ThermalRange > 0 (M1 3000 m, Bradley 2500 m)"| LIST["listed: Visual (FromReceptor) · Acoustic (1.5 × SensorRange) · Thermal"]
+  LIST --> TAG["the translator tags a FromReceptor entry Implicit = 1 ⇒ its eyes read the LIVE receptor"]
+```
+
+*What the picture shows that prose hid:* a listed visual entry would read the TEMPLATE's range — §8.1's rejected alternative ("it would
+change how their vision is tuned"). 📐 Measured: `hill-attack`, `hill-attack-close`, `mission-demo-bp` and `tt-nav-los` narrow their M1s'
+`PerceptionReceptor` (100 m, 180°); listed plainly, those tanks would have seen 8000 m. ⇒ `SensorEntryDto.FromReceptor` keeps the listed
+eyes on the receptor, as the implicit ones are.
+
+| ⭐ as built | why | rejected |
+|---|---|---|
+| `SimCombatDef.ThermalRange` (0 = none); `BdcTkbBuilder` lists Visual + Acoustic + Thermal when it is set | a listed TKB gets no implicit sensors | a translator rule "add the implicit pair beside a list" — it flips CE-3038's "listed means exactly these" for every listed unit (radar sites, test rigs) |
+| `SensorEntryDto.FromReceptor` → `SensorTag.Implicit = 1` | the listed eyes keep reading the live receptor | listing the eyes plainly — the measured 8000 m regression above |
+| thermal FOV 360° | the commander's independent viewer turns with the turret; one sensor stands for the gunner's and the commander's sights | a 40° gunner's sight — one cone would need the turret's bearing, which perception does not read |
+
+✅ Rail `EqsModuleTests.CE2349_TheM1AndBradley_CarryAThermalSight_AndStillSeeAndHear` (all three sensors, the ranges, the listed eyes on
+the receptor), red with the builder ignoring `ThermalRange` and with the translator not tagging `FromReceptor`; SimHost suite 1840/1840.
+⛔ **Measured after the build: no catalogue template carries a heat signature** (`SignaturesDto.Thermal` is never set), so the sight has nothing to see yet. ⏳ Next: `ThermalSignatureDto` values per type (lean: a person ~0.5 base, a vehicle ~0.2 base + running heat), then G-10's thermal half.
 
 ### 8.6 `CE-3281` — the BUILT-IN catalogue is heard: tanks, the Bradley, the HMMWV, every aircraft, every BDC person *(backend, `2026-10-20`; 🔒 user: "CE-3281 approved"; build-state: BUILT)*
 

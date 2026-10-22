@@ -26,6 +26,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ R-187 — OFF at spawn. Absent = false = ON: a missing field can never blind a unit.</summary>
         public bool Disabled { get; init; }
 
+        /// <summary>⭐ <c>CE-2349</c> — the unit's LIVE receptor decides this sensor's range and field of view (the implicit visual sensor's
+        /// rule, CE-3038), not the record below: a scenario that narrows a vehicle's <c>PerceptionReceptor</c> still narrows its eyes when
+        /// the template LISTS them (a listed TKB gets no implicit sensors — the M1 lists its eyes because it carries a thermal sight).</summary>
+        public bool FromReceptor { get; init; }
+
         /// <summary>The query radius; 0 = the kind's own range.</summary>
         [EditUnit("m")]
         public float SearchRadius { get; init; }

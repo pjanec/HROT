@@ -158,6 +158,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// Sensor detection range in meters.
         /// </summary>
         public float SensorRange { get; set; } // meters
+
+        /// <summary>
+        /// ⭐ <c>CE-2349</c> — the range (m) of a THERMAL sight the vehicle carries; 0 = none. A vehicle with one lists its sensors
+        /// explicitly — visual (<see cref="SensorRange"/>), acoustic (1.5 × it) and thermal — because a TKB that lists ANY sensor gets no
+        /// implicit ones (CE-3038, CE-2106). 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md.
+        /// </summary>
+        public float ThermalRange { get; set; }
         
         /// <summary>
         /// Whether entity can engage threats autonomously.

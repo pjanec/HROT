@@ -404,7 +404,8 @@ public sealed class PlatoonScenarioTests : IDisposable
                     {
                         var c = StaffComposerSystem.CentreOf(cgf, ByName(cgf, n));
                         return $"({c.X:F0},{c.Y:F0})";
-                    })));
+                    })) + " progress " + string.Join(",", Enumerable.Range(0, squads.Length).Select(i =>
+                        Fdp.Toolkit.Squad.Command.CommandPictureOps.ProgressOf(cgf, platoon, i))));
                     last = now;
                 }
             }
@@ -430,6 +431,16 @@ public sealed class PlatoonScenarioTests : IDisposable
             "the platoon and its squads must spawn");
         var (reacted, cleared, resumed) = WatchAmbush(harness, cgf, ByName(cgf, "Blue Platoon"), squads, 36000, log: _out.WriteLine);
         _out.WriteLine($"reacted {reacted} · a squad cleared {cleared} · resumed {resumed} · insurgents down {Down(cgf, "Insurgent", 4)}/4");
+        if (!resumed)   // ⭐ CE-2284 — which man keeps a squad from Set: each man's distance to his order's point
+            foreach (var n in squads)
+            {
+                var tr = Fdp.Toolkit.Squad.SquadDrillTrace.Of(cgf, ByName(cgf, n));
+                _out.WriteLine($"  {n}: " + string.Join(", ", tr.Orders.Where(o => cgf.IsAlive(o.Member) && cgf.HasComponent<SimTransform>(o.Member)).Select(o =>
+                {
+                    var at = cgf.GetComponent<SimTransform>(o.Member).Position;
+                    return $"{cgf.GetComponent<EntityInfo>(o.Member).Name} k{o.Kind} at ({at.X:F1},{at.Y:F1},{at.Z:F1}) → ({o.Point.X:F1},{o.Point.Y:F1},{o.Point.Z:F1}) {Vector3.Distance(at, o.Point):F1} m";
+                })));
+            }
         Assert.True(reacted, "① the platoon reacts to the fire from H5 with ReactToFireFromBuilding");
         Assert.True(cleared, "② a squad clears H5");
         Assert.True(resumed, "③ the movement resumes");
