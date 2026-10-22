@@ -171,7 +171,7 @@ related-designs:
 | `ua-armed-self-defence` | NonLethal police; a Neutral aims a rifle at them | lethal fire at him only; others non-lethal | AW-18, FL-3, CO-1 | ✅ 4/4 |
 | `ua-armed-celebration` | police patrol near a wedding; a guest fires in the air, later aims at them | warned, no round during the volley; shot once he aims; no guest hurt | AW-17, EL-5′ | ✅ 5/5 |
 | `ua-armed-bomber` | a civilian with a hidden vest walks into a crowd | never seen armed, no round; vest bursts, he dies; casualties follow the warhead | AW-12, BM-1/2 | ✅ 5/5 · ⛔ `CE-2247` spent vest stays live on CGF/IG |
-| `ua-car-bomb` | a civilian car with a charge in its boot drives to a checkpoint; its driver sets it off (TriggerIed) | nobody fires at the car; the burst at the car with the APC within 15 m; the soldiers nearest hurt | ST-9 + DA-93 (CE-4035 G-6) | ⏳ new |
+| `ua-car-bomb` | a civilian car with a charge in its boot drives to a checkpoint; its driver sets it off (TriggerIed) | nobody fires at the car; the burst at the car with the APC within 15 m; the soldiers nearest hurt | ST-9 + DA-93 (CE-4035 G-6) | ✅ 8/8 live `2026-10-22` |
 | `ua-armed-identify` | phone / pistol / toy gun at 20 m and 150 m, binoculars | identified at 20 m; unidentified at 150 m unless binoculars | AW-15 | ⏳ needs a toy-gun item |
 | `ua-armed-knife` · `ua-armed-stones` · `ua-armed-status` · `ua-player-fratricide` | knife / stone throwers / combatant guard rail / player kills friends | — | AW-19, AW-2, AW-21/24, AW-23 | ⏳ |
 
@@ -393,11 +393,12 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
-| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, an intruder walking into the M2's arc *(CE-4035 G-11; the Kornet team this row named is not in the file — removed)* | sentry fires on its own; the M2 deploys and fires on Intruder 2; the Javelin is carried | W1–W10 | ⏳ re-run after G-11 |
+| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry *(the Kornet team this row once named is not in the file)* | sentry fires on its own; the M2 deploys; the Javelin is carried | W1–W10 | ✅ ①–③ live `2026-10-22` |
+| `ua-m2-engage` | the manned M2 engages an intruder *(CE-4035 G-11 — split out: the sentry gun above shoots every intruder on the terrain first)* | the gunner sets it up; the M2 fires | W1–W6 | ⏳ new |
 | `ua-fast-rope-roof` | 8 men rope onto a roof | 8 down in 7.6 s, a ring on the roof; helicopter leaves after | AB2, AB3, AB7, AB8 | ✅ |
 | `ua-airborne-drop` | a stick of 8 jumps | each lands 7.8–10.5 m from his point; squad assembles | AB4–AB7 | ✅ |
 | `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ✅ 6/6 live `2026-10-22` (canopy 2.71 s) |
-| `ua-shootdown-eject` | the A-10 with NO eject task is shot by a Stinger and a ZU-23 under its route | the pilot ejects by himself (≤ 20 % health or a wreck), canopy open, down | AB10 (CE-4035 G-1) | ⏳ new |
+| `ua-shootdown-eject` | the A-10 with NO eject task is shot by a Stinger and a ZU-23 under its route | the pilot ejects by himself (≤ 20 % health or a wreck), canopy open, down | AB10 (CE-4035 G-1) | ✅ 6/6 live `2026-10-22` (the A-10 starts at 22 % health) |
 
 ## 11. Not built, open, or known wrong
 

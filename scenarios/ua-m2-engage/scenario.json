@@ -1,0 +1,122 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a manned M2 engages an intruder (CE-4035 G-11), on basic-desert. 'M2 Gunner' (default SOP) sets up a stowed 'M2 HMG' 8 m away at (300, 330), facing north; while it is set up an 'Intruder' (Hostile) walks from (330, 480) toward it (to (310, 400)). Judge: (1) the gunner mans the M2 and it deploys (2) the M2 fires on the intruder. Fail: the M2 never fires. Note: split out of ua-weapon-systems, whose automatic sentry gun (360° traverse, 900 m range) shot every intruder anywhere on the terrain first. Check: python3 scripts/utility-demo-check.py --launch ua-m2-engage"
+  },
+  "entities": {
+    "c4035011-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 41103
+      },
+      "TkbIdentity": {
+        "TkbType": 600
+      },
+      "EntityInfo": {
+        "Name": "M2 HMG",
+        "ForceId": "Friend"
+      },
+      "WeaponSystemState": {
+        "Deploy": "Stowed",
+        "Until": 0
+      }
+    },
+    "c4035011-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          308,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 41104
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "M2 Gunner",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "SetUpWeapon",
+        "Params": "{\"weapon\": 41103}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035011-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          330,
+          480,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 41107
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Intruder",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 310, \"y\": 400, \"speed\": 1.2, \"arrivalRadius\": 1}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -2171,6 +2171,34 @@ def run_weapon_systems(c, timeout):
         c.ok(len(by_m2) >= 1, f"④ the manned M2 fires on Intruder 2 — {len(by_m2)} round(s), his health {health(intruder2)}")
 
 
+def run_m2_engage(c, timeout):
+    """⭐ CE-4035 G-11 — ua-m2-engage (split out of ua-weapon-systems, whose sentry gun shot every intruder first): the gunner sets up the
+    M2 and, on his type's default SOP, engages the intruder walking into its arc. The rounds are the M2's (or his, through it)."""
+    ids = ids_by_name()
+    m2, gunner, intruder = ids.get("M2 HMG"), ids.get("M2 Gunner"), ids.get("Intruder")
+    if not c.ok(None not in (m2, gunner, intruder), "the M2, its gunner and the intruder are loaded"):
+        return
+    deploy = lambda n: (comps(n).get("WeaponSystemState") or {}).get("Deploy")
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: str(deploy(m2)) in ("2", "Deployed"), 60), f"① the gunner sets up the M2 — {deploy(m2)} · aboard {_aboard(gunner)}")
+    shots, end = {}, time.time() + timeout + 90
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        if any(x.get("shooter") == m2 for x in shots.values()) or not _alive_in_fight(intruder):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
+    by_m2 = [x for x in shots.values() if x.get("shooter") == m2]
+    c.ok(len(by_m2) >= 1, f"② the manned M2 fires on the intruder — {len(by_m2)} round(s), his health {health(intruder)}")
+
+
+def _alive_in_fight(nid):
+    h = health(nid)
+    return h is None or h > 0
+
+
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
 #   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
 #   y 210 hid every target and it never fired), against an enemy T-72 (240 m), an HMG technical (230 m) and two riflemen (230 m,
@@ -4909,7 +4937,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():
