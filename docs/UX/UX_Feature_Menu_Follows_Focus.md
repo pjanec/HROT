@@ -243,6 +243,6 @@ gains the contributed menus (a deliberate golden change). Slices in order MB-1 �
 
 📐 **Rails** `TheMenuBarIsOneTreeTests` ×4 (merge by name in bar order · a perspective-bound contributor offers nothing elsewhere · the
 snapshot from the bar's one collection · the shell's three contributors drawn in a real ImGui frame) — ✅ red-proved (merging by
-contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsMenuIsOneMenuTests`, `PerspectiveMenuTests` unchanged and green.
+contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsMenuIsOneMenuTests`, `PerspectiveMenuTests` unchanged and green. **Gates** (built test projects, `--no-build`): `Fdp.Presentation.Tests` 580/0 · `Hrot.Editor.AiShared.Tests` 2131/0 ×3 under Xvfb (⚠ the real-frame rails now share the non-parallel `PanelSnapshotTestCollection` — before, 1 order-dependent red in 3 runs) · `Hrot.Editor.Tests` 534/0 · `Hrot.Presentation.Tests` 871/0 · `Hrot.ReplayBrowser.Tests` 34/0 · `Hrot.IG.Tests` 471/0 · Editor, CGF, SimHost, IG, ReplayBrowser and the Stride game build.
 ⚠ Not yet seen in the GUI.
 
