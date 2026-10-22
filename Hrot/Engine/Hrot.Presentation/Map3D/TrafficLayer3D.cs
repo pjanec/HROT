@@ -27,6 +27,8 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
 {
     public static readonly Color AsphaltColor   = new(64, 66, 70, 255);
     public static readonly Color JunctionColor  = new(74, 76, 80, 255);
+    /// <summary>⭐ <c>CE-1197</c> — a sidewalk's concrete: light grey, so the pedestrians are seen on it and not in the car lanes.</summary>
+    public static readonly Color SidewalkColor  = new(150, 150, 144, 255);
     public static readonly Color MarkingColor   = new(235, 235, 225, 255);
     public static readonly Color CrosswalkColor = new(240, 240, 240, 255);
     public static readonly Color GroundColor    = new(150, 160, 128, 255);
@@ -138,7 +140,7 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
         foreach (var m in roads.Meshes)
         {
             if (!include(m.Kind)) continue;
-            var (colour, lift) = Style(m.Kind);
+            var (colour, lift) = Style(m);
             var lifted = new Vector3(0f, 0f, lift);
             for (int i = 0; i < m.Indices.Length; i++, o++)
             {
@@ -148,6 +150,10 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
             }
         }
     }
+
+    /// <summary>A mesh's colour and its render lift (metres): its kind's, a sidewalk's own (⭐ <c>CE-1197</c> — a centimetre above the
+    /// carriageway, so where the two meet the kerb line is the sidewalk's).</summary>
+    public static (Color Colour, float Lift) Style(TrafficRoadMesh mesh) => mesh.Sidewalk ? (SidewalkColor, 0.05f) : Style(mesh.Kind);
 
     /// <summary>A kind's colour and its render lift (metres).</summary>
     public static (Color Colour, float Lift) Style(SceneKind kind) => kind switch

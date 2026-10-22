@@ -664,7 +664,7 @@ the planned rescue (Air Ops §4c / §9, `SquadRecover`, `ua-air-rescue`). Drawin
 | **B-8** | backend | **`EjectExecutor`** + the pilot SPAWN (the entity-creation path) at the cockpit, given the aircraft's velocity; the aircraft is then abandoned ⇒ it falls and crashes as a killed one (`FixedWingModel.Fall`, R-2021, R-3007) — the pilot is out BEFORE, so he does not die with it | ★ one Pilot entity per ejection, the jet down within its fall time |
 | **B-9** | backend | the trigger: an `Eject` action (a behaviour may order it) and the automatic rule health ≤ the type's eject threshold | ★ a jet hit below the threshold ejects once |
 | **H-3** | behaviors | **`Eject`** behaviour (a mission task — after a `TimerElapsed` trigger it plays the malfunction) and **`EvadeAndSignal`** for the landed pilot: out of the harness, away from known enemies to the nearest cover, prone / crouched, holding there (the beacon and the rescue round trip stay Air Ops §4c / §9) | ★ the landed pilot reaches cover ≥ 100 m from the nearest known enemy and stays down |
-| **U-2** | ui | the drawing: the seat and its rocket flame for ~1 s, the seat tumbling away, the round canopy; the abandoned jet's fall uses the existing crash drawing | frame rail + screenshots |
+| **U-2** | ui | the drawing: the seat and its rocket flame for ~1 s, the seat tumbling away, the round canopy; the abandoned jet's fall uses the existing crash drawing — ✅ **BUILT `2026-10-21`** ([Map 3-D §6w.U2](../../DESIGN_Map_3D_Mode.md)) | frame rail + screenshots |
 
 ### Slice 3 — later
 Rappel (harness, 1–2 m/s, can stop; down a wall to a window), rope extraction (SPIES / FRIES: hooked on, flown away), fixed-wing transport

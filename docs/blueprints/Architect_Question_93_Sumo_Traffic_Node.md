@@ -705,6 +705,16 @@ net and rebuilt only when the net changes (`TerrainLayer3D` keys on `ITerrainRen
 gizmo buffer; R-4058: the 2-D map draws a SYMBOL — lane centrelines and light dots — and never in 3-D, §12.4)*; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
 The Stride host and a future production engine take the same triangles.
 
+⭐ **As built — SIDEWALKS (`CE-1197`, ui, `2026-10-21`).** 🔒 User, live: *"side-walks on sumo roads not rendered in different shade of
+gray"*. `Sim.Scene` merges every lane's ribbon into Asphalt (`RoadSceneBuilder.cs:22`) and has no sidewalk kind; the vendored copy is
+read-only (V3), so `TrafficRoadScene.Build` re-splits that ONE kind with the same builder: `RoadMeshBuilder.BuildAll`'s ribbons, a
+pedestrian-only lane that is not a crossing (`TrafficRoadScene.IsSidewalk`: `!AllowsRoadVehicle`, not `CrosswalkBuilder.IsCrossingLaneId`)
+goes to a second Asphalt mesh flagged `TrafficRoadMesh.Sidewalk`; a WALKING AREA (a `:…_w…` lane, whose shape is a corner's OUTLINE) is
+filled as a polygon by `JunctionMeshBuilder.Build`, never ribboned round its edge. `TrafficLayer3D.Style(mesh)` draws it light grey
+(150, 150, 144), 1 cm above the carriageway and under the paint. Rails `TrafficRoadSceneTests.CE1197_*`, `TrafficLayer3DTests.CE1197_*`,
+frame `Map3DFrameRail.CE1197_V_*` (`docs/assets/map-3d/map3d-ce1197-sidewalks.png`). ⚠ **Upstream ask, not filed as code:** a
+`SceneKind.Sidewalk` in `Sim.Scene` would let HROT drop the re-split (V3 — made upstream, then synced).
+
 | rejected | the one fact |
 |---|---|
 | copying CityLib's code into HROT | a second copy of the same geometry rules (V3: the vendored code is read-only) |

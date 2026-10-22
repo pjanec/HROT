@@ -25,10 +25,16 @@ public sealed class MapViewModeLayer : IMapLayer
     public string Name => "Map view mode";
     public int LayerBitIndex => -1;
 
+    /// <summary>⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p OS-1) — what View › First Person: Over the Shoulder does: wired by
+    /// <c>AttachMapLayers</c> to the host's first-person station. Null: the item does nothing.</summary>
+    public Action? ToggleShoulder { get; set; }
+
     public void Update(float dt)
     {
         foreach (ref readonly var _ in _bus.Read<ToggleMap3DEvent>())
             _switch.Toggle();
+        foreach (ref readonly var _ in _bus.Read<ToggleShoulderViewEvent>())
+            ToggleShoulder?.Invoke();
     }
 
     public void Draw(RenderContext ctx) { }

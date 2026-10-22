@@ -25,7 +25,12 @@ public enum FaceOn : byte { None, Front, Up, Down }
 
 /// <summary>⭐ CE-1097 (§6o F-3) — the shade a head detail is drawn in. ⭐ CE-1101 (§6r) — the eyes, nose and mouth are painted by the
 /// shader now (<see cref="BodySurface"/>); only the helmet and the hair are boxes.</summary>
-public enum FaceShade : byte { Helmet, Hair }
+public enum FaceShade : byte
+{
+    Helmet, Hair,
+    /// <summary>⭐ CE-1172 (People Display U11) — a police cap's crown, its white band and its black peak; a riot helmet's visor.</summary>
+    Cap, CapBand, Peak, Visor,
+}
 
 /// <summary>⭐ CE-1097 (§6o) — one detail of a face, a box in the HEAD box's own unit frame (−0.5..0.5 on each axis; x = out of the
 /// face, y = his left, z = the top of his head), before <see cref="BlockFigure.FaceFrame"/> turns it onto the side the face is on.</summary>
@@ -554,6 +559,21 @@ public static partial class BlockFigure
     /// <summary>A civilian's hair, close over the top and back of his head.</summary>
     private static readonly FacePart[] CivilianFace =
         [new(new(-0.06f, 0f, 0.41f), new(1.06f, 1.06f, 0.24f), FaceShade.Hair)];
+
+    /// <summary>⭐ CE-1172 (People Display §5 U11) — a police officer's PEAKED CAP: the crown over the top of his head, a white band round
+    /// it, a black peak over his brow.</summary>
+    private static readonly FacePart[] PoliceCap =
+        [new(new(-0.02f, 0f, 0.45f), new(1.10f, 1.10f, 0.20f), FaceShade.Cap),
+         new(new(-0.02f, 0f, 0.33f), new(1.12f, 1.12f, 0.07f), FaceShade.CapBand),
+         new(new(0.56f, 0f, 0.31f), new(0.26f, 0.92f, 0.04f), FaceShade.Peak)];
+
+    /// <summary>⭐ CE-1172 (U11) — the shield man's RIOT HELMET: a full shell, and a clear visor down over his face.</summary>
+    private static readonly FacePart[] RiotHelmet =
+        [new(new(-0.02f, 0f, 0.30f), new(1.22f, 1.22f, 0.60f), FaceShade.Helmet),
+         new(new(0.62f, 0f, -0.04f), new(0.05f, 1.04f, 0.64f), FaceShade.Visor)];
+
+    /// <summary>⭐ CE-1172 — a police officer's head boxes: the riot helmet for the shield man, else the cap.</summary>
+    public static IReadOnlyList<FacePart> PoliceHead(bool riot) => riot ? RiotHelmet : PoliceCap;
 
     /// <summary>⭐ CE-1097 — the boxes drawn on a figure's head: a soldier's helmet or a civilian's hair (⭐ CE-1101 — the features are the
     /// shader's).</summary>

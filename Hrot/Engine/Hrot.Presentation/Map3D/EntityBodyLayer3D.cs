@@ -55,7 +55,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
                                            bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
-                                           bool Elderly = false);
+                                           bool Elderly = false, bool Toy = false);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -96,13 +96,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public void Draw3D(RenderContext ctx)
     {
         AmbientDrawn = 0;
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = GunnersTurned = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
         _ropeUsers.Clear();
         _carried.Clear();
         _shouldering.Clear();
         _loadInHands.Clear();
         MortarsDrawn = 0;
+        ChargeLightsDrawn = 0;
+        EjectionSeatsDrawn = 0;
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -139,10 +141,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
 
-            // ⭐ CE-1131 — the operator's OWN vehicle, aircraft or weapon is not drawn while he looks from inside it: its airframe filled the
-            //   view (only a person's head was hidden). 🔒 User, 2026-10-16: "my view is cluttered a lot by vehicle parts … difficult to fly"
-            if (e == FirstPerson && look.Family != VisualFamily.Person) { _drawn.Add(e); continue; }
             var size = SizeOf(world, e, look);
+            // ⭐ CE-1200 (docs/DESIGN_Entity_Control.md §8o) — the operator's OWN vehicle IS drawn while he looks from it: his eye is a CREW
+            //   eye inside its cab / canopy / cockpit (that box, seen from inside, culls itself) or a commander's above its turret, so the
+            //   bonnet, the wings, the barrel are in view. ⛔ SUPERSEDED CE-1131 ("not drawn: the airframe filled the view" — the eye was
+            //   a fixed height above the reference point, inside the hull). A kind with no crew eye is still not drawn.
+            Vector3? crewEye = null;
+            if (e == FirstPerson && look.Family != VisualFamily.Person)
+            {
+                crewEye = CrewEye(look.Family, size);
+                if (crewEye == null) { _drawn.Add(e); continue; }
+            }
             var colour = ColourOf(world, e, look.Colour);
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
                 colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
@@ -173,6 +182,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             HeldLook inHands = HeldLook.Rifle, slung = HeldLook.Rifle;
             var heldPosture = WeaponPostureKind.AtEase;
             bool mortarFired = false;
+            bool chargeBlink = false;   // ⭐ CE-1179 (U18) — a placed charge's red light, on this frame
+            var heldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.None;   // ⭐ CE-1169 (U7) — a phone, binoculars or a throwable shown
             if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
             {
                 parts = descending;                 // ⭐ CE-1119 (§6w) — on a rope or under a canopy: the phase's figure, no gait
@@ -204,10 +215,20 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                     if (HeldWeapons.IsTube(inHands) && heldPosture == WeaponPostureKind.Aimed) _shouldering.Add(e);
                     else if (!heldLoad.IsNull) _loadInHands.Add(e);   // his carried launcher is in his hands: not drawn on his back
                 }
+                // ⭐ CE-1169 (People Display U7) — a pocket item or a throwable in his hand: the phone to his ear (in front while he
+                //   walks), the binoculars at his eyes, a stone or grenade low and ready; a gesture, a throw or a blow below wins
+                (parts, heldItem) = HeldItemShown(world, e, look.Soldier, carriage, parts, motion);
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
                 parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
+                var unstruck = parts;
                 parts = Struck(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1171 — the arm of a blow just struck
+                // ⭐ CE-1172 (People Display U11) — the baton man's baton in his hand, the shield man's shield on his arm (from his type until
+                //   G4 makes them items); while he strikes, the swing draws the baton
+                if (ReferenceEquals(parts, unstruck)) parts = PoliceKit(world, e, type, carriage, parts);
+                // ⭐ CE-1179 (People Display U18) — his weapon LAID DOWN (surrender, WeaponAmmo.LaidDown) lies at his feet — after the
+                //   gestures, which would sling it (a surrender is hands up)
+                if (look.Soldier && carriage.Kind == CarriageKind.Free && LaidDownInHands(world, e)) parts = BlockFigure.LaidAtFeet(parts);
                 leans = carriage.Kind == CarriageKind.Free;
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
@@ -231,6 +252,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
                     && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) parts = WeaponKits.Mounted(look.Weapon, parts);
                 if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon));
+                // ⭐ CE-1179 (People Display U18) — a PLACED charge (lying, not carried, not on a vehicle) blinks red, a quarter second each second
+                chargeBlink = look.Weapon == WeaponKind.Charge && ChargeLightOn(world, e, simTime);
             }
             else
             {
@@ -254,6 +277,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
             // ⭐ CE-1193 — a man leaning round a corner, sheared as the sim shears him; his eyes and muzzle tip go with it (they read kitToBody)
             if (leans) kitToBody *= LeanShear(world, e);
+            if (crewEye is { } eyeKit) _eyes[e] = Vector3.Transform(eyeKit, kitToBody);   // ⭐ CE-1200 — the station puts the camera there
             int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet, parts, size) : 0;   // ⭐ CE-1098 (§6p)
             // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
             Outfit? outfit = null;
@@ -266,15 +290,28 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
                                      look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
+                // ⭐ CE-1177 (People Display U16) — his face shows how he feels (pain, anger, fear, alarm), close up
+                _expression = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.Marks.MoodOf(world, e));
                 if (look.Soldier) BlockFigure.WeaponDetails(inHands, slung, heldPosture, _details);   // ⭐ CE-1236
+                if (look.Soldier && heldItem == Fdp.Toolkit.Combat.Components.HeldItemKind.None)       // ⭐ CE-1173 / CE-1174 — a toy, a baton launcher
+                    BlockFigure.MarkingDetail(HeldWeapons.MarkingOf(world, HeldWeapons.OwnMountInHands(world, e)), _details);
+                if (heldItem == Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable
+                    && ThrowableDetail(world, e, tkb, parts) is { } round) _details.Add(round);   // ⭐ CE-1169 — the round in his hand
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader);
+            _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
+            if (chargeBlink)   // ⭐ CE-1179 — the detonator's light, over the bundle
+            {
+                DrawPart(_cube, Matrix4x4.CreateScale(ChargeLightSize) * Matrix4x4.CreateTranslation(ChargeLightAt), ChargeLightColour, body, shader);
+                ChargeLightsDrawn++;
+            }
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
+            if (look.Family == VisualFamily.Person) DrawEjectionSeat(world, e, body, shader, simTime);   // ⭐ CE-1119 U-2
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
                 _tops[net] = look.Family == VisualFamily.Person ? LabelTop(parts, size)   // ⭐ CE-1178 — above a raised sign or hands
@@ -390,12 +427,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (e is { } who && look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
             {
                 _eyes[who] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
-                if (who == FirstPerson) continue;
+                if (who == FirstPerson && !ShowFirstPersonHead) continue;
             }
             var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
             var model = HrotToRaylib.ModelFromHrot(placed);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+            if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
             Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
             _surface.Plain(shader);
@@ -539,6 +577,48 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         var m = Matrix4x4.Identity;
         m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
         return m;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1172</c> (docs/DESIGN_People_Display.md §5 U11) — the police kit a man of a security type carries by his TYPE (G4 has not made
+    /// them items): the baton man (<c>SecurityBaton</c>) a baton in his right hand, the shield man (<c>SecurityShield</c>) a riot shield on his
+    /// left arm. Standing or crouched and free, not cowering; otherwise the parts as they are.
+    /// </summary>
+    public static KitPart[] PoliceKit(EntityRepository world, Entity e, long type, in FigureCarriage carriage, KitPart[] parts)
+    {
+        bool baton = type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, shield = type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield;
+        if ((!baton && !shield) || carriage.Kind != CarriageKind.Free || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return baton ? BlockFigure.BatonInHand(parts) : BlockFigure.ShieldOnArm(parts, stance == StanceId.Crouched);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1169</c> (docs/DESIGN_People_Display.md §5 U7) — what a man HOLDS that is not his weapon: the replicated
+    /// <c>WeaponPosture.HeldItem</c> when it is a phone, binoculars or a throwable (<see cref="BlockFigure.HeldItemArms"/>). Standing or
+    /// crouched, free, alive and not cowering; otherwise the parts as they are and <c>None</c>. Walking = his gait is moving.
+    /// </summary>
+    public static (KitPart[] Parts, Fdp.Toolkit.Combat.Components.HeldItemKind Item) HeldItemShown(EntityRepository world, Entity e, bool soldier,
+        in FigureCarriage carriage, KitPart[] parts, in MotionPose motion)
+    {
+        var none = Fdp.Toolkit.Combat.Components.HeldItemKind.None;
+        var item = Fdp.Toolkit.Combat.HeldItems.Of(world, e);
+        if (!BlockFigure.IsPocketOrThrowable(item) || carriage.Kind != CarriageKind.Free) return (parts, none);
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return (parts, none);
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return (parts, none);
+        return (BlockFigure.HeldItemArms(parts, item, stance == StanceId.Crouched, soldier, walking: motion.Moving > 0.1f), item);
+    }
+
+    /// <summary>⭐ <c>CE-1169</c> — the round a throwable's hand holds, as its munition looks (its <c>Munition.Visual</c>: a grey stone,
+    /// a dark green grenade, a canister); null when his hands hold none.</summary>
+    public static PartDetail? ThrowableDetail(EntityRepository world, Entity e, ITkbDatabase? tkb, KitPart[] parts)
+    {
+        Fdp.Toolkit.Tkb.Domain.MunitionVisualDto? visual = null;
+        bool holds = Fdp.Toolkit.Combat.PersonHands.Holding(world, e, ammo => (visual = Hrot.Core.Tkb.MunitionTkbCatalog.VisualOf(tkb, ammo)) != null);
+        if (!holds) return null;
+        var colour = ParseHex(visual?.ColorHex) ?? new Color(120, 118, 112, 255);
+        return BlockFigure.ThrowableDetail(parts, visual?.Length ?? 0.08f, visual?.Diameter ?? 0.07f, colour);
     }
 
     /// <summary>
@@ -713,6 +793,25 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         CanopiesDrawn++;
     }
 
+    /// <summary>⭐ <c>CE-1119</c> U-2 — the ejection seat's grey and its rocket's flame (unlit-bright: an emitter, VE's rule).</summary>
+    public static readonly Color EjectionSeatColour = new(58, 60, 62, 255), RocketFlame = new(255, 170, 50, 255);
+
+    /// <summary>Ejection seats drawn by the last frame (rails).</summary>
+    public int EjectionSeatsDrawn { get; private set; }
+
+    private readonly List<(PartShape Shape, Matrix4x4 Local, bool Flame)> _seat = new(4);
+
+    /// <summary>⭐ <c>CE-1119</c> U-2 (§6w) — an ejecting man's seat and its flame, in his frame (<see cref="DescentDraw.EjectionSeat"/>).</summary>
+    private void DrawEjectionSeat(EntityRepository world, Entity e, Matrix4x4 body, LitShader shader, double simTime)
+    {
+        if (!TryDescent(world, e, out var d) || d.Kind != Fdp.Toolkit.Motion.DescentKind.Ejection) return;
+        DescentDraw.EjectionSeat(d, simTime, _seat);
+        if (_seat.Count == 0) return;
+        foreach (var (shape, local, flame) in _seat)
+            DrawPart(shape == PartShape.Cone ? _cone : _cube, local, flame ? RocketFlame : EjectionSeatColour, body, shader);
+        EjectionSeatsDrawn++;
+    }
+
     /// <summary>
     /// ⭐ CE-1119 (§6w AB-V5) — the fast ropes: every rope of a carrier that is ROPING (its replicated <c>NavigationStatus</c>), or that a man
     /// on it names, hangs from <see cref="Fdp.Toolkit.Motion.DescentRules.TryAnchor"/> — the point the slide holds him under — straight down to
@@ -825,6 +924,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
                 body = Carriage.InSeat(Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
+                //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
+                body = TurnedWithStation(world, e, body, simTime);
                 // ⭐ CE-1088 (§6n N-2) — a gunner seat may say he STANDS or KNEELS at its weapon (the place is then his feet)
                 bool stands = seat.Pose is Fdp.Toolkit.Tkb.Domain.SeatPose.Stand or Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
                 float hips = stands ? BlockFigure.HipFraction(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel ? StanceId.Crouched : StanceId.Standing) * size.Z : 0f;
@@ -912,6 +1014,33 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     }
 
     /// <summary>⭐ CE-1236 — a man's own mortar, deployed at <see cref="MortarAt"/>; its tube's mouth is his weapon's tip (the shot's flash).</summary>
+    /// <summary>⭐ <c>CE-1179</c> (U18) — is the weapon in his hands one he has LAID DOWN (his active own mount, <c>WeaponLaying</c>,
+    /// replicated in <c>WeaponAmmo.LaidDown</c>)?</summary>
+    public static bool LaidDownInHands(EntityRepository world, Entity man)
+    {
+        int active = world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(man)
+            ? world.GetComponentRO<WeaponPosture>(man).ActiveMount : 0;
+        return !Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active) && Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(world, man, active);
+    }
+
+    /// <summary>⭐ CE-1179 (U18) — the charge's blinking light: where it sits on the bundle (body metres), its size and colour, its rhythm.</summary>
+    public static readonly Vector3 ChargeLightAt = new(0f, 0f, 0.105f);
+    public const float ChargeLightSize = 0.03f, BlinkPeriod = 1f, BlinkOn = 0.25f;
+    public static readonly Color ChargeLightColour = new(255, 30, 20, 255);
+
+    /// <summary>Charge lights drawn since the last frame began (a rail reads it).</summary>
+    public int ChargeLightsDrawn { get; private set; }
+
+    /// <summary>⭐ <c>CE-1179</c> — is a charge's light on at <paramref name="simTime"/>: it is PLACED (not carried by a man, not in a vehicle's
+    /// station — no <c>IsEmbarkedTag</c>) and the blink is in its lit quarter. Every node sees the same rhythm (sim time).</summary>
+    public static bool ChargeLightOn(EntityRepository world, Entity charge, double simTime)
+    {
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+            && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(charge)) return false;
+        double t = simTime % BlinkPeriod;
+        return t >= 0 && t < BlinkOn;
+    }
+
     private void DrawMortar(Entity man, Matrix4x4 body, Color colour, LitShader shader)
     {
         var kit = WeaponKits.Kit(WeaponKind.Mortar, deployed: true);
@@ -935,6 +1064,37 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1085 — weapons drawn on a carrier's back by the last frame (rails).</summary>
     public int CarriedDrawn { get; private set; }
+    /// <summary>
+    /// ⭐ <c>CE-1202</c> (§6n N-2) — a station weapon's turn as its kit draws it: its traverse pivot in the WORLD (the kit's pivot placed by
+    /// the weapon's own transform) and its azimuth (the published turret pose, only once it is deployed — as the kit). False when it has no
+    /// kit with a pivot, or does not turn.
+    /// </summary>
+    internal bool StationTurn(EntityRepository world, Entity weapon, double now, out Vector3 pivot, out float azimuth)
+    {
+        pivot = default; azimuth = 0f;
+        if (!world.IsAlive(weapon) || !world.HasComponent<TkbIdentity>(weapon) || !world.HasComponent<SimTransform>(weapon) || _poseOf == null) return false;
+        var look = LookOf(world.GetComponentRO<TkbIdentity>(weapon).TkbType, _tkb());
+        if (look.Family != VisualFamily.WeaponSystem || DeploymentOf(world, weapon, now) < 1f) return false;
+        azimuth = _poseOf(world, weapon).TurretAzimuth;
+        if (azimuth == 0f) return false;
+        ref readonly var w = ref world.GetComponentRO<SimTransform>(weapon);
+        pivot = Vector3.Transform(WeaponKits.TraversePivot(look.Weapon, SizeOf(world, weapon, look)),
+                                  Matrix4x4.CreateFromQuaternion(w.Rotation) * Matrix4x4.CreateTranslation(w.Position));
+        return true;
+    }
+
+    /// <summary>⭐ <c>CE-1202</c> — <paramref name="seatFrame"/> (a seated man's frame in the world) swung with the station weapon his seat
+    /// operates (<see cref="SeatSwitch.StationOf"/>), about its traverse pivot by its azimuth; unchanged for any other seat.</summary>
+    internal Matrix4x4 TurnedWithStation(EntityRepository world, Entity man, Matrix4x4 seatFrame, double now)
+    {
+        if (!SeatSwitch.StationOf(world, man, out _, out _, out var gun) || !StationTurn(world, gun, now, out var pivot, out float azimuth)) return seatFrame;
+        GunnersTurned++;
+        return seatFrame * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot);
+    }
+
+    /// <summary>⭐ CE-1202 — seated gunners turned with their station's weapon by the last frame (rails).</summary>
+    public int GunnersTurned { get; private set; }
+
     /// <summary>⭐ CE-1088 — men drawn at their weapons by the last frame (rails).</summary>
     public int GunnersDrawn { get; private set; }
     /// <summary>⭐ CE-1090 — soldiers drawn with a launcher on the shoulder by the last frame (rails).</summary>
@@ -1053,6 +1213,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (carriage.Seat is { HasPlace: true } seat)
         {
             frame = Carriage.InSeat(weaponBody, seat);
+            // ⭐ CE-1202 — a seat the weapon itself declares turns with its traverse too (it was drawn where the seat was at azimuth 0)
+            if (StationTurn(world, weapon, now, out var axis, out float turn))
+                frame = frame * Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(turn) * Matrix4x4.CreateTranslation(axis);
             pose = seat.Pose;
             return true;
         }
@@ -1118,6 +1281,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-1073 — the unit the camera is looking OUT of (first person): its head is not drawn. Null: none.</summary>
     public Entity FirstPerson { get; set; } = Entity.Null;
 
+    /// <summary>⭐ <c>CE-1201</c> (docs/DESIGN_Entity_Control.md §8p OS-5) — the over-the-shoulder view: the first-person unit's head is
+    /// drawn (he is seen whole); the pickers still skip his body.</summary>
+    public bool ShowFirstPersonHead { get; set; }
+
     /// <summary>⭐ CE-1073 — where the eyes are in a head part's own unit box: the front face, a little above its middle.</summary>
     public static readonly Vector3 EyeInHead = new(0.45f, 0f, 0.1f);
 
@@ -1133,6 +1300,30 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-1073 — the eyes of <paramref name="e"/> in its body frame, as its figure was last drawn. False when it was not
     /// drawn as a figure.</summary>
     public bool TryGetEyeLocal(Entity e, out Vector3 local) => _eyes.TryGetValue(e, out local);
+
+    /// <summary>⭐ <c>CE-1200</c> — how far above a turret's roof a commander's eye is, his head out of the hatch (m).</summary>
+    public const float HatchEyeAboveRoof = 0.55f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1200</c> (docs/DESIGN_Entity_Control.md §8o CR-2) — a vehicle kind's CREW eye in its kit's body frame (metres, the kit's own
+    /// convention: x forward, y left, z up from the box bottom): in its first GLASS part (the cab, the canopy, the cockpit) a fifth of the
+    /// way forward and a seventh up from its middle — on the driver's / pilot's side (left) where two sit side by side (a car, a utility, a
+    /// helicopter, a transport); else a commander's eye above its TURRET's roof, a quarter of its width to the left. Null: no crew eye.
+    /// Pure — the rail runs it over every kind.
+    /// </summary>
+    public static Vector3? CrewEye(VisualFamily family, Vector3 size)
+    {
+        var kit = ShapeKits.For(family);
+        bool sideBySide = family is VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.Helicopter or VisualFamily.CargoPlane;
+        foreach (var p in kit.Parts)
+            if (p.Colour == ColourRole.Glass)
+                return new Vector3((p.Centre.X + 0.2f * p.Extent.X) * size.X, (p.Centre.Y + (sideBySide ? 0.25f * p.Extent.Y : 0f)) * size.Y,
+                                   (p.Centre.Z + 0.15f * p.Extent.Z) * size.Z);
+        foreach (var p in kit.Parts)
+            if (p.Role == PartRole.Turret)
+                return new Vector3(p.Centre.X * size.X, (p.Centre.Y + 0.25f * p.Extent.Y) * size.Y, (p.Centre.Z + 0.5f * p.Extent.Z) * size.Z + HatchEyeAboveRoof);
+        return null;
+    }
 
     /// <summary>The rails' stand-in for a drawn frame (a figure's eyes without a GL context).</summary>
     internal void RememberEyeLocal(Entity e, Vector3 local) => _eyes[e] = local;
@@ -1250,7 +1441,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (outfit is not { } o) { _surface.Plain(shader); return; }
         if (face != FaceOn.None)
         {
-            _surface.Face(shader, face, o.Face, o.Hair);
+            _surface.Face(shader, face, o.Face, o.Hair, _expression);
             FacesPainted++;
         }
         else if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
@@ -1275,7 +1466,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader, Outfit? outfit = null)
     {
-        foreach (var d in BlockFigure.FaceParts(soldier))
+        // ⭐ CE-1172 (People Display U11) — a police officer's cap, or the shield man's riot helmet, instead of hair or a soldier's helmet
+        var heads = outfit is { Police: true } police ? BlockFigure.PoliceHead(police.Riot) : BlockFigure.FaceParts(soldier);
+        foreach (var d in heads)
         {
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
             Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Hair)),
@@ -1358,6 +1551,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     private readonly List<PartDetail> _details = new(8);
 
+    /// <summary>⭐ CE-1177 — the face expression of the man being drawn (zero = calm; every other body draws calm).</summary>
+    private Vector3 _expression;
+
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
 
@@ -1375,6 +1571,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static Color FaceColour(FaceShade shade, Color uniform, Color? hair = null) => shade switch
     {
         FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
+        FaceShade.Cap => Outfits.PoliceUniform,          // ⭐ CE-1172 (U11)
+        FaceShade.CapBand => Outfits.CapBand,
+        FaceShade.Peak => new Color(16, 16, 18, 255),
+        FaceShade.Visor => new Color(150, 172, 196, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
     };
 
@@ -1496,7 +1696,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                             TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight,
                             Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
                             // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
-                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly);
+                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
+                            // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
+                            Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true);
     }
 
     /// <summary>

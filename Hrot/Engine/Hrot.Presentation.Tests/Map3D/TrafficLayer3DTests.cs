@@ -33,6 +33,26 @@ public sealed class TrafficLayer3DTests
         Assert.All(normals, n => Assert.Equal(HrotToRaylib.Position(Vector3.UnitZ), n));
     }
 
+    /// <summary>⭐ <c>CE-1197</c> — a sidewalk is drawn in its own light grey, a centimetre above the carriageway and under the paint.
+    /// ✅ Red-proof: <c>Style(mesh)</c> ⇒ <c>Style(mesh.Kind)</c>.</summary>
+    [Fact]
+    public void CE1197_ASidewalk_IsLightGrey_AboveTheCarriageway()
+    {
+        var tri = new[] { new Vector3(0, 0, 0), new Vector3(10, 0, 0), new Vector3(0, 10, 0) };
+        var scene = new TrafficRoadScene(new[]
+        {
+            new TrafficRoadMesh(SceneKind.Asphalt, tri, new[] { 0, 1, 2 }),
+            new TrafficRoadMesh(SceneKind.Asphalt, tri, new[] { 0, 1, 2 }, Sidewalk: true),
+        }, Array.Empty<TrafficSignal>());
+        TrafficLayer3D.BuildVertexData(scene, ambientGround: true, out var positions, out _, out var colours);
+
+        Assert.Equal(TrafficLayer3D.AsphaltColor, colours[0]);
+        Assert.Equal(TrafficLayer3D.SidewalkColor, colours[3]);
+        Assert.True(TrafficLayer3D.SidewalkColor.R > TrafficLayer3D.AsphaltColor.R + 50, "a sidewalk is clearly lighter than the road");
+        Assert.True(positions[3].Y > positions[0].Y, "above the carriageway");
+        Assert.True(positions[3].Y < TrafficLayer3D.Style(SceneKind.LaneMarking).Lift, "under the paint");
+    }
+
     [Fact]
     public void V8_TheAmbientGroundToggle_DropsOnlyTheGround()
     {

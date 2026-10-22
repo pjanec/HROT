@@ -335,6 +335,9 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 — View › 2-D / 3-D Map, on every map host; AttachMapLayers' view switch drains the event.
             actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleMap3D, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleMap3DEvent()));
+            // ⭐ CE-1201 (DESIGN_Entity_Control §8p OS-1) — View › First Person: Over the Shoulder; the view-mode layer drains it
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent()));
             // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
             Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
             // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
@@ -534,7 +537,8 @@ namespace Hrot.ScenarioEditor.Map
                 GroundHeight = viewSwitch.Camera3D.GroundHeight,
             };
             canvas.AddLayer(projectiles);
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus));
+            var viewMode = new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus);
+            canvas.AddLayer(viewMode);
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
@@ -547,6 +551,7 @@ namespace Hrot.ScenarioEditor.Map
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
             canvas.AddLayer(possession);
+            viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);

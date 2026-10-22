@@ -64,6 +64,9 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     {
         /// <summary>⭐ CE-1129 (VE §10 IM-6) — the surface a decal lies on: its rotation's +Z (up for a ground mark and a burst's scorch).</summary>
         public Vector3 Normal { get; init; } = Vector3.UnitZ;
+        /// <summary>⭐ CE-1146 PR-2 (Map 3-D §6aa.next SW) — the wind at a smoke column (m/s, toward; X east, Y north), from the world's
+        /// weather; null where the world models no weather (the old light breeze).</summary>
+        public Vector2? Wind { get; init; }
     }
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
@@ -80,6 +83,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         var tkb = _tkb();
         bool anchored = world.IsComponentTypeRegistered<EffectAnchor>();
         bool flying = world.IsComponentTypeRegistered<EffectFlight>();   // ⭐ CE-1115
+        bool weather = world.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-1146 PR-2
         // ⭐ W1 (VE-Q, VE-G) — the phase is the SIM clock's: paused ⇒ frozen; in a replay, the recording's own time (VE-R).
         double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
         foreach (var e in _query!)
@@ -112,7 +116,12 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             EffectFlight? flight = flying && world.HasComponent<EffectFlight>(e) ? world.GetComponentRO<EffectFlight>(e) : null;
             list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now),
                                   Forward: forward, Flight: flight)
-                     { Normal = Vector3.Transform(Vector3.UnitZ, world.GetComponentRO<SimTransform>(e).Rotation) });
+                     {
+                         Normal = Vector3.Transform(Vector3.UnitZ, world.GetComponentRO<SimTransform>(e).Rotation),
+                         // ⭐ CE-1146 PR-2 — the wind half way up the column (it rises six sizes)
+                         Wind = weather && look.Kind == EffectKind.Smoke
+                             ? Fdp.Toolkit.Weather.WeatherField.WindAt(world, at + new Vector3(0f, 0f, look.Size * 3f)) : null,
+                     });
         }
         // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
@@ -263,7 +272,9 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         }
         else if (r.Look.Kind == EffectKind.Smoke)
         {
-            var downwind = new Vector3(0.8f, 0.6f, 0f);   // a fixed light breeze until weather exists
+            // ⭐ CE-1146 PR-2 (Map 3-D §6aa.next SW) — downwind by the world's wind: a 4 m/s breeze is the old drift, calm rises straight,
+            //   a gale leans it at most three times as far; no weather modelled ⇒ the old fixed light breeze
+            var downwind = r.Wind is { } w ? SmokeDrift(w) : new Vector3(0.8f, 0.6f, 0f);
             for (int i = 0; i < SmokePuffs; i++)
             {
                 float t = Frac(r.Age / 6f + Hash(r.Seed, i));
@@ -277,6 +288,16 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     }
 
     private static float Frac(float x) => x - MathF.Floor(x);
+
+    /// <summary>⭐ CE-1146 PR-2 — the smoke column's drift per unit (the puffs' t² · size · 3 multiplies it): the wind / 4 m/s, at most 3.</summary>
+    public static Vector3 SmokeDrift(Vector2 wind)
+    {
+        var d = wind / 4f;
+        float len = d.Length();
+        if (!float.IsFinite(len)) return Vector3.Zero;
+        if (len > 3f) d *= 3f / len;
+        return new Vector3(d, 0f);
+    }
 
     /// <summary>⭐ CE-1115 — a flare's smoke trail: this many puffs, one every <see cref="FlareTrailStep"/> s back along its path.</summary>
     public const int FlareTrailPuffs = 8;

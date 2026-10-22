@@ -579,6 +579,8 @@ namespace Fdp.Toolkit.Vis3D
             }
             Rlgl.SetClipPlanes(NearClip, FarClip);
             Raylib.BeginMode3D(cam);
+            // ⭐ CE-1146 (§6aa.CL) — the cloud decks, as background: before every layer, without depth, so the world is drawn over them
+            if (a.Clouds is { Length: > 0 } clouds) CloudDeckRenderer.Draw(this, clouds);
         }
 
         /// <summary>⭐ CE-1146 — the sun disc and its glow, on the sky behind the world (drawn before it, so terrain covers a set sun).</summary>
