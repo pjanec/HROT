@@ -71,5 +71,9 @@ public static class IconsFontAwesome6
     public const string Sitemap             = "\uf0e8"; // behavior tree / hierarchy
     public const string CircleNodes         = "\ue4e2"; // state machine / graph nodes
     public const string LayerGroup          = "\uf5fd";
+    // ⭐ BP-515 (Details panel) — the float / pin buttons and the tabbed layout
+    public const string Thumbtack           = "\uf08d"; // pin
+    public const string UpRightFromSquare   = "\uf35d"; // float / pop out
+    public const string TableColumns        = "\uf0db"; // tabs
     public const string Bars                = "\uf0c9"; // menu
 }

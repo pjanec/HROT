@@ -126,6 +126,8 @@ preview 1's ids into a map that still holds them ⇒ **`InvalidOperationExceptio
 
 ### 🔴🔴 AND THERE ARE **TWO** PREVIEW HANDLERS — one concept, already diverging
 
+> ✅ **RESOLVED `2026-10-22` (D14, [restore design §1b](DESIGN_Checkpoint_And_Dry_Run_Restore.md)):** `PreviewClusterOpHandler` is deleted; the editor drives the SAME `ReferencePreviewHandler` its cluster slave holds (composed once for every ECS host, `EcsHostClusterHandlers`). The table below is the as-was record.
+
 | | `ReferencePreviewHandler` | `PreviewClusterOpHandler` |
 |---|---|---|
 | home | `Fdp.Toolkits/Orchestration/Handlers/` | `Hrot.Common/Orchestration/Handlers/` |

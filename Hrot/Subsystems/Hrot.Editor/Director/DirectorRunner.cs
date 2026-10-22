@@ -670,7 +670,7 @@ namespace Hrot.Editor.Director
             {
                 ["reel"] = _request.Reel.Name, ["fps"] = c.Fps, ["frames"] = _frameNo, ["items"] = new JsonArray(_reports.Select(r => (JsonNode?)r.ToJson()).ToArray()),
                 ["map"] = manifest,
-            }.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            }.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented));
             var meta = new System.Text.StringBuilder(";FFMETADATA1\ntitle=" + (_request.Reel.Title ?? _request.Reel.Name) + "\n");
             for (int i = 0; i < _chapters.Count; i++)
             {

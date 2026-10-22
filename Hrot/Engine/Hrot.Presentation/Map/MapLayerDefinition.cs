@@ -19,7 +19,7 @@ namespace Hrot.Presentation.Map;
 /// <c>MapCanvas.ActiveLayerMask</c> and <c>MapDisplayComponent.LayerMask</c>.
 /// </param>
 /// <param name="IsMember">
-/// Evaluated once per entity per rescan pass by <see cref="MapLayerAssignmentSystem"/>.
+/// Evaluated once per entity per frame by <see cref="MapLayerAssignmentSystem"/> (CE-4044).
 /// Parameters:
 /// <list type="bullet">
 ///   <item>The ECS entity handle.</item>

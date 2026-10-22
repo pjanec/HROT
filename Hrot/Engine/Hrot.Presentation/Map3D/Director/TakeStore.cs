@@ -27,11 +27,9 @@ public sealed class TakeStore
     public const string ReelSuffix = ".reel.json";
 
     /// <summary>Indented, and ⭐ text kept readable (a take is edited by hand: no <c>\u2014</c> for a dash, no <c>\u0027</c> for a quote).</summary>
-    private static readonly JsonSerializerOptions Indented = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+    //   (A DOM is written, so only the indent and the encoder matter — the registry's variant, R-2005.)
+    private static readonly JsonSerializerOptions Indented = Fdp.Core.Serialization.FdpJsonOptionsRegistry.Derive(
+        o => o.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, indented: true);
 
     private readonly Func<string> _scenariosRoot;
     private readonly Func<string?> _filmsRoot;

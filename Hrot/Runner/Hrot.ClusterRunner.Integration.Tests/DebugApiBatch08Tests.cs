@@ -129,7 +129,7 @@ public sealed class DebugApiBatch08Tests
         // when currentVersion != chunkVersion (i.e., the version changed since last write).
         // Without this tick the chunk version stays equal to _globalVersion → SyncDirtyChunks
         // sees no change and does not restore the chunk.  This mirrors the pattern in
-        // PreviewClusterOpHandlerTests.UnloadingPreview_RewindsLiveRepo (line 116: _liveRepo.Tick()).
+        // ReferencePreviewHandlerTests.UnloadingPreview_RewindsLiveRepo (line 116: _liveRepo.Tick()).
         h.PumpFrames(1);
 
         // Mutate the entity position after the tick so the chunk is marked dirty
@@ -139,7 +139,7 @@ public sealed class DebugApiBatch08Tests
         var posMutated = h.Repo.GetComponent<SimTransform>(entity).Position;
         Assert.Equal(99f, posMutated.X, precision: 1);
 
-        // Restore — PreviewClusterOpHandler.SyncFrom restores the full repo snapshot
+        // Restore — ReferencePreviewHandler.SyncFrom restores the full repo snapshot
         svc.RestoreCheckpoint();
         // Read immediately after restore (before any kernel tick that might re-apply changes).
         // The EntityMap still holds the same entity handle; SyncFrom preserves entity indices.

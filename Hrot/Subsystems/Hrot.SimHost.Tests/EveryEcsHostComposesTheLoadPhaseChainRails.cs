@@ -73,8 +73,11 @@ namespace Hrot.SimHost.Tests
         {
             var code = ReadEffectiveRoot(relativePath);
 
+            // ⭐ D16 (R-3046) — the chain is registered by the ONE host composition (EcsHostClusterHandlers.Compose), which
+            //   calls FromRoles; a root that calls Compose composes the chain. (EveryEcsHostComposesOneClusterHandlerSetRails.)
             Assert.True(
-                code.Contains("LoadPhaseChain.FromRoles", StringComparison.Ordinal),
+                code.Contains("LoadPhaseChain.FromRoles", StringComparison.Ordinal)
+             || code.Contains("EcsHostClusterHandlers.Compose(", StringComparison.Ordinal),
                 $"{relativePath} must compose its load phase through LoadPhaseChain.FromRoles. ⛔ A host "
               + "that hand-registers prerequisite loaders as separate handlers makes them COMPETE: "
               + "ClusterSlave gives the step to the first claimant and returns, and the losers vanish "

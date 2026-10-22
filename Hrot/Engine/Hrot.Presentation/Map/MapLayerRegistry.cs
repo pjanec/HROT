@@ -14,7 +14,7 @@ namespace Hrot.Presentation.Map;
 ///
 /// <para>Each entry is a <see cref="MapLayerDefinition"/> record that captures:
 /// a human-readable JSON key, a bit-mask, and a membership predicate evaluated by
-/// <see cref="MapLayerAssignmentSystem"/> once per entity per rescan pass.</para>
+/// <see cref="MapLayerAssignmentSystem"/> once per entity per frame (CE-4044 — a full pass, change-only writes).</para>
 ///
 /// <para>Consumers:</para>
 /// <list type="bullet">

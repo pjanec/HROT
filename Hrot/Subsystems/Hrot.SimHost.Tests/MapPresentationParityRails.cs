@@ -179,6 +179,36 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(customBit, world.GetComponentRO<MapDisplayComponent>(entity).LayerMask);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4044</c> — the mask is a pure function of the world at EVERY frame: one call stamps every entity, and a
+        /// predicate that changes is reflected on the very next call. ⛔ The time-sliced version (a 1 ms wall-clock budget, a 3 s
+        /// stopwatch rescan) stamped as many entities as the machine managed, so a scenario's golden flapped with machine load.
+        /// </summary>
+        [Fact]
+        public void MapLayerAssignmentSystem_StampsEveryEntity_AndFollowsAChange_OnTheNextFrame()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            bool marked = false;
+            var custom = new[] { new MapLayerDefinition("marked", 1u << 3, (_, _, _) => marked) };
+            var entities = new List<Entity>();
+            for (int i = 0; i < 5000; i++)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform());
+                entities.Add(e);
+            }
+
+            var system = new MapLayerAssignmentSystem(custom);
+            system.Execute(world, 0.016f);
+            Assert.All(entities, e => Assert.Equal(0xFFFF_FFFFu, world.GetComponentRO<MapDisplayComponent>(e).LayerMask));
+
+            marked = true;
+            system.Execute(world, 0.016f);   // no rescan interval: the next frame sees it
+            Assert.All(entities, e => Assert.Equal(1u << 3, world.GetComponentRO<MapDisplayComponent>(e).LayerMask));
+        }
+
         // ── ④ the bit constants are one declaration, not two hand-synced copies ───
 
         /// <summary>

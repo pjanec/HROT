@@ -428,7 +428,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             var unknown = new System.Collections.Generic.List<string>();
             int v = is3D ? 1 : 0;
-            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(_sets[v]))!;
+            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(_sets[v], Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
             foreach (var name in on) if (!LayerControlSets.TrySet(edited, name, true)) unknown.Add(name);
             foreach (var name in off) if (!LayerControlSets.TrySet(edited, name, false)) unknown.Add(name);
             _sets[v] = edited;
@@ -515,7 +515,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void OnStructUpdate(string payloadJson)
         {
             if (string.IsNullOrWhiteSpace(payloadJson)) return;
-            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(Current))!;   // a copy: the edit applies on top of the shown set
+            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(Current, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;   // a copy: the edit applies on top of the shown set
             _projector.ApplyUpdate(payloadJson, ref edited);
             if (edited.View != Current.View) return;   // ⭐ CE-1203 FL-8 — an edit of the set the panel showed before the view switched
             _sets[_view] = edited;

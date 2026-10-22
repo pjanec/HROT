@@ -9,7 +9,6 @@ using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.UI.Common.Facades;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
@@ -53,7 +52,7 @@ public sealed class EditorHarness : IDisposable
     private readonly SequentialIdAllocator _idAllocator;
     private ScenarioFileService _fileService = null!;
     private PhysicsToolkitModule? _physicsModule;
-    private PreviewClusterOpHandler? _previewHandler;
+    private Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler? _previewHandler;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
@@ -175,13 +174,13 @@ public sealed class EditorHarness : IDisposable
     /// </summary>
     private sealed class EditorPreviewController : IPreviewController
     {
-        private readonly PreviewClusterOpHandler _handler;
+        private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
         private readonly MasterSyncController    _timeController;
         private bool _inPreview;
 
         internal EditorPreviewController(
             MasterSyncController     timeController,
-            PreviewClusterOpHandler  handler)
+            Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler  handler)
         {
             _handler        = handler;
             _timeController = timeController;
@@ -236,7 +235,7 @@ public sealed class EditorHarness : IDisposable
         Kernel = new ModuleHostKernel(Repo, accumulator);
         _physicsModule = new PhysicsToolkitModule();
         _physicsModule.Initialize(Repo);
-        _previewHandler = new PreviewClusterOpHandler(Repo);
+        _previewHandler = new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(Repo, includeTransient: true);
 
         // MasterSyncController in Deterministic mode — no DDS sync, starts paused.
         // LookaheadWallTicks=0 ensures SwitchToDeterministic sets a barrier at "now" so Step()

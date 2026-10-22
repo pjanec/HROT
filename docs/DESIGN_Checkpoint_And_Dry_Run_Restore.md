@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (⏳ the decisions in §5 carry leans awaiting the user; §6 measurements come first)
+build-state: BUILDING (B1a + B1 built 2026-10-22 — §1b and §1c as-built)
 updated: 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
@@ -79,6 +79,28 @@ applies). `SyncFrom` stays the every-frame background snapshot. No network buffe
 | **U3** | **the cluster-handler set is composed in three hand-written places** — `NodeBootstrapper.BuildOrchestration` (SimHost, IG, traffic, Stride), `CgfSubsystem`, `EditorSubsystem` each register replay-load, live-load, prefetch, load chain and dry run. ⛔ **The checkpoint handler is registered in only ONE** — CGF and the editor take no checkpoint today | `ReferenceCheckpointHandler` only at `NodeBootstrapper.cs:308`; `ReferenceReplayLoadHandler` / `ReferenceLiveLoadHandler` / `ReferencePrefetchHandler` / `LoadPhaseChain.FromRoles` each at the three sites | **D16**: ONE shared composition ("the cluster handlers of an ECS host": recorder controller, replay load, live load, checkpoint keyframe request, dry run, prefetch, load chain) called by all three hosts; a rail asserts every ECS host's slave holds the same set — the pattern of `EveryEcsHostComposesTheLoadPhaseChainRails` |
 
 ⇒ the CLASSES are shared; the COMPOSITION is not, and that is where the editor and CGF already drifted (no checkpoint, no ELM gate). ⭐ D16 comes FIRST in the build (B1a), so every later step changes one place.
+
+✅ **BUILT `2026-10-22` (B1a) — as-built:**
+
+| | |
+|---|---|
+| **D16** | `EcsHostClusterHandlers.Compose(EcsHostClusterHandlerInputs)` (`Hrot.Network.Orchestration`, beside `EcsRecordReplayController`) registers, in ONE order: replay load → checkpoint (where a worker is given — ⏳ B3 makes it every host's) → dry run → prefetch → terrain/zone ops → the host's scenario handlers (episode load) → load chain → scenario save + archive → live load. `NodeBootstrapper` (SimHost, IG, traffic, Stride), `CgfSubsystem` and `EditorSubsystem` call it; each keeps only its OWN pieces (the load providers, the episode handler, the diagnostics dump). Rail: `EveryEcsHostComposesOneClusterHandlerSetRails` (the constructed order + a source scan that no root builds a member by hand). ⚠ **Deviation:** the replay handler is now registered even when a host passes no replay groups — the old conditional only a test ever exercised (every production host passes them); `NodeBootstrapperReplayTests` rewritten to pin the new rule. CGF's episode handler moved ahead of the load chain (they claim disjoint ops — `StartEpisode`/`StopEpisode` vs `Prepare*`) |
+| **D15** | the editor's recorder comes from the composition (`ForNode` — the ELM is gated during replay and cleared at a seek; the replay handler gets the world-replacement hook); the debug API's `/recording/*` drives the SAME instance (⛔ was a second `new EcsRecordReplayController` on the same world) and refuses to start while a cluster run is recording (it would orphan that recording) |
+| **D14** | ONE dry-run class: `ReferencePreviewHandler` (Fdp.Toolkits) gains `TriggerLoadingPreview` / `TriggerUnloadingPreview` (the editor's toolbar) and keeps the first capture when a second arrives (two entry points now reach it); `PreviewClusterOpHandler` DELETED. The editor's slave holds the same instance its toolbar drives ⇒ a dry run started by the cluster master now rewinds the editor's world too (it was unclaimed there). `includeTransient` stays a constructor input until B2 (the editor's copy took Transient types — HN-016). `EditorPreviewAdapter` (test-only, edit-1 §4.G) ROUTED onto it, not deleted. Its tests re-homed: `ReferencePreviewHandlerTests` (the deleted twin's suite was the only one either handler had) |
+
+### 1c. ✅ B1 — as-built `2026-10-22` (the keyframe facade, the after-restore step, D7)
+
+
+| | |
+|---|---|
+| **`WorldKeyframes`** (`Fdp.Toolkits/Replay`) | `Capture(repo)` = `RecorderSystem.RecordKeyframe` into RAM (no events); `Apply(repo, keyframe, RestoreOptions)` = `PlaybackSystem.ApplyFrame` on a copy whose header tick is rewritten to `max(live, recorded) + 1` — ⭐ D8 without touching the reader (versions only grow; the keyframe is reused unchanged). `RestoreOptions.RestoreEvents` off by default (D2). ⚠ **Deviation:** `CaptureOptions` / `keepTypes` (D12) NOT built here — they belong to B2, where the dry run's type set is decided against the determinism rails |
+| **`AfterRestore.Run(repo, accumulator?)`** | entity map `RebuildFromWorld` → `WorldEpoch.Restored` → `EventAccumulator.Restart`. ⏳ The ELM re-arm stays with the dry run's participant (it already re-derives) until S2; the running recording's forced keyframe is B4 |
+| **`WorldEpoch`** | ⚠ **Deviation from §3's names:** `Restored(world)` bumps `RestoreCount` and a `Generation`; ⭐ **`Moved` now watches `Generation`** (a boundary OR a restore — the ~70 per-id caches clear on both, with no call-site change) and the NEW **`Ended`** watches the world number only. `CycloneNetworkCleanupSystem` (the one reaction that acts on the wire) moved to `Ended`; `WorldBoundaryProbe` accepts either. ⛔ §3's `Rebuilt` was not added — `Moved` IS it |
+| **D7 — root cause found and fixed** | 🔴 `ComponentTypeRegistry.GetOrRegisterManaged` (the ONLY registration a singleton gets — `SetSingleton*` → `ManagedComponentType<T>.ID`) set every type recordable/snapshotable/saveable and IGNORED `[DataPolicy]`: that is why `WorldEpoch` (`Transient`) and `StaticObstacleBakery` (already `NoReplay`!) were flagged recordable (§6a M1). ⚠ For a MANAGED singleton the flag did not reach the bytes — it has no table version, so no keyframe carries it (measured, pinned by a rail); an unmanaged one is versioned and was recorded. It now reads the attribute at first registration. `[DataPolicy]` may sit on an interface (a service singleton is keyed by one); `NoScenario \| NoReplay` added to `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `NetworkEntityMap`, `CanvasContextMenuState`. ⚠ Replays are affected too, intentionally: a seek no longer replaces the loaded TKB / navmesh / entity map with a deserialized copy. ⏳ The "every registered type has an explicit policy" rail is not built |
+
+### 1d. ⚠ A recording must name the same event types in every process — CE-3302 (`2026-10-22`)
+
+A checkpoint (B3) is a recorder keyframe, and an export is read by ANOTHER process. 🔴 Measured: a managed event's type id was `FullName.GetHashCode()`, which .NET randomises per process, and the recorder writes that id into each frame's event block (`RecorderSystem.cs:740`) ⇒ events in a recording named different types once re-read elsewhere. ✅ Fixed: `Fdp.Core.StableHash` (FNV-1a) for the bus, the command buffer and the blueprint event fallback; rail `NoIdFromAProcessRandomisedHashTests`. ⚠ Keyframes for restore do not carry events (`RestoreOptions.RestoreEvents` defaults to false), so B1 was not exposed; recordings and exports are.
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
@@ -167,8 +189,15 @@ classDiagram
     +Commit(ctx, world)
     +IsResolved(world)
   }
-  class PreviewClusterOpHandler
-  class ReferencePreviewHandler
+  class EcsHostClusterHandlers {
+    <<built B1a>>
+    +Compose(inputs) RecordReplayController, DryRun
+  }
+  class ReferencePreviewHandler {
+    <<the one dry run, D14>>
+    +TriggerLoadingPreview()
+    +TriggerUnloadingPreview()
+  }
   class ReferenceCheckpointHandler
   class PreviewStateBracket {
     +Capture()
@@ -190,10 +219,10 @@ classDiagram
   RecordingCheckpoints ..> PlaybackController : seek
   RecordingCheckpoints ..> AfterRestore : then runs
   ILoadPartProvider <.. RecordingCheckpoints : fresh process only, skips resident
-  PreviewClusterOpHandler ..> WorldKeyframes
+  EcsHostClusterHandlers --> ReferencePreviewHandler : registers
+  EcsHostClusterHandlers --> ReferenceCheckpointHandler : registers
   ReferencePreviewHandler ..> WorldKeyframes
   ReferenceCheckpointHandler ..> RecordingCheckpoints
-  PreviewClusterOpHandler --> PreviewStateBracket : until S2
   ReferencePreviewHandler --> PreviewStateBracket : until S2
 ```
 *What the picture shows that prose hid:* the NEW classes are a dry-run facade, a checkpoint-as-mark helper, an options record and one step — every arrow out of
@@ -276,7 +305,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 |---|---|
 | ⭐ **M3: applying the SimHost keyframe in place took 36 ms**; 731 entities before and after; 30 more frames ran without an exception | the restore cost is small — the dry-run Stop and a checkpoint restore are tens of ms per host |
 | ⭐ **M2: 4–8 MiB raw and 19–31 ms per keyframe per host** — well inside the 32 MiB buffer (F9) at this size; the recorder already pays this every 60 frames | a forced checkpoint keyframe (R-3044) costs ONE such capture on the frame it lands — the same hitch the recorder already takes once a second; ⚠ M2 in a Release build is still owed before calling R-3042's "does not interfere" measured |
-| 🔴 **M1: singletons ignore `DataPolicy`.** RECORDED on every host: `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `RoadNetworkHolder`, `StaticObstacleBakery`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`!), `CanvasContextMenuState` (editor UI); recordability is the REGISTRATION default (F7, confirmed) | a keyframe restore would REPLACE loaded content and services with deserialized copies — against R-3043. **D7 becomes:** singletons honour `DataPolicy` like components; content and service singletons are `NoReplay`; a rail fails on any singleton without an explicit policy. ⚠ Replays restore these today too — what that does to a live navmesh provider is unmeasured |
+| 🔴 **M1: singletons ignore `DataPolicy`.** ⚠ **Corrected `2026-10-22` (B1):** "recorded" below is the REGISTRY's recordable flag, not keyframe bytes — 📐 a MANAGED singleton set by `SetSingletonManaged` stamps no table version, and the recorder writes a singleton only when its version is past the keyframe's base, so it is in NO keyframe (rail `WorldKeyframesTests.ManagedSingleton_SetBySetSingletonManaged_IsNotInAKeyframe`); only versioned (unmanaged) singletons are. The flag was still wrong (root cause in §1c) and is fixed. Flagged recordable on every host: `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `RoadNetworkHolder`, `StaticObstacleBakery`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`!), `CanvasContextMenuState` (editor UI); recordability is the REGISTRATION default (F7, confirmed) | a keyframe restore would REPLACE loaded content and services with deserialized copies — against R-3043. **D7 becomes:** singletons honour `DataPolicy` like components; content and service singletons are `NoReplay`; a rail fails on any singleton without an explicit policy. ⚠ Replays restore these today too — what that does to a live navmesh provider is unmeasured |
 | 🔴 **M1: sim state in use, not recorded** — `SubordinateOrders`, `PausedTask`, `MissionAdapterState`, `AirPath`, and `SensorCapability` (68 sensors) | D1's list, now measured in use; M4 classifies |
 
 ### 6b. 📐 M4 — the `NoReplay` / `Transient` types, classified (`2026-10-22`; full table: [appendix](DESIGN_Checkpoint_And_Dry_Run_Restore_M4_Classification.md))

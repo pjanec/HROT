@@ -428,6 +428,12 @@ loader into every system — and a background module needs the number in its sna
 | the rail | `EverySystemForgetsTheLastWorldTests` (`FDP/TestShared/WorldBoundaryProbe.cs`): every production system with an instance field holding `Entity` (a collection, tuple or array; a callback is not state) calls `WorldEpoch.Moved` — read from its IL, base classes included — or each such field is EXEMPT with its reason (31 scratch fields, rebuilt each run) |
 | ⛔ rejected | `SoftClear` keeping generations — the replay seek restores recorded handles through `Clear` · an `IWorldBoundaryAware` interface called by the loader — a second mechanism beside the epoch the translators already pull |
 
+> ⚠ **`2026-10-22` (CE-3301) — the rail's blind spot, measured.** `WorldBoundaryProbe` flags only fields holding an `Entity`. ⛔ A cache keyed
+> by NETWORK ID is invisible to it, and a reload reuses network ids as surely as handles: `EqsSolverSystem._surveys` (keyed by network id + child
+> index) kept the old timeline's solve times, so every survey read *not due* after a reload. Fixed with the same `WorldEpoch.Moved` rule. ⭐ And
+> since B1 of the restore design, `Moved` also fires on an in-place RESTORE (a dry-run Stop, a checkpoint restore), while the new `Ended`
+> fires on a boundary only ([restore design §1c](../DESIGN_Checkpoint_And_Dry_Run_Restore.md)).
+
 ### 7f.1 🔴 THE BOUNDARY THIS DOES NOT REACH — the editor's **Stop** (`CE-3298`, measured `2026-10-22`, ⏳ fix awaits the user)
 
 📐 `WorldEpoch.Advance` has two callers, both a world that ENDS: `WorldBoundaryReset.Clear` (a load from `Idle`, entering `Idle`) and

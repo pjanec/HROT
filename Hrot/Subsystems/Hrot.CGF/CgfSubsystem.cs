@@ -1060,14 +1060,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
             capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(DefaultRole));
 
-        // ⭐⭐ P5a — the ONE composition every ECS host uses: a seek clears the ELM's bookkeeping (§2.1m step 3) before the
-        //   transport's own post-seek hook, and the ELM is gated while a replay is active (§2.1m step 1).
+        // ⭐⭐ P5a — the node's ELM: a seek clears its bookkeeping (§2.1m step 3) and it is gated while a replay is active
+        //   (step 1) — both wired by the shared composition below (D16).
         var cgfGateElm = _context.BaseModules?
             .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
-        var rrController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
-            _context.Kernel, _context.NodeId, _context.World,
-            (replicationModule as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback, cgfGateElm);
-
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
         // ⛔⛔⛔ SUPERSEDED `2026-09-18` — C8's standalone TerrainLoadClusterStateHandler is GONE from here,
@@ -1088,21 +1084,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var (cgfLoadProviders, cgfResidency) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
             _context.TkbDb, isolatedTempRoot, _cgfRoadNetworkHolder, _context.TerrainContent);
         TerrainResidency = cgfResidency;
-
-        // 1. Replay handler (must be first to gate Live-from-Replay branch)
-        newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
-            rrController,
-            inputGroup:            _toggleInput,
-            simGroup:              _toggleSim,
-            postSimGroup:          null,
-            lifecycleGroup:        null,
-            bypassLifecycleToggle: null,
-            storageDirectory:      isolatedTempRoot,
-            suspendGlobalTimePush: _context.Kernel.SuspendGlobalTimePush,
-            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush,
-            // ⭐⭐⭐ §2.1m step 3 — discard the ELM's bookkeeping at every world replacement, and arm the
-            //   re-derive only when resuming to a LIVE world.
-            worldReplaced:         cgfGateElm == null ? null : cgfGateElm.OnWorldReplaced));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         // ⭐ A live-cluster node loads LENIENTLY: a component the registry cannot resolve is
@@ -1195,16 +1176,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             scenarioSerializer, scenarioLoader, extractor, _context.World.Bus, cgfIdAllocator,
             behaviorRemapper: behaviorRemapper));
 
-        // ⭐⭐⭐ L2 — ONE participant for the whole load step, composed from this node's ROLES.
-        //   ⚠ Registered here, AFTER the replay handler (which must gate the live-from-replay branch) and
-        //     BEFORE ReferenceLiveLoadHandler, which keeps FinalizeLive.
-        newClusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-            DefaultRole, cgfLoadProviders, _context.World,
-            recordingController: rrController,
-            storageDirectory:    isolatedTempRoot,
-            hostLabel:           "CGF",
-            entityMap:           _context.EntityMap));   // CE-2101 — the world boundary clears it
-
         // ⭐⭐⭐ CE-275 ③ — CGF registers the SAME scenario SAVE handler as the editor (CGF == editor). On a
         //   SaveScenarioJson fan-out it writes CGF's owned slice via the shared ScenarioSaveCore, using CGF's
         //   own scenarios root (the shared staging root, matching CGF's load path — the editor uses its NAS
@@ -1217,61 +1188,41 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
             scenarioSerializer, _context.World, _context.NodeId);
 
-        newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
-            scenarioSerializer, scenarioLoader, extractor, cgfIdAllocator, _context.World, behaviorRemapper));
+        var cgfEpisodeHandler = new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
+            scenarioSerializer, scenarioLoader, extractor, cgfIdAllocator, _context.World, behaviorRemapper);
 
-        // 3. Fallback Live Load Handler (claims PrepareLive ONLY if scenario handlers didn't)
-        newClusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-            checkpointWorker: null,
-            controller: rrController,
-            storageDirectory: isolatedTempRoot));
-
-        // 4. Utility handlers
-        // ⭐⭐⭐ HN-017 — this node restores its OWN allocator and map on the master's UnloadingPreview.
-        // 📄 DESIGN_Deterministic_Network_Ids.md §4c. 🔒 User: "reset must be cluster wide" — and it IS,
-        //    because the 2PC broadcast reaches every node and each commits locally. ⛔ No new protocol, and
-        //    ⛔ nothing here touches the central id authority.
-        // ⚠ Both participants or neither: the allocator alone guarantees a duplicate-id throw from
-        //    NetworkEntityMap.Register on the second preview (§2b).
-        // ⚠⚠ SUPERSEDED BY HN-037 — this comment used to warn that "CGF HAS **TWO** ALLOCATORS" and that
-        //    restoring one would leave the other drifting. 📐 As of HN-037 there is ONE: the scenario-load
-        //    handlers were pointed at `_context.IdAllocator`, the same instance the runtime spawn path
-        //    (:217, :381) uses. ⇒ ⭐ registering it TWICE here would capture and restore the same allocator
-        //    twice per preview — harmless today (idempotent replace) but a lie about the participant count,
-        //    so it is registered once.
-        // ⭐ The bracket still takes a LIST: the map is a second participant, and "both or neither" still
-        //   holds (§2b — the allocator alone guarantees a duplicate-id throw from NetworkEntityMap.Register
-        //   on the second preview).
-        var cgfRewindables = new System.Collections.Generic.List<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable>();
-        if (_entityMap != null)
-        {
-            if (_context.IdAllocator != null)
-                cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_context.IdAllocator));
-            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap));
-        }
-        // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. ⚠ Added OUTSIDE the
-        //   map's `if`: unlike the allocator/map pair (which are "both or neither", see above), the ELM is
-        //   independent of whether this node has a network entity map.
-        //   📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
-        var cgfElm = _context.BaseModules?
-            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
-        if (cgfElm != null)
-            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(cgfElm));
-        newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
-        newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
-        // CE-279 Layer A — register the SerializeLocal pair (scenario-save + .fdp archive) uniformly.
-        Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
-            newClusterSlave,
-            cgfScenarioSaveHandler,
-            recordingRoot: isolatedTempRoot, nodeId: _context.NodeId);
-        // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host.
-        //   ⭐ C8 — `service:` is NO LONGER null. CGF composes a real TerrainLoadService, so a zone op
-        //   does actual residency work here rather than ACKing with nothing to do. 🔒 The brain having
-        //   "no zone consumer" (the F4 argument for not giving it a zone SERVICE) is about the retired
-        //   DTO pipeline; loading the terrain its scenario NAMES is mandatory on every host (§8.3 N4).
-        Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
-            newClusterSlave, _cgfTerrainLoadService, world: _context.World, nodeId: _context.NodeId,
-            localStagingRoot: isolatedTempRoot);
+        // ⭐⭐⭐ D16 (R-3046) — the cluster handlers of an ECS host, composed in ONE place for every host (NodeBootstrapper,
+        //   this one, EditorSubsystem): recording controller, replay load, checkpoint, dry run, prefetch, terrain/zone ops,
+        //   the episode handler, the load chain (L2 — from this node's ROLES; CGF carries Brain, so knowledge base + scenario,
+        //   ⛔ not terrain-by-requirement), scenario save + archive, live load — in one order.
+        //   📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b.
+        // ⭐ HN-017/HN-018 — the dry run puts back this node's OWN allocator (ONE since HN-037 — the runtime spawn path uses
+        //   the same instance), entity map and ELM queues, on the master's UnloadingPreview; cluster-wide because the 2PC
+        //   broadcast reaches every node. 📄 DESIGN_Deterministic_Network_Ids.md §2b/§4c.
+        var cgfHandlers = Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers.Compose(
+            new Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlerInputs
+            {
+                Slave               = newClusterSlave,
+                Kernel              = _context.Kernel,
+                World               = _context.World,
+                NodeId              = _context.NodeId,
+                Role                = DefaultRole,
+                HostLabel           = "CGF",
+                StagingRoot         = isolatedTempRoot,
+                TransportAfterSeek  = (replicationModule as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
+                Elm                 = cgfGateElm,
+                InputGroup          = _toggleInput,
+                SimGroup            = _toggleSim,
+                IdAllocator         = _context.IdAllocator,
+                EntityMap           = _context.EntityMap,   // CE-2101 — the world boundary clears it
+                LoadProviders       = cgfLoadProviders,
+                ScenarioHandlers    = new[] { cgfEpisodeHandler },
+                ScenarioSaveHandler = cgfScenarioSaveHandler,
+                // ⭐ C8 — a real TerrainLoadService, so a zone op does actual residency work here.
+                TerrainService      = _cgfTerrainLoadService,
+                TerrainStagingRoot  = isolatedTempRoot,
+            });
+        var rrController = cgfHandlers.RecordReplayController;
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;

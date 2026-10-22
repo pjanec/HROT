@@ -75,7 +75,9 @@ namespace Fdp.Core
     /// public class AIBlackboard { /* mutable AI state */ }
     /// </code>
     /// </example>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+    // ⭐ D7 — Interface too: a service singleton is keyed by its interface (ITkbDatabase, INavmeshProvider …), so that is where
+    //   its policy is declared.
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
     public sealed class DataPolicyAttribute : Attribute
     {
         public DataPolicy Policy { get; }

@@ -70,13 +70,15 @@ namespace Fdp.Toolkit.Utility
 
         private static int ComputePointsHash((float x, float y)[] pts)
         {
-            var hash = new HashCode();
+            // ⭐ CE-3303 — the id keys PiecewiseCurveCatalog and travels in ResponseCurve: System.HashCode is seeded per process,
+            //   so the "stable" id differed between two runs of one build.
+            uint hash = Fdp.Core.StableHash.Basis;
             foreach (var p in pts)
             {
-                hash.Add(p.x);
-                hash.Add(p.y);
+                hash = Fdp.Core.StableHash.Add(hash, p.x);
+                hash = Fdp.Core.StableHash.Add(hash, p.y);
             }
-            return hash.ToHashCode();
+            return unchecked((int)hash);
         }
     }
 
