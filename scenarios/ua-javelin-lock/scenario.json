@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: Test-town, two vignettes of an M1 against a Javelin (locks after 4 s of continuous sight). \"Tank Cycling\" starts in its hide (255,100), south of the 15 m block (x 230-285, y 110-125) that hides it from Javelin A — ⛔ not (251,110), which is INSIDE the block: it spawned on the roof (z 15) and never moved on an attack order at \"Javelin A\" (100,225, holding); \"Tank Open\" idles in the open (40,385), 260 m from \"Javelin B\" (300,385). Judge: (1) Tank Open is locked and hit by Javelin B (hurt) (2) Tank Cycling fires at least once (3) Javelin A is seen aiming at it in at least one sampled second (best lock ~3.8 of 4 s) (4) its short exposures deny the lock: no hit by A and Tank Cycling undamaged (3000). Fail: Javelin A hits the cycling tank, or A never aims (refused as not exercised). Check: python3 scripts/utility-demo-check.py --launch ua-javelin-lock"
+    "description": "What: Test-town, two vignettes of an M1 against a Javelin (locks after 4 s of continuous sight). \"Tank Cycling\" starts in its hide (262,135), east of the 15 m block's north leg (x 230-250, y 110-150) that hides it from Javelin A; a short move north past y 150 exposes it — ⛔ not (251,110), which is INSIDE the block: it spawned on the roof (z 15) and never moved on an attack order at \"Javelin A\" (100,225, holding); \"Tank Open\" idles in the open (40,385), 260 m from \"Javelin B\" (300,385). Judge: (1) Tank Open is locked and hit by Javelin B (hurt) (2) Tank Cycling fires at least once (3) Javelin A is seen aiming at it in at least one sampled second (best lock ~3.8 of 4 s) (4) its short exposures deny the lock: no hit by A and Tank Cycling undamaged (3000). Fail: Javelin A hits the cycling tank, or A never aims (refused as not exercised). Check: python3 scripts/utility-demo-check.py --launch ua-javelin-lock"
   },
   "entities": {
     "a2200d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          255,
-          100,
+          262,
+          135,
           0
         ],
         "Rotation": [
