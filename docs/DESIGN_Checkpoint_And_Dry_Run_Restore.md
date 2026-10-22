@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN (⏳ the decisions in §5 carry leans awaiting the user; §6 measurements come first)
-updated: 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+updated: 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -273,6 +273,21 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | ⭐ **M2: 4–8 MiB raw and 19–31 ms per keyframe per host** — well inside the 32 MiB buffer (F9) at this size; the recorder already pays this every 60 frames | a forced checkpoint keyframe (R-3044) costs ONE such capture on the frame it lands — the same hitch the recorder already takes once a second; ⚠ M2 in a Release build is still owed before calling R-3042's "does not interfere" measured |
 | 🔴 **M1: singletons ignore `DataPolicy`.** RECORDED on every host: `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `RoadNetworkHolder`, `StaticObstacleBakery`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`!), `CanvasContextMenuState` (editor UI); recordability is the REGISTRATION default (F7, confirmed) | a keyframe restore would REPLACE loaded content and services with deserialized copies — against R-3043. **D7 becomes:** singletons honour `DataPolicy` like components; content and service singletons are `NoReplay`; a rail fails on any singleton without an explicit policy. ⚠ Replays restore these today too — what that does to a live navmesh provider is unmeasured |
 | 🔴 **M1: sim state in use, not recorded** — `SubordinateOrders`, `PausedTask`, `MissionAdapterState`, `AirPath`, and `SensorCapability` (68 sensors) | D1's list, now measured in use; M4 classifies |
+
+### 6b. 📐 M4 — the `NoReplay` / `Transient` types, classified (`2026-10-22`; full table: [appendix](DESIGN_Checkpoint_And_Dry_Run_Restore_M4_Classification.md))
+
+103 types carry `NoReplay`: **57 events** (out of scope — events are not state) and **46 components / singletons** (31 per-entity, 15 singletons). Of the 46:
+
+| class | count | ⇒ restore treatment | the types |
+|---|---|---|---|
+| 🔴 **SIM-STATE** | 9 | **make recordable** (drop `NoReplay`) — D1 | `PausedTask` · `SubordinateOrders` · `BehaviorStartRecord` (the running task's restart text — `SopActions.cs:82`) · `SopStartRecord` · `AirPath` · `MissionAdapterState` · `SensorCapability` (per-sensor range / FOV and the default to undo an override) · `SensorConfigPayload` · `WorldSurveyRequest` |
+| PROTOCOL | 18 | re-derived by `AfterRestore` (D4) | incl. `GhostStateTracker` — ⚠ a restored ghost is never timed out until re-derived |
+| NET-SHADOW | 5 | refilled by the owners' republish (egress reads an absent `EgressPublicationState` as "publish everything") | `NetworkTransform`, `NetworkVelocity`, `EgressPublicationState`, … ⚠ **`ReplicatedBrainIntent` is NOT refilled** — the owner republishes only on change, so a hand-over before the next change starts no brain ⇒ `AfterRestore` forces a republish of it |
+| EDITOR-DEBUG | 4 | kept across a dry-run Stop (D12 `keepTypes`) | |
+| ONE-SHOT | 9 | nothing — absent is the normal state | |
+| UNCLEAR | 1 | settle by a run: restore with live SUMO traffic, shoot a pre-restore replica | `TrafficCar` (added only when the replica is created) |
+
+⭐ **Singletons are never cleared by a restore** (`Clear` empties component tables and the bus only) — so the 15 `NoReplay` singletons survive in place; the singleton problem is the OPPOSITE one (§6a: content singletons ARE recorded and would be overwritten — D7). ⭐ **`NoPreview` vs `NoReplay`** (D6): 4 types are `NoPreview`-only and stay recorded (`LightweightRound`, `Lifespan`, `EffectAnchor`, `EffectFlight`); 19 are `NoReplay` without `NoPreview` — the sets differ, so D6's lean (one rule) needs these 23 decided one by one.
 
 ## 7. Rails
 
