@@ -120,7 +120,74 @@ Throwaway probe in the in-process cluster harness (`uc-urban-battle`, SimHost �
 |---|---|
 | **`ReferencePreviewHandler`** (the one dry run, D14) | `LoadingPreview` → `WorldKeyframes.Capture(world, CaptureOptions)` (`NodeDryRun`, or `EditorDryRun` when the host passes `includeTransient` — HN-016's difference is now a TYPE SET, not a copy flag); `UnloadingPreview` → `WorldKeyframes.Apply(world, kf, RestoreOptions.DryRunExit)` → `PreviewStateBracket.Restore()` (the allocator, until S2) → `AfterRestore.Run(world, accumulator)`. ⛔ `SyncFrom` is gone from the dry run; it stays the background snapshot only. The host's `EventAccumulator` reaches it through `EcsHostClusterHandlers` (the silent-default rule: the composition holds it, so it passes it). Singletons are untouched by the apply — `EntityRepository.Clear()` clears entity tables and the bus, not singletons — so the TKB, navmesh and entity map stay loaded |
 | **`PreviewClockProcessManager`** (`Hrot.Orchestrator`, NEW — D5's cluster half) | ticked by `OrchestratorCore` after the seek manager; reads `ClusterStateTransitionedEvent`; remembers `ITimeController.GetCurrentState()` at `LoadingPreview`; on `OperatingEdit` straight after `UnloadingPreview` calls `ITimeCommands.SnapTo(that)`; a dry run ended any other way (a load, an abort) forgets it. ⚠ **Deviation from D5's text** (*"closed by D14's one handler"*): the handler runs on every node, but the clock is the MASTER's, so the snap lives beside the master's other process managers, not in the handler. The editor's own Play/Stop keeps its local snap (`CE-3156`) — the editor's toolbar does not start a cluster transition, so the two never both fire for one dry run |
-| rails | `ReferencePreviewHandlerTests` (the rewind puts back mutated values, not just a capture) · `PreviewClockProcessManagerTests` (snaps once, to the Play position, only after the world is back; an abandoned dry run snaps nothing) · `DeterminismRails` / `DirectorIdentityRails` / `PreviewLifecycleRails` 11/11 (the record round trip needed the editor's recording path fixed — it named node 0 since CE-3228) · ⚠ `TakeCoverScenarioTests.CE2101_PreviewFromEdit` red before and after B2: the SOP never reacts (CE-3306, behaviors) — the dry run's own Stop-rewind assertion is not reached there |
+| rails | `ReferencePreviewHandlerTests` (the rewind puts back mutated values, not just a capture) · `PreviewClockProcessManagerTests` (snaps once, to the Play position, only after the world is back; an abandoned dry run snaps nothing) · `DeterminismRails` / `DirectorIdentityRails` / `PreviewLifecycleRails` 11/11 (the record round trip needed the editor's recording path fixed — it named node 0 since CE-3228) · ✅ `TakeCoverScenarioTests` 6/6 after behaviors fixed CE-3306 (merged `e19e0e3e2`, `2026-10-22`): `CE2101_PreviewFromEdit` now REACHES the dry run's Stop and passes it — the rifleman is back within 0.5 m of where it stood in Edit, on a cluster (B2 closed) |
+
+### 1g. B3 — the labelled keyframe, in detail (`2026-10-22`; build-state: BUILDING)
+
+📐 **What B3 starts from** (grep + graph, `2026-10-22`): `ClusterMaster` fans `TakeCheckpoint` out as `NodeOpType.TakeSnapshot` with no payload
+(`ClusterMaster.cs:498`, `:788`); only **SimHost** composes a checkpoint handler (`EcsHostClusterHandlers.Compose` registers it only when the host
+owns a `CheckpointIOWorker`, `SimHostNodeBootstrapper.cs:382`) — ⇒ CGF, IG, the traffic node, Stride and the editor take NO checkpoint today;
+`CollectCheckpoint` is an enum value no code handles; the recorder writes a keyframe every 60 frames with no input
+(`RecorderTickSystem.cs:61`) and its `.meta.json` only at `Dispose` (`AsyncRecorder.cs:342`); `RecordingModule` is a DIRECT module, so its
+`EveryFrame` recorder runs on paused frames too (`ModuleHostKernel.cs:711`) — a mark at T lands whether the cluster runs or is paused.
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing>> TakeCheckpoint: T = now + Lead ; CollectCheckpoint X ; WallTicks source NEW }
+  class CheckpointPayload { <<NEW>> Label ; AtWallTicks }
+  class ReferenceCheckpointHandler { <<REWRITTEN>> TakeSnapshot: ask the recording ; ExportCheckpoint: export it }
+  class EcsHostClusterHandlers { <<existing, D16>> registers the handler on EVERY ECS host }
+  class EcsRecordReplayController { <<existing>> ActiveRecordingModule }
+  class RecordingModule { <<existing>> RequestCheckpoint(label, T) NEW ; ExportCheckpoint(label, path) NEW }
+  class RecorderTickSystem { <<existing, every frame>> a due request: keyframe now, label it, restart the 60-frame count }
+  class AsyncRecorder { <<existing>> MarkCheckpoint(label, frame, ticks) NEW ; meta.json rewritten at each mark ; FileShare.Read }
+  class CheckpointMark { <<NEW, in RecordingMetadata>> Label ; Frame ; WallTicks }
+  class RecordingExport { <<NEW, Fdp.Core>> OneFrame(src, frame, dst) byte copy }
+  class CheckpointIOWorker { <<RETIRED>> FDPC }
+  ClusterMaster --> CheckpointPayload : fans out
+  EcsHostClusterHandlers --> ReferenceCheckpointHandler : registers
+  ReferenceCheckpointHandler ..> EcsRecordReplayController : ActiveRecordingModule
+  EcsRecordReplayController --> RecordingModule
+  RecordingModule --> RecorderTickSystem
+  RecorderTickSystem --> AsyncRecorder : CaptureKeyframe + MarkCheckpoint
+  AsyncRecorder --> CheckpointMark : meta.json
+  RecordingModule ..> RecordingExport : ExportCheckpoint
+```
+*What the picture shows that prose hid:* every arrow ends in a class that already runs; the only state B3 adds is a pending request in the
+recorder and a list of marks in the metadata it already writes — and the handler reaches every host through the one composition, so the
+four hosts that took no checkpoint get one with no host code.
+
+```mermaid
+sequenceDiagram
+  participant Op as Operator
+  participant M as ClusterMaster
+  participant H as ReferenceCheckpointHandler (each node)
+  participant R as RecorderTickSystem (each node)
+  participant F as the node's .fdp + .meta.json
+  Op->>M: TakeCheckpoint label X (optional)
+  M->>M: T = cluster wall time now + Lead
+  M->>H: TakeSnapshot {X, T}
+  H->>R: RequestCheckpoint(X, T) on the live recording
+  Note over H: no live recording = Failure, named
+  R->>R: first frame with TotalWallTicks at or past T
+  R->>F: keyframe, mark {X, frame, ticks}, meta.json rewritten
+  Op->>M: CollectCheckpoint X
+  M->>H: ExportCheckpoint {X}
+  H->>F: copy header + keyframe X into checkpoints/X_node_N.fdp + meta
+```
+*What the picture shows that prose hid:* the save never waits on the node — the handler answers when the request is queued, and the keyframe
+lands at T on every node; only COLLECT reads the file, so it is the one step that must find the mark already written.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| **T = the master's wall time + `Lead` (0.5 s)**, read through `ITimeController.GetCurrentState().TotalWallTicks` (the clock slaves follow by PLL) | D3: every node lands within one frame of T; 0.5 s covers the fan-out | write on receipt — skew = message latency |
+| the master's time source is PASSED by both hosts that build one (`OrchestratorCore`, the editor) and pinned by a rail; without one, T = 0 ⇒ "the next frame", logged | the silent-default rule | an optional parameter nobody passes |
+| the label: the request's, else `cp-HHmmss` of T; a label already in the recording is REFUSED | a restore names one keyframe | silent overwrite / auto-suffix |
+| ack = "queued on a live recording" (Success) or "this node is not recording" (Failure, named) | the save must not wait (R-3042) | ack after the write — the master would wait the lead on every save |
+| the mark goes into `RecordingMetadata.Checkpoints`, and `.meta.json` is REWRITTEN at each mark (off the main thread) | a crash keeps the marks (D10: a fresh process restores) | marks in memory until `Dispose` — lost with the process |
+| the keyframe's events = that frame's bus, as every keyframe — **D2 verified equal to today's flush** (`FlushToReplica(bus, GlobalVersion − 1)` = the events after the previous frame) | nothing to add for a running cluster | ⏳ a PAUSED multi-frame step window — the restore (B4) decides what it needs |
+| export = a byte copy of the global header + the marked keyframe (`FrameMetadata` positions) into `checkpoints/X_node_N.fdp` + its meta; the recorder opens its file `FileShare.Read` and flushes after a marked frame | R-3044 "collect": readable by the existing replay code, no decode | re-serialize the world — a second writer |
+| ⛔ `CheckpointIOWorker` + the `'FDPC'` capture are DELETED | R-3044: no checkpoint mechanism outside the recorder; it is read by nothing (§1) | keep it beside — two implementations |
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
