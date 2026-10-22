@@ -7,6 +7,15 @@ known-rot: writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); c
 related-designs:
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the decisions this classification feeds (D1, D6, D7, D12)
 -->
+
+## INVENTORY — how the type set was enumerated
+
+`grep -rn "DataPolicy(" --include=*.cs FDP Hrot Stride` (tests, examples, benchmarks excluded) → **103** types carrying `NoReplay`
+(57 events, 46 components / singletons). ⚠ `search_graph` does not index attributes, so the graph cannot enumerate "every type with
+policy X"; `check_index_coverage` is not available through the CLI — the set is grep-complete, not graph-proven. The probe of
+[the restore design §6a](DESIGN_Checkpoint_And_Dry_Run_Restore.md) corroborates the in-use subset at runtime (every not-recorded component
+found live on `uc-urban-battle` is in this list).
+
 # M4 classification: NoReplay / Transient types vs checkpoint restore
 
 **Counts:** types carrying NoReplay = 103; events = 57; components/singletons = 46 (15 singletons, 31 per-entity components; 27 are `Transient`, 19 are NoReplay without NoPreview). Per class: SIM-STATE 9, PROTOCOL 18, NET-SHADOW 5, EDITOR-DEBUG 4, ONE-SHOT 9, UNCLEAR 1. Plus 4 NoPreview-only types (recorded, outside the restore question).

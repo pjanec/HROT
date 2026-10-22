@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN (⏳ the decisions in §5 carry leans awaiting the user; §6 measurements come first)
-updated: 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+updated: 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -38,6 +38,9 @@ applies). `SyncFrom` stays the every-frame background snapshot. No network buffe
   `AfterRestore`, a new recording segment, live paused. Content stays loaded (R-3043).
 - **periodic:** the regular keyframes (every 60 frames) already allow a restore to any second; a forced keyframe adds an exact, named instant.
 - **collect (bug report):** export that one keyframe as a one-frame recording (readable by the existing replay code).
+- ⭐⭐ **THERE IS NO CHECKPOINT MECHANISM OUTSIDE THE FLIGHT RECORDER** (R-3044, R-3045): no checkpoint stream, writer, file format or
+  capture of its own. A checkpoint is a recorder keyframe; periodic checkpoints are the recorder's keyframes; a session that wants ONLY restore
+  points runs the recorder in its **checkpointing mode** (D17). The `'FDPC'` checkpoint writer retires.
 - **design basis — the recorder records the FULL state:** [replay-and-modules §2.3](designs/replay-and-modules/DESIGN.md) *"Every Brain/Muscle node
   records its full ECS state — both owned components and unowned ghost components"*; going live from a recording is shipped (`PrepareLive`).
   📐 In code the only exclusion is a `NoReplay`/`Transient` marking — D1.
@@ -142,7 +145,6 @@ classDiagram
   }
   class RestoreOptions {
     <<NEW>>
-    +bool restoreClock
     +bool restoreEvents
     +BitMask512 keepTypes
   }
@@ -231,7 +233,7 @@ sequenceDiagram
 world, so it cannot run under a moving simulation), and it reaches every node through the replay seek that already aligns them by one
 shared wall-clock zero. A restore then FORKS the recording: the frames after the mark stay intact for another restore.
 
-## 5. Decisions — one per review finding (Paused and Stepped §7g.0c); ⏳ leans await the user
+## 5. Decisions — one per review finding (Paused and Stepped §7g.0c); ✅ D1–D4, D6–D12, D14–D16 APPROVED by the user `2026-10-22` (*"The other leans accepted."*, R-3046); D5 corrected; D13 withdrawn; D17 added
 
 | # | finding | ⏳ lean | rejected — one line |
 |---|---|---|---|
@@ -239,7 +241,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | **D2** | F2: a keyframe re-injects recorded events | dry-run exit: `restoreEvents: false`. ⏳ Checkpoint: keyframe X records the UNCONSUMED step window (the `EventAccumulator` content since the last step — as `ReferenceCheckpointHandler` flushes it today); the restore puts it INTO THE ACCUMULATOR after `Restart`, never into the bus | inject into the bus buffers (re-processing) · drop all events (a step's pending orders lost) |
 | **D3** | F3: nodes captured at different frames | ⭐ **R-3042 + R-3044**: no pause; the master names a wall time T a moment ahead on the shared zero (R-4012) and each node's recorder writes keyframe X at its first frame with `TotalWallTicks ≥ T` — within one frame on every node; the residual skew is R-3041's accepted loss | ⛔ pause the cluster — ruled out (R-3042) · write on receipt — skew = message latency, avoidable at no cost |
 | **D4** | F4: no reset fires after a keyframe apply | `AfterRestore`: ELM re-arm (exists) → `NetworkEntityMap.RebuildFromWorld` (exists) → `WorldEpoch.Restored` (NEW count; R-3039 class A/B fields reset through `Rebuilt`) → `EventAccumulator.Restart` (+ D2) → a forced keyframe in the running recording (D8) | reuse `Moved` — makes the network cleanup delete every owned entity on the wire |
-| **D5** | F5: the clock | `restoreClock`: dry-run exit **false** (Time Architecture §12a owns the Stop), checkpoint restore **true** | one rule for both — Stop would rewind time behind the time system's back |
+| **D5** ✅ *(corrected `2026-10-22`)* | F5: the clock | ⭐ **one rule for both, and it is not the keyframe:** the kernel rewrites `GlobalTime` every frame from the time controller (`ModuleHostKernel.cs:496–500`, [Time Architecture §12a](blueprints/DESIGN_Time_Architecture.md)), so a keyframe's clock is overwritten on the next frame and decides nothing. The clock is MOVED by the time system's one discontinuity, `ITimeCommands.SnapTo(position)`: the dry-run Stop snaps to the position captured at Play (✅ built for the editor, `CE-3156`; ⚠ the cluster twin `ReferencePreviewHandler` has the gap — closed by D14's one handler), the checkpoint restore snaps to the keyframe's recorded time (the seek path already does, `ReplaySeekProcessManager`) | ⛔ *the first lean — "Stop skips the clock, a restore applies it"* — wrong on both halves: neither applies the keyframe's clock, both snap |
 | **D6** | F6: `NoPreview` vs `NoReplay` | M4 diffs the sets; ONE recorded set if they agree; editor-only state moves to D12's keep list | two filters in the recorder |
 | **D7** | F7: recordability is decided at registration — 📐 **confirmed for singletons (§6a)**: `ITkbDatabase`, `INavmeshProvider`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`) … are all recorded | ⭐ singletons honour `DataPolicy` like components (the recorder reads the policy, not only the registry default); content / service singletons are `NoReplay`; a rail: every registered component AND singleton has an explicit policy | trust the default — it records the TKB and the navmesh provider into every keyframe |
 | **D8** | F8: `GlobalVersion` goes back to the recorded tick | apply under `max(live, recorded) + 1` (versions only grow); ⭐ **a restore starts a new recording segment** (a fork) — the frames after the mark stay intact for another restore, the new segment begins with a keyframe | let it go back — the always-on recorder skips changes until its next keyframe · overwrite the recording past the mark — loses the other branch |
@@ -247,7 +249,9 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | **D10** | F10: a fresh process — content and node ids | ⭐ **a restore keeps what is loaded (R-3043)**: in a running process the seek keeps every singleton (`Clear` spares them) — 📐 terrain, TKB, navmesh stay; only a fresh process runs the load chain first, which skips resident content (`TerrainLoadStep:55`, `KnowledgeBaseLoadStep:99`). ⏳ Node ids: the recordings are per node, so each node restores its OWN recording — ids match by construction; in a fresh cluster the master grants each node the id its recording carries | a restore as a full load from Idle — reloads content and stops everything |
 | **D11** | F11: the oracle masks the ids that hide the trajectory pool | R1 compares unmasked once S2 puts the pool in the ECS; until then it compares what a trajectory id POINTS AT | keep masking — the oracle passes over the bug it exists for |
 | **D12** | F12: editor-only `Transient` state wiped at Stop | `keepTypes` at dry-run exit: editor/debug types are neither cleared nor overwritten (M4 lists them) | restore them from the keyframe — the Stop would undo the operator's view settings |
-| **D13** | (R-3044) a labelled keyframe must outlive recording clean-up | ⏳ a recording trim never deletes a labelled keyframe (nor the frames a restore needs before it — none: a keyframe stands alone) | label in a side file — a second index that can drift from the recording |
+| **D13** ⛔ *(withdrawn `2026-10-22`)* | (R-3044) a labelled keyframe must outlive recording clean-up | 📐 **no trim inside a recording exists.** The only clean-up is `ExerciseRetention.Prune`, at `ClusterRunner` start-up, deleting WHOLE old exercise directories (keep the newest 20) — and only for a scratch staging root (the platform temp directory); anywhere else only when asked (`--keep-exercises N` / `FDP_KEEP_EXERCISES`), because recordings are user data, deleted by the operator only (file-sync-1). A checkpoint lives INSIDE its exercise's recording, so it goes when that exercise goes — by design; no rule needed | a rule protecting keyframes from a trim that does not exist |
+| **D14–D16** ✅ | (§1b) unification | one dry-run handler · the editor's recorder through `ForNode` · one shared host composition + rail | (see §1b) |
+| **D17** ✅ (R-3045) | the recorder's **CHECKPOINTING MODE** (user: *"It's basically a checkpointing mode"*) | a recording mode beside FULL (today): **keyframes only, every N seconds of simulation time** (e.g. 15 s), no per-frame deltas — `RecorderTickSystem`'s fixed 60-frame interval becomes the mode's setting. Restore points every N s; named checkpoints stay exact (R-3044 forces a keyframe); the restore path is unchanged. ⚠ No smooth replay — the after-action review, the replay browser and the film director's later replay need FULL. FULL stays the default for exercises; checkpointing mode is chosen per session | a separate checkpoint stream (R-3044: none outside the recorder) |
 
 ## 6. Measure first (M1–M4) — nothing in §8 starts before these
 
