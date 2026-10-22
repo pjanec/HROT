@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         private readonly EntityRepository? _world;
         private readonly EventAccumulator? _accumulator;
         private readonly Action<bool>? _worldReplaced;
+        private readonly Action<FdpEventBus>? _resumeSchedule;   // ⭐ CE-3316 — ModuleHostKernel.ResumeAfterRestore
         private readonly string? _storageDirectory;
 
         // ⭐ B4 — phase 1's staged keyframe (one restore at a time), and what phase 2's commit applies.
@@ -46,14 +47,19 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <param name="worldReplaced">⭐ B4 — the ELM's world-replacement hook (§2.1m), called with <c>true</c>: the restored world goes on
         /// live, so its protocols are re-derived.</param>
         /// <param name="storageDirectory">⭐ B4 — where the node's recordings live (the new exercise is recorded there).</param>
+        /// <param name="resumeSchedule">⭐ <c>CE-3316</c> — the kernel's <c>ResumeAfterRestore</c>: the restored run dispatches its slow
+        /// modules on the steps the straight one did, and gets the checkpoint's unconsumed events at the snap. The composition
+        /// (<c>EcsHostClusterHandlers</c>) holds the kernel and passes it.</param>
         public ReferenceCheckpointHandler(
             Func<RecordingModule?> recording,
             IRecordReplayController? controller = null,
             EntityRepository? world = null,
             EventAccumulator? accumulator = null,
             Action<bool>? worldReplaced = null,
-            string? storageDirectory = null)
+            string? storageDirectory = null,
+            Action<FdpEventBus>? resumeSchedule = null)
         {
+            _resumeSchedule = resumeSchedule;
             _recording        = recording ?? throw new ArgumentNullException(nameof(recording));
             _controller       = controller;
             _world            = world;
@@ -168,7 +174,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.Operation != NodeOpType.RestoreSnapshot || _committing is not { } restore) return;
             _committing = null;
 
-            PutBack(_world!, restore.Keyframe, _accumulator, _worldReplaced);
+            PutBack(_world!, restore.Keyframe, _accumulator, _worldReplaced, _resumeSchedule);
 
             var exercise = restore.Payload.NewExerciseId;
             _controller!.PrepareRecordingAsync(exercise, _storageDirectory!, restore.History).ContinueWith(t =>
@@ -186,14 +192,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         /// <summary>
         /// ⭐ <c>CE-3299</c> B4/B5 — <b>a checkpoint's world put back</b>: the keyframe in place, the after-restore step, the ELM's world
-        /// replacement — the ONE sequence every checkpoint restore runs (this handler's commit, and R1's restore in a fresh process,
-        /// restore design §1k). ⚠ The clock is not moved here: the caller snaps it to the mark (D5).
+        /// replacement, and (⭐ <c>CE-3316</c>) the kernel told the next clock snap is this restore, so its slow modules count as having run
+        /// the restored slot — the ONE sequence every checkpoint restore runs (this handler's commit, and R1's restore in a fresh process,
+        /// restore design §1k, §1l). ⚠ The clock is not moved here: the caller snaps it to the mark (D5).
         /// </summary>
-        public static void PutBack(EntityRepository world, WorldKeyframe keyframe, EventAccumulator? accumulator, Action<bool>? worldReplaced)
+        public static void PutBack(EntityRepository world, WorldKeyframe keyframe, EventAccumulator? accumulator, Action<bool>? worldReplaced,
+                                   Action<FdpEventBus>? resumeSchedule)
         {
-            WorldKeyframes.Apply(world, keyframe);   // D2: no events re-injected · D8: versions only grow
+            // D2 — the events are not re-processed; ⭐ CE-3316 — the UNCONSUMED ones are kept for the snap · D8: versions only grow
+            var unconsumed = WorldKeyframes.ApplyKeepingUnconsumedEvents(world, keyframe);
             AfterRestore.Run(world, accumulator);    // entity map · WorldEpoch.Restored · the step window (D4)
             worldReplaced?.Invoke(true);             // the ELM: clear, and re-derive the protocols the restored world implies
+            resumeSchedule?.Invoke(unconsumed);     // ⭐ CE-3316 — the kernel resumes the slots and delivers these at the snap
         }
 
         /// <summary>

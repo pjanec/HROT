@@ -111,6 +111,47 @@ namespace Fdp.ModuleHost
         private object? _stepReadersFor;         // ⭐ CE-3293 — the topology whose step-only systems' readers are registered
         private ITimeController? _epochClock;   // ⭐ CE-3293 — whose TimelineEpoch _clockEpochSeen is
         private long   _clockEpochSeen;
+        private volatile bool _resumeSlotsOnSnap;   // ⭐ CE-3316 — the next clock snap is a checkpoint restore
+        private FdpEventBus? _unconsumedOnSnap;     // ⭐ CE-3316 — the checkpoint's unconsumed events, published at that snap
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — the next snap of the clock puts back a CHECKPOINT: every slow module counts as having run
+        /// the restored time's slot (the checkpoint was written at a frame with no slot run in flight — <see cref="SlotRunInFlight"/>), so
+        /// the restored run dispatches on the same steps the straight one did. ⛔ A load or a dry-run exit does not call it: those worlds
+        /// had run nothing at the time they return to, and every module runs on the first step (<see cref="long.MinValue"/>).
+        /// </summary>
+        public void ResumeSlotsAfterRestore() => _resumeSlotsOnSnap = true;
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l, D2) — <see cref="ResumeSlotsAfterRestore"/>, and the checkpoint's UNCONSUMED events
+        /// (<paramref name="unconsumed"/>'s current buffers): published into the live bus's pending buffers at the snap, AFTER the event
+        /// history restarts — so that frame's swap and capture hand them to every reader once, as the straight run's next frame did.
+        /// </summary>
+        public void ResumeAfterRestore(FdpEventBus unconsumed)
+        {
+            _unconsumedOnSnap = unconsumed;
+            _resumeSlotsOnSnap = true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> — in stepped mode, a slot-paced background run (a slow asynchronous module) is in flight: dispatched on a snapshot
+        /// of an earlier frame, to be applied at the next step. A checkpoint written now could not be continued exactly (nothing in it is that
+        /// run's input), so a checkpoint waits for a frame where this is false. False in continuous play (nothing there repeats, R-3035) and
+        /// for a module run every step (it can never be idle).
+        /// </summary>
+        public bool SlotRunInFlight
+        {
+            get
+            {
+                if (!_steppedFrame) return false;
+                var topology = _initialized ? _activeTopology : null;
+                if (topology == null) return false;
+                foreach (var entry in topology.Modules)   // a stepped run's task stays until the next step harvests it
+                    if (entry.CurrentTask != null && entry.Module.Policy.Mode == RunMode.Asynchronous && SlotOf(entry) != long.MinValue)
+                        return true;
+                return false;
+            }
+        }
         
         // Public Accessor for GlobalTime
         public GlobalTime CurrentTime { get; private set; }
@@ -538,9 +579,14 @@ namespace Fdp.ModuleHost
                 // a load or a preview Stop snapped the clock back: a new timeline. Nothing of the old one may land in it.
                 _timelineEpoch++;
                 _eventAccumulator.Restart();
+                // ⭐ CE-3316 — a checkpoint put back: each slow module has run the slot it stands in (a load / dry-run exit: none has)
+                bool resumed = _resumeSlotsOnSnap;
+                _resumeSlotsOnSnap = false;
+                if (resumed && _unconsumedOnSnap is { } unconsumed) _liveWorld.Bus.PublishCurrentOf(unconsumed);   // before this frame's swap
+                _unconsumedOnSnap = null;
                 foreach (var entry in topology.Modules)
                 {
-                    entry.LastRunSlot          = long.MinValue;
+                    entry.LastRunSlot          = resumed ? SlotOf(entry) : long.MinValue;
                     entry.AccumulatedDeltaTime = 0f;
                     entry.FramesSinceLastRun   = 0;
                 }

@@ -187,6 +187,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 NodeId = _nodeId,
                 Branch = branch,
                 CheckpointingSeconds = branch == null ? SessionCheckpointingSeconds : 0,   // D17 — a branch reads its parent's (StartBranch)
+                SlotRunInFlight = () => _kernel.SlotRunInFlight,   // ⭐ CE-3316 — a checkpoint waits for a step with no slot run in flight
             };
             _activeRecordingModule = new RecordingModule(config);
             await _kernel.InstallModuleAsync(_activeRecordingModule);

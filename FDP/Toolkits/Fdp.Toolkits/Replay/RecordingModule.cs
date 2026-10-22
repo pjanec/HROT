@@ -63,7 +63,8 @@ namespace Fdp.Toolkit.Replay
                 _recorder.EntityFilter = _config.EntityFilter;
 
             // D17 — the mode is the metadata's: a branch's StartBranch put its parent's there
-            registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking, _recorder.Metadata.CheckpointingSeconds));
+            registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking, _recorder.Metadata.CheckpointingSeconds,
+                                                                    _config.SlotRunInFlight));
         }
 
         /// <summary>

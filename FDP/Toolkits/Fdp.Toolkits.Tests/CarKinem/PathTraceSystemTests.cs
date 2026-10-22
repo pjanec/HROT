@@ -93,6 +93,39 @@ namespace Fdp.Toolkit.CarKinem.Tests
             Assert.True(Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() > longHandle, "the next handle is above every restored one");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3318</c> (restore design §1m) — a CHECKPOINT put back resumes the navigation handle counter where the straight run's stood
+        /// (the world carries it, <see cref="Fdp.Toolkit.Navigation.NavigationHandleMark"/>), not just above the live movers' handles; a copy
+        /// newer than the restored clock (a dry-run exit: no singleton is put back) is not used. ⚠ The counter is a process static shared with
+        /// tests running in parallel, so this resumes ABOVE it (never lowers it) and asserts by order. 📌 Found by R1 on
+        /// <c>ua-civ-routine-alarm</c>: the Rifleman's next path took 1073741830 restored, 1073741833 straight. 🔴 Red-proof: keep only
+        /// <c>EnsureAbove</c> ⇒ the next handle is below the carried one.
+        /// </summary>
+        [Fact]
+        public void CE3318_ARestoredWorld_NumbersItsNextPathWhereTheStraightRunsCounterStood()
+        {
+            var restore = new TrajectoryRestoreSystem(_pool);
+            _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 2.0 });
+
+            int carried = Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() + 5000;   // the checkpoint's counter, ahead of this one
+            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = carried, At = 1.5 });
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(_w);
+            _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });   // the restore's paused frame: the clock has not snapped yet …
+            restore.Execute(_w, 0f);
+            Assert.Equal(carried, _w.GetSingleton<Fdp.Toolkit.Navigation.NavigationHandleMark>().Last);   // … the carried copy is kept
+            _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 2.0 });   // the first step, at the restored time
+            restore.Execute(_w, 1f / 60f);
+            Assert.True(Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() > carried, "the next handle follows the carried counter");
+
+            int abandoned = Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() + 5000;
+            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = abandoned, At = 3.0 });   // newer than 2.0 s
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(_w);
+            restore.Execute(_w, 0f);
+            restore.Execute(_w, 1f / 60f);
+            Assert.True(Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() < abandoned, "the abandoned future's count is not used");
+            Assert.True(_w.GetSingleton<Fdp.Toolkit.Navigation.NavigationHandleMark>().Last < abandoned);   // and the copy is this world's again
+        }
+
         [Fact]
         public void CE3117_ALongPath_IsThinned_KeepingTheEndsAndEveryDoorStep()
         {

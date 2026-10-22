@@ -169,10 +169,13 @@ internal static class VerifyCommand
             {
                 JsonObject a = JsonNode.Parse(File.ReadAllText(runA))!.AsObject(), b = JsonNode.Parse(File.ReadAllText(runB))!.AsObject();
                 var carried = Carried(cp);   // ⭐ what the checkpoint carries is what its own schema manifest lists
-                var diff = ScenarioGolden.CompareFrom(a, b, t1, carried);
+                // ⭐ CE-3316 — from where A really wrote the checkpoint (a quiet step, at most a few after T1)
+                double from = DirectorRunner.ReadSidecar(new RestoreCheck(t1, cp, false, runA, every)).At ?? t1;
+                item["checkpointWrittenAt"] = Math.Round(from, 4);
+                var diff = ScenarioGolden.CompareFrom(a, b, from, carried);
                 item["golden"] = diff.Count == 0 ? "same" : "different";
                 item["goldenDiff"] = new JsonArray(diff.Select(d => (JsonNode?)d).ToArray());
-                var notCarried = ScenarioGolden.CompareNotCarried(a, b, t1, carried);
+                var notCarried = ScenarioGolden.CompareNotCarried(a, b, from, carried);
                 if (notCarried.Count > 0) item["notCarriedDiff"] = new JsonArray(notCarried.Select(d => (JsonNode?)d).ToArray());
             }
             if (problems.Count > 0) item["problems"] = problems;

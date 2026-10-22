@@ -601,7 +601,7 @@ namespace Hrot.Editor.Director
             _nextSnapshot = _every is { } e ? FirstAtOrAfter(startAt, e) : 0;
         }
 
-        private static double FirstAtOrAfter(double t, double step) => t <= 0 || !(step > 0) ? 0 : Math.Ceiling(t / step - 1e-9) * step;
+        private static double FirstAtOrAfter(double t, double step) => t <= 0 || !(step > 0) ? 0 : Math.Ceiling(t / step - 1e-4) * step;   // a run's time carries float dust
 
         /// <summary>⭐ B5 — the indexes (in <see cref="ScenarioChecks.Do"/>) of the actions applied so far: a checkpoint carries them to the
         /// process that restores it, which must not apply them again.</summary>

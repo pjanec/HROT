@@ -22,6 +22,8 @@ namespace CarKinem.Systems
     {
         private readonly TrajectoryPoolManager _pool;
         private int _worldEpoch;
+        private int _restoresSeen;   // ⭐ CE-3318 — the world restores already resumed the handle counter for
+        private bool _resumePending;  // ⭐ CE-3318 — a restore waits for its first step to decide the counter (the clock has moved by then)
 
         public TrajectoryRestoreSystem(TrajectoryPoolManager pool) => _pool = pool ?? throw new ArgumentNullException(nameof(pool));
 
@@ -32,7 +34,34 @@ namespace CarKinem.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            if (!Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) return;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) Replaced(repo);
+            // ⭐ CE-3318 (restore design §1m) — a restore is decided on its FIRST STEP: on the paused frames before it the clock has not
+            //   reached the restored time yet (the snap lands later), so a carried copy would look like the abandoned future's. Nothing
+            //   allocates a handle before a step (the pathfinding solver runs on steps).
+            if (_resumePending)
+            {
+                if (deltaTime <= 0f) return;   // ⛔ and the mirror waits too: it would overwrite the carried copy
+                _resumePending = false;
+                if (repo.HasSingleton<NavigationHandleMark>() && repo.GetSingleton<NavigationHandleMark>() is var mark
+                    && mark.At <= SimTime(repo) + 1e-6)
+                    NavigationHandleAllocator.ResumeAt(Math.Max(mark.Last, _highestRestored));
+            }
+            // the world's copy of the handle counter, so a checkpoint carries it
+            int last = NavigationHandleAllocator.Last;
+            if (!repo.HasSingleton<NavigationHandleMark>() || repo.GetSingleton<NavigationHandleMark>().Last != last)
+                repo.SetSingletonUnmanaged(new NavigationHandleMark { Last = last, At = SimTime(repo) });
+        }
+
+        private static double SimTime(EntityRepository repo) => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+        private void Replaced(EntityRepository repo)
+        {
+            // ⭐ CE-3318 — a CHECKPOINT put back: the next handle follows the carried count (a load, or a dry-run exit whose copy is the
+            //   abandoned future's, keeps the counter above every live mover's handle, as before)
+            int restores = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(repo);
+            _resumePending = restores != _restoresSeen;
+            _restoresSeen = restores;
+            _highestRestored = 0;
             if (!repo.IsComponentTypeRegistered<NavState>() || !repo.IsComponentTypeRegistered<PathTrace>()) return;
 
             RestoredCount = ReplannedCount = 0;
@@ -67,8 +96,11 @@ namespace CarKinem.Systems
                     ReplannedCount++;
                 }
             }
-            NavigationHandleAllocator.EnsureAbove(highest);
+            NavigationHandleAllocator.EnsureAbove(highest);   // at once (a load); a restore's carried count follows on its first step
+            _highestRestored = highest;
         }
+
+        private int _highestRestored;
 
         /// <summary>Registers the trajectory <paramref name="trace"/> holds whole, under <paramref name="id"/>; false when it cannot.</summary>
         private bool Register(in PathTrace trace, int id)

@@ -568,13 +568,14 @@ namespace Fdp.Toolkit.Replay.Tests
 
         // a hand-driven recording whose frames carry SIM time too (the checkpointing mode keys on it)
         private (RecordingModule Module, Action<double, long> Frame, string Path) TimedRecording(
-            EntityRepository world, string name, double checkpointingSeconds, RecordingBranch? branch = null)
+            EntityRepository world, string name, double checkpointingSeconds, RecordingBranch? branch = null, Func<bool>? slotRunInFlight = null)
         {
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, name), ExerciseId = Guid.NewGuid(), NodeId = 3,
                 CheckpointingSeconds = checkpointingSeconds, Branch = branch,
                 Blocking = true,   // a non-blocking recorder drops a frame while its writer is busy — the rails count frames
+                SlotRunInFlight = slotRunInFlight,
             };
             var module = new RecordingModule(config);
             var captured = new CapturingSystemRegistry();
@@ -652,6 +653,39 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Equal(2.0, meta.CheckpointingSeconds);                       // ...the branch keeps its parent's
             using var playback = new PlaybackController(branchPath);
             Assert.Equal(4, playback.TotalFrames);                              // 2 copied + its first keyframe (2.5) + 4.5; 3.0 skipped
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3316</c> (restore design §1l) — a due checkpoint WAITS for a step with no slot-paced background run in flight (its input is
+        /// an earlier frame's world, which no keyframe holds): it is written on the first quiet step, and a periodic keyframe while it waits is
+        /// not it. It waits at most <see cref="RecorderTickSystem.MaxCheckpointDeferSteps"/> steps (a module run every step is never idle).
+        /// 🔴 Red-proof: drop the wait ⇒ the mark lands on frame 0, the in-flight step.
+        /// </summary>
+        [Fact]
+        public void CE3316_ACheckpoint_IsWrittenOnTheFirstStepWithNoSlotRunInFlight()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            bool busy = true;
+            var (module, frame, path) = TimedRecording(world, "quiet.fdp", checkpointingSeconds: 0, slotRunInFlight: () => busy);
+            try
+            {
+                module.RequestCheckpoint("quiet", 0);
+                frame(0.0, 100);    // frame 0: due, a run in flight — waits (the recording's first keyframe is not the checkpoint)
+                frame(0.25, 110);   // frame 1: still in flight
+                busy = false;
+                frame(0.5, 120);    // frame 2: quiet — the checkpoint
+                module.RequestCheckpoint("capped", 0);
+                busy = true;        // a run in flight on every step from here
+                for (int i = 0; i < RecorderTickSystem.MaxCheckpointDeferSteps + 2; i++) frame(0.75 + i * 0.25, 130 + i);
+            }
+            finally { module.Dispose(); }
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(path));
+            var quiet = meta.Checkpoints.Single(c => c.Label == "quiet");
+            Assert.Equal(2, quiet.Frame);
+            Assert.Equal(0.5, quiet.TotalTime, 6);
+            var capped = meta.Checkpoints.Single(c => c.Label == "capped");   // written anyway, after the cap
+            Assert.Equal(3 + RecorderTickSystem.MaxCheckpointDeferSteps, capped.Frame);
         }
 
         /// <summary>

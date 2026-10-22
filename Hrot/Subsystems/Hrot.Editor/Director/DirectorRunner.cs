@@ -418,11 +418,12 @@ namespace Hrot.Editor.Director
             _book = new AnchorBook(_take.Anchors, null, _host.BehaviourName);
             var r1 = _request!.Verify!.R1;
             bool restored = r1 is { Restore: true };
-            _t0 = restored ? _host.SimTime - r1!.At : _host.SimTime;   // ⭐ B5 — a restored run goes on from At, on the same grid
+            double at = restored ? ReadSidecar(r1!).At ?? r1!.At : 0d;   // ⭐ CE-3316 — where A really wrote it (on a quiet step)
+            _t0 = restored ? _host.SimTime - at : _host.SimTime;   // ⭐ B5 — a restored run goes on from there, on the same grid
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0,
-                startAt: restored ? r1!.At : 0, snapshotEvery: r1?.Every);
-            if (restored) _verification.MarkDone(ReadDoneActions(r1!));
+                startAt: at, snapshotEvery: r1?.Every);
+            if (restored) _verification.MarkDone(ReadSidecar(r1!).Done);
             Replan();
             _clock = new PacedClock(60, 1d);
             Phase = DirectorPhase.Playing;
@@ -459,12 +460,14 @@ namespace Hrot.Editor.Director
             File.WriteAllText(r1.SidecarPath, new System.Text.Json.Nodes.JsonObject { ["at"] = rel, ["doneActions"] = done }.ToJsonString());
         }
 
-        private static IEnumerable<int> ReadDoneActions(RestoreCheck r1)
+        /// <summary>⭐ B5 / CE-3316 — the checkpoint's sidecar: the run time it was written at, and the actions applied by then.</summary>
+        public static (double? At, IReadOnlyList<int> Done) ReadSidecar(RestoreCheck r1)
         {
-            if (!File.Exists(r1.SidecarPath)) return Array.Empty<int>();
+            if (!File.Exists(r1.SidecarPath)) return (null, Array.Empty<int>());
             var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(r1.SidecarPath));
-            return (node?["doneActions"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray())
+            var done = (node?["doneActions"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray())
                 .Select(n => (int?)n ?? -1).Where(i => i >= 0).ToList();
+            return ((double?)node?["at"], done);
         }
 
         private Loaded<ScenarioChecks> LoadChecks(string scenario)
@@ -526,7 +529,10 @@ namespace Hrot.Editor.Director
             {
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
-            if (_request.Verify?.R1 is { Restore: false } r1 && !_r1Written && rel + 1e-9 >= r1.At) WriteCheckpoint(r1, rel);
+            // ⭐ CE-3316 — on a step with no slot run in flight (as the recorder writes one), a few steps late at most
+            if (_request.Verify?.R1 is { Restore: false } r1 && !_r1Written && rel + 1e-9 >= r1.At
+                && (!_host.SlotRunInFlight || ++_r1Frames > Fdp.Toolkit.Replay.RecorderTickSystem.MaxCheckpointDeferSteps))
+                WriteCheckpoint(r1, rel);
             _verification?.ApplyDue(rel);   // ⭐ an action lands on its exact step (every frame is a step boundary)
             StepOnce();
         }

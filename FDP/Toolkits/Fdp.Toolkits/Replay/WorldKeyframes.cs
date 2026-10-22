@@ -113,6 +113,22 @@ namespace Fdp.Toolkit.Replay
         /// apply works on a copy with that header rewritten — the keyframe itself is never changed.</para>
         /// </summary>
         public static void Apply(EntityRepository repo, WorldKeyframe keyframe, RestoreOptions? options = null)
+            => ApplyCore(repo, keyframe, options ?? RestoreOptions.DryRunExit, holding: null);
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (D2's checkpoint half, restore design §1l) — <see cref="Apply"/>, keeping the keyframe's UNCONSUMED events: the
+        /// recorder wrote the bus's PENDING buffer (published in the checkpoint's frame, read by nobody yet). They come back in a holding bus,
+        /// for the kernel to publish at the restore's clock snap (<c>ModuleHostKernel.ResumeAfterRestore</c>) — ⛔ never into the live bus
+        /// now: the snap's history restart would erase them, and into its READ buffer they would be processed twice (F2).
+        /// </summary>
+        public static FdpEventBus ApplyKeepingUnconsumedEvents(EntityRepository repo, WorldKeyframe keyframe)
+        {
+            var holding = new FdpEventBus();
+            ApplyCore(repo, keyframe, RestoreOptions.DryRunExit, holding);
+            return holding;
+        }
+
+        private static void ApplyCore(EntityRepository repo, WorldKeyframe keyframe, RestoreOptions? options, FdpEventBus? holding)
         {
             if (repo is null) throw new ArgumentNullException(nameof(repo));
             if (keyframe is null) throw new ArgumentNullException(nameof(keyframe));
@@ -124,8 +140,8 @@ namespace Fdp.Toolkit.Replay
 
             using var reader = new BinaryReader(new MemoryStream(bytes, writable: false));
             new PlaybackSystem().ApplyFrame(repo, reader,
-                eventBus: options.RestoreEvents ? repo.Bus : null,
-                processEvents: options.RestoreEvents);
+                eventBus: holding ?? (options.RestoreEvents ? repo.Bus : null),
+                processEvents: holding != null || options.RestoreEvents);
         }
     }
 

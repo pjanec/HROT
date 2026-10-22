@@ -2298,6 +2298,7 @@ namespace Hrot.Editor
                     stepBy:         seconds => _timeCommands!.StepBy(seconds),
                     behaviourName:  hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
                     takes:          _takeStore,
+                    slotRunInFlight: () => _kernel?.SlotRunInFlight ?? false,   // ⭐ CE-3316 — R1 writes its checkpoint on a quiet step
                     // ⭐ CE-3299 B5 (R1, restore design §1k) — a checkpoint file written by the recorder, and put back by the SAME
                     //   sequence the cluster restore runs (PutBack: keyframe, after-restore with this node's step window, the ELM),
                     //   then the clock asked to the mark (D5)
@@ -2306,7 +2307,8 @@ namespace Hrot.Editor
                     {
                         var (keyframe, mark) = Fdp.Toolkit.Replay.CheckpointFile.Read(path);
                         Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.PutBack(
-                            _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced);
+                            _world!, keyframe, _node!.EventAccumulator, elm == null ? null : elm.OnWorldReplaced,
+                            _kernel!.ResumeAfterRestore);   // ⭐ CE-3316
                         _timeCommands!.SnapTo(mark.ToGlobalTime());
                         return mark.TotalTime;
                     });

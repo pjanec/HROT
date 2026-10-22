@@ -68,5 +68,11 @@ namespace Fdp.Toolkit.Replay
         /// parent's mode, whatever this says.
         /// </summary>
         public double CheckpointingSeconds { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — the kernel's "a slot-paced background run is in flight" (<c>ModuleHostKernel.SlotRunInFlight</c>):
+        /// a checkpoint waits for a step where it is false, so a restore can continue exactly. Null = never in flight (a host with no kernel).
+        /// </summary>
+        public Func<bool>? SlotRunInFlight { get; init; }
     }
 }

@@ -107,7 +107,8 @@ namespace Hrot.SimHost.Modules.Orchestration
             //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
             //    ⭐ B4 (§1h): and the RESTORE — so it is handed everything a restore touches (the silent-default rule).
             slave.RegisterHandler(new ReferenceCheckpointHandler(
-                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot));
+                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot,
+                resumeSchedule: h.Kernel.ResumeAfterRestore));   // ⭐ CE-3316
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();

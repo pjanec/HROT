@@ -1083,6 +1083,10 @@ namespace Fdp.Core
         /// where it stood (restore design §1k).</summary>
         public const int SoundTimeline = 455;
 
+        /// <summary>⭐ <c>CE-3318</c> (backend) — <c>NavigationHandleMark</c>: the world's copy of the navigation handle counter, so a restore
+        /// numbers its next path where the straight run did (restore design §1m).</summary>
+        public const int NavigationHandleMark = 456;
+
         /// <summary>⭐ <c>CE-3288</c> (backend) — <c>ScenarioDescriptionResident</c>: the loaded scenario's header description, a managed world
         /// singleton a save writes back. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d. Backend's block; measured free on every lane 2026-10-20.</summary>
         public const int ScenarioDescriptionResident = 440;

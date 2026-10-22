@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17, B5 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §1k, §6b as-built; R1's reds are the work list: CE-3315, CE-3316)
-updated: 2026-10-22 (B5 BUILT — R1 runs in the editor verifier, §1k; 2 of 4 pilot scenarios restore to the same run; CE-3315, CE-3316 filed, CE-3317 fixed) · 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17, B5 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §1k, §1l, §1m, §6b as-built; CE-3315, CE-3316 (+ D2's checkpoint half), CE-3318 fixed from R1's reds)
+updated: 2026-10-22 (D2's checkpoint half BUILT with §1l — unconsumed events delivered at the restore's snap, deviating from "into the accumulator"; §1m: the resume waits for the first step) · 2026-10-22 (§1m CE-3318 BUILT — a restore numbers its next path where the straight run did) · 2026-10-22 (§1l CE-3316 BUILT — a checkpoint on a quiet step; a restore resumes the slow modules' slots) · 2026-10-22 (B5 BUILT — R1 runs in the editor verifier, §1k; 2 of 4 pilot scenarios restore to the same run; CE-3315, CE-3316 filed, CE-3317 fixed) · 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -532,6 +532,75 @@ step by step: a background hearing solve IN FLIGHT across the checkpoint is lost
 (**CE-3316**, re-diagnosed — a decision for the stepped scheduler, Time Architecture §17). ⭐ `--verify-restore-every <s>` snapshots at any grid
 (1/60 = every step) to run a difference down.
 
+### 1l. ✅ CE-3316 — a checkpoint on a quiet step; a restore resumes the slots (`2026-10-22`; build-state: BUILT; 🔒 user: *"yes, CE-3316 on your lean"*)
+
+📐 **Measured** (R1 a snapshot every step, `ua-civ-melee`; `ModuleHostKernel` stepped rules, [Time Architecture §17](blueprints/DESIGN_Time_Architecture.md)): a slow
+background module dispatches when a step enters a new sim-time slot, on a snapshot taken at the START of that frame, and is applied at the next
+step. A checkpoint written at the end of a dispatching frame has that run IN FLIGHT — its input is the previous frame's world, which no
+keyframe holds — and a restore's clock snap reset every module to "never ran" (`LastRunSlot = MinValue`), so the restored run dispatched the
+slot one step late on a newer snapshot: a hearing solve late, a threat boost off by 5.
+
+```mermaid
+sequenceDiagram
+  participant K as ModuleHostKernel
+  participant R as RecorderTickSystem (PostSimulation)
+  participant H as checkpoint restore (PutBack)
+  Note over K,R: frame f: harvest, systems, DISPATCH (a slot run starts), PostSimulation
+  R->>K: SlotRunInFlight?
+  K-->>R: true (dispatched this frame) - the due checkpoint waits
+  Note over K,R: frame f+1: the run is harvested, nothing new starts
+  R->>K: SlotRunInFlight?
+  K-->>R: false - the keyframe and its mark are written now
+  H->>K: ResumeSlotsAfterRestore()
+  H->>H: keyframe in, AfterRestore, ELM, then the caller snaps the clock to the mark
+  K->>K: on the snap: each slow module's LastRunSlot = the slot of the restored time
+  Note over K: the next dispatches fall on the straight run's steps
+```
+*What the picture shows that prose hid:* the two halves are one invariant — a checkpoint is written only when every slow module has run the
+slot it stands in AND nothing is in flight, so "has run the current slot" is exactly what a restore may assume.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| the recorder waits for a step with no slot run in flight (`SlotRunInFlight`, stepped mode only), at most 8 steps; a periodic keyframe meanwhile is not the checkpoint | in stepped mode a run is in flight for one step; a module run EVERY step (a legacy `Tier` fallback) is never idle, hence the cap | carry the in-flight run's result in the checkpoint — engine command buffers, not ECS state |
+| a CHECKPOINT restore (and only it — `PutBack` calls `ResumeSlotsAfterRestore`) counts each slow module as having run the restored slot | true by the first half; a load and a dry-run exit return to a time nothing had run at, so they keep `MinValue` | derive it on every snap — a dry-run exit would then skip the first step's runs (the Play → Stop → Play rail) |
+| R1's writing half asks the same question (`IDirectorHost.SlotRunInFlight`) and records where it really wrote; the restoring half and the compare start there | R1 must test the product's rule | a fixed T1 — the checkpoint would sit on a dispatching step |
+
+| ⭐ **D2's checkpoint half, as built:** the restore applies the keyframe's pending events into a HOLDING bus (`WorldKeyframes.ApplyKeepingUnconsumedEvents`), and the kernel publishes them into the live bus's pending buffer at the clock snap, after `Restart` and before that frame's swap (`ModuleHostKernel.ResumeAfterRestore` → `FdpEventBus.PublishCurrentOf`) — read once, on the first restored step | 📐 R1 `ua-civ-melee`: a heard contact published in the checkpoint's frame was lost — the straight run's Policeman got its +5 boost on the next step, the restored one never did | ⛔ DEVIATES from D2's "into the accumulator": the accumulator is the recorder's input, not the systems' — events put there are recorded but never read · into the live bus at restore time — `Restart` on the snap erases them, or they are read twice |
+| R1's grid: `FirstAtOrAfter` rounds with a 1e-4-step tolerance | a sidecar's `at` (3.0000000000000013) put the first compared snapshot one step late | — |
+
+Rails: `ModuleHostKernelTimeTests.CE3316_*` ×3 (in flight from dispatch to harvest, stepped only; a restored kernel runs its slow module on the
+straight run's steps — red without the resume; a checkpoint's unconsumed event arrives once at the restore's snap — red without the publish),
+`RecordingModuleTests.CE3316_*` (written on the first quiet step, capped — red without the wait).
+
+### 1m. ✅ CE-3318 — a restore numbers its next path where the straight run did (`2026-10-22`; build-state: BUILT; 🔒 user: *"then CE-3318"*)
+
+📐 **Measured:** R1 on `ua-civ-routine-alarm` — at 7 s the Rifleman's new path took handle 1073741830 restored, 1073741833 straight (every position
+equal). `NavigationHandleAllocator` is a process static, allocated from the pathfinding solver's BACKGROUND run; after a restore R-3039 S2's
+`EnsureAbove` lifted it only past the highest handle a live mover still holds — the handles taken and released before the checkpoint were lost.
+
+```mermaid
+classDiagram
+  class NavigationHandleAllocator { <<existing, process static>> Allocate() ; EnsureAbove(h) ; Last NEW ; ResumeAt(last) NEW }
+  class NavigationHandleMark { <<NEW unmanaged singleton, id 456, recorded>> int Last ; double At }
+  class TrajectoryRestoreSystem { <<existing, GroundKinematicsModule, Simulation, every frame>> mirrors Last into the mark ; on a CHECKPOINT restore ResumeAt(carried) }
+  class PathfindingSolverSystem { <<existing, background>> Allocate() }
+  PathfindingSolverSystem --> NavigationHandleAllocator
+  TrajectoryRestoreSystem --> NavigationHandleAllocator
+  TrajectoryRestoreSystem --> NavigationHandleMark
+```
+*What the picture shows that prose hid:* the counter stays where the background solver can reach it; the WORLD only holds its value — exact at a
+checkpoint because §1l writes one only when no solver run is in flight.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| mirror the static counter into a recorded singleton every frame it moves; on a CHECKPOINT restore resume the counter exactly at the carried value (it may go DOWN in the same process — the trajectory pool's keyed entry of the abandoned timeline is replaced) | the smallest change that makes the next handle the straight run's; §1l makes the copy exact | move the counter into the world — the background solver allocates from a snapshot, so it would need the singleton in `SyncFrom` and a write through its command buffer |
+| a copy newer than the restored clock (a dry-run exit puts no singleton back) is not used: `EnsureAbove` as before | the same guard as `SoundTimeline` (Sensing §8.3a) | trust the copy always — after a dry run it is the abandoned future's |
+| ⭐ the decision waits for the FIRST STEP after the restore (`deltaTime > 0`), never the paused restore frame | 📐 measured: an every-frame system runs on the paused frame before the clock snap lands — sim time still reads ~0 there, so every carried mark looked newer and was rejected | decide in `Replaced` — that frame's clock is the pre-snap one |
+
+📐 **R1 after §1l + §1m (`2026-10-22`, checkpoint at 3 s): 4 of 4 pilot scenarios restore to the same run** (`bt-grenade-posture`, `ua-civ-melee`, `ua-civ-routine-alarm`, `ua-tank-ammo`); the only differences left are the not-carried `PendingNetworkAck` (by design, listed apart).
+
+⚠ **Not solved here:** the counter is still SHARED by every node of one process (the in-process cluster harness). Rail: `PathTraceSystemTests.CE3318_*`.
+
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
 ```mermaid
@@ -707,7 +776,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | # | finding | ⏳ lean | rejected — one line |
 |---|---|---|---|
 | **D1** | F1: `NoReplay`/`Transient` components with sim meaning are not in a keyframe (`SubordinateOrders`, `AirPath`, `PausedTask`, `TrafficCar`, `MissionAdapterState`, `OutgoingGrantsPending`, …) | M4 classifies all 86 types: **sim state ⇒ recordable** (drop `NoReplay`); protocol ⇒ re-derived (`GhostStateTracker`, `PendingNetworkAck`, R-3039 class B); network shadows ⇒ republished (`NetworkTransform`, `NetworkVelocity`); events stay out | record everything — protocol progress restored as-is deadlocks (replay §2.1d) |
-| **D2** | F2: a keyframe re-injects recorded events | dry-run exit: `restoreEvents: false`. ⏳ Checkpoint: keyframe X records the UNCONSUMED step window (the `EventAccumulator` content since the last step — as `ReferenceCheckpointHandler` flushes it today); the restore puts it INTO THE ACCUMULATOR after `Restart`, never into the bus | inject into the bus buffers (re-processing) · drop all events (a step's pending orders lost) |
+| **D2** | F2: a keyframe re-injects recorded events | dry-run exit: `restoreEvents: false`. ⏳ Checkpoint: keyframe X records the UNCONSUMED step window (the `EventAccumulator` content since the last step — as `ReferenceCheckpointHandler` flushes it today); the restore puts it INTO THE ACCUMULATOR after `Restart`, never into the bus. ✅ **BUILT `2026-10-22` with CE-3316 — DEVIATED:** into the live bus's PENDING buffer at the clock snap, after `Restart` (§1l) — the accumulator is the recorder's input, not the systems' | inject into the bus buffers (re-processing) · drop all events (a step's pending orders lost) |
 | **D3** | F3: nodes captured at different frames | ⭐ **R-3042 + R-3044**: no pause; the master names a wall time T a moment ahead on the shared zero (R-4012) and each node's recorder writes keyframe X at its first frame with `TotalWallTicks ≥ T` — within one frame on every node; the residual skew is R-3041's accepted loss | ⛔ pause the cluster — ruled out (R-3042) · write on receipt — skew = message latency, avoidable at no cost |
 | **D4** | F4: no reset fires after a keyframe apply | `AfterRestore`: ELM re-arm (exists) → `NetworkEntityMap.RebuildFromWorld` (exists) → `WorldEpoch.Restored` (NEW count; R-3039 class A/B fields reset through `Rebuilt`) → `EventAccumulator.Restart` (+ D2) → a forced keyframe in the running recording (D8) | reuse `Moved` — makes the network cleanup delete every owned entity on the wire |
 | **D5** ✅ *(corrected `2026-10-22`)* | F5: the clock | ⭐ **one rule for both, and it is not the keyframe:** the kernel rewrites `GlobalTime` every frame from the time controller (`ModuleHostKernel.cs:496–500`, [Time Architecture §12a](blueprints/DESIGN_Time_Architecture.md)), so a keyframe's clock is overwritten on the next frame and decides nothing. The clock is MOVED by the time system's one discontinuity, `ITimeCommands.SnapTo(position)`: the dry-run Stop snaps to the position captured at Play (✅ built for the editor, `CE-3156`; ⚠ the cluster twin `ReferencePreviewHandler` has the gap — closed by D14's one handler), the checkpoint restore snaps to the keyframe's recorded time (the seek path already does, `ReplaySeekProcessManager`) | ⛔ *the first lean — "Stop skips the clock, a restore applies it"* — wrong on both halves: neither applies the keyframe's clock, both snap |
