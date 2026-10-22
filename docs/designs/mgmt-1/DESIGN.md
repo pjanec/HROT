@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-15 (§13.3a CE-3119: the exercise archive carries a copy of its scenario)
 current-answer: §8.10 "Distributed Entity Lifecycle During Replay" + §8.5 are the RULING on what runs
   during replay. The rest of this document is the drill-management / DSM design.
-known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
+known-rot: ⛔ §9.3's dry-run mechanics (SyncFrom) are SUPERSEDED by R-3040 — the dry run and the checkpoint use the flight recorder (Paused and Stepped §7g.0). ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
   GhostPromotionSystem and NetworkGatewaySystem never run". MEASURED 2026-09-12: none of those three is
   ever passed to that group, ExecuteGroup has exactly ONE caller (NedReplicationModule.cs:493) so the
   group never ticks on the editor or on BDC nodes, and relocating them into it would STOP entity
@@ -2376,6 +2376,8 @@ OS-imposed inbound SMB connection limits.
 | Concurrent | No (edit mode, single session) | Yes (IOS can fire in quick succession) |
 | ACK timing | Synchronous (RAM only, no disk) | Deferred until local SSD write complete |
 
+> ⛔ **SUPERSEDED `2026-10-22` by `R-3040`** ([Paused and Stepped §7g.0 R0″ / R0′](../../blueprints/DESIGN_Paused_And_Stepped_Execution.md)): the dry run and the checkpoint save and restore with the **flight recorder** (a keyframe; `PlaybackSystem` applies it), not `SyncFrom` — 📐 `SyncFrom` carries only 11 singletons, borrowed by reference, so neither a dry-run rewind nor a checkpoint ever held the rest. The text below is the prior as-built.
+>
 > **Dry Run mechanics:** On `LoadingDryRun` the slave calls `snap.SyncFrom(liveRepo)`
 > (same path as named checkpoints) but retains the snapshot purely in RAM.  The
 > simulation is unpaused → `RunningDryRun`.  On `UnloadingDryRun` the slave calls
