@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L4 (dry): the live check POSTs two faked SPOTs (AirDefence at the ZU-23, IndirectFire at the tubes) — not a component edit, so `do` cannot make them. Only the quiet half is encoded: the HQ and the A-10's orbit run, and with no report the Apache gets no task and the A-10 stays on its orbit (Judge (3) 'the Apache stays without a task' read as 'never AirArmedSearch'). Judge (1)-(2) (relay, REQUEST, A-10 sent first) need a report-injection action — PARTIAL, see the report. DEMO: no golden.",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the HQ runs SupportCommand",
+      "on": "task",
+      "who": "Blue HQ",
+      "is": "SupportCommand"
+    },
+    {
+      "name": "the A-10 flies its orbit (FollowRoute)",
+      "on": "task",
+      "who": "A-10",
+      "is": "FollowRoute"
+    },
+    {
+      "name": "the Apache gets no armed search without a report",
+      "never": {
+        "on": "task",
+        "who": "Apache",
+        "is": "AirArmedSearch"
+      }
+    },
+    {
+      "name": "the A-10 is still on its orbit at the end",
+      "on": "task",
+      "who": "A-10",
+      "is": "FollowRoute",
+      "atEnd": true
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — WS-6: weapons are entities. Judge (1) the sentry gun fires on its own and hurts the Intruder, (2) the gunner takes the M2's seat and the M2 becomes Deployed (20 s deploy), (3) the Javelin man carries the Javelin (it is aboard him = embark). The M2 firing is not checked (the take notes it).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the sentry gun fires at the Intruder on its own",
+      "on": "shot",
+      "by": "Sentry Gun",
+      "at": "Intruder"
+    },
+    {
+      "name": "the Intruder is hurt",
+      "on": "field",
+      "who": "Intruder",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    },
+    {
+      "name": "the M2 gunner takes the M2's gunner seat",
+      "on": "embark",
+      "who": "M2 Gunner",
+      "is": true
+    },
+    {
+      "name": "the M2 is Deployed",
+      "on": "field",
+      "who": "M2 HMG",
+      "path": "WeaponSystemState.Deploy",
+      "op": "==",
+      "value": "Deployed"
+    },
+    {
+      "name": "the Javelin man carries the Javelin (it is aboard him)",
+      "on": "embark",
+      "who": "Javelin",
+      "is": true
+    }
+  ]
+}

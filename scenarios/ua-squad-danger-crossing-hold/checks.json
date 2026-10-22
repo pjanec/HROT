@@ -1,0 +1,15 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10 (CE-2159 D3): the crossing under a threat while low on ammo; the header asserts no pass condition. Only the Fail point is encoded: the squad must not stand frozen in the open (old CE-2164 freeze) — proxy: the Leader (start x 150) gets past x 170 (the measured live run resumes the march at ~38.6 s). The 170 is a loose proxy, not from the Judge. The measured BreakContact pick is a maneuver/drill, not a readable task, so it is left out. DEMO (13 units, no winner asserted): no golden.",
+  "runFor": 90,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the squad does not sit frozen: the Leader gets past x 170",
+      "on": "field",
+      "who": "Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 170
+    }
+  ]
+}

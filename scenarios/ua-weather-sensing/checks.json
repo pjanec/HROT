@@ -1,0 +1,58 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-3: weather shortens sight. Judge (1) the clear observer first sees his target at about his full 150 m (the old check: >= 120 m), (2) the fog observer only at <= 60 m (old check: <= 65 m). Read through TargetMemory.Count > 0 (the observer remembers a contact) against the target's distance (a `near` cue from the observer's spot: within 120 / within 65). UNVERIFIED: that TargetMemory.Count is in the entity dump, and that it counts only visual contacts (the old check filtered on the visual modality via /memory).",
+  "runFor": 140,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "clear target inside 120 m": {
+      "on": "near",
+      "who": "Target Clear",
+      "point": [
+        0,
+        0
+      ],
+      "within": 120
+    },
+    "fog target inside 65 m": {
+      "on": "near",
+      "who": "Target Fog",
+      "point": [
+        0,
+        300
+      ],
+      "within": 65
+    }
+  },
+  "expect": [
+    {
+      "name": "the clear observer sees his target while it is still beyond 120 m",
+      "on": "field",
+      "who": "Observer Clear",
+      "path": "TargetMemory.Count",
+      "op": ">",
+      "value": 0,
+      "before": "clear target inside 120 m"
+    },
+    {
+      "name": "the fog observer sees nothing while the target is beyond 65 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Fog",
+        "path": "TargetMemory.Count",
+        "op": ">",
+        "value": 0
+      },
+      "before": "fog target inside 65 m"
+    },
+    {
+      "name": "the fog observer sees him once he is inside 65 m",
+      "on": "field",
+      "who": "Observer Fog",
+      "path": "TargetMemory.Count",
+      "op": ">",
+      "value": 0,
+      "after": "fog target inside 65 m"
+    }
+  ]
+}

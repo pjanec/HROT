@@ -1,0 +1,27 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U3: one decision, three identical bodies. Only Judge (1) is expressible and only through its behaviour: every rifleman starts at Suppress => each fires at Armed Hostile. NOT expressible: the winners per Health step ((2): fight vs defend classes — the decision's winner is not component state) and the live check's sequence of Health edits (it waits on the winner between edits, a check's `do` is timed).",
+  "runFor": 30,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "Rifleman A fires at Armed Hostile",
+      "on": "shot",
+      "by": "Rifleman A",
+      "at": "Armed Hostile"
+    },
+    {
+      "name": "Rifleman B fires at Armed Hostile",
+      "on": "shot",
+      "by": "Rifleman B",
+      "at": "Armed Hostile"
+    },
+    {
+      "name": "Rifleman C fires at Armed Hostile",
+      "on": "shot",
+      "by": "Rifleman C",
+      "at": "Armed Hostile"
+    }
+  ]
+}

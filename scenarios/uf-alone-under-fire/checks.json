@@ -1,0 +1,106 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — AQ96 (CE-2319/2320): a lone man under steady fire. Judge (1) after the first near miss he is never upright (stance intent never Standing from 1 s after it, until the fire stops), (2) the near miss drops him prone (UnderFireMove.Phase Down/Shifting/Crawling; stance Prone), (3) pinned he stays down (never Moving until the fire stops), (4) both hostiles run dry at 15 s (as the live check: WeaponState.Ammo 0), then he rises (Moving) 2.5-8 s later (the live check's window) and rushes on crouched. NOT expressible: the speeds (~3 m/s rush), the ~1.5 m side step, (5) 'no second drop within 3 s of rising'. UNVERIFIED: RecentSenses/UnderFireMove/StanceIntent are brain-local components — assumed present in the editor world's entity dump (the old live check read them over /entities).",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "do": [
+    {
+      "name": "Hostile 1 runs dry",
+      "at": 15,
+      "set": {
+        "who": "Hostile 1",
+        "component": "WeaponState",
+        "patch": {
+          "Ammo": 0
+        }
+      }
+    },
+    {
+      "name": "Hostile 2 runs dry",
+      "at": 15,
+      "set": {
+        "who": "Hostile 2",
+        "component": "WeaponState",
+        "patch": {
+          "Ammo": 0
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "near miss",
+      "on": "field",
+      "who": "Runner",
+      "path": "RecentSenses.NearMiss",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "under fire he is never upright",
+      "never": {
+        "on": "field",
+        "who": "Runner",
+        "path": "StanceIntent.TargetStance",
+        "op": "==",
+        "value": "Standing"
+      },
+      "after": "near miss+1",
+      "before": "Hostile 1 runs dry"
+    },
+    {
+      "name": "the near miss drops him (Down / Shifting / Crawling)",
+      "on": "field",
+      "who": "Runner",
+      "path": "UnderFireMove.Phase",
+      "op": "in",
+      "value": [
+        "Down",
+        "Shifting",
+        "Crawling"
+      ],
+      "after": "near miss"
+    },
+    {
+      "name": "the near miss drops him prone",
+      "on": "field",
+      "who": "Runner",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Prone",
+      "after": "near miss"
+    },
+    {
+      "name": "pinned by steady fire he stays down",
+      "never": {
+        "on": "field",
+        "who": "Runner",
+        "path": "UnderFireMove.Phase",
+        "op": "==",
+        "value": "Moving"
+      },
+      "after": "the near miss drops him (Down / Shifting / Crawling)",
+      "before": "Hostile 1 runs dry"
+    },
+    {
+      "name": "after the fire stops he waits, steps aside and rises (Moving, 2.5-8 s)",
+      "on": "field",
+      "who": "Runner",
+      "path": "UnderFireMove.Phase",
+      "op": "==",
+      "value": "Moving",
+      "after": "Hostile 1 runs dry+2.5",
+      "before": "Hostile 1 runs dry+8"
+    },
+    {
+      "name": "he rushes on crouched",
+      "on": "field",
+      "who": "Runner",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Crouched",
+      "after": "after the fire stops he waits, steps aside and rises (Moving, 2.5-8 s)"
+    }
+  ]
+}
