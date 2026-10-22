@@ -158,8 +158,7 @@ namespace Fdp.Toolkit.Squad.Systems
             var at = new Vector3(c.PositionX, c.PositionY, c.PositionZ);
             if (Vector3.Distance(at, arc.ArcOrigin) > FlankedMetres
                 || EngagementAreas.InArc(arc.ArcOrigin, arc.LeftBearing, arc.RightBearing, arc.MinRange, arc.MaxRange, at)) return false;
-            var contact = new Entity((ulong)c.EntityId);
-            return repo.IsAlive(contact) && !ThreatDanger.IsOutOfTheFight(repo, contact) && !ThreatDanger.IsNeutral(repo, contact);
+            return SquadContacts.IsEnemy(repo, in c);   // ⭐ CE-2353 — the one squad "enemy"
         }
 
         /// <summary>SC-4 — <paramref name="down"/> just went down: every squad friend still in the fight within <see cref="FriendDownMetres"/>.</summary>

@@ -985,6 +985,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2353</c> — "clear" is NO ENEMY, not an empty pool: the hold ends while the squad still sees men who are neutral
+        /// (<see cref="Fdp.Toolkit.Squad.SquadContacts.IsEnemy"/>). 📌 Live on <c>uc-urban-battle</c>: civilians in view kept Squad A's
+        /// reaction holding for 30 minutes, so the convoy never secured. ✅ Red-proof: the hold's end back on <c>Contacts.Count == 0</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2353_ReactToContact_HoldsUntilNoEnemy_ANeutralInViewIsNone()
+        {
+            var s = new Squad(members: 2);
+            var seen = s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            s.Answer(s.RetreatQuery(), null);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            Assert.False(s.Finished(out _));
+
+            foreach (var e in seen) s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });   // still pooled
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done, "only neutrals in view ⇒ the reaction ends");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         /// <summary>⭐⭐ S2 end to end on the commander: bounding (its task) → contact ⇒ the reaction PAUSES it, holds, assaults → the
         /// enemy is down ⇒ the reaction ends ⇒ the bounding RESUMES with its own squad state and re-sends its orders (S1-G + S2-G).</summary>
         [Fact]

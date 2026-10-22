@@ -132,12 +132,7 @@ namespace Fdp.Toolkit.Squad.Command
             int n = 0;
             for (int i = 0; i < squad.Contacts.Count && n < live.Length; i++)
             {
-                long id = pool[i].EntityId;
-                if (id > 0)
-                {
-                    var e = new Entity((ulong)id);
-                    if (ThreatDanger.IsOutOfTheFight(repo, e) || ThreatDanger.IsNeutral(repo, e)) continue;
-                }
+                if (!SquadContacts.IsEnemy(repo, in pool[i])) continue;   // ⭐ CE-2353 — the one squad "enemy"
                 live[n++] = i;
             }
             var sum = Vector3.Zero;

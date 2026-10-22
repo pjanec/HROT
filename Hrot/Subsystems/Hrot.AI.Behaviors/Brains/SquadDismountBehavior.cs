@@ -263,10 +263,9 @@ namespace Hrot.AI.Behaviors.Brains
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
             for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
             {
-                // ⭐ CE-2353 — the same "enemy" the platoon's SPOT counts (StaffSystems.ComposeSpot): out of the fight or NEUTRAL is none.
+                // ⭐ CE-2353 — the one squad "enemy" (the platoon's SPOT counts the same): out of the fight or NEUTRAL is none.
                 //   📌 Live on uc-urban-battle: two civilians 30 m off put every remounting squad out again, so the convoy never moved on.
-                if (pool[i].EntityId > 0 && (Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, new Entity((ulong)pool[i].EntityId))
-                                             || Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, new Entity((ulong)pool[i].EntityId)))) continue;
+                if (!SquadContacts.IsEnemy(world, in pool[i])) continue;
                 if (!Fresh(pool[i].LastSeenTick, Fdp.Toolkit.Perception.PerceptionClock.Now(world))) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
                 if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
             }
