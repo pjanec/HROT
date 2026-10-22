@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+updated: 2026-10-22 (§7f.1 CE-3298 — the editor's Stop rewinds the world without moving the epoch; measured, lean awaits the user) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
@@ -15,6 +15,7 @@ related-designs:
   - FDP/Engine/Fdp.ModuleHost/docs/UserGuide/05_EventBus.md — owns the bus and its one-frame double buffer.
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b / §11g.5a own the world boundary and `WorldEpoch` (CE-2101), which §7f's reset pulls.
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
+  - docs/designs/replay-and-modules/DESIGN.md — owns what runs during replay and the rewind seam (§2.1l, PreviewStateBracket); §7f.1 is the same rewind reached by Stop.
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
 
@@ -420,6 +421,47 @@ loader into every system — and a background module needs the number in its sna
 | reset — with care | `NavigationIntentBridgeSystem` (its time-travel reset now also fires on a new world, and clears the action and crowd caches it never did) · `WreckSpawnSystem` (as for a new world instance) · `RouteTrajectorySyncSystem` (frees last world's pool entries) · `StaticObstacleBakeSystem` (bakes as the first load did; a bake still running acks nothing) · `DeferredConstructionParticipant` + `OnWorldBoundary()` for `NetworkGatewaySystem` / `SimulatedInitReadinessParticipant` · `DataDrivenGizmoSystem` / `BehaviorGizmoManagerSystem` (tear the gizmos down) · `PhysicsBodyLifecycleSystem` (Stride: `DestroyAll`) · `LocalGridBuilderSystem` (full rebuild) · `HierarchyOrderSystem` (re-sorts) · `ThreatEvaluationSystem` (§7e) |
 | the rail | `EverySystemForgetsTheLastWorldTests` (`FDP/TestShared/WorldBoundaryProbe.cs`): every production system with an instance field holding `Entity` (a collection, tuple or array; a callback is not state) calls `WorldEpoch.Moved` — read from its IL, base classes included — or each such field is EXEMPT with its reason (31 scratch fields, rebuilt each run) |
 | ⛔ rejected | `SoftClear` keeping generations — the replay seek restores recorded handles through `Clear` · an `IWorldBoundaryAware` interface called by the loader — a second mechanism beside the epoch the translators already pull |
+
+### 7f.1 🔴 THE BOUNDARY THIS DOES NOT REACH — the editor's **Stop** (`CE-3298`, measured `2026-10-22`, ⏳ fix awaits the user)
+
+📐 `WorldEpoch.Advance` has two callers, both a world that ENDS: `WorldBoundaryReset.Clear` (a load from `Idle`, entering `Idle`) and
+`ScenarioFileService` (`ClusterMaster.IsWorldBoundaryLoad`). ⛔ **Stop is not one.** Play from edit mode enters `OperatingPreview`
+(`ClusterTimeTransportAdapter.StepBy`), and Stop rewinds the world to the edit-mode snapshot — `live.SyncFrom(snap)` in
+`ReferencePreviewHandler` (SimHost, IG, CGF) and `PreviewClusterOpHandler` (the editor) — plus the `PreviewStateBracket` participants
+(allocator, entity map, ELM; [Deterministic Network Ids §2b](../DESIGN_Deterministic_Network_Ids.md)). No epoch moves, so every reset
+above stays asleep, and the next Play's units come back under the **same handles** (the snapshot's own).
+
+| what keeps last Play's state into the next | effect | |
+|---|---|---|
+| `EjectionSystem._ejected` (never removed) | the second Play's jet never ejects its pilot | ✅ **measured**: `EjectionSystemTests` rail below, red |
+| `ThreatEvaluationSystem` counts | the first step publishes edges against last Play's end (the §7e "AllClear for a tank that saw nothing") | by reading |
+| `AreaEffectCloudSystem._lastStep` / `_ending` | a cloud under a reused handle skips its steps (the clock restarted below the stored time) or is never ended | by reading |
+| `CrowdSystem._crowdEntity` | a crowd id's stale handle can alias a new entity (the reload defect CE-3294 measured) | by reading |
+| `DangerAreaSensorSystem._last/_next` | entered/left edges against last Play's end | by reading |
+| `EntityMasterEgressTranslator._publishedNetIds` (and the other per-id egress sets) | Stop restores the id allocator, so the next Play reissues the same ids; the set still holds them ⇒ the master descriptor is skipped ⇒ on a cluster the ghost is never promoted (CE-2101's symptom) | ⚠ by reading, **not run on a cluster** |
+| self-healing: `EmbarkedStateSystem._killSent`, `BleedOutSystem._pending`, `OwnershipEgressSystem` (an equality cache) | none lasting | by reading |
+
+⛔ **The epoch cannot simply be advanced at Stop**: `CycloneNetworkCleanupSystem.cs:52` reads a moved epoch as *"the world ended"* and
+deletes on the wire every entity the node owns — the edit-mode units that survive the rewind included. ⇒ "the world ended" and "the world
+was rewound" are two signals; the first implies the second, not the reverse.
+
+⭐ **Replay**, measured: the simulation group is disabled during playback (§2.1 of the [replay design](../designs/replay-and-modules/DESIGN.md)), and a
+replay session is entered from `Idle` and left through it, so the epoch moves around it; ⚠ the systems registered OUTSIDE the togglable
+groups (that design's §2.1a) and the per-id egress sets at a seek are not classified here.
+
+⏳ **Lean** (awaits the user): ① `WorldEpoch` carries a second number, *rewinds*, which the preview handlers bump after `SyncFrom` (and
+which a replay keyframe restore may bump later); `Moved` fires on either, and a new `Ended` fires only on the first — the network cleanup
+moves to `Ended`, every other caller keeps `Moved` (a translator re-publishing after a rewind is harmless; a stale "published once" is
+not). One mechanism, no participant list to rot. ② `CE-3297`: the latches move into components, which a rewind restores by itself.
+
+```csharp
+// EjectionSystemTests — red today (the second Play's Single() is empty); restore it with the fix
+[Fact] public void CE3297_PlayStopPlay_TheSecondPlayStillEjects() {
+    var jet = Jet(); using var editSnapshot = new EntityRepository(); editSnapshot.SyncFrom(_w);   // Play
+    _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet }); Assert.Single(Frame().Spawned);
+    _w.SyncFrom(editSnapshot); Assert.True(_w.IsAlive(jet));                                      // Stop
+    _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet }); Assert.Single(Frame().Spawned); }   // Play again
+```
 
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
