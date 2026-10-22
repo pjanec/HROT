@@ -68,6 +68,17 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private Guid? _pendingTransactionId;
     private string? _pendingDescription;   // ⭐ CE-3288 — the file's Header.Description, stamped resident at Commit (§4d)
     private uint? _publishedAtTick;   // ⭐ CE-3228 — the SimulationTick at which Commit published (readiness ①)
+
+    // ⭐⭐ CE-3304 — readiness ① waits for the ENTITIES, not for the requests to be read: the network ids this load published that
+    //   have not yet appeared in the node's entity map. 📐 Measured: two ticks after the publish the requests were only QUEUED in
+    //   CreateEntityRequestSystem; NetworkSpawningSystem created the entities a frame later — the load resolved on an EMPTY world
+    //   (`constructing=0 all=0`), so condition ② never saw a static obstacle Constructing and the vans of bt-window-duel joined the
+    //   simulation on whatever step their wall-clock bake finished (3 under load, 9 idle, 20 in a batch). R-243 promises the opposite.
+    private readonly HashSet<long> _awaitedNetworkIds = new();
+
+    /// <summary>⭐ CE-3304 — a published request that never produces an entity (rejected, routed to a node that is gone) stops being
+    /// waited for after this many ticks; the load then proceeds and names it. Ticks, not seconds: the bound is the same on every machine.</summary>
+    public const int EntityWaitLimitTicks = 300;
     private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
@@ -155,6 +166,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         if (_pendingTransactionId != null && _pendingTransactionId != context.TransactionId) return;
 
         _publishedAtTick = null;
+        _awaitedNetworkIds.Clear();
         try
         {
             // ⭐ CE-3288 (§4d) — the loaded scenario's description is RESIDENT, so both save sites write it back; a new scenario (or
@@ -212,6 +224,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     {
         _bus.PublishManaged(request);
         if (world != null) _publishedAtTick ??= world.SimulationTick;
+        if (request.PreAllocatedNetworkId != 0) _awaitedNetworkIds.Add(request.PreAllocatedNetworkId);   // ⭐ CE-3304
     }
 
     /// <summary>⭐ CE-3216 C-3 — the creation request for a DEFAULT World Environment: the built-in start time, an id from the cluster's
@@ -228,6 +241,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     public void Abort(LoadPhaseContext context)
     {
         _publishedAtTick      = null;
+        _awaitedNetworkIds.Clear();
         _pendingRequests      = null;
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
@@ -249,7 +263,22 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         //    that. ⇒ two kernel ticks after the publish, all of them have been read (a publish inside a frame costs one spare frame).
         if (_publishedAtTick is { } at && world != null)
         {
-            if (unchecked(world.SimulationTick - at) < 2) return false;
+            uint waited = unchecked(world.SimulationTick - at);
+            if (waited < 2) return false;
+            // ⭐⭐ CE-3304 — and every entity this load asked for EXISTS on this node (condition ② can only see what exists).
+            if (_awaitedNetworkIds.Count > 0 && world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
+                && world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() is { } map)
+            {
+                _awaitedNetworkIds.RemoveWhere(id => map.TryGetEntity(id, out _));
+                if (_awaitedNetworkIds.Count > 0)
+                {
+                    if (waited < EntityWaitLimitTicks) return false;
+                    FdpLog<ScenarioLoadStep>.Error(
+                        $"[LoadPhase/Scenario] {_awaitedNetworkIds.Count} requested entit(ies) never appeared after {EntityWaitLimitTicks} ticks "
+                        + $"(network ids {string.Join(", ", _awaitedNetworkIds)}) — the load proceeds without them (CE-3304).");
+                    _awaitedNetworkIds.Clear();
+                }
+            }
             _publishedAtTick = null;
         }
 

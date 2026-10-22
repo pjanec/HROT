@@ -70,6 +70,10 @@ namespace Hrot.Common.EntityCreation
     /// </summary>
     public static class EntityCreationPack
     {
+        /// <summary>⭐ CE-3304 — how many frames a static obstacle may stay Constructing waiting for the terrain's bake (the ELM default is
+        /// 300). Generous on purpose: the bake always acks in the end, and a timeout destroys the obstacle.</summary>
+        public const int ObstacleConstructionTimeoutFrames = 18000;
+
         /// <summary>
         /// Builds the node's entity-creation assembly. ⛔ Does not schedule anything — the caller
         /// registers <see cref="EntityCreation.RequestSystem"/>, <see cref="EntityCreation.SpawnSystem"/>
@@ -113,6 +117,9 @@ namespace Hrot.Common.EntityCreation
             ctx.Elm.RegisterTemplateRequirement(
                 t => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>() != null,
                 Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId);
+            // ⭐ CE-3304 — the bake (wall-clock quiet period + an off-thread build) can outlive 300 frames where frames run unthrottled
+            //   (a headless load), and a timeout DESTROYS the obstacle. The bake always acks in the end, even when it fails.
+            ctx.Elm.SetModuleTimeout(Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId, ObstacleConstructionTimeoutFrames);
             var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem();
 
             // ⭐⭐ The LOCAL request source. This is what makes path 2 (a node creating an entity it

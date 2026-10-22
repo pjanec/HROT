@@ -1186,6 +1186,15 @@ cannot be asked that: a request sits in the write buffer until the frame's swap 
 (`ModuleHostKernel` swaps after `BeforeSync`). ⇒ readiness ① now holds **two kernel ticks after the commit published**
 (`SimulationTick` stamped at the first publish; a publish inside a frame costs one spare frame). Railed by
 `ScenarioLoadStepTests.ASourceStillHoldingRequests_IsNotResolved` (not resolved at +0 and +1 tick, resolved at +2).
+⛔ **SUPERSEDED in part by `CE-3304` (`2026-10-22`): "read" is not "created".** 📐 Measured on `bt-window-duel` (a log line at the
+moment the chain resolved): at +2 ticks `CreateEntityRequestSystem` had only QUEUED the four spawns; `NetworkSpawningSystem` created
+the entities a frame later — the load resolved on a world with **zero** entities (`constructing=0 all=0`), so readiness ② (nothing
+`Constructing`) passed vacuously and the static obstacles (Peek & Fire §9 O2) joined the simulation on whatever step their bake
+finished. ⭐ Now ① also holds until every published request's `PreAllocatedNetworkId` resolves in the node's `NetworkEntityMap`
+(the world singleton, CE-4013 D5); a request that never produces an entity stops being waited for after
+`ScenarioLoadStep.EntityWaitLimitTicks` (300 ticks — a tick bound, the same on every machine) and is named in an error. A world with no
+entity map keeps the +2 rule. Rails: `ScenarioLoadStepTests.AnEntityNotYetCreated_IsNotResolved_UntilItIsInTheEntityMap`,
+`…ARequestThatNeverProducesAnEntity_StopsBeingAwaited_AfterTheTickLimit`.
 **② a world that cannot carry the request creates nothing.** `EjectionSystem` and `MapCameraLayer` guard on
 `Bus.IsRegisteredManaged<EntityCreationRequest>()` — what the queue singleton's presence used to say (a world with no shared registry and
 no pack); under strict registration an unguarded publish there would throw.

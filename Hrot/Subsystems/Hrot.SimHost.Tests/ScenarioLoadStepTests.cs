@@ -432,6 +432,55 @@ public sealed class ScenarioLoadStepTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3304</c> — readiness ① waits for the ENTITIES, not only for the requests to be read. 📐 Measured on
+    /// <c>bt-window-duel</c>: two ticks after the publish the requests were only QUEUED; the load resolved on an empty world, so
+    /// condition ② never saw the static obstacles <c>Constructing</c> and they joined the simulation on a wall-clock step.
+    /// </summary>
+    [Fact]
+    public async Task AnEntityNotYetCreated_IsNotResolved_UntilItIsInTheEntityMap()
+    {
+        _goldRepo.CreateEntity();
+        using var world = new EntityRepository();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        world.SetSingletonManaged(map);
+
+        var source = NewBus();
+        var step   = MakeStep(SerializeGold(), source);
+        var ctx    = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+        var ids = Drain(source).Select(r => r.PreAllocatedNetworkId).Where(id => id != 0).ToList();
+        Assert.NotEmpty(ids);
+
+        world.Tick(); world.Tick();
+        Assert.False(step.IsResolved(world));   // read, but nothing created yet — the CE-3228 rule alone said true here
+        foreach (var id in ids.Take(ids.Count - 1)) map.Register(id, world.CreateEntity());
+        Assert.False(step.IsResolved(world));   // one still missing
+        map.Register(ids[^1], world.CreateEntity());
+        Assert.True(step.IsResolved(world));
+    }
+
+    /// <summary>⭐ <c>CE-3304</c> — a requested entity that never appears does not hang the load: after
+    /// <see cref="ScenarioLoadStep.EntityWaitLimitTicks"/> ticks it proceeds (and logs the ids). A tick bound, the same on every machine.</summary>
+    [Fact]
+    public async Task ARequestThatNeverProducesAnEntity_StopsBeingAwaited_AfterTheTickLimit()
+    {
+        _goldRepo.CreateEntity();
+        using var world = new EntityRepository();
+        world.SetSingletonManaged(new Fdp.Toolkit.Replication.Services.NetworkEntityMap());
+
+        var step = MakeStep(SerializeGold(), NewBus());
+        var ctx  = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+
+        for (int i = 0; i < ScenarioLoadStep.EntityWaitLimitTicks - 1; i++) world.Tick();
+        Assert.False(step.IsResolved(world));
+        world.Tick();
+        Assert.True(step.IsResolved(world));
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>THE re-homed drift claim.</b> An entity still carrying a transient cross-reference intent
     /// blocks readiness. 🔴 The editor's former handler did NOT check this, so an edit load could reach
     /// <c>OperatingEdit</c> with passengers, vehicles, hierarchy, targets, routes and subordinates

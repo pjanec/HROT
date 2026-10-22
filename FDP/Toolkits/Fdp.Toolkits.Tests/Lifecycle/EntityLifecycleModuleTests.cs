@@ -105,6 +105,25 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(1, stats.timeouts);
         }
 
+        /// <summary>⭐ CE-3304 — a participant with its own (longer) timeout keeps the construction alive past the default; once only
+        /// default-timeout modules remain, the default applies again.</summary>
+        [Fact]
+        public void ELM_ModuleTimeout_OutlastsTheDefault_OnlyWhileThatModuleIsOutstanding()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 1, 2 }, timeoutFrames: 10);
+            elm.SetModuleTimeout(2, 100);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+
+            elm.CheckTimeouts(currentFrame: 50, cmd);   // module 2 (100 frames) still outstanding
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 2, Success = true }, 60, cmd);
+            elm.CheckTimeouts(currentFrame: 61, cmd);   // only module 1 left: the default 10 applies
+            Assert.Equal(1, elm.GetStatistics().timeouts);
+        }
+
         [Fact]
         public void ELM_PartialAcks_RemainsPending()
         {
