@@ -748,7 +748,7 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 | `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
 
 
-### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: DESIGN — a lean awaits the user)*
+### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: RULED (R-2071), design of the build next)*
 
 📐 **Measured live** (`uc-urban-battle`, `--mode all`, behaviors note ③ — *"own-side shots become enemy contacts 33 m off"*): ⛔ **no
 own-side sound was heard.** The ear's own-force filter (`e.Force == ourForce`, in the ring read and in the movement broadphase) dropped
@@ -761,7 +761,16 @@ enemy round bursting among us places an "enemy, about here" contact ON us, and i
 | ⭐ **lean** | a heard **burst** is a DANGER POINT, not an enemy position: memory keeps it (K2 *"hide from a point is OK"*), but the readers that ask *"is an enemy here?"* (contact in range, strength ratio, keep-in-contact) skip `Explosion`-class anonymous slots; the shooter is placed by his **shot's** report, which K3 already carries | a burst says where the round landed, never where the shooter is — the convoy's only true contact is the RPG's firing point | ⛔ dropping bursts from hearing — loses "hide from a burst" (§8 ③) · ⛔ dropping bursts near the listener — a burst 30 m off is just as much not-an-enemy |
 | ⚠ what would change it | a doctrine that wants "explosions near us" to keep a unit in contact on its own | | |
 
-⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
+⇒ ✅ **RULED `2026-10-22` (R-2071)** — the lean, and more. 🔒 **User, verbatim:** *"i think such an nearby explosion should somehow alert the soldiers if they were calm before, it could also make them beight freightened (under heavy bombardment -> some of them with lower discipline can panic or collapse psychically maybe) - but it should definitely not be an enemy position (this is still unknown and can not be told from a detonation). I think it does not need to create a new dangerous area unless the explosions are repeated there as that might be blocking them in movements"*
+
+| # | ruled | what it means here |
+|---|---|---|
+| E-1 | a heard burst is **never an enemy position** | the "is an enemy here?" readers skip `Explosion`-class anonymous slots (behaviors' half) |
+| E-2 | a burst nearby **alerts** a calm soldier | Calm → Alert, the way a heard shot does |
+| E-3 | it **frightens**; under heavy bombardment a man of low discipline can **panic or collapse** | fear rises with each near burst; past a threshold, discipline decides |
+| E-4 | **no danger area** from one burst — only where bursts **repeat** | a repeatedly shelled spot becomes an area movement avoids |
+
+⏭ behaviors designs the build (inventory of the readers, the fear owner, the repeat rule) before building it.
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
