@@ -229,6 +229,7 @@ namespace Fdp.Toolkit.Perception
         public static unsafe float OfSlot(ISimulationView view, Entity self, in TargetMemory mem, int slot)
         {
             if (!TargetMemory.IsAnonymous(in mem, slot)) return Of(view, self, new Entity((ulong)mem.EntityIds[slot]));
+            if (TargetMemory.IsBurst(in mem, slot)) return 0f;   // ⭐ R-2071 E-1 — where a round landed is no enemy (Sensing §8.6b)
             fixed (byte* c = mem.SourceClass) return OfClass(c[slot]);
         }
 

@@ -30,6 +30,7 @@ side (x < 170) while any Hostile is in sight. Fail: no task and no drill (the ba
 | ⭐ **engine: CE-2232 + CE-2351 (`ad15729e2`).** A vehicle's hide query prefers a hide it can FIGHT from, and its sensors ignore sounds from another fight (heard > 15 m from the named target) | every vehicle on the exposure cycle (`LandPlatformAttack`, `BasicVehicleSop`): `ua-javelin-lock` (now PASS 5/5 live), `ua-tank-corner`, `ua-rpg-window` (both still PASS live), `ua-technical-scoot`, the urban battle's vehicles. ⚠ The infantry `PeekAndFire` sensors carry the same 15 m rule |
 | content: `ua-javelin-lock` | Tank Cycling starts at (262, 135), off the roof of the block it used to stand inside |
 | content: `ua-armed-surrender`, `ua-civ-surrender` | the Rifleman moved (130, 230) → (130, 224), off a roof (both PASS live) |
+| ⭐ **engine: R-2071 E-1 (CE-2348 ③, user ruling).** A heard explosion is no enemy: it refreshes no known contact, never enters the squad pool, counts no enemy danger, and is no fight target; it still alerts (E-2) and TakeCover still hides from it | any scenario with incoming fire: `uc-urban-battle`, `uc-convoy-hit(-ifv)`, the mortar / RPG demos. Re-verify after the merge |
 | golden: `FindVehicleHide.flat` | re-recorded: 16 scores +1.7 each; positions, order and flags unchanged |
 
 ## 3. First triage of your new reds (CE-2352)
@@ -37,6 +38,11 @@ side (x < 170) while any Hostile is in sight. Fail: no task and no drill (the ba
 | scenario | what I know so far |
 |---|---|
 | `ua-posture` | ⭐ **designed**: below 30 % of max health a man is INCAPACITATED (user, `2026-10-13`; CE-2318 targets only men in the fight). The Hostile at 10–30 HP is down, so (3) has nobody to fight. A condition on (3) holds only while he is up. I may give the scenario a sturdier Hostile so (1)–(3) are meaningful in the editor — I will say so if I do |
-| `ua-rpg-window` | ✅ PASS 4/4 on the cluster today (10 IFV rounds at the RPG man). Editor-only red ⇒ the CE-4041 family; I will look at it with the others |
-| `hill-attack`, `-close` | mine (CE-2230 lane). Next on my list |
+| `ua-rpg-window` | ✅ PASS 4/4 on the cluster today (10 IFV rounds at the RPG man). In the editor, re-run at HEAD: still no IFV round ⇒ the same editor-only no-fire as the hill attack; I take both together |
+| `ua-javelin-lock` | ✅ in the editor at HEAD all five of your conditions PASS; only the golden differs (it predates CE-2232) — please re-record it after the merge |
+| `hill-attack`, `-close` | 📐 **cluster vs editor**: on the cluster (`--mode all`) the commander dispatches wave 1 at 30 s and its tanks fire (3 rounds in 150 s). In the editor (`--verify hill-attack-close`, merged today) the waves dispatch and complete three times in 70 s, but **no round is ever fired** ⇒ the CE-4041 family; I am taking it. ⚠ **Your check (3) can never pass:** the commander's baseline is at **x 523–532** (its params, read live), not x < 480 (the start column) — please change it to x < 540 or to "back within 15 m of the baseline" |
 | the rest | taken in order; each gets its own row when its cause is measured |
+
+## 4. Not mine, seen in my gate
+
+`GhostProtocolTests.Execute_RespectsTimeBudget` (Fdp.Toolkits) fails deterministically since CE-4044 (`fd59c8e50`, merged with `coordinator`): ghost promotion is now budgeted by COUNT, and the test still asserts a 2 ms TIME budget. Backend's to update.

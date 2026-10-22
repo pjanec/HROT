@@ -691,7 +691,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (mem.EntityIds[i] == id) { newest = mem.LastSeenTick[i]; break; }
             for (int i = 0; i < mem.Count; i++)
             {
-                if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
+                if (!TargetMemory.IsAnonymous(in mem, i) || TargetMemory.IsBurst(in mem, i) || mem.LastSeenTick[i] <= newest) continue;   // R-2071 — no shooter stands where his round landed
                 var heard = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 if (filter && Vector3.Distance(heard, origin) > matchRadius) continue;
                 newest = mem.LastSeenTick[i];
