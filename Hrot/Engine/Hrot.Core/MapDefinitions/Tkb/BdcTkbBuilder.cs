@@ -347,13 +347,31 @@ namespace Hrot.Map.Definitions.Tkb
             // Perception DTO from sensor range (if specified).
             if (combatDef.SensorRange > 0f)
             {
-                template.AddDescriptor(new SensorCapabilitiesDto
+                var sensing = new SensorCapabilitiesDto
                 {
                     VisionRange        = combatDef.SensorRange,
                     HearingRange       = combatDef.SensorRange * 1.5f,
                     FieldOfViewDegrees = 360f,
                     EyeHeightStanding  = combatDef.EyeHeight,   // ⭐ M5 — a vehicle sees from its sight (0 ⇒ a standing man's)
-                });
+                };
+                // ⭐ CE-2349 — a thermal sight: the list names the eyes and ears too (a listed TKB gets no implicit sensors)
+                if (combatDef.ThermalRange > 0f)
+                    sensing = sensing with
+                    {
+                        Sensors = new List<SensorEntryDto>
+                        {
+                            Fdp.Toolkit.Perception.Sensors.VisualPerception.ImplicitEntry(sensing),
+                            Fdp.Toolkit.Perception.Sensors.AcousticPerception.ImplicitEntry(sensing),
+                            new SensorEntryDto
+                            {
+                                Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
+                                Template = Fdp.Toolkit.Perception.Sensors.ThermalPerception.AssetGuid,
+                                SearchRadius = combatDef.ThermalRange,
+                                Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f },
+                            },
+                        },
+                    };
+                template.AddDescriptor(sensing);
             }
 
             template.AddDescriptor(generated);   // ⭐ Stage 0 — provenance of the derived numbers above
