@@ -1,0 +1,65 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2284 U-3: fire from SNP, ~100 m off the route: a Regular platoon BYPASSES it. DEMO (18 units). Judge (2) no ReactToFireFromBuilding, no squad sent into SNP (never ClearBuilding, never a man inside SNP at (305,209)), (3) the movement reaches its end (platoon Idle, the lead near (200,110)). Left out: the squad's FiredOnFromStructure contact (a report). runFor 300 is the cap; the twin allowed 500 s.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs UrbanMovement",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "UrbanMovement",
+      "before": 10
+    },
+    {
+      "name": "the insurgents in SNP fire on the platoon",
+      "on": "shot",
+      "by": "*Insurgent"
+    },
+    {
+      "name": "the platoon never reacts with ReactToFireFromBuilding",
+      "never": {
+        "on": "task",
+        "who": "Blue Platoon",
+        "is": "ReactToFireFromBuilding"
+      }
+    },
+    {
+      "name": "no squad is sent to clear SNP",
+      "never": {
+        "on": "task",
+        "who": "*Blue Squad ",
+        "is": "ClearBuilding"
+      }
+    },
+    {
+      "name": "no man goes into SNP",
+      "never": {
+        "on": "near",
+        "who": "*Blue Squad ",
+        "point": [
+          305,
+          209
+        ],
+        "within": 15
+      }
+    },
+    {
+      "name": "the lead squad reaches the route's end",
+      "on": "near",
+      "who": "*Blue Squad 1 ",
+      "point": [
+        200,
+        110
+      ],
+      "within": 16,
+      "atEnd": true
+    },
+    {
+      "name": "the movement ends",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "Idle",
+      "atEnd": true
+    }
+  ]
+}

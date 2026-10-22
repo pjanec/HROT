@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — H-3 tighter variant: 20 m spacing, short firing line. Judge (1) the waves fire at the M1 Abrams, (3) the target dies, (4) the tanks end back near the baseline (x < 480, a guess from the start column). Left out: (2) 'different baseline slots' (the CE-459 same-slot bug: a distance between two units, not a field); only one of the two same-named targets is checked dead (a name resolves to ONE unit); the commander's finish is a MissionPlan end, not read.",
+  "runFor": 200,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the tanks fire at an M1 Abrams",
+      "on": "shot",
+      "by": "*Spawn)-",
+      "hit": "*M1 Abrams"
+    },
+    {
+      "name": "an M1 Abrams is destroyed",
+      "on": "field",
+      "who": "*M1 Abrams",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the four tanks end back near the baseline (x < 480)",
+      "on": "field",
+      "who": "*Spawn)-",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 480,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}
