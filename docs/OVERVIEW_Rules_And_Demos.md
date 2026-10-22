@@ -394,7 +394,7 @@ related-designs:
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
 | `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry *(the Kornet team this row once named is not in the file)* | sentry fires on its own; the M2 deploys; the Javelin is carried | W1–W10 | ✅ ①–③ live `2026-10-22` |
-| `ua-m2-engage` | the manned M2 engages an intruder *(CE-4035 G-11 — split out: the sentry gun above shoots every intruder on the terrain first)* | the gunner sets it up; the M2 fires | W1–W6 | ⏳ new |
+| `ua-m2-engage` | the manned M2 engages an intruder *(CE-4035 G-11 — split out: the sentry gun above shoots every intruder on the terrain first)* | the gunner sets it up; the M2 fires | W1–W6 | ✅ 3/3 live `2026-10-22` (the gunner holds the M2 by order — his SOP alone does not engage from the seat: finding) |
 | `ua-fast-rope-roof` | 8 men rope onto a roof | 8 down in 7.6 s, a ring on the roof; helicopter leaves after | AB2, AB3, AB7, AB8 | ✅ |
 | `ua-airborne-drop` | a stick of 8 jumps | each lands 7.8–10.5 m from his point; squad assembles | AB4–AB7 | ✅ |
 | `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ✅ 6/6 live `2026-10-22` (canopy 2.71 s) |
