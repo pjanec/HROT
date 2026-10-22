@@ -31,17 +31,6 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct ToggleShoulderViewEvent { }
 
-    /// <summary>⭐ <c>BP-515</c> DS-7 (docs/blueprints/DESIGN_Details_Panel_View_Switching.md §8; 🔒 user, 2026-10-22: <i>"Properties
-    /// activation from menu is a global ui action, as any other menu action should be, no direct calls please"</i>) — "Properties…" was
-    /// chosen for <see cref="Target"/>. The action handler only PUBLISHES this; the window that shows a host's properties drains it and
-    /// shows itself (the Editor: the Scenario Details on its Components view; CGF / SimHost / IG: the entity inspector).</summary>
-    [EventId(8066)]
-    [DataPolicy(DataPolicy.NoReplay)]
-    public struct ShowEntityPropertiesEvent
-    {
-        public Fdp.Core.Entity Target;
-    }
-
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the

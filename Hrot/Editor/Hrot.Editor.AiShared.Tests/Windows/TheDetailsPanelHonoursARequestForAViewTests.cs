@@ -13,7 +13,8 @@ namespace Hrot.Editor.AiShared.Tests.Windows;
 /// <summary>
 /// ⭐⭐⭐ <c>BP-515</c> (docs/blueprints/DESIGN_Details_Panel_View_Switching.md §8) — the Details shell's LAYOUT and its REQUEST FOR A
 /// VIEW. 🔒 User, 2026-10-06: <i>"An event that asks for a view selects its tab, or expands its header AND scrolls it into view"</i>;
-/// 2026-10-22: <i>"'Properties…' … should open the 'Details' panel (which already contains the entity component view)"</i>.
+/// 2026-10-22: <i>"'Properties…' … should open the 'Details' panel (which already contains the entity component view)"</i> · <i>"the "properties..."
+/// click should show it on every ECS host"</i> (CE-1150).
 /// </summary>
 [Collection(PanelSnapshotTestCollection.Name)]
 public sealed class TheDetailsPanelHonoursARequestForAViewTests : IDisposable
@@ -130,27 +131,50 @@ public sealed class TheDetailsPanelHonoursARequestForAViewTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐ DS-7 (🔒 user, 2026-10-22: <i>"a global ui action … no direct calls"</i>) — the shell ANSWERS a request on the window manager's
-    /// per-frame hook, open or closed: nothing asked ⇒ it stays closed; asked ⇒ it shows itself and requests the view. ✅ Red-proof: the
-    /// shell not subscribing to <c>FrameStarted</c> ⇒ it stays closed.
+    /// ⭐⭐ DS-7 / <c>CE-1150</c> (canvas-context-menu-design §12 HA-3; 🔒 user, 2026-10-22: <i>"the global action handler should open the
+    /// detail panel"</i>) — "Properties…" is a HOST action registered by <see cref="EntityDetailsBundle"/>: a click is only a request; the
+    /// host's dispatch runs the handler, which selects the entity, shows the (closed) panel and asks it for the Components view. The shell
+    /// holds no subscription and no menu entry. ✅ Red-proof: the handler not showing the panel ⇒ it stays closed.
     /// </summary>
     [Fact]
-    public void BP515_TheShell_AnswersARequest_ShowingItselfOnTheAskedView()
+    public void CE1150_Properties_IsAHostAction_ThatOpensTheDetailsPanelOnItsComponentsView()
     {
-        var shell = MakeShell("details_bp515_5");
+        using var world = new Fdp.Core.EntityRepository();
+        var unit = world.CreateEntity();
+        var host = new Hrot.Common.Interactions.HostActions();
         var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
-        windows.RegisterWindow(shell);
-        shell.IsOpen = false;
-        bool asked = false;
-        shell.Answer(() => asked, "components");
+        var bundle = new EntityDetailsBundle(new EntityDetailsHostServices(
+            WindowId: "details_ce1150", Perspective: "Scenario", World: () => world,
+            Inspector: () => null, Session: () => null, RunState: () => VariableRunState.Running, Host: () => host));
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
+        bundle.Window.IsOpen = false;
 
-        windows.RaiseFrameStarted();
-        Assert.False(shell.IsOpen);
-        Assert.Null(shell.PendingViewRequest);
+        host.Request(Hrot.Common.Constants.GlobalActionIds.Properties, unit);
+        Assert.False(bundle.Window.IsOpen, "a click is a request — nothing has run yet");
 
-        asked = true;
-        windows.RaiseFrameStarted();
-        Assert.True(shell.IsOpen, "it showed itself");
-        Assert.Equal("components", shell.PendingViewRequest);
+        host.InteractionBus.SwapBuffers();
+        host.Dispatch.Execute(world, 0f);
+
+        Assert.True(bundle.Window.IsOpen, "the handler showed the panel");
+        Assert.Equal(Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId, bundle.Window.PendingViewRequest);
+        world.Bus.SwapBuffers();
+        var selection = Assert.Single(world.Bus.ReadManaged<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>());
+        Assert.Equal(unit, Assert.Single(selection.Entities));
+    }
+
+    /// <summary>⭐ CE-1150 (HA-4) — the bundle builds the shell WITH the Components view (every ECS host gets it), and a host with no
+    /// actions (Stride mode 2) gets the panel but registers nothing.</summary>
+    [Fact]
+    public void CE1150_TheBundle_BuildsThePanelWithTheComponentsView_AndWithoutActionsRegistersNone()
+    {
+        var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
+        var bundle = new EntityDetailsBundle(new EntityDetailsHostServices(
+            WindowId: "details_ce1150_b", Perspective: "SimHost", World: () => null,
+            Inspector: () => null, Session: () => null, RunState: () => VariableRunState.Running, Host: () => null));
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
+
+        Assert.True(windows.TryGetWindow("details_ce1150_b", out var w) && ReferenceEquals(w, bundle.Window));
+        Assert.Contains(bundle.Workspace.DetailsViews.All, d => d.Id == Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
+        Assert.False(windows.GlobalMenu.Root.Children.ContainsKey("View"), "no actions ⇒ no View ▸ Details items");
     }
 }

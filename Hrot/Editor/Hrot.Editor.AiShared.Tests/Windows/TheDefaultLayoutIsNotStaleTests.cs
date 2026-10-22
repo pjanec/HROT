@@ -262,6 +262,8 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
                         InspectorState: () => new Fdp.Presentation.Abstractions.InspectorState(),
                         EventBrowser:   new Fdp.Presentation.Panels.EventBrowserPanel(),
                         TitleBarColor:  null,
+                        Host:           () => null,
+                        World:          () => null,
                         // ⚠ Both non-null on purpose: the editor registers these two only when it has a
                         //   kernel, and the shipped layout NAMES them — so the layout's expectation is
                         //   the kernel-present case, and that is the case this rail must cover.

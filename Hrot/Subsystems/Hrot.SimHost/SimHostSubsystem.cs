@@ -337,6 +337,8 @@ namespace Hrot.SimHost
                         InspectorState: () => vis.FdpInspectorState,
                         EventBrowser:   vis.FdpEventBrowser,
                         TitleBarColor:  SimHostWindowColor.TitleBar,
+                        Host:           () => _app?.HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => vis.GetRepo(),
                         // ⭐ This host builds its own service, so its lazy `() => _app?.Kernel` binding
                         //   is untouched (design §5c.7 F2).
                         ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
@@ -345,6 +347,19 @@ namespace Hrot.SimHost
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
                         PickBroker:     vis.GetMapPickBroker())),
+                    // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
+                    //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on SimHost.
+                    //   ⭐ The world ticks from boot (no planning state, as on CGF); frozen = the clock is halted.
+                    new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                        WindowId:    "simhost_details",
+                        Perspective: "SimHost",
+                        World:       () => vis.GetRepo(),
+                        Inspector:   () => vis.FdpEntityInspector,
+                        Session:     () => vis.GetFdpRepoAdapter(),
+                        RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                         () => vis.GetRepo() != null,
+                                         () => Fdp.Toolkit.Time.SimClock.Of(vis.GetRepo()).IsHalted),
+                        Host:        () => _app?.HostActions)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

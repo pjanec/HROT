@@ -28,6 +28,10 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 /// <c>R-62</c>, the draw is unrailed by construction. ⭐ They prove the three things a draw depends on:
 /// the manager ARRIVED, the gesture WORKS at one offer, and the menu entries EXIST and are enabled by
 /// the right condition. ⛔ The on-screen half stays with the user's visual check.</para>
+///
+/// <para>⭐ <c>CE-1150</c> (canvas-context-menu-design §12 HA-7) — the View ▸ Details items are registered by
+/// <see cref="EntityDetailsBundle.RegisterViewMenu"/>, ⛔ no longer by the shell on registration (🔒 user, 2026-10-22: <i>"Windows themselves
+/// should not answer, they should have no idea there is any … menu"</i>); a click REQUESTS an action the host's dispatch runs.</para>
 /// </summary>
 public sealed class TheFloatAndPinEntryPointsAreReachableTests
 {
@@ -36,6 +40,21 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
 
     private static DetailsViewDescriptor View(string id, Func<DetailsContext, bool> applies)
         => new(id, id, 0, applies, () => new Nothing());
+
+    /// <summary>⭐ CE-1150 — the host's actions with the View ▸ Details items and their actions, as <c>EntityDetailsBundle</c> registers them.</summary>
+    private static Hrot.Common.Interactions.HostActions Menus(WindowManager wm)
+    {
+        var host = new Hrot.Common.Interactions.HostActions();
+        EntityDetailsBundle.RegisterViewMenu(host, wm);
+        return host;
+    }
+
+    /// <summary>One dispatch tick: the requests made since the last one run.</summary>
+    private static void Pump(Hrot.Common.Interactions.HostActions host)
+    {
+        host.InteractionBus.SwapBuffers();
+        host.Dispatch.Execute(null!, 0f);
+    }
 
     private sealed class Nothing : IDetailsViewInstance
     {
@@ -81,12 +100,15 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
         var (shell, _) = StandaloneShell(viewCount: 2);
         var wm = Wm();
 
-        wm.RegisterWindow(shell);   // ⭐ the ONLY wiring — as the Scenario root does it
+        wm.RegisterWindow(shell);   // ⭐ the ONLY wiring of the shell — as the Scenario root does it
+        var host = Menus(wm);
 
         // ⭐ The View-menu entry acts on the registered shell; that it opens a float proves the
         //   manager reached it, because OpenFloat registers into the manager it was handed.
         wm.SwitchPerspective("Scenario");
         Invoke(wm, "View/Details/Float current view");
+        Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Scenario", "v0"));   // ⭐ CE-1150 — only a REQUEST
+        Pump(host);
 
         Assert.Contains(wm.RegisteredWindowIds,
                         id => id == DetailsWindow.FloatIdFor("Scenario", "v0"));
@@ -165,6 +187,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     {
         var wm = Wm();
         wm.RegisterWindow(StandaloneShell(viewCount: 1).shell);
+        Menus(wm);
 
         var details = wm.GlobalMenu.Root.Children["View"].Children["Details"];
 
@@ -177,7 +200,8 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     /// ⛔ The failure this forbids: one pair of items PER <c>DetailsWindow</c>, which would put three
     /// near-identical entries in the bar. ⭐ The items resolve the active shell from
     /// <c>CurrentPerspective</c> at click time, so one pair serves every perspective — including one
-    /// added later.
+    /// added later. ⭐ CE-1150 — and a shell registers NO item itself: before the bundle's call there is no View ▸ Details at all.
+    /// ✅ Red-proof: a shell registering its own items again ⇒ the first assertion fails.
     /// </summary>
     [Fact]
     public void ManyShells_LeaveExactlyTwoMenuEntries()
@@ -196,6 +220,9 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
                     store, p, VariableRunState.Planning))));
         }
 
+        Assert.False(wm.GlobalMenu.Root.Children.TryGetValue("View", out var view) && view.Children.ContainsKey("Details"),
+                     "a Details window registers no menu item of its own");
+        Menus(wm);
         Assert.Equal(2, wm.GlobalMenu.Root.Children["View"].Children["Details"].Children.Count);
     }
 
@@ -222,8 +249,10 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
                     store, p, VariableRunState.Planning))));
         }
 
+        var host = Menus(wm);
         wm.SwitchPerspective("BTree");
         Invoke(wm, "View/Details/Float current view");
+        Pump(host);
 
         Assert.Contains   (wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("BTree",  "only.BTree"));
         Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Scenario", "only.Scenario"));
@@ -241,6 +270,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     {
         var wm = Wm();
         wm.RegisterWindow(StandaloneShell(viewCount: 0).shell);
+        Menus(wm);
         wm.SwitchPerspective("Scenario");
 
         var node = wm.GlobalMenu.Root.Children["View"].Children["Details"].Children["Float current view"];

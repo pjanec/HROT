@@ -484,6 +484,13 @@ namespace Hrot.Editor
         /// 📌 <c>R-67</c>, a rail must reach the CONSTRUCTED object.</summary>
         internal Hrot.Editor.AiShared.Windows.DetailsWindow? ScenarioDetails { get; private set; }
 
+        /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+        /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+        internal readonly Hrot.Common.Interactions.HostActions HostActions = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
+        /// <summary>⭐ CE-1150 (HA-4) — builds the Scenario Details panel (the shared one every ECS host builds) and its actions.</summary>
+        private Hrot.Editor.AiShared.Windows.EntityDetailsBundle? _scenarioDetailsBundle;
+
 
         /// <summary>⭐ <c>L6.1c</c> — exposed so a rail can assert the Scenario workspace was built and
         /// carries a REAL entity source *(<c>R-67</c>)</summary>
@@ -2046,6 +2053,7 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
@@ -2151,7 +2159,7 @@ namespace Hrot.Editor
                 var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
                 if (intent is { } i) _orchestrationBus?.PublishManaged(i);
             });
-            // ⭐ CE-1134 — Center View, Select and Properties… are MapInteractionPack.RegisterViewActions (every map host).
+            // ⭐ CE-1134 / CE-1150 — Center View and Select are SharedHostActions' (every host); Properties… is the Details bundle's.
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -2659,7 +2667,7 @@ namespace Hrot.Editor
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel
                 {
-                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState),   // ⭐ CE-1230 — the map's entity menu
+                    RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _world),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
                 };
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
@@ -3426,54 +3434,25 @@ namespace Hrot.Editor
             //    Scenario authors entities, not AI assets.
             // ⭐⭐⭐ A1 — the persisted key IS "Scenario" now: L6.1b is DONE, not deferred.
             //    📄 DESIGN_Perspective_Unification.md §3 A1 · charter D2.
-            _scenarioWorkspace = new Hrot.Editor.AiShared.Shell.PerspectiveWorkspace(
-                perspectiveName: "Scenario",
-                selectionStore:  _aiEditorSelectionStore,
-                // ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a
-                //   second rule. 📌 M-38/M-40: this editor already had five notions of "stopped".
-                runState:        Hrot.Editor.AiShared.Variables.RunStateSource.For(
-                                     isSimUpSignal, isFrozenSignal),
-                // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World, so ctx.Entities flows on
-                //   Scenario exactly as it does on the AI perspectives. ⚠ A SECOND instance, and that
-                //   is correct: the same-instance guarantee is per PERSPECTIVE (every context THIS
-                //   workspace builds reads one source), ⛔ not process-wide.
-                entitySelection: new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world));
-
-            ScenarioDetails = new Hrot.Editor.AiShared.Windows.DetailsWindow(
-                id:                "scenario_details",
-                owningPerspective: "Scenario",
-                // ⭐ Scenario has no host-specific decoder — the raw one is the honest default here,
-                //   ⛔ not a silent fallback: there is no blueprint session to decode through.
-                formatter:         new Hrot.Editor.AiShared.Variables.VariableValueFormatter(
-                                       Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance),
-                views:             _scenarioWorkspace.DetailsViews,
-                context:           _scenarioWorkspace.ContextSource());
-
-            // ⭐ BP-515 DS-7 (🔒 user, 2026-10-22: "'Properties...' … should open the 'Details' panel" · "a global ui action … no direct
-            //   calls") — this panel ANSWERS the map's "show its properties" request: it shows itself on the Components view. The map's
-            //   action only publishes the request; this host's inspector does not answer it (DiagnosticsHostServices.AnswersProperties).
-            ScenarioDetails.Answer(
-                () => _editorMapInteraction?.InteractionBus is { } requests
-                      && requests.Read<Hrot.Common.Diagnostics.Gizmos.ShowEntityPropertiesEvent>().Length > 0,
-                Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
-
-            // ⭐⭐ The window CONTRIBUTES its own variables view through the claim chain — 📌 §6 L1.2
-            //    (R-67): windows self-wire, so there is nothing extra for this root to remember.
-            _scenarioWorkspace.Contribute(ScenarioDetails);
-
-            // ⭐⭐⭐ L6.3 — THE COMPONENTS VIEW, added by the ROOT and only by the root.
-            // 📄 §6 L6 stage 4 · §3's reference wall: EntityInspectorPanel is in Fdp.Presentation and
-            //    IDetailsViewInstance is in Hrot.Editor.AiShared (below it) ⇒ ⛔ this assembly is the
-            //    ONLY one that can see both, so the adapter cannot self-wire through the claim chain.
-            // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the
-            //   buffer-view providers, the serializer and the mutation interceptor. ⛔ A fresh panel
-            //   would render components with none of that (the 2026-08-16 silent-default shape).
-            _scenarioWorkspace.DetailsViews.Add(
-                Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.For(
-                    panel:   () => _fdpEntityInspector,
-                    // ⭐ Re-asked every frame: the repository adapter is null until a scenario is open,
-                    //   and it is REPLACED on reload — ⛔ caching it would pin a dead World.
-                    session: () => _fdpRepoAdapter));
+            // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the SHARED Details panel every ECS host builds: the workspace, the shell,
+            //   its own view and the Components view, plus Properties… and View ▸ Details on this host's actions. The Editor keeps its id
+            //   and adds its own views below. ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a second rule.
+            //   ⭐ R-122 — the entities come from the World. ⛔ SUPERSEDED: the workspace + shell built here by hand, and (BP-515 DS-7) the
+            //   shell ANSWERING a "show its properties" event — 🔒 user, 2026-10-22: "the global action handler should open the detail panel".
+            _scenarioDetailsBundle = new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                WindowId:       "scenario_details",
+                Perspective:    "Scenario",
+                World:          () => _world,
+                // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the buffer-view providers, the
+                //   serializer and the mutation interceptor (§6 L6.3).
+                Inspector:      () => _fdpEntityInspector,
+                // ⭐ Re-asked every frame: null until a scenario is open, REPLACED on reload.
+                Session:        () => _fdpRepoAdapter,
+                RunState:       Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
+                Host:           () => HostActions,
+                SelectionStore: _aiEditorSelectionStore));
+            _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
+            ScenarioDetails    = _scenarioDetailsBundle.Window;
 
             // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
             //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
@@ -3782,7 +3761,11 @@ namespace Hrot.Editor
 
             // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
             //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
-            if (ScenarioDetails is not null) windowManager.RegisterWindow(ScenarioDetails);
+            // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
+            if (_scenarioDetailsBundle is not null)
+                Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                    new Fdp.Toolkit.Runner.IUiBundle[] { _scenarioDetailsBundle },
+                    new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
             // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
@@ -5105,7 +5088,8 @@ namespace Hrot.Editor
                         InspectorState: () => _fdpInspectorState,
                         EventBrowser:   _fdpEventBrowser,
                         TitleBarColor:  EditorWindowColor.TitleBar,
-                        AnswersProperties: false,   // ⭐ BP-515 DS-7 — the Scenario Details answers "Properties…" here
+                        Host:           () => HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => _world,
                         ArchitecturePanel: editorArchitecturePanel,
                         ExecutionStats:    editorExecutionStats,
                         PickBroker: _mapPickAdapter != null

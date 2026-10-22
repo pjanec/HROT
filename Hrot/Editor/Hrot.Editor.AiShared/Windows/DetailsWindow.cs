@@ -794,93 +794,11 @@ public sealed class DetailsWindow
     /// <para>⭐⭐ <b>Registration is the one event both roots already perform</b>, so hanging the wiring
     /// off it makes forgetting unrepresentable — 📌 <c>R-126</c>'s PULL argument, one floor up.</para>
     ///
-    /// <para>⭐⭐ It also contributes <c>L4.4</c>'s <b>View-menu</b> entry points *(<c>BP-403</c>)* —
-    /// see <see cref="RegisterViewMenu"/>.</para>
+    /// <para>⭐ <c>CE-1150</c> (canvas-context-menu-design §12 HA-7) — ⛔ SUPERSEDED: it also registered the View ▸ Details menu items
+    /// here (<c>BP-403</c>). 🔒 User, 2026-10-22: <i>"Windows themselves should not answer, they should have no idea there is any
+    /// 'Properties...' menu or some global ui actions"</i> ⇒ the items are actions registered by <c>EntityDetailsBundle</c>, which acts on
+    /// this shell's public <see cref="OpenFloat(WindowManager)"/> / <see cref="Pin(WindowManager)"/>.</para>
     /// </summary>
     public override void OnRegistered(WindowManager manager)
-    {
-        _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
-        RegisterViewMenu(manager);
-        manager.FrameStarted += AnswerRequests;   // ⭐ BP-515 DS-7 — every frame, open or closed
-    }
-
-    private readonly List<(Func<bool> Requested, string ViewId)> _answers = new();
-
-    /// <summary>
-    /// ⭐ <c>BP-515</c> DS-7 (🔒 user, 2026-10-22: <i>"Properties activation from menu is a global ui action … no direct calls"</i>) —
-    /// this shell ANSWERS a UI request: whenever <paramref name="requested"/> reports one (the host reads its event — e.g. the map's
-    /// <c>ShowEntityPropertiesEvent</c>), it shows itself and asks for <paramref name="viewId"/> (<see cref="RequestView"/>). ⛔ The
-    /// action that published the request never calls this window.
-    /// </summary>
-    public void Answer(Func<bool> requested, string viewId)
-        => _answers.Add((requested ?? throw new ArgumentNullException(nameof(requested)),
-                         viewId ?? throw new ArgumentNullException(nameof(viewId))));
-
-    /// <summary>⭐ <c>BP-515</c> DS-7 — the per-frame answer (<see cref="WindowManager.FrameStarted"/>).</summary>
-    internal void AnswerRequests()
-    {
-        foreach (var (requested, viewId) in _answers)
-        {
-            if (!requested()) continue;
-            _windowManager?.FocusWindow(Id);
-            RequestView(viewId);
-        }
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>L4.4</c>'s SECOND entry point — <c>BP-403</c>, the View menu.</b>
-    /// 📄 §6 <c>L4.4</c>, verbatim: <i>"entry points — toolbar affordance <b>+ the View menu, so a float
-    /// is reachable with Details closed</b>."</i>
-    ///
-    /// <para>⭐⭐⭐ <b>ONE pair of items for ALL perspectives, resolved at CLICK time.</b> ⛔ Not one pair
-    /// per <c>DetailsWindow</c>: 📐 three perspectives host one each, so a per-window path would put
-    /// three near-identical entries in the bar and a shared path would have the last registration win
-    /// — ⚠ silently pointing the menu at whichever perspective happened to register last. ⭐ Resolving
-    /// from <c>CurrentPerspective</c> at click time is the only shape that is correct for all three
-    /// <b>and</b> keeps working when a fourth is added.</para>
-    ///
-    /// <para>⭐ <b>Idempotent by construction</b> — <c>RegisterItem</c> keys on the path, so N windows
-    /// registering the same two paths leave exactly two items *(<see cref="OnRegistered"/>'s
-    /// contract)*.</para>
-    ///
-    /// <para>⚠ <b>Greyed with a REASON rather than hidden</b> when nothing is showing — 📌 the user's
-    /// <c>2026-08-17</c> ruling: <i>"showing explanatory tooltip would be better than allowing user to
-    /// click the button and then saying that it is not possible."</i> ⛔ A vanishing menu item teaches
-    /// nothing.</para>
-    /// </summary>
-    private static void RegisterViewMenu(WindowManager manager)
-    {
-        manager.GlobalMenu.RegisterItem(
-            "View/Details/Float current view",
-            () => ActiveDetails(manager)?.OpenFloat(manager));
-
-        manager.GlobalMenu.RegisterItem(
-            "View/Details/Pin current view",
-            () => ActiveDetails(manager)?.Pin(manager));
-
-        foreach (var (name, verb) in new[] { ("Float current view", "float"), ("Pin current view", "pin") })
-        {
-            var node = manager.GlobalMenu.Root.Children["View"].Children["Details"].Children[name];
-            node.GetEnabled   = () => ActiveDetails(manager)?.CurrentDescriptor() is not null;
-            node.DynamicLabel = () => ActiveDetails(manager)?.CurrentDescriptor() is { } d
-                ? $"{name} ({d.Title})"
-                : $"{name} (nothing to {verb} — no view is showing)";
-        }
-    }
-
-    /// <summary>
-    /// ⭐ The <see cref="DetailsWindow"/> of the perspective the designer is actually in, or
-    /// <see langword="null"/>. ⚠ Scans the registered windows because the manager keys by id and this
-    /// question is about the OWNING PERSPECTIVE — ⛔ and the id is per-host *(`scenario_details`,
-    /// `btree_details`, …)*, so it cannot be derived.
-    /// </summary>
-    private static DetailsWindow? ActiveDetails(WindowManager manager)
-    {
-        foreach (var id in manager.RegisteredWindowIds)
-            if (manager.TryGetWindow(id, out var w)
-             && w is DetailsWindow d
-             && d.OwningPerspective == manager.CurrentPerspective)
-                return d;
-        return null;
-    }
+        => _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
 }

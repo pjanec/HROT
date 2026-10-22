@@ -211,6 +211,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// does *(<c>EditorSubsystem</c> <c>:304</c>/<c>:834</c>)</summary>
     private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
 
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+    internal readonly Hrot.Common.Interactions.HostActions HostActions = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
     /// <summary>
     /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
     /// It owns every published <c>RoadNetworkBlob</c> and makes a terrain reload safe against a
@@ -1312,6 +1316,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
+                Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                 // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                 Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
@@ -1662,7 +1667,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel
             {
-                RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState),   // ⭐ CE-1230 — the map's entity menu
+                RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _context?.World),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
             };
 
             // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
@@ -1903,6 +1908,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     InspectorState: () => _fdpInspectorState,
                     EventBrowser:   _fdpEventBrowser,
                     TitleBarColor:  TitleBarColor,
+                    Host:           () => HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                    World:          () => _context?.World,
                     // ⭐ This host builds its own service, so its lazy `() => _context?.Kernel` binding
                     //   is untouched (design §5c.7 F2).
                     ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
@@ -2171,6 +2178,23 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _btreeRegistrar.RegisterWindows(windowManager);
         _hsmRegistrar.RegisterWindows(windowManager);
         _blueprintRegistrar.RegisterWindows(windowManager);
+
+        // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel on CGF's Scenario perspective (the map's and the
+        //   inspector's), the same shared one every ECS host builds: the Components view, and Properties… / View ▸ Details on this host's
+        //   actions. 📐 Before: CGF had Details only on its three AI perspectives. ⭐ The SAME two clock signals as the AI perspectives.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "cgf_details",
+                    Perspective: "Scenario",
+                    World:       () => _context?.World,
+                    Inspector:   () => _fdpEntityInspector,
+                    Session:     () => _fdpRepoAdapter,
+                    RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
+                    Host:        () => HostActions)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
         // ── The document manager + the graph canvases (§2 :2948) ───────────────
         _aiDocumentManager = new Hrot.Editor.AiShared.Documents.AiDocumentManager(_perspectiveSwitcher);
