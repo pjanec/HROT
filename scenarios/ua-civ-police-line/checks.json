@@ -1,0 +1,62 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-8/CV-11 a police line on its default HoldTheLine, NonLethal. From the header's Judge (0), (1), (3), (4): the riot starts, the police use force (the take's first round, the launcher at 2.2 s), nobody dies, the riot ends (no rioter in Riot at the end). who '*s' = Instigator and Protesters (the police and stone source carry no CivilianState). NOT expressed: (2) a rioter stunned, irritated or knocked down (three EffectState fields, not an OR a check can write - the golden shows which); 'no riot for 10 s' is only its end state; 'only non-lethal rounds' is the cast's own weapons (no rifle in the line) plus the three nobody-dies rows.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the riot starts",
+      "on": "field",
+      "who": "*s",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "the police use force",
+      "on": "shot",
+      "by": "*Police"
+    },
+    {
+      "name": "nobody among the police dies",
+      "never": {
+        "on": "field",
+        "who": "*Police",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "no protester dies",
+      "never": {
+        "on": "field",
+        "who": "*Protester",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "the Instigator does not die",
+      "never": {
+        "on": "field",
+        "who": "Instigator",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "the riot breaks up (no rioter is in Riot at the end)",
+      "on": "field",
+      "who": "*s",
+      "path": "CivilianState.Mode",
+      "op": "!=",
+      "value": "Riot",
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CIV-0 (CE-2233) a neutral is never a target. From the header's Judge (2)-(5): the Hostile is put out of the fight (Health < 25, the live threshold), neither neutral is ever hurt before the flip, the rifleman never fires at a neutral before the flip and fires nothing 3-11 s after the Hostile is down (the live check's 3 s settle then 8 s), then the check flips the Armed Neutral to Hostile and he is engaged while the civilian stays unhurt. The flip is the live check's, as a component edit: EntityInfo.ForceId = Hostile - ⚠ NOT yet run: the live check used /attribute (Affiliation) precisely because /component 'is a StructEdit never sent', which is moot in the one editor world but unproven. NOT expressed: (1) 'sees both neutrals' (TargetMemory entries) and (4) 'both rank at score 0' (a utility ranking).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "do": [
+    {
+      "name": "the check flips the Armed Neutral to Hostile",
+      "at": "the Hostile is put out of the fight+12",
+      "set": {
+        "who": "Armed Neutral",
+        "component": "EntityInfo",
+        "patch": {
+          "ForceId": "Hostile"
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the Hostile is put out of the fight",
+      "on": "field",
+      "who": "Hostile",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 25
+    },
+    {
+      "name": "the civilian is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Civilian",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the armed neutral is never hurt before he is flipped",
+      "never": {
+        "on": "field",
+        "who": "Armed Neutral",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      },
+      "before": "the check flips the Armed Neutral to Hostile"
+    },
+    {
+      "name": "he never fires at the civilian",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "at": "Civilian"
+      }
+    },
+    {
+      "name": "he never fires at the armed neutral before he is flipped",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman",
+        "at": "Armed Neutral"
+      },
+      "before": "the check flips the Armed Neutral to Hostile"
+    },
+    {
+      "name": "with only neutrals left he fires nothing for 8 s",
+      "never": {
+        "on": "shot",
+        "by": "Rifleman"
+      },
+      "after": "the Hostile is put out of the fight+3",
+      "before": "the Hostile is put out of the fight+11"
+    },
+    {
+      "name": "once Hostile the armed neutral is engaged at once",
+      "on": "shot",
+      "by": "Rifleman",
+      "at": "Armed Neutral",
+      "after": "the check flips the Armed Neutral to Hostile"
+    },
+    {
+      "name": "he is hit once flipped",
+      "on": "field",
+      "who": "Armed Neutral",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the check flips the Armed Neutral to Hostile"
+    }
+  ]
+}

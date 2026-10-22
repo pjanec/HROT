@@ -16,7 +16,7 @@
       "on": "gesture",
       "who": "Police patrol",
       "is": "Warning",
-      "before": "he aims at the patrol"
+      "before": "he aims at the patrol (turns Hostile)"
     },
     {
       "name": "he aims at the patrol (turns Hostile)",
