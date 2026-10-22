@@ -34,7 +34,7 @@ jobs:
   verify:
     needs: list
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75   # above the runner's --verify-timeout default (60 min); uc-urban-battle needs ~30
     strategy:
       fail-fast: false
       matrix:

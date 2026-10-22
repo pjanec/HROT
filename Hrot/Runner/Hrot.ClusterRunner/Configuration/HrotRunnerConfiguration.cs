@@ -129,6 +129,12 @@ namespace Hrot.ClusterRunner.Configuration
                 HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]
         public string VerifyOut { get; set; } = string.Empty;
 
+        /// <summary>⭐ CE-4042 — a child's wall-clock limit in minutes (a hung run fails, never waits forever). 📐 <c>uc-urban-battle</c> (200 s of
+        /// sim, ~40 men) steps ~9× slower than real time: 1751 s once, past 1800 s the next ⇒ the default is 60.</summary>
+        [Option("verify-timeout", Required = false, Default = 60,
+                HelpText = "With --verify: the wall-clock limit per scenario, in minutes (default 60); a scenario past it fails")]
+        public int VerifyTimeout { get; set; } = 60;
+
         /// <summary>⭐ CE-4042 — write the verify report (JSON) here.</summary>
         [Option("verify-report", Required = false, HelpText = "With --verify: write the report (JSON) to this file")]
         public string VerifyReport { get; set; } = string.Empty;

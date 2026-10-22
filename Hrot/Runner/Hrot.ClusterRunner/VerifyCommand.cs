@@ -19,9 +19,6 @@ namespace Hrot.ClusterRunner;
 /// </summary>
 internal static class VerifyCommand
 {
-    /// <summary>A child's wall-clock limit (a run that hangs is a failure, never a wait forever).</summary>
-    private static readonly TimeSpan ChildLimit = TimeSpan.FromMinutes(30);
-
     /// <summary><c>a,b,c</c> as named, or <c>all</c> — every scenario of the source tree with a <c>checks.json</c>.</summary>
     public static IReadOnlyList<string> Scenarios(string arg)
     {
@@ -47,8 +44,10 @@ internal static class VerifyCommand
 
     /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;
     /// empty = a fresh folder under the temp directory.</param>
-    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report, string outDir = "")
+    /// <param name="limitMinutes">a child's wall-clock limit (<c>--verify-timeout</c>) — a run that hangs is a failure, never a wait forever.</param>
+    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report, string outDir = "", int limitMinutes = 60)
     {
+        var childLimit = TimeSpan.FromMinutes(Math.Max(1, limitMinutes));
         var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
             : Path.Combine(Path.GetTempPath(), "hrot-verify", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dir);
@@ -73,7 +72,7 @@ internal static class VerifyCommand
                 p.Start();
                 p.BeginOutputReadLine();
                 p.BeginErrorReadLine();
-                if (!p.WaitForExit((int)ChildLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } code = 124; }
+                if (!p.WaitForExit((int)childLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } code = 124; }
                 else { p.WaitForExit(); code = p.ExitCode; }
             }
             JsonNode? r = File.Exists(childReport) ? JsonNode.Parse(File.ReadAllText(childReport)) : null;
@@ -138,9 +137,9 @@ internal static class VerifyCommand
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
-            if (a is "--verify" or "--verify-report" or "--verify-out") { i++; continue; }
+            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-timeout") { i++; continue; }
             if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)
-                || a.StartsWith("--verify-out=", StringComparison.Ordinal)) continue;
+                || a.StartsWith("--verify-out=", StringComparison.Ordinal) || a.StartsWith("--verify-timeout=", StringComparison.Ordinal)) continue;
             keep.Add(a);
         }
         return keep;

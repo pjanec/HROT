@@ -128,7 +128,7 @@ class Program
                 return 1;
             }
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
-                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut);
+                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
             Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport);
         }
 
