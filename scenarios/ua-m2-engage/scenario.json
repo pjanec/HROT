@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: a manned M2 engages an intruder (CE-4035 G-11), on basic-desert. 'M2 Gunner' (default SOP) sets up a stowed 'M2 HMG' 8 m away at (300, 330), facing north; while it is set up an 'Intruder' (Hostile) walks from (330, 480) toward it (to (310, 400)). The gunner's own SOP engages from the seat (CE-4035: a man in a weapon system's seat is not 'aboard' — the weapon has no brain, W-D; before, the 'Aboard → the vehicle decides' row left nobody to fire — 📐 measured live). Judge: (1) the gunner mans the M2 and it deploys (2) the M2 fires on the intruder. Fail: the M2 never fires. Note: split out of ua-weapon-systems, whose automatic sentry gun (360° traverse, 900 m range) shot every intruder anywhere on the terrain first. Check: python3 scripts/utility-demo-check.py --launch ua-m2-engage"
+    "description": "What: a manned M2 engages an intruder (CE-4035 G-11), on basic-desert. 'M2 Gunner' (default SOP) sets up a stowed 'M2 HMG' 8 m away at (300, 330), facing north; while it is set up an 'Intruder' (Hostile) walks from (330, 480) toward it (to (310, 400)). The gunner's mission: SetUpWeapon, then WeaponSystemHold (fire at the top threat with the weapon he mans). ⚠ Measured live `2026-10-22`: without that order the gunner, seated and seeing the intruder, stayed Idle — the soldier SOP's 'enemy in sight, no task' row did not react (CE-4035 finding). Judge: (1) the gunner mans the M2 and it deploys (2) the M2 fires on the intruder. Fail: the M2 never fires. Note: split out of ua-weapon-systems, whose automatic sentry gun (360° traverse, 900 m range) shot every intruder anywhere on the terrain first. Check: python3 scripts/utility-demo-check.py --launch ua-m2-engage"
   },
   "entities": {
     "c4035011-0000-4000-8000-000000000001": {
@@ -70,10 +70,31 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Behavior": {
-        "Name": "SetUpWeapon",
-        "Params": "{\"weapon\": 41103}",
-        "Origin": "Superior"
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "c4035011-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "c4035011-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "SetUpWeapon",
+              "BehaviorParams": "{\"weapon\": 41103}",
+              "Triggers": [
+                {
+                  "Type": "BehaviorFinished",
+                  "Params": ""
+                }
+              ]
+            },
+            {
+              "TaskId": "c4035011-0000-4000-8000-0000000000a2",
+              "ExecutingEngine": "",
+              "BehaviorName": "WeaponSystemHold",
+              "BehaviorParams": "{}",
+              "Triggers": []
+            }
+          ]
+        }
       }
     },
     "c4035011-0000-4000-8000-000000000003": {
