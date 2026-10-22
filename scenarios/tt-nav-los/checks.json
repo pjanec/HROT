@@ -1,6 +1,6 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — EQS and navigation fixture. Judge (2) the Bradley goes around Block A (never inside the block's inscribed circle: centre (65,255), radius 24 of the 25 m half-width), (3) it arrives about 100 m east (x > 105 at the end; its point is given in lat/lon, not read). Left out: (1) what the Observer sees (perception memory, not a component), the 1.5 m wall clearance (a distance to a wall, not a field).",
-  "runFor": 60,
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 EQS and navigation fixture. Judge (2) the Bradley goes around Block A (never inside the block's inscribed circle: centre (65,255), radius 24 of the 25 m half-width), (3) it arrives within 5 m of its point: MoveToLocation lat 52.52229156 lon 13.40647328 on test-town (origin 52.52, 13.405) = local (99.8, 255.1) \u2014 80 m east of the start, not 100 (probed: stops at x 100.5 at 24.75 s). Left out: (1) what the Observer sees (perception memory, not a component), the 1.5 m wall clearance (a distance to a wall, not a field).",
+  "runFor": 40,
   "golden": {
     "every": 10
   },
@@ -18,12 +18,14 @@
       }
     },
     {
-      "name": "the Bradley arrives about 100 m east of its start (20,255)",
-      "on": "field",
+      "name": "the Bradley arrives within 5 m of its point (99.8, 255.1)",
+      "on": "near",
       "who": "M2 Bradley IFV",
-      "path": "SimTransform.Position.0",
-      "op": ">",
-      "value": 105,
+      "point": [
+        99.8,
+        255.1
+      ],
+      "within": 5,
       "atEnd": true
     }
   ]

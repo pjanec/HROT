@@ -163,6 +163,22 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ A <c>hit</c> cue sees a burst that STRUCK the unit (a drone diving onto a tank), as the take's <c>AnchorBook.Hit</c> does — 📌
+    /// measured on <c>ua-drone-shelter</c>: without it, "the deck tank is never hit" was vacuous. 🔴 Red-proof: drop the <c>struck</c> term.
+    /// </summary>
+    [Fact]
+    public void CE4042_AHitCue_SeesABurstThatStruckTheUnit()
+    {
+        var checks = Parse("""{ "runFor": 10, "expect": [{"name": "the tank is hit", "on": "hit", "target": "Tank"}] }""", out _);
+        var w = new FakeWorld().Unit("Tank", 1, 100, 0).Unit("Drone", 2, 10, 0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0);
+        w.BlastRows.Insert(0, new JsonObject { ["seq"] = 0, ["shooter"] = 2, ["struck"] = 1, ["effects"] = new JsonArray() });
+        book.Observe(2.5);
+        Assert.Equal(2.5, book.Verdicts().Single().Time!.Value, 6);
+    }
+
+    /// <summary>
     /// ⭐ A failed expectation whose cue held LATE says when ("it moved" is not "it never happened" — measured on pc-defend-house, whose
     /// Red line opened fire after its window). 🔴 Red-proof: drop the outside record ⇒ heldOutsideItsWindowAt is null.
     /// </summary>

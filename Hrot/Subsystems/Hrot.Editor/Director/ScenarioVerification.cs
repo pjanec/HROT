@@ -161,7 +161,9 @@ namespace Hrot.Editor.Director
                 {
                     if (a.Target == null) return null;
                     var hits = _shots.Values.Where(r => r["outcome"]?.ToString() == "Hit" && Is(r["hit"], a.Target)).Select(r => Rel(r["firedAt"]))
-                        .Concat(_blasts.Where(r => r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
+                        // ⭐ a burst that STRUCK the unit (a drone's dive, a round's warhead on it) — as AnchorBook.Hit reads it — or hurt it
+                        .Concat(_blasts.Where(r => Is(r["struck"], a.Target)
+                                                   || r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
                                        .Select(r => Num(r["seenAt"])!.Value))
                         .Where(t => from is null || t >= from - 1e-9).OrderBy(t => t).ToList();
                     return hits.Count >= a.N ? hits[a.N - 1] : null;
@@ -239,7 +241,8 @@ namespace Hrot.Editor.Director
                 if (seq <= _blastFloor || seq <= _blastSeen) continue;
                 var row = (JsonObject)r.DeepClone();
                 row.Remove("rays");
-                if (Num(row["shooter"]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row["shooter"] = n;
+                foreach (var k in new[] { "shooter", "struck" })
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
                 if (row["effects"] is JsonArray fx)
                     foreach (var x in fx.OfType<JsonObject>())
                         if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((long)eid, out var en)) x["entity"] = en;
