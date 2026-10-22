@@ -63,6 +63,18 @@ namespace Fdp.Core.FlightRecorder
         public Predicate<Entity>? EntityFilter { get; set; } = null;
 
         /// <summary>
+        /// ⭐ <c>CE-3299</c> B2 — which component types (component tables, the entity masks, singletons) this recorder writes. Null: the
+        /// recordable set (<see cref="ComponentTypeRegistry.IsRecordable"/>, no <c>NoReplay</c>) — every recording. A dry run's RAM
+        /// keyframe sets it to carry what the dry run puts back (restore design D12, B2).
+        /// </summary>
+        public Func<int, bool>? ComponentTypeFilter { get; set; } = null;
+
+        /// <summary>⭐ B2 — false: no singleton is written (a dry run never rewinds a singleton — <c>SyncFrom</c> did not either).</summary>
+        public bool RecordSingletonTables { get; set; } = true;
+
+        private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? ComponentTypeRegistry.IsRecordable(typeId);
+
+        /// <summary>
         /// Records a delta frame containing only changed data since prevTick.
         /// Writes to the provided BinaryWriter.
         /// </summary>
@@ -223,7 +235,7 @@ namespace Fdp.Core.FlightRecorder
             foreach (var kvp in componentTables)
             {
                 var table = kvp.Value;
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
+                if (!Records(table.ComponentTypeId)) continue;
                 
                 // Only support unmanaged for now -> REMOVED because we now support managed.
                 // if (!(table is IUnmanagedComponentTable unmanagedTable)) continue;
@@ -437,7 +449,7 @@ namespace Fdp.Core.FlightRecorder
             foreach (var kvp in componentTables)
             {
                 var table = kvp.Value;
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
+                if (!Records(table.ComponentTypeId)) continue;
                 // ⭐ CE-2045 — one cached lookup per TABLE type: it called GetGenericArguments() (a new Type[]) for every managed
                 //   table on every frame — the hot path's last per-table allocation.
                 if (ManagedRecorderFor(table.GetType()) is { } recorder)
@@ -571,6 +583,11 @@ namespace Fdp.Core.FlightRecorder
         private BitMask512 GetRecordableMask()
         {
             var mask = new BitMask512();
+            if (ComponentTypeFilter is { } filter)
+            {
+                foreach (var id in ComponentTypeRegistry.GetAllIds()) if (filter(id)) mask.SetBit(id);
+                return mask;
+            }
             var ids = ComponentTypeRegistry.GetRecordableTypeIds();
             foreach (var id in ids) mask.SetBit(id);
             return mask;
@@ -835,6 +852,7 @@ namespace Fdp.Core.FlightRecorder
 
         private void RecordSingletons(EntityRepository repo, BinaryWriter writer, uint prevTick)
         {
+            if (!RecordSingletonTables) { writer.Write(0); return; }   // ⭐ B2 — a count of zero: the frame format is unchanged
             var slots = repo.SingletonSlotsForRecording;   // ⭐ CE-2045 — index loop: the iterator allocated per frame
             
             // We need to write the count first, but we don't know how many are dirty.
@@ -846,7 +864,7 @@ namespace Fdp.Core.FlightRecorder
             for (int slot = 0; slot < slots.Length; slot++)
             {
                 if (slots[slot] is not IComponentTable table) continue;
-                if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
+                if (!Records(table.ComponentTypeId)) continue;
 
                 // Check version (Singletons are always in Chunk 0)
                 if (table.GetVersionForEntity(0) <= prevTick) 

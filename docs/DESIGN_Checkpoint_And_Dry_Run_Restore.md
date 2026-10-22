@@ -102,6 +102,17 @@ applies). `SyncFrom` stays the every-frame background snapshot. No network buffe
 
 A checkpoint (B3) is a recorder keyframe, and an export is read by ANOTHER process. 🔴 Measured: a managed event's type id was `FullName.GetHashCode()`, which .NET randomises per process, and the recorder writes that id into each frame's event block (`RecorderSystem.cs:740`) ⇒ events in a recording named different types once re-read elsewhere. ✅ Fixed: `Fdp.Core.StableHash` (FNV-1a) for the bus, the command buffer and the blueprint event fallback; rail `NoIdFromAProcessRandomisedHashTests`. ⚠ Keyframes for restore do not carry events (`RestoreOptions.RestoreEvents` defaults to false), so B1 was not exposed; recordings and exports are.
 
+### 1e. 📐 B2 measured — a keyframe rewind vs `SyncFrom`, on a live world (`2026-10-22`)
+
+Throwaway probe in the in-process cluster harness (`uc-urban-battle`, SimHost ≈ 730 entities, 300 frames after spawn): capture both ways at F, run 120 frames (280–544 of ≈ 9 000 component values change), rewind by keyframe, fingerprint every entity × component (JSON of the value), rewind by `SyncFrom`, fingerprint again.
+
+| set | keyframe vs F | `SyncFrom` vs F |
+|---|---|---|
+| node (`Snapshotable`, no singletons) | first 68 → ✅ **0** after CE-3305 | 0–1 (`DescriptorOwnership`) |
+| editor (`All`, no singletons) | first 70 → ✅ **0** after CE-3305 | **1** (`AirPath`) |
+
+⭐ Two findings. ① The recorder dropped state (`Guid` → empty, state behind a read-only view or a get-only collection) — **CE-3305**, fixed with a rail; it was losing the same state in every replay and checkpoint. ② `SyncFrom` copies a managed component BY REFERENCE, so a later in-place mutation leaks into the "snapshot" and the rewind does not undo it — the keyframe, which serializes, is the more correct rewind. ⇒ B2 may move the dry run onto keyframes with `CaptureOptions.NodeDryRun` / `EditorDryRun` (the same type sets `SyncFrom` used; `RecorderSystem.ComponentTypeFilter`, `RecordSingletonTables = false`).
+
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
 ```mermaid

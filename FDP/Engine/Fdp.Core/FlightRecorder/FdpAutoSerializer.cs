@@ -478,6 +478,7 @@ namespace Fdp.Core.FlightRecorder
         private static bool IsBuiltInType(Type type)
         {
             if (type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(Fdp.Core.Entity)) return true;
+            if (type == typeof(Guid) || type == typeof(DateTime) || type == typeof(TimeSpan)) return true;   // ⭐ CE-3305
             if (type.IsArray) return true;
             if (type.IsGenericType)
             {
@@ -511,6 +512,18 @@ namespace Fdp.Core.FlightRecorder
                 var packedAccess = Expression.PropertyOrField(valueAccess, "PackedValue");
                 return Expression.Call(writer, entityWriteMethod!, packedAccess);
             }
+
+            // ⭐ CE-3305 — BCL value types with no public settable member: written whole (the recursive case below wrote NOTHING for
+            //   them, so a Guid read back as Guid.Empty — measured on SensorCapability.Default.Template in a dry-run keyframe).
+            if (type == typeof(Guid))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(byte[]) })!,
+                    Expression.Call(valueAccess, typeof(Guid).GetMethod(nameof(Guid.ToByteArray), Type.EmptyTypes)!));
+            if (type == typeof(DateTime))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(long) })!,
+                    Expression.Call(valueAccess, typeof(DateTime).GetMethod(nameof(DateTime.ToBinary))!));
+            if (type == typeof(TimeSpan))
+                return Expression.Call(writer, typeof(BinaryWriter).GetMethod("Write", new[] { typeof(long) })!,
+                    Expression.Property(valueAccess, nameof(TimeSpan.Ticks)));
 
             // CASE A: Primitive (int, float, string, etc.)
             var writeMethod = typeof(BinaryWriter).GetMethod("Write", new[] { type });
@@ -594,6 +607,17 @@ namespace Fdp.Core.FlightRecorder
                 var ctor = typeof(Fdp.Core.Entity).GetConstructor(new[] { typeof(ulong) });
                 return Expression.New(ctor!, readExpr);
             }
+
+            // ⭐ CE-3305 — see the write side.
+            if (type == typeof(Guid))
+                return Expression.New(typeof(Guid).GetConstructor(new[] { typeof(byte[]) })!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadBytes")!, Expression.Constant(16)));
+            if (type == typeof(DateTime))
+                return Expression.Call(typeof(DateTime).GetMethod(nameof(DateTime.FromBinary))!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadInt64")!));
+            if (type == typeof(TimeSpan))
+                return Expression.Call(typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromTicks), new[] { typeof(long) })!,
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadInt64")!));
 
             // CASE A: Primitive
             var readMethod = typeof(BinaryReader).GetMethod($"Read{type.Name}");
@@ -1611,6 +1635,12 @@ namespace Fdp.Core.FlightRecorder
                 .Cast<MemberInfo>()
                 .Concat(t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .Where(p => p.GetIndexParameters().Length == 0 && p.CanRead && p.CanWrite))
+                // ⭐ CE-3305 — a non-public field the component opts in ([RecordedMember]): state kept behind a read-only view.
+                .Concat(t.GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+                    .Where(f => f.GetCustomAttribute<Fdp.Core.RecordedMemberAttribute>() != null)
+                    .Select(f => f.IsInitOnly
+                        ? throw new InvalidOperationException($"{t.Name}.{f.Name} is [RecordedMember] and readonly — a read could not assign it")
+                        : (MemberInfo)f))
                 .Where(m => m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
                 .OrderBy(m => m.Name, StringComparer.Ordinal)
                 .ToList();

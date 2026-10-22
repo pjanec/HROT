@@ -69,7 +69,10 @@ public struct RouteWaypoint
 [ComponentId(HrotComponentIds.RoutePlan)]
 public sealed class RoutePlan
 {
-    private readonly List<RouteWaypoint> _waypoints = new();
+    // ⭐ CE-3305 — [RecordedMember]: the recorder sees public members only, so a recording (replay, checkpoint, a dry run's keyframe)
+    //   carried an EMPTY route (measured). Not readonly: a recording's read assigns it.
+    [Fdp.Core.RecordedMember]
+    private List<RouteWaypoint> _waypoints = new();
 
     /// <summary>
     /// Read-only view of the ordered waypoint list.
