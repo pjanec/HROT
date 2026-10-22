@@ -34,6 +34,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float BoundTimeoutSeconds;
         /// <summary>⭐ <c>CE-2158</c> F-c — runtime: each mover's cover point for his element's next bound (<see cref="SquadCover"/>).</summary>
         public SquadCoverPicks Cover;
+        /// <summary>⭐ <c>CE-2284</c> — runtime: the moving element's distance to the objective when its bound was issued (m), and how many
+        /// bounds in a row timed out having gained less than <see cref="BoundingOverwatchPlay.StallMetres"/>.</summary>
+        public float BoundFromMetres;
+        public byte Stalls;
     }
 
     /// <summary>
@@ -114,6 +118,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
             p.Cover = default;
+            p.Stalls = 0;
             return PlayStart.Go;
         }
 
@@ -134,8 +139,17 @@ namespace Hrot.AI.Behaviors.Brains
                                 ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
         }
 
+        /// <summary>⭐ <c>CE-2284</c> — a bound that times out having brought its element less than this much closer to the objective (m)
+        /// is a STALL · this many in a row and the squad is set where it stands.</summary>
+        public const float StallMetres = 2f;
+        public const int StallsToSet = 2;
+
         public NodeStatus Outcome(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            // ⭐ CE-2284 — the objective cannot be reached from here (📌 pc-urban-ambush: the assault's flank point lay behind the buildings
+            //   north of Main Street; both elements walked to the wall face and every bound re-issued the same blocked line for 9 minutes,
+            //   so the squad never reported Set and the platoon never assaulted): set where it stands
+            if (p.Stalls >= StallsToSet) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -189,7 +203,13 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
                 evt = PhaseEventKind.BoundComplete;
                 ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
+                // ⭐ CE-2284 — a timed-out bound that gained (almost) nothing is a stall
+                var at = ctx.Centre(moving, out bool any);
+                var left = p.Objective - at; left.Z = 0f;
+                if (any && p.BoundFromMetres - left.Length() < StallMetres) { if (p.Stalls < 255) p.Stalls++; }
+                else p.Stalls = 0;
             }
+            else p.Stalls = 0;
             SquadCover.Spend(ref p.Cover, in ctx, moving);   // the bound is over: its next one picks afresh
             return true;
         }
@@ -201,6 +221,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!any) return;
             var to = p.Objective - centre; to.Z = 0f;
             float d = to.Length();
+            p.BoundFromMetres = d;   // ⭐ CE-2284 — where this bound starts, for the stall test
             if (d > 1e-3f) ws.Scratch = to * (MathF.Min(p.BoundMetres, d) / d);
         }
 
