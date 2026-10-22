@@ -1,0 +1,55 @@
+{
+  "title": "Crew weapons",
+  "caption": "Weapons are entities: a sentry gun fires by itself; a crew sets up an M2; a man picks up a Javelin",
+  "anchors": {
+    "sentry": {
+      "on": "shot",
+      "by": "Sentry Gun",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "sentry": 0.85
+    },
+    "tickHz": 60,
+    "scenarioHash": "d6ccd48c11a70781",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "sentry-1",
+      "seconds": 4,
+      "over": "Sentry Gun",
+      "toward": "Intruder",
+      "back": 3,
+      "height": 1.5,
+      "ahead": 0.7,
+      "why": "the sentry gun engages"
+    },
+    {
+      "at": 2,
+      "seconds": 5,
+      "follow": "M2 Gunner",
+      "distance": 7,
+      "yaw": 90,
+      "pitch": -15,
+      "replay": true,
+      "why": "the crew sets up the M2"
+    },
+    {
+      "at": 2,
+      "seconds": 4,
+      "follow": "Javelin Man",
+      "distance": 6,
+      "yaw": 90,
+      "pitch": -15,
+      "replay": true,
+      "why": "the Javelin picked up"
+    }
+  ],
+  "clip": "F-60",
+  "chapter": 12,
+  "state": "ready",
+  "needs": "⚠ the M2 is not checked to fire"
+}

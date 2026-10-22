@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (first version — coordinator; the clip list per CAPABILITIES chapter, what each needs, and the overnight pipeline proposal)
+updated: 2026-10-21 (§3 the takes are seeded and the director built — clips.json is the seed now, CE-4038) · 2026-10-21 (first version — coordinator; the clip list per CAPABILITIES chapter, what each needs, and the overnight pipeline proposal)
 current-answer: §1 the clip list · §2 the gaps (features no clip can show yet) · §3 the overnight pipeline (proposal, leans) · §4 what the sweep found broken · §5 the reels · §6 how to produce them
 stale-below: none
 known-rot: event times are from the scenario docs and the description sweep (2026-10-21) — the scout pass (§3) re-measures every one before filming
@@ -43,11 +43,11 @@ it is found the same night.*
 | F-01 | weather | `ua-weather-regions` | an IFV drives east from clear weather into a fog bank, then under overcast | 🔧 the IFV has no order. Give it a move east (it now waits for an operator) |
 | F-02 | city traffic turns to panic | `demo-city` (recipe) | cars and pedestrians flow; a burst of fire; nearby pedestrians become civilians and flee | 🔧 needs a shooter in the recipe, or a plan action that fires one |
 | | **3 · Civilians** | | | |
-| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ✅ |
-| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ✅ |
-| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ✅ |
-| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ✅ (live re-run pending — the scout pass decides) |
-| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ✅ |
+| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
 | | **4 · Armed people, riots, police** | | | |
 | F-08 | drawn is not hostile; aimed is | `ua-armed-draw-aim` | a man draws a hidden pistol (~8 s) — no shot; he aims (~20–30 s) — shot | ✅ |
 | F-09 | no shot through bystanders | `ua-armed-shield` | civilians in the line; the rifleman waits; the insurgent steps clear; shot | ✅ |
@@ -82,7 +82,7 @@ it is found the same night.*
 | | **8 · Buildings** | | | |
 | F-35 | doors | `bt-doors` | a visitor skips the locked front, opens the back door; the locksmith unlocks the front | ✅ |
 | F-36 | prone saves | `bt-grenade-posture` | a grenade between a standing and a prone man; only the standing one is hurt | ✅ |
-| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | ✅ |
+| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | 🟡 the scenario has no missions — the check orders both rounds. 🔧 put the FireAtPoint missions in the file |
 | F-33 | clear a house | `bc-house-clear` | the stack at the door, then room by room seen from above, civilians spared | ✅ |
 | F-62 | into the room | `bc-room-clear` | stack beside the door, breach, entry one man at a time | ✅ (⚠ CE-2341: ~1 run in 4 the entry fails) |
 | F-38 | defend a house | `sq-defend-house` | defenders take window and roof posts and open fire as Blue crosses the sector | 🔧 CE-2304: posted defenders stall inside (Set in 4 of 5 runs) |
@@ -111,6 +111,28 @@ it is found the same night.*
 | F-59 | time on target | `ua-indirect-fire` | rounds from several guns land together | 🟡 as F-58 |
 | | **12 · Weapon systems, airborne** | | | |
 | F-60 | crew weapons | `ua-weapon-systems` | a sentry gun fires on its own; a crew sets up and mans an M2; a man picks up a Javelin | ✅ (⚠ the M2 is not checked to fire) |
+
+## 1b. What the scout saw — 2026-10-21 (editor preview, real time, one run each)
+
+⭐ **Superseded as the timing source** by the director's own stepped scout (CE-4038, R-3038): the takes in `scenarios/<s>/takes/` carry
+BAKED anchor times from a run that repeats, so their timed leads (`fire-0.5`) are exact. This real-time scout's value is what it found:
+the anchor mistakes (ported into the takes, CE-1241) and the two civilian regressions (CE-4039, CE-4040).
+
+48 clips scouted (all but the civilian ones, blocked, and F-01 / F-02, which need their change). Each clip's observed anchor times are in
+`clips.json` as `scouted` — ⚠ one run: another run differs (R-4064), so they order the shots, they do not time them.
+
+| outcome | clips |
+|---|---|
+| ✅ every beat happened | 37 of 48 — e.g. the TOW kills the T-72 at 7.2 s (F-40), the bomb lands 7.9 s after release (F-49), the IED goes off under the Bradley at 22.4 s (F-47), Red opens fire at 42 s and the house is entered at 291 s (F-32) |
+| 🔧 my anchor, fixed | missile / drone hits are not marked `hit` in the shot log ⇒ the target's health is the anchor (F-40, F-42, F-44, F-48) · weapons fire as themselves ("Celebrant's rifle", F-14) · no `Set` / `Scavenge` state exists (F-32, F-12) · no named door gunner (F-50) |
+| 🟡 the check drives the beat | F-28 casualty care, F-37 mortar on the roof, F-58 indirect fire |
+| ⚠ not observable yet | F-18: the danger-crossing tree shows no state change for the hold or the rush — needs position anchors |
+| ⛔ regressions found | **CE-4039** civilians no longer hear gunfire (bisected to `2abbb0c89`) · **CE-4040** panicking civilians no longer shelter (bisected to `f1f4c89ba`) |
+
+⭐ **Leads rewritten (R-4064).** No cut is placed BEFORE its event by a negative offset any more: the establishing shot starts at 0.5 s and
+holds; "before a shot" became `engage` (the shooter's aim phase begins); "before a blast" became a same-run precursor or offset (the throw
++ the fuse, the release + the fall, the bomber's `DetonateCharge`, the convoy closing on the charge); arrivals became `near` with a wider
+radius. Four clips keep negative leads until their change lands (F-18, F-28, F-37, F-58).
 
 ## 1a. The director's grammar — how every clip is cut
 
@@ -156,6 +178,11 @@ caused.* The shot list in `clips.json` follows these rules; the `why` of each sh
 takes and reels instead of one manifest, `/director/play {reel, capture}` instead of `film-batch.py`, played live in real time as well as
 to film. The table below stays as the list of what the pipeline must do.
 
+⭐ **BUILT `2026-10-21` (CE-4038, ui):** the 55 clips are now takes — `scenarios/<s>/takes/main.take.json` (demo-city's under
+`Hrot.AI.Behaviors/Recipes/Scenarios/demo-city/takes/`), split from `docs/films/clips.json` with each clip's id, chapter, state and needs
+kept; ⛔ **`clips.json` is the SEED, not the source any more — edit the take.** The night run is
+`POST /director/play {reel: "features", capture: {...}}`; the scout table is `scripts/director-check.py scout-all`.
+
 📐 **The budget:** `--mode editor` costs ~0.8 s per film frame (RUNBOOK §6). At 30 fps that is ~24 s of wall time per second of film.
 A 20 s clip takes ~8 min, plus ~2 min of scouting. **The ~40 clips in §1 fit in one night (~6–7 h).** At 24 fps it is ~20 % less.
 
@@ -191,6 +218,7 @@ notes are [NOTE_Coordinator_To_Behaviors_Demo_Sweep.md](blueprints/batches/NOTE_
 | ⚠ **no live check at all** | `ua-grenade-or-rifle`, `ua-weather-regions`, `test-fire`, `test-move`, `tt-nav-los`, `mission-demo-bp`, `hsm-channel-e2e`, the `tt-*` recipes (rails only), `demo-city` |
 | ⚠ **doc says more than the file** | `ua-weapon-systems` (no Kornet team, the M2 never fires) · `ua-air-strike` ("untouched": the check only asks "not destroyed") · CE-2247 still shown open in the overview, DONE in the tracker · `uc-convoy-hit-ifv`'s Bradley is named "Convoy APC" |
 | ⚠ **missing from the overview** | `ua-grenade-or-rifle`, `sl0-platoon-march`, `cc-platoon-bound`, `ld-sentry-surprise(-360)`, `bc-*`, `df-*`, `uf-*` |
+| ⛔ **regressions (bisected)** | CE-4039 civilians no longer hear gunfire (`2abbb0c89`, CE-3283) · CE-4040 civilians no longer shelter (`f1f4c89ba`, CE-2304) |
 | ⚠ **cluster load** | CE-4033: on a fresh cluster the cold demo-city navmesh bake (27.6 s) gets SimHost ejected — every demo-city clip needs a warm cache |
 
 ## 5. The reels — `films/*.reel.json`
@@ -212,12 +240,12 @@ A reel is one movie made of several clips (DESIGN_Film_Director §4a). Each item
 
 ## 6. How to produce them
 
-| step | with the director (CE-4038, being built) | ⚠ until it lands |
+| step | ⭐ with the director (CE-4038, BUILT by ui) | (before it, for the record) |
 |---|---|---|
-| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, or `POST /director/scout {scenario, take}` | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
-| **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · or `POST /director/play {"reel": "highlights"}` | — |
+| **① prepare** — ⭐ runs differ (R-4064): measure HOW RELIABLY each beat happens (3 runs: k of 3, time spread); the report names every missing beat or unknown name | panel *Prepare*, `POST /director/scout {scenario, take, bake}`, or `scripts/director-check.py scout-all --bake --headless` (every take) | the coordinator's scout probe (edit load → preview paused → stepped), results folded into `clips.json` |
+| **② review live** — on your machine, real time, **nothing saved** | View › Director → pick the reel → Play · `POST /director/play {"reel": "highlights"}` · `scripts/director-check.py live highlights` | — |
 | **③ fix** — a framing, a time, a name | edit the take (`scenarios/<s>/takes/<take>.take.json`), re-run ① if an anchor moved | edit `clips.json` |
-| **④ render** — overnight, on the cloud VM | `POST /director/play {"reel": "features", "capture": {"dir": "<out>", "fps": 30, "size": "1280x720"}}` → one MP4 per reel, with sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
+| **④ render** — overnight, on the cloud VM | `scripts/director-check.py capture features --dir <out> --size 1280x720` (or `POST /director/play {reel, capture}`) → one MP4 per reel, chapters, title cards, captions, sound | `film.py --mode editor --plan` per clip (no reels, no sound, no camera moves) |
 | **⑤ check** — without watching it all | the run's report: per item filmed / flat (nothing moved on screen) / beat missing, plus a contact sheet | `ffmpeg` scene scores (RUNBOOK §5) |
 
 📐 **Render budget** (today's ~0.8 s per frame in the editor; CinemaMode should cut it): `highlights` ≈ 184 s × 30 fps × 0.8 s ≈ **1.2 h**;
@@ -227,5 +255,9 @@ change the render cost per film frame.)
 ⚠ **Runs differ (R-4064).** A clip's cuts follow the events of the run being shown — a weapon starting to aim, a behaviour beginning, a
 unit closing on a point — and a shot is held until the next event. A capture whose required beat does not happen is re-run (a retake).
 Leads, slow motion and instant replays become exact only when films are later edited from a recording (DESIGN_Film_Director §3e).
+
+⚠ **A bake lands in the editor's WORKING copy** (`/tmp/FDP_Temp/shared/scenarios/<s>/takes/…`), and the next editor launch copies the
+repo's scenarios over it — ⇒ copy a baked take into the repo before launching again (ui's CE-1240 bakes were copied by hand; measured
+2026-10-21: a later launch wiped two bakes). The writer's file is canonical (it drops default values) — copy it as is.
 
 ⭐ **Review before render.** Watch a reel live (②) before rendering it (④): a wrong camera costs seconds live and hours overnight.

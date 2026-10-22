@@ -1,0 +1,70 @@
+{
+  "title": "Fear spreads",
+  "caption": "Fear travels through a crowd, reaching people who never heard a shot",
+  "anchors": {
+    "fire": {
+      "on": "shot",
+      "n": 1
+    },
+    "far": {
+      "on": "task",
+      "who": "Civilian 15",
+      "is": "Alarmed"
+    }
+  },
+  "baked": {
+    "times": {
+      "fire": 1.1
+    },
+    "tickHz": 60,
+    "scenarioHash": "bc4413158865e67b",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
+    "missing": [
+      "far"
+    ]
+  },
+  "shots": [
+    {
+      "at": "fire-2",
+      "seconds": 4,
+      "lookAt": [
+        100,
+        210,
+        1
+      ],
+      "distance": 150,
+      "yaw": 180,
+      "pitch": -12,
+      "fov": 20,
+      "why": "telephoto down the street from the far end: everyone stacked, the fight tiny at the back"
+    },
+    {
+      "at": "fire+2",
+      "seconds": 6,
+      "lookAt": [
+        100,
+        210,
+        1
+      ],
+      "distance": 110,
+      "yaw": 90,
+      "pitch": -40,
+      "to": {
+        "yaw": 60
+      },
+      "why": "high side view: the wave of movement running east"
+    },
+    {
+      "at": "far-1",
+      "seconds": 4,
+      "follow": "Civilian 15",
+      "distance": 8,
+      "yaw": 180,
+      "pitch": -6,
+      "why": "the last man, who heard nothing, turns and goes"
+    }
+  ],
+  "clip": "F-05",
+  "chapter": 3,
+  "state": "ready"
+}

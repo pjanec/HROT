@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
-current-answer: this whole file — ⭐ §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
+updated: 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
 known-rot: none.
@@ -53,6 +53,24 @@ python3 scripts/film.py ua-tank-ammo --mode editor --plan plan.json --out /tmp/f
 rerun it (a rewind leaks brain and perception state). Look at the frames and adjust. 📐 The first editor film caught the second round's impact on the T-72 on the frame the plan
 aimed at (`at` 17.3 for a shot fired at 17.58). ⚠ A muzzle flash shows ~0.1 s after `firedAt` (the effect spawns a few frames later).
 ⚠ An editor result says nothing about the wire — a demo that must prove the CLUSTER films `--mode all`.
+
+## 0a. ⭐ The film director — takes and reels, live or to film *(CE-4038, built `2026-10-21`)*
+
+⭐ A scenario's camera script is a **take** (`scenarios/<s>/takes/<take>.take.json`; 55 seeded from `docs/films/clips.json`), and a
+**reel** (`films/<name>.reel.json`) plays several as ONE movie. The editor plays them — 📄 [DESIGN_Film_Director.md](DESIGN_Film_Director.md)
+§8 as built. ⭐ **One step per rendered frame** (R-3038), the frame held to real time.
+
+| you want | do |
+|---|---|
+| watch a reel on your machine, live | View › **Director** → Reel → Play (Esc stops) · or `POST /director/play {"reel":"highlights"}` |
+| one take again | the Director panel's row → Replay · `POST /director/play {"scenario":"ua-tank-ammo","take":"main"}` |
+| bake a take's beat times (scout) | panel → Prepare · `POST /director/scout {"scenario":"ua-tank-ammo"}` — ⚠ re-scout every take after CE-3293 S5 |
+| film a reel overnight (cloud VM, Xvfb) | `POST /director/play {"reel":"features","capture":{"dir":"/tmp/films/features","fps":30,"size":"1280x720"}}` → one MP4 with chapters and sound |
+| film one take from the shell | `python3 scripts/film.py ua-tank-ammo --take main --out /tmp/tank.mp4` (launches `--mode editor`) |
+| the status | `GET /director/status` — the phase, the shot, the realtime factor, and per take: missing beats, drifted beats, the world at every cut |
+| the map's layers / the sound, as the user's clicks | `GET/POST /map/layers` · `GET/POST /audio` — ⚠ a TAKE's layers are transient and never saved |
+
+⚠ `film.py`'s own `--plan` / shot flags still work, but the camera math is the engine's now (`POST /film/shot {spec, t}`, D-9).
 
 ## 1. Quick start
 

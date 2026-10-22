@@ -577,10 +577,24 @@ public class WindowManager
     /// <param name="onGizmoMenuAction">
     /// Callback invoked with the action id when the operator clicks a gizmo-contributed menu item.
     /// </param>
+    /// <summary>
+    /// ⭐ CE-4038 B9 (docs/DESIGN_Film_Director.md D-7) — the film director's CINEMA mode: no menu bar, no panels, no status bar, so the map
+    /// fills the window (and a frame costs only the map); the frame overlays still draw (the director's own captions and cards are one).
+    /// Set and cleared by the director only.
+    /// </summary>
+    public bool Cinema { get; set; }
+
     public void Render(
         IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>? gizmoMenuItems = null,
         Action<int>? onGizmoMenuAction = null)
     {
+        if (Cinema)
+        {
+            foreach (var overlay in _frameOverlays.ToList())
+                overlay();
+            return;
+        }
+
         // BATCH-26: Make the menu bar tall enough for 32px toolbar icons.
         // ImGui's menu-bar height = FontSize + FramePadding.Y*2, and the inline
         // toolbar icons size to ImGui.GetFrameHeight() (see ToolbarCommandAdapter /

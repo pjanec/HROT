@@ -87,6 +87,10 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo>
             LayerControlOf = new();
 
+        /// <summary>⭐ CE-4038 B10 — the layer control of a map buffer (the film director's override and <c>/map/layers</c> reach it here).</summary>
+        public static Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo? LayerControlFor(DebugPrimitiveBuffer buffer)
+            => LayerControlOf.TryGetValue(buffer, out var g) ? g : null;
+
         /// <summary>⭐ CE-1234 — the local UI-state transport <see cref="Build"/> made for each map buffer; <see cref="AttachMapLayers"/> hands it
         /// to the gizmo render layer, whose panel drains it.</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport>

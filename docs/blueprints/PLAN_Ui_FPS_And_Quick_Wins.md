@@ -69,6 +69,31 @@ number 5."* — then: *"Add the cheap ones at the end of our list after number 5
 | `CE-1206` | the ZU-23 technical that would not fire — reproduce live first | — |
 | `CE-1196` | ⛔ reopened (`R-1014` put the near plane back): the SUMO roads flicker in 3-D — 🔒 user, `2026-10-20`: *"Keep road flicker in the plan, btw same flicker is for multiple gizmos showing filled circle on the ground in 3d."* ⇒ one depth bias for everything drawn ON the ground (the road mesh and the draped gizmo fills) | — |
 
+## 3a. Overnight `2026-10-21` — every open ui point up to `CE-1197`
+
+🔒 User, `2026-10-21`: *"Please put to your plan all of them from the beginning till CE 1197 inclusive. work autonomously overnight."*
+⇒ the open points listed that morning, the cheap ones first. ⭐ Each one per §2 (T-1, a red-proved rail, a frame where visible, the
+as-built folded, the row ticked). A lean that changes what the user approved goes back to the user, written down; the night goes on with
+the next item (`R-106`).
+
+| # | id | what | design home | notes |
+|---|---|---|---|---|
+| 21 | `CE-1197` | sidewalks drawn as their own light grey, a kerb above the road | Map 3-D (the SUMO road scene) | cross-lane: the SumoSharp scene kind |
+| 22 | `CE-1170` | U9 — aimed at a person: a thin line muzzle → target (`UnitDetails`, off by default) | People Display §5 U9 | data on the wire |
+| 23 | `CE-1173` | U12 — a toy gun drawn orange | People Display §5 U12 | the catalogue toy type is G6 |
+| 24 | `CE-1174` | U13 — the baton-round launcher's yellow band; grenades in hand | People Display §5 U13 | taser / pepper spray wait on G5 |
+| 25 | `CE-1172` | U11 — the police look: cap (riot helmet for the shield man), vest, belt, the baton in hand | People Display §5 U11 | user live `2026-10-20`: no baton while striking |
+| 26 | `CE-1179` | U18 rest — a laid-down weapon at his feet; the placed charge's red blink | People Display §5 U18 | |
+| 27 | `CE-1169` | U7 rest — the held-item poses (aimed pistol, phone, binoculars, a throwable in hand); the ExCon Concealed layer | People Display §5 U7 | phone / binoculars only once G7 sets them |
+| 28 | `CE-1176` | U15 — speech marks; the WARNING now | People Display §5 U15 | the rest waits on G1 |
+| 29 | `CE-1177` | U16 — mood face + dot; pain now | People Display §5 U16 | fear / anger wait on G2 |
+| 30 | `CE-1202` | the gunner turns with his mounted weapon | Map 3-D §6n N-2 | a defect; measure which case fails first |
+| 31 | `CE-1200` | first person in a vehicle draws the vehicle, from a crew eye | Entity Control §8 | supersedes "the own vehicle is not drawn" |
+| 32 | `CE-1201` | an optional over-the-shoulder view (menu switch) | ⭐ Entity Control §8 — design first, with leans | |
+| 33 | `CE-1158` | the use key — the live cluster run (CGF + IG) | Entity Control §8h | built; a run, not code |
+| 34 | `CE-1119` | U-2 — the ejection seat and its flame | Map 3-D §6w | waits on backend B-7…B-9 — check, else record blocked |
+| 35 | `CE-1146` | the rest of the weather: cloud layers, moon, precipitation, lights at night | Map 3-D §6aa | 🔒 "discuss before design": leans written, only the uncontroversial slice built |
+
 ## 4. Progress log
 
 | date | # | state |

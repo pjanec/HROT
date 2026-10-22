@@ -5,6 +5,9 @@
 scenario, lets it run for --warmup seconds, PAUSES it, then for every film frame: holds the camera on the shot (POST /film/shot), writes the
 scene (POST /film/capture) and steps the sim by one film frame (POST /sim/step). The frames are a moment of SIM time each, so the film is
 smooth however slow the software renderer is. ffmpeg joins them.
+⭐ CE-4038 (docs/DESIGN_Film_Director.md D-9): the shot math is the ENGINE's (ShotEvaluator, through POST /film/shot {spec, t}) — this
+script keeps no copy. ⭐ --take NAME films a scenario's saved take with the editor's film director instead (one movie, captions, sound):
+  scripts/film.py ua-tank-ammo --take main --out /tmp/tank.mp4
 
   scripts/film.py ua-tank-ammo --follow Tank --distance 30 --pitch -15 --yaw 250 --orbit 6 --seconds 10 --out /tmp/tank.mp4
   scripts/film.py ua-tank-ammo --over Tank --toward "Enemy Tank" --back 22 --height 7 --seconds 10
@@ -20,7 +23,7 @@ A PLAN (--plan plan.json) cuts between shots: a list of segments, each {"at": si
 Between segments the sim gets to the next "at" (a cut): --mode editor STEPS there (frame-exact, the same every run); --mode all
 plays in real time (overshoots up to ~0.1 s). Option names are the flags' without the dashes.
 """
-import argparse, importlib.util, json, math, os, shutil, subprocess, sys, time
+import argparse, importlib.util, json, os, shutil, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("udc", os.path.join(HERE, "utility-demo-check.py"))
@@ -28,29 +31,12 @@ udc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(udc)
 
 
-def ids():
-    return udc.ids_by_name()
-
-
-def resolve(who, names):
-    """A name or a network id → the network id."""
-    if who is None:
-        return None
-    if str(who).isdigit():
-        return int(who)
-    if who not in names:
-        sys.exit(f"no entity named {who!r} — the scenario has: {sorted(names)}")
-    return names[who]
-
-
-def position(nid):
-    c = (udc.data(udc.call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
-    p = (c.get("SimTransform") or {}).get("Position")
-    if isinstance(p, list):
-        return tuple(float(v) for v in p[:3])
-    if isinstance(p, dict):
-        return tuple(float(p.get(k, 0) or 0) for k in ("X", "Y", "Z"))
-    return None
+def check_names(seg, names):
+    """Every unit a segment names is in the scenario (a name or a network id)."""
+    for key in ("follow", "over", "toward"):
+        who = getattr(seg, key, None)
+        if who is not None and not str(who).isdigit() and who not in names:
+            sys.exit(f"no entity named {who!r} — the scenario has: {sorted(names)}")
 
 
 def must(resp, what):
@@ -59,30 +45,20 @@ def must(resp, what):
     return udc.data(resp)
 
 
-def shot_for(args, t, follow, over, toward):
-    """The shot at film time t (s)."""
-    shot = _shot_for(args, t, follow, over, toward)
-    if shot is not None and getattr(args, "fov", None):
-        shot["fovDeg"] = args.fov
-    return shot
-
-
-def _shot_for(args, t, follow, over, toward):
-    yaw = args.yaw + args.orbit * t
-    if follow is not None:
-        return {"follow": follow, "distance": args.distance, "yawDeg": yaw, "pitchDeg": args.pitch, "lift": args.lift}
-    if over is not None:
-        a, b = position(over), position(toward)
-        if a is None or b is None:
-            return None
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        d = math.hypot(dx, dy) or 1.0
-        ux, uy = dx / d, dy / d
-        eye = [a[0] - ux * args.back, a[1] - uy * args.back, a[2] + args.height]
-        target = [a[0] + ux * d * args.ahead, a[1] + uy * d * args.ahead, a[2] + args.lift]
-        return {"eye": eye, "target": target}
-    x, y, z = (float(v) for v in args.look_at.split(","))
-    return {"lookAt": [x, y, z], "distance": args.distance, "yawDeg": yaw, "pitchDeg": args.pitch}
+def spec_of(seg):
+    """⭐ CE-4038 D-9 — the segment as a take's shot (docs/DESIGN_Film_Director.md §4): the ENGINE evaluates it (ShotEvaluator, through
+    POST /film/shot {spec, t}) — the over-the-shoulder and orbit math live there once, not here. Units go by name."""
+    spec = {"at": 0, "seconds": max(float(seg.seconds), 0.001)}
+    for key in ("follow", "over", "toward"):
+        if getattr(seg, key, None) is not None:
+            spec[key] = str(getattr(seg, key))
+    if getattr(seg, "look_at", None) is not None:
+        spec["lookAt"] = [float(v) for v in str(seg.look_at).split(",")]
+    for key in ("distance", "yaw", "pitch", "orbit", "lift", "back", "height", "ahead"):
+        spec[key] = float(getattr(seg, key))
+    if getattr(seg, "fov", None):
+        spec["fov"] = float(seg.fov)
+    return spec
 
 
 SHOT_KEYS = ("follow", "over", "toward", "look_at", "distance", "yaw", "pitch", "orbit", "lift", "back", "height", "ahead", "fov")
@@ -160,7 +136,11 @@ def main():
     ap.add_argument("--keep-frames", action="store_true")
     ap.add_argument("--attach", action="store_true", help="use a cluster already listening on --port (do not launch or load)")
     ap.add_argument("--plan", help="a JSON list of segments (see above) instead of one shot")
+    ap.add_argument("--take", help="⭐ CE-4038 — film the scenario's saved TAKE (scenarios/<s>/takes/<take>.take.json) with the editor's film "
+                                   "director: one movie, captions, sound (implies --mode editor; the shot options are ignored)")
     args = ap.parse_args()
+    if args.take:
+        return film_take(args)
     segments = segments_of(args)
     for seg in segments:
         if sum(x is not None for x in (seg.follow, seg.over, seg.look_at)) != 1:
@@ -181,7 +161,9 @@ def main():
         if not args.attach:
             proc = udc.launch(args.port, args.mode)
             udc.load(args.scenario)
-        names = ids()
+        names = udc.ids_by_name()
+        for seg in segments:
+            check_names(seg, names)
         steps = max(1, round(60 / args.fps))     # the sim runs 60 frames a second; one film frame = this many
         exact = args.mode == "editor"
         if exact:
@@ -190,13 +172,12 @@ def main():
         started, i = time.time(), 0
         for seg in segments:
             run_to(seg.at, args.fps, exact)
-            follow = resolve(seg.follow, names)
-            over, toward = resolve(seg.over, names), resolve(seg.toward, names)
+            spec = spec_of(seg)
             count = int(float(seg.seconds) * args.fps)
             for k in range(count + 1):
-                shot = shot_for(seg, k / args.fps, follow, over, toward)
-                if shot is not None:
-                    must(udc.call("POST", "/film/shot", shot), f"shot {i}")
+                r = udc.call("POST", "/film/shot", {"spec": spec, "t": k / args.fps})   # ⭐ the engine's shot math (D-9)
+                if isinstance(r, dict) and r.get("http") not in (None, 200, 404):
+                    must(r, f"shot {i}")
                 if k == 0:
                     # ⚠ a NEW shot's first frame: the weather layer read the atmosphere before the director moved the camera this frame
                     #   (the film layer updates last) — one throwaway capture lets it settle (Map 3D Mode §6ab as built)
@@ -221,6 +202,34 @@ def main():
             udc.stop(proc)
         if not args.keep_frames:
             shutil.rmtree(frames_dir, ignore_errors=True)
+
+
+def film_take(args):
+    """⭐ CE-4038 (docs/DESIGN_Film_Director.md §3b) — the director films the take: POST /director/play {scenario, take, capture}, then wait
+    for it to report Done; it writes the frames, the sound track and ONE movie."""
+    out = os.path.abspath(args.out or f"/tmp/film-{args.scenario}-{args.take}.mp4")
+    work = os.path.splitext(out)[0] + "-work"
+    udc.BASE = f"http://localhost:{args.port}"
+    proc = None if args.attach else udc.launch(args.port, "editor")
+    try:
+        must(udc.call("POST", "/director/play", {"scenario": args.scenario, "take": args.take, "capture": {
+            "dir": work, "fps": args.fps, "size": args.size, "supersample": args.supersample, "movie": out}}), "director/play")
+        started = time.time()
+        while True:
+            st = must(udc.call("GET", "/director/status"), "director/status") or {}
+            if st.get("phase") in ("Done", "Stopped"):
+                break
+            time.sleep(2)
+        for r in st.get("reports") or []:
+            print(f"   {r.get('scenario')}/{r.get('take')}: {r.get('status')}  frames {r.get('frames')}  missing {r.get('missing')}  {r.get('problems')}")
+        if st.get("error"):
+            sys.exit(f"the director failed: {st['error']}")
+        print(f"   {st.get('movie')}  ({time.time() - started:.0f} s to film)")
+    finally:
+        if proc is not None:
+            udc.stop(proc)
+        if not args.keep_frames:
+            shutil.rmtree(os.path.join(work, "frames"), ignore_errors=True)
 
 
 if __name__ == "__main__":

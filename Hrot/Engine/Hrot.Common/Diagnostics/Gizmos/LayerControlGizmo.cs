@@ -253,6 +253,36 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>The number of rows a set remembers (the rail reads it).</summary>
         public static int RowCount => Rows.Length;
 
+        /// <summary>⭐ CE-4038 B10 (docs/DESIGN_Film_Director.md §4b) — every row as <c>Group.Row</c> (the DTO's own names) with the name and the
+        /// hover text the Layers panel shows, so a take author or an agent never guesses.</summary>
+        public static System.Collections.Generic.IReadOnlyList<(string Name, string Display, string Doc)> RowNames { get; } =
+            Rows.Select(x => ($"{x.Group.Name}.{x.Row.Name}",
+                              x.Row.GetCustomAttributes(typeof(EditDisplayNameAttribute), false).OfType<EditDisplayNameAttribute>().FirstOrDefault()?.Name ?? x.Row.Name,
+                              x.Row.GetCustomAttributes(typeof(EditDocAttribute), false).OfType<EditDocAttribute>().FirstOrDefault()?.Summary ?? ""))
+                .ToArray();
+
+        /// <summary>⭐ CE-4038 B10 — the rows a film keeps as the user has them when a take "starts clean": the scene itself (units, rounds, the
+        /// ground, roads, traffic, doors), not the overlays and helpers (🔒 "Overlays like labels optional, Default is off").</summary>
+        public static readonly System.Collections.Generic.IReadOnlyList<string> SceneRows = new[]
+            { "Units.Entities", "Units.Rounds", "Map.Terrain2D", "Map.Roads", "Map.Traffic", "Map.Doors" };
+
+        /// <summary>One row of <paramref name="dto"/> by its <c>Group.Row</c> name; false when no such row.</summary>
+        public static bool TryGet(LayerControlDto dto, string name, out bool value)
+        {
+            value = false;
+            foreach (var (g, r) in Rows)
+                if (string.Equals($"{g.Name}.{r.Name}", name, StringComparison.OrdinalIgnoreCase)) { value = (bool)r.GetValue(g.GetValue(dto))!; return true; }
+            return false;
+        }
+
+        /// <summary>Sets one row of <paramref name="dto"/> by its <c>Group.Row</c> name; false when no such row.</summary>
+        public static bool TrySet(LayerControlDto dto, string name, bool value)
+        {
+            foreach (var (g, r) in Rows)
+                if (string.Equals($"{g.Name}.{r.Name}", name, StringComparison.OrdinalIgnoreCase)) { r.SetValue(g.GetValue(dto), value); return true; }
+            return false;
+        }
+
         /// <summary>Registers both sets' rows with the DTO's defaults (idempotent; the 3-D set starts as a copy of the 2-D defaults).</summary>
         public static void Register(GizmoSettingsRegistry settings)
         {
@@ -347,6 +377,60 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private bool _isEditing;
         private readonly GizmoSettingsRegistry? _settings;   // ⭐ CE-3120 — where the family scopes live
 
+        private LayerControlDto? _override;
+
+        /// <summary>
+        /// ⭐⭐ CE-4038 B10 (docs/DESIGN_Film_Director.md §4b, R-4060) — a film take's layers: a TRANSIENT set laid over the user's (both
+        /// views), dropped by <see cref="ClearOverride"/>. ⛔ Never written to the settings registry — that registry is saved to the user's
+        /// file, and a take must not change the user's map. Unknown names are returned, not dropped.
+        /// </summary>
+        public System.Collections.Generic.IReadOnlyList<string> SetOverride(System.Collections.Generic.IEnumerable<string> on, System.Collections.Generic.IEnumerable<string> off)
+        {
+            var unknown = new System.Collections.Generic.List<string>();
+            var dto = new LayerControlDto { View = Current.View };
+            foreach (var (name, _, _) in LayerControlSets.RowNames) LayerControlSets.TrySet(dto, name, false);
+            foreach (var name in LayerControlSets.SceneRows) LayerControlSets.TrySet(dto, name, LayerControlSets.TryGet(Current, name, out var v) && v);
+            foreach (var name in on) if (!LayerControlSets.TrySet(dto, name, true)) unknown.Add(name);
+            foreach (var name in off) if (!LayerControlSets.TrySet(dto, name, false)) unknown.Add(name);
+            _override = dto;
+            _activeLayers = dto.ToMask();
+            return unknown;
+        }
+
+        /// <summary>⭐ CE-4038 B10 — the user's own set again.</summary>
+        public void ClearOverride()
+        {
+            _override = null;
+            _activeLayers = Current.ToMask();
+        }
+
+        /// <summary>The override in force (null: the user's set).</summary>
+        public LayerControlDto? Override => _override;
+
+        /// <summary>
+        /// ⭐ CE-4038 B10 (§4b, D-13) — <c>POST /map/layers</c>: rows turned on and off in one view's set EXACTLY as the user's click does —
+        /// written to the registry and saved to the user's file. Returns the unknown names.
+        /// </summary>
+        public System.Collections.Generic.IReadOnlyList<string> SetRows(bool is3D, System.Collections.Generic.IEnumerable<string> on, System.Collections.Generic.IEnumerable<string> off)
+        {
+            var unknown = new System.Collections.Generic.List<string>();
+            int v = is3D ? 1 : 0;
+            var edited = System.Text.Json.JsonSerializer.Deserialize<LayerControlDto>(System.Text.Json.JsonSerializer.Serialize(_sets[v]))!;
+            foreach (var name in on) if (!LayerControlSets.TrySet(edited, name, true)) unknown.Add(name);
+            foreach (var name in off) if (!LayerControlSets.TrySet(edited, name, false)) unknown.Add(name);
+            _sets[v] = edited;
+            if (v == _view && _override == null) _activeLayers = edited.ToMask();
+            if (_settings != null)
+            {
+                LayerControlSets.Write(_settings, edited, is3D);
+                _saveSettings?.Invoke();
+            }
+            return unknown;
+        }
+
+        /// <summary>The view on screen is the 3-D map.</summary>
+        public bool Shows3D => _view == 1;
+
         // IGizmoInteractionHandler
         public bool RequiresExclusiveFocus => false;
         public bool IsFocused { get; private set; }
@@ -394,7 +478,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 _view = shown;
                 if (_settings != null) Current.ReadScopes(_settings);
-                _activeLayers = Current.ToMask();
+                _activeLayers = (_override ?? Current).ToMask();   // ⭐ CE-4038 B10 — a take's override holds across the view switch
             }
 
             // Emit authoritative layer control mask (consumed by DebugPrimitiveRenderer2D).
@@ -422,7 +506,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             _projector.ApplyUpdate(payloadJson, ref edited);
             if (edited.View != Current.View) return;   // ⭐ CE-1203 FL-8 — an edit of the set the panel showed before the view switched
             _sets[_view] = edited;
-            _activeLayers = edited.ToMask();
+            _activeLayers = (_override ?? edited).ToMask();
             if (_settings != null)
             {
                 edited.WriteScopes(_settings);

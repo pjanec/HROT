@@ -1,0 +1,75 @@
+{
+  "title": "Platoon attacks a house",
+  "caption": "AI on both sides: a platoon attack with base of fire and bound, against a platoon defending a house",
+  "anchors": {
+    "set": {
+      "on": "task",
+      "who": "Blue Squad 1",
+      "is": "BoundingOverwatch"
+    },
+    "lift": {
+      "on": "shot",
+      "by": "*Red",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "lift": 11.1667,
+      "set": 25.6333
+    },
+    "tickHz": 60,
+    "scenarioHash": "3cdcb8725ecabfcd",
+    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
+  },
+  "shots": [
+    {
+      "at": 5,
+      "seconds": 5,
+      "lookAt": [
+        120,
+        90,
+        0
+      ],
+      "distance": 230,
+      "yaw": 90,
+      "pitch": -45,
+      "why": "establish: the village, the house, blue coming up"
+    },
+    {
+      "at": "set-1",
+      "seconds": 4,
+      "follow": "Blue Squad 1 Leader",
+      "distance": 14,
+      "yaw": 90,
+      "pitch": -12,
+      "why": "the base of fire goes down on the berm"
+    },
+    {
+      "at": "lift-1",
+      "seconds": 4,
+      "over": "Red Squad 1 Leader",
+      "toward": "Blue Squad 2 Leader",
+      "back": 4,
+      "height": 3,
+      "fov": 30,
+      "why": "from the house: the defenders open up"
+    },
+    {
+      "at": "set+45",
+      "seconds": 6,
+      "lookAt": [
+        121,
+        150,
+        0
+      ],
+      "distance": 90,
+      "yaw": 90,
+      "pitch": -40,
+      "why": "the assault bounds toward the house (in a stepped run the clearing comes after 330 s — too late for a clip)"
+    }
+  ],
+  "clip": "F-32",
+  "chapter": 7,
+  "state": "ready"
+}

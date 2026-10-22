@@ -1,7 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20
-current-answer: ⭐⭐⭐ 2026-10-20 — START AT "SESSION 2026-10-20 — RESUME HERE" directly below this STATUS block (state at ui@f40f72ba3,
+updated: 2026-10-21
+current-answer: ⭐⭐⭐ 2026-10-21 NIGHT — THE WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md §3a (#21–#35, every open ui point up to
+  CE-1197, the user's "work autonomously overnight"); its §4 log says how far it got. The film director's state is below.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-21 — START AT "SESSION 2026-10-21 — THE FILM DIRECTOR (CE-4038)" below this STATUS block (built; what is left:
+  the integration gate rows, then CE-1240 after CE-3293 S5). The 2026-10-20 section under it still holds the lane's standing list.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-20 — START AT "SESSION 2026-10-20 — RESUME HERE" directly below this STATUS block (state at ui@f40f72ba3,
   the next items in order, the standing rules of this lane). The work list is still PLAN_Ui_FPS_And_Quick_Wins.md (§3, §4).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-19 — THE ui LANE'S WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md (§1 the user's order, §4 the progress log); start there.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" (its 2026-10-17 overnight table is the latest) directly below this STATUS block (what is
@@ -153,6 +157,18 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION `2026-10-21` — THE FILM DIRECTOR (`CE-4038`), dispatched by backend (R-3038)
+
+📄 [HANDOFF_Backend_To_Ui_Film_Director.md](batches/HANDOFF_Backend_To_Ui_Film_Director.md) (scope frozen at `687208f56`) ·
+[DESIGN_Film_Director.md §8](../DESIGN_Film_Director.md) (AS BUILT) · [REPORT](batches/REPORT_Ui_To_Backend_Film_Director.md).
+
+| | state |
+|---|---|
+| ✅ built | B0′–B12 — the runner (one step per frame, held to real time), takes + reels (55 seeded), the shot math (film.py its client), the ready probe, `/director/*` + `/map/layers` + `/audio`, View › Director, cinema, a take's transient layers, the 2-D ear, the film's sound track |
+| 📐 measured | the editor's master takes a step ONE FRAME after it is asked for ⇒ the runner keeps one in flight (§8.2; the first guard stepped every other frame) |
+| ⏭ next | the gate rows of the REPORT (live reel, capture on the VM, the 55-take scout table, 60/20/15 Hz) · then `CE-1240` after CE-3293 S5 (re-scout all takes, B0′ becomes a gate) · `CE-1239` (OGG in the film's track) |
+| ✅ visually confirmed on Windows (user, `2026-10-21`) | CE-1235 uniform cloth · CE-1236 the machine gun (⚠ the other weapon looks not yet named as seen) · CE-1237 Blueprint Tools panel · CE-1238 the crouching mortarman |
 
 ## ⭐⭐⭐ SESSION `2026-10-20` — RESUME HERE
 

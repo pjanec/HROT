@@ -1,0 +1,44 @@
+{
+  "title": "Missile warning",
+  "caption": "A Stinger is launched; the Apache's missile warning makes it break low",
+  "anchors": {
+    "launch": {
+      "on": "shot",
+      "by": "Stinger Gunner",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "launch": 87.7833
+    },
+    "tickHz": 60,
+    "scenarioHash": "dc8cfe83f0c231f5",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "launch-1",
+      "seconds": 3,
+      "over": "Stinger Gunner",
+      "toward": "Apache",
+      "back": 3,
+      "height": 1.7,
+      "ahead": 0.9,
+      "fov": 20,
+      "why": "the gunner's view"
+    },
+    {
+      "at": "launch+0.5",
+      "seconds": 4,
+      "follow": "Apache",
+      "distance": 40,
+      "pitch": -5,
+      "why": "the break"
+    }
+  ],
+  "clip": "F-52",
+  "chapter": 10,
+  "state": "ready",
+  "needs": "⚠ the decoys are not drawn (§2 G-2) — the clip shows the break only"
+}

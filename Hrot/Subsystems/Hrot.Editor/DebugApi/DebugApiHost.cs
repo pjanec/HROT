@@ -23,7 +23,7 @@ namespace Hrot.Editor.DebugApi
     /// re-cased by the host's CamelCase options (the keys inside a JsonNode are written as-is).
     /// </para>
     /// </summary>
-    public sealed class DebugApiHost : IDisposable
+    public sealed partial class DebugApiHost : IDisposable
     {
         private readonly int _port;
         private readonly MainThreadJobQueue _jobQueue;
@@ -194,6 +194,28 @@ namespace Hrot.Editor.DebugApi
             }
         }
 
+        /// <summary>⭐ CE-4038 D-9 — <c>POST /film/shot {spec, t?}</c>: a take's shot evaluated in-process (<see cref="DebugApiService.EvaluateShot"/>).</summary>
+        private async Task<RouteResult> DirectFilmSpec(JsonNode body)
+        {
+            var problems = new List<string>();
+            var spec = Hrot.UI.Common.Map3D.Director.TakeJson.ParseShot(body["spec"]!.AsObject(), 1, problems);
+            problems.RemoveAll(p => p.Contains("seconds must be positive"));
+            if (problems.Count > 0) return Fail(400, "bad shot: " + string.Join("; ", problems));
+            double t = Hrot.UI.Common.Map3D.Director.TakeJson.Double(body["t"]) ?? 0d;
+            var shot = await _jobQueue.RunOnMainThread(() => Service().EvaluateShot(spec, t)).ConfigureAwait(false);
+            if (shot is null) return Fail(404, "a unit the shot names is not here (GET /entities lists them)", DebugApiHints.Entity);
+            Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
+            return Ok(new JsonObject
+            {
+                ["follow"] = shot.Follow == 0 ? null : shot.Follow,
+                ["lookAt"] = shot.Pose is { } p ? new JsonArray(p.LookAt.X, p.LookAt.Y, p.LookAt.Z) : null,
+                ["distance"] = shot.Pose?.Distance ?? shot.Distance,
+                ["yawDeg"] = MathF.Round((shot.Pose?.Yaw ?? shot.Yaw) * 180f / MathF.PI, 2),
+                ["pitchDeg"] = MathF.Round((shot.Pose?.Pitch ?? shot.Pitch) * 180f / MathF.PI, 2),
+                ["fovDeg"] = shot.FovDeg,
+            });
+        }
+
         /// <summary>⭐ CE-3289 — <c>POST /film/capture</c>: waits for the map on screen to write the scene (30 s at most).</summary>
         private static async Task<RouteResult> CaptureFilmFrame(JsonNode? body)
         {
@@ -353,9 +375,11 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
             // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
             //   The mailbox is process-wide (no main-thread hop); the map that the window draws serves the capture in its own update.
-            _routes.Add(new("POST",   "/film/shot",    ctx => Task.FromResult(DirectFilm(ctx.Body))));
+            _routes.Add(new("POST",   "/film/shot",    ctx => ctx.Body?["spec"] is JsonObject ? DirectFilmSpec(ctx.Body) : Task.FromResult(DirectFilm(ctx.Body))));
             _routes.Add(new("DELETE", "/film/shot",    _   => { Hrot.UI.Common.Map3D.FilmStudio.Release(); return Task.FromResult(Ok(new JsonObject { ["released"] = true })); }));
             _routes.Add(new("POST",   "/film/capture", ctx => CaptureFilmFrame(ctx.Body)));
+            // ⭐ CE-4038 (docs/DESIGN_Film_Director.md §4) — the film director, the map's layers and the sound (DebugApiHost.Director.cs)
+            BuildDirectorRoutes();
 
             // ⭐⭐ /shutdown IS A ROUTE. 📌 It used to be handled inline before route dispatch, which made it
             //    invisible to GET /capabilities — a real endpoint the manifest did not list, in the very
@@ -1900,44 +1924,21 @@ namespace Hrot.Editor.DebugApi
                     ["via"]     = requested?["via"]?.GetValue<string>(),
                 });
 
-            // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL. 📄 See DebugApiService.WorldEntityCount for the
-            //    measurement: the TARGET state is where a RELOAD starts, so a level check can answer "ready"
-            //    while the PREVIOUS world is still standing — and the two DeterminismRails reload cases
-            //    were passing on a one-frame margin because of it.
-            //
-            // ⭐⭐ So: the state must be `target` AND the world must have been observed CHANGING since
-            //    the request (a load SoftClears and re-creates, so the count moves) AND then settling.
-            //
-            // ⚠ The grace fallback exists for the one case the edge cannot see: loading a scenario whose
-            //   entity count never differs from the current one at any polled frame (e.g. empty → empty).
-            //   ⛔ It is a FALLBACK, not the mechanism — it only relaxes the edge requirement, never the
-            //   OperatingEdit one.
-            const double EdgeGraceSeconds = 2.0;
-
+            // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL — the rule (state = target AND the world seen changing AND settled, with the
+            //    grace fallback for a count that never moves) lives in ONE place since CE-4038 B4: ScenarioReadyProbe, which the film
+            //    director's runner polls too. 📄 See DebugApiService.WorldEntityCount for the measurement that made it an edge.
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            int pollCount = 0;
-            int? countAtRequest = unloadFirst
+            var probe = new Hrot.Editor.Director.ScenarioReadyProbe(unloadFirst
                 ? countBeforeLoad
-                : await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull()).ConfigureAwait(false);
-            int? previous = countAtRequest;
-            bool sawChange = false;
-
-            // ⚠ A host with NO world (ExCon) has no count to watch, so the edge is unobservable there and the
-            //   state is all there is. ⛔ Reported in the payload rather than silently treated as an edge.
-            bool haveAnchor = countAtRequest is not null;
+                : await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull()).ConfigureAwait(false));
 
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
                 var (ready, count) = await _jobQueue
                     .RunOnMainThread(() => (Service().PollClusterStateIs(target), Service().WorldEntityCountOrNull()))
                     .ConfigureAwait(false);
-                pollCount++;
 
-                if (count != countAtRequest) sawChange = true;
-                bool settled = count == previous;
-                previous = count;
-
-                if (ready && settled && (sawChange || !haveAnchor || sw.Elapsed.TotalSeconds > EdgeGraceSeconds))
+                if (probe.Observe(ready, count, sw.Elapsed.TotalSeconds))
                     return Ok(new JsonObject
                     {
                         ["loaded"]      = name,
@@ -1946,13 +1947,13 @@ namespace Hrot.Editor.DebugApi
                         ["entityCount"] = count,
                         // ⭐ Reported so a caller can tell a genuine edge from the grace fallback — a load
                         //   that only ever passed on grace is worth knowing about.
-                        ["sawWorldChange"] = sawChange,
-                        ["hadWorldAnchor"] = haveAnchor,
+                        ["sawWorldChange"] = probe.SawWorldChange,
+                        ["hadWorldAnchor"] = probe.HadWorldAnchor,
                     });
             }
             return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "
-                           + $"{ScenarioReadyTimeoutSeconds}s ({pollCount} polls, entityCount {previous}, "
-                           + $"sawWorldChange={sawChange}, hadWorldAnchor={haveAnchor}).");
+                           + $"{ScenarioReadyTimeoutSeconds}s ({probe.Polls} polls, entityCount {probe.LastCount}, "
+                           + $"sawWorldChange={probe.SawWorldChange}, hadWorldAnchor={probe.HadWorldAnchor}).");
         }
 
         private DebugApiService Service()

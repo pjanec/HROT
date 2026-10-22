@@ -1,0 +1,63 @@
+{
+  "title": "Pinned in the open",
+  "caption": "Alone under fire, a soldier rushes crouched, drops prone at a near miss, stays down while pinned, and rushes on when the fire stops",
+  "anchors": {
+    "fire": {
+      "on": "shot",
+      "by": "*Hostile",
+      "n": 1
+    }
+  },
+  "baked": {
+    "times": {
+      "fire": 0.95
+    },
+    "tickHz": 60,
+    "scenarioHash": "47b9d51cb3de2c2a",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": "fire-2",
+      "seconds": 3,
+      "lookAt": [
+        200,
+        225,
+        0
+      ],
+      "distance": 140,
+      "yaw": 90,
+      "pitch": -25,
+      "fov": 35,
+      "why": "establish: 115 m of open ground and two rifles at the end"
+    },
+    {
+      "at": "fire-0.3",
+      "seconds": 4,
+      "follow": "Runner",
+      "distance": 7,
+      "pitch": -6,
+      "why": "side on, low: walking, then the crouched rush"
+    },
+    {
+      "at": "fire+2.5",
+      "seconds": 4,
+      "follow": "Runner",
+      "distance": 5,
+      "yaw": 90,
+      "pitch": -12,
+      "why": "behind him as he goes down"
+    },
+    {
+      "at": "fire+8",
+      "seconds": 5,
+      "follow": "Runner",
+      "distance": 8,
+      "pitch": -6,
+      "why": "up again and running"
+    }
+  ],
+  "clip": "F-61",
+  "chapter": 5,
+  "state": "ready"
+}

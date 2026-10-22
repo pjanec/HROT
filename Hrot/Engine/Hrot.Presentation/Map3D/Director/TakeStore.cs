@@ -1,0 +1,220 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+namespace Hrot.UI.Common.Map3D.Director;
+
+/// <summary>A take or a reel read from its file, and what is wrong with it (empty = nothing).</summary>
+public sealed record Loaded<T>(T? Value, IReadOnlyList<string> Problems) where T : class
+{
+    public bool Ok => Value is not null && Problems.Count == 0;
+}
+
+/// <summary>
+/// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §2, §4, D-2) — where takes and reels live: a take BESIDE its scenario
+/// (<c>&lt;scenarios&gt;/&lt;scenario&gt;/takes/&lt;take&gt;.take.json</c>, so a variant carries its own and "Save As" copies them), a reel under
+/// <c>films/&lt;reel&gt;.reel.json</c>. ⭐ The scenarios root is the editor's working one (the curated scenarios are seeded into it with their
+/// <c>takes/</c>, and "Save to git" copies them back).
+/// </summary>
+public sealed class TakeStore
+{
+    public const string TakesFolder = "takes";
+    public const string TakeSuffix = ".take.json";
+    public const string ReelSuffix = ".reel.json";
+
+    /// <summary>Indented, and ⭐ text kept readable (a take is edited by hand: no <c>\u2014</c> for a dash, no <c>\u0027</c> for a quote).</summary>
+    private static readonly JsonSerializerOptions Indented = new()
+    {
+        WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    private readonly Func<string> _scenariosRoot;
+    private readonly Func<string?> _filmsRoot;
+
+    public TakeStore(Func<string> scenariosRoot, Func<string?> filmsRoot)
+    {
+        _scenariosRoot = scenariosRoot ?? throw new ArgumentNullException(nameof(scenariosRoot));
+        _filmsRoot = filmsRoot ?? throw new ArgumentNullException(nameof(filmsRoot));
+    }
+
+    public string ScenariosRoot => _scenariosRoot();
+    public string? FilmsRoot => _filmsRoot();
+
+    /// <summary>The repository's <c>films/</c>, found by walking up from the binaries (as the curated scenarios are); null when none.</summary>
+    public static string? FindFilmsDirectory()
+    {
+        var dir = AppContext.BaseDirectory;
+        for (int i = 0; i < 12 && dir != null; i++)
+        {
+            var candidate = Path.Combine(dir, "films");
+            if (Directory.Exists(candidate) && Directory.EnumerateFiles(candidate, "*" + ReelSuffix).Any()) return candidate;
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+        return null;
+    }
+
+    public string TakePath(string scenario, string take) => Path.Combine(ScenariosRoot, scenario, TakesFolder, take + TakeSuffix);
+
+    /// <summary>The takes of <paramref name="scenario"/> (names, sorted, <c>main</c> first).</summary>
+    public IReadOnlyList<string> TakesOf(string scenario)
+    {
+        var dir = Path.Combine(ScenariosRoot, scenario, TakesFolder);
+        if (!Directory.Exists(dir)) return Array.Empty<string>();
+        return Directory.EnumerateFiles(dir, "*" + TakeSuffix)
+            .Select(f => Path.GetFileName(f)[..^TakeSuffix.Length])
+            .OrderBy(n => n == "main" ? 0 : 1).ThenBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>Every scenario with a take, and its takes (scenario names are paths relative to the root, '/'-separated).</summary>
+    public IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> AllTakes()
+    {
+        var root = ScenariosRoot;
+        if (!Directory.Exists(root)) return Array.Empty<(string, IReadOnlyList<string>)>();
+        var list = new List<(string, IReadOnlyList<string>)>();
+        foreach (var dir in Directory.EnumerateDirectories(root, TakesFolder, SearchOption.AllDirectories))
+        {
+            var scenario = Path.GetRelativePath(root, Path.GetDirectoryName(dir)!).Replace('\\', '/');
+            var takes = TakesOf(scenario);
+            if (takes.Count > 0) list.Add((scenario, takes));
+        }
+        return list.OrderBy(x => x.Item1, StringComparer.Ordinal).ToList();
+    }
+
+    public Loaded<Take> Load(string scenario, string take)
+    {
+        var path = TakePath(scenario, take);
+        if (!File.Exists(path)) return new Loaded<Take>(null, new[] { $"no take '{take}' for scenario '{scenario}' ({path})" });
+        try
+        {
+            if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject json)
+                return new Loaded<Take>(null, new[] { $"{path} is not a JSON object" });
+            var problems = new List<string>();
+            return new Loaded<Take>(TakeJson.ParseTake(json, scenario, take, problems), problems);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return new Loaded<Take>(null, new[] { $"{path}: {ex.Message}" });
+        }
+    }
+
+    /// <summary>Writes the take to its file (creating <c>takes/</c>).</summary>
+    public string Save(Take take)
+    {
+        var path = TakePath(take.Scenario, take.Name);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, TakeJson.WriteTake(take).ToJsonString(Indented) + "\n");
+        return path;
+    }
+
+    public IReadOnlyList<string> ReelNames()
+    {
+        var root = FilmsRoot;
+        if (root == null || !Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.EnumerateFiles(root, "*" + ReelSuffix).Select(f => Path.GetFileName(f)[..^ReelSuffix.Length])
+            .OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    public Loaded<Reel> LoadReel(string name)
+    {
+        var root = FilmsRoot;
+        var path = root == null ? null : Path.Combine(root, name + ReelSuffix);
+        if (path == null || !File.Exists(path)) return new Loaded<Reel>(null, new[] { $"no reel '{name}' ({root ?? "no films/ folder found"})" });
+        try
+        {
+            if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject json) return new Loaded<Reel>(null, new[] { $"{path} is not a JSON object" });
+            var problems = new List<string>();
+            return new Loaded<Reel>(TakeJson.ParseReel(json, name, problems), problems);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return new Loaded<Reel>(null, new[] { $"{path}: {ex.Message}" });
+        }
+    }
+
+    /// <summary>The SHA-256 of the scenario's file (the scout's bake records it; a changed scenario re-scouts). Empty when there is no file.</summary>
+    public string ScenarioHash(string scenario)
+    {
+        var path = Path.Combine(ScenariosRoot, scenario, "scenario.json");
+        if (!File.Exists(path)) return "";
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream))[..16].ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// ⭐ D-2 — copies <paramref name="from"/>'s takes to <paramref name="to"/> ("Save As" and "new from" keep a scenario's takes). ⛔ Never
+    /// over a scenario that has takes of its own. Returns the files copied.
+    /// </summary>
+    public static int CopyTakes(string scenariosRoot, string? from, string to)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to) || string.Equals(from, to, StringComparison.Ordinal)) return 0;
+        var src = Path.Combine(scenariosRoot, from, TakesFolder);
+        var dst = Path.Combine(scenariosRoot, to, TakesFolder);
+        if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return 0;
+        Directory.CreateDirectory(dst);
+        int n = 0;
+        foreach (var file in Directory.EnumerateFiles(src, "*" + TakeSuffix))
+        {
+            File.Copy(file, Path.Combine(dst, Path.GetFileName(file)), overwrite: false);
+            n++;
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// ⭐ B1 — what in <paramref name="take"/> the loaded world cannot honour: each unit name no unit carries (a <c>"*part"</c> needs at least
+    /// one), and each anchor a shot or the end names that the take does not define. Empty = playable.
+    /// </summary>
+    public static IReadOnlyList<string> Validate(Take take, IShotWorld world)
+    {
+        var problems = new List<string>();
+        var names = world.Names;
+        void Check(string who, string where)
+        {
+            if (who.StartsWith('*'))
+            {
+                var part = who[1..];
+                if (!names.Any(n => n.Contains(part, StringComparison.Ordinal))) problems.Add($"{where}: no unit's name contains '{part}'");
+            }
+            else if (world.Resolve(who) is null)
+            {
+                var near = names.Where(n => n.Contains(who, StringComparison.OrdinalIgnoreCase) || who.Contains(n, StringComparison.OrdinalIgnoreCase)
+                                            || Distance(n.ToLowerInvariant(), who.ToLowerInvariant()) <= Math.Max(1, who.Length / 4))
+                                .OrderBy(n => Distance(n.ToLowerInvariant(), who.ToLowerInvariant())).Take(3).ToList();
+                problems.Add($"{where}: no unit named '{who}'" + (near.Count > 0 ? $" (did you mean {string.Join(", ", near.Select(n => $"'{n}'"))}?)" : ""));
+            }
+        }
+        for (int i = 0; i < take.Shots.Count; i++)
+        {
+            var s = take.Shots[i];
+            foreach (var who in s.Camera.Names()) Check(who, $"shot {i + 1}");
+            if (s.At.Anchor is { } a && !take.Anchors.ContainsKey(a)) problems.Add($"shot {i + 1}: anchor '{a}' is not defined");
+        }
+        foreach (var (key, anchor) in take.Anchors)
+            foreach (var who in anchor.Names()) Check(who, $"anchor '{key}'");
+        if (take.EndAt?.Anchor is { } end && !take.Anchors.ContainsKey(end)) problems.Add($"endAt: anchor '{end}' is not defined");
+        return problems;
+    }
+
+    /// <summary>The edit distance of two names (a misspelt name's neighbours).</summary>
+    private static int Distance(string a, string b)
+    {
+        var row = Enumerable.Range(0, b.Length + 1).ToArray();
+        for (int i = 1; i <= a.Length; i++)
+        {
+            int prev = row[0];
+            row[0] = i;
+            for (int j = 1; j <= b.Length; j++)
+            {
+                int cur = row[j];
+                row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), prev + (a[i - 1] == b[j - 1] ? 0 : 1));
+                prev = cur;
+            }
+        }
+        return row[b.Length];
+    }
+}

@@ -313,6 +313,11 @@ namespace Hrot.Editor
         //    of this loopback HttpListener. See docs/MCP_Integration.md.
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
 
+        // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
+        private Hrot.Editor.Director.DirectorRunner? _director;
+        private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
+        private Hrot.Editor.Director.EditorLayerOverride? _directorLayers;
+
         /// <summary>⭐ <c>HN-017</c> — the offline id allocator, held so the preview bracket can restore it.</summary>
         private Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? _idAllocator;
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
@@ -2292,6 +2297,35 @@ namespace Hrot.Editor
             //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
             _previewController = new EditorPreviewController(_world, _timeController!, _timeCommands!, previewRewindables);
 
+            // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
+            //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
+            {
+                _takeStore = new Hrot.UI.Common.Map3D.Director.TakeStore(() => EditorBootstrap.ScenariosRoot,
+                                                                         Hrot.UI.Common.Map3D.Director.TakeStore.FindFilmsDirectory);
+                var directorTime = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);
+                var directorHost = new Hrot.Editor.Director.EditorDirectorHost(
+                    world:          () => _world,
+                    load:           name => _editorLogic!.LoadScenarioByName(name),
+                    operatingEdit:  () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+                    inPreview:      () => _previewController!.IsInPreviewMode,
+                    enterPreview:   paused => _previewController!.EnterPreviewMode(paused),
+                    exitPreview:    () => _previewController!.ExitPreviewMode(),
+                    paused:         () => directorTime.IsPaused,
+                    pause:          () => { if (!directorTime.IsPaused) directorTime.TogglePlayPause(); },
+                    stepBy:         seconds => _timeCommands!.StepBy(seconds),
+                    behaviourName:  hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                    takes:          _takeStore);
+                var cinema = new Hrot.Editor.Director.EditorCinema(() => _wm);
+                _directorLayers = new Hrot.Editor.Director.EditorLayerOverride(
+                    () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);
+                Hrot.Editor.Director.DirectorRunner? runner = null;
+                runner = new Hrot.Editor.Director.DirectorRunner(directorHost, cinema, _directorLayers,
+                    _headless ? null : new Hrot.Editor.Director.FilmFrameSink(),
+                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN));
+                cinema.EscapePressed = () => runner.Stop();
+                _director = runner;
+            }
+
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
             //    (tools/ai-debug-mcp) is an out-of-process client of this loopback HttpListener.
@@ -2399,6 +2433,9 @@ namespace Hrot.Editor
 
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
+                    // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
+                    _debugApiHost.AttachDirector(_director!, _takeStore!,
+                        () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);
                     _debugApiHost.Start();
                     // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
                     //    cost a Windows session a round trip:
@@ -2673,6 +2710,11 @@ namespace Hrot.Editor
             // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
             //    half-built frame — is worse, and reading an EMPTY one is what we had.
             _debugApiJobQueue?.DrainAll();
+
+            // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
+            //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
+            //   (§0, R-3038) — the runner asserts it.
+            _director?.Tick();
 
             DrainStagingRemap();
 
@@ -5014,6 +5056,9 @@ namespace Hrot.Editor
 
             // ⭐ CE-1237 — Blueprint Tools: a normal panel (close box, View menu), bound to the Blueprint perspective
             windowManager.RegisterWindow(new EditorBlueprintToolsWindow(DrawBlueprintToolsContent));
+
+            // ⭐ CE-4038 B6 — View › Director: the same runner the /director/* routes drive
+            windowManager.RegisterWindow(new Hrot.Editor.Director.DirectorWindow(() => _director, () => _takeStore));
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,

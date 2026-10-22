@@ -1,0 +1,55 @@
+{
+  "title": "TOW or 25 mm",
+  "caption": "The weapon picks itself: a 25 mm burst for the man, a TOW for the tank",
+  "anchors": {
+    "burst": {
+      "on": "shot",
+      "by": "Bradley",
+      "n": 1
+    },
+    "tow": {
+      "on": "hit",
+      "target": "T-72"
+    }
+  },
+  "baked": {
+    "times": {
+      "burst": 1.2,
+      "tow": 5.85
+    },
+    "tickHz": 60,
+    "scenarioHash": "c202fb6b6876bce4",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": 0.2,
+      "seconds": 2,
+      "follow": "Bradley",
+      "distance": 14,
+      "pitch": -8,
+      "why": "the Bradley"
+    },
+    {
+      "at": "burst-0.3",
+      "seconds": 1.5,
+      "over": "Bradley",
+      "toward": "Insurgent",
+      "back": 8,
+      "height": 4,
+      "fov": 25,
+      "why": "the burst at the man"
+    },
+    {
+      "at": "tow-2",
+      "seconds": 3,
+      "follow": "T-72",
+      "yaw": 160,
+      "pitch": -8,
+      "why": "the missile arrives"
+    }
+  ],
+  "clip": "F-40",
+  "chapter": 9,
+  "state": "ready"
+}

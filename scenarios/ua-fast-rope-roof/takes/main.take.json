@@ -1,0 +1,46 @@
+{
+  "title": "Fast rope",
+  "caption": "Eight men slide down ropes onto a roof in under eight seconds",
+  "anchors": {},
+  "baked": {
+    "times": {},
+    "tickHz": 60,
+    "scenarioHash": "c2c20c22aee519d7",
+    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
+  },
+  "shots": [
+    {
+      "at": 12,
+      "seconds": 4,
+      "follow": "UH-60 (doors off)",
+      "distance": 40,
+      "pitch": -10,
+      "why": "the hover over the roof"
+    },
+    {
+      "at": 18,
+      "seconds": 5,
+      "follow": "SF operator 1",
+      "distance": 10,
+      "yaw": 90,
+      "pitch": 15,
+      "why": "from below: down the rope"
+    },
+    {
+      "at": 26,
+      "seconds": 5,
+      "lookAt": [
+        65,
+        255,
+        8
+      ],
+      "distance": 50,
+      "yaw": 45,
+      "pitch": -25,
+      "why": "the ring on the roof, the helicopter leaves"
+    }
+  ],
+  "clip": "F-55",
+  "chapter": 10,
+  "state": "ready"
+}

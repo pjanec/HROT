@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (rev 8 — §5e built, §5e.1 as built, CE-1203; rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-21 (rev 9 — §5e.2 a film take's transient layers and POST /map/layers, CE-4038) · 2026-10-20 (rev 8 — §5e built, §5e.1 as built, CE-1203; rev 7 — §5e finer layers proposed, CE-1203; rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
 current-answer: §5e finer layers, one checkbox per kind, a set per view, remembered (CE-1203, FL-1…FL-9, BUILT 2026-10-20 — §5e.1 as built) · §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
@@ -1102,6 +1102,16 @@ off in 3-D) — checked at build, in a frame.
 | FL-8 | the view reaches the gizmo through the **buffer** both sides already share: `Build` records the layer control by its buffer, `AttachMapLayers` finds it and sets `Is3D` — every host hands the attach the buffer `Build` made (rail `CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost`). The panel's first line *"Showing: 2-D map / 3-D map"* heads it (the window title stays *Layer Control*); an edit whose `View` is not the current view's is dropped (a click in the frame the view switched) | ⛔ a heading in the window title — it is also the window's id source; ⛔ a host parameter — five hosts to wire, one to forget |
 | ⭐ **CE-1234** *(found live, `2026-10-20`)* | 🔴 the panel did nothing in 3-D: the gizmo's state never reached the map's own panel (the projector published to a hub no local endpoint joined; `ReceiveUiState` looked a document up by instance id where the registry keys by schema), so the panel's copy still read "2-D map" and FL-8's guard dropped every 3-D click. ⭐ Now `Build` gives the layer gizmo a hub that also feeds a `LocalGizmoUiStateTransport`; `AttachMapLayers` hands it to `DebugGizmoLayer.UiStates`, drained into the panel before it draws; the panel maps an instance to its schema from `Schedule` (a state arriving first waits). The guard stays (a click in the switching frame), and a dropped edit makes the gizmo publish its set again | ⛔ dropping the guard instead — the panel would still show the wrong view's rows and the remembered ones never |
 | FL-9 | `LayerControlSets`: each set's rows as `map.layers.{2d\|3d}.<Group>.<Row>` (bool, found by reflection — a new row needs no list); ⚠ the *selected only* ticks are the family scopes `map.scope.*` — **one per family, for both views**, not per set (the visibility policy reads one key). `MapLayerPreferences`: `map-layers.json` beside `audio.json`, loaded in `Build` before the gizmo, saved on every change. `MapInteractionContext.LayerSettingsPath`: null = the user's file, `""` = none. 🔴 **Found and fixed:** `GizmoSettingsRegistry.SaveToDisk` wrote `CsInt32`/`CsFloat32` and `LoadFromDisk` knew only `Int32`/`Float32` ⇒ every int setting (the scopes, the navmesh choice) reloaded as 0 — never seen, as nothing called the pair before | ⚠ like `audio.json`, a rail that calls `Build` without `LayerSettingsPath = ""` reads the user's file (none on CI) |
+
+### 5e.2 A film take's layers, and the layers over HTTP *(`CE-4038` B10, R-4060, ui, `2026-10-21`)*
+
+📄 The owner of WHY: [DESIGN_Film_Director.md §4b, §8](DESIGN_Film_Director.md). Here: `LayerControlGizmo.SetOverride(on, off)` lays a THIRD
+set over the two — a take "starts clean" (every overlay off, the scene rows `LayerControlSets.SceneRows` kept as the user has them), then
+its own rows on — and ⛔ **never writes the registry or the user's file**; `ClearOverride` gives the user's set back, and a view switch
+keeps the override. `SetRows(is3D, on, off)` is `POST /map/layers` — ⭐ exactly the user's click (written and saved). Rows are named
+`Group.Row` (`LayerControlSets.RowNames`, with the panel's display name and hover text; `GET /map/layers`). Rail
+`GZH011_Tests.CE4038_ATakesLayers_AreNeverWritten_AndTheRouteIsTheUsersClick` (red-proven).
+
 
 ## 6. Slices
 

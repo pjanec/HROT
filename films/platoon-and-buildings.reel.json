@@ -33,16 +33,16 @@
    "clip": "F-36"
   },
   {
-   "scenario": "bt-mortar-roof",
-   "take": "main",
-   "title": "A roof stops the blast",
-   "clip": "F-37"
-  },
-  {
    "scenario": "bc-room-clear",
    "take": "main",
    "title": "Into the room",
    "clip": "F-62"
+  }
+ ],
+ "waiting": [
+  {
+   "clip": "F-37",
+   "why": "not ready (see PLAN_Feature_Films §1)"
   }
  ]
 }
