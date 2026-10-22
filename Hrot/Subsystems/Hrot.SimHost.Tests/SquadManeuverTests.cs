@@ -4391,6 +4391,43 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2283</c> M-2 (SC-8) — <c>FiredOnFromStructure</c>: a round at a man who HEARD the shot 50 m off — its circle asked as one
+        /// point survey on the commander's WorldSurvey sensor; 6 of the 9 points in one building ⇒ the change on the commander and a CONTACT
+        /// report queued up (the source, firing); 4 of 9 ⇒ nothing. ✅ Red-proofs: the vote threshold at 1 ⇒ the 4-of-9 squad raises it; the
+        /// report dropped ⇒ nothing queued.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2283_FiredOnFromStructure_TheHeardShotsCircleInOneBuilding_RaisesItAndReportsUp()
+        {
+            foreach (int inside in new[] { 6, 4 })
+            {
+                var s = new Squad(members: 1);
+                var m = s.Members[0];
+                var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
+                mem.EntityIds[0] = -1;
+                mem.PositionsX[0] = 50f;
+                mem.Anonymous[0] = 1;
+                mem.SourceClass[0] = 4;   // SmallArms: a shot
+                mem.Radius[0] = 5f;
+                s.Repo.AddComponent(m, mem);
+                if (!s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander))
+                    s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Squad.Command.ReportOutbox());
+                var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.PointSurvey };
+                for (int k = 0; k < 9; k++) answer.Points.Add(new Fdp.Toolkit.Perception.Survey.SurveyPoint { Building = k < inside ? 3 : -1 });
+                s.Surveys[Fdp.Toolkit.Squad.Systems.SquadSenseChanges.StructureSite] = answer;
+                Shot(s, m);
+                s.Tick(); s.Tick();
+                bool raised = Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.FiredOnFromStructure, out _);
+                var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+                bool reported = false;
+                for (int i = 0; i < q.Count; i++)
+                    if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Contact && q.Items[i].Report.At == new Vector3(50f, 0f, 0f)
+                        && q.Items[i].Report.Activity == Fdp.Toolkit.Squad.Command.ElementActivity.Firing) reported = true;
+                Assert.Equal((inside >= 5, inside >= 5), (raised, reported));
+            }
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2283</c> (SC-5) — <c>SniperFire</c>: a round at a man who sees nothing within 250 m and heard no SHOT centred within it
         /// raises it on him and his commander; a seen contact 100 m off, or a heard shot there, does not; heard FOOTSTEPS there do not count
         /// as the shot. ✅ Red-proofs: the heard-shot test dropped ⇒ fire from a heard rifle at 100 m reads as a sniper; the class test

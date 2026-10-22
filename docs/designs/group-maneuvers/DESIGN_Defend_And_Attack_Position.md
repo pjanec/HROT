@@ -2574,7 +2574,7 @@ plus `DangerAreaAhead` (an SOP condition).
 sound already carries the shooter's position. It is kept as an option if sound proves too coarse at sniper ranges (⛔ not measured:
 the audible range of a rifle shot in `SoundEmissionSystem`).
 
-### 14a. DA-M in detail — the sensor changes as built *(`CE-2283`, behaviors, 2026-10-21; build-state: BUILDING — slice M-1 below; leans SC-1…SC-8, built under the user's "do as much as you can autonomously")*
+### 14a. DA-M in detail — the sensor changes as built *(`CE-2283`, behaviors, 2026-10-21; build-state: BUILT — slices M-1 and M-2 below; leans SC-1…SC-8, built under the user's "do as much as you can autonomously")*
 
 **INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*(PointSurvey|SensorChange|FiredOnFromStructure|SniperFire|ContactInEngagementArea|ContactOutsideSector|PositionUntenable).*` → 14 nodes, `has_more:false`; one read-only sweep of every `SensorChangedEvent` producer and consumer, every `SquadDefend` in-play precursor, `SoundContactEvent` / `TargetMemory`, the WorldSurvey child sensor. `check_index_coverage` NOT run — CLI only)*
 
@@ -2600,16 +2600,19 @@ classDiagram
     <<existing static>>
     PoolEdges()
     UnderFire()
-    InEngagementArea() NEW
-    OutsideSector() NEW
-    Untenable() NEW
-    Sniper() NEW
+  }
+  class SquadSenseChanges {
+    <<NEW, owned by the system>>
+    Squad() EA, flanked, friend down, the structure answer
+    Rounds() untenable, sniper, the structure ask
+    Flanks() the one flank rule
   }
   class SquadSenseMemory {
-    <<NEW, held by the system>>
+    <<NEW, inside SquadSenseChanges>>
     Dictionary~ulong,MemberSense~ members
-    Dictionary~ulong,HashSet~long~~ eaContacts
+    Dictionary~ulong,UnitSense~ units
   }
+  class WorldSurveyChildSensor { <<existing>> Ensure() Configure() Read() }
   class MemberSense {
     double WindowStart
     int Rounds
@@ -2621,6 +2624,7 @@ classDiagram
     ContactInEngagementArea = 21 NEW
     ContactOutsideSector = 22 NEW
     PositionUntenable = 23 NEW
+    FiredOnFromStructure = 24 NEW
   }
   class RecentSenses { <<existing>> +4 times }
   class BuiltInHsmEvents { <<existing>> +4 names }
@@ -2632,10 +2636,12 @@ classDiagram
   }
   class EngagementAreas { <<existing>> AllowsUnit() InArc() }
   SquadCoordinationSystem --> SquadSensing : calls after the merge
-  SquadCoordinationSystem *-- SquadSenseMemory
+  SquadCoordinationSystem *-- SquadSenseChanges
+  SquadSenseChanges *-- SquadSenseMemory
   SquadSenseMemory *-- MemberSense
-  SquadSensing ..> EngagementAreas
-  SquadSensing ..> SensorChange : publishes
+  SquadSenseChanges ..> EngagementAreas
+  SquadSenseChanges ..> WorldSurveyChildSensor : one PointSurvey per ask
+  SquadSenseChanges ..> SensorChange : publishes
   RecentSenses ..> SensorChange : records
   SquadDefendPlay ..> RecentSenses : reads the change
 ```
@@ -2684,10 +2690,10 @@ twin must register `SquadCoordinationSystem` to see them.
 | **SC-5** | `SniperFire` (20) | on the man AND his commander: a Hit / NearMiss edge while his memory holds no SEEN contact within **250 m** and no heard SHOT (`SourceClass` SmallArms / HeavyWeapon) centred within 250 m | the round's origin: SC-6 |
 | **SC-6** | the shooter's position | from what the man SENSES (sight, the gunshot's sound) — ⛔ never `NearMissEvent.Origin*` (the muzzle, ground truth) | the origin: free omniscience · a near miss carrying the shooter: backend downgraded it (§14) |
 | **SC-7** | the defence play | reads the change (`RecentSenses` fresher than the post was given) — ⛔ its own counts go: `Displace` reads `PositionUntenable`, `Flanked` reads `ContactOutsideSector` and finds the contact with the sensor's own rule (`SquadSenseChanges.Flanks`). ⚠ **As built:** `LiftOwnHold` keeps reading a STATE ("a contact is inside now", `EngagementAreas.AllowsUnit` — the shared reader, not a copy): the change is an EDGE, and a contact already inside when the order lands would never lift the hold | keep both counts: two implementations of one rule (ruling 9) |
-| **SC-8** | `FiredOnFromStructure` (24) | ⏭ slice **M-2**: on `SquadUnderFire`, the heard shot's circle (centre + 8 on the rim) asked as ONE PointSurvey on the commander's WorldSurvey sensor; ≥ 5 of 9 in one building ⇒ the change + a `FireFromStructure{Building, Level}` on the commander | before M-1: no reader until CE-2284 |
+| **SC-8** | `FiredOnFromStructure` (24) | ✅ **M-2 built:** on a round at a man, where he places the shooter (the nearest heard SHOT within 300 m — its error circle; else the nearest seen contact) is asked as ONE PointSurvey (centre + 8 on the rim, site `0x22830001`, at most one ask per squad per 10 s, dropped after 5 s unanswered); ≥ 5 of 9 points in one building ⇒ the change on the commander and a **CONTACT report up** (the source, `Firing`) — ⚠ **as built, not the `FireFromStructure` component first leaned:** the platoon reads its picture, and a CONTACT is the report doctrine sends (no new component, no new id) | a component on the commander: a new id on every host for a point the report already carries · the near miss's muzzle: ground truth (SC-6) |
 
-**Slices.** **M-1** = SC-1…SC-7 (four kinds, the defence play rerouted, rails in `SquadManeuverTests.CE2283_*`). **M-2** = SC-8 with
-CE-2284's reader. ⚠ Not built here: the counter-sniper reaction (`CE-2279`, waits on it).
+**Slices.** **M-1** = SC-1…SC-7 (four kinds, the defence play rerouted, rails in `SquadManeuverTests.CE2283_*`) ✅. **M-2** = SC-8 ✅
+(rail `CE2283_FiredOnFromStructure_*`); its reader is CE-2284 U-2. ⚠ Not built here: the counter-sniper reaction (`CE-2279`, waits on it).
 
 ## 15. Every behaviour, what it does, how they work together
 

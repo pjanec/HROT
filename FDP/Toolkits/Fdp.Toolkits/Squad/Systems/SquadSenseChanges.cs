@@ -30,6 +30,12 @@ namespace Fdp.Toolkit.Squad.Systems
         public const float FriendDownMetres = 3f;
         /// <summary>SC-5 — nothing seen and no shot heard within this of the man ⇒ the round came from beyond: sniper fire (m).</summary>
         public const float SniperMetres = 250f;
+        /// <summary>⭐ SC-8 (M-2) — the commander's WorldSurvey site for "where did that come from"; a point placed in a building by this many
+        /// of the nine asked makes it fire from a structure; one ask per commander per <see cref="StructureAskSeconds"/>; an unanswered ask is
+        /// dropped after <see cref="StructureTimeoutSeconds"/>; the source is looked for within <see cref="SourceMetres"/> of the man.</summary>
+        public const int StructureSite = 0x22830001;
+        public const int StructureVotes = 5;
+        public const float StructureAskSeconds = 10f, StructureTimeoutSeconds = 5f, SourceMetres = 300f;
 
         private const int PoolCapacity = 16;
         /// <summary><c>Tkb.Domain.SoundSourceClass</c> SmallArms / HeavyWeapon — a shot, not footsteps or an engine.</summary>
@@ -48,6 +54,9 @@ namespace Fdp.Toolkit.Squad.Systems
             public readonly HashSet<long> Inside = new();
             public readonly HashSet<long> Scratch = new();
             public bool HeardInside;
+            /// <summary>SC-8 — the point survey asked (−∞ = none), where the fire came from, and when the last was asked.</summary>
+            public double AskedAt = double.NegativeInfinity, LastAsk = double.NegativeInfinity;
+            public Vector3 Source;
         }
 
         private readonly Dictionary<ulong, MemberSense> _members = new();
@@ -62,6 +71,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), PoolCapacity)[..count];
             InEngagementArea(repo, commander, pool);
+            Structure(repo, commander, now);
             ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(commander);
             for (int i = 0; i < roster.Count && i < 16; i++)
             {
@@ -102,6 +112,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     Publish(repo, man, SensorChange.SniperFire);
                     Publish(repo, commander, SensorChange.SniperFire);
                 }
+                AskStructure(repo, commander, man, now);
             }
         }
 
@@ -182,6 +193,91 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
             }
             return true;
+        }
+
+        /// <summary>⭐ SC-8 — under fire: where the man places the shooter (the nearest heard SHOT within <see cref="SourceMetres"/>, its error
+        /// circle; else the nearest seen contact) asked as ONE point survey — the circle's centre and eight points on its rim.</summary>
+        private void AskStructure(EntityRepository repo, Entity commander, Entity man, double now)
+        {
+            var unit = Of(commander.PackedValue);
+            if (now - unit.LastAsk < StructureAskSeconds || !Source(repo, man, out var at, out float radius)) return;
+            var points = new List<Vector3>(9) { at };
+            float r = MathF.Max(2f, radius);
+            for (int k = 0; k < 8; k++) points.Add(at + new Vector3(MathF.Cos(k * MathF.PI / 4f) * r, MathF.Sin(k * MathF.PI / 4f) * r, 0f));
+            var request = Fdp.Toolkit.Perception.Survey.WorldSurveyRequest.OfPoints(points);
+            var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(repo, commander, StructureSite);
+            if (child.IsNull) child = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Ensure(repo, commander, StructureSite, request);
+            else Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Configure(repo, child, request);
+            if (child.IsNull) return;
+            unit.AskedAt = unit.LastAsk = now;
+            unit.Source = at;
+        }
+
+        /// <summary>⭐ SC-8 — the answer: ≥ <see cref="StructureVotes"/> of the nine points in one building ⇒
+        /// <see cref="SensorChange.FiredOnFromStructure"/> on the commander and a CONTACT report up (the source, firing).</summary>
+        private void Structure(EntityRepository repo, Entity commander, double now)
+        {
+            var unit = Of(commander.PackedValue);
+            if (double.IsNegativeInfinity(unit.AskedAt)) return;
+            var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(repo, commander, StructureSite);
+            var read = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Read(repo, child, now);
+            if (!read.Ready || read.Payload == null || read.Payload.Kind != Fdp.Toolkit.Perception.Survey.WorldSurveyKind.PointSurvey)
+            {
+                if (now - unit.AskedAt > StructureTimeoutSeconds) unit.AskedAt = double.NegativeInfinity;
+                return;
+            }
+            unit.AskedAt = double.NegativeInfinity;
+            var votes = new Dictionary<int, int>();
+            foreach (var pt in read.Payload.Points)
+                if (pt.Building >= 0) votes[pt.Building] = votes.TryGetValue(pt.Building, out int v) ? v + 1 : 1;
+            foreach (var (_, count) in votes)
+            {
+                if (count < StructureVotes) continue;
+                Publish(repo, commander, SensorChange.FiredOnFromStructure);
+                ReportUp(repo, commander, unit.Source, (float)now);
+                return;
+            }
+        }
+
+        /// <summary>The CONTACT the squad sends up: an element firing at <paramref name="at"/> (its staff delay applies).</summary>
+        private static void ReportUp(EntityRepository repo, Entity commander, Vector3 at, float now)
+        {
+            if (!repo.IsComponentTypeRegistered<Command.ReportOutbox>() || !repo.HasComponent<Command.ReportOutbox>(commander)) return;
+            Command.ReportQueue.Enqueue(repo, commander, new Command.CommandReport
+            {
+                Kind = Command.ReportKind.Contact, At = at, Count = 1, Size = Command.ElementSize.Individual,
+                Activity = Command.ElementActivity.Firing, ObservedAt = now,
+            }, now + Command.StaffComposerSystem.ReportDelaySeconds);
+        }
+
+        /// <summary>Where the man places the shooter: the nearest heard SHOT within <see cref="SourceMetres"/> (its circle), else the nearest
+        /// seen contact.</summary>
+        private static unsafe bool Source(EntityRepository repo, Entity man, out Vector3 at, out float radius)
+        {
+            at = default; radius = 0f;
+            if (!repo.HasComponent<SimTransform>(man) || !repo.HasComponent<TargetMemory>(man)) return false;
+            var me = repo.GetComponentRO<SimTransform>(man).Position;
+            ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(man);
+            float bestHeard = SourceMetres, bestSeen = SourceMetres;
+            Vector3 heardAt = default, seenAt = default;
+            float heardRadius = 0f;
+            fixed (TargetMemory* m = &mem)
+            {
+                for (int i = 0; i < m->Count; i++)
+                {
+                    var p = new Vector3(m->PositionsX[i], m->PositionsY[i], m->PositionsZ[i]);
+                    float d = Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(me.X, me.Y));
+                    if (m->Anonymous[i] != 0)
+                    {
+                        if ((m->SourceClass[i] == SmallArms || m->SourceClass[i] == HeavyWeapon) && d < bestHeard)
+                        { bestHeard = d; heardAt = p; heardRadius = m->Radius[i]; }
+                    }
+                    else if (d < bestSeen) { bestSeen = d; seenAt = p; }
+                }
+            }
+            if (bestHeard < SourceMetres) { at = heardAt; radius = heardRadius; return true; }
+            if (bestSeen < SourceMetres) { at = seenAt; return true; }
+            return false;
         }
 
         private MemberSense Of(Entity man)

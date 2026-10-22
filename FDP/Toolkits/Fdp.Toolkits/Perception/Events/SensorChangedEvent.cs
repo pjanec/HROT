@@ -86,6 +86,11 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-2283</c> (DA-21, SC-4) — 3 rounds at a man (hits / near misses) within 10 s, or a squad friend down within 3 m of
         /// him: his position is untenable. Published on the MAN.</summary>
         PositionUntenable = 23,
+
+        /// <summary>⭐ <c>CE-2283</c> M-2 (DA-21, SC-8) — a man of the squad was shot at and the shooter, as he placed him (a heard shot's
+        /// circle, else a seen contact), stands in a BUILDING (≥ 5 of 9 points of one PointSurvey). Published on the COMMANDER; the squad also
+        /// sends a CONTACT report up (the source, firing).</summary>
+        FiredOnFromStructure = 24,
     }
 
     /// <summary>
