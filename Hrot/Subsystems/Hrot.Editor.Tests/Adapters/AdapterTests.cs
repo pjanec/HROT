@@ -1108,7 +1108,7 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.EnterPreviewMode();
 
             // The internal snap should now be non-null (verified via internal accessor).
-            Assert.NotNull(_handler.TestHook_Snap);
+            Assert.NotNull(_handler.TestHook_Keyframe);
         }
 
         [Fact]
@@ -1120,7 +1120,7 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.EnterPreviewMode();
             adapter.ExitPreviewMode();
 
-            Assert.Null(_handler.TestHook_Snap);
+            Assert.Null(_handler.TestHook_Keyframe);
         }
     }
 

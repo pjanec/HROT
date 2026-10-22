@@ -283,7 +283,10 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private string GetRecordingFilePath(Guid exerciseId, string storageDirectory) =>
+        /// <summary>The file <see cref="PrepareRecordingAsync"/> writes for this exercise — under THIS node's id. ⭐ A caller that reports
+        /// the path asks here, ⛔ never rebuilds it with a node id of its own (the editor's debug API did, with 0, after the editor moved
+        /// to node 1 — CE-3228).</summary>
+        public string GetRecordingFilePath(Guid exerciseId, string storageDirectory) =>
             Fdp.Toolkit.Orchestration.OrchestrationConstants.GetExerciseRecordingFilePath(
                 storageDirectory, exerciseId, _nodeId);
 

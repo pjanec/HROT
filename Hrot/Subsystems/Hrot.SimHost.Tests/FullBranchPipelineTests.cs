@@ -133,7 +133,14 @@ namespace Hrot.SimHost.Tests
             using var cts2     = new CancellationTokenSource();
             var       kernelL2 = RunKernelLoop(_kernel, cts2.Token);
 
-            await controller.PrepareReplayAsync(originalExerciseId, _tempDir);
+            await controller.PrepareReplayAsync(originalExerciseId, _tempDir);   // the module installs on a kernel tick
+
+            // ⭐ The seek runs on the KERNEL's thread in production (ReplayModule.SeekToFrameAsync: "strictly on the calling (main)
+            //   thread"). Here the kernel ticks on a background loop, so seeking from the test thread raced the playback tick on the
+            //   same entity index — 📐 measured: "Entity index 1 out of range [0, 4]" (the bound moved between check and message),
+            //   in about half the full SimHost runs. Stop the loop, seek and read frame 50, then tick again for the branch.
+            cts2.Cancel();
+            await kernelL2;
 
             // Seek blasts historical entity state (frame 50) into _world.
             await controller.ActiveReplayModule!.SeekToFrameAsync(50);
@@ -141,6 +148,9 @@ namespace Hrot.SimHost.Tests
             // ── Snapshot: capture entity count and SimTransform positions at frame 50 ──
             int frame50EntityCount = _world.EntityCount;
             var frame50Positions   = ReadSimTransformPositions(_world);
+
+            using var cts3 = new CancellationTokenSource();
+            kernelL2 = RunKernelLoop(_kernel, cts3.Token);
 
             // ⭐⭐ QA-012 — state the precondition the whole branch hangs on.
             // 📐 ReferenceReplayLoadHandler.CanHandle/PrepareAsync accept PrepareLive ONLY while
@@ -191,7 +201,7 @@ namespace Hrot.SimHost.Tests
             }
 
             await controller.FinalizeRecordingAsync();
-            cts2.Cancel();
+            cts3.Cancel();
             await kernelL2;
 
             // ══ Phase 5: read branched recording frame 0 — must be a keyframe ══════════

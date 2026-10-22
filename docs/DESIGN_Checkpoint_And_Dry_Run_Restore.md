@@ -113,6 +113,14 @@ Throwaway probe in the in-process cluster harness (`uc-urban-battle`, SimHost �
 
 ⭐ Two findings. ① The recorder dropped state (`Guid` → empty, state behind a read-only view or a get-only collection) — **CE-3305**, fixed with a rail; it was losing the same state in every replay and checkpoint. ② `SyncFrom` copies a managed component BY REFERENCE, so a later in-place mutation leaks into the "snapshot" and the rewind does not undo it — the keyframe, which serializes, is the more correct rewind. ⇒ B2 may move the dry run onto keyframes with `CaptureOptions.NodeDryRun` / `EditorDryRun` (the same type sets `SyncFrom` used; `RecorderSystem.ComponentTypeFilter`, `RecordSingletonTables = false`).
 
+### 1f. ✅ B2 — as-built `2026-10-22` (the dry run on a RAM keyframe; the cluster's clock)
+
+| | |
+|---|---|
+| **`ReferencePreviewHandler`** (the one dry run, D14) | `LoadingPreview` → `WorldKeyframes.Capture(world, CaptureOptions)` (`NodeDryRun`, or `EditorDryRun` when the host passes `includeTransient` — HN-016's difference is now a TYPE SET, not a copy flag); `UnloadingPreview` → `WorldKeyframes.Apply(world, kf, RestoreOptions.DryRunExit)` → `PreviewStateBracket.Restore()` (the allocator, until S2) → `AfterRestore.Run(world, accumulator)`. ⛔ `SyncFrom` is gone from the dry run; it stays the background snapshot only. The host's `EventAccumulator` reaches it through `EcsHostClusterHandlers` (the silent-default rule: the composition holds it, so it passes it). Singletons are untouched by the apply — `EntityRepository.Clear()` clears entity tables and the bus, not singletons — so the TKB, navmesh and entity map stay loaded |
+| **`PreviewClockProcessManager`** (`Hrot.Orchestrator`, NEW — D5's cluster half) | ticked by `OrchestratorCore` after the seek manager; reads `ClusterStateTransitionedEvent`; remembers `ITimeController.GetCurrentState()` at `LoadingPreview`; on `OperatingEdit` straight after `UnloadingPreview` calls `ITimeCommands.SnapTo(that)`; a dry run ended any other way (a load, an abort) forgets it. ⚠ **Deviation from D5's text** (*"closed by D14's one handler"*): the handler runs on every node, but the clock is the MASTER's, so the snap lives beside the master's other process managers, not in the handler. The editor's own Play/Stop keeps its local snap (`CE-3156`) — the editor's toolbar does not start a cluster transition, so the two never both fire for one dry run |
+| rails | `ReferencePreviewHandlerTests` (the rewind puts back mutated values, not just a capture) · `PreviewClockProcessManagerTests` (snaps once, to the Play position, only after the world is back; an abandoned dry run snaps nothing) · `DeterminismRails` / `DirectorIdentityRails` / `PreviewLifecycleRails` 11/11 (the record round trip needed the editor's recording path fixed — it named node 0 since CE-3228) · ⚠ `TakeCoverScenarioTests.CE2101_PreviewFromEdit` red before and after B2: the SOP never reacts (CE-3306, behaviors) — the dry run's own Stop-rewind assertion is not reached there |
+
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
 ```mermaid
@@ -209,6 +217,15 @@ classDiagram
     +TriggerLoadingPreview()
     +TriggerUnloadingPreview()
   }
+  class PreviewClockProcessManager {
+    <<built B2, D5 on the master>>
+    +Tick()
+  }
+  class ITimeCommands {
+    <<interface>>
+    +SnapTo(position)
+  }
+  PreviewClockProcessManager ..> ITimeCommands : SnapTo at OperatingEdit after UnloadingPreview
   class ReferenceCheckpointHandler
   class PreviewStateBracket {
     +Capture()
@@ -258,6 +275,7 @@ sequenceDiagram
   N->>W: Apply RAM keyframe (clock no, events no, keep editor-only types)
   W->>N: AfterRestore
   M->>N: OperatingEdit
+  M->>M: PreviewClockProcessManager - SnapTo the Play position (D5)
   Note over Op,W: CHECKPOINT SAVE (live, nothing stops)
   Op->>M: TakeCheckpoint (or a periodic timer)
   M->>N: checkpoint X at wall time T, on the shared zero

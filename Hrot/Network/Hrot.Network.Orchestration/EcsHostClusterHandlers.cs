@@ -116,7 +116,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 : PreviewParticipants.EntityMapFromRepository(h.World));
             if (h.Elm != null)
                 rewindables.Add(PreviewParticipants.LifecycleModule(h.Elm));
-            var dryRun = new ReferencePreviewHandler(h.World, rewindables, includeTransient: h.DryRunIncludesTransient);
+            var dryRun = new ReferencePreviewHandler(h.World, rewindables, includeTransient: h.DryRunIncludesTransient, accumulator: h.EventAccumulator);
             slave.RegisterHandler(dryRun);
 
             // 4. Prefetch — stage scenario files and ACK.

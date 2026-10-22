@@ -75,13 +75,19 @@ namespace Hrot.SimHost.Tests
             await handler.PrepareAsync(cmd, default);
             handler.Commit(cmd, _liveRepo);
 
-            var snap = handler.TestHook_Snap;
-            Assert.NotNull(snap);
-            Assert.Equal(4, snap.EntityCount);  // §CGF1-S0309: EntityCount == 4 on snapshot
+            // ⭐ CE-3299 B2 — the capture is a RAM keyframe (the flight recorder's format), not a repository: what it holds is proven by
+            //   putting it back. Mutate every entity, rewind, and the four captured values return.
+            Assert.NotNull(handler.TestHook_Keyframe);
+            Assert.True(handler.TestHook_Keyframe!.SizeBytes > 0);
+            for (int i = 0; i < 4; i++) _liveRepo.SetComponent(entities[i], new PreviewTestPos { X = -1f, Y = -1f, Z = -1f });
 
-            // Spot-check first entity's component values.
-            Assert.True(snap.HasComponent<PreviewTestPos>(entities[0]));
-            var snapPos = snap.GetComponent<PreviewTestPos>(entities[0]);
+            var unload = MakePrepareStateCmd(ClusterState.UnloadingPreview);
+            await handler.PrepareAsync(unload, default);
+            handler.Commit(unload, _liveRepo);
+
+            Assert.Equal(4, _liveRepo.EntityCount);  // §CGF1-S0309: EntityCount == 4 at the capture
+            Assert.True(_liveRepo.HasComponent<PreviewTestPos>(entities[0]));
+            var snapPos = _liveRepo.GetComponent<PreviewTestPos>(entities[0]);
             Assert.Equal(1f, snapPos.X);
             Assert.Equal(2f, snapPos.Y);
             Assert.Equal(3f, snapPos.Z);
@@ -158,12 +164,12 @@ namespace Hrot.SimHost.Tests
             await handler.PrepareAsync(loadCmd, default);
             handler.Commit(loadCmd, _liveRepo);
 
-            Assert.NotNull(handler.TestHook_Snap);
+            Assert.NotNull(handler.TestHook_Keyframe);
 
             await handler.PrepareAsync(unloadCmd, default);
             handler.Commit(unloadCmd, _liveRepo);
 
-            Assert.Null(handler.TestHook_Snap);
+            Assert.Null(handler.TestHook_Keyframe);
         }
 
         // ── S0309-T4: Abort during dry run discards snapshot ─────────────────
@@ -181,11 +187,11 @@ namespace Hrot.SimHost.Tests
             await handler.PrepareAsync(loadCmd, default);
             handler.Commit(loadCmd, _liveRepo);
 
-            Assert.NotNull(handler.TestHook_Snap);
+            Assert.NotNull(handler.TestHook_Keyframe);
 
             handler.Abort(loadCmd, _liveRepo);
 
-            Assert.Null(handler.TestHook_Snap);
+            Assert.Null(handler.TestHook_Keyframe);
         }
 
         // ── S0309-T5: Non-dry-run PrepareState targets are no-ops ────────────
@@ -210,7 +216,7 @@ namespace Hrot.SimHost.Tests
                 await handler.PrepareAsync(cmd, default);
                 handler.Commit(cmd, _liveRepo);
 
-                Assert.Null(handler.TestHook_Snap);
+                Assert.Null(handler.TestHook_Keyframe);
             }
         }
 
