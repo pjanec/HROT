@@ -8,6 +8,8 @@ using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Squad.Command;
 using Fhsm.Compiler;
@@ -154,7 +156,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (lead < 0) return NodeStatus.Running;
             var leadSquad = CommandPictureOps.Subordinate(world, self, lead);
             var leadAt = StaffComposerSystem.CentreOf(world, leadSquad);
-            while (p.Leg < p.Count && Flat(leadAt, p.Point(p.Leg)) <= p.ArrivalRadius) p.Leg++;   // UM-5 — the next leg
+            // UM-5 — the next leg once the lead's NEAREST man is there: 📐 live (pc-urban-move) the squad's centre trails its point man in
+            //   file, the march ended on the point man's arrival and the centre stood 9 m short — the leg never advanced
+            while (p.Leg < p.Count && Nearest(world, leadSquad, p.Point(p.Leg)) <= p.ArrivalRadius) p.Leg++;
             float along = Along(ref p, leadAt);
             int n = Math.Min(RosterCount(world, self), UrbanPlan.Capacity);
             int rank = 0;
@@ -210,9 +214,63 @@ namespace Hrot.AI.Behaviors.Brains
                 if (PlatoonConvoyBehavior.LiveMen(world, squad, 0) == 0) continue;
                 if (s != lead) rank++;
                 var at = s == lead ? p.Point(p.Count - 1) : PointAt(ref p, along - p.Spacing * rank);
-                if (Flat(StaffComposerSystem.CentreOf(world, squad), at) > 2f * p.ArrivalRadius) return false;
+                if (Nearest(world, squad, at) > 2f * p.ArrivalRadius) return false;
             }
             return true;
+        }
+
+        // ── U-2: fire from a building (UM-10, UM-11) ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>UM-10 — a squad's <c>FiredOnFromStructure</c> this fresh counts (s: its CONTACT reaches the picture ≥ 3 s later); UM-11 — a
+        /// source this close to the route is cleared, not bypassed (m).</summary>
+        public const float FiredOnFreshSeconds = 15f, ClearWithinMetres = 50f;
+        private static readonly int UrbanHash = BehaviorHash.FromName(BehaviorNames.UrbanMovement);
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-2 (UM-10, UM-11; DA-18) — the platoon SOP's row: the platoon is on <c>UrbanMovement</c>, a squad of it sensed
+        /// <c>FiredOnFromStructure</c> lately, its CONTACT (a FIRING element) is in the picture, and DA-18 says CLEAR — the platoon is Untrained
+        /// or Militia, or the source is within <see cref="ClearWithinMetres"/> of the route. False = bypass: the movement carries on.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool FireFromBuildingToClear(Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != UrbanHash) return false;
+            int n = Math.Min(RosterCount(world, self), UrbanPlan.Capacity);
+            bool fired = false;
+            for (int s = 0; s < n && !fired; s++)
+                fired = RecentSensesOf.Within(world, CommandPictureOps.Subordinate(world, self, s), SensorChange.FiredOnFromStructure, FiredOnFreshSeconds);
+            if (!fired || !PlatoonAttackBehavior.FiringElement(world, self, CommandPictureOps.Now(world), out var at, out _)) return false;
+            if (ProficiencyOf.Tier(world, self) <= ProficiencyTier.Militia) return true;   // DA-18 — they assault it head-on
+            var route = RouteOf(world, self);
+            for (int i = 1; i < route.Count; i++)
+                if (DistanceToSegment(at, route[i - 1], route[i]) <= ClearWithinMetres) return true;
+            return route.Count == 1 && Flat(at, route[0]) <= ClearWithinMetres;
+        }
+
+        /// <summary>UM-11 — the running task's route as it was ordered (the start record's legs, else its route entity's waypoints), with the
+        /// platoon's own position first.</summary>
+        private static List<Vector3> RouteOf(EntityRepository world, Entity self)
+        {
+            var points = new List<Vector3> { StaffComposerSystem.CentreOf(world, self) };
+            if (!world.HasManagedComponent<BehaviorStartRecord>(self)) return points;
+            var record = world.GetComponent<BehaviorStartRecord>(self);
+            if (record.BehaviorName != BehaviorNames.UrbanMovement) return points;
+            UrbanMovementParamsJsonDto dto;
+            try { dto = JsonSerializer.Deserialize<UrbanMovementParamsJsonDto>(record.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed); }
+            catch (JsonException) { return points; }
+            if (dto.Legs != null && dto.Legs.Length > 0) { points.AddRange(dto.Legs); return points; }
+            var waypoints = new List<NavRouteWaypoint>();
+            if (dto.Route.NetworkId != 0 && s_routes.TryGetRoute(world, dto.Route.NetworkId, waypoints, out _, out _))
+                foreach (var w in waypoints) points.Add(w.Position);
+            return points;
+        }
+
+        private static float DistanceToSegment(Vector3 p, Vector3 a, Vector3 b)
+        {
+            var q = new Vector2(p.X, p.Y); var a2 = new Vector2(a.X, a.Y); var b2 = new Vector2(b.X, b.Y);
+            float len2 = Vector2.DistanceSquared(a2, b2);
+            float t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(q - a2, b2 - a2) / len2, 0f, 1f);
+            return Vector2.Distance(q, a2 + (b2 - a2) * t);
         }
 
         // ── the route (pure) ────────────────────────────────────────────────────────────────────────────────────────────
@@ -253,6 +311,21 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         // ── the reads ────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>How near <paramref name="squad"/>'s nearest live man stands to <paramref name="point"/> (a stand-in squad: its own position).</summary>
+        public static float Nearest(EntityRepository world, Entity squad, Vector3 point)
+        {
+            if (!world.HasComponent<UnitRoster>(squad)) return Flat(StaffComposerSystem.CentreOf(world, squad), point);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(squad);
+            float best = float.MaxValue;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (m.IsNull || !world.IsAlive(m) || !world.HasComponent<SimTransform>(m) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, m)) continue;
+                best = MathF.Min(best, Flat(world.GetComponentRO<SimTransform>(m).Position, point));
+            }
+            return best == float.MaxValue ? Flat(StaffComposerSystem.CentreOf(world, squad), point) : best;
+        }
 
         /// <summary>UM-2 — the lead: the first roster slot whose squad has a live man (−1 = none).</summary>
         public static int Lead(EntityRepository world, Entity self)

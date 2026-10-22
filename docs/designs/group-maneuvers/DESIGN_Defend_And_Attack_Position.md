@@ -2013,7 +2013,7 @@ hold no longer leaves the squads with nothing.
 | ⚠ what it does not do | a vehicle with nobody out drives on during contact, and while the platoon's hold pauses the task NO vehicle is held — an empty carrier may drive on before the task picks up (measure live) · a squad split over two vehicles rides as one (the embark drill boards one vehicle) | — |
 | rails | `SquadManeuverTests.CE2347_*` — the cycle; the dead vehicle (room / no room); the wounded first + the retry. Mutants: `CarriesDismounted` always true, seats ignoring occupants, `Casualty` → Null each turn a rail red; `Quiet` ignoring a fighting squad stays green — `ContactAgain` checks the same squad, so CSecure hands straight back to CContact before any order (a redundant guard) | `Hrot.SimHost.Tests` |
 
-### 11b. `UrbanMovement` — DA-17 on foot *(behaviors, `CE-2284`, `2026-10-21`; build-state: BUILDING — slice U-1; leans UM-1…UM-9 under DA-17 / DA-18 (approved R-2036), built under the user's "do as much as you can autonomously")*
+### 11b. `UrbanMovement` — DA-17 on foot *(behaviors, `CE-2284`, `2026-10-21`; build-state: BUILDING — slices U-1 and U-2 built, U-3 (the ambush demos) open; leans UM-1…UM-9 under DA-17 / DA-18 (approved R-2036), built under the user's "do as much as you can autonomously")*
 
 **INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*Platoon.*` over Class / Method, the `[Behavior]` table of every platoon task;
 one read-only sweep: `SquadMarch`, `PlatoonConvoy`, `CommandOrders`, `BasicPlatoonSop`, `PlatoonAttack`, the picture, the scenarios. `check_index_coverage`
@@ -2111,6 +2111,44 @@ crossing drill) pause ITS march, and the platoon leaves a squad in its own react
 | **UM-7** | after a platoon reaction | the task resumes at its leg and every squad gets its order again from where it stands (§11's catch: squads never resume on their own) | a fresh route from the start: the CE-4032 defect |
 | **UM-8** | the squads' watch sectors (§13a "platoon commander (`UrbanMovement`)") | ⏭ not in U-1 — the men's own look direction runs (LD-3) | — |
 | **UM-9** | fire from a building | ⏭ slice **U-2**: §14a SC-8 `FiredOnFromStructure` on the squad ⇒ the platoon SOP row ⇒ `ReactToFireFromBuilding` (the attack play's preset, §10) with DA-18's clear / bypass; ⚠ bypass's smoke waits on `CE-2278` | — |
+
+**U-2 in detail — fire from a building while moving** *(designed 2026-10-22; reuses §14a SC-8 and the attack play, §10)*
+
+```mermaid
+sequenceDiagram
+  participant M as squad man
+  participant SQ as squad (SquadSenseChanges)
+  participant PL as platoon picture + SOP
+  participant UM as UrbanMovement (task)
+  participant RF as ReactToFireFromBuilding (the attack play's preset)
+  M->>SQ: shot at (Hit / NearMiss)
+  SQ->>SQ: one PointSurvey of where the shot came from: 5 of 9 in one building
+  SQ->>PL: FiredOnFromStructure (the squad) + CONTACT up (the source, firing)
+  PL->>PL: row: moving, a squad fired on from a building, DA-18 says clear
+  PL->>RF: React (urgency Contact): the task pauses
+  RF->>SQ: the squad fired on supports from where it stands (SquadDefend, arc on the building, fire at will)
+  RF->>RF: the next squad bounds to the flank, then ClearBuilding, the rest reserve
+  RF-->>UM: BuildingClear, consolidate, Set: the reaction ends, the task resumes and orders every squad again (UM-7)
+```
+*What it shows:* nothing new fights — the squad's sense, the report, the SOP row and the attack play exist; U-2 adds one condition, one
+preset and one row.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **UM-10** | the trigger | a `BasicPlatoonSop` row BEFORE the hold: the platoon's task is `UrbanMovement`, a squad of it sensed `FiredOnFromStructure` within 15 s, a report arrived (3 s), and DA-18 says clear ⇒ React `ReactToFireFromBuilding` (urgency Contact) | the hold row: a single firing man is Individual-size, below its Team floor — and holding is not clearing |
+| **UM-11** | DA-18's choice | **clear** when the platoon is Untrained / Militia, or the source is within **50 m** of the task's route (its legs, from the start record); **bypass** otherwise | the REMAINING route only: the leg index lives in the task's blackboard, the SOP cannot read it — the whole route errs toward clearing |
+| **UM-12** | the reaction | `ReactToFireFromBuilding` = the `PlatoonAttack` play under a second name, preset 2 (§10: one play, presets): its objective is the newest FIRING element in the picture (the squad's CONTACT, ≤ 30 s), searched 15 m round; the squad that sent it is the SUPPORT, posted where it stands; the next live squad the assault; no wait for the support's Set (it is in contact already) | a new play: a second attack implementation (ruling 9) |
+| **UM-13** | the bypass | **no platoon reaction**: the movement carries on; the squad in contact fights its own drill (`ReactToContact`) and is ordered back into the movement when it ends (UM-6). ⚠ No suppress-and-smoke yet — the smoke waits on `CE-2278` | suppress with the squad in contact, the others hold: it stops the column in the kill zone the bypass exists to leave |
+
+**As built** *(`2026-10-22`)*:
+
+| piece | as built | where |
+|---|---|---|
+| the trigger | `UrbanMovementBehavior.FireFromBuildingToClear` (the row's one new condition: moving, a squad's `FiredOnFromStructure` ≤ 15 s, a FIRING element in the picture, DA-18 clear) — a `BasicPlatoonSop` row before the hold | `UrbanMovementBehavior.cs`, `BasicPlatoonSop.btree.json` |
+| the reaction | `ReactToFireFromBuilding` = `PlatoonAttack`'s graph under a second name, preset 2 (`PlatoonAttackPreset.ReactToFireFromBuilding`); `FiringElement` finds the objective and the reporter; `ReactRoles` makes the reporter the support (posted where it stands), the next live squad the assault; `NotAttacking` covers both names | `PlatoonAttackBehavior.cs` |
+| ⚠ deviation — the answer is struck | at consolidation the reaction removes the FIRING elements it answered (within its 15 m round) from the picture — 📐 rail: the same CONTACT, still fresh, re-triggered the reaction the moment it ended | `PlatoonAttackBehavior.Answered` |
+| ⚠ deviation — the lead's leg | judged by the lead squad's NEAREST man, not its centre — 📐 live `pc-urban-move`: the march ended on the point man's arrival, the centre stood 9 m short of the leg's end, and the leg never advanced | `UrbanMovementBehavior.Nearest` |
+| rails | `SquadManeuverTests.CE2284_FiredOnFromABuildingNearTheRoute_*` (react, support where it stands, clear, resume), `CE2284_FiredOnFromABuildingFarOffTheRoute_*` (Regular bypasses, Militia clears) | `Hrot.SimHost.Tests` |
 
 **Slices.** **U-1** = UM-1…UM-7 (the task, rails `SquadManeuverTests.CE2284_*`, a dry demo on `cqb-village`). **U-2** = UM-9 + §14a M-2.
 **U-3** = the ambush demos `pc-urban-ambush` / `pc-ambush-bypass` (Platoon Attack design §stage C).

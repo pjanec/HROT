@@ -11,6 +11,9 @@ namespace Hrot.Map.Definitions.Behavior
         AttackPosition = 0,
         /// <summary>No base of fire (PL-1): approach and clear.</summary>
         ClearBuilding = 1,
+        /// <summary>⭐ <c>CE-2284</c> U-2 (UM-12, DA-18) — started by the SOP on the move: the squad fired on supports from where it stands,
+        /// the next one clears the building the fire came from (the newest FIRING element in the picture when no position is given).</summary>
+        ReactToFireFromBuilding = 2,
     }
 
     /// <summary>

@@ -177,6 +177,16 @@ public sealed class BTreeCallShapeTests
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c2", BTreeDelegateShapeDto.NoParams),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-2331 (AQ98 rows), CE-2347 (the convoy's squad SOP rows), CE-2284 U-2 (the platoon's react-to-fire row) — recorded 2026-10-22
+        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.NoParams),
+        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.NoParams),
+        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.NoParams),
+        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.NoParams),
+        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000023", BTreeDelegateShapeDto.NoParams),
+        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000024", BTreeDelegateShapeDto.Plain),
+        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000025", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000012", BTreeDelegateShapeDto.NoParams),
         // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.

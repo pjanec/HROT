@@ -6781,6 +6781,96 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((new Vector3(0f, 100f, 0f), true), (lead.Objective, lead.DangerAreas));
         }
 
+        // ── CE-2284 U-2 — fired on from a building on the move: clear it (the attack play's preset) or bypass (DA-18, UM-10…UM-13) ──
+
+        private static void FiredOnFromABuilding(Platoon p, Entity squad, Vector3 source)
+        {
+            p.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = squad, What = Fdp.Toolkit.Perception.Events.SensorChange.FiredOnFromStructure });
+            p.Report(squad, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Contact, At = source, Count = 1,
+                Size = Fdp.Toolkit.Squad.Command.ElementSize.Individual, Activity = Fdp.Toolkit.Squad.Command.ElementActivity.Firing,
+            });
+        }
+
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload HouseAt(Vector3 c)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 7, CentreX = c.X, CentreY = c.Y });
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                { Building = 7, Index = 0, Indoors = true, Corners = new[] { c.X - 5f, c.Y - 5f, c.X + 5f, c.Y - 5f, c.X + 5f, c.Y + 5f, c.X - 5f, c.Y + 5f } });
+            return a;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2284</c> U-2 (UM-10, UM-12, UM-7) — moving, Bravo is fired on from a house 20 m off the route: the platoon SOP reacts with
+        /// <c>ReactToFireFromBuilding</c> (the task pauses); Bravo — the squad fired on — supports from where it stands, Alpha bounds to the
+        /// flank and on its Set clears the house; the house clear and every squad Set, the reaction ends and the movement resumes, every squad
+        /// ordered again. ✅ Red-proofs: the reporter not made the support ⇒ Bravo is sent off to the stand-off point; the row missing ⇒ no
+        /// reaction.
+        /// </summary>
+        [Fact]
+        public void CE2284_FiredOnFromABuildingNearTheRoute_ThePlatoonClearsIt_ThenMovesOn()
+        {
+            var p = OnTheMove();
+            p.S.StartSop("BasicPlatoonSop");
+            p.S.Teleport(p.Alpha, new Vector3(0f, 40f, 0f));
+            p.S.Teleport(p.Bravo, new Vector3(0f, 10f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -20f, 0f));
+            p.Ticks(3);
+            var house = new Vector3(20f, 60f, 0f);
+            p.S.Surveys[PlatoonAttackBehavior.AreaSite] = HouseAt(house);
+            FiredOnFromABuilding(p, p.Bravo, house);
+            p.Ticks(10);
+            Assert.Equal(BehaviorNames.ReactToFireFromBuilding, p.S.TaskName);
+            var support = System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(BehaviorNames.SquadDefend, p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).IntentId);
+            Assert.InRange(Vector3.Distance(support.Position, new Vector3(0f, 10f, 0f)), 0f, 0.5f);                 // where it stands
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);   // to the flank
+
+            p.ReportSet(p.Alpha);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.ClearBuilding, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);
+            Assert.Contains("20", p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams);
+
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+                { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear });
+            int alpha = p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch);
+            bool Consolidating() => new[] { p.Alpha, p.Bravo, p.Charlie }.All(sq =>
+                p.S.Orders.Last(o => o.Entity.Equals(sq)).IntentId == BehaviorNames.SquadDefend
+                && System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(p.S.Orders.Last(o => o.Entity.Equals(sq)).JsonParams,
+                       Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Position == house);
+            for (int i = 0; i < 60 && !Consolidating(); i++) p.Tick();
+            Assert.True(Consolidating(), "the house clear: every squad consolidates round it");
+            foreach (var sq in new[] { p.Alpha, p.Bravo, p.Charlie }) p.ReportSet(sq);
+            for (int i = 0; i < 60 && p.S.TaskName != BehaviorNames.UrbanMovement; i++) p.Tick();
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);                                                 // the movement resumes
+            p.Ticks(15);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch) > alpha, $"the lead is ordered on again; Alpha's orders: {string.Join(" ", p.S.Orders.Where(o => o.Entity.Equals(p.Alpha)).Select(o => o.IntentId))}; Charlie's: {string.Join(" ", p.S.Orders.Where(o => o.Entity.Equals(p.Charlie)).Select(o => o.IntentId))}");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-2 (UM-11, UM-13; DA-18) — fire from a house 120 m off the route: a Regular platoon BYPASSES it — no reaction, the
+        /// movement goes on; a Militia platoon assaults it all the same. ✅ Red-proof: the route distance ignored ⇒ the Regular platoon reacts.
+        /// </summary>
+        [Fact]
+        public void CE2284_FiredOnFromABuildingFarOffTheRoute_ARegularPlatoonBypassesIt_AMilitiaOneClearsIt()
+        {
+            foreach (var (militia, reacts) in new[] { (false, false), (true, true) })
+            {
+                var p = OnTheMove();
+                if (militia)
+                    p.S.Repo.AddComponent(p.S.Commander, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                        { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                p.S.StartSop("BasicPlatoonSop");
+                p.Ticks(3);
+                FiredOnFromABuilding(p, p.Bravo, new Vector3(120f, 30f, 0f));
+                p.Ticks(10);
+                Assert.Equal(reacts ? BehaviorNames.ReactToFireFromBuilding : BehaviorNames.UrbanMovement, p.S.TaskName);
+            }
+        }
+
         // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────
 
         private static Entity ConvoyVehicle(Squad s, Vector3 at, long networkId, int passengerSeats, params Entity[] aboard)

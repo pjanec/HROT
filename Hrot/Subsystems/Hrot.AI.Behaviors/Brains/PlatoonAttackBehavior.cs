@@ -35,8 +35,11 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 Position;
         public float SearchRadius;
         public float Speed;
-        /// <summary>0 = AttackPosition (support, approach, assault) · 1 = ClearBuilding (no support phase — PL-1).</summary>
+        /// <summary>0 = AttackPosition (support, approach, assault) · 1 = ClearBuilding (no support phase — PL-1) · 2 = ReactToFireFromBuilding
+        /// (⭐ CE-2284 UM-12 — the squad fired on supports from where it stands, no wait for its Set).</summary>
         public byte Preset;
+        /// <summary>⭐ UM-12 — the slot that sent the CONTACT the reaction answers (−1 = none: slot order).</summary>
+        public int Reporter;
         public byte Made;
         public byte Asked;
         public double AskedAt;
@@ -166,6 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float ElementFreshSeconds = 120f;
         public const int AreaSite = 0x22770001;
         public const float SurveyTimeoutSeconds = 5f;
+        /// <summary>⭐ UM-12 — the reaction's search round the firing element (m), and how fresh that element must be (s).</summary>
+        public const float ReactSearchRadius = 15f, ReactFreshSeconds = 30f;
         public const BehaviorFaultCode AbortedFault = BehaviorFaultCode.Custom + 277;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -183,14 +188,31 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan.Position = authored.Position;
             block.Plan.SearchRadius = authored.SearchRadius > 0f ? authored.SearchRadius : DefaultSearchRadius;
             block.Plan.Speed = authored.Speed;
-            block.Plan.Preset = authored.Preset == PlatoonAttackPreset.ClearBuilding ? (byte)1 : (byte)0;
+            block.Plan.Preset = (byte)authored.Preset;
         }
+
+        /// <summary>⭐ <c>CE-2284</c> U-2 (UM-12) — the SOP's reaction: the same play, preset 2, round the newest firing element (found at the plan).</summary>
+        [BehaviorResolver(BehaviorNames.ReactToFireFromBuilding)]
+        public static void ResolveReact(in NoParams authored, ref PlatoonAttackBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Plan = default;
+            block.Keep = default;
+            block.Plan.Preset = (byte)PlatoonAttackPreset.ReactToFireFromBuilding;
+            block.Plan.SearchRadius = ReactSearchRadius;
+        }
+
+        [Behavior(BehaviorNames.ReactToFireFromBuilding, Params = typeof(NoParams), Categories = BehaviorCategory.Commander)]
+        [HsmDefinition(BehaviorNames.ReactToFireFromBuilding, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonAttackBlackboard))]
+        public static StateMachineGraph BuildReactToFireFromBuilding() => Build("ReactToFireFromBuilding_HSM");
 
         [Behavior(BehaviorNames.PlatoonAttack, Params = typeof(PlatoonAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]
         [HsmDefinition(BehaviorNames.PlatoonAttack, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonAttackBlackboard))]
-        public static StateMachineGraph BuildPlatoonAttack()
+        public static StateMachineGraph BuildPlatoonAttack() => Build("PlatoonAttack_HSM");
+
+        /// <summary>The one play's graph, under either name (§10: one play, presets).</summary>
+        private static StateMachineGraph Build(string name)
         {
-            var builder = new HsmBuilder("PlatoonAttack_HSM");
+            var builder = new HsmBuilder(name);
             var root = builder.State("Attacking").Initial().Parallel();
             StateBuilder plan = null!, support = null!, approach = null!, assault = null!, next = null!, consolidate = null!, breaking = null!, broke = null!;
             StateBuilder watch = null!, relieve = null!, answer = null!, abort = null!;
@@ -250,6 +272,12 @@ namespace Hrot.AI.Behaviors.Brains
             int n = RosterCount(world, self);
             if (n == 0) return NodeStatus.Running;
             double now = CommandPictureOps.Now(world);
+            if (p.Asked == 0 && p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding && p.Position == Vector3.Zero)
+            {
+                // UM-12 — the reaction answers the newest firing element; none (it went stale) ⇒ nothing to attack
+                if (!FiringElement(world, self, (float)now, out var at, out p.Reporter)) { p.Made = 1; p.Objectives = 0; return NodeStatus.Running; }
+                p.Position = at;
+            }
             if (p.Asked == 0)
             {
                 WorldSurveyChildSensor.Ensure(world, self, AreaSite, WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), p.SearchRadius));
@@ -275,8 +303,57 @@ namespace Hrot.AI.Behaviors.Brains
             }
             for (int s = 0; s < n && s < PlatoonAttackPlan.Capacity; s++)   // AT-3
                 p.Role[s] = s == 0 ? PlatoonAttackPlan.Assault : s == 1 ? PlatoonAttackPlan.Support : PlatoonAttackPlan.Reserve;
+            if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding) ReactRoles(ref p, world, self, n);
             p.Made = 1;
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ UM-12 — the building is cleared: the firing elements the reaction answered (within its search round) leave the picture,
+        /// so the SOP does not start the same reaction again when this one ends (📐 rail: the same CONTACT re-triggered it at once).</summary>
+        private static void Answered(ref PlatoonAttackPlan p, EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<CommandPicture>(self)) return;
+            ref var picture = ref world.GetComponentRW<CommandPicture>(self);
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref var e = ref picture.Elements.Items[i];
+                if (e.Activity == ElementActivity.Firing && Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(p.Position.X, p.Position.Y)) <= p.SearchRadius) e.Count = 0;
+            }
+        }
+
+        /// <summary>⭐ UM-12 — the squad fired on is the SUPPORT; the first other live squad the ASSAULT; the rest the reserve.</summary>
+        private static unsafe void ReactRoles(ref PlatoonAttackPlan p, EntityRepository world, Entity self, int n)
+        {
+            int support = p.Reporter >= 0 && p.Reporter < n && Alive(world, self, p.Reporter) ? p.Reporter : -1;
+            int assault = -1;
+            for (int s = 0; s < n && s < PlatoonAttackPlan.Capacity; s++)
+            {
+                if (s == support || !Alive(world, self, s)) { p.Role[s] = s == support ? PlatoonAttackPlan.Support : PlatoonAttackPlan.NoRole; continue; }
+                if (assault < 0) { assault = s; p.Role[s] = PlatoonAttackPlan.Assault; }
+                else p.Role[s] = PlatoonAttackPlan.Reserve;
+            }
+        }
+
+        /// <summary>⭐ UM-12 — the newest element in the picture reported FIRING within <see cref="ReactFreshSeconds"/> (a squad's CONTACT, CE-2283
+        /// M-2), and the roster slot of the squad that sent it (−1 = not one of ours).</summary>
+        public static bool FiringElement(EntityRepository world, Entity self, float now, out Vector3 at, out int slot)
+        {
+            at = default; slot = -1;
+            if (!world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            float newest = float.NegativeInfinity;
+            long from = 0;
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Count == 0 || e.Activity != ElementActivity.Firing || now - e.ObservedAt > ReactFreshSeconds || e.ObservedAt <= newest) continue;
+                newest = e.ObservedAt; at = e.At; from = e.FromNetId;
+            }
+            if (float.IsNegativeInfinity(newest)) return false;
+            int n = RosterCount(world, self);
+            for (int s = 0; s < n; s++)
+                if (CommandPictureOps.NetIdOf(world, CommandPictureOps.Subordinate(world, self, s)) == from) { slot = s; break; }
+            return true;
         }
 
         private static List<Vector3> Elements(EntityRepository world, Entity self, float now)
@@ -298,6 +375,11 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe NodeStatus EnterSupport(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             Points(ref p, world, self);
+            if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding)   // UM-12 — the squad in contact supports from where it stands
+            {
+                int s = p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity);
+                if (s >= 0) p.SupportAt = StaffComposerSystem.CentreOf(world, CommandPictureOps.Subordinate(world, self, s));
+            }
             SetPhase(ref p, PlatoonAttackPlan.PhaseSupport);
             int support = p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity);
             Fire(world, self, support, RoeFire.FireAtWill);
@@ -331,6 +413,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe NodeStatus EnterConsolidate(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, PlatoonAttackPlan.PhaseConsolidate);
+            if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding) Answered(ref p, world, self);
             Fire(world, self, p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity), RoeFire.FireAtWill);
             return NodeStatus.Success;
         }
@@ -425,7 +508,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case PlatoonAttackPlan.PhaseSupport:
                 case PlatoonAttackPlan.PhaseApproach:
                 case PlatoonAttackPlan.PhaseAssault:
-                    if (role == PlatoonAttackPlan.Support && p.Preset == 0)
+                    if (role == PlatoonAttackPlan.Support && p.Preset != (byte)PlatoonAttackPreset.ClearBuilding)
                         return Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order);
                     if (role == PlatoonAttackPlan.Assault && p.Phase == PlatoonAttackPlan.PhaseAssault)
                     {
@@ -648,13 +731,15 @@ namespace Hrot.AI.Behaviors.Brains
             => world.HasComponent<UnitRoster>(self) ? world.GetComponentRO<UnitRoster>(self).Count : 0;
 
         private static readonly int AttackHash = BehaviorHash.FromName(BehaviorNames.PlatoonAttack);
+        private static readonly int ReactHash = BehaviorHash.FromName(BehaviorNames.ReactToFireFromBuilding);
 
         /// <summary>⭐ AT-13 (as DA-55 for the defence) — the platoon's task is NOT an attack. <c>BasicPlatoonSop</c>'s hold row asks it: an
         /// attacking platoon expects contact — its base of fire is up for it and its control region relieves and breaks off — so pausing the
         /// task to order every squad <c>Hold</c> would stop the attack at its first SPOT (measured live, <c>pc-defend-house</c>).</summary>
         [SharedAiCondition]
         public static bool NotAttacking(Entity self, EntityRepository world)
-            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != AttackHash;
+            => !world.HasComponent<BehaviorState>(self)
+               || (world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash is var h && h != AttackHash && h != ReactHash);   // ⭐ CE-2284 — the preset too
     }
 
     /// <summary>

@@ -79,8 +79,19 @@ public static class BasicPlatoonSopRegistrar
                 var status = global::Hrot.AI.Behaviors.Brains.SupportCommandBehavior.NotCommandingSupport(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
                 return status;
             });
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.UrbanMovementBehavior.FireFromBuildingToClear",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.UrbanMovementBehavior.FireFromBuildingToClear(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
 
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:ReactToFireFromBuilding:Contact@-1",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "ReactToFireFromBuilding", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
+            });
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:PlatoonHold:Contact@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {

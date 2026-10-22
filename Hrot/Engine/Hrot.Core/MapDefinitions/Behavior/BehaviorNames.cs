@@ -249,6 +249,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string PlatoonConvoy = "PlatoonConvoy";
         /// <summary>⭐ <c>CE-2284</c> (DA-17) — a platoon moves through town on foot along legs (Defend and Attack §11b).</summary>
         public const string UrbanMovement = "UrbanMovement";
+        /// <summary>⭐ <c>CE-2284</c> U-2 (UM-12) — the platoon SOP's answer to fire from a building on the move: the attack play, preset 2.</summary>
+        public const string ReactToFireFromBuilding = "ReactToFireFromBuilding";
         /// <summary>⭐ <c>CE-2331</c> (AQ98 A/B, R-2070) — the soldier's cover REACTION: fights from cover (<c>PeekAndFire</c>) and ends once he is
         /// in cover with no hit or near miss on him for a quiet lapse, so his task resumes.</summary>
         public const string FightFromCover = "FightFromCover";
