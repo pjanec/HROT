@@ -435,7 +435,7 @@ logged no-op).
 📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
 
 
-## 12. DESIGN — HOST ACTIONS are the host's, not the map's; "Properties…" opens the Details panel on every ECS host (`CE-1150`, `2026-10-22`, ui) — build-state: READY-TO-BUILD (steps ①–⑤ ✅ approved by the user `2026-10-22`; HA-4 / HA-8 are this design's own, flagged)
+## 12. DESIGN — HOST ACTIONS are the host's, not the map's; "Properties…" opens the Details panel on every ECS host (`CE-1150`, `2026-10-22`, ui) — build-state: BUILT (steps ①–⑤ ✅ approved by the user `2026-10-22`; HA-4 and HA-8 ✅ approved the same day; as-built §12.1)
 
 🔒 User, `2026-10-16` (CE-1150): *"'Properties...' should be just an UI action that is handled in action handler, it should not need any
 reference to any window … same goes with any menu item in the context menu, why would it need a map??"* · `2026-10-22`: *"the details panel
@@ -549,3 +549,34 @@ built before the windows; *the Details bundle in `Hrot.Presentation`* — AiShar
 registry per map build* — no host builds its map twice (row 2), and a map-owned registry is what made actions map-bound; *the orders and Add
 Entity off the pack* — their handlers drive the map's pick and placement tools (registered on the host's registry, no longer owned by the map);
 *the inspector as the Properties target on CGF / SimHost / IG* — the user: the Details panel, on every ECS host.
+
+### 12.1 AS-BUILT (`2026-10-22`, ui) — build-state: BUILT
+
+🔒 User, on this design: *"H4 is ok, "pulling editors assemblies" into those hosts costs nothing."* · *"HA 8 accepted."* · on Float / Pin:
+*"ok that they become actions."* — the panel's own float / pin buttons stay the panel's controls (they act on its own views, no menu); the
+View ▸ Details items moved to the bundle.
+
+| decision | as built | deviation |
+|---|---|---|
+| HA-1 | `Hrot.Common.Interactions.HostActions` (+ `GlobalActionRegistry.Has`); one per host object: `EditorSubsystem.HostActions`, `CgfSubsystem.HostActions`, `SimHostApp.HostActions`, `IgApplication.HostActions`, `ReplayBrowserSubsystem.HostActions` | — |
+| HA-2 | `Hrot.ScenarioEditor.Map.SharedHostActions.Create()`; `MapInteractionContext.Host` (replaces `InteractionBus`); `MapInteraction.Host` | — |
+| HA-3 | `EntityDetailsBundle.RegisterProperties` | — |
+| HA-4 | `EntityDetailsBundle` + `EntityDetailsHostServices` (AiShared): Editor `scenario_details` (adds Environment / Zones / Mission / Entity AI on `Workspace`), CGF `cgf_details` (Scenario), SimHost `simhost_details`, IG `ig_details`, ReplayBrowser `rb_details` (run state Replay), Stride mode 2 `stride_details` | ⚠ **Stride mode 2: the panel, no actions** — it composes no map, so nothing would run a request; its startup warning says so (CE-253 / 254 family) |
+| HA-5 | `MapEntityMenuHandler(host, world)`; `DiagnosticsHostServices.Host` / `.World` (required); ORBAT `RowMenu` likewise | — |
+| HA-6 | `IgApplication` relayed menu → `HostActions.Request` when `Actions.Has(id)` | — |
+| HA-7 | `EntityDetailsBundle.RegisterViewMenu` — the two `GlobalMenu` items REQUEST `FloatDetailsView` (257) / `PinDetailsView` (258); their handlers act on `ActiveDetails(wm)` | — |
+| HA-8 | unchanged | — |
+
+Moved: `ScenarioComponentsView` → `Hrot.Editor.AiShared/Shell/` (same name and namespace); AiShared gains `InternalsVisibleTo
+Hrot.Blueprints.Tests` (its dump rail came with it). Deleted as §12 says. Cross-lane: FDP `WindowManager` (`FrameStarted` removed),
+`Hrot.Common`, the Stride shell.
+
+📐 **Rails** — `MapEntityMenuHandlerTests.CE1150_TheInspectorMenu_NeedsNoMap` (no map built; the menu offers and requests) ·
+`.CE1150_TheMapRegistersOnTheHostsActions` · `TheDetailsPanelHonoursARequestForAViewTests.CE1150_Properties_IsAHostAction_ThatOpensTheDetailsPanelOnItsComponentsView`
+(✅ red-proved: the handler without `FocusWindow` ⇒ red) · `.CE1150_TheBundle_BuildsThePanelWithTheComponentsView_AndWithoutActionsRegistersNone` ·
+`TheFloatAndPinEntryPointsAreReachableTests` re-homed (a shell registers no menu item; a click is a request the dispatch runs) ·
+`TheScenarioWindowsAreSharedTests.EveryEcsHostComposesTheSharedDetailsPanel` (six hosts) + `.TheMapIsHandedTheHostsActions`.
+**Gates** (`--no-build` after building the test projects): Presentation.Tests 824 / 0 failed · AiShared.Tests 2127 / 0 · Editor.Tests 534 / 0 ·
+Blueprints.Tests 4232 / 0 (⚠ it first needed `dotnet restore` — its assets predated the backend's `Hrot.EcsNode` move, the stale-restore
+trap; nothing to do with this change). ⚠ Not yet seen in the GUI.
+
