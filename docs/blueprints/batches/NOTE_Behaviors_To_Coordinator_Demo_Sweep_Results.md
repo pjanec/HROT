@@ -33,5 +33,5 @@ the squad, which never fired (④: 0 rounds, every man `CombatPosture`). The pus
 | demo | finding | state |
 |---|---|---|
 | `ua-casualty-care` (+ `-leader`) | bisected to `4e8ac7075` (CE-2344): in a lull the squad's reaction takes Rescue directly, so no utility decision is recorded — the squad DOES rescue, coverers first. The check reads the drill too | ✅ PASS live |
-| `ua-casualty-care-heavy` | its hostiles see only the man who falls; since CE-2318 a man down is no target ⇒ nobody fires at the squad ⇒ a lull ⇒ it goes for him at once | ⏳ scenario lean: give the hostiles sight of the squad's line |
+| `ua-casualty-care-heavy` | the hostiles never fired (`InertSop`, AQ97); with fire, the squad broke contact taking the man, and its lull was counted from before the fight | ✅ user option 1: the squad HOLDS (a held squad does not break contact; a lull counts from the fight's start; the hostiles fire — no `InertSop`) — PASS live |
 | `ua-civ-routine-alarm` | the calm civilians gather at the fallen man (CIV-3 as designed); the check accepts Gather | ✅ PASS live |
