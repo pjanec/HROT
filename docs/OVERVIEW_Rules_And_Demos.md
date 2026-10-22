@@ -230,7 +230,7 @@ related-designs:
 | `ua-danger-crossing` (+ `-bp`) | a rifleman's route crosses two roads, one watched | holds ≥ 10 s at the watched one; crosses once the watcher leaves (BTree and blueprint) | T10–T12 | ✅ |
 | `ua-fire-distribution` | a squad vs three hostiles | all assigned, ≥ 2 targets, ≤ 2 per target; a 10 HP member goes prone | W1–W3 | ✅ |
 | `ua-weapon-choice` | an IFV vs a tank and an insurgent | TOW at the tank, 25 mm at the man | W4, W5 | ✅ |
-| `ua-three-hosts` | the posture decision on each host | the same winner at every health step | P1 (one tree) | ✅ |
+| `ua-three-hosts` | ⚠ no longer three hosts (all run the one C#-built CombatPosture since CE-3160) — three identical riflemen under the same health edits | the same class (fight / defend) at every health step | P1 (one tree) | ✅ |
 | `ua-attack-approach` | target lost from sight | Flank or FiringPosition; regains sight and fires | P4 | ✅ |
 | `ld-sentry-surprise` (+ `-360`) | a sentry with a 200° view cone holds a sector | A crossing in front is seen; B walking up behind is NOT, until he fires; the 360° control sees B | LD-5 (CE-2298) | ✅ |
 | `ua-grenade-or-rifle` | rifle or grenade against a man who ducks out of sight | the grenadier throws, the rifleman does not | WL-4 | ⏳ in-process rail only, no live check |
