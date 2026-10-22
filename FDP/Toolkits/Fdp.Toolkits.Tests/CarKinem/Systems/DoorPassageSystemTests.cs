@@ -173,6 +173,31 @@ namespace CarKinem.Tests.Systems
             Assert.True(aim.Y > 20.5f, $"from his own side he is aimed through as before: aim {aim}");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — a path that STARTS in the doorway (a man leaving his post beside the door) has no point behind the door; his
+        /// side is the opposite of where the path goes next. Once past the plane he is through, and never held for the next man's turn.
+        /// 📌 bc-house-clear: such a man was held 0.3 m into the hall, in the way of the man whose turn it was. ✅ Red-proof: no mirrored side ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_APathStartingInTheDoorway_IsThroughOncePastThePlane()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 19.8f);         // the next man, in the doorway on the south side, NEARER: his turn
+            f.Pool.RegisterTrajectoryWithKey(                                        // a path from the doorway itself, northward into the room
+                new[] { new Vector3(25, 19.9f, 0), new Vector3(25, 20.2f, 0), new Vector3(25, 25, 0) }, 6,
+                new byte[] { (byte)TraversalKind.Door, (byte)TraversalKind.Door, 0 });
+            Assert.True(f.Pool.TryGetTrajectory(6, out var traj));
+            var terrain = f.Repo.GetSingletonManaged<TerrainWorld>();
+            Assert.Null(DoorPassageSystem.DoorToPass(traj, 0.4f, terrain, new Vector2(25, 20.3f), out var from));   // 0.3 m past the plane: through
+            Assert.True(from.Y < 20f, $"his side is the south one, opposite where the path goes: {from}");
+            Assert.Equal(0, DoorPassageSystem.DoorToPass(traj, 0f, terrain, new Vector2(25, 19.9f)));                  // still on the south side: not
+
+            var leaver = f.Repo.CreateEntity();
+            f.Repo.AddComponent(leaver, new SimTransform { Position = new Vector3(25, 20.3f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(leaver, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 6, ProgressS = 0.4f });
+            f.Tick();
+            Assert.False(f.Repo.GetComponent<NavState>(leaver).IsBlocked != 0);      // not held in the next man's way
+        }
+
         /// <summary>⭐ 5d-3 — a closed door still out of reach does not stop the agent yet; an open door never does.</summary>
         [Fact]
         public void Stage5d_ADoorNotYetInReach_OrOpen_DoesNotHold()

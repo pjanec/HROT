@@ -221,6 +221,16 @@ namespace CarKinem.Systems
                 var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
                 if (Vector2.Distance(p, c) > 0.5f) cameFrom = p;
             }
+            // ⭐ CE-2259 — a path that STARTS in the doorway has no point behind the door: his side is the opposite of where it goes next
+            //   (the first point past the mark off the doorway, mirrored through the centre). 📌 bc-house-clear: a man leaving room A from
+            //   his post by the door had no "from", was never through, and was held 0.3 m into the hall — in the way of the man whose turn it was
+            if (cameFrom == null)
+                for (int i = 0; i < wps.Length; i++)
+                {
+                    if (wps[i].CumulativeDistance <= markS) continue;
+                    var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
+                    if (Vector2.Distance(p, c) > 0.5f) { cameFrom = c - (p - c); break; }
+                }
             if (cameFrom is { } f) from = f;
             return cameFrom is { } g && DoorApproach.Through(terrain, door, g, at) ? null : door;
         }
