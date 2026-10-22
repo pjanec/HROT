@@ -146,6 +146,7 @@ namespace Hrot.Editor.Director
         private readonly IVerifyWorld? _verifyWorld;
         private readonly WorldUnits _units;
         private ScenarioVerification? _verification;
+        private bool _firstLoad;
 
         private PlayRequest? _request;
         private int _item;
@@ -330,6 +331,9 @@ namespace Hrot.Editor.Director
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again
                 if (_host.InPreview && !_exitedForLoad) { _host.ExitPreview(); _exitedForLoad = true; return; }
                 int? before = _host.EntityCount;
+                // ⭐ a first load in a fresh process: nothing loaded by a runner yet and no scenario open (the editor's own load leaves it
+                //   OperatingEdit) — the only run a golden may be recorded from (Regression_Net §6 ④, CE-3294)
+                _firstLoad = !_host.HasLoadedAScenario;
                 _host.LoadScenario(Item.Scenario);
                 _probe = new ScenarioReadyProbe(before);
                 _phaseStartWall = _host.WallNow;
@@ -582,6 +586,7 @@ namespace Hrot.Editor.Director
             if (_verification != null && r.Status == "playing")
             {
                 var v = _verification.Finish(Rel, r.Steps);
+                if (!_firstLoad) v.MarkReload();
                 if (v.Golden == "captured" && v.GoldenJson != null)
                     v.Written.AddRange(_host.Takes.SaveScenarioJson(Item.Scenario, ScenarioGolden.FileName, v.GoldenJson));
                 r.Verify = v;

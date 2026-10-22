@@ -101,6 +101,25 @@ namespace Hrot.Editor.Director
             exit();
         }
 
+        /// <summary>
+        /// ⭐ How this binary starts ANOTHER copy of itself with <paramref name="args"/> — the one place both the command line's parent
+        /// (a child per scenario) and the HTTP <c>fresh</c> verify (a child per request) do it. Under <c>dotnet X.dll</c> the dll is the first
+        /// argument; a published executable starts itself.
+        /// </summary>
+        public static System.Diagnostics.ProcessStartInfo SelfStartInfo(System.Collections.Generic.IEnumerable<string> args)
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            if (string.Equals(Path.GetFileNameWithoutExtension(Environment.ProcessPath), "dotnet", StringComparison.OrdinalIgnoreCase))
+                psi.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            psi.Environment.Remove("HROT_DEBUG_API_PORT");   // a child takes a free port of its own
+            psi.Environment.Remove(ScenariosVariable);
+            return psi;
+        }
+
         /// <summary>One scenario's report as lines: each verdict, the golden, what went wrong.</summary>
         public static void PrintItem(JsonObject? item, TextWriter w, string indent)
         {

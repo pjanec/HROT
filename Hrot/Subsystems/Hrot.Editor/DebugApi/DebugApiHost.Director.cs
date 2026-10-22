@@ -18,6 +18,8 @@ namespace Hrot.Editor.DebugApi
         private DirectorRunner? _director;
         private TakeStore? _takes;
         private Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?>? _layerControl;
+        /// <summary>⭐ CE-4042 — verifies run in a FRESH child process (<c>{fresh: true}</c>).</summary>
+        private readonly FreshVerifyJobs _freshVerify = new();
 
         /// <summary>⭐ CE-4038 — hands the host the editor's director, its take store and the map's layer control (held by the editor).</summary>
         public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl)
@@ -46,6 +48,9 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/director/checks/{scenario}", ctx => Main(() => ChecksRead(ctx.RouteValue("scenario")!))));
             _routes.Add(new("PUT", "/director/checks/{scenario}", ctx => Main(() => ChecksWrite(ctx.RouteValue("scenario")!, ctx.Body))));
             _routes.Add(new("POST", "/director/verify", ctx => Main(() => DirectorVerify(ctx.Body))));
+            _routes.Add(new("GET", "/director/verify/jobs", _ => Task.FromResult(Ok(new JsonObject { ["jobs"] = _freshVerify.List() }))));
+            _routes.Add(new("GET", "/director/verify/jobs/{job}", ctx => Task.FromResult(_freshVerify.Status(ctx.RouteValue("job")!) is { } j
+                ? Ok(j) : Fail(404, $"no verify job '{ctx.RouteValue("job")}' — GET /director/verify/jobs lists them"))));
             _routes.Add(new("GET", "/map/layers", ctx => Main(() => LayersRead(ctx.Query("view")))));
             _routes.Add(new("POST", "/map/layers", ctx => Main(() => LayersWrite(ctx.Body))));
             _routes.Add(new("GET", "/audio", _ => Main(AudioRead)));
@@ -216,6 +221,9 @@ namespace Hrot.Editor.DebugApi
             names = names.Distinct(StringComparer.Ordinal).ToList();
             if (names.Count == 0) return Fail(400, "name what to verify: {scenario} or {scenarios:[…]} or {all:true}");
             bool capture = body?["capture"] is JsonValue cv && cv.TryGetValue<bool>(out var c) && c;
+            // ⭐ fresh: the regression verdict — each scenario a first load in a process of its own (the command line, started as a child)
+            if (body?["fresh"] is JsonValue fv && fv.TryGetValue<bool>(out var fresh) && fresh)
+                return Ok(_freshVerify.Start(names, capture));
             var reel = new Reel { Name = "verify", Items = names.Select(n => new ReelItem { Scenario = n, Take = "_verify" }).ToList() };
             var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(capture)));
             if (refused.Count > 0) return Fail(400, "not started: " + string.Join("; ", refused));

@@ -453,11 +453,27 @@ namespace Hrot.Editor.Director
         public List<string> Written { get; } = new();
         public JsonObject? GoldenJson { get; set; }
 
+        /// <summary>The run was a RELOAD in a process that had loaded a scenario before (CE-3294: state that outlives a load).</summary>
+        public bool Reload { get; private set; }
+
         public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is "none" or "same" or "captured";
+
+        /// <summary>
+        /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
+        /// definition handle differ from a first load), and a difference is labelled as possibly the reload's, not a regression.
+        /// </summary>
+        public void MarkReload()
+        {
+            Reload = true;
+            const string Fresh = "verify in a FRESH process: --verify <s> [--verify-capture], or POST /director/verify {scenario, fresh: true}";
+            if (Golden == "captured") { Golden = "not-captured"; GoldenDiff.Insert(0, "this run was a RELOAD (CE-3294) — a golden is recorded only from a first load: " + Fresh); }
+            else if (Golden == "different") GoldenDiff.Insert(0, "⚠ this run was a RELOAD (CE-3294): a difference may be the reload's, not a regression — " + Fresh);
+        }
 
         public JsonObject ToJson() => new()
         {
             ["passed"] = Passed,
+            ["reload"] = Reload,
             ["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode?)v.ToJson()).ToArray()),
             ["golden"] = Golden,
             ["goldenDiff"] = new JsonArray(GoldenDiff.Select(x => (JsonNode?)x).ToArray()),

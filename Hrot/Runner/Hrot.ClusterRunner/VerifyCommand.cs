@@ -62,13 +62,7 @@ internal static class VerifyCommand
         {
             var childReport = Path.Combine(dir, s + ".json");
             var log = Path.Combine(dir, s + ".log");
-            var psi = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-            if (string.Equals(Path.GetFileNameWithoutExtension(Environment.ProcessPath), "dotnet", StringComparison.OrdinalIgnoreCase))
-                psi.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);
-            foreach (var a in keep) psi.ArgumentList.Add(a);
-            psi.ArgumentList.Add("--verify"); psi.ArgumentList.Add(s);
-            psi.ArgumentList.Add("--verify-report"); psi.ArgumentList.Add(childReport);
-            psi.Environment.Remove("HROT_DEBUG_API_PORT");   // each child takes a free port of its own
+            var psi = CommandLineVerify.SelfStartInfo(keep.Concat(new[] { "--verify", s, "--verify-report", childReport }));
             var started = Stopwatch.StartNew();
             int code;
             using (var writer = new StreamWriter(log))
