@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: C3 (CE-2152) - the casualty-care squad (Leader, Medic, Rifleman 1-4 at (262-345,200-290)) is under heavy fire from three immortal Hostile 1-3 at (375-385,175-225) with sight of Rifleman 3, who the check drops to 25 HP. The hostiles run their type's default SOP (BasicInfantrySop: an idle man engages what he sees) — ⛔ not InertSop, which stopped their fire and left the squad in a lull (CE-2351). Shows the rescue score staying low while the fight is hot. Judge: (1) for 30 s after he falls the squad does NOT start CasualtyCare and nobody gets a CarryCasualty order; (2) nobody carries him; (3) when the check sets the three hostiles to 0 HP the squad goes for him at once (CasualtyCare within 20 s); (4) then the drag, put-down alive and return to the fight as in ua-casualty-care. Fail: The Medic runs out under fire, or the squad ignores him after the enemy is down. Check: python3 scripts/utility-demo-check.py --launch ua-casualty-care-heavy"
+    "description": "What: C3 (CE-2152) - the casualty-care squad (Leader, Medic, Rifleman 1-4 at (262-345,200-290)) is under heavy fire from three immortal Hostile 1-3 at (375-385,175-225) with sight of Rifleman 3, who the check drops to 25 HP. The hostiles run their type's default SOP (BasicInfantrySop: an idle man engages what he sees) — ⛔ not InertSop, which stopped their fire and left the squad in a lull (CE-2351). The squad is ORDERED TO HOLD (SquadHold): a held squad does not break contact on its own (CE-2351, user option 1), so it fights where it stands. Shows the rescue score staying low while the fight is hot. Judge: (1) for 30 s after he falls the squad does NOT start CasualtyCare and nobody gets a CarryCasualty order; (2) nobody carries him; (3) when the check sets the three hostiles to 0 HP the squad goes for him at once (CasualtyCare within 20 s); (4) then the drag, put-down alive and return to the fight as in ua-casualty-care. Fail: The Medic runs out under fire, or the squad ignores him after the enemy is down. Check: python3 scripts/utility-demo-check.py --launch ua-casualty-care-heavy"
   },
   "entities": {
     "a2152d00-0000-4000-8000-0000000000c0": {
@@ -36,6 +36,11 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "SquadHold",
         "Params": "{}",
         "Origin": "Superior"
       }

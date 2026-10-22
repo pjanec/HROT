@@ -337,6 +337,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         public const byte AssaultUndecided = 0, AssaultClosing = 1, AssaultFlanking = 2;
 
+        /// <summary>
+        /// ⭐ <c>CE-2351</c> (user, `2026-10-22`, option 1) — a squad ORDERED TO HOLD does not break contact on its own: when the task this
+        /// reaction paused is <c>SquadDefend</c> or <c>SquadHold</c>, a BreakContact winner holds instead (withdrawal from a held position
+        /// is the superior's call — the platoon's <c>FallBack</c>, CE-2276). 📐 <c>ua-casualty-care-heavy</c>: three hostiles in the pool,
+        /// BreakContact won (0.63 vs Assault 0.37) and the drill dragged the wounded away inside the 30 s the demo holds under fire.
+        /// </summary>
+        public static bool HoldsFirm(EntityRepository world, Entity self)
+        {
+            var paused = Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(world, self);
+            return paused != null && (paused.BehaviorName == BehaviorNames.SquadDefend || paused.BehaviorName == BehaviorNames.SquadHold);
+        }
+
+        private static void Firm(ref UtilityChoice choice, Entity self, EntityRepository world)
+        {
+            if ((SquadContactResponse)choice.Winner == SquadContactResponse.BreakContact && HoldsFirm(world, self))
+                choice.Winner = (byte)SquadContactResponse.Hold;
+        }
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
@@ -377,6 +395,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var fresh = new UtilityChoice();
                 if (NothingToFight(world, self) || SquadSopConditions.InALull(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight, or a lull: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
+                Firm(ref fresh, self, world);
                 ws.DecidedAt = now;
                 if (fresh.Winner != 0 && fresh.Winner != was)
                 {
@@ -391,6 +410,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (NothingToFight(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
                     else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
+                    Firm(ref ws.Choice, self, world);
                     ws.DecidedAt = now;
                     if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Rescue) FreshCare(ref p);
                 }
