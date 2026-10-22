@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+updated: 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
@@ -13,6 +13,7 @@ related-designs:
     the reasons ~40 % of systems must run while paused.
   - docs/DESIGN_Film_Director.md — a CONSUMER: needs stepped runs to repeat (R-3035); paused until this lands (R-3034).
   - FDP/Engine/Fdp.ModuleHost/docs/UserGuide/05_EventBus.md — owns the bus and its one-frame double buffer.
+  - docs/DESIGN_Deterministic_Network_Ids.md — §11b / §11g.5a own the world boundary and `WorldEpoch` (CE-2101), which §7f's reset pulls.
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
@@ -385,6 +386,40 @@ precedent is `BlueprintAssetTickTests.cs:116`.
 | ⚠ found by ④ (live): readers are registered UP FRONT | 📐 the four-load probe (below) had the first run after boot differ from every reload from the first cut: a step-only system's reader was registered lazily at its first step, so the first run missed what the load published while paused and every reload (reader already there) got it. ⇒ `EventAccumulator.RegisterReaderAtTimelineStart` (owed everything since the last `Restart`) and `SystemScheduler.RegisterStepReaders`, called by the kernel for every new or swapped topology (each kernel phase, group members, direct modules' simulation systems — ⚠ NOT the Manual phase: a manual system run by a background module on its SNAPSHOT never reads the live window, so a reader registered for it pinned the history and expired — 📐 three EQS readers, every run; one that runs on the live world registers at its first run, owed the timeline). Rail `TheFirstRun_ReadsTheLoadsEvents_LikeEveryLaterRun` — red with lazy registration (`[]` vs `[10, 11, 12]`) |
 | ⚠ found by ④ (live): two leaks the paused frames had hidden | 📐 with the gate on, the reloads still differed in perception memory. ① `ThreatEvaluationSystem` kept last run's threat counts and health in its own maps; the editor's reload (`SoftClear`) brings the units back under the SAME handles, so every reload's first step published **AllClear** for a tank that had seen nothing — before S5 the paused frames after a load ran it and swallowed the edge. Fixed through `WorldEpoch.Moved` (CE-2101's seam; rail `AReload_StartsTheEdgesAfresh_*`, red without). ⚠ The class is wider — 41 systems hold per-entity state, one resets: filed `CE-3294`, not built. ② the background hearing solve read the sound ring BESIDE the main thread, which goes on appending the dispatching step's shots — one load in four heard a burst a solve earlier. A ring read is now as of the reader's own time ([Acoustic Sensing §8.3](../DESIGN_Thermal_And_Acoustic_Sensing.md); rail `CE3293_AReaderAsOfATime_*`, red without) |
 | acceptance | ① ② `PausedAndSteppedExecutionTests.AStepOnlySystem_ReadsEverythingSinceItsLastRun_AtTheNextStep_Once` (1, 7, 120 paused frames: an event published at the step and one during the pause reach the step-only system once, in order, at the next step; it is never called paused; the every-frame system reads each once) — ⚠ generic, not through `BrainTickSystem`/the dispatchers: the mechanism is the same for every step-only reader · `AStepOnlySystem_SeesTheSameStepsWhateverThePausedFrames` (0, 1, 5 paused frames between steps) · `ASnap_ForgetsTheEventsBeforeIt` (rule 7) · ③ `ABackgroundModule_HeldOverALongPause_GetsEveryEvent` (120 paused frames, an event each, `Overflow` 0) · ④ ✅ **LIVE, `2026-10-21`** — `ua-tank-ammo`, 15 Hz HTTP-stepped, cut every 5 s to 30 s, four loads in one editor process, gate on: the reloads are **identical in full component state at 6/6 cuts** (instance / trajectory / route ids masked — process counters that count up per load); a **paced** run (one step per request, paused frames between) is identical to the batched ones at 6/6; the first load after boot differs only in the animation backend handle and `StanceStatus` from 10 s — **exactly as on the S4 baseline** (`534c06b2e`, same probe), so not this work's; behaviour (positions, health, every shot) identical in every pair · ⑤ S4 |
+
+## 7f. ⭐ AS-BUILT — `CE-3294`: a system's own entity state ends with its world (`2026-10-21`; 🔒 user: *"Lean accepted"*)
+
+📐 **Found by ④** (§7e): a system instance outlives a reload, and the editor's reload (`SoftClear`, `ScenarioFileService.NewScenario`)
+restarts entity generations — the next run's units come back under the **same handles**, and `SoftClear` publishes no
+`DestructionOrder`. ⇒ any per-entity map in a system matched last run's entries to this run's units. 41 systems held such state; one reset.
+
+```mermaid
+sequenceDiagram
+  participant L as the load (SoftClear / WorldBoundaryReset)
+  participant E as WorldEpoch (singleton, CE-2101)
+  participant K as the kernel (live world)
+  participant S as a system holding entities
+  participant B as a background system (snapshot)
+  L->>E: Advance()
+  K->>S: Execute(view)
+  S->>E: Moved(view, ref _epoch)?
+  E-->>S: true once per new world
+  S->>S: clear its per-entity maps (or tear down what they own)
+  K->>B: dispatch on a snapshot
+  Note over B: the snapshot BORROWS WorldEpoch (allow-list, CE-3294), so a background system sees the boundary too
+  B->>E: Moved(snapshot, ref _epoch)?
+```
+*What the picture shows that prose hid:* the reset is PULLED by each system from one shared number — no new interface, no call from the
+loader into every system — and a background module needs the number in its snapshot, or its systems never see the boundary.
+
+| | as built |
+|---|---|
+| the seam | `WorldEpoch.Moved(view, ref _epoch)` (CE-2101's, until now used by translators only) at the top of `Execute`; the first run passes through it too, so the first load and a reload take one path |
+| the snapshot | `EntityRepository.Sync` borrows `WorldEpoch` (id 332) beside the sound ring |
+| reset — plain clears | `CrowdSystem` (and its crowd ids restart at 1) · `EjectionSystem` · `OwnershipEgressSystem` · `GhostPromotionSystem` · `VehicleNavigationIntentSystem` (Stride) · `BleedOutSystem` · `AreaEffectCloudSystem` · `DangerAreaSensorSystem` · `DoorPassageSystem` · `EmbarkedStateSystem` · `PersonalRouteAuthoringSystem` |
+| reset — with care | `NavigationIntentBridgeSystem` (its time-travel reset now also fires on a new world, and clears the action and crowd caches it never did) · `WreckSpawnSystem` (as for a new world instance) · `RouteTrajectorySyncSystem` (frees last world's pool entries) · `StaticObstacleBakeSystem` (bakes as the first load did; a bake still running acks nothing) · `DeferredConstructionParticipant` + `OnWorldBoundary()` for `NetworkGatewaySystem` / `SimulatedInitReadinessParticipant` · `DataDrivenGizmoSystem` / `BehaviorGizmoManagerSystem` (tear the gizmos down) · `PhysicsBodyLifecycleSystem` (Stride: `DestroyAll`) · `LocalGridBuilderSystem` (full rebuild) · `HierarchyOrderSystem` (re-sorts) · `ThreatEvaluationSystem` (§7e) |
+| the rail | `EverySystemForgetsTheLastWorldTests` (`FDP/TestShared/WorldBoundaryProbe.cs`): every production system with an instance field holding `Entity` (a collection, tuple or array; a callback is not state) calls `WorldEpoch.Moved` — read from its IL, base classes included — or each such field is EXEMPT with its reason (31 scratch fields, rebuilt each run) |
+| ⛔ rejected | `SoftClear` keeping generations — the replay seek restores recorded handles through `Clear` · an `IWorldBoundaryAware` interface called by the loader — a second mechanism beside the epoch the translators already pull |
 
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 

@@ -83,6 +83,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         // Time-slice state: ordered entity list and current offset for carry-over.
         private readonly List<Entity> _entityList = new();
         private int _timeSliceOffset = 0;
+        private int _epoch;   // ⭐ CE-3294 — the world the gizmo instances belong to
 
         // ⭐⭐⭐ Exclusive-focus tracking. R-144 / §6.2b: the slot is a SHARED GizmoFocusRegistry, so
         // "at most one exclusive focus per subsystem" holds across BOTH arbiters by construction rather
@@ -263,6 +264,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 throw new InvalidOperationException(
                     $"{nameof(DataDrivenGizmoSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
+
+            // ⭐ CE-3294 — a reload ends the world with no DestructionOrder (SoftClear): its gizmos go, or they draw on the next run's
+            //   entities under the same handles and its ConstructionOrders add a second set.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+            {
+                foreach (var e in new List<Entity>(_injectedGizmos.Keys)) TeardownEntity(e);
+                foreach (var e in new List<Entity>(_activeGizmos.Keys)) TeardownEntity(e);
+                _entityList.Clear(); _timeSliceOffset = 0;
+            }
 
             ISimulationView activeView = _breakpointManager?.ActiveView ?? view;
 

@@ -113,8 +113,11 @@ namespace Fdp.Toolkit.Combat.Executors
             //   no breech: a spent kind gives way to the next one at once. (Before, a loadout thrown at a point flew its mount's default.)
             long loadedAmmo = PersonHands.IsHands(mountDto) ? PersonHands.ReadyNext(world, mountEntity) : AmmoChoice.LoadedAmmo(world, mountEntity);
             // ⭐⭐ IF-1 (I1, I3) — a mount that declares an indirect arc gets a FIRE SOLUTION: the lowest charge that reaches, low or high
-            //   (FireSolution.For); the intent carries it and the SimHost flies exactly that. No solution ⇒ the action fails with why.
+            //   (FireSolution.For). No solution ⇒ the action fails with why.
             //   ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — solved BEFORE the fire-time hold, so the gun is LAID while it waits.
+            //   ⭐⭐ CE-3269 A-5 (Q94, R-3018, R-2037) — solved here WITHOUT the terrain (reach and arc: what the gun is laid on); the intent
+            //   asks the MUSCLE to solve (FireSolution.SolveHere) on its live terrain, and a refusal (masked, too close, out of reach) fails
+            //   the action one answer later. ⛔ SUPERSEDED: the brain solved with its own terrain and the muscle flew that charge blind.
             byte charge = 0, high = 0;
             Laying lay = Laying.NoTurret;
             if (mountDto != null && mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset && world.HasComponent<SimTransform>(shooter))
@@ -122,7 +125,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 var db = world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
                 long ammo = AmmoChoice.LoadedAmmo(world, mountEntity);
                 if (ammo == 0) ammo = unchecked((long)mountDto.AmmoGuid);
-                var solution = FireSolution.For(Fdp.Toolkit.World.WorldQuery.Of(world), world.GetComponentRO<SimTransform>(shooter).Position, p.Point,
+                var solution = FireSolution.For(null, world.GetComponentRO<SimTransform>(shooter).Position, p.Point,
                                                 mountDto, FireSolution.ChargesOf(db, mountDto, ammo), p.Arc);
                 if (!solution.Ok)
                 {
@@ -135,8 +138,8 @@ namespace Fdp.Toolkit.Combat.Executors
                     });
                     return;
                 }
-                charge = solution.Charge;
-                high = (byte)(solution.High ? 1 : 0);
+                charge = FireSolution.SolveHere;   // ⭐ CE-3269 A-5 — the muscle solves; HighArc carries the preference
+                high = (byte)p.Arc;
                 lay = Lay(world, shooter, fireIndex, mountDto, p.Point, solution.High ? ArcPreference.High : ArcPreference.Low, ammo);
                 if (lay == Laying.OutOfArc)
                 {
@@ -177,6 +180,15 @@ namespace Fdp.Toolkit.Combat.Executors
                                       bodyStance: p.BodyStance);   // ⭐ CE-2326
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
+                // ⭐ CE-3269 A-5 — the muscle's solve refused the round: the point does not move, so the action FAILS with why (not a hold)
+                if (charge == FireSolution.SolveHere && reason is Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked
+                        or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.TooClose or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfRange)
+                {
+                    AimAndFireExecutor.ReleaseTurrets(world, entity);
+                    channel.Status = NodeStatus.Failure;
+                    Say(world, entity, p.Point, reason);
+                    return;
+                }
                 channel.Status = NodeStatus.Running;
                 SayHeld(world, entity, p.Point, reason, in weapon);
                 return;

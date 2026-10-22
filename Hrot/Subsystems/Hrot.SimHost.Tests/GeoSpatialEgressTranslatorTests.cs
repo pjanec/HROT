@@ -91,6 +91,74 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(compassHeading, computedHeading, precision: 1);        
         }
 
+        // -- CE-2348 ② — a stop is sent, and the heartbeat cannot be stepped over --
+
+        private sealed class PassthroughGeo : Fdp.Modules.Geographic.IGeographicTransform
+        {
+            public void SetOrigin(double lat, double lon, double alt) { }
+            public Vector3 ToCartesian(double lat, double lon, double alt) => new((float)lon, (float)lat, (float)alt);
+            public (double lat, double lon, double alt) ToGeodetic(Vector3 pos) => (pos.Y, pos.X, pos.Z);
+        }
+
+        private static (Fdp.Core.EntityRepository Repo, Fdp.Core.Entity Hull) OwnedHull()
+        {
+            var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            repo.RegisterComponent<Fdp.Core.SimTransform>();
+            repo.RegisterComponent<Fdp.Core.SimVelocity>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(42));
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(e, new Fdp.Core.SimTransform { Position = new Vector3(13.4f, 52.5f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(e, new Fdp.Core.SimVelocity { Linear = new Vector3(0.3f, 0f, 0f) });
+            return (repo, e);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2348</c> ② — a hull that STOPS publishes its stop, though it did not move another centimetre. 📐 Measured on
+        /// <c>uc-urban-battle</c>: the destroyed APC's last sample (creeping at ~0.3 m/s) stayed on every other node for ~200 s, so they read
+        /// it as moving (and dead-reckoned it). ✅ Red-proof: the velocity test removed ⇒ no second sample ⇒ red.</summary>
+        [Fact]
+        public void AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348()
+        {
+            using var participant = new DdsParticipant(166u);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+            var (repo, hull) = OwnedHull();
+            translator.ScanAndPublish(repo);
+            long first = translator.SentSampleCount;
+            Assert.Equal(1, first);                                                   // its first sample, creeping
+
+            repo.Tick();
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;               // stopped where it stood
+            translator.ScanAndPublish(repo);
+            Assert.Equal(first + 1, translator.SentSampleCount);                     // the stop is sent at once
+
+            repo.Tick();
+            translator.ScanAndPublish(repo);
+            Assert.Equal(first + 1, translator.SentSampleCount);                     // and nothing more while it stands
+        }
+
+        /// <summary>⭐ <c>CE-2348</c> ② — a standing hull's heartbeat comes within its interval however the translator is called. ⛔ It was
+        /// one exact tick in 600 (<c>(Tick + salt) % 600 == 0</c>): called every 6th tick it never came. ✅ Red-proof: the modulo restored ⇒
+        /// no heartbeat in 1 800 ticks ⇒ red.</summary>
+        [Fact]
+        public void AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348()
+        {
+            using var participant = new DdsParticipant(167u);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+            var (repo, hull) = OwnedHull();
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;
+            translator.ScanAndPublish(repo);
+            long first = translator.SentSampleCount;
+            for (int i = 0; i < 300; i++)                                            // 1 800 ticks, called every 6th
+            {
+                for (int k = 0; k < 6; k++) repo.Tick();
+                translator.ScanAndPublish(repo);
+            }
+            Assert.InRange(translator.SentSampleCount - first, 2, 4);               // ~ every 600 ticks: 3
+        }
+
         // -- BUG2-N003 - WorldPos disposal integration tests --
 
         /// <summary>

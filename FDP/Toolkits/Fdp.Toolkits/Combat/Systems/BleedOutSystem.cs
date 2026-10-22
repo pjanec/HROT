@@ -26,10 +26,12 @@ namespace Fdp.Toolkit.Combat.Systems
         public const float StepSeconds = 1f;
 
         private readonly Dictionary<Entity, float> _pending = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (the bleed carried between steps)
         private readonly List<Entity> _gone = new();
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _pending.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo
                 || !repo.IsComponentTypeRegistered<InjuryThresholds>() || !repo.IsComponentTypeRegistered<Health>()) return;
 

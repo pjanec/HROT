@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -1458,6 +1458,43 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal((byte)SoundSourceClass.HeavyWeapon, one.SourceClass);   // the class, always
                 Assert.Equal(family, one.Family);
                 Assert.Equal(knowsType ? Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 : 0L, one.Signature);
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4039</c> — EVERY family is heard by a Regular ear, through the real solver. The family rides in <c>Flags</c> bits 13–15, and
+        /// bit 15 is also the solver's <c>FlagPendingRay</c>: a family of 4 or more (AA gun, launcher, RIFLE) parked the hearing solve as
+        /// "awaiting raycasts" — never observed, never published — so every Regular+ listener went deaf to small arms (the civilians' fear, a
+        /// soldier's heard shot). The rail above used only Mortar (1). ✅ Red-proof: the solver reading bit 15 on every template ⇒ the
+        /// AaGun / Launcher / Rifle rows hear nothing ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.HeavyMg)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.AaGun)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Launcher)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.SoundFamily.Rifle)]
+        public void CE4039_ARegularEar_HearsEveryFamily_ThroughTheSolver(Fdp.Toolkit.Tkb.Domain.SoundFamily family)
+        {
+            var (grid, _, man) = HearingRig();
+            try
+            {
+                var gun = _world.CreateEntity();
+                _world.AddComponent(gun, new SimTransform { Position = new Vector3(1430f, 100f, 0f), Rotation = Quaternion.Identity });   // 100 m off
+                _world.AddComponent(gun, new EntityInfo { ForceId = ForceId.Hostile });
+                var t = new TkbTemplate("Gun", 1534);
+                t.AddDescriptor(new SignaturesDto { Acoustic = new AcousticSignatureDto
+                    { FiringAudibleRange = 400f, FiringClass = SoundSourceClass.SmallArms, Family = family } });
+                new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, gun, t);
+                _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                    { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                SoundFrame(0d, gun);
+                SoundFrame(0.1d);                                                // heard by the solve after it (CE-3293)
+                var one = Assert.Single(Solve(grid));
+                Assert.Equal((byte)SoundSourceClass.SmallArms, one.SourceClass);
+                Assert.Equal((byte)family, one.Family);
             }
             finally { grid.Dispose(); }
         }

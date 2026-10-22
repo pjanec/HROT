@@ -222,9 +222,25 @@ namespace Fdp.Toolkit.Combat.Systems
                         var charges = evt.Charge > 0 && firedMount != null
                             ? FireSolution.ChargesOf(repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null, firedMount, ammo)
                             : null;
-                        velocity = charges != null && evt.Charge <= charges.Count
-                            ? ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0)
-                            : ThrowArc.Launch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen);
+                        if (evt.Charge == FireSolution.SolveHere && firedMount != null)
+                        {
+                            // ⭐⭐ CE-3269 A-5 (Q94, R-3018) — the MUSCLE solves on its live terrain (the brain asked, it no longer solves with
+                            //   the ground): the lowest charge that reaches on the asked arc, or a refusal with its reason.
+                            var solved = FireSolution.For(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, firedMount, charges,
+                                                          (ArcPreference)evt.HighArc);
+                            if (!solved.Ok) { Refuse(repo, in evt, solved.Refusal, now); continue; }
+                            velocity = solved.Launch;
+                        }
+                        else if (charges != null && evt.Charge <= charges.Count)
+                            velocity = ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0);
+                        else if (!ThrowArc.TryLaunch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen, out velocity,
+                                                     (warheadBits & WarheadRound.TimeFuze) != 0 && fuze > 0f ? fuze : float.PositiveInfinity))
+                        {
+                            // ⭐ CE-3296 (Q94 A, R-2037) — a THROW no arc clears is refused here, where the geometry is: the brain's
+                            //   ledger holds it (the weapon brain's hidden-target throw no longer bursts an M67 on the jamb at its feet)
+                            Refuse(repo, in evt, FireRefusal.Masked, now);
+                            continue;
+                        }
                         // ⭐⭐ IF-1 (I4, IF-F) — the arc keeps the mount's SPREAD (it replaced the dispersed direction before): the azimuth by
                         //   θ (the same sequence a direct round turns by), the range by a speed factor on a second stream — ½·σ·d₂, since the
                         //   range goes with v², so range and azimuth errors are alike (≈ σ × the range). σ = 0 ⇒ exactly as before.

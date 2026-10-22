@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         private readonly Dictionary<Entity, int> _leaving = new();
         private readonly Dictionary<Entity, int> _order = new();
         private readonly HashSet<Entity> _killSent = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (passengers already killed with their vehicle)
         private readonly HashSet<Entity> _drops = new();
         private readonly List<Entity> _released = new();
 
@@ -46,6 +47,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _killSent.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<PassengerBuffer>() || !repo.IsComponentTypeRegistered<IsEmbarkedTag>()) return;
 

@@ -199,6 +199,37 @@ public sealed class GeoSpatialIngressTranslatorTests
         Assert.Equal(originalPos, transform.Position);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2348</c> ② — the owner's own sample comes back by loopback and rewrites the shadow; the EGRESS's fields of it (the velocity
+    /// it last sent, the tick it last sent on) survive the echo. ⛔ Before: the echo reset both to zero every frame ⇒ a stopped hull's zero
+    /// velocity never read as a change, and the heartbeat fired every frame. ✅ Red-proof: the ingress writing a fresh
+    /// <c>NetworkTransform</c> without the two fields ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheOwnersLoopback_KeepsWhatItsEgressLastSent_CE2348()
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(101L));
+        world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
+        world.AddComponent(entity, new SimTransform());
+        world.SetAuthority<SimTransform>(entity, true);
+        world.AddComponent(entity, new NetworkTransform { LastVelocity = new Vector3(8f, 0f, 0f), LastSentTick = 4321 });
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(101L, entity);
+
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(MakeSample(101L, lat: 3f, lon: 4f), cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var shadow = world.GetComponent<NetworkTransform>(entity);
+        Assert.Equal(new Vector3(8f, 0f, 0f), shadow.LastVelocity);
+        Assert.Equal(4321u, shadow.LastSentTick);
+        Assert.Equal(3f, shadow.LastPosition.X, precision: 3);   // the echo still refreshes the position it carries
+    }
+
     // ── GEOINGRESS-3: Split-authority (Muscle) loopback — SimTransform NOT updated
 
     /// <summary>

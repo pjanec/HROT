@@ -43,7 +43,10 @@ namespace CarKinem.Systems
         private readonly TrajectoryPoolManager _pool;
         private readonly Dictionary<Entity, Passage> _passages = new();
         private readonly Dictionary<string, Entity> _doorEntities = new(System.StringComparer.Ordinal);
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (passages in progress and the door entities)
         private readonly List<Entity> _stale = new();
+        // ⭐ CE-4040 — per door this frame, the walker whose TURN it is: in reach, not yet through, nearest the door's centre
+        private readonly Dictionary<int, (Entity Who, float Distance)> _turn = new();
 
         private struct Passage
         {
@@ -68,6 +71,7 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _passages.Clear(); _doorEntities.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
             if (!repo.HasSingletonManaged<TerrainWorld>() || repo.GetSingletonManaged<TerrainWorld>() is not { Doors.Count: > 0 } terrain)
             {
@@ -75,6 +79,26 @@ namespace CarKinem.Systems
                 return;
             }
             _frame++;
+
+            // ⭐ CE-4040 — TURNS at a doorway: one walker passes at a time. 📌 Live in ua-civ-shelter four panicked civilians reached
+            //   House A's door together; at a one-man doorway they jostled with no progress until the watchdog failed every move
+            //   (replans are not allowed) — at best one got in. The walker nearest the door's centre who has not yet passed it goes;
+            //   every other walker in reach of that door is held (standing, and the watchdogs skip a held walker) until he is through.
+            _turn.Clear();
+            foreach (var e in repo.Query().With<NavState>().With<SimTransform>().Build())
+            {
+                var nav = repo.GetComponentRO<NavState>(e);
+                if (nav.Mode != KinematicsMode.CustomTrajectory || nav.HasArrived != 0
+                    || !_pool.TryGetTrajectory(nav.TrajectoryId, out var traj)
+                    || DoorToPass(traj, nav.ProgressS, terrain, new Vector2(repo.GetComponentRO<SimTransform>(e).Position.X,
+                                                                           repo.GetComponentRO<SimTransform>(e).Position.Y)) is not int doorIndex) continue;
+                var at = repo.GetComponentRO<SimTransform>(e).Position;
+                float d = Vector2.Distance(new Vector2(at.X, at.Y), terrain.Doors[doorIndex].Center);
+                if (d > DoorRules.ReachMetres) continue;
+                if (!_turn.TryGetValue(doorIndex, out var first) || d < first.Distance
+                    || (d == first.Distance && e.Index < first.Who.Index))
+                    _turn[doorIndex] = (e, d);
+            }
 
             foreach (var e in repo.Query().With<NavState>().With<SimTransform>().Build())
             {
@@ -102,7 +126,9 @@ namespace CarKinem.Systems
                 {
                     case TerrainDoorState.Open:
                     case TerrainDoorState.Destroyed:
-                        Unhold(repo, e, ref p);
+                        // ⭐ CE-4040 — another walker's turn at this doorway: wait in reach (one at a time)
+                        if (inReach && _turn.TryGetValue(doorIndex, out var turn) && turn.Who != e) Hold(repo, e, ref p);
+                        else Unhold(repo, e, ref p);
                         break;
 
                     case TerrainDoorState.Locked:
@@ -144,7 +170,13 @@ namespace CarKinem.Systems
         /// <see cref="LookAheadMetres"/> ahead, as the index of the terrain door it stands in; null when there is none.
         /// </summary>
         public static int? NextDoorAhead(in CustomTrajectory traj, float progressS, TerrainWorld terrain)
+            => NextDoorAhead(traj, progressS, terrain, out _);
+
+        /// <summary>As <see cref="NextDoorAhead(in CustomTrajectory, float, TerrainWorld)"/>; <paramref name="markS"/> is the door mark's
+        /// distance along the path (⭐ CE-4040 — a walker past it is through the doorway).</summary>
+        public static int? NextDoorAhead(in CustomTrajectory traj, float progressS, TerrainWorld terrain, out float markS)
         {
+            markS = 0f;
             var wps = traj.Waypoints;
             for (int i = 0; i < wps.Length; i++)
             {
@@ -159,9 +191,28 @@ namespace CarKinem.Systems
                     float dist = Vector2.Distance(at, terrain.Doors[d].Center);
                     if (dist <= bestD && System.MathF.Abs(wp.Position.Z - terrain.Doors[d].SillZ) < DoorRules.ReachHeightMetres) { best = d; bestD = dist; }
                 }
-                if (best >= 0) return best;
+                if (best >= 0) { markS = wp.CumulativeDistance; return best; }
             }
             return null;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4040</c> — the door on <paramref name="traj"/> ahead that a walker at <paramref name="at"/> has NOT yet passed, or null.
+        /// Passed is geometric: he stands on the far side of the door's wall from where his path comes to it. ⛔ Not by progress: a man
+        /// beside the doorway projects onto the path at its door mark, and read as through he was neither held nor led in.
+        /// </summary>
+        public static int? DoorToPass(in CustomTrajectory traj, float progressS, TerrainWorld terrain, Vector2 at)
+        {
+            if (NextDoorAhead(traj, progressS, terrain, out float markS) is not int door) return null;
+            var c = terrain.Doors[door].Center;
+            var wps = traj.Waypoints;
+            Vector2? from = null;   // the last path point before the mark that stands off the doorway
+            for (int i = 0; i < wps.Length && wps[i].CumulativeDistance < markS; i++)
+            {
+                var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
+                if (Vector2.Distance(p, c) > 0.5f) from = p;
+            }
+            return from is { } f && DoorApproach.Through(terrain, door, f, at) ? null : door;
         }
 
         private void CannotPass(EntityRepository repo, Entity e, ref Passage p)

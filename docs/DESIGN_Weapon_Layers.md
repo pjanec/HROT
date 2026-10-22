@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
+updated: 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
 current-answer: W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
@@ -890,6 +890,39 @@ never threw. ✅ Fixed by [AQ89](blueprints/Architect_Question_89_Suppress_And_C
 - A **willing** grenadier closes inside the Suppress branch, running the same `CloseToThrow` with its own state. Willing means a
   `CombatTemperament` (bravery / obedience, defaults 0.5 / 0.8) at or above 0.6.
 - The scenario authors the Grenadier brave (`"Temperament": {"riskAcceptance": 0.8}`).
+
+#### ⭐ `CE-3296` — a short throw is TOSSED, and a throw nothing clears is REFUSED *(backend, `2026-10-22`; behaviors' [note](blueprints/batches/NOTE_Behaviors_To_Backend_Thrown_Grenades_At_A_Doorway.md); build-state: BUILT)*
+
+📐 **Measured by behaviors** (`bc-room-clear`, AssaultRiflemen 2009 at a Suspected room): ① the drill's stun grenade, a 2–3 m throw into a
+doorway whose low arc was judged blocked, was lobbed at the full 15 m/s — apex ≈ 11 m, flight ≈ 3 s — and its 1.5 s fuze burst it 12 m up;
+② the weapon brain's hidden-target M67 hit the jamb and burst at the thrower's feet (143 to himself).
+
+```mermaid
+sequenceDiagram
+    participant M as muscle: FireProcessingSystem
+    participant A as ThrowArc.TryLaunch
+    participant L as brain: ShotLedger
+    M->>A: a throw (below HighArcMinMuzzleVelocity), no charge
+    A->>A: the low arc at full speed — clears? done
+    A->>A: ★ else the SOFTEST TOSS that clears: the slowest reaching speed × 1.05 … 3.2, low then high
+    A->>A: else the full-speed lob — clears? done
+    A-->>M: false: nothing clears
+    M-->>L: ★ refused, Masked (no round) — the weapon brain's TryThrow already waits on a held weapon
+```
+*What it shows that prose hid:* the check lives where the geometry is (R-2037, Q94 A) — the brain never asks whether a throw clears; the
+muscle answers, and the ledger the brain already reads turns the answer into a hold.
+
+| ★ | rule | rejected (one line) |
+|---|---|---|
+| the toss | the slowest speed that reaches, v² = g·(h + √(d² + h²)), × 1.05 … 3.2, each low then high, before the full-speed lob | a fixed soft speed — a 15 m throw needs more than a 3 m one |
+| the refusal | a throw no arc clears is refused `Masked` on the muscle | behaviors' lean "the weapon brain checks the arc before it throws" — that is a geometry read on the brain (R-2037); the refusal reaches it through the ledger instead |
+| the fuze | ★ a TIME-fused round takes no arc that outlasts its fuze (`maxFlightSeconds` = the round's fuze); none left ⇒ refused | measured on behaviors' check: after the toss fix a stun grenade was still lobbed at full speed and burst 12.4 m up |
+| the friend check | unchanged, round the TARGET point — a throw that flies now clears, so it stops at the point | a friend check at a computed stop point — only needed for a throw that does not clear, which no longer flies |
+
+⚠ **Not fixed here:** why the drill's low arc was judged blocked although its 2-D line crosses the doorway 0.1 m inside the jambs — an
+origin (eye / barrel) offset, or the open leaf. Every arc lies in one vertical plane, so if that plane meets the jamb no toss clears and
+the throw is now REFUSED (no burst at the feet). Rails: `ThrowArcTests.CE3296_AShortThrowOverCover_IsASoftToss_NotAFullSpeedLob`
+(red-proved), `CE3296_AThrowNothingClears_IsReportedSo`, `CE3296_ATimeFusedRound_NeverTakesAnArcThatOutlastsItsFuze` (red-proved). 📐 **behaviors' check** (`CE2257` with the squad on 2009 and the room Suspected, two runs, before the fuze rule): the drill's stun now bursts on the room's floor (45.3, 107.8, 0.0); no M67 on the jamb; one lob still burst 12.4 m up ⇒ the fuze rule. The twin's remaining reds (③ an insurgent up, ④ no RoomClear) involve no grenade damage — behaviors'.
 
 ### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(✅ built `2026-10-11`, as drawn; backend; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
 

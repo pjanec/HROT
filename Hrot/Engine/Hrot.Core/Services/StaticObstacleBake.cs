@@ -64,6 +64,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private int _bakedBase = int.MinValue;
     private ulong _seenSignature = EmptySignature;
     private double _seenAt;
+    private int _epoch;   // ⭐ CE-3294 — the world the bake state above describes
 
     private const ulong EmptySignature = 1469598103934665603UL;
 
@@ -90,6 +91,14 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     public void Execute(ISimulationView view, float dt)
     {
         if (view is not EntityRepository world) return;
+        // ⭐ CE-3294 — a reload starts a new world: it bakes as the first load did (debounce, bake, ack — the same obstacles on the same
+        //   base were acked at once before), and a bake still running from the last world acks nothing when it lands (its batch names
+        //   the old world's handles, which the reload hands to new entities).
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+        {
+            _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0;
+            _runningBatch = new List<Entity>();
+        }
         if (!world.IsComponentTypeRegistered<StaticObstacle>()) return;
 
         var bakery = world.HasSingletonManaged<StaticObstacleBakery>() ? world.GetSingletonManaged<StaticObstacleBakery>() : null;

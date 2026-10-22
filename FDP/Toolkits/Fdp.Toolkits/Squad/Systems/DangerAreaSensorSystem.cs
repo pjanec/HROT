@@ -43,10 +43,12 @@ namespace Fdp.Toolkit.Squad.Systems
         public const float ContactMoveMetres = 3f;
 
         private Dictionary<Entity, (uint Feature, bool Threatened)> _last = new(), _next = new();
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (last step's areas, for the edges)
 
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _last.Clear(); _next.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<DangerAreaCognitiveBuffer>() || !repo.IsComponentTypeRegistered<EqsSensor>()) return;
             WriteContacts(repo, view.GetCommandBuffer());

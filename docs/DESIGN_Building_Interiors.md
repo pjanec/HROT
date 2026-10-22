@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18 (§3g.1 UI-1 shared templates folder + UI-2 roof storey: roof rings, low walls, house-3f — ui, CE-1181/1182) · 2026-10-16 (§3d late results: an impact round waits the grace (CE-2203), a RayId carries the generation and a round hits once (CE-2204) · §3k.1 W-6″ CE-3203: ONE fragment law for people, hulls and weapons — designed and BUILT · DoorCommandSystem moved to the cross-role Interactions capability, §3j 5d graph · §3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-22 (§3j 5d-5 — turns at a doorway and the door funnel, CE-4040) · 2026-10-18 (§3g.1 UI-1 shared templates folder + UI-2 roof storey: roof rings, low walls, house-3f — ui, CE-1181/1182) · 2026-10-16 (§3d late results: an impact round waits the grace (CE-2203), a RayId carries the generation and a round hits once (CE-2204) · §3k.1 W-6″ CE-3203: ONE fragment law for people, hulls and weapons — designed and BUILT · DoorCommandSystem moved to the cross-role Interactions capability, §3j 5d graph · §3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
 current-answer: §3g.1 shared templates + the roof storey (UI-1/UI-2) · §3k.1 W-6″ one fragment law for every target (CE-3203) · §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILT, §3l.7 as built; §3l.2 diagram updated) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
@@ -1008,6 +1008,48 @@ watchdog ends the move) · a DtCrowd host ignores doors.
 
 | rails | `DoorPassageSystemTests` ×4 (a closed door holds, opens once after the action time, releases when Open · out of reach / open never holds · locked replans once · locked with no replan allowed fails) · `NavigationExecutionSystemTests.Stage5d_AHoldAtADoor_IsNotFrustration` · `CarKinematicsSystemTests.Stage5d_IsBlocked_StopsOnThePath_KeepsIt_AndDrivesOnWhenCleared` · `EngineBackedPathRegistryTests.Stage5d_TheDoorMark_SurvivesThePoolAndTheRegistry` · `GroundKinematicsModuleTests` (5 systems, `DoorPassageSystem` at [4]) |
 |---|---|
+
+### 5d-5 — turns at a doorway, and the door funnel *(backend, `2026-10-22`, `CE-4040`; build-state: BUILT)*
+
+📐 **Measured** (`PostureScenarioTests.CE2236_CivShelter`, a per-frame kinematics trace): four panicked civilians reached House A's one-man
+front door together and **none got in** — every move ended `FailedBlocked` by the frustration watchdog (a MoveTo allows no replan). Three
+causes, each seen in the trace, in the order they bit:
+
+```mermaid
+sequenceDiagram
+    participant P as DoorPassageSystem
+    participant K as CarKinematicsSystem
+    participant W as NavigationExecutionSystem
+    P->>P: pre-pass: per door, the TURN = the walker in reach, not yet through, nearest its centre
+    alt door Closed
+        P->>K: hold every walker in reach (as 5d-3)
+        K->>K: target speed 0 (as 5d-3)
+    else door Open
+        P->>K: ★ hold every walker in reach except the TURN
+        K->>K: ★ the TURN walks the door funnel: onto the doorway's axis on his side, then straight through
+        K->>K: ★ the TURN does not give way (avoidance off) — the rest stand held
+        W->>W: held ⇒ not frustration (as 5d-3)
+    end
+    P->>P: ★ through = on the far side of the wall from where the path came (not by progress)
+```
+
+*What it shows that prose hid:* the watchdog never changed. Every fix keeps a walker either held (exempt) or moving with progress — the one
+state the watchdog reads correctly.
+
+| ★ | rule | 📌 measured cause | rejected (one line each) |
+|---|---|---|---|
+| ① | *(measured, not changed)* a runner held at a closed door coasts on: his speed only DECAYS (3.3 → 0.5 m/s in 0.9 s), 1.6 m off his path into the wall beside the door | ③ leads him back onto the doorway's axis | stopping a held person at once — tried; with ②–⑤ the twin passes 2/2 without it, so the mover is unchanged |
+| ② | TURNS: at an open door only the walker nearest its centre, not yet through, goes; the others in reach are held (`DoorPassageSystem._turn`) | four men at a one-man doorway jostled with no progress until N2 (CE-2304's "no progress in 4 s") failed them | lifting N2 at doors — with N2 off two got in after 65 s, the rest failed on the speed watchdog |
+| ③ | the DOOR FUNNEL: in reach, not through, a walker aims onto the doorway's axis on his own side, then a metre through (`DoorApproach.Funnel`) | men released from a hold stood beside the doorway; aiming at the path's next corner took them into the jamb | the path's lookahead corner (CE-3145) — it cuts the jamb from any point off the axis |
+| ④ | the walker whose turn it is does not give way (avoidance off; the others stand held) | the waiting men stood round the door, and giving way to them pushed him off the axis every frame — a deadlock | avoidance on for him — measured: the deadlock |
+| ⑤ | THROUGH is by the wall's side (`DoorApproach.Through`, `DoorPassageSystem.DoorToPass`) | a man beside the doorway projects onto the path AT its door mark: read as through, he was neither held nor funnelled | by progress (`ProgressS > mark`) — the measured miss |
+
+⛔ **Tried and dropped** (each measured unnecessary once ②–⑤ were in): letting the mesh clamp (CE-2304 N3) yield where the path's own step
+leaves the mesh (3/3 without it); a held person stopping at once (2/2 without it). ✅ **Red-proof of ④:** avoidance back on for the turn ⇒ 2/4 in, red, twice. ⚠ **The coordinator's bisect** (`f1f4c89ba`, CE-2304) is where the twin first went red; turning N1, N2 or N3 off alone at
+today's head did not bring it back, so the regression is the crowd at the door that CE-2304's stricter watchdog no longer tolerated.
+
+**Rails:** `DoorPassageSystemTests.CE4040_TwoWalkersAtAnOpenDoor_TakeTurns_ThroughIsBySide_NotByProgress`; the feature's twin
+`PostureScenarioTests.CE2236_CivShelter_*` (3/3 green). ⚠ A DtCrowd-driven agent still ignores doors (the red edge above).
 
 ### 5d-2 as built — a behaviour names a door and acts on it *(backend, `2026-10-08`; plan approved; R-223 for the test behaviour's form)*
 

@@ -78,14 +78,16 @@ namespace Hrot.AI.Behaviors.Brains
             => !weapon.IsNull && world.HasComponent<WeaponState>(weapon) ? world.GetComponentRO<WeaponState>(weapon).Ammo : -1;
 
         /// <summary>The fire solution for <paramref name="dto"/> fired by <paramref name="weapon"/> from where it stands at
-        /// <paramref name="point"/> (the mount's own charges, the round it loads).</summary>
+        /// <paramref name="point"/> (the mount's own charges, the round it loads). ⭐⭐ <c>CE-3269</c> A-7 (Q94, R-3018, R-2037) — TERRAIN-FREE:
+        /// reach and arc only (<see cref="FireSolution.For"/> with no world). Whether the terrain masks a gun is the muscle's call, made per
+        /// round (A-5); the plan learns it from the refusal.</summary>
         public static Solution SolutionFor(EntityRepository world, Entity weapon, Fdp.Toolkit.Tkb.Domain.WeaponMountDto dto, Vector3 point)
         {
             if (!world.HasComponent<SimTransform>(weapon)) return new Solution { Refusal = FireRefusal.TooFar };
             var db = world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
             long ammo = AmmoChoice.LoadedAmmo(world, weapon);
             if (ammo == 0) ammo = unchecked((long)dto.AmmoGuid);
-            return FireSolution.For(Fdp.Toolkit.World.WorldQuery.Of(world), world.GetComponentRO<SimTransform>(weapon).Position, point,
+            return FireSolution.For(null, world.GetComponentRO<SimTransform>(weapon).Position, point,
                                     dto, FireSolution.ChargesOf(db, dto, ammo));
         }
 

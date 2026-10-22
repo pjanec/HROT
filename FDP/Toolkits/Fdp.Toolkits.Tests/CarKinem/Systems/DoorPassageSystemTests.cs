@@ -105,6 +105,33 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(NavResult.InProgress, f.Repo.GetComponent<NavigationStatus>(f.Agent).Result);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4040</c> — TURNS at a doorway: two walkers in reach of one open door; the one nearer its centre goes, the other is
+        /// held — even standing BESIDE the doorway, where his progress already reads past the door mark (through is by the wall's side,
+        /// not by progress) — and he is released once the first is through. 📌 ua-civ-shelter: four civilians at House A's one-man door
+        /// jostled with no progress until the watchdog failed every move. ✅ Red-proof: the turn removed (an open door never holds) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4040_TwoWalkersAtAnOpenDoor_TakeTurns_ThroughIsBySide_NotByProgress()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 19f);           // 1 m out, on the doorway's axis: his turn
+            var second = f.Repo.CreateEntity();
+            f.Repo.AddComponent(second, new SimTransform { Position = new Vector3(26.4f, 19.85f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(second, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5, ProgressS = 9.85f });   // ≥ the mark (9.8): beside it
+            bool SecondHeld() => f.Repo.GetComponent<NavState>(second).IsBlocked != 0;
+
+            f.Tick();
+            Assert.False(f.Held);                                                    // the nearer goes
+            Assert.True(SecondHeld());                                               // the other waits — he is NOT through
+
+            var nav = f.Repo.GetComponent<NavState>(f.Agent);                        // the first steps through the doorway
+            nav.ProgressS = 10.6f;
+            f.Repo.SetComponent(f.Agent, nav);
+            f.Repo.SetComponent(f.Agent, new SimTransform { Position = new Vector3(25, 20.6f, 0), Rotation = Quaternion.Identity });
+            f.Tick();
+            Assert.False(SecondHeld());                                              // his turn
+        }
+
         /// <summary>⭐ 5d-3 — a closed door still out of reach does not stop the agent yet; an open door never does.</summary>
         [Fact]
         public void Stage5d_ADoorNotYetInReach_OrOpen_DoesNotHold()

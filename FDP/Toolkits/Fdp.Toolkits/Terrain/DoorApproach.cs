@@ -54,5 +54,49 @@ namespace Fdp.Toolkit.Terrain
             var p = c + n * ApproachMetres;
             return new Vector3(p.X, p.Y, d.Z);
         }
+
+        /// <summary>⭐ <c>CE-4040</c> — has a walker at <paramref name="at"/> gone through terrain door <paramref name="doorIndex"/>, coming from
+        /// <paramref name="from"/>: is he on the other side of its wall (by more than 5 cm)?</summary>
+        public static bool Through(TerrainWorld terrain, int doorIndex, Vector2 from, Vector2 at)
+        {
+            var def = terrain.Doors[doorIndex];
+            var panel = terrain.Panels[def.Panel];
+            var along = panel.B - panel.A;
+            if (along.LengthSquared() < 1e-6f) return false;
+            var u = Vector2.Normalize(along);
+            var n = new Vector2(-u.Y, u.X);
+            float side = Vector2.Dot(from - def.Center, n);
+            float now = Vector2.Dot(at - def.Center, n);
+            return side * now < 0f && System.MathF.Abs(now) > 0.05f;
+        }
+
+        /// <summary>How far off the doorway's axis (m, along the wall) a walker may be and still walk straight through.</summary>
+        public const float AxisToleranceMetres = 0.2f;
+
+        /// <summary>
+        /// ⭐ <c>CE-4040</c> — the DOOR FUNNEL: where a walker in reach of terrain door <paramref name="doorIndex"/>, not yet through it,
+        /// aims. Off the doorway's axis he first steps onto it on his own side (no nearer the wall than half a metre); on it, he aims
+        /// straight through, a metre beyond the centre. 📌 Live in ua-civ-shelter civilians waiting their turn stood beside the doorway;
+        /// aiming at their path's next corner took them diagonally into the jamb, and they stood pinned there. False for a door the
+        /// terrain gives no wall panel.
+        /// </summary>
+        public static bool Funnel(TerrainWorld terrain, int doorIndex, Vector2 at, out Vector2 aim)
+        {
+            aim = default;
+            var def = terrain.Doors[doorIndex];
+            var panel = terrain.Panels[def.Panel];
+            var along = panel.B - panel.A;
+            if (along.LengthSquared() < 1e-6f) return false;
+            var u = Vector2.Normalize(along);
+            var n = new Vector2(-u.Y, u.X);
+            var c = def.Center;
+            float depth = Vector2.Dot(at - c, n);
+            if (depth < 0f) { n = -n; depth = -depth; }
+            float lateral = Vector2.Dot(at - c, u);
+            aim = System.MathF.Abs(lateral) > AxisToleranceMetres && depth > 0.1f
+                ? c + n * System.Math.Clamp(depth, 0.5f, ApproachMetres)   // onto the axis, on his side
+                : c - n * ApproachMetres;                                   // through
+            return true;
+        }
     }
 }

@@ -260,6 +260,7 @@ namespace CarKinem.Systems
             // The direction along which motion counts as PROGRESS (CE-2059): the path tangent on a trajectory, which since
             // CE-3115 is no longer the steering heading.
             Vector2? progressTangent = null;
+            bool doorTurn = false;   // ⭐ CE-4040 — walking the door funnel (his turn at a doorway)
             
             switch (nav.Mode)
             {
@@ -282,6 +283,20 @@ namespace CarKinem.Systems
                         && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var pursued)
                         && (pursued.IsLooped != 0 || nav.ProgressS < pursued.TotalLength - 0.1f))
                     {
+                        // ⭐ CE-4040 — a PERSON in reach of a door on his path, not yet through it, walks the DOOR FUNNEL (onto the
+                        //   doorway's axis, then straight through) instead of cutting to the next corner past the jamb
+                        if (@params.Class == VehicleClass.Pedestrian && repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                            && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { Doors.Count: > 0 } doorWorld
+                            && DoorPassageSystem.DoorToPass(pursued, nav.ProgressS, doorWorld, pos2D) is int doorAhead
+                            && Vector2.Distance(pos2D, doorWorld.Doors[doorAhead].Center) <= Fdp.Toolkit.Terrain.DoorRules.ReachMetres
+                            && Fdp.Toolkit.Terrain.DoorApproach.Funnel(doorWorld, doorAhead, pos2D, out var doorAim)
+                            && Vector2.DistanceSquared(doorAim, pos2D) > 1e-4f)
+                        {
+                            targetHeading = Vector2.Normalize(doorAim - pos2D);
+                            targetPos = doorAim;
+                            doorTurn = nav.IsBlocked == 0;
+                            break;
+                        }
                         // ⭐ CE-3145 (R-247) — a PERSON closes onto his path but never looks past the next corner (HumanGait.Aim)
                         if (@params.Class == VehicleClass.Pedestrian && HumanGait.Aim(in pursued, ref nav.ProgressS, pos2D, out var corner))
                         {
@@ -419,7 +434,9 @@ namespace CarKinem.Systems
             // ⭐⭐ CE-3287 (R-3026) — avoidance bends a DRIVING vehicle's own motion round others; a vehicle with no wanted speed (parked,
             //   arrived, held, a wreck) has none, and is not pushed — people walk round it (a person's avoidance is untouched).
             //   ⭐ CE-2321 — nor is a man down: avoidance turned him to face away from whoever came close.
-            Vector2 avoidanceVelocity = (@params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f) || down
+            // ⭐ CE-4040 — the walker whose TURN it is at a doorway (DoorPassageSystem holds the rest) does not give way: the
+            //   others stand waiting round the door, and giving way to them pushed him off the doorway's axis for good (a deadlock)
+            Vector2 avoidanceVelocity = (@params.Class != VehicleClass.Pedestrian && targetSpeed <= 0f) || down || doorTurn
                 ? desiredVelocity
                 : ApplyCollisionAvoidance(desiredVelocity, pos2D, tf.Position.Z, aimedPerson ? movedBefore : fwd2D * state.Speed,
                                           spatialGrid, @params, repo, entity);

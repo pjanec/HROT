@@ -39,6 +39,7 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
     /// Key = entity handle; Value = pool trajectory ID (> 0).
     /// </summary>
     private readonly Dictionary<Entity, int> _knownTrajectories = new();
+    private int _epoch;   // ⭐ CE-3294 — the world _knownTrajectories describes
 
     /// <summary>
     /// Default speed (m/s) used when a waypoint has <c>TargetSpeed == 0</c>
@@ -62,6 +63,14 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
             throw new InvalidOperationException(
                 $"{nameof(RouteTrajectorySyncSystem)} requires direct EntityRepository access " +
                 $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+        // ⭐ CE-3294 — a reload ends the world without a DestructionOrder (SoftClear): its routes' entries are freed here, or the next run's
+        //   entity under the same handle would free a trajectory that by then belongs to another route.
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
+        {
+            foreach (var id in _knownTrajectories.Values) if (id > 0) _pool.RemoveTrajectory(id);
+            _knownTrajectories.Clear();
+        }
 
         // Free trajectory pool entries for entities entering TearDown.
         // Relies on the 1-frame ELM guarantee that the entity is still intact when the order fires.

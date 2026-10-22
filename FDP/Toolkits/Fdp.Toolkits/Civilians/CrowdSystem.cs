@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Civilians
         private readonly Dictionary<int, Entity> _crowdEntity = new();
         private readonly HashSet<int> _live = new();
         private int _nextId = 1;
+        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (crowd ids and their entities)
         // ⭐ CE-2241 ② (§5m PV-1) — the security forces standing this frame: where, and which way they face
         private readonly List<Vector3> _police = new();
         private readonly List<Vector3> _policeFacing = new();
@@ -129,6 +130,7 @@ namespace Fdp.Toolkit.Civilians
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _crowdEntity.Clear(); _nextId = 1; }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<CivilianState>()) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
 

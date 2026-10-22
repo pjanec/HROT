@@ -128,6 +128,7 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
     // Parallel dictionary: FDP entity ↔ PhysicsBodyReference.
     // Not in the ECS because Bullet body objects are managed class references.
     private readonly Dictionary<Entity, PhysicsBodyReference> _bodies = new();
+    private int _epoch;   // ⭐ CE-3294 — the world the bodies belong to
 
     /// <summary>
     /// Read-only view of the active body map (for tests / diagnostics).
@@ -160,6 +161,10 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
     /// </summary>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        // ⭐ CE-3294 — a reload ends the world with no DestructionOrder (SoftClear): its bodies go, or the next run's entity under the
+        //   same handle keeps the old body (old shape) and the rest stand as phantom colliders.
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) DestroyAll();
+
         // ── 1. Destruction events ─────────────────────────────────────────────
         // Consume DestructionOrder events first so we don't try to process
         // a destroyed entity in the creation sweep below.

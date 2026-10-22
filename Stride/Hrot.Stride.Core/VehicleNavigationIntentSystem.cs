@@ -115,6 +115,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     }
 
     private readonly Dictionary<Entity, RouteState> _routes = new();
+    private int _epoch;   // ⭐ CE-3294 — the world the state below describes (each vehicle's route)
 
     /// <summary>
     /// Constructs the system.  The navmesh provider is normally read from the world's
@@ -173,6 +174,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _routes.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
                 $"{nameof(VehicleNavigationIntentSystem)} requires direct EntityRepository access " +

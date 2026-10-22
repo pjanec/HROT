@@ -75,6 +75,9 @@ namespace Fdp.Toolkit.Replication.Systems
         /// <summary>Global — inspects every constructed entity (filtering happens in <see cref="TryImmediateComplete"/>).</summary>
         protected override bool Participates(ISimulationView view, Entity entity, long blueprintId) => true;
 
+        /// <inheritdoc/>
+        protected override void OnWorldBoundary() { _deferFrame.Clear(); _stallLogged.Clear(); }   // ⭐ CE-3294
+
         /// <summary>Ack immediately unless this is a reliable ghost (tagged <see cref="ReportLifecycleOnActive"/>).</summary>
         protected override bool TryImmediateComplete(ISimulationView view, Entity entity)
             => !view.HasComponent<ReportLifecycleOnActive>(entity);
