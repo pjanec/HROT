@@ -3,7 +3,8 @@ state: LIVE
 build-state: PARTIAL
 verified: 2026-08-28 (coordinator source scan)
 current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBinding, WindowManager.RenderGlobalMenu, CE-041..045). MISSING: no production menu item is perspective-scoped (all register global), and 4 hosts' BeginMainMenuBar blocks stay unguarded so --mode all still stacks them.
-  ⭐ 2026-10-22: §MB (CE-1243) designs ONE menu bar — one tree with per-frame contributors, one row renderer; leans with the user.
+  ⭐ 2026-10-22: §MB (CE-1243) — ONE menu bar BUILT: one tree with per-frame contributors, one row renderer; the 4 host blocks are gone
+  and each host's map menus are a perspective-bound contributor (UXI-05 step 2 + UXI-13 closed). The STATUS line above predates it.
 updated: 2026-10-22
 known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope).
 related-designs:
@@ -139,7 +140,7 @@ change with it while File/Settings/Help/Window stay put — the two-tier rule fr
 | ⚠ [UXI-06](UX_Issues.md#uxi-06) is adjacent | perspective *restore* validates against subsystem names and drops the Editor's internal ones. If a menu item is bound to `BTree`, a bad restore hides it. Fix UXI-06 first or accept the coupling |
 | ⚠ Behaviour change is invisible in every mode we normally test | see the acceptance note above — this needs a deliberate `--mode all` walk on Windows |
 
-## MB. DESIGN — ONE MENU BAR: one model, one row renderer (`CE-1243`, `2026-10-22`, ui) — build-state: BUILDING (✅ MB-1…MB-4 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
+## MB. DESIGN — ONE MENU BAR: one model, one row renderer (`CE-1243`, `2026-10-22`, ui) — build-state: BUILT (✅ MB-1…MB-4 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
 
 🔒 User, `2026-10-22`, on `CE-1027` (a menu's icon vanishing while it is open): *"what is strange how comes it behaves differently,
 shouldnt the manin menu bar rendering be unified and shared?"* ⇒ this section is the answer: UXI-13's *"one bar"* plus the shell's own
@@ -230,3 +231,18 @@ so stale items would stay; *`DebugGizmoLayer.DrawMainMenu()` for the four blocks
 
 **Blast radius:** FDP `WindowManager` + `GlobalMenuRegistry` (cross-lane, FDP), `GizmoMap.Presentation`, four hosts; the menu snapshot
 gains the contributed menus (a deliberate golden change). Slices in order MB-1 → MB-2 → MB-3 → MB-4, each with a frame rail on the bar.
+
+### MB.1 AS-BUILT (`2026-10-22`, ui) — build-state: BUILT
+
+| decision | as built | deviation |
+|---|---|---|
+| MB-1 | `GizmoMap.Presentation.MenuRows` (`Submenu` · `Item` · `Dto` · `Dtos`); `ImGuiMenuRenderer.DrawMenus` delegates to it; the shell's tree rows go through it | the map's right-click popup (`ContextMenuAdapter`, a JSON walk) keeps its own walk — it shares the icon helper (`MenuIconRenderer.BeginMenu`, CE-1027) |
+| MB-2 | `GlobalMenuRegistry.RegisterContributor` · `CollectContributions` (ONCE a frame) · `BarMenus` (merge by name, CE-1026 rank, `Perspective` ranked after the leading menus) · records `MenuContributor` / `MenuContribution` / `BarMenu`; the snapshot (`global_menu`) lists contributed leaves with their scope | — |
+| MB-3 | `WindowManager` draws ONE walk (`RenderMenuBar` / `RenderTreeRow`); `wm/perspective`, `wm/windows`, `wm/help` contributors (an empty Perspective / Windows menu is not offered); `RenderPerspectiveMenu`, `BuildHostMenuDtos` and `Render(gizmoMenuItems, …)` deleted | — |
+| MB-4 | `MapInteractionPack.RegisterMainMenu(menu, id, perspective, consume, bus)`; Editor (Scenario), CGF (Scenario — ⭐ it had NO consumer of its map menus before: View ▸ Tactical Map Layers… never reached CGF's bar), SimHost and Stride mode 2 (SimHost), IG (IG), ReplayBrowser (ReplayBrowser); the four `BeginMainMenuBar` blocks deleted (ExCon's standalone-only bar stays, out of scope) | — |
+
+📐 **Rails** `TheMenuBarIsOneTreeTests` ×4 (merge by name in bar order · a perspective-bound contributor offers nothing elsewhere · the
+snapshot from the bar's one collection · the shell's three contributors drawn in a real ImGui frame) — ✅ red-proved (merging by
+contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsMenuIsOneMenuTests`, `PerspectiveMenuTests` unchanged and green.
+⚠ Not yet seen in the GUI.
+
