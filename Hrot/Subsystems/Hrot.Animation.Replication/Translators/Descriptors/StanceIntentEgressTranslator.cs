@@ -26,6 +26,7 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
     private readonly IAnimDdsWriter<DdsStanceIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (StanceId, float, uint)> _lastPublished = new();
+    private int _worldEpoch;
 
     public string TopicName => TopicNameConst;
     public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -50,6 +51,8 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublished.Clear(); }
         var query = view.Query()
             .With<StanceIntent>()
             .With<NetworkIdentity>()

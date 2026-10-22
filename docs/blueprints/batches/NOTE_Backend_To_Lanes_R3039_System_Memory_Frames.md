@@ -27,5 +27,19 @@ system* rail. ⭐ **New code in these systems keeps its memory on the entity** �
 | **ui** | `AnimationRuntimeBridgeSystem` — `_entityClassIds` is a derived `_registered` set; `ClassOf` takes the class from the raw `BackendHandle`, or past a handle another process encoded, from the entity's `TkbIdentity` | `CharacterAnimationDefRuntime` is unchanged (a field there broke its 16 B layout contract) | `Phase3SystemTests.R3039_AfterACheckpointRestoredIntoAFreshProcess_TheCharacterRegistersUnderItsClass` |
 | **coordinator / traffic** | `TrafficShadowFollowSystem` — the follow is `TrafficShadowFollow` (447, backend's block — not traffic's 450–459, so no collision) on the body, registered by `TrafficPack`; `TrafficPanicSystem._held` classified **B** (in flight with SUMO, `R-3041`) · ⚠ also fixed in `TrafficPack`: an unbraced `if` registered `NavigationApplied` unconditionally (backend's own slip from #5) | ⏳ **the X rows (SUMO) — backend's LEAN, not ruled: a restore restarts traffic** (§2c). Re-seeding SUMO from the restored replicas is the alternative — say if a restored run must keep its traffic | `AHandedOverVehicleFollowsItsShadowTests.R3039_TheFollow_SurvivesACheckpointRestoredIntoAFreshSystem` |
 
+
+## ⭐ Addendum — S3: every class-B cache forgets the world when it is replaced (`2026-10-22`)
+
+A restore raises ONE signal (`AfterRestore.Run` → `WorldEpoch.Restored`); every owner of protocol state (class B: "last published",
+"pending until the entity exists", requests in flight) now clears it on its own next tick through `WorldEpoch.Moved` — so after a restore
+every owner republishes (`R-3041`). Rail: `EverySystemStateFieldIsClassifiedTests.EveryProtocolField_IsReDerivedAtAWorldReplacement`
+⇒ ⭐ **a new B field needs that hook, or is class S** (session state a restore leaves — the cluster, the transport). [Inventory §8](../../DESIGN_System_State_Inventory.md)
+
+| lane | touched | |
+|---|---|---|
+| **ui** | the eight `Hrot.Animation.Replication` egress translators (channel / look-at intent + status, stance intent + status, montage queue + state) | a `_worldEpoch` and one `Moved` line each |
+| **coordinator / traffic** | `TrafficPanicSystem._held` cleared on `Moved` | |
+| **all** | `LifecycleSystem` re-derives the ELM's handshakes after a RESTORE (not a load) — the replay design's §2.1m re-derive, until now reached only from the editor preview | rail `APreviewLeavesNoTraceTests.R3039_AfterRestoreRun_ReachesTheElm_AndALoadDoesNot` |
+
 ---
 _backend lane, 2026-10-22_

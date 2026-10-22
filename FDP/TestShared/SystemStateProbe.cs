@@ -91,7 +91,7 @@ namespace Fdp.TestShared
         public static IReadOnlyList<Row> ReadInventory(string markdownPath)
         {
             var rows = new List<Row>();
-            var cell = new Regex(@"^\|\s*`(?<key>[^`]+)`\s*\|\s*\*{0,2}(?<cls>[KABCX])\*{0,2}\s*\|\s*(?<reason>[^|]*)\|", RegexOptions.CultureInvariant);
+            var cell = new Regex(@"^\|\s*`(?<key>[^`]+)`\s*\|\s*\*{0,2}(?<cls>[KABCSX])\*{0,2}\s*\|\s*(?<reason>[^|]*)\|", RegexOptions.CultureInvariant);
             foreach (var line in File.ReadLines(markdownPath))
             {
                 var m = cell.Match(line);

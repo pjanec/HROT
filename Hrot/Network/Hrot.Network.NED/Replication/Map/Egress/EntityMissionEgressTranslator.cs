@@ -33,6 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // only when dirtied, and the only MarkDirty of this ordinal is the operator-command path — MissionDirectorSystem
         // advancing, recording an outcome or halting dirtied nothing, so the wire never saw a phase change.
         private readonly Dictionary<long, (ulong Outcomes, int Head)> _lastSentProgress = new();
+        private int _worldEpoch;
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
@@ -61,6 +62,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _lastSentProgress.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every mission (R-3041)
             var query = view.Query()
                 .DefaultRoutePublishable()
                 .With<MissionPlanQueue>()

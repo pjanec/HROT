@@ -38,6 +38,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <see cref="PollIngress"/> calls once <c>SimTransform</c> becomes visible.
         /// </summary>
         private readonly Dictionary<Entity, MapVisualOverlay> _pendingOverlays = new();
+        private int _worldEpoch;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -61,6 +62,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _pendingOverlays.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): the handles named the old world (R-3041: lost)
             var repo = view as EntityRepository;
 
             // Re-process deferred overlays from previous frames whose entity now has SimTransform.

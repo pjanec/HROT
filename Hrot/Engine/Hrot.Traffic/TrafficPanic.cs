@@ -58,6 +58,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     private readonly List<TrafficConversion> _conversions = new();
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
     private readonly Dictionary<long, (DamageAssessedEvent Hit, double Until)> _held = new();
+    private int _worldEpoch;
     private readonly List<long> _done = new();
 
     /// <summary>How long a hit is held for the civilian it converts to (cluster seconds): a creation request round trip, with margin.</summary>
@@ -79,6 +80,8 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository world) return;
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): a hit held for a civilian SUMO is converting is in flight with SUMO, which restarts (R-3041).
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _held.Clear();
         var net = TrafficNetCache.Of(world);
         if (net is null || !TryDemand(world, out var demand)) return;
 

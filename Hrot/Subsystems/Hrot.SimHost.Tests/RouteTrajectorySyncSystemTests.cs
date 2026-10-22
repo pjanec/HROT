@@ -97,6 +97,37 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         Assert.Equal(new Vector3(40f, 320f, 5f), traj.Waypoints[1].Position);
     }
 
+    /// <summary>
+    /// ⭐ <c>R-3039</c> S2 (docs/DESIGN_System_State_Inventory.md §7b/§7d) — a checkpoint restored into a FRESH process (a new world, a new
+    /// pool, a new system; <c>AfterRestore.Run</c> as every restore runs it): each restored route is compiled again under the id its cache
+    /// names, with its own waypoints, and a route the restored world adds takes a NEW id, never one a restored vehicle drives.
+    /// 🔴 Red-proof: before, the restored cache said "compiled" and was skipped ⇒ the fresh pool had no trajectory at that id; and without the
+    /// pre-pass the new route took id 1 and was then overwritten.
+    /// </summary>
+    [Fact]
+    public void R3039_RestoredRoutes_AreCompiledAgainUnderTheirIds_InAFreshProcess()
+    {
+        var a = CreateRouteEntity(MakePlan(3));
+        var b = CreateRouteEntity(MakePlan(5, isLoop: true));
+        _system.Execute(_repo, 0.016f);
+        int idA = _repo.GetComponent<RouteTrajectoryCache>(a).TrajectoryId, idB = _repo.GetComponent<RouteTrajectoryCache>(b).TrajectoryId;
+
+        var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+        using var freshPool = new TrajectoryPoolManager();
+        using var fresh = CreateWorld();
+        Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+        Fdp.Toolkit.Replay.AfterRestore.Run(fresh);
+        var c = fresh.CreateEntity();
+        fresh.SetManagedComponent(c, MakePlan(2));   // created after the restore, before the first tick
+
+        new RouteTrajectorySyncSystem(freshPool).Execute(fresh, 0.016f);
+
+        Assert.True(freshPool.TryGetTrajectory(idA, out var ta) && ta.Waypoints.Length == 3, "route A is back under its id");
+        Assert.True(freshPool.TryGetTrajectory(idB, out var tb) && tb.Waypoints.Length == 5 && tb.IsLooped == 1, "route B is back under its id");
+        int idC = fresh.GetComponent<RouteTrajectoryCache>(c).TrajectoryId;
+        Assert.True(idC > Math.Max(idA, idB), $"the new route took id {idC}, which a restored route names");
+    }
+
     [Fact]
     public void FirstTick_CompiledVersionMatchesRoutePlanVersion()
     {

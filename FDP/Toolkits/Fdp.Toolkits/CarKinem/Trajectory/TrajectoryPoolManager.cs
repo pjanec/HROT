@@ -31,6 +31,43 @@ namespace CarKinem.Trajectory
             bool looped = false,
             TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
             Vector2[]? tangents = null)
+            => Register(null, positions, speeds, looped, interpolation, tangents);
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S2 (docs/DESIGN_System_State_Inventory.md §7b/§7d) — registers a trajectory under an id THIS pool issued before
+        /// (<see cref="RegisterTrajectory(Vector3[], float[], bool, TrajectoryInterpolation, Vector2[])"/>), replacing whatever is there: the
+        /// re-derive after a world was put back, when a restored component still names the id. Later ids are issued past it, so a new
+        /// trajectory can never take an id a restored vehicle is driving. ⛔ Not for caller-keyed handles (<see cref="RegisterTrajectoryWithKey(Vector3[], int, byte[])"/>):
+        /// those live in their own range and must not lift this pool's counter into it.
+        /// </summary>
+        public void RegisterTrajectoryAt(
+            int id,
+            Vector3[] positions,
+            float[]? speeds = null,
+            bool looped = false,
+            TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
+            Vector2[]? tangents = null)
+        {
+            if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id), "a pool-issued id is positive");
+            Register(id, positions, speeds, looped, interpolation, tangents);
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S2 (§7d) — the next id this pool issues is above <paramref name="id"/>: after a world was put back, no new
+        /// trajectory may take an id a restored component still names (the <c>CrowdSystem._nextId</c> rule: derived, never stored).
+        /// </summary>
+        public void EnsureIdsAbove(int id)
+        {
+            lock (_lock) { if (id >= _nextId) _nextId = id + 1; }
+        }
+
+        private int Register(
+            int? at,
+            Vector3[] positions,
+            float[]? speeds,
+            bool looped,
+            TrajectoryInterpolation interpolation,
+            Vector2[]? tangents)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
@@ -46,7 +83,14 @@ namespace CarKinem.Trajectory
 
             lock (_lock)
             {
-                int id = _nextId++;
+                int id;
+                if (at is { } given)
+                {
+                    id = given;
+                    if (_trajectories.TryGetValue(id, out var existing) && existing.Waypoints.IsCreated) existing.Waypoints.Dispose();
+                    if (id >= _nextId) _nextId = id + 1;
+                }
+                else id = _nextId++;
 
                 // Project to XY for all arc-length / spline-curvature math (§0.2): the carried Z
                 // (positions[i].Z) is stored on the waypoint but never feeds curvature or heading.

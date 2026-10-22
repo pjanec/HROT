@@ -93,6 +93,7 @@ namespace Hrot.Common.Systems
         // Pre-validated requests waiting to be converted into SpawnEntityCommands.
         // Capacity pre-allocated to absorb large bursts without resizing.
         private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
+        private int _worldEpoch;
 
         /// <param name="requestSource">Source of incoming entity-creation requests.</param>
         /// <param name="ackSink">Sink for entity lifecycle ACK messages.</param>
@@ -151,6 +152,8 @@ namespace Hrot.Common.Systems
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ R-3039 S3 — a world replacement (a load, a restore): a request accepted but not yet spawned was in flight; the restored world never asked for it (R-3041).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pendingQueue.Clear();
             // ── Phase 1: Drain all incoming requests this frame ───────────────
             // The callback fires synchronously for each valid network sample so no
             // per-sample heap allocation occurs on ingress (GC03).

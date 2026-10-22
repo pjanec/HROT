@@ -37,6 +37,7 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
     /// Tracks the last-known trajectory ID per route entity so that entries
     /// can be freed when the entity is destroyed between ticks.
     /// Key = entity handle; Value = pool trajectory ID (> 0).
+    /// ⭐ <c>R-3039</c> S2 — derived: at a world replacement it is rebuilt from the routes' restored <see cref="RouteTrajectoryCache"/>.
     /// </summary>
     private readonly Dictionary<Entity, int> _knownTrajectories = new();
     private int _epoch;   // ⭐ CE-3294 — the world _knownTrajectories describes
@@ -66,10 +67,15 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 
         // ⭐ CE-3294 — a reload ends the world without a DestructionOrder (SoftClear): its routes' entries are freed here, or the next run's
         //   entity under the same handle would free a trajectory that by then belongs to another route.
+        // ⭐ R-3039 S2 (docs/DESIGN_System_State_Inventory.md §7b) — and a RESTORE puts back routes whose cache already says "compiled":
+        //   the pool is not in the keyframe (a fresh process has none of them; this process just freed them), so every route the restored
+        //   world holds is compiled again, under the id its cache names — the vehicles following it name that id too.
+        bool rederive = false;
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
         {
             foreach (var id in _knownTrajectories.Values) if (id > 0) _pool.RemoveTrajectory(id);
             _knownTrajectories.Clear();
+            rederive = true;
         }
 
         // Free trajectory pool entries for entities entering TearDown.
@@ -90,6 +96,12 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
             .WithManaged<RoutePlan>()
             .Build();
 
+        // ⭐ R-3039 S2 (§7d) — before anything compiles: no new route may take an id a restored route still names.
+        if (rederive)
+            foreach (var entity in query)
+                if (repo.HasComponent<RouteTrajectoryCache>(entity))
+                    _pool.EnsureIdsAbove(repo.GetComponentRO<RouteTrajectoryCache>(entity).TrajectoryId);
+
         foreach (var entity in query)
         {
             var routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
@@ -99,12 +111,13 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                 ? repo.GetComponent<RouteTrajectoryCache>(entity)
                 : default;
 
-            // Skip if already compiled at this version.
-            if (hasCache && cache.CompiledVersion == routePlan.Version && cache.TrajectoryId > 0)
+            // Skip if already compiled at this version — unless the world was just replaced (the pool entry is not there).
+            bool compiled = hasCache && cache.CompiledVersion == routePlan.Version && cache.TrajectoryId > 0;
+            if (compiled && !rederive)
                 continue;
 
             // Remove stale pool entry if one exists.
-            if (cache.TrajectoryId > 0)
+            if (cache.TrajectoryId > 0 && !compiled)
                 _pool.RemoveTrajectory(cache.TrajectoryId);
 
             int newId = 0;
@@ -124,11 +137,17 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                     speeds[i]    = wp.TargetSpeed > 0f ? wp.TargetSpeed : DefaultSpeed;
                 }
 
-                newId = _pool.RegisterTrajectory(
-                    positions,
-                    speeds,
-                    looped:        routePlan.IsLoop,
-                    interpolation: TrajectoryInterpolation.CatmullRom);
+                if (compiled)
+                {
+                    newId = cache.TrajectoryId;   // re-derived under the id the restored world names
+                    _pool.RegisterTrajectoryAt(newId, positions, speeds, looped: routePlan.IsLoop, interpolation: TrajectoryInterpolation.CatmullRom);
+                }
+                else
+                    newId = _pool.RegisterTrajectory(
+                        positions,
+                        speeds,
+                        looped:        routePlan.IsLoop,
+                        interpolation: TrajectoryInterpolation.CatmullRom);
             }
 
             cache.TrajectoryId     = newId;

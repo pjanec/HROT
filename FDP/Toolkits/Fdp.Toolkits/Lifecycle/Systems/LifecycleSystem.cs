@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.Lifecycle.Systems
         /// </summary>
         public System.Func<bool>? IsReplayActive { get; set; }
 
+        private int _restoresSeen = -1;
+
         public LifecycleSystem(EntityLifecycleModule manager)
         {
             _manager = manager;
@@ -51,6 +53,14 @@ namespace Fdp.Toolkit.Lifecycle.Systems
 
             var cmd = view.GetCommandBuffer();
             uint currentFrame = view.Tick;
+
+            // ⭐ R-3039 S3 — the world was put back in place (AfterRestore.Run: a dry-run exit, a checkpoint restore): the in-flight
+            //   handshakes named the replaced entities, so they are discarded and re-derived from the restored lifecycle states — the
+            //   replay design's §2.1m re-derive, until now wired only into the editor preview. ⛔ A load does not count (its new
+            //   entities' constructions are already being driven). 📄 docs/DESIGN_System_State_Inventory.md §8.
+            int restores = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(view);
+            if (_restoresSeen >= 0 && restores != _restoresSeen) _manager.OnWorldReplaced(resumingToLive: true);
+            _restoresSeen = restores;
 
             // ⭐ Before anything else: if a world replacement armed a resume, re-open the protocols the
             // restored world implies. A no-op unless armed. 📄 DESIGN.md §2.1m step 2.

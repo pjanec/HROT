@@ -58,6 +58,11 @@ namespace Fdp.Toolkit.Replication.Services
             return epoch;
         }
 
+        /// <summary>⭐ <c>R-3039</c> S3 — how many times <paramref name="view"/>'s world was put back in place (<see cref="Restored"/>); a load
+        /// does not count. What a re-derive that belongs to a RESTORE only (the ELM's resume) watches.</summary>
+        public static int RestoresOf(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<WorldEpoch>() ? repo.GetSingletonManaged<WorldEpoch>()?.RestoreCount ?? 0 : 0;
+
         /// <summary>The current epoch of <paramref name="view"/>'s world (0 when no boundary has happened).</summary>
         public static int Of(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonManaged<WorldEpoch>() ? repo.GetSingletonManaged<WorldEpoch>()?.Value ?? 0 : 0;

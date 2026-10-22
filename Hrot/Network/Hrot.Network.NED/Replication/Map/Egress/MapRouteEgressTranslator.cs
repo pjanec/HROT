@@ -41,6 +41,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     /// we can skip entities whose route has not changed since the previous tick.
     /// </summary>
     private readonly Dictionary<Entity, int> _publishedVersions = new();
+    private int _worldEpoch;
 
     public string TopicName => DdsTopicName;
     public long DescriptorOrdinal => OrdinalValue;
@@ -76,6 +77,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) _publishedVersions.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every route (R-3041)
         var query = view.Query()
             .DefaultRoutePublishable()
             // ⭐ CE-2209 — NO SimTransform filter: nothing here reads it. A route authored without one (hand-written scenarios) was

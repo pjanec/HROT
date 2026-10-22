@@ -63,6 +63,7 @@ namespace Hrot.Common.Systems
         }
 
         private readonly Dictionary<long, PendingRequest> _tracked   = new();
+        private int _worldEpoch;
         private readonly IEntityAckSink                    _ackSink;
         private readonly NetworkEntityMap                  _entityMap;
 
@@ -87,6 +88,7 @@ namespace Hrot.Common.Systems
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _tracked.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): a request in flight is lost (R-3041)
             if (_tracked.Count == 0)
                 return;
 

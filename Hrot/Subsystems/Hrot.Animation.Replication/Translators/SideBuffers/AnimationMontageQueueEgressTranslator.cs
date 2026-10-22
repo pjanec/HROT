@@ -28,6 +28,7 @@ internal sealed class AnimationMontageQueueEgressTranslator : INetworkTranslator
     private readonly IAnimDdsWriter<DdsMontageQueue> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, uint> _lastPublishedQueueVersion = new();
+    private int _worldEpoch;
 
     public string TopicName => TopicNameConst;
     public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -60,6 +61,8 @@ internal sealed class AnimationMontageQueueEgressTranslator : INetworkTranslator
 
     public unsafe void ScanAndPublish(ISimulationView view)
     {
+        // ⭐ R-3039 S3 — a world replacement (a load, a restore): forget what was published, so every owner republishes (R-3041).
+        if (WorldEpoch.Moved(view, ref _worldEpoch)) { _lastPublishedQueueVersion.Clear(); }
         var query = view.Query()
             .With<AnimationMontageQueue>()
             .With<NetworkIdentity>()

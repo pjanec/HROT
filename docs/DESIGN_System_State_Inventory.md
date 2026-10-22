@@ -29,6 +29,7 @@ graph TD
   F --> C["C simulation memory - S1 / S2 move it into the ECS"]
   T --> C
   T --> X["X outside the ECS - SUMO"]
+  F --> S["S session - cluster / transport state a restore leaves"]
 ```
 *What the picture shows that the tables hide:* only two of the five classes are work. K, A and B stay where they are (B gets the S3
 re-derive step); C moves into a component or singleton; X cannot be moved by moving a field at all.
@@ -64,12 +65,11 @@ system* rail.
 
 ### 2b. S2 — world-wide memory into singleton components (pools and counters that components point into)
 
+⏳ **Left: the solver's paths (§7c — awaits the user).** Routes are re-derived (§7b), the counters lifted (§7d), the two test-only types are K (§7a).
+
 | key | class | why empty is wrong | evidence |
 |---|---|---|---|
-| `Hrot.SimHost.Systems.Routing.RouteTrajectorySyncSystem._knownTrajectories` | **C** | entity to trajectory-pool id; components point into pool, empty leaks/never frees | Hrot/Subsystems/Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs:143 |
-| `type:BlockIdManager` | **C** | pool of network ids held; issued ids live in components; capture/restore exists | FDP/Toolkits/Fdp.Toolkits/Replication/Services/BlockIdManager.cs:11 |
 | `type:EngineBackedPathRegistry` | **C** | per-handle path meta keyed by TrajectoryId; IsCached gates FetchPathDetails success | FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathRegistry.cs:20 |
-| `type:SharedPathRegistry` | **C** | holds MusclePathRegistry route waypoint pool; route handles live in components | FDP/Toolkits/Fdp.Toolkits/Navigation/Fake/SharedPathRegistry.cs:12 |
 | `type:TrajectoryPoolManager` | **C** | trajectory pool; NavState.TrajectoryId in components points into it | FDP/Toolkits/Fdp.Toolkits/CarKinem/Trajectory/TrajectoryPoolManager.cs:15 |
 
 ### 2c. X — state in an engine outside the ECS (a checkpoint cannot hold it by moving a field)
@@ -100,10 +100,10 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 
 | key | class | why | evidence |
 |---|---|---|---|
-| `type:ClusterSlave` | **B** | cluster-orchestration slave: seen transaction ids, pending intents, node-op handshake | FDP/Toolkits/Fdp.Toolkits/Orchestration/ClusterSlave.cs:50 |
-| `type:DdsMultiSourcePedSubscriber` | **B** | per-source ped wire reconstruction state, refilled by incoming stream | FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/DdsMultiSourcePedSubscriber.cs:32 |
-| `type:DdsMultiSourceSubscriber` | **B** | per-source vehicle wire reconstruction state, refilled by incoming stream | FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/DdsMultiSourceSubscriber.cs:28 |
-| `type:SimpleClusterStateCache` | **B** | cluster membership/load cache plus unsupported marks; rebuilt from heartbeats and durable topics | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:234 |
+| `type:ClusterSlave` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): cluster-orchestration slave: seen transaction ids, pending intents, node-op handshake | FDP/Toolkits/Fdp.Toolkits/Orchestration/ClusterSlave.cs:50 |
+| `type:DdsMultiSourcePedSubscriber` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): per-source ped wire reconstruction state, refilled by incoming stream | FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/DdsMultiSourcePedSubscriber.cs:32 |
+| `type:DdsMultiSourceSubscriber` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): per-source vehicle wire reconstruction state, refilled by incoming stream | FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/DdsMultiSourceSubscriber.cs:28 |
+| `type:SimpleClusterStateCache` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): cluster membership/load cache plus unsupported marks; rebuilt from heartbeats and durable topics | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:234 |
 | `type:SourceTimeOrder<ValueTuple<Int64,Int32>>` | **B** | newest-source-time per instance for stale-sample drop; empty re-accepts old samples | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigIngressTranslator.cs:46 |
 | `type:AsyncRecorder` | **A** | flight-recorder output buffers/counters; not simulation state | FDP/Engine/Fdp.Core/FlightRecorder/AsyncRecorder.cs:17 |
 | `type:BakedAnimationCache` | **A** | cache of baked TKB animation data, refilled on demand/hot-reload | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Baking/BakedAnimationCache.cs:13 |
@@ -147,6 +147,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:AnimationDispatcherSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationDispatcherSystem.cs:23 |
 | `type:AnimationRuntimeBridgeSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs:20 |
 | `type:SquadSenseChanges` | **K** | R-3039 S1 (was C): holds nothing between frames — its memory is SquadMemberSense on the man and SquadUnitSense on the commander | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/SquadSenseChanges.cs |
+| `type:SharedPathRegistry` | **K** | built only by `NavigationFakesModule`, which only tests construct (R-3039 S2, §7a; was C) | FDP/Toolkits/Fdp.Toolkits/Navigation/Fake/SharedPathRegistry.cs:12 |
+| `type:BlockIdManager` | **K** | no production host constructs it (only tests; `IdAllocationMonitorSystem` reads one only if present) — the live allocators are owned by Deterministic Network Ids §4d (R-3039 S2, §7a; was C) | FDP/Toolkits/Fdp.Toolkits/Replication/Services/BlockIdManager.cs:11 |
 | `type:AnimationStateReporterSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationStateReporterSystem.cs:21 |
 | `type:BehaviorGizmoRegistry` | **K** | startup-time factory table, only registered at init | FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Systems/BehaviorGizmoRegistry.cs:10 |
 | `type:BehaviorIngressSystem` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs:38 |
@@ -401,7 +403,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:TogglableSimulationGroup` | **K** | a system/module, classified on its own | FDP/Engine/Fdp.ModuleHost/Scheduling/TogglableSimulationGroup.cs:14 |
 | `type:VisualEffectCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.IG/Systems/EventToEffectSystem.cs:141 |
 
-## 5. Fields — B (protocol), A (derived), K (not state)
+## 5. Fields — B (protocol), S (session), A (derived), K (not state)
 
 ### 5a. B — protocol, re-derived at a restore (S3: one "the world was restored" step)
 
@@ -416,8 +418,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Lifecycle.EntityLifecycleModule._resumePending` | **B** | armed flag to re-derive handshakes after world replacement | FDP/Toolkits/Fdp.Toolkits/Lifecycle/EntityLifecycleModule.cs:488 |
 | `Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem._pendingCrowd` | **B** | deferred crowd-join retries, re-derived by intent rescan | FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/NavigationIntentBridgeSystem.cs:324 |
 | `Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem._pendingRoute` | **B** | deferred FollowRoute retries, re-derived by intent rescan | FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/NavigationIntentBridgeSystem.cs:299 |
-| `Fdp.Toolkit.Replay.PlaybackTickSystem.<AnchorWallTicks>k__BackingField` | **B** | cluster replay anchor sent by master on each seek | FDP/Toolkits/Fdp.Toolkits/Replay/PlaybackTickSystem.cs:97 |
-| `Fdp.Toolkit.Replay.PlaybackTickSystem.<State>k__BackingField` | **B** | replay span mode (listening/restoring), re-derived each tick | FDP/Toolkits/Fdp.Toolkits/Replay/PlaybackTickSystem.cs:115 |
+| `Fdp.Toolkit.Replay.PlaybackTickSystem.<AnchorWallTicks>k__BackingField` | **S** | session state (the replay controller's own clock and mode, driven by its commands — not the world): cluster replay anchor sent by master on each seek | FDP/Toolkits/Fdp.Toolkits/Replay/PlaybackTickSystem.cs:97 |
+| `Fdp.Toolkit.Replay.PlaybackTickSystem.<State>k__BackingField` | **S** | session state (the replay controller's own clock and mode, driven by its commands — not the world): replay span mode (listening/restoring), re-derived each tick | FDP/Toolkits/Fdp.Toolkits/Replay/PlaybackTickSystem.cs:115 |
 | `Fdp.Toolkit.Replication.Systems.DeferredConstructionParticipant._pending` | **B** | entities awaiting deferred construction completion | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs:115 |
 | `Fdp.Toolkit.Replication.Systems.DeferredConstructionParticipant._pendingStartFrame` | **B** | start frame of deferred construction wait | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs:116 |
 | `Fdp.Toolkit.Replication.Systems.DeferredConstructionParticipant._pendingTimeoutFrames` | **B** | per-entity timeout of deferred construction | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs:97 |
@@ -429,7 +431,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Replication.Systems.NetworkGatewaySystem._phase1Received` | **B** | phase-1 ack progress, handshake | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/NetworkGatewaySystem.cs:110 |
 | `Fdp.Toolkit.Replication.Systems.OwnershipEgressSystem._lastKnownOwnership` | **B** | last-published ownership per entity for egress change detection | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/OwnershipEgressSystem.cs:46 |
 | `Fdp.Toolkit.Replication.Systems.SimulatedInitReadinessParticipant._deferFrame` | **B** | readiness-wait start frame per entity; cleared at world boundary | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/SimulatedInitReadinessParticipant.cs:88 |
-| `Fdp.Toolkit.Time.SwitchTimeModeDescriptorTranslator._lastIngressed` | **B** | echo-suppression of last ingressed DDS sample on egress | FDP/Toolkits/Fdp.Toolkits/Time/SwitchTimeModeDescriptorTranslator.cs:133 |
+| `Fdp.Toolkit.Time.SwitchTimeModeDescriptorTranslator._lastIngressed` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): echo-suppression of last ingressed DDS sample on egress | FDP/Toolkits/Fdp.Toolkits/Time/SwitchTimeModeDescriptorTranslator.cs:133 |
 | `Hrot.Animation.Replication.Translators.Channels.AnimationChannelIntentEgressTranslator._lastPublishedActionInstanceId` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/Channels/AnimationChannelIntentEgressTranslator.cs:102 |
 | `Hrot.Animation.Replication.Translators.Channels.AnimationChannelIntentEgressTranslator._lastPublishedActionParams` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/Channels/AnimationChannelIntentEgressTranslator.cs:103 |
 | `Hrot.Animation.Replication.Translators.Channels.AnimationChannelStatusEgressTranslator._lastPublished` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/Channels/AnimationChannelStatusEgressTranslator.cs:80 |
@@ -444,7 +446,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Common.Systems.CreateEntityRequestSystem._pendingQueue` | **B** | accepted requests (already InProgress-acked) awaiting time-sliced spawn; requester handshake | Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs:221 |
 | `Hrot.Common.Systems.EntityRequestFinalizationSystem._tracked` | **B** | pending phase-2 ack tracking for create/delete requests | Hrot/Engine/Hrot.Common/Systems/EntityRequestFinalizationSystem.cs:84 |
 | `Hrot.Common.Systems.MissionControlExecutionSystem._retryQueue` | **B** | command intents waiting for their entity to be ready; retried with frame budget | Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs:177 |
-| `Hrot.IG.Gizmos.IGCapabilitiesPublisherSystem._published` | **B** | announce-once latch for IG capabilities publication | Hrot/Subsystems/Hrot.IG/Gizmos/IGCapabilitiesPublisherSystem.cs:32 |
+| `Hrot.IG.Gizmos.IGCapabilitiesPublisherSystem._published` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): announce-once latch for IG capabilities publication | Hrot/Subsystems/Hrot.IG/Gizmos/IGCapabilitiesPublisherSystem.cs:32 |
 | `Hrot.Map.Common.Replication.Egress.EntityAreaEffectCloudEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityAreaEffectCloudTranslators.cs:56 |
 | `Hrot.Map.Common.Replication.Egress.EntityCombatProficiencyEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityCombatProficiencyTranslators.cs:57 |
 | `Hrot.Map.Common.Replication.Egress.EntityCustodyEgressTranslator._last` | **B** | last-sent sample per entity for egress change detection; empty republishes | Hrot/Network/Hrot.Network.NED/Replication/Map/EntityCustodyTranslators.cs:56 |
@@ -501,8 +503,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Map.Common.Replication.Ingress.MapVisualOverlayIngressTranslator._pendingOverlays` | **B** | overlay polyline rebuild deferred until entity has SimTransform | Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/MapVisualOverlayIngressTranslator.cs:158 |
 | `Hrot.Map.Common.Services.StaticObstacleBakeSystem._runningBatch` | **B** | obstacles of the in-flight bake awaiting ConstructionAck; re-collected from Constructing entities | Hrot/Engine/Hrot.Core/Services/StaticObstacleBake.cs:136 |
 | `Hrot.Map.Common.Services.StaticObstacleBakeSystem._runningSignature` | **B** | signature of the in-flight bake; just handshake bookkeeping | Hrot/Engine/Hrot.Core/Services/StaticObstacleBake.cs:137 |
-| `Hrot.Network.NED.Attributes.EntityAttributeSchemaPublisherSystem._published` | **B** | publish-schema-once latch; empty republishes schema, harmless | Hrot/Network/Hrot.Network.NED/Attributes/EntityAttributeSchemaPublisherSystem.cs:46 |
-| `Hrot.Network.NED.Gizmos.GizmoInteractionEgressTranslator._sequenceNumber` | **B** | wire sequence number for gizmo batches; debug-UI egress only | Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionEgressTranslator.cs:87 |
+| `Hrot.Network.NED.Attributes.EntityAttributeSchemaPublisherSystem._published` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): publish-schema-once latch; empty republishes schema, harmless | Hrot/Network/Hrot.Network.NED/Attributes/EntityAttributeSchemaPublisherSystem.cs:46 |
+| `Hrot.Network.NED.Gizmos.GizmoInteractionEgressTranslator._sequenceNumber` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): wire sequence number for gizmo batches; debug-UI egress only | Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionEgressTranslator.cs:87 |
 | `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._onWire` | **B** | mirror of what DDS holds for sensor instances; refilled by ReadWire/own writes | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:179 |
 | `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._published` | **B** | last config written per sensor entity for egress change detection | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:176 |
 | `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._recordedSolver` | **B** | solver already written to ownership record; empty re-applies idempotently | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:365 |
@@ -511,10 +513,10 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator._awaitingPlayback` | **B** | carriers created via command buffer not yet in world; epoch-cleared | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigIngressTranslator.cs:334 |
 | `Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator._pending` | **B** | config samples held until parent/slots resolve; epoch-cleared, resent on change only | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigIngressTranslator.cs:138 |
 | `Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator._recordedSolver` | **B** | solver already written to ownership record; empty re-applies idempotently | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigIngressTranslator.cs:412 |
-| `Hrot.Network.NED.SimHost.RaycastBatchEgressTranslator._batchCorrelationId` | **B** | wire batch counter; only echoed to responses, never read by consumers | Hrot/Network/Hrot.Network.NED/SimHost/PerceptionTranslators.cs:177 |
-| `Hrot.Network.NED.SimHost.RaycastBatchSolverEgressTranslator._batchCorrelationId` | **B** | wire batch counter; only echoed to responses, never read by consumers | Hrot/Network/Hrot.Network.NED/SimHost/PerceptionTranslators.cs:661 |
-| `Hrot.Network.Routing.ClusterCapabilityIngestSystem._departed` | **B** | node-departure raised-once set; empty may re-raise NodeDeparted, idempotent | Hrot/Network/Hrot.Network.NED/Routing/ClusterCapabilityIngestSystem.cs:129 |
-| `Hrot.Network.Routing.ClusterCapabilityIngestSystem._nodeCapabilities` | **B** | per-node capability tokens from durable DDS topic; rebuilt on reader replay | Hrot/Network/Hrot.Network.NED/Routing/ClusterCapabilityIngestSystem.cs:89 |
+| `Hrot.Network.NED.SimHost.RaycastBatchEgressTranslator._batchCorrelationId` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): wire batch counter; only echoed to responses, never read by consumers | Hrot/Network/Hrot.Network.NED/SimHost/PerceptionTranslators.cs:177 |
+| `Hrot.Network.NED.SimHost.RaycastBatchSolverEgressTranslator._batchCorrelationId` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): wire batch counter; only echoed to responses, never read by consumers | Hrot/Network/Hrot.Network.NED/SimHost/PerceptionTranslators.cs:661 |
+| `Hrot.Network.Routing.ClusterCapabilityIngestSystem._departed` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): node-departure raised-once set; empty may re-raise NodeDeparted, idempotent | Hrot/Network/Hrot.Network.NED/Routing/ClusterCapabilityIngestSystem.cs:129 |
+| `Hrot.Network.Routing.ClusterCapabilityIngestSystem._nodeCapabilities` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): per-node capability tokens from durable DDS topic; rebuilt on reader replay | Hrot/Network/Hrot.Network.NED/Routing/ClusterCapabilityIngestSystem.cs:89 |
 | `Hrot.Network.Translators.BrainIntentEgressTranslator._lastSent` | **B** | last-sent intent JSON per entity for egress change detection | Hrot/Network/Hrot.Network.NED/Translators/BrainIntentTranslators.cs:85 |
 | `Hrot.Network.Translators.BrainIntentEgressTranslator._lastSignature` | **B** | last-sent intent signature per entity for egress change detection | Hrot/Network/Hrot.Network.NED/Translators/BrainIntentTranslators.cs:78 |
 | `Hrot.Network.Translators.BrainIntentIngressTranslator._held` | **B** | intent JSON held until its unit is known here; epoch-cleared | Hrot/Network/Hrot.Network.NED/Translators/BrainIntentTranslators.cs:162 |
@@ -771,6 +773,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Traffic.TrafficPanicSystem._done` | **A** | scratch cleared before each use | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:61 |
 | `Hrot.Traffic.TrafficPanicSystem._frame` | **A** | scratch cleared at top of Execute | Hrot/Engine/Hrot.Traffic/TrafficPanic.cs:85 |
 | `Hrot.Traffic.TrafficShadowFollowSystem._shadows` | **A** | scratch cleared and refilled each Execute from TrafficFrame | Hrot/Engine/Hrot.Traffic/TrafficShadowFollowSystem.cs:44 |
+| `Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem._restoresSeen` | **A** | the WorldEpoch restore count last seen — the R-3039 S3 trigger itself (§8) | FDP/Toolkits/Fdp.Toolkits/Lifecycle/Systems/LifecycleSystem.cs |
+| `Hrot.SimHost.Systems.Routing.RouteTrajectorySyncSystem._knownTrajectories` | **A** | R-3039 S2 (§7b; was C): rebuilt at a world replacement from the routes' restored RouteTrajectoryCache, each route compiled again under the id it names | Hrot/Subsystems/Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs:143 |
 | `Fdp.Toolkit.Civilians.CrowdSystem._crowdEntity` | **A** | R-3039 S1: rebuilt every frame from the Crowd entities (Crowd.Id) — was C | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:136 |
 | `Fdp.Toolkit.Civilians.CrowdSystem._nextId` | **A** | R-3039 S1: derived every frame — one past every id a crowd or member holds — was C | FDP/Toolkits/Fdp.Toolkits/Civilians/CrowdSystem.cs:137 |
 | `Hrot.MuscleCharacter.Animation.Systems.AnimationRuntimeBridgeSystem._registered` | **A** | R-3039 S1 (was C `_entityClassIds`): which entities this process's backend has registered — the backend (X) is this process's, so a fresh one starts empty and re-registers each under its class — the raw template id in BackendHandle, or, past a handle encoded by an earlier process, the entity's TkbIdentity.TkbType (AnimationRuntimeBridgeSystem.ClassOf) | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs |
@@ -973,3 +977,80 @@ sequenceDiagram
 ```
 *What the picture shows:* the rail is the §7f.1 `EjectionSystem` probe generalised — ⭐ a FRESH system after a keyframe restore. A move is
 done when its rail is green and its inventory row has gone from §2 (the ratchet in the S4 rail drops with it).
+
+## 7. ⭐ S2 — the world-wide memory components point into (design `2026-10-22`; build-state: 7a/7b/7d BUILT `2026-10-22` · 7c DESIGN, awaits the user)
+
+**INVENTORY** (the §2b rows, each measured — corpus sweep + reads, `2026-10-22`): `TrajectoryPoolManager` (one per process: SimHost
+`SimHostNodeBootstrapper.cs:123` via `TrajectoryPoolProvider`; the editor's `GroundKinematicsModule.cs:108` lazy default; Stride
+`StrideKinematicsModule.cs:94`) · `RouteTrajectorySyncSystem._knownTrajectories` · `BlockIdManager` · `EngineBackedPathRegistry` ·
+`SharedPathRegistry`. Producers into the pool, `grep "RegisterTrajectory"` outside tests and examples ⇒ **4**: `RouteTrajectorySyncSystem`
+(authored routes, auto id) · `PathfindingSolverSystem` (keyed by the route handle, `:226`/`:264`) · `PathfindingResultIngressTranslator`
+(a path received over the wire, auto id, `PathfindingTranslators.cs:211`) · `SimHostScenarioManager` (a UI demo).
+
+```mermaid
+classDiagram
+  direction LR
+  class TrajectoryPoolManager { <<per process, NOT in a keyframe>> -Dictionary~int,CustomTrajectory~ _trajectories -int _nextId +RegisterTrajectory() +RegisterTrajectoryWithKey() +EnsureIdsAbove(int) NEW }
+  class NavigationHandleAllocator { <<static>> -int _counter +Allocate() +EnsureAbove(int) NEW }
+  class RoutePlan { <<managed component, recorded>> +Waypoints +IsLoop +Version }
+  class RouteTrajectoryCache { <<component, recorded>> +int TrajectoryId +CompiledVersion }
+  class NavState { <<component, recorded>> +int TrajectoryId +ProgressS }
+  class NavPathRecord { <<7c — NEW, the user's call>> +int Id +Vector3[] Points +byte[] Traversals +meta }
+  class RouteTrajectorySyncSystem { -_knownTrajectories (DERIVED: re-made from RouteTrajectoryCache) }
+  class TrajectoryRestore { <<7d NEW: the pool's re-derive step>> +Run(repo, pool) }
+  RouteTrajectorySyncSystem ..> RoutePlan : compiles
+  RouteTrajectorySyncSystem ..> TrajectoryPoolManager : registers under cache.TrajectoryId
+  NavState ..> TrajectoryPoolManager : TrajectoryId points INTO
+  RouteTrajectoryCache ..> TrajectoryPoolManager : TrajectoryId points INTO
+  NavPathRecord ..> TrajectoryPoolManager : re-registered from (7c)
+  TrajectoryRestore ..> TrajectoryPoolManager : EnsureIdsAbove(max restored id)
+  TrajectoryRestore ..> NavigationHandleAllocator : EnsureAbove(max restored handle)
+```
+*What the picture shows that prose hid:* every arrow INTO the pool comes from a recorded component, but the pool itself is in no keyframe
+(a managed singleton is in none either — Checkpoint Restore §1c D7, rail `WorldKeyframesTests.ManagedSingleton_SetBySetSingletonManaged_IsNotInAKeyframe`).
+⇒ ⭐ **"into a singleton" (§7g.1's S2 line) does not survive a restore into a fresh process.** The pool stays what ROUTES1 §2.1 designed it
+as — *"a transient, read-optimised performance cache"* — and becomes class A: re-derived from what the components record.
+
+| # | item | ⭐ decision | basis |
+|---|---|---|---|
+| 7a | `BlockIdManager` · `SharedPathRegistry` | ⭐ **K** — no production host constructs either (only tests; `IdAllocationMonitorSystem` reads a `BlockIdManager` only if present) | the same call as `FakeDtCrowdProvider` (§1). The live allocators (`SequentialIdAllocator`, `DdsIdAllocator`) are owned by Deterministic Network Ids §4d |
+| 7b | route trajectories (`RouteTrajectorySyncSystem`) | ⭐ **derived (as built):** at a world replacement the system forgets what it knew and compiles EVERY route again under the id its restored `RouteTrajectoryCache` names — `TrajectoryPoolManager.RegisterTrajectoryAt` (NEW: the full registration — CatmullRom, speeds, loop — at a pool-issued id; ⛔ not `RegisterTrajectoryWithKey`, which is linear-only and for caller-keyed handles) ⇒ `_knownTrajectories` is A | 🔴 measured by reading: today it frees its entries at `WorldEpoch.Moved` (`:69`) and then skips every route whose restored cache says "compiled" (`:103`) ⇒ after any restore the route's vehicle points at a freed / never-made trajectory |
+| 7c | the solver's and the ingress's paths | ⏳ **the user's call** — see below | |
+| 7d | the id counters | ⭐ **derived:** at a world replacement the pool's `_nextId` is lifted above every restored route's id (`EnsureIdsAbove`, a pre-pass before anything compiles; `RegisterTrajectoryAt` lifts it too) — ✅ built. ⏳ `NavigationHandleAllocator._counter` (the muscle's handles) is lifted with 7c, whose records are what name those handles | the `CrowdSystem._nextId` precedent (§6 #9). ⛔ Without it, a fresh process re-issues a restored id: a new path overwrites one a vehicle is still driving |
+
+### 7c — ⏳ the solver's paths: where do the points live? (lean **A**)
+
+| option | what | ⭐ cost | verdict |
+|---|---|---|---|
+| ⭐ **A — a recorded copy on the mover** | a managed `NavPathRecord { Id, Points, Traversals, meta }` on every entity whose `NavState.TrajectoryId` names a pool entry, written by one main-thread system when the id changes; 7d's restore step re-registers each under its id | one component on each moving unit (recorded only when its path changes); ⚠ **every scenario golden with a moving unit re-records once** (the coordinator's, `R-4065`) | ⭐ **lean** — a restored run continues on the SAME path (the R1 oracle can pass) |
+| B — re-plan after a restore | nothing recorded; at a restore every mover asks for a new path from where it stands | none in the recording | ⛔ a restored run DIVERGES from the original (a new path, progress reset) — R1 can never pass |
+| C — a recorded pool singleton | the recorder learns to write a managed singleton that opts in | a recorder change in the engine (D7 decided against recording managed singletons); the WHOLE pool is rewritten each time any path changes | ⛔ the cost lands in every frame of every recording |
+
+## 8. ⭐ S3 — one re-derive step on every restore (design `2026-10-22`; build-state: BUILT `2026-10-22`)
+
+```mermaid
+sequenceDiagram
+  participant H as restore (dry-run exit, checkpoint restore, replay seek)
+  participant K as WorldKeyframes.Apply
+  participant AR as AfterRestore.Run
+  participant WE as WorldEpoch
+  participant O as every class-B owner
+  participant ELM as EntityLifecycleModule
+  H->>K: put the world back
+  H->>AR: Run(repo)
+  AR->>AR: entity map rebuilt from the world
+  AR->>WE: Restored() - Generation++, RestoreCount++
+  Note over O: next tick of each owner
+  O->>WE: Moved(view, ref seen)? yes
+  O->>O: clear (egress last-sent, ingress pending, requests in flight)
+  ELM->>WE: restored since last tick? yes
+  ELM->>ELM: OnWorldReplaced(resumingToLive: true) - re-open every Constructing / TearDown entity
+```
+*What the picture shows:* there is ONE signal (`WorldEpoch`), raised in ONE place (`AfterRestore.Run`), and every owner reacts to it on its own
+next tick — ⛔ no list of systems for a restore handler to call. ⚠ `Ended` does not move, so nothing deletes entities on the wire.
+
+| ⭐ | |
+|---|---|
+| **B means "re-derived at a world replacement"** | a B field's owner clears or re-derives it when `WorldEpoch.Moved` fires (directly, via `OnWorldBoundary`, or the ELM's `OnWorldReplaced`). 📐 Measured: 88 B owners, **15** with no such hook — the eight animation egress translators, the mission and route egress caches, the overlay ingress's pending set, the two entity-request trackers, `TrafficPanicSystem._held`, and the ELM (its re-derive, replay design §2.1m, is wired only into the editor preview) |
+| **NEW class S — session state** | cluster, transport and process state that is not the world: a restore leaves it, by design (`ClusterSlave`, the cluster state cache, capability ingest, the SUMO wire reconstructors, publish-once latches, the time-mode echo suppression, three counters that only grow, the replay controller's own clock and mode). 📐 **12** owners, reclassified from B |
+| **the rail** | `EveryProtocolFieldIsReDerivedAtARestore` — every B row's owner file reacts to the world replacing (`WorldEpoch` / `OnWorldBoundary` / `OnWorldReplaced`); an S row needs no hook. ⚠ A text check: it proves the hook exists, not that it clears the right field — the ELM gets a behavioural rail |

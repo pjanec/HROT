@@ -359,6 +359,41 @@ public sealed class APreviewLeavesNoTraceTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S3 (docs/DESIGN_System_State_Inventory.md §8) — the ONE restore step reaches the ELM: after
+    /// <c>AfterRestore.Run</c> (a dry-run exit, a checkpoint restore) the lifecycle system's next tick discards the in-flight handshake
+    /// that named the replaced entities and re-opens every restored Constructing one — with no call from the restore handler to the ELM.
+    /// A LOAD (a world boundary, <c>WorldEpoch.Advance</c>) does not. 🔴 Red-proof: before, only the editor preview's bracket reached
+    /// the ELM, so after a checkpoint restore the stale handshake stayed and the restored Constructing entity was driven by nobody.
+    /// </summary>
+    [Fact]
+    public void R3039_AfterRestoreRun_ReachesTheElm_AndALoadDoesNot()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var elm = new EntityLifecycleModule(null!, new[] { 1 });   // one participant that never acks: nothing completes on its own
+        var system = new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm);
+        system.Execute(repo, 0f);   // the system's first look at the world
+
+        var stale = repo.CreateEntity();
+        elm.BeginConstruction(stale, blueprintId: 1, currentFrame: repo.SimulationTick, new EntityCommandBuffer());
+        Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(repo);   // a load moves the epoch …
+        system.Execute(repo, 0f);
+        Assert.Equal(1, elm.GetStatistics().pending);               // … and is not a restore: the handshake stays
+
+        for (int i = 0; i < 2; i++)
+        {
+            var restored = repo.CreateEntity();
+            repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4242 + i });
+            repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
+        }
+        Fdp.Toolkit.Replay.AfterRestore.Run(repo);
+        repo.DestroyEntity(stale);                                   // the restored world has no such entity
+        system.Execute(repo, 0f);
+
+        Assert.Equal(2, elm.GetStatistics().pending);               // the stale one gone, BOTH restored ones re-opened (unhooked: 1)
+    }
+
+    /// <summary>
     /// ⭐⭐ THE REPLAY GATE (step 1). mgmt-1/DESIGN.md §8.10: during replay "the ELM pipeline is never
     /// invoked". Decisively, CheckTimeouts must not run while the frame counter is rewound.
     /// </summary>
