@@ -2,9 +2,10 @@
   "fdp_message_log",
   "global_menu",
   "main_toolbar",
+  "rb_details",
   "rb_diff",
-  "rb_events",
-  "rb_inspector",
+  "rb_fdp_events",
+  "rb_fdp_inspector",
   "rb_search",
   "rb_timeline"
 ]

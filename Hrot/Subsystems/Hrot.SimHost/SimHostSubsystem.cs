@@ -370,6 +370,7 @@ namespace Hrot.SimHost
             //    was loaded. ⚠ It STATED SOMETHING FALSE, which is worse than being absent.
 
             vis.SetPanelsWindowManaged();
+            vis.RegisterMainMenu(windowManager.GlobalMenu, "SimHost");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
 
             // ── Time transport controls in status bar ─────────────────────────
             var bus = _app?.OrchestrationEventBus;

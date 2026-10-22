@@ -4175,6 +4175,94 @@ links the inspector window to the host's map through the inspector state both ar
 `DiagnosticsHostServices` field — the join key was already there. 📄 Owning design and UML:
 [canvas-context-menu-design §10](designs/gizmos-1/canvas-context-menu-design.md).
 
+⚠ **`2026-10-22` (`CE-1150`)** — the join above is SUPERSEDED: `InspectorMapLink` is deleted; `DiagnosticsHostServices` gained `Host`
+(the host's actions) and `World`, and the menu handler reads those
+([canvas-context-menu-design §12](designs/gizmos-1/canvas-context-menu-design.md) HA-5).
+
+#### 5c.7.8 DESIGN — the ReplayBrowser composes THIS bundle; its two copied windows retire (`CE-1244`, `2026-10-22`, ui) — build-state: BUILT (✅ RI-1…RI-3 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
+
+🔒 User, `2026-10-22`: *"pls explain "The ReplayBrowser's inspector sits outside the shared diagnostics bundle" … what is that inspector
+window, does it needs to be specific?"* ⇒ measured: it need not. ⚠ **This section supersedes §5c.7.1's ⛔ ReplayBrowser column and the
+"arrow that must NOT exist" `ReplayBrowserSubsystem --> DiagnosticsWindowsBundle` (§5c.7.4)** — that exclusion recorded that the
+ReplayBrowser registered a different TYPE; it gave no reason the type should differ, and measuring the two types finds none.
+
+**INVENTORY** (grep `class FdpEntityInspectorWindow` / `class FdpEventBrowserWindow` and every `new` of them): two pairs.
+
+| | the bundle's (`Hrot.Presentation/Windows/FdpPanelWindows.cs`) | the ReplayBrowser's (`Fdp.Presentation/ImGui/Windows/ReplayBrowser/`) |
+|---|---|---|
+| inspector window | `FdpEntityInspectorWindow(…, EntityInspectorPanel, Func<RepositoryAdapter?>, Func<InspectorState>, color?)` | `FdpEntityInspectorWindow(…, EntityInspectorPanel, Func<IInspectableSession?>, Func<InspectorState>, color)` — the SAME panel, the same build / publish / draw; only the session's static type differs, and the ReplayBrowser passes a `RepositoryAdapter` (`ReplayBrowserSubsystem.cs:172`, `:649`) |
+| event-browser window | `FdpEventBrowserWindow` | a copy |
+| users | five hosts, through the bundle | the ReplayBrowser alone (`ReplayBrowserSubsystem.cs:971`, `:981`) |
+
+| the lean rests on | code — how it is | design basis |
+|---|---|---|
+| the two inspector windows are one implementation, twice | ✅ the table above | ✅ ruling 9 (*"no keeping two implementations for the same concept"*) |
+| the ReplayBrowser has what the bundle needs | ✅ an `EntityInspectorPanel`, a `RepositoryAdapter`, an `InspectorState`, an `EventBrowserPanel`, a title colour; no kernel ⇒ no architecture / profiler windows (the bundle registers those only when given — ruling 49) | ✅ §5c.7.3 (absent-and-explained) |
+| it now has host actions and a world for the inspector's map menu | ✅ `ReplayBrowserSubsystem.HostActions` (CE-1150), `_activeRepo` | ✅ canvas-context-menu-design §12 HA-5 |
+| the ids change | ✅ `rb_inspector` / `rb_events` → `rb_fdp_inspector` / `rb_fdp_events` (the bundle's `{IdPrefix}` scheme); one golden lists them (`Hrot.SystemTests/Goldens/ui-baseline-replaybrowser/registered-windows.json`) | ⛔ searched, none |
+
+```mermaid
+classDiagram
+    direction LR
+    class ReplayBrowserSubsystem { <<existing>> RegisterWindowsCore: + composes DiagnosticsWindowsBundle(IdPrefix rb_, TitlePrefix Replay) }
+    class DiagnosticsWindowsBundle { <<existing>> inspector + map menu + Inspect… + event browser (architecture / profiler only when given) }
+    class FdpEntityInspectorWindow_Hrot { <<existing, Hrot.Presentation>> }
+    class FdpEventBrowserWindow_Hrot { <<existing, Hrot.Presentation>> }
+    class FdpEntityInspectorWindow_Replay { <<DELETED, Fdp.Presentation.Windows.ReplayBrowser>> }
+    class FdpEventBrowserWindow_Replay { <<DELETED, Fdp.Presentation.Windows.ReplayBrowser>> }
+    ReplayBrowserSubsystem ..> DiagnosticsWindowsBundle : composes
+    DiagnosticsWindowsBundle ..> FdpEntityInspectorWindow_Hrot
+    DiagnosticsWindowsBundle ..> FdpEventBrowserWindow_Hrot
+```
+
+```mermaid
+sequenceDiagram
+    participant RB as ReplayBrowserSubsystem.RegisterWindowsCore
+    participant B as DiagnosticsWindowsBundle
+    participant WM as WindowManager
+    RB->>B: services(rb_, Replay, ReplayBrowser, inspectorPanel, () => _session, () => _inspectorState, eventPanel, colour, Host, World)
+    B->>WM: rb_fdp_inspector (the map's entity menu on it, from the host's actions)
+    B->>WM: rb_fdp_events
+    Note over B: no kernel - no architecture or profiler window
+    RB->>WM: its own replay windows (timeline, diff, search, federation) - unchanged
+```
+
+```mermaid
+graph TD
+    IG[IG] --> B[DiagnosticsWindowsBundle]
+    S[SimHost] --> B
+    C[CGF] --> B
+    E[Editor] --> B
+    ST[Stride mode 2] --> B
+    RB[ReplayBrowser] -->|NEW| B
+    X[the two ReplayBrowser window copies] -.->|DELETED| RB
+    style X stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the ReplayBrowser's replay-only windows (timeline, diff, search, federation) stay its own; only
+the two windows every host has move to the one bundle — and with them the ReplayBrowser gains the map's entity menu and "Inspect…".*
+
+| decision | ✅ approved |
+|---|---|
+| **RI-1** | the ReplayBrowser composes `DiagnosticsWindowsBundle` (`IdPrefix "rb_"`, `TitlePrefix "Replay"` — the titles stay *"Replay Entity Inspector"* / *"Replay Event Browser"*), passing `Host` and `World` |
+| **RI-2** | delete `Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow` and `…FdpEventBrowserWindow` (cross-lane: FDP) |
+| **RI-3** | the ids become `rb_fdp_inspector` / `rb_fdp_events`; the replay golden is regenerated deliberately (two ids renamed, nothing else) — a saved layout loses those two windows' placement once |
+
+**Rejected — one line each:** *keep the copies, add the map menu to them* — a second implementation of the inspector grows a second copy
+of every feature added to it; *keep the old ids through a bundle option* — an id override per host is the drift §5c.7.1's two-string
+scheme exists to stop.
+
+**As-built `2026-10-22` (ui)** — matches RI-1…RI-3. `ReplayBrowserSubsystem.RegisterWindowsCore` composes
+`DiagnosticsWindowsBundle(rb_, Replay, …, Host: HostActions, World: _activeRepo)` beside the CE-1150 Details bundle; the two FDP copies
+are deleted; their dump rails are re-homed onto the PANELS (`EntityInspectorPanelDumpsItsSelectionTests`,
+`EventBrowserPanelDumpsItsEventsTests` — the window rails live with the one window in `FdpPanelWindowsDumpTheirModelsTests`);
+`ReplayBrowserSubsystemTests` pins the exact six ids. Goldens, deliberate and exact: `ui-baseline-replaybrowser` −`rb_events`
+−`rb_inspector` +`rb_details` +`rb_fdp_events` +`rb_fdp_inspector`; `ui-baseline-all` +`cgf_details` +`ig_details` +`simhost_details`
+(⚠ CE-1150's Details panels, which that change had not folded into the goldens — found here). Gates: `Hrot.ReplayBrowser.Tests` 34/0
+(⚠ it first needed `dotnet restore`: its assets predated the Bepu merge, so `BepuPhysics.dll` was missing and the CE-3118 terrain rail
+failed — the stale-restore trap, proved by the same rail passing on a clean worktree), `Hrot.Presentation.Tests` 824/0,
+`Fdp.Presentation.Tests` 576/0. ⏳ The `ui-baseline` system rails (T3) were not run here.
+
 ### 5c.8 🔴🔴 SLICE ③ — **MOSTLY ALREADY DONE. The measurement, and the little that remains.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
 
 > ⛔⛔ **The plan's slice ③ said *"the editor/CGF-only shell surfaces (menus, toolbar, perspectives)"* as if

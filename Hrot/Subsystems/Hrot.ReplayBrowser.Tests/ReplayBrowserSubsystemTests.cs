@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using System.Numerics;
@@ -117,11 +118,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     // ── FND-T12: 5 windows registered, all PerspectiveBound, all "ReplayBrowser" ─
 
     /// <summary>
-    /// FND-T12: RegisterWindowsCore registers exactly 5 windows; all are
+    /// FND-T12: RegisterWindowsCore registers exactly 6 windows (CE-1150 / CE-1244); all are
     /// PerspectiveBound scope; all belong to the "ReplayBrowser" perspective.
     /// </summary>
     [Fact]
-    public void RegisterWindowsCore_RegistersFiveWindows_AllReplayBrowserPerspective()
+    public void RegisterWindowsCore_RegistersSixWindows_AllReplayBrowserPerspective()
     {
         _subsystem.Initialize(HeadlessConfig());
 
@@ -149,7 +150,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             .GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(5, windows.Count);
+        // ⭐ CE-1150 + CE-1244 — the shared Details panel (rb_details) and the shared diagnostics bundle's inspector / event browser
+        //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
+        Assert.Equal(new[] { "rb_details", "rb_diff", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" }, windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
         {
@@ -169,7 +172,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// <c>federationPanel: null</c> registers no sixth window — pinning FND-T12's original count.
     /// </summary>
     [Fact]
-    public void RegisterWindowsCore_WithNoGroupLoadedYet_RegistersOnlyFiveWindows()
+    public void RegisterWindowsCore_WithNoGroupLoadedYet_RegistersOnlySixWindows()
     {
         _subsystem.Initialize(HeadlessConfig());
 
@@ -190,7 +193,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(5, windows.Count);
+        Assert.Equal(6, windows.Count);   // ⭐ CE-1150 / CE-1244 — see the rail above
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 

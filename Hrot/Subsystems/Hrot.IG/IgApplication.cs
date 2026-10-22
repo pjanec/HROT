@@ -423,9 +423,7 @@ public class IgApplication : IDisposable
 
     private IgDebugPanel          _debugPanel        = null!;
 
-    private EntityInspectorState  _inspectorState    = null!;
-
-    private EntityInspectorPanel  _inspectorPanel    = null!;
+    // ⭐ CE-1247 — the IG's "Entity Properties" card is the shared Details panel's Summary view now (EntitySummaryView).
     private Hrot.UI.Common.Panels.WaypointEditorPanel _waypointEditorPanel = null!;
 
     private MiniExConPanelState     _miniIosState      = null!;
@@ -499,8 +497,6 @@ public class IgApplication : IDisposable
 
     /// <summary>The IG debug panel (FPS counters, render overrides).</summary>
     public IgDebugPanel          DebugPanel          => _debugPanel;
-    /// <summary>The IG entity properties panel.</summary>
-    public EntityInspectorPanel  EntityPropertiesPanel => _inspectorPanel;
     /// <summary>The IG waypoint editor panel.</summary>
     public Hrot.UI.Common.Panels.WaypointEditorPanel WaypointEditorPanel => _waypointEditorPanel;
     /// <summary>The IG Mini ExCon spawner panel.</summary>
@@ -509,6 +505,11 @@ public class IgApplication : IDisposable
     public PerformanceOverlay    PerformanceOverlay   => _performanceOverlay;
     /// <summary>The FDP entity inspector panel.</summary>
     public FdpEntityInspectorPanel FdpEntityInspector => _fdpEntityInspector;
+
+    /// <summary>⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor bound to <paramref name="perspective"/>.</summary>
+    public void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string perspective)
+        => Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(menu, "ig/map-menus", perspective,
+               () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
 
     /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
     /// actions on them, the inspector menu and the Details bundle request through them.</summary>
@@ -726,10 +727,6 @@ public class IgApplication : IDisposable
         _debugPanelState    = new DebugPanelState(_userConfig);
 
         _debugPanel         = new IgDebugPanel(_debugPanelState);
-
-        _inspectorState     = new EntityInspectorState();
-
-        _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
 
         _waypointEditorPanel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);   // ⭐ CE-1096 — moved to Presentation
 
@@ -1295,7 +1292,6 @@ public class IgApplication : IDisposable
 
             _performanceMetrics.Snapshot(_world, Raylib.GetFPS(), Raylib.GetFrameTime() * 1000f);
 
-            _inspectorState.Refresh(_world, GetSelectedEntity());
 
             // ⭐⭐⭐ UXI-11 S-3 — the "Task 43/46 one-directional map -> inspector sync" is GONE.
             //    📄 UX_Feature_Selection.md §2.7.4 listed this hand-sync for retirement;
@@ -1413,7 +1409,6 @@ public class IgApplication : IDisposable
         if (!_panelsWindowManaged)
         {
             _debugPanel.Draw();
-            _inspectorPanel.Draw();
             _waypointEditorPanel.Draw(IgPanelColors.Push, IgPanelColors.Pop);   // ⭐ CE-1096 — the shared panel, the IG's colours
         }
 
@@ -1427,23 +1422,7 @@ public class IgApplication : IDisposable
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
 
-        // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
-        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-        if (gizmoMenus != null && gizmoMenus.Count > 0)
-        {
-            if (ImGui.BeginMainMenuBar())
-            {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                {
-                    _interactionBus?.Publish(new GizmoMenuActionEvent
-                    {
-                        AnchorId = 0,
-                        ActionId = actionId,
-                    });
-                });
-                ImGui.EndMainMenuBar();
-            }
-        }
+        // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterMainMenu, from IgSubsystem).
 
         if (!_panelsWindowManaged)
         {
@@ -1634,40 +1613,6 @@ public class IgApplication : IDisposable
     // -------------------------------------------------------------------------
 
 
-
-    /// <summary>
-
-    /// Returns the first entity in the ECS that has a <see cref="SelectionState"/>
-
-    /// with <see cref="SelectionState.IsSelected"/> or
-
-    /// <see cref="SelectionState.IsPrimarySelection"/> set to <c>true</c>.
-
-    /// Returns <see cref="Entity.Null"/> when nothing is selected.
-
-    /// </summary>
-
-    private Entity GetSelectedEntity()
-
-    {
-
-        var q = _world.Query().With<SelectionState>().Build();
-
-        foreach (var entity in q)
-
-        {
-
-            var state = _world.GetComponent<SelectionState>(entity);
-
-            if (state.IsSelected || state.IsPrimarySelection)
-
-                return entity;
-
-        }
-
-        return Entity.Null;
-
-    }
 
     /// <summary>
     /// Programmatically selects <paramref name="entity"/> on the map by updating ECS

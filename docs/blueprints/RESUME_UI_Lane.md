@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21
-current-answer: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
+updated: 2026-10-22
+current-answer: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
+  this STATUS block (state at ui@88a60d1c8, what is owed, the next items). The overnight-results section under it still lists the leans
+  the user has not confirmed.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
   this STATUS block: every item #21–#35 of PLAN_Ui_FPS_And_Quick_Wins.md §3a is done or recorded blocked, and the leans taken
   overnight wait for the user. The film director's state is the section under it.
   ⛔ OLDER: 2026-10-21 NIGHT — THE WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md §3a (#21–#35, every open ui point up to
@@ -161,6 +164,44 @@ related-designs:
   Nothing was deleted.
 -->
 
+## ⭐⭐⭐ SESSION `2026-10-22` — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH
+
+**State:** `ui` @ `88a60d1c8`, pushed, tree clean. ⚠ **Not merged into ui since `2026-10-21` (`d571dcfb4`):** `origin/backend`
++164 (`854e83eb4`), `origin/behaviors` +201 (`421c32cbf`), `origin/coordinator` +212 (`641a386bd`) ⇒ ⭐ **merge them first**
+(merge, not rebase), then `dotnet restore` the test projects you will run (the third stale-binary trap — this session hit it
+three times: BepuPhysics, `Hrot.SimHost.Serializers`, `Hrot.EcsNode`), build, run the Presentation + AiShared suites.
+
+### Done this session (every row ✅, gates green, red-proved)
+
+| id | what | owning design |
+|---|---|---|
+| `CE-1150` | **host actions are the HOST's** (`HostActions`: registry + interaction bus + dispatch, one per host); **Properties… opens the shared Details panel on every ECS host** (`EntityDetailsBundle` in AiShared: Editor, CGF, SimHost, IG, RB, Stride); windows know no menus (`R-1024` amended); View ▸ Details Float / Pin are actions | [canvas-context-menu-design §12 / §12.1](../designs/gizmos-1/canvas-context-menu-design.md) · [Details §8](DESIGN_Details_Panel_View_Switching.md) |
+| `CE-1027` | an open submenu keeps its icon (draw list captured before `BeginMenu`) | [UX_Feature_Menu_Follows_Focus §MB](../UX/UX_Feature_Menu_Follows_Focus.md) |
+| `CE-1243` | **one main menu bar**: per-frame contributors in `GlobalMenuRegistry`, one row renderer (`MenuRows`); Windows / Perspective / Help and every host's map menus are contributors; the four hosts' `BeginMainMenuBar` blocks deleted; CGF gains its map menus; closes UXI-13 | same, §MB.1 |
+| `CE-1244` | the ReplayBrowser composes the shared `DiagnosticsWindowsBundle`; its own inspector / event-browser copies deleted | [Subsystem Composition §5c.7.8](../DESIGN_Subsystem_Composition_Unification.md) |
+| `CE-1247` | the IG's "Entity Properties" window is the Details panel's **Summary** view (`details.summary`, Rank 35) on every host; reads `EntityInfo` / `NetworkIdentity` / `TkbIdentity` / `SimTransform` / `Health`, a *Shown as* row where the IG's style differs; IG window / panel / state deleted | [Details §9](DESIGN_Details_Panel_View_Switching.md) |
+| goldens | `ui-baseline-editor` / `-all` recaptured: +7 ids, all pre-existing drift (CE-1096, CE-1191, CE-1237, CE-4038); then −`ig_entity_properties` (CE-1247) | commit `a0094ad58` |
+
+Last gate rows (after CE-1247): AiShared 2136/0 · IG 453/0 (−18 = the deleted IG tests) · Editor 534/0; earlier in the session
+Presentation 871/0 · FDP Presentation 580/0 · RB 34/0 · Blueprints and Stride game build clean.
+
+### Owed
+
+| item | state |
+|---|---|
+| ⏳ T3 `ui-baseline` **all** mode after CE-1247 | not run — covers the edited golden and `ClusterConformanceRails` (`ig-entity-properties` removed from its cluster-only kinds). `scripts/run-system-tests.sh`, background |
+| ⚠ T3 `ui-baseline` **ReplayBrowser** mode | timed out at editor start-up (540 s) in this session's one run — not investigated; possibly the VM |
+| ⚠ Windows visual check | Properties… on CGF / SimHost / IG / RB opens Details on Components · the one menu bar (CGF's map menus, Perspective first, Help last) · a hovered submenu keeps its icon · the Summary card on IG |
+| frame-rail hygiene | AiShared frame rails live in the non-parallel `PanelSnapshotTestCollection`; a rail that opens a popup closes it before `EndMenu` — both measured as order-dependent reds |
+
+### Next, in order (leans — ask before starting)
+
+1. `CE-1246` — Stride mode 2 has the Details panel but no host actions (no Properties…, no View ▸ Details): lean `SharedHostActions.Create()` + schedule its `Dispatch` on the node's kernel, map-independent.
+2. `CE-1245` — rename `Hrot.Editor.AiShared` now that non-editor hosts compose it — **Roslyn only** (`roslyn_preview_rename` over stdio if the MCP is down), never a text rename; name to be chosen with the user.
+3. The overnight leans below still wait for the user (CR, OS, CL / MO / NL, the deviations).
+
+ids: ui tracker next free **`CE-1248`**; ui rulings next free **`R-1026`**.
+
 ## ⭐⭐⭐ OVERNIGHT `2026-10-21 → 22` — RESULTS AND WHAT THE USER CONFIRMS
 
 Work list: [PLAN §3a #21–#35](PLAN_Ui_FPS_And_Quick_Wins.md) (its §4 log has a row per item). Presentation suite at the end: 820 / 0.
@@ -259,7 +300,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
 - `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
 - cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
-- ids: ui tracker next free **`CE-1235`**; ui rulings next free **`R-1018`**.
+- ids: ⛔ stale — see the newest session section (`CE-1248` / `R-1026` at `2026-10-22`).
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 

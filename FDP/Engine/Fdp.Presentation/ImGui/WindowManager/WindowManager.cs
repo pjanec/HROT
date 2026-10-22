@@ -109,6 +109,13 @@ public class WindowManager
         // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
         //    hosts can extend — which is what the layout items now do.
         GlobalMenu.RegisterItem("Settings/UI Scale & Fonts…", () => _openSettingsModal = true);
+
+        // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
+        //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
+        //    hand-drawn block) and BuildHostMenuDtos drawn by a second renderer (ImGuiMenuRenderer) — VC-2's "two independent models".
+        GlobalMenu.RegisterContributor("wm/perspective", () => OnlyIfAny(PerspectiveMenuDto()), OnPerspectiveMenuAction);
+        GlobalMenu.RegisterContributor("wm/windows",     () => OnlyIfAny(WindowsMenuDto()),     HandleHostMenuAction);
+        GlobalMenu.RegisterContributor("wm/help",        () => new[] { HelpMenuDto() },        HandleHostMenuAction);
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -346,7 +353,7 @@ public class WindowManager
     /// <summary>
     /// Registers a display label override for <paramref name="perspective"/>.
     /// When set, <see cref="GetPerspectiveLabel"/> returns the label instead of the id.
-    /// Used by <see cref="RenderPerspectiveMenu"/> to show a human-readable name while
+    /// Used by the Perspective menu (<c>PerspectiveMenuDto</c>, CE-1243) to show a human-readable name while
     /// <see cref="SelectPerspective"/> continues to use the id (§MTB2-T5).
     /// </summary>
     public void RegisterPerspectiveLabel(string perspective, string label)
@@ -570,13 +577,8 @@ public class WindowManager
     /// Renders the global menu bar and all registered windows for the current frame.
     /// Must be called inside an active ImGui frame (between <c>NewFrame</c> and <c>Render</c>).
     /// </summary>
-    /// <param name="gizmoMenuItems">
-    /// Optional list of gizmo-contributed menu items to append inside the main menu bar.
-    /// Pass the result of <c>DebugGizmoLayer.ConsumeMainMenu()</c> here when available.
-    /// </param>
-    /// <param name="onGizmoMenuAction">
-    /// Callback invoked with the action id when the operator clicks a gizmo-contributed menu item.
-    /// </param>
+    /// ⭐ CE-1243 — a host's gizmo menus reach the bar as a CONTRIBUTOR (GlobalMenuRegistry.RegisterContributor); ⛔ SUPERSEDED: the
+    ///   gizmoMenuItems / onGizmoMenuAction parameters, which no host ever passed (UXI-13).
     /// <summary>
     /// ⭐ CE-4038 B9 (docs/DESIGN_Film_Director.md D-7) — the film director's CINEMA mode: no menu bar, no panels, no status bar, so the map
     /// fills the window (and a frame costs only the map); the frame overlays still draw (the director's own captions and cards are one).
@@ -584,9 +586,7 @@ public class WindowManager
     /// </summary>
     public bool Cinema { get; set; }
 
-    public void Render(
-        IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>? gizmoMenuItems = null,
-        Action<int>? onGizmoMenuAction = null)
+    public void Render()
     {
         if (Cinema)
         {
@@ -620,17 +620,11 @@ public class WindowManager
             // ⭐⭐⭐ UXI-05 item ⑤ — PUBLISH THE MENU MODEL, for exactly the reason the toolbar's
             //    PublishSnapshot sits outside its draw guard (see below): a host that registers NO menu
             //    items must be distinguishable from a host whose menu was never instrumented.
-            GlobalMenu.PublishSnapshot(CurrentPerspective);
-
-            // ⭐ CE-1026: File, Edit, View, … (the leading global menus) · Perspective · Settings and after · Windows, Help.
-            RenderGlobalMenu(GlobalMenu.Root, leading: true);
-            RenderPerspectiveMenu();
-            RenderGlobalMenu(GlobalMenu.Root, leading: false);
-            var hostMenus = BuildHostMenuDtos();
-            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction, MenuIcons);
-
-            if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction, MenuIcons);
+            // ⭐⭐ CE-1243 — ONE walk of ONE tree: the registered items and every contributor's menus (asked ONCE this frame — a
+            //    contributor may consume what it returns), merged by top-level name, in CE-1026's bar order.
+            var contributions = GlobalMenu.CollectContributions(CurrentPerspective);
+            GlobalMenu.PublishSnapshot(CurrentPerspective, contributions);
+            RenderMenuBar(contributions);
 
             // BATCH-25: Render the main toolbar inline inside the menu bar,
             // to the right of the menus. Graphical separators are drawn by
@@ -726,95 +720,91 @@ public class WindowManager
     // �� Private render helpers �������������������������������������������������
 
     /// <summary>
-    /// Recursively renders the trie rooted at <paramref name="node"/>.
-    /// The root itself is not rendered � only its children are iterated.
+    /// ⭐⭐ <c>CE-1243</c> MB-3 — the bar: every top-level menu (<see cref="GlobalMenuRegistry.BarMenus"/>) as ONE menu, its tree items
+    /// first, then each contributor's items under the same label. Rows are <see cref="GizmoMap.Presentation.MenuRows"/>'.
     /// </summary>
-    private void RenderGlobalMenu(MenuItemNode node, bool? leading = null)
+    private void RenderMenuBar(IReadOnlyList<MenuContribution> contributions)
     {
-        // ⭐ CE-1026: the root level draws in GlobalMenuRegistry's top-level order, in two passes around the Perspective menu.
-        IEnumerable<MenuItemNode> children = leading is { } lead && ReferenceEquals(node, GlobalMenu.Root)
-            ? GlobalMenu.TopLevelMenus().Where(c => GlobalMenuRegistry.IsLeadingMenu(c.Name) == lead)
-            : node.Children.Values;
-
-        // Reserve an aligned icon gutter for this whole level if any sibling carries an icon.
-        bool reserve = MenuIcons != null;
-        if (reserve)
+        var bar = GlobalMenu.BarMenus(contributions);
+        bool reserveTop = MenuIcons != null && bar.Any(m => !string.IsNullOrEmpty(TopIcon(m)));
+        foreach (var menu in bar)
         {
-            reserve = false;
-            foreach (var c in node.Children.Values)
-                if (!string.IsNullOrEmpty(c.Icon)) { reserve = true; break; }
+            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : n.ResolveBinding(CurrentPerspective) != null);
+            if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers
+
+            bool isLeaf = (menu.Node == null || menu.Node.Children.Count == 0)
+                          && menu.Parts.All(p => p.Item.Children is not { Length: > 0 });
+            if (isLeaf)
+            {
+                if (treeShows) RenderTreeRow(menu.Node!, reserveTop);
+                foreach (var (contributor, item) in menu.Parts)
+                    GizmoMap.Presentation.MenuRows.Dto(item, contributor.OnAction, MenuIcons, reserveTop);
+                continue;
+            }
+
+            if (!GizmoMap.Presentation.MenuRows.Submenu(menu.Name, TopIcon(menu), true, MenuIcons, reserveTop)) continue;
+            bool reserve = MenuIcons != null
+                && ((menu.Node?.Children.Values.Any(c => !string.IsNullOrEmpty(c.Icon)) ?? false)
+                    || menu.Parts.Any(p => p.Item.Children is { } cs && GizmoMap.Presentation.MenuIconRenderer.AnyHasIcon(cs)));
+            if (treeShows) RenderTreeChildren(menu.Node!, reserve);
+            foreach (var (contributor, item) in menu.Parts)
+                foreach (var child in item.Children ?? Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>())
+                    GizmoMap.Presentation.MenuRows.Dto(child, contributor.OnAction, MenuIcons, reserve);
+            Gui.EndMenu();
+        }
+    }
+
+    private static string? TopIcon(BarMenu menu)
+        => !string.IsNullOrEmpty(menu.Node?.Icon) ? menu.Node!.Icon : menu.Parts.Select(p => p.Item.Icon).FirstOrDefault(i => !string.IsNullOrEmpty(i));
+
+    /// <summary>The children of a menu-tree node (one level, recursing into submenus); one icon gutter per level.</summary>
+    private void RenderTreeChildren(MenuItemNode node, bool reserve)
+    {
+        foreach (var child in node.Children.Values)
+            RenderTreeRow(child, reserve);
+    }
+
+    /// <summary>One row of the menu tree: a separator, a submenu, a checkable item or an action item (UXI-05: this perspective's
+    /// binding, else the global one, else not drawn).</summary>
+    private void RenderTreeRow(MenuItemNode child, bool reserve)
+    {
+        if (child.IsSeparator)
+        {
+            // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
+            if (child.ResolveBinding(CurrentPerspective) == null) return;
+            Gui.Separator();
+            return;
         }
 
-        foreach (var child in children)
+        if (child.Children.Count > 0)
         {
-            if (child.IsSeparator)
+            // ⛔⛔ UXI-05's named RISK: a submenu whose every leaf is filtered away would still draw its header. 📄 design §3 ②.
+            if (!HasVisibleDescendant(child)) return;
+            if (GizmoMap.Presentation.MenuRows.Submenu(child.Name, child.Icon, true, MenuIcons, reserve))
             {
-                // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
-                if (child.ResolveBinding(CurrentPerspective) == null) continue;
-                Gui.Separator();
-                continue;
+                bool childReserve = MenuIcons != null && child.Children.Values.Any(c => !string.IsNullOrEmpty(c.Icon));
+                RenderTreeChildren(child, childReserve);
+                Gui.EndMenu();
             }
-
-            var p0 = Gui.GetCursorScreenPos();
-            float gutter = 0f;
-
-            if (child.Children.Count > 0)
-            {
-                // ⛔⛔ UXI-05's named RISK: a submenu whose every leaf is filtered away would still draw
-                //    its header, so the bar grows DEAD HEADERS that open onto nothing. ⇒ skip an
-                //    intermediate node with no visible descendant. 📄 design §3 ②.
-                if (!HasVisibleDescendant(child)) continue;
-
-                string subLabel = reserve
-                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
-                    : child.Name;
-                bool open = Gui.BeginMenu(subLabel);
-                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
-                if (open)
-                {
-                    RenderGlobalMenu(child);
-                    Gui.EndMenu();
-                }
-                continue;
-            }
-
-            string label = reserve
-                ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.ResolveLabel(), out gutter)
-                : child.ResolveLabel();
-
-            // ⭐⭐⭐ UXI-05 — THE RESOLUTION: this perspective's binding, else the global one, else the
-            //    leaf is NOT DRAWN. ⛔ Not greyed: ruling 49, absent rather than dead-clickable.
-            // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it
-            //   changes when focus does, and an immediate-mode bar re-resolves every frame anyway.
-            var binding = child.ResolveBinding(CurrentPerspective);
-            if (binding == null) continue;
-
-            // Leaf: checkable item.
-            if (binding.GetChecked != null && binding.OnCheckedChanged != null)
-            {
-                bool checkedState = binding.GetChecked();
-                bool enabled = child.GetEnabled?.Invoke() ?? true;
-                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", ref checkedState, enabled);
-                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
-                if (clicked)
-                {
-                    binding.OnCheckedChanged(checkedState);
-                }
-                continue;
-            }
-
-            // Leaf: plain action item.
-            if (binding.OnClick != null)
-            {
-                bool enabled = child.GetEnabled?.Invoke() ?? true;
-                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", false, enabled);
-                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
-                if (clicked)
-                {
-                    binding.OnClick();
-                }
-            }
+            return;
         }
+
+        // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it changes when focus does.
+        var binding = child.ResolveBinding(CurrentPerspective);
+        if (binding == null) return;
+        bool enabled = child.GetEnabled?.Invoke() ?? true;
+
+        if (binding.GetChecked != null && binding.OnCheckedChanged != null)
+        {
+            bool checkedState = binding.GetChecked();
+            if (GizmoMap.Presentation.MenuRows.Item(child.ResolveLabel(), child.Icon, child.Shortcut, checkedState, enabled, MenuIcons, reserve))
+                binding.OnCheckedChanged(!checkedState);
+            return;
+        }
+
+        if (binding.OnClick != null
+            && GizmoMap.Presentation.MenuRows.Item(child.ResolveLabel(), child.Icon, child.Shortcut, null, enabled, MenuIcons, reserve))
+            binding.OnClick();
     }
 
     /// <summary>
@@ -893,11 +883,11 @@ public class WindowManager
     /// ⭐ the labels are the only part another model can COLLIDE with.</para>
     /// </summary>
     public IReadOnlyList<string> HostMenuLabelsForRail()
-        => BuildHostMenuDtos().Select(m => m.Label ?? "").ToList();
+        => new[] { PerspectiveMenuDto(), WindowsMenuDto(), HelpMenuDto() }.Select(m => m.Label ?? "").ToList();   // ⭐ CE-1243: the shell's own contributors
 
-    private IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> BuildHostMenuDtos()
+    /// <summary>⭐ CE-1243 — the Windows menu: perspective-bound windows grouped by perspective, then the global ones (win-mgr-1 §4.4.2).</summary>
+    private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto WindowsMenuDto()
     {
-        var menus = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
         var winChildren = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
         var perspectiveGroups = _windows.Values
             .Where(w => w.Scope == WindowScope.PerspectiveBound && w.ShowInMenu)
@@ -926,19 +916,18 @@ public class WindowManager
                 }).ToArray()
             });
         }
-        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Windows",
             Priority = 90,
             Icon = "folder",
             Children = winChildren.ToArray()
-        });
-        // ⛔⛔ VC-2 — the `Settings` DTO block that used to sit HERE is GONE. It is now a GlobalMenu
-        //    item registered in the constructor, so `Settings` is ONE extensible menu rather than a
-        //    fixed framework block that a host's "Settings/…" registration would sit BESIDE.
-        //    ⚠ Visible consequence, stated: RenderGlobalMenu runs before these DTOs, so `Settings` now
-        //      appears to the LEFT of `Windows` instead of between `Windows` and `Help`.
-        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        };
+    }
+
+    /// <summary>⭐ CE-1243 — the Help menu: Debug (the global windows) and About (win-mgr-1 §4.4.4).</summary>
+    private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto HelpMenuDto()
+        => new()
         {
             Label = "Help",
             Priority = 100,
@@ -956,44 +945,35 @@ public class WindowManager
                 },
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
             }
-        });
-        return menus;
+        };
+
+    /// <summary>⭐ A menu with nothing under it is not offered (⛔ a dead header, UXI-05).</summary>
+    private static IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> OnlyIfAny(
+        Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto menu)
+        => menu.Children is { Length: > 0 } ? new[] { menu } : Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
+
+    private IReadOnlyList<(string Perspective, bool IsChecked)> _perspectiveMenuModel = Array.Empty<(string, bool)>();
+    private const int PerspectiveActionBase = -1000;
+
+    /// <summary>⭐ CE-1243 — the Perspective menu: each perspective, checked when active, with its icon (§8.1); a click selects it.</summary>
+    private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto PerspectiveMenuDto()
+    {
+        _perspectiveMenuModel = BuildPerspectiveMenuModel();
+        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = GlobalMenuRegistry.PerspectiveMenu,
+            Children = _perspectiveMenuModel.Select((e, i) => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+            {
+                Id = PerspectiveActionBase - i, Label = GetPerspectiveLabel(e.Perspective), IsChecked = e.IsChecked,
+                Icon = GetPerspectiveIconKey(e.Perspective),
+            }).ToArray(),
+        };
     }
 
-    /// <summary>
-    /// Renders the top-level "Perspective" menu inside the main menu bar.
-    /// Each entry is checkable (checked = active) and selects that perspective on click.
-    /// Supersedes the former <c>RenderPerspectiveSwitcher</c> inline buttons (§8.1).
-    /// </summary>
-    private void RenderPerspectiveMenu()
+    private void OnPerspectiveMenuAction(int id)
     {
-        if (Gui.BeginMenu("Perspective"))
-        {
-            var model = BuildPerspectiveMenuModel();
-            // Reserve the icon gutter if any perspective has a registered icon key.
-            bool reserve = false;
-            if (MenuIcons != null)
-                foreach (var (p, _) in model)
-                    if (!string.IsNullOrEmpty(GetPerspectiveIconKey(p))) { reserve = true; break; }
-
-            foreach (var (perspective, isChecked) in model)
-            {
-                bool isCheckedCopy = isChecked;
-                var p0 = Gui.GetCursorScreenPos();
-                float gutter = 0f;
-                string label = reserve
-                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(GetPerspectiveLabel(perspective), out gutter)
-                    : GetPerspectiveLabel(perspective);
-
-                bool clicked = Gui.MenuItem(label, "", ref isCheckedCopy);
-                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, GetPerspectiveIconKey(perspective), p0, gutter);
-                if (clicked)
-                {
-                    SelectPerspective(perspective);
-                }
-            }
-            Gui.EndMenu();
-        }
+        int idx = PerspectiveActionBase - id;
+        if (idx >= 0 && idx < _perspectiveMenuModel.Count) SelectPerspective(_perspectiveMenuModel[idx].Perspective);
     }
 
     private void RenderAboutModalContent()

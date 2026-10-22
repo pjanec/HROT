@@ -2130,6 +2130,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _hsmRegistrar.RegisterWindows(windowManager);
         _blueprintRegistrar.RegisterWindows(windowManager);
 
+        // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar. 📐 Before: NOTHING consumed CGF's gizmo main-menu bindings,
+        //   so View ▸ Tactical Map Layers… and 2-D / 3-D Map never reached CGF's bar.
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "cgf/map-menus", "Scenario",
+            () => _cgfGizmoLayer?.ConsumeMainMenu(), () => _cgfInteractionBus);
+
         // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel on CGF's Scenario perspective (the map's and the
         //   inspector's), the same shared one every ECS host builds: the Components view, and Properties… / View ▸ Details on this host's
         //   actions. 📐 Before: CGF had Details only on its three AI perspectives. ⭐ The SAME two clock signals as the AI perspectives.

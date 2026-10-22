@@ -762,6 +762,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                  "Diagnostics, map, inspectors, the Details panel and cluster time controls are unaffected.");
 
         _visualization.SetPanelsWindowManaged();
+        _visualization.RegisterMainMenu(wm.GlobalMenu, "SimHost");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
 
         Log.Info("[StrideNodeShell] CE-214: operator window composed (perspective SimHost, node {0}).",
                  ctx.NodeId);
