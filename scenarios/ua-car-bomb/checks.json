@@ -1,0 +1,85 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-6 the car bomb (TriggerIed + the car's boot charge). From the header's Judge (1)-(3): the car drives east and nobody at the checkpoint fires before the blast; the driver runs TriggerIed; the charge bursts with the APC (400,300) within 15 m - four one-sided burst bounds (x 385-415, y 285-315, the car on its y=300 route); the soldiers are hurt. 'At the car' is the same bound (the car is 8 m/s on that route); the blast row's shooter is not constrained (the live check accepted driver, charge or car).",
+  "runFor": 50,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the car drives east",
+      "on": "field",
+      "who": "Car",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 160
+    },
+    {
+      "name": "the driver runs TriggerIed",
+      "on": "task",
+      "who": "Driver",
+      "is": "TriggerIed"
+    },
+    {
+      "name": "the charge goes off",
+      "on": "blast",
+      "n": 1
+    },
+    {
+      "name": "it goes off no more than 15 m west of the APC",
+      "on": "blast",
+      "where": {
+        "burst.0": [
+          ">=",
+          385
+        ]
+      }
+    },
+    {
+      "name": "it goes off no more than 15 m east of the APC",
+      "on": "blast",
+      "where": {
+        "burst.0": [
+          "<=",
+          415
+        ]
+      }
+    },
+    {
+      "name": "it goes off no more than 15 m south of the APC",
+      "on": "blast",
+      "where": {
+        "burst.1": [
+          ">=",
+          285
+        ]
+      }
+    },
+    {
+      "name": "it goes off no more than 15 m north of the APC",
+      "on": "blast",
+      "where": {
+        "burst.1": [
+          "<=",
+          315
+        ]
+      }
+    },
+    {
+      "name": "nobody at the checkpoint fires before the blast",
+      "never": {
+        "on": "shot",
+        "by": "*Checkpoint"
+      },
+      "before": "the charge goes off"
+    },
+    {
+      "name": "the soldiers nearest the car are hurt",
+      "on": "field",
+      "who": "*Checkpoint Soldier",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the charge goes off"
+    }
+  ]
+}

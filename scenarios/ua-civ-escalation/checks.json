@@ -1,0 +1,105 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CIV-5 the escalation ladder under a LETHAL ceiling. From the header's Judge (0)-(4). who '*s' = Instigator and the three Protesters (mirrors the live 'any of the four rioters'; the other 's' names carry no CivilianState/EffectState). 'Drawn' = Gunman's rifle IsEmbarkedTag.Seat 1 (the live reading); 'at ease' = Gunman WeaponPosture.Kind AtEase. Rifle silent = never a police-rifle round between the draw and his aiming (-0.25 s for the sampling step). The Warning cue is any policeman's Gesture (the take's 'warn' by the rifleman alone did not fire).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the riot starts",
+      "on": "field",
+      "who": "*s",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "the Gunman draws his rifle",
+      "on": "field",
+      "who": "Gunman's rifle",
+      "path": "IsEmbarkedTag.Seat",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "he holds it at ease",
+      "on": "field",
+      "who": "Gunman",
+      "path": "WeaponPosture.Kind",
+      "op": "==",
+      "value": "AtEase",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "a policeman warns him",
+      "on": "gesture",
+      "who": "*Police",
+      "is": "Warning",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "he raises the rifle (aimed)",
+      "on": "field",
+      "who": "Gunman",
+      "path": "WeaponPosture.Kind",
+      "op": "==",
+      "value": "Aimed",
+      "after": "the Gunman draws his rifle"
+    },
+    {
+      "name": "the police rifle stays silent while he is drawn and at ease",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle"
+      },
+      "after": "the Gunman draws his rifle",
+      "before": "he raises the rifle (aimed)-0.25"
+    },
+    {
+      "name": "the police rifle fires at the Gunman",
+      "on": "shot",
+      "by": "Police rifle",
+      "at": "Gunman"
+    },
+    {
+      "name": "never a police rifle round at the Instigator",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle",
+        "at": "Instigator"
+      }
+    },
+    {
+      "name": "never a police rifle round at a protester",
+      "never": {
+        "on": "shot",
+        "by": "Police rifle",
+        "at": "*Protester"
+      }
+    },
+    {
+      "name": "the Gunman is hit",
+      "on": "shot",
+      "by": "Police rifle",
+      "hit": "Gunman"
+    },
+    {
+      "name": "a rioter is stunned (non-lethal force)",
+      "on": "field",
+      "who": "*s",
+      "path": "EffectState.StunnedUntil",
+      "op": ">",
+      "value": "$now"
+    },
+    {
+      "name": "no rioter dies",
+      "never": {
+        "on": "field",
+        "who": "*s",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    }
+  ]
+}

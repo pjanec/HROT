@@ -1,0 +1,105 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-5: mortar and artillery vignettes. From the header's Judge (1)-(2): the gunners man the tubes, every tube bursts, >= 3 bursts land near the enemy squad (a box x > 220, y < 420 round (340,300), for 'within 120 m'), the three M109s land within 1 s of the first on the trucks (a box x > 570, y < -45 round (720,-195), for 'within 150 m'). (3) the high arc and (4) danger close are orders the old check sent over HTTP, and 'adjusting rounds from ONE tube first' is an order, not expressible. 300 s may be short for the fire for effect (the take never saw a burst). A 22-unit set of vignettes, so no golden.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Mortar Gunner 1 mans his tube",
+      "on": "embark",
+      "who": "Mortar Gunner 1",
+      "is": true
+    },
+    {
+      "name": "Mortar Gunner 2 mans his tube",
+      "on": "embark",
+      "who": "Mortar Gunner 2",
+      "is": true
+    },
+    {
+      "name": "Mortar Gunner 3 mans his tube",
+      "on": "embark",
+      "who": "Mortar Gunner 3",
+      "is": true
+    },
+    {
+      "name": "81mm Tube 1 fires a burst",
+      "on": "blast",
+      "by": "81mm Tube 1"
+    },
+    {
+      "name": "81mm Tube 2 fires a burst",
+      "on": "blast",
+      "by": "81mm Tube 2"
+    },
+    {
+      "name": "81mm Tube 3 fires a burst",
+      "on": "blast",
+      "by": "81mm Tube 3"
+    },
+    {
+      "name": "three tube bursts land on the enemy squad (x > 220, y < 420)",
+      "on": "blast",
+      "by": "*81mm Tube",
+      "n": 3,
+      "where": {
+        "burst.0": [
+          ">",
+          220
+        ],
+        "burst.1": [
+          "<",
+          420
+        ]
+      }
+    },
+    {
+      "name": "M109 1 lands on the trucks",
+      "on": "blast",
+      "by": "M109 1",
+      "where": {
+        "burst.0": [
+          ">",
+          570
+        ],
+        "burst.1": [
+          "<",
+          -45
+        ]
+      }
+    },
+    {
+      "name": "M109 2 lands on the trucks",
+      "on": "blast",
+      "by": "M109 2",
+      "where": {
+        "burst.0": [
+          ">",
+          570
+        ],
+        "burst.1": [
+          "<",
+          -45
+        ]
+      },
+      "after": "M109 1 lands on the trucks-1",
+      "before": "M109 1 lands on the trucks+1"
+    },
+    {
+      "name": "M109 3 lands on the trucks",
+      "on": "blast",
+      "by": "M109 3",
+      "where": {
+        "burst.0": [
+          ">",
+          570
+        ],
+        "burst.1": [
+          "<",
+          -45
+        ]
+      },
+      "after": "M109 1 lands on the trucks-1",
+      "before": "M109 1 lands on the trucks+1"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2223 air rescue round trip. From the header's Judge (1)-(5): lands at the LZ, squad dismounts, a man carries the pilot, the pilot is seated aboard, it lifts off with all aboard and the pilot alive. 'Seated' = IsEmbarkedTag.Mode (CarryMode enum name), 'all aboard' = heli PassengerBuffer.Count == 6 (five men + pilot); the seated/count paths are read from the structs but not yet run.",
+  "runFor": 100,
+  "golden": {"every": 10},
+  "expect": [
+    {"name": "the UH-60 sets down within 12 m of the LZ", "on": "near", "who": "UH-60 (doors off)", "point": [190, 340], "within": 12},
+    {"name": "the UH-60 holds on the ground at the LZ (Unloading, Landed or Loading)", "on": "field", "who": "UH-60 (doors off)", "path": "NavigationStatus.Phase", "op": "in", "value": ["Unloading", "Landed", "Loading"], "after": "the UH-60 sets down within 12 m of the LZ"},
+    {"name": "the squad dismounts (the Medic is out)", "on": "embark", "who": "Medic", "is": false, "after": "the UH-60 sets down within 12 m of the LZ"},
+    {"name": "a squad man picks up the downed pilot (carried)", "on": "field", "who": "Downed pilot", "path": "IsEmbarkedTag.Mode", "op": "==", "value": "Carried", "after": "the squad dismounts (the Medic is out)"},
+    {"name": "the pilot is seated in the UH-60", "on": "field", "who": "Downed pilot", "path": "IsEmbarkedTag.Mode", "op": "==", "value": "Seated", "after": "a squad man picks up the downed pilot (carried)"},
+    {"name": "all five men are back aboard", "on": "field", "who": "UH-60 (doors off)", "path": "PassengerBuffer.Count", "op": ">=", "value": 6, "after": "the pilot is seated in the UH-60"},
+    {"name": "the UH-60 lifts off after the pilot is seated", "on": "field", "who": "UH-60 (doors off)", "path": "NavigationStatus.Phase", "op": "==", "value": "TakingOff", "after": "the pilot is seated in the UH-60"},
+    {"name": "it flies away with all six aboard", "on": "field", "who": "UH-60 (doors off)", "path": "PassengerBuffer.Count", "op": "==", "value": 6, "atEnd": true},
+    {"name": "the pilot is still alive", "on": "field", "who": "Downed pilot", "path": "Health.Current", "op": ">", "value": 0, "atEnd": true}
+  ]
+}

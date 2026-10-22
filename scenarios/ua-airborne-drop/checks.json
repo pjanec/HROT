@@ -1,0 +1,155 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 airborne insertion: the stick of eight. From the header's Judge (1), (3), (4). One at a time = no man out before the man ahead + 0.3 s (the check samples every 0.25 s; the live floor was 0.5 and the take's gaps read 0.78-0.85). NOT expressed: (2) 'within 150 m of his planned point' - the point is Descent.Target, set at run time, not a constant a near cue can name; (3)'s 20 m spread - the group's middle is not a constant either, so 'assembled' is only the squad's AssembleAfterDrop task (task name on the squad entity not yet run).",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Paratrooper 1 jumps",
+      "on": "embark",
+      "who": "Paratrooper 1",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 2 jumps",
+      "on": "embark",
+      "who": "Paratrooper 2",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 3 jumps",
+      "on": "embark",
+      "who": "Paratrooper 3",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 4 jumps",
+      "on": "embark",
+      "who": "Paratrooper 4",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 5 jumps",
+      "on": "embark",
+      "who": "Paratrooper 5",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 6 jumps",
+      "on": "embark",
+      "who": "Paratrooper 6",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 7 jumps",
+      "on": "embark",
+      "who": "Paratrooper 7",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 8 jumps",
+      "on": "embark",
+      "who": "Paratrooper 8",
+      "is": false
+    },
+    {
+      "name": "Paratrooper 2 is not out before Paratrooper 1 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 2",
+        "is": false
+      },
+      "before": "Paratrooper 1 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 3 is not out before Paratrooper 2 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 3",
+        "is": false
+      },
+      "before": "Paratrooper 2 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 4 is not out before Paratrooper 3 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 4",
+        "is": false
+      },
+      "before": "Paratrooper 3 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 5 is not out before Paratrooper 4 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 5",
+        "is": false
+      },
+      "before": "Paratrooper 4 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 6 is not out before Paratrooper 5 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 6",
+        "is": false
+      },
+      "before": "Paratrooper 5 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 7 is not out before Paratrooper 6 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 7",
+        "is": false
+      },
+      "before": "Paratrooper 6 jumps+0.3"
+    },
+    {
+      "name": "Paratrooper 8 is not out before Paratrooper 7 plus 0.3 s",
+      "never": {
+        "on": "embark",
+        "who": "Paratrooper 8",
+        "is": false
+      },
+      "before": "Paratrooper 7 jumps+0.3"
+    },
+    {
+      "name": "all eight reach the ground (descent landed)",
+      "on": "field",
+      "who": "*Paratrooper",
+      "path": "Descent.Phase",
+      "op": "==",
+      "value": "Landed",
+      "quantifier": "all",
+      "after": "Paratrooper 8 jumps"
+    },
+    {
+      "name": "the squad assembles (AssembleAfterDrop)",
+      "on": "task",
+      "who": "Airborne squad",
+      "is": "AssembleAfterDrop",
+      "after": "Paratrooper 8 jumps"
+    },
+    {
+      "name": "the helicopter flies on past x 450",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 450,
+      "atEnd": true
+    },
+    {
+      "name": "the helicopter is empty",
+      "on": "field",
+      "who": "UH-60 (doors off)",
+      "path": "PassengerBuffer.Count",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

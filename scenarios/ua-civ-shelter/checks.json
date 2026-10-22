@@ -1,0 +1,199 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-7 (CE-2236): civilians panic and shelter in House A, never in locked House B, hide 20 s then delete themselves. From the header's Judge (1)-(4); 'deletes himself in 18-23 s' is read as Inside held >= 18 s and gone (not Inside) after 23 s; the door state and 'gone on every node' are not expressible (doors are not cast units).",
+  "runFor": 70,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rifleman opens fire",
+      "on": "shot",
+      "by": "Rifleman"
+    },
+    {
+      "name": "all four start in Routine",
+      "on": "field",
+      "who": "*Civilian",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Routine",
+      "quantifier": "all"
+    },
+    {
+      "name": "Civilian 1 panics",
+      "on": "field",
+      "who": "Civilian 1",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Inside",
+        "Cower"
+      ]
+    },
+    {
+      "name": "Civilian 1 goes Inside",
+      "on": "field",
+      "who": "Civilian 1",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside"
+    },
+    {
+      "name": "Civilian 1 is still Inside 18 s later",
+      "on": "field",
+      "who": "Civilian 1",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside",
+      "after": "Civilian 1 goes Inside+18"
+    },
+    {
+      "name": "Civilian 1 is not Inside 23 s later (he has deleted himself)",
+      "never": {
+        "on": "field",
+        "who": "Civilian 1",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Inside"
+      },
+      "after": "Civilian 1 goes Inside+23"
+    },
+    {
+      "name": "Civilian 2 panics",
+      "on": "field",
+      "who": "Civilian 2",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Inside",
+        "Cower"
+      ]
+    },
+    {
+      "name": "Civilian 2 goes Inside",
+      "on": "field",
+      "who": "Civilian 2",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside"
+    },
+    {
+      "name": "Civilian 2 is still Inside 18 s later",
+      "on": "field",
+      "who": "Civilian 2",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside",
+      "after": "Civilian 2 goes Inside+18"
+    },
+    {
+      "name": "Civilian 2 is not Inside 23 s later (he has deleted himself)",
+      "never": {
+        "on": "field",
+        "who": "Civilian 2",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Inside"
+      },
+      "after": "Civilian 2 goes Inside+23"
+    },
+    {
+      "name": "Civilian 3 panics",
+      "on": "field",
+      "who": "Civilian 3",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Inside",
+        "Cower"
+      ]
+    },
+    {
+      "name": "Civilian 3 goes Inside",
+      "on": "field",
+      "who": "Civilian 3",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside"
+    },
+    {
+      "name": "Civilian 3 is still Inside 18 s later",
+      "on": "field",
+      "who": "Civilian 3",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside",
+      "after": "Civilian 3 goes Inside+18"
+    },
+    {
+      "name": "Civilian 3 is not Inside 23 s later (he has deleted himself)",
+      "never": {
+        "on": "field",
+        "who": "Civilian 3",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Inside"
+      },
+      "after": "Civilian 3 goes Inside+23"
+    },
+    {
+      "name": "Civilian 4 panics",
+      "on": "field",
+      "who": "Civilian 4",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Inside",
+        "Cower"
+      ]
+    },
+    {
+      "name": "Civilian 4 goes Inside",
+      "on": "field",
+      "who": "Civilian 4",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside"
+    },
+    {
+      "name": "Civilian 4 is still Inside 18 s later",
+      "on": "field",
+      "who": "Civilian 4",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Inside",
+      "after": "Civilian 4 goes Inside+18"
+    },
+    {
+      "name": "Civilian 4 is not Inside 23 s later (he has deleted himself)",
+      "never": {
+        "on": "field",
+        "who": "Civilian 4",
+        "path": "CivilianState.Mode",
+        "op": "==",
+        "value": "Inside"
+      },
+      "after": "Civilian 4 goes Inside+23"
+    },
+    {
+      "name": "none enters the locked House B",
+      "never": {
+        "on": "near",
+        "who": "*Civilian",
+        "point": [
+          164,
+          105
+        ],
+        "within": 6
+      }
+    }
+  ]
+}
