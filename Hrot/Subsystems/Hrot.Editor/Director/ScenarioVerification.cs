@@ -19,8 +19,12 @@ namespace Hrot.Editor.Director
     {
         EntityRepository? World { get; }
 
-        /// <summary>The units by name (the director's <see cref="WorldUnits"/>).</summary>
+        /// <summary>The units by name (the director's <see cref="WorldUnits"/>) — ⚠ ONE id per name.</summary>
         IShotWorld Units { get; }
+
+        /// <summary>⭐ EVERY named unit with its network id, two that share a name included (📌 <c>hill-attack</c>'s two "M1 Abrams",
+        /// <c>test-fire</c>'s two Bradleys) — a name in a check matches every unit that carries it.</summary>
+        IReadOnlyList<(long Id, string Name)> Named();
 
         /// <summary>A behaviour's name by its hash (the <c>task</c> cue).</summary>
         string? BehaviourName(int hash);
@@ -97,8 +101,7 @@ namespace Hrot.Editor.Director
         {
             _rel = rel;
             _comps.Clear();
-            _nameOf = _w.Units.Names.Select(n => (n, id: _w.Units.Resolve(n))).Where(x => x.id is not null)
-                        .GroupBy(x => x.id!.Value).ToDictionary(g => g.Key, g => g.First().n);
+            _nameOf = _w.Named().GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
             ReadRows();
             foreach (var (name, cue) in _checks.Anchors)
                 if (!_times.ContainsKey(name) && When(cue) is { } t) _times[name] = t;
@@ -202,7 +205,9 @@ namespace Hrot.Editor.Director
                 foreach (var (id, n) in _nameOf)
                     if (n.Contains(part, StringComparison.Ordinal)) yield return id;
             }
-            else if (_w.Units.Resolve(who) is { } id) yield return id;
+            else
+                foreach (var (id, n) in _nameOf)
+                    if (string.Equals(n, who, StringComparison.Ordinal)) yield return id;   // every unit that carries the name
         }
 
         /// <summary>A row's unit (a network id, or the name already resolved) against a name or <c>*part</c>.</summary>
@@ -340,9 +345,13 @@ namespace Hrot.Editor.Director
         public void Snapshot(double rel)
         {
             var units = new JsonObject();
-            foreach (var name in _w.Units.Names.OrderBy(n => n, StringComparer.Ordinal))
+            // ⭐ two units that share a name are both kept: "M1 Abrams", "M1 Abrams #2" (in network-id order — ids repeat per world)
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var (id, unitName) in _w.Named().OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id))
             {
-                if (_w.Units.Resolve(name) is not { } id || _w.Components(id) is not { } comps) continue;
+                int k = seen[unitName] = seen.TryGetValue(unitName, out var c) ? c + 1 : 1;
+                var name = k == 1 ? unitName : $"{unitName} #{k}";
+                if (_w.Components(id) is not { } comps) continue;
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
                     hashes[type] = _full ? value?.DeepClone() : Hash(value);
@@ -529,9 +538,9 @@ namespace Hrot.Editor.Director
             {
                 if (_done.Contains(a) || _book.TimeOf(a.At) is not { } at || rel + 1e-9 < at) continue;
                 _done.Add(a);
-                var ids = a.Who.StartsWith('*')
-                    ? _w.Units.Names.Where(n => n.Contains(a.Who[1..], StringComparison.Ordinal)).Select(n => _w.Units.Resolve(n)).OfType<long>().ToList()
-                    : _w.Units.Resolve(a.Who) is { } one ? new List<long> { one } : new List<long>();
+                var ids = _w.Named().Where(x => a.Who.StartsWith('*') ? x.Name.Contains(a.Who[1..], StringComparison.Ordinal)
+                                                                       : string.Equals(x.Name, a.Who, StringComparison.Ordinal))
+                                    .Select(x => x.Id).Distinct().ToList();
                 if (ids.Count == 0) ActionProblems.Add($"do at {rel:0.###} s: no unit '{a.Who}'");
                 foreach (var id in ids)
                     if (_w.SetComponent(id, a.Component, a.Patch) is { } why) ActionProblems.Add($"do at {rel:0.###} s: {a.Who}.{a.Component}: {why}");

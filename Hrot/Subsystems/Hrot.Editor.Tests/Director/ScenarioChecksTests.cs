@@ -71,6 +71,9 @@ public sealed class ScenarioChecksTests
         public IShotWorld Units => U;
         public string? BehaviourName(int hash) => null;
         public JsonObject? Components(long id) => Comps.TryGetValue(id, out var c) ? c : null;
+        public IReadOnlyList<(long Id, string Name)> Named() => U.Ids.Select(kv => (kv.Value, kv.Key)).Concat(Extra).ToList();
+        /// <summary>Units that share a name with another (the name index keeps only one).</summary>
+        public readonly List<(long Id, string Name)> Extra = new();
         public JsonArray Shots() => (JsonArray)ShotRows.DeepClone();
         public JsonArray Blasts() => (JsonArray)BlastRows.DeepClone();
         public string? SetComponent(long networkId, string component, JsonObject patch) => null;
@@ -136,6 +139,27 @@ public sealed class ScenarioChecksTests
         Assert.False(v["never hits a friend"].Ok);
         Assert.Equal(2.10, v["never hits a friend"].Time!.Value, 6);
         Assert.True(v["the tank ends alive"].Ok);
+    }
+
+    /// <summary>
+    /// ⭐ A name matches EVERY unit that carries it — 📌 <c>test-fire</c>'s two "M2 Bradley IFV": the round strikes the SECOND one, which a
+    /// one-id-per-name index does not know. 🔒 Red-proof: resolve exact names through <c>Units.Resolve</c> ⇒ the hit is never seen.
+    /// </summary>
+    [Fact]
+    public void CE4042_AName_MatchesEveryUnitThatCarriesIt()
+    {
+        var checks = Parse("""{ "runFor": 10, "expect": [{"name": "a Bradley is struck", "on": "shot", "hit": "M2 Bradley IFV"}, {"name": "both Bradleys alive", "on": "field", "who": "M2 Bradley IFV", "path": "Health.Current", "op": ">", "value": 0, "quantifier": "all", "atEnd": true}] }""", out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("M2 Bradley IFV", 1, 100, 0);
+        w.Extra.Add((2, "M2 Bradley IFV"));
+        w.Comps[2] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 70 } };
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0);
+        w.Shot(0, 3.0, 1, 2, 30, hit: 2);
+        book.Finish(10);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.Equal(3.0, v["a Bradley is struck"].Time!.Value, 6);
+        Assert.True(v["both Bradleys alive"].Ok);
     }
 
     /// <summary>
