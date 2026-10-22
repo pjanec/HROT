@@ -7149,6 +7149,34 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2354</c> (DA-102 / DA-103) — nobody aboard after <see cref="PlatoonConvoyBehavior.RemountTimeoutSeconds"/>: the
+        /// squads follow on foot AND the vehicles that can move carry on along the route. 📌 Live on <c>uc-urban-battle</c> both squads went
+        /// on foot and the APC and IFV stood on Hold for good — a vehicle was ordered only through a slot still riding it. ✅ Red-proof: the
+        /// on-foot slot skipped in <c>KeepVehicle</c> again ⇒ no second FollowRoute.</summary>
+        [Fact]
+        public void CE2354_PlatoonConvoy_NobodyAboardInTime_TheSquadsFollowOnFoot_AndTheVehiclesCarryOn()
+        {
+            var p = new Platoon();
+            var apc = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            Convoy(p);
+            p.Ticks(3);
+            Embarkation.Disembark(p.S.Repo, p.Alpha);
+            Embarkation.Disembark(p.S.Repo, p.Bravo);
+            p.Ticks(3);                                                                                                   // out, quiet: secure
+            p.ReportSet(p.Alpha);
+            p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark), p.OrdersTo(p.Bravo, BehaviorNames.SquadEmbark)));
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // they wait
+
+            p.S.Pause(PlatoonConvoyBehavior.RemountTimeoutSeconds + 1);                                                   // nobody boards
+            p.Ticks(6);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, "Order.Move"), p.OrdersTo(p.Bravo, "Order.Move")));                  // on foot
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carry on
+        }
+
         /// <summary>⭐ <c>CE-2347</c> (DA-102) — a vehicle that cannot move halts the convoy and is left at the remount: its squad boards the
         /// first vehicle that can move with seats for all its men; with none it follows on foot (an abstract Move to the route's end) and
         /// the others drive on. ✅ Red-proof: the seat count ignoring occupants ⇒ Alpha sent to the full IFV.</summary>
