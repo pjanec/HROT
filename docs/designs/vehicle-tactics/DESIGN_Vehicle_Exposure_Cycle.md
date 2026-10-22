@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§8 CE-2212 the shelter query is pointed once)
+updated: 2026-10-22 (§4a CE-2232 the reach term, CE-2351 the sensors' aim)
 build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8); V6 compositions + demos to do. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -255,7 +255,7 @@ stateDiagram-v2
 | rule | why |
 |---|---|
 | **withdraw mode** `Auto`: the type's `ArmorFront ≥ 2 × ArmorSide` ⇒ `Reverse` to the SAME hide (a straight reverse — the firing point is chosen ahead of the hide's facing); else `Scoot`: drive forward to a NEW `FindVehicleHide` answer away from the threat, and the point burns after 1 use | D-J |
-| **exposure budget**: at each exposure, `Budget = min(ExposeSeconds, AimBudgetFactor × the AimSeconds of every seen threat whose danger to me ≥ AtDangerMin)`; `SeenAtFor` counts continuous sight of such a threat; withdraw at `SeenAtFor ≥ Budget` | the enemy's aim / lock time bounds the exposure (programme §3; R-246: if I see him, he sees me). ⭐ **CE-2215 (`2026-10-16`, as built): "seen" = the threat CAN SEE ME — I see him, OR the line from where I remember him (eye 1.6 m) to my hull's top is clear of the terrain** (`VehicleFightFromCoverNodes.CanSeeMe`, read by `Budget` and the `SeenSince` clock). ⛔ SUPERSEDED: *"every seen threat"* (my own visual track only) — sight is not symmetric: live `ua-javelin-lock`, the tank did not see the Javelin gunner it knew of, exposed its full 8 s and gave him his 4 s lock. Rail `VehicleFightFromCoverNodesTests.CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot` · ⭐ **CE-2216: the clock starts on the DRIVE OUT** (`Exposing`), not at the firing point: seen on the way out and over budget ⇒ back to the hide before the point; a clock already running on arrival keeps running (the tighter budget). ⛔ SUPERSEDED: *"at each exposure"* = from the firing point — live, Javelin A saw the tank ~3 s before it reached the point and launched as it arrived. Rail `CE2216_SeenOnTheDriveOut_TheBudgetRunsOut_BackToTheHide_BeforeTheFiringPoint` |
+| **exposure budget**: at each exposure, `Budget = min(ExposeSeconds, AimBudgetFactor × the AimSeconds of every seen threat whose danger to me ≥ AtDangerMin)`; `SeenAtFor` counts continuous sight of such a threat; withdraw at `SeenAtFor ≥ Budget` | the enemy's aim / lock time bounds the exposure (programme §3; R-246: if I see him, he sees me). ⭐ **CE-2215 (`2026-10-16`, as built): "seen" = the threat CAN SEE ME — I see him, OR the line from where I remember him (eye 1.6 m) to my hull's top is clear of the terrain** (`VehicleFightFromCoverNodes.CanSeeMe`, read by `Budget` and the `SeenSince` clock). ⛔ SUPERSEDED: *"every seen threat"* (my own visual track only) — sight is not symmetric: live `ua-javelin-lock`, the tank did not see the Javelin gunner it knew of, exposed its full 8 s and gave him his 4 s lock. Rail `VehicleFightFromCoverNodesTests.CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot` · ⭐ **CE-2352 (`2026-10-22`, as built): never beyond HIS sight range** — the line test applies only within the threat's receptor `VisionRange`. 📐 The editor's `hill-attack-close` (flat berlin, every line clear) started the clock as a tank left its hide, 140 m from targets whose eyes reach 100 m (CE-174: the range stands in for the hill) — a 0.56 s budget, so no tank reached its firing point and none fired. The cluster hid it: its brain node holds no terrain, so the line half never ran (same rail, a third case, red-proved) · ⭐ **CE-2216: the clock starts on the DRIVE OUT** (`Exposing`), not at the firing point: seen on the way out and over budget ⇒ back to the hide before the point; a clock already running on arrival keeps running (the tighter budget). ⛔ SUPERSEDED: *"at each exposure"* = from the firing point — live, Javelin A saw the tank ~3 s before it reached the point and launched as it arrived. Rail `CE2216_SeenOnTheDriveOut_TheBudgetRunsOut_BackToTheHide_BeforeTheFiringPoint` |
 | **cut short** on a Hit / NearMiss since `ExposedAt`, or a heard `HeavyWeapon` source within 30° of the threat (a launch) — `RecentSenses` | T5 |
 | **Guiding** (the weapon channel's reason): stay in Engaging until the round lands, unless hit | a command missile needs its gunner (Missiles §4) |
 | **hidden**: `TrackTarget` keeps the gun on the threat's last known point; firing replaces it; `TrackTarget.Stop` on leaving | T4; the two share one channel (§1) |
@@ -392,7 +392,7 @@ nearest hide is usually as blind. ⭐ Lean: anchor the search the other way — 
 25 m), then the nearest hide within a short drive of that point; ⛔ SUPERSEDED `2026-10-16`: *"the hill attack's rework (`CE-2230`) needs the same query, so it is designed there once, for both."* ⭐ As built,
 `CE-2230` answered the OPEN-GROUND case without a query — the cycle's LANE mode (a given hide, a drive along the attack line that stops the
 first tick the target is SEEN, [hill-attack DESIGN §0](../hill-attack/DESIGN.md)); the URBAN hide choice stays open as `CE-2232`
-(lean: score the hide query by whether its firing-point ring reaches the threat).
+(lean: score the hide query by whether its firing-point ring reaches the threat). ⭐ **Designed `2026-10-22`: §4a (the reach term).**
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the
@@ -436,6 +436,86 @@ sequenceDiagram
   N->>L: Reverse: Issue(H, reverse) · Scoot: Issue(next hide) with Fire running
   N->>N: heat F (burn after N exposures)
 ```
+
+### 4a. A hide it can FIGHT from — the reach term (CE-2232) and the sensors' aim (CE-2351)
+
+📐 **Measured live `2026-10-22`, `ua-javelin-lock`** (`/entities/{id}/slots`, `/sensors`, a `/terrain/query?purpose=sight` grid at 2.5 m):
+the M1 took hides at (261, 132) → (276, 132) → (257, 136) → (271, 132) → (286, 132), all in the L-Block's inner corner. Every one
+was hidden, and **the firing-point query answered 0 at every one**. From the corner every line to Javelin A crosses the L; the nearest
+point that sees him is ~31–38 m north, outside the 25 m firing ring. CE-2229 left each blind hide and burned it, but the next nearest
+hide was as blind. So the tank aimed for 100 s, drove between hides, and never exposed. ⭐ This is the urban half §6's open point names
+(`ua-technical-scoot` runs 8–9). ⚠ A second fault in the same run: from 8 s the sensors' aim (D14 `SensorAim`) jumped to
+**sounds from the OTHER vignette** — Javelin B's launch at (286, 364), and the missile reaching Tank Open at (38, 362), 160 m from Javelin A. So
+the hide and firing queries looked for a target the attack order never named.
+
+```mermaid
+classDiagram
+  class FindVehicleHide { <<existing template, grows>> +FiringReachTest in ScoreExpensive }
+  class FiringReachTest {
+    <<new IEqsTest, ScoreExpensive>>
+    Radius = 25 «FindVehicleFiringPoint's ring»
+    Rings = 2 · PointsPerRing = 12 · InnerFraction = 0.3
+    Weight = 2
+    -CheapLineOfSightTest sees «Candidate eye, Visible, slot 1»
+    +ExecuteBatch(...) «per hide: ring → sees → nearest d»
+  }
+  class CheapLineOfSightTest { <<existing>> the "can I shoot him from there" rule (D15 body points) }
+  class DonutGenerator { <<existing, grows>> +Ring(anchor, outer, rings, perRing, inner, r, k) «static, shared» }
+  class EqsTerrainSight { <<existing>> TryPlace «drops points inside a building» }
+  class FindVehicleFiringPoint { <<existing>> Donut 2 × 16 round the hide, 25 m }
+  class PeekAndFireNodes { <<existing, grows>> SensorAim(world, self, threat, matchRadius) }
+  class VehicleFightFromCoverNodes { <<existing>> KeepSensors → SensorAim(…, DefaultHeardMatchRadius) }
+  FindVehicleHide *-- FiringReachTest
+  FiringReachTest ..> CheapLineOfSightTest : runs it on the ring
+  FiringReachTest ..> DonutGenerator : the same ring geometry
+  FiringReachTest ..> EqsTerrainSight
+  FiringReachTest .. FindVehicleFiringPoint : samples its ring, cheaper
+  VehicleFightFromCoverNodes ..> PeekAndFireNodes
+```
+
+*What the picture shows: the reach term is a SAMPLE of the firing-point query, run inside the hide query. It reuses the firing query's
+sight rule (`CheapLineOfSightTest`) and ring geometry (`DonutGenerator`) rather than copying either. The aim fix is one parameter on the
+existing `SensorAim`.*
+
+```mermaid
+sequenceDiagram
+  participant N as VehicleFightFromCover
+  participant H as FindVehicleHide (solver)
+  participant R as FiringReachTest
+  participant S as CheapLineOfSightTest
+  N->>H: Keep(slot 1 = SensorAim(threat, 15 m))
+  H->>H: cover points · Hidden filter · Distance (cheap) · top 32
+  H->>R: ScoreExpensive(top 32)
+  loop each hide candidate
+    R->>R: ring points round it (TryPlace drops points inside walls)
+    R->>S: ExecuteBatch(ring) — Candidate eye, Visible
+    S-->>R: the ring points that SEE slot 1
+    R->>R: Score += Weight × (1 − ½ · nearest / Radius) if any
+  end
+  H-->>N: hide H — hidden, and a firing point within reach
+  N->>H: Keep(FindVehicleFiringPoint, slot 0 = H) — answers
+```
+
+| rule | why |
+|---|---|
+| **reach**: a hide whose ring (the firing query's: 2 rings, 7.5 → 25 m) holds a standable point that SEES slot 1 gains `Weight × (1 − ½ · d / Radius)`, where d is the nearest such point. None ⇒ no score | it is the firing query's answer, sampled once per hide; the nearer that point, the shorter the exposed drive (T3) |
+| **Weight 2** | hidden from every threat (3) still comes first. A hide you can fight from then beats a nearer blind one (distance 1 + path 1 = at most 2 between hides) |
+| **12 points per ring** (the firing query uses 16) | the hide query scores 32 candidates: up to 32 × 24 ring points × the body points. Early out on the first point that sees, nearest ring first |
+| **no terrain ⇒ nothing** | as every sight test (no flag, no score) |
+| **the sensors' aim keeps to the named fight**: `SensorAim` takes a heard slot as fresher evidence only within `HeardMatchRadius` (15 m) of where THIS threat is remembered | G4's own rule for the burst (`CE-3158`, [Peek and Fire G4](../../DESIGN_Peek_And_Fire.md)) applied to the sensors. A heard-only threat (a point) has no spot to measure from, so it is unfiltered, as in G4 |
+
+⭐ **As built `2026-10-22`, as drawn:** `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/FiringReachTest.cs` (the ring from `DonutGenerator.Point`, now the
+donut's one geometry; a ring point counts only when the sight test JUDGED it, so its threat gate cannot read as "sees") · `FindVehicleHide`
+`ScoreExpensive` = ThreatExposure → **FiringReach** → PathCost · `PeekAndFireNodes.SensorAim(…, matchRadius)` (PeekAndFire passes its
+`HeardMatchRadius`, the cycle `DefaultHeardMatchRadius` 15 m). Rails, both red-proved: `TerrainEqsTests.CE2232_*` (drop the test from the
+template ⇒ red) · `VehicleFightFromCoverNodesTests.CE2351_*` (no radius ⇒ red). Golden `FindVehicleHide.flat` re-recorded: 16 scores
++1.7 each, positions, order and flags unchanged (on the flat one-wall map every hide reaches). 📐 **Live `ua-javelin-lock` PASS 5/5**:
+the cycling tank drove out, fired and killed Javelin A, whose best lock was 2.2 / 4 s (one launch, no hit, the tank at 3000).
+
+**Rejected:** widening `FiringSearchRadius` when a hide is blind. That gives a long exposed drive from a deep corner, and the hide is still
+chosen blind · a scenario-only fix (moving the tank's start). The hide query picks the same corner from any start nearby, and
+`ua-technical-scoot`'s HMG technical fails the same way · searching from the firing side first (§6's first lean, a donut round self, then
+the nearest hide). It needs a second query and a new node phase, while the reach term needs one score test in an existing template.
 
 ## 5. Reverse driving (V5, backend)
 

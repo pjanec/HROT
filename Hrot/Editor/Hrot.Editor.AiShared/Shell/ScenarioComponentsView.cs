@@ -26,10 +26,10 @@ public sealed record ScenarioComponentsViewPanelViewModel(
 /// view.</b>
 /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L6</c> stage 4 · §3's <b>reference wall</b>.
 ///
-/// <para>⛔⛔ <b>Why this type lives in <c>Hrot.Editor</c> and not in <c>Hrot.Editor.AiShared</c>.</b>
-/// 📐 <c>EntityInspectorPanel</c> is in <c>Fdp.Presentation</c>; <c>IDetailsViewInstance</c> is in
-/// <c>Hrot.Editor.AiShared</c>, which is BELOW it *(§3)*. ⭐ The composition root is the only assembly
-/// that sees both — the handoff says so, and it is a reference fact, not a placement preference.</para>
+/// <para>⭐ <b>It lives in <c>Hrot.Editor.AiShared</c> since <c>CE-1150</c></b> (canvas-context-menu-design §12 HA-4): every ECS host
+/// builds the Details panel with this view (<c>EntityDetailsBundle</c>). ⛔ SUPERSEDED: <i>"lives in <c>Hrot.Editor</c> — AiShared cannot
+/// see <c>EntityInspectorPanel</c>"</i> — AiShared references <c>Fdp.Presentation</c> and <c>Hrot.Presentation</c> (Details design §1
+/// known-rot). The namespace is kept, so no caller changed.</para>
 ///
 /// <para>⭐⭐ <b>It BORROWS the editor's one wired panel</b> — exactly as <c>RuntimeDetailsView</c>
 /// borrows its pane. ⚠ That panel carries the reflector, the buffer-view providers, the serializer,

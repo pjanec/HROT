@@ -166,9 +166,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no round at the squad for this long (s) is a LULL: the squad brings its wounded in itself.</summary>
         public const double LullSeconds = 10d;
 
-        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/>.</summary>
+        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/> — ⭐ <c>CE-2351</c> and no NEW
+        /// contact in that time: the quiet is counted from the fight's start, not from before it. 📐 Live <c>ua-casualty-care-heavy</c>: the
+        /// reaction chose 4 s after the contact, before the first enemy round (5.5 s), so "no round for 10 s" held and it went for the man.</summary>
         public static bool InALull(EntityRepository world, Entity self)
-            => !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, LullSeconds);
+            => !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, LullSeconds)
+               && !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadContact, LullSeconds);
 
         /// <summary>
         /// ⭐ <c>CE-2344</c> (R-2066 E; Squad Tactics §7.5.4) — the lull row: a man down still to care for (<see cref="Fdp.Toolkit.Squad.SquadCasualties"/>)
@@ -249,7 +252,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var e = new Entity((ulong)mem.EntityIds[i]);
                     if (mem.EntityIds[i] <= 0 || !world.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, carrier, e)) continue;
-                    if (!Fresh(mem.LastSeenTick[i], world.SimulationTick)) continue;
+                    if (!Fresh(mem.LastSeenTick[i], Fdp.Toolkit.Perception.PerceptionClock.Now(world))) continue;
                     if (new Vector2(mem.PositionsX[i] - at.X, mem.PositionsY[i] - at.Y).LengthSquared() <= r2) return true;
                 }
             }
@@ -260,8 +263,10 @@ namespace Hrot.AI.Behaviors.Brains
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
             for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
             {
-                if (pool[i].EntityId > 0 && !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, new Entity((ulong)pool[i].EntityId))) continue;
-                if (!Fresh(pool[i].LastSeenTick, world.SimulationTick)) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
+                // ⭐ CE-2353 — the one squad "enemy" (the platoon's SPOT counts the same): out of the fight or NEUTRAL is none.
+                //   📌 Live on uc-urban-battle: two civilians 30 m off put every remounting squad out again, so the convoy never moved on.
+                if (!SquadContacts.IsEnemy(world, in pool[i])) continue;
+                if (!Fresh(pool[i].LastSeenTick, Fdp.Toolkit.Perception.PerceptionClock.Now(world))) continue;   // ⭐ CE-2347 — an old contact is no enemy near now
                 if (new Vector2(pool[i].PositionX - at.X, pool[i].PositionY - at.Y).LengthSquared() <= r2) return true;
             }
             return false;

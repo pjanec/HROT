@@ -704,11 +704,27 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                         //    host, and an operator running a Stride node beside a real SimHost must
                         //    be able to tell whose window is whose at a glance. Stride teal.
                         TitleBarColor:  StrideWindowColor.TitleBar,
+                        // ⭐ CE-1150 — this node composes no map, so it has no host actions: the inspector offers no map menu (CE-253/254).
+                        Host:           () => null,
+                        World:          () => _visualization.GetRepo(),
                         ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                             new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel)),
                         ExecutionStats: () => ctx.Kernel.GetExecutionStats(),
                         // ⭐ R-S15 — the map's pick bridge is part of the deliverable, not an extra.
                         PickBroker:     _visualization.GetMapPickBroker())),
+                // ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel every ECS host builds (the Components view).
+                //   ⚠ No actions here: this node composes no map, so nothing schedules a dispatch — Properties… and View ▸ Details
+                //   are absent, said in the warning below.
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "stride_details",
+                    Perspective: "SimHost",
+                    World:       () => _visualization.GetRepo(),
+                    Inspector:   () => _visualization.FdpEntityInspector,
+                    Session:     () => _visualization.GetFdpRepoAdapter(),
+                    RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                     () => _visualization.GetRepo() != null,
+                                     () => Fdp.Toolkit.Time.SimClock.Of(_visualization.GetRepo()).IsHalted),
+                    Host:        () => null)),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(wm));
 
@@ -742,7 +758,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //   house rule is that an omission is LOUD.
         Log.Warn("[StrideNodeShell] CE-253/CE-254: this node composes no gizmo registry and no " +
                  "MapInteractionPack, so the map offers no entity-rotation gizmo and no [MapPickable] " +
-                 "field picking. Diagnostics, map, inspectors and cluster time controls are unaffected.");
+                 "field picking, and no host actions (no Properties…, no View > Details float / pin — CE-1150). " +
+                 "Diagnostics, map, inspectors, the Details panel and cluster time controls are unaffected.");
 
         _visualization.SetPanelsWindowManaged();
 

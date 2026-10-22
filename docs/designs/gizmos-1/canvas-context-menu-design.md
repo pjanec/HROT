@@ -1,16 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§11 CE-1230 designed — the ORBAT row's menu is the map's; leans with the user)
+updated: 2026-10-22 (§12 CE-1150 — host actions off the map; Properties… opens the Details panel on every ECS host)
 current-answer: §1-§3 — the hit-test → interned JSON → popup path, which is what SimHost and the Editor
   run today for both canvas and entity right-click. ⭐ §10 (CE-1134 / CE-1135, 2026-10-16) — the ENTITY INSPECTOR's
   menu as built: the map's entity menu heads it on every host; Center View / Select / Properties… on every map host.
 stale-below: §5.4 "the Inspector keeps JsonEntityContextMenuHandler, reading ContextMenuState" — SUPERSEDED by §10.
+  §10 IM-4 (InspectorMapLink) and IM-5's Properties… half — SUPERSEDED by §12 (CE-1150).
 known-rot: ⚠ The ENTITY menu projects items nothing handles. 📐 Measured 2026-09-12 (CE-259bi):
   ContextMenuProjectorGizmo.cs:46 offers "Move Here" (GlobalActionIds.MoveHere), "Engage" and "Stop" on a
   healthy unit, and NO host registers a handler for any of the three — so they are inert. ⚠ Note :60
   disables "Move Here" with a tooltip for a DEGRADED unit, which is what a deliberately unavailable item
   looks like ⇒ the healthy one is meant to work.
 related-designs:
+  - ../../blueprints/DESIGN_Details_Panel_View_Switching.md — the Details shell §8 (tabs / stacked, RequestView); §12 here opens it from Properties… on every host
+  - global-action-system-design.md — §5.3 / §5.6: one registry per host, populated at the composition root (§12 HA-1)
   - ../../DESIGN_Subsystem_Composition_Unification.md — §5c.7 DiagnosticsWindowsBundle: registers the inspector window and, since §10 here, the map menu on it
   - ../../DESIGN_Map_3D_Mode.md — the 3-D camera Center View moves (§10: MapCamera3D.FocusOn)
   - ../../DESIGN_Add_Entity_Picker.md — adds the "Add Entity" item to the empty-map menu and the clicked point (CanvasContextMenuState.AnchorWorld) that §5.6 lacks
@@ -328,8 +331,8 @@ menu, because its inspector is a different type outside the bundle.*
 | **IM-1 the source** | `MenuJsonFor(world, entity)` — what THIS node's map binds for it. No network id / dead ⇒ no menu. ⛔ Not `ContextMenuState`: it lives in `Hrot.IG`, which the shared assembly cannot reference, and it is written on the IG alone |
 | **IM-2 only what runs here** | an item whose action id has no handler in the map's registry is left out (a submenu with none, too); separators never lead or double |
 | **IM-3 order** | the map's items first, then the inspector's own (Inspect…, and per host: Rename… · Delete · Mark Target · Edit overlay · Rotate on CGF) |
-| **IM-4 the join** ⚠ *to be superseded by [CE-1150](../../blueprints/Blueprint_Issues_Tracker.md) (user, 2026-10-16): host actions independent of the map; Properties… handled where the window manager is* | ⭐ by the inspector STATE both the pack (`MapInteractionContext.Inspector`) and the bundle (`InspectorState`) are given — the same object on all four hosts. ⛔ Not a constructor argument: CGF, SimHost and the IG do not keep their window manager, and the pack and the bundle are built at different moments |
-| **IM-5 view actions** | Center View (`RegisterLocal` — a relayed click never moves this node's camera), Select (`Register`, the one selection request), Properties… (`RegisterLocal`: select, then focus the inspector window) — once, in the pack, for every map host · ⚠ **`2026-10-22`: on the EDITOR the host REPLACES Properties… — select, show the Details panel, ask for its Components view** (🔒 user; [Details design §8 DS-7](../../blueprints/DESIGN_Details_Panel_View_Switching.md)); CGF / SimHost / IG keep the inspector |
+| **IM-4 the join** ⛔ **SUPERSEDED by §12 (CE-1150, built `2026-10-22`): the inspector menu takes the host's actions and world; `InspectorMapLink` is deleted.** ⚠ *`2026-10-22`: its "Properties… shows the inspector window" half is GONE (`R-1024` — the inspector answers a request; `ShowWindowFor` deleted); the inspector-menu half (`MapFor`) stays until* ⚠ *to be superseded by [CE-1150](../../blueprints/Blueprint_Issues_Tracker.md) (user, 2026-10-16): host actions independent of the map; Properties… handled where the window manager is* | ⭐ by the inspector STATE both the pack (`MapInteractionContext.Inspector`) and the bundle (`InspectorState`) are given — the same object on all four hosts. ⛔ Not a constructor argument: CGF, SimHost and the IG do not keep their window manager, and the pack and the bundle are built at different moments |
+| **IM-5 view actions** ⚠ *§12: Center View and Select are `SharedHostActions`' (every host); Properties… is the Details bundle's (opens the Details panel on every ECS host)* | Center View (`RegisterLocal` — a relayed click never moves this node's camera), Select (`Register`, the one selection request), Properties… (`RegisterLocal`: select, then focus the inspector window) — once, in the pack, for every map host · ⚠ **`2026-10-22` (`R-1024`): Properties… now only REQUESTS — select + `ShowEntityPropertiesEvent`; the answering window shows itself (the Editor: the Details panel's Components view; CGF / SimHost / IG: the inspector)** — [Details design §8 DS-7](../../blueprints/DESIGN_Details_Panel_View_Switching.md) |
 | **IM-6 3-D** | `MapCamera.FocusOn` is virtual; `MapCamera3D` glides its look-at to the point (ground height from the terrain), yaw / pitch / distance kept; ignored while a first-person driver owns the camera |
 
 **Rejected — one line each:** *a constructor argument on `DiagnosticsHostServices`* — three hosts hold no window manager and build the map
@@ -430,4 +433,150 @@ logged no-op).
 | OM-4 / OM-5 | ✅ the panel's own "Disembark" popup removed; ExCon sets no `RowMenu` ⇒ no row menu | |
 
 📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
+
+
+## 12. DESIGN — HOST ACTIONS are the host's, not the map's; "Properties…" opens the Details panel on every ECS host (`CE-1150`, `2026-10-22`, ui) — build-state: BUILT (steps ①–⑤ ✅ approved by the user `2026-10-22`; HA-4 and HA-8 ✅ approved the same day; as-built §12.1)
+
+🔒 User, `2026-10-16` (CE-1150): *"'Properties...' should be just an UI action that is handled in action handler, it should not need any
+reference to any window … same goes with any menu item in the context menu, why would it need a map??"* · `2026-10-22`: *"the details panel
+is not something just the editor has, it is shared and unified across hosts and the "properties..." click should show it on every ECS host.
+the part "or the entity inspector on CGF, SimHost and IG." is wrong."* · *"Windows themselves should not answer, they should have no idea
+there is any "Properties..." menu or some global ui actions. the global action handler should open the detail panel."* · *"the proposed
+steps look ok."* ⇒ ⛔ SUPERSEDES §10 IM-4 / IM-5's Properties half and `R-1024`'s first wording (a request event the window answers).
+
+**INVENTORY** (`2026-10-22`; read-only sweep of `docs/` + `.dev/` + the five hosts; grep `MapInteractionPack.Build(` ·
+`new DiagnosticsHostServices(` · `new DetailsWindow(` · `GlobalMenu.Register` · `TryGetHandler(`; ⚠ index coverage cannot be checked through
+the CLI): five map hosts (Editor `EditorSubsystem.cs:2045`, CGF `CgfSubsystem.cs:1311`, SimHost `SimHostApp.cs:394`, IG `IgApplication.cs:800`,
+ReplayBrowser `ReplayBrowserSubsystem.cs:198`), five diagnostics-bundle hosts (the four + Stride mode 2 `StrideNodeShell.cs:688`; the
+ReplayBrowser has its own `rb_inspector`); `DetailsWindow`s: Editor `scenario_details` + `ai_details_{btree,hsm,blueprint}`, CGF the three
+`ai_details_*` only, SimHost / IG / Stride / ReplayBrowser none; `GlobalMenu.RegisterItem` from a WINDOW: `DetailsWindow.RegisterViewMenu`
+alone (`:853-866`); a handler run outside the dispatch system: IG `IgApplication.cs:2650` alone.
+
+| the build rests on | code — how it is | design basis — how it was meant to be |
+|---|---|---|
+| the registry, its dispatch and the bus are built INSIDE the map pack | ✅ `MapInteractionPack.cs:108-113`, `:309-310` (*"built here so ALL map hosts get them"* — a fix for per-host copies) | ✅ global-action-system-design §5.3 *"The registry instance is per-subsystem"*, §5.6 *"Each subsystem populates the registry at startup"* (the composition root) |
+| every host builds its map ONCE per host instance ⇒ a host-lifetime registry never sees a second registration | ✅ Editor / CGF / ReplayBrowser in `Initialize`, SimHost in `OnLoad` (`SimHostApp.cs:314`), IG in the bootstrapper callback (once per boot) | ⛔ searched, none found |
+| the window loop and the kernel tick run on ONE thread ⇒ a handler may open a window | ✅ `LocalWindowController` composes and ticks in one loop; `new Thread` only in `ConsoleCommandService.cs:81` | ⛔ searched, none found |
+| the Details panel with the Components view exists on the Editor only | ✅ `EditorSubsystem.cs:3442`; CGF `CgfSubsystem.cs:2167-2173` (AI perspectives only) | ✅ user `2026-09-17` (Details §8): *"there is a detail panel on each host"* · ⚠ `Q47` *"focus on the editor host only"* was "for now" — overruled `2026-10-22` |
+| the shared shell is reachable from every host | ✅ Editor direct (`Hrot.Editor.csproj:21`); CGF / ReplayBrowser through the AI editors; SimHost / IG not yet — no cycle (AiShared references no host) | ✅ Details §1 *"rename when the first non-editor host needs the Shell"* — this is that host; ⏳ the rename stays a follow-up |
+| the Components view needs only the FDP inspector panel + a session, both on every bundle host | ✅ `EntityInspectorPanel.DrawComponentsFor` (`EntityInspectorPanel.cs:780`), `DiagnosticsHostServices.Inspector` / `.RepoAdapter` | ✅ Details §6 L6.3 (it BORROWS the host's wired panel) |
+| `ScenarioComponentsViewDescriptor` can live in AiShared | ✅ its usings are Fdp.* + AiShared (`ScenarioComponentsView.cs:1-7`); AiShared references Presentation (`AiShared.csproj:37`) | ✅ Details §1 known-rot (*"do not reference each other"* is stale) |
+| every host's selection is the world's `SelectionState`, which the shell's entity source reads | ✅ `MapInteractionPack.cs:262` (`EcsSelectionState`), `WorldEntitySelectionSource.cs:55-88` | ✅ `DESIGN_Editor_Entity_Selection_Source.md` §3 (R-122) |
+| the inspector's menu needs only the world, the registry and the bus — not the map | ✅ `MapEntityMenuHandler.cs:41-110` | ✅ §10 IM-1 / IM-2 |
+| the main-menu action items reach the registry through the same ingress | ✅ `GizmoMenuActionEvent` → `ContextActionIngressSystem.cs:75` | ✅ global-action-system-design §5.5 |
+
+```mermaid
+classDiagram
+    direction LR
+    class HostActions { <<NEW, Hrot.Common.Interactions>> Actions: GlobalActionRegistry · InteractionBus · Dispatch · Request(actionId, target) }
+    class SharedHostActions { <<NEW static, Hrot.Presentation>> Create(): HostActions + Select · Center View · pins · AI trace }
+    class GlobalActionRegistry { <<existing, grows>> + Has(actionId) }
+    class MapInteractionContext { <<existing, grows>> + Host: HostActions · - InteractionBus }
+    class MapInteractionPack { <<existing, shrinks>> registers only MAP actions on ctx.Host: layers · 2-D/3-D · shoulder · RTS · orders · Add Entity }
+    class MapInteraction { <<existing, shrinks>> Host · Actions / InteractionBus / ActionDispatch = Host's · - World · - Inspector }
+    class EntityDetailsBundle { <<NEW IUiBundle, AiShared>> the Details shell + Components view · Properties… · View ▸ Details float / pin }
+    class EntityDetailsHostServices { <<NEW record>> WindowId · Perspective · World · Inspector · RepoAdapter · Host · TitleBarColor }
+    class DiagnosticsWindowsBundle { <<existing>> + the inspector menu from Host + World · - AnswerProperties }
+    class MapEntityMenuHandler { <<existing>> (host, world) - no map }
+    class DetailsWindow { <<existing, shrinks>> RequestView · OpenFloat · Pin · - Answer · - RegisterViewMenu }
+    class WindowManager { <<existing, shrinks>> FocusWindow · - FrameStarted }
+    class InspectorMapLink { <<DELETED>> }
+    class ShowEntityPropertiesEvent { <<DELETED>> }
+    SharedHostActions ..> HostActions : creates
+    HostActions *-- GlobalActionRegistry
+    MapInteractionContext --> HostActions
+    MapInteractionPack ..> HostActions : registers map actions
+    MapInteraction --> HostActions
+    EntityDetailsBundle ..> HostActions : registers Properties… + Details menu actions
+    EntityDetailsBundle *-- DetailsWindow
+    EntityDetailsBundle ..> WindowManager : FocusWindow
+    DiagnosticsWindowsBundle --> MapEntityMenuHandler
+    MapEntityMenuHandler ..> HostActions : Request(id, entity)
+```
+
+```mermaid
+sequenceDiagram
+    participant U as the user
+    participant M as map menu · inspector menu · ORBAT row
+    participant B as host interaction bus
+    participant D as GlobalActionDispatchSystem (the host's)
+    participant H as Properties handler (EntityDetailsBundle)
+    participant W as WindowManager
+    participant S as Details shell
+    U->>M: Properties… on an entity
+    M->>B: GlobalActionRequestedEvent(Properties, entity)
+    D->>H: handler(world, entity) - next tick
+    H->>H: SelectionChangeRequest on the world bus
+    H->>W: FocusWindow(the host's Details id)
+    H->>S: RequestView(details.components)
+    Note over S: the selection lands, Components joins the offer, the request picks and reveals it (DS-6)
+    S->>U: Details open on the Components view
+```
+
+```mermaid
+graph TD
+    HO[the host object - Editor · CGF · SimHostApp · IgApplication · ReplayBrowser] -->|SharedHostActions.Create - once| HA[HostActions]
+    HA --> P[MapInteractionPack.Build - map actions]
+    HA --> DB[DiagnosticsWindowsBundle - inspector menu]
+    HA --> EB[EntityDetailsBundle - Properties… · View ▸ Details]
+    HA --> I[ContextActionIngressSystem - the host's]
+    P --> MI[MapInteraction.Systems - lists Host.Dispatch]
+    MI -->|each frame| GM[GizmoInteractionModule.Tick - Editor · CGF · SimHost · IG]
+    MI -->|each frame, by hand| RB[ReplayBrowser loop]
+    EB -.->|ReplayBrowser: its own inspector, no DiagnosticsWindowsBundle| X[composed beside rb_inspector]
+    style X stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: nothing a window does is reached from an action except through the window manager and the shell's
+public `RequestView` — the handler lives in the bundle that BUILT the window, so the window holds no subscription, no event, no menu entry;
+and the registry outlives the map, but its scheduling still rides the map's system list (`MapInteraction.Systems`), which every ECS host has —
+a map-less host would schedule `Host.Dispatch` itself.*
+
+| decision | rule |
+|---|---|
+| **HA-1 host actions** | `HostActions` (`Hrot.Common.Interactions`): the registry, the interaction bus (`InteractionEventRegistry.RegisterAll` over it), the dispatch system, `Request(actionId, target)` (publishes `GlobalActionRequestedEvent`). ONE per host instance, made by the host object — never by a map or a window |
+| **HA-2 shared actions off the map** | `SharedHostActions.Create()` (`Hrot.Presentation`) registers Select, Center View, the pins and the AI-trace toggles; the pack registers on `ctx.Host` only what needs the map — the layer panel, View ▸ 2-D / 3-D, over-the-shoulder, RTS, the orders (the map's pick service) and Add Entity (the map's placement tool). `MapInteractionContext.Host` is optional for a test (the pack makes one) and PASSED by every host (R-67) |
+| **HA-3 Properties…** | registered (`RegisterLocal`) by `EntityDetailsBundle` — the composition that holds the window manager and builds the Details window. Handler: the selection request, `FocusWindow(detailsId)`, `RequestView("details.components")`. ⛔ No event, no per-frame hook, no window code that knows of actions or menus |
+| **HA-4 Details on every ECS host** | `EntityDetailsBundle` (AiShared) builds `PerspectiveWorkspace` + `DetailsWindow` + the Components view (moved to AiShared, same name and namespace — a move, not a rename) and contributes the shell's own view; composed by the Editor (`scenario_details`, then adds its Environment / Zones / Mission / EntityAi views on the returned workspace), CGF (`cgf_details`, Scenario), SimHost (`simhost_details`), IG (`ig_details`), Stride mode 2 (`stride_details`) and the ReplayBrowser (`rb_details`). SimHost and IG gain the AiShared reference |
+| **HA-5 the inspector without the map** | `MapEntityMenuHandler(host, world)`; `DiagnosticsHostServices` gains `Host` and `World`; the ORBAT row menu likewise. Deleted: `InspectorMapLink`, `MapInteraction.World` / `.Inspector`, `ShowEntityPropertiesEvent`, `WindowManager.FrameStarted`, `DetailsWindow.Answer`, `DiagnosticsWindowsBundle.AnswerProperties`, `DiagnosticsHostServices.AnswersProperties` |
+| **HA-6 the IG's relayed menu** | `IgApplication` REQUESTS (`Host.Request`) an id the registry has — the dispatch system runs it, as every other click (`GlobalActionRegistry.Has`) |
+| **HA-7 View ▸ Details** | the two items (Float / Pin current view) are registered by `EntityDetailsBundle` and REQUEST `FloatDetailsView` / `PinDetailsView`; the handlers act on the current perspective's Details. `DetailsWindow.RegisterViewMenu` deleted; the labels and enabled state stay (computed by the bundle from the shell's public `CurrentDescriptor`) |
+| **HA-8 shell items stay** ⚠ *narrows step ⑤* | the window manager's *Settings ▸ UI Scale & Fonts…* and the runner's *Settings ▸ Layout* items are the SHELL's, not a window's, and live in FDP / the runner, which cannot see Hrot's action ids ⇒ unchanged |
+
+**Rejected — one line each:** *the request event a window answers (`R-1024` as first built)* — the user: windows must not know of actions;
+*the pack keeps the registry and is handed the windows* — CGF / SimHost / IG keep no window manager when they build the map, and the map is
+built before the windows; *the Details bundle in `Hrot.Presentation`* — AiShared references Presentation, so it would be a cycle; *one
+registry per map build* — no host builds its map twice (row 2), and a map-owned registry is what made actions map-bound; *the orders and Add
+Entity off the pack* — their handlers drive the map's pick and placement tools (registered on the host's registry, no longer owned by the map);
+*the inspector as the Properties target on CGF / SimHost / IG* — the user: the Details panel, on every ECS host.
+
+### 12.1 AS-BUILT (`2026-10-22`, ui) — build-state: BUILT
+
+🔒 User, on this design: *"H4 is ok, "pulling editors assemblies" into those hosts costs nothing."* · *"HA 8 accepted."* · on Float / Pin:
+*"ok that they become actions."* — the panel's own float / pin buttons stay the panel's controls (they act on its own views, no menu); the
+View ▸ Details items moved to the bundle.
+
+| decision | as built | deviation |
+|---|---|---|
+| HA-1 | `Hrot.Common.Interactions.HostActions` (+ `GlobalActionRegistry.Has`); one per host object: `EditorSubsystem.HostActions`, `CgfSubsystem.HostActions`, `SimHostApp.HostActions`, `IgApplication.HostActions`, `ReplayBrowserSubsystem.HostActions` | — |
+| HA-2 | `Hrot.ScenarioEditor.Map.SharedHostActions.Create()`; `MapInteractionContext.Host` (replaces `InteractionBus`); `MapInteraction.Host` | — |
+| HA-3 | `EntityDetailsBundle.RegisterProperties` | — |
+| HA-4 | `EntityDetailsBundle` + `EntityDetailsHostServices` (AiShared): Editor `scenario_details` (adds Environment / Zones / Mission / Entity AI on `Workspace`), CGF `cgf_details` (Scenario), SimHost `simhost_details`, IG `ig_details`, ReplayBrowser `rb_details` (run state Replay), Stride mode 2 `stride_details` | ⚠ **Stride mode 2: the panel, no actions** — it composes no map, so nothing would run a request; its startup warning says so (CE-253 / 254 family) |
+| HA-5 | `MapEntityMenuHandler(host, world)`; `DiagnosticsHostServices.Host` / `.World` (required); ORBAT `RowMenu` likewise | — |
+| HA-6 | `IgApplication` relayed menu → `HostActions.Request` when `Actions.Has(id)` | — |
+| HA-7 | `EntityDetailsBundle.RegisterViewMenu` — the two `GlobalMenu` items REQUEST `FloatDetailsView` (257) / `PinDetailsView` (258); their handlers act on `ActiveDetails(wm)` | — |
+| HA-8 | unchanged | — |
+
+Moved: `ScenarioComponentsView` → `Hrot.Editor.AiShared/Shell/` (same name and namespace); AiShared gains `InternalsVisibleTo
+Hrot.Blueprints.Tests` (its dump rail came with it). Deleted as §12 says. Cross-lane: FDP `WindowManager` (`FrameStarted` removed),
+`Hrot.Common`, the Stride shell.
+
+📐 **Rails** — `MapEntityMenuHandlerTests.CE1150_TheInspectorMenu_NeedsNoMap` (no map built; the menu offers and requests) ·
+`.CE1150_TheMapRegistersOnTheHostsActions` · `TheDetailsPanelHonoursARequestForAViewTests.CE1150_Properties_IsAHostAction_ThatOpensTheDetailsPanelOnItsComponentsView`
+(✅ red-proved: the handler without `FocusWindow` ⇒ red) · `.CE1150_TheBundle_BuildsThePanelWithTheComponentsView_AndWithoutActionsRegistersNone` ·
+`TheFloatAndPinEntryPointsAreReachableTests` re-homed (a shell registers no menu item; a click is a request the dispatch runs) ·
+`TheScenarioWindowsAreSharedTests.EveryEcsHostComposesTheSharedDetailsPanel` (six hosts) + `.TheMapIsHandedTheHostsActions`.
+**Gates** (`--no-build` after building the test projects): Presentation.Tests 824 / 0 failed · AiShared.Tests 2127 / 0 · Editor.Tests 534 / 0 ·
+Blueprints.Tests 4232 / 0 (⚠ it first needed `dotnet restore` — its assets predated the backend's `Hrot.EcsNode` move, the stale-restore
+trap; nothing to do with this change). ⚠ Not yet seen in the GUI.
 

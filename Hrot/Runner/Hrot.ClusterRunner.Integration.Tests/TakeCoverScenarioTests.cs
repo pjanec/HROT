@@ -23,7 +23,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
 /// ⭐⭐ <c>CE-2094</c> — the shipped <c>tt-take-cover</c> scenario on <c>test-town</c>, live: a rifleman in the open whose SOP
-/// is <c>BasicInfantrySop</c> sees a hostile, the SOP reacts with the REAL <c>TakeCover</c> tree (D6), and the rifleman
+/// is <c>BasicInfantrySop</c> sees a hostile, the SOP reacts with the REAL cover tree (D6; <c>FightFromCover</c> since R-2070, was <c>TakeCover</c>), and the rifleman
 /// ends where the terrain hides it from the hostile — checked with the terrain sight, as
 /// <c>EqsDistributedTests.FindCoverFromTarget_OverTheTerrain_*</c> does. 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §4 D5.
 /// </summary>
@@ -61,6 +61,24 @@ public sealed class TakeCoverScenarioTests : IDisposable
             if (world.GetComponent<EntityInfo>(e).Name.ToString() == name) return e;
         }
         return Entity.Null;
+    }
+
+    /// <summary>What the SOP's rows read, for a failure message: the memory slots (modality, last seen vs CGF's tick) and the sensed changes.</summary>
+    private static unsafe string Senses(EntityRepository cgf, Entity r)
+    {
+        var sb = new System.Text.StringBuilder($"cgf tick {cgf.SimulationTick}");
+        if (cgf.HasComponent<TargetMemory>(r))
+        {
+            var mem = cgf.GetComponent<TargetMemory>(r);
+            for (int i = 0; i < mem.Count; i++)
+                sb.Append($" | slot {mem.EntityIds[i]} anon={mem.Anonymous[i]} mod={mem.Modalities[i]} seen={mem.LastSeenTick[i]} fresh={mem.Freshness[i]:0.0}");
+        }
+        if (cgf.HasComponent<Fdp.Toolkit.Behavior.Components.SopState>(r))
+        {
+            var sop = cgf.GetComponent<Fdp.Toolkit.Behavior.Components.SopState>(r);
+            sb.Append($" | sop hash={sop.SopHash} run={sop.SopInstanceId}");
+        }
+        return sb.ToString();
     }
 
     /// <summary>The chain, link by link, for a failure message: sensor → answer → MoveTo → NavigationIntent → motion.</summary>
@@ -120,7 +138,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     [Fact(Timeout = 240_000)]
     public Task CE2094_ARiflemanInTheOpen_SeesTheHostile_TakesCover_AndEndsHiddenFromIt()
-        => RunAsync(holdFire: false, expectedReaction: "TakeCover");
+        => RunAsync(holdFire: false, expectedReaction: "FightFromCover");   // ⭐ R-2070 (AQ98 A/C): the soldier's cover reaction fights from cover
 
     /// <summary>D5's second variant: under HoldFire the SOP's row 2 withdraws — the real <c>FallBack</c> tree — and the
     /// rifleman must end hidden too.</summary>
@@ -188,7 +206,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
         var authored = sim.GetComponent<SimTransform>(ByName(sim, "Rifleman")).Position;
         Assert.True(harness.PumpUntil(Remembers, timeoutFrames: 3000), "first load: the rifleman must perceive the hostile");
         Assert.True(harness.PumpUntil(() => Vector3.Distance(authored, sim.GetComponent<SimTransform>(ByName(sim, "Rifleman")).Position) > 2f,
-            timeoutFrames: 3000), "first load: the rifleman must move off its authored spot (TakeCover)");
+            timeoutFrames: 3000), "first load: the rifleman must move off its authored spot (FightFromCover, R-2070)");
 
         // ② back to Idle, then a second live load of the same file.
         await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.Idle);
@@ -310,7 +328,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
                                          && cgf.GetComponent<TargetMemory>(Rifleman()).Count > 0, timeoutFrames: 3000),
             "preview: the rifleman must perceive the hostile");
         string? Task() => registry.TryGetName(cgf.GetComponent<BehaviorState>(Rifleman()).ActiveBehaviorHash, out var n) ? n : null;
-        Assert.True(harness.PumpUntil(() => Task() == "TakeCover", timeoutFrames: 3000), $"preview: the SOP must react with TakeCover; runs {Task()}");
+        Assert.True(harness.PumpUntil(() => Task() == "FightFromCover", timeoutFrames: 3000), $"preview: the SOP must react with FightFromCover (R-2070); runs {Task()} — {Senses(cgf, Rifleman())}");
         bool Hidden()
         {
             Entity h = ByName(sim, "Hostile"), r = ByName(sim, "Rifleman");
@@ -479,18 +497,20 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
         string? Task() => registry.TryGetName(cgf.GetComponent<BehaviorState>(rifleman).ActiveBehaviorHash, out var n) ? n : null;
 
-        // ② the SOP's contact row reacts with the real tree (row 3: TakeCover; under HoldFire row 2: FallBack).
+        // ② the SOP's contact row reacts with the real tree (FightFromCover since R-2070 — was TakeCover; under HoldFire row 2: FallBack).
         Assert.True(harness.PumpUntil(() => Task() == expectedReaction, timeoutFrames: 3000),
-            $"the SOP should react with {expectedReaction}; runs {Task()} ({cgf.GetComponent<BehaviorState>(rifleman).Origin})");
+            $"the SOP should react with {expectedReaction}; runs {Task()} ({cgf.GetComponent<BehaviorState>(rifleman).Origin}) — {Senses(cgf, rifleman)}");
         var start = Pos(simRifleman);
 
         // ③ the rifleman walks into the hostile's blind spot.
         bool hidden = harness.PumpUntil(Hidden, timeoutFrames: 3000);
-        // FallBack finishes on arrival; take the verdict from the end position after the move settles.
-        if (hidden) harness.PumpFrames(60);
+        // FallBack finishes on arrival; take the verdict from the end position after the move settles. ⭐ R-2070: FightFromCover
+        //   reaches its cover and then PEEKS out to fight — "in cover at some point" is its verdict, not "ends hidden".
+        bool endsHidden = expectedReaction == "FallBack";
+        if (hidden && endsHidden) harness.PumpFrames(60);
         _out.WriteLine($"rifleman {start} → {Pos(simRifleman)}, hostile {Pos(simHostile)}, task {Task()}");
         _out.WriteLine(Diagnose(cgf, sim, rifleman, simRifleman, site, template));
-        Assert.True(hidden && Hidden(), $"the rifleman must end hidden from the hostile; it is at {Pos(simRifleman)} (started {start}), task {Task()} — {Diagnose(cgf, sim, rifleman, simRifleman, site, template)}");
+        Assert.True(hidden && (!endsHidden || Hidden()), $"the rifleman must end hidden from the hostile; it is at {Pos(simRifleman)} (started {start}), task {Task()} — {Diagnose(cgf, sim, rifleman, simRifleman, site, template)}");
         Assert.True(Vector3.Distance(start, Pos(simRifleman)) > 1f, "it must have MOVED into cover, not been hidden in place");
     }
 }

@@ -241,7 +241,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Failure;
                 }
             }
-            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat))
+            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat, bursts: true))   // R-2071 — hide from where rounds land
             {
                 Release(ref ws, self, world);
                 return NodeStatus.Success;
@@ -406,7 +406,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// one it already hides from while still remembered (so the sensor is not re-pointed between two shots), else the freshest
         /// heard slot. False = nothing remembered at all. ⚠ An identified threat always wins over a heard one.
         /// </summary>
-        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim)
+        /// <remarks>⭐ R-2071 E-1 (Sensing §8.6b) — a heard BURST is the threat only with <paramref name="bursts"/> (TakeCover / Flee hide
+        /// from where rounds land); a fight never takes one for its enemy.</remarks>
+        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim, bool bursts = false)
         {
             aim = default;
             if (TopThreat(world, self, current.Entity, out var threat)) { aim = new ThreatAim(threat, 0, default); return true; }
@@ -415,9 +417,9 @@ namespace Hrot.AI.Behaviors.Brains
 
             int slot = -1;
             for (int i = 0; current.HeardId != 0 && i < mem.Count; i++)
-                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i)) { slot = i; break; }
+                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) { slot = i; break; }
             for (int i = 0; slot < 0 && i < mem.Count; i++)
-                if (TargetMemory.IsAnonymous(in mem, i)) slot = i;   // slots are sorted by score: the first is the freshest
+                if (TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) slot = i;   // slots are sorted by score: the first is the freshest
             if (slot < 0) return false;
 
             aim = new ThreatAim(Entity.Null, mem.EntityIds[slot], new Vector3(mem.PositionsX[slot], mem.PositionsY[slot], mem.PositionsZ[slot]));

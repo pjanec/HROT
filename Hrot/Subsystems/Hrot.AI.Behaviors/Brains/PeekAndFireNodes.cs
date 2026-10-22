@@ -211,7 +211,7 @@ namespace Hrot.AI.Behaviors.Brains
             RelocateSpeed = 4.5f, MinRelocateMetres = 4f,
             ScoreDeltaThreshold = 0.05f,
             NoCoverSeconds = 3f,
-            HeardMatchRadius = 15f,
+            HeardMatchRadius = DefaultHeardMatchRadius,
         };
 
         /// <summary>The parameters with every zero replaced by its default (the enums, flags and filter stay as authored).</summary>
@@ -691,7 +691,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (mem.EntityIds[i] == id) { newest = mem.LastSeenTick[i]; break; }
             for (int i = 0; i < mem.Count; i++)
             {
-                if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
+                if (!TargetMemory.IsAnonymous(in mem, i) || TargetMemory.IsBurst(in mem, i) || mem.LastSeenTick[i] <= newest) continue;   // R-2071 — no shooter stands where his round landed
                 var heard = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 if (filter && Vector3.Distance(heard, origin) > matchRadius) continue;
                 newest = mem.LastSeenTick[i];
@@ -1052,7 +1052,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3144 (P-8 D14) — the sensors look from and for where the enemy is REMEMBERED (the freshest evidence, D13), never
             //   where he is now: a hidden enemy's true position is seen from nowhere, so both soldiers' searches answered nothing and
             //   the duel stood still (measured live). Re-pointed when that spot moves by RepointMetres or another slot becomes freshest.
-            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat));
+            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat, p.HeardMatchRadius));
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var cover = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in aim, retarget);
@@ -1074,8 +1074,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// the memory slot it came from (the threat's own, or a heard one). Falls back to <paramref name="threat"/> when nothing is
         /// remembered as a spot.
         /// </summary>
-        internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
-            => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+        /// <remarks>⭐ <c>CE-2351</c> (Exposure Cycle §4a) — with <paramref name="matchRadius"/>, a heard slot counts only near where THIS
+        /// threat is remembered, G4's rule for the burst: 📐 live <c>ua-javelin-lock</c>, sounds of ANOTHER fight 160 m off (a launch, a
+        /// missile reaching a friend) pulled a tank's hide and firing queries away from the Javelin team its attack order named.</remarks>
+        internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat, float matchRadius)
+            => FreshestEvidence(world, self, in threat, out var at, out long id, matchRadius) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+
+        /// <summary>⭐ <c>CE-3158</c> G4 — the default <see cref="PeekAndFireParams.HeardMatchRadius"/> (m); the vehicle cycle's sensors use it too
+        /// (<c>CE-2351</c>).</summary>
+        internal const float DefaultHeardMatchRadius = 15f;
 
         /// <summary>⭐ <c>CE-2275</c> D-2i — the heard id the sensors carry when they look at the man's SECTOR, not at a threat.</summary>
         internal const long SectorAimId = -2275;

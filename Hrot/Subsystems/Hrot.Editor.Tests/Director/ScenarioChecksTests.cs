@@ -74,6 +74,7 @@ public sealed class ScenarioChecksTests
         public IReadOnlyList<(long Id, string Name)> Named() => U.Ids.Select(kv => (kv.Value, kv.Key)).Concat(Extra).ToList();
         /// <summary>Units that share a name with another (the name index keeps only one).</summary>
         public readonly List<(long Id, string Name)> Extra = new();
+        public string? NameOfEntityIndex(int index) => U.Ids.FirstOrDefault(kv => kv.Value == index).Key;
         public JsonArray Shots() => (JsonArray)ShotRows.DeepClone();
         public JsonArray Blasts() => (JsonArray)BlastRows.DeepClone();
         public string? SetComponent(long networkId, string component, JsonObject patch) => null;
@@ -160,6 +161,44 @@ public sealed class ScenarioChecksTests
         var v = book.Verdicts().ToDictionary(x => x.Name);
         Assert.Equal(3.0, v["a Bradley is struck"].Time!.Value, 6);
         Assert.True(v["both Bradleys alive"].Ok);
+    }
+
+    /// <summary>
+    /// ⭐ A <c>hit</c> cue sees a burst that STRUCK the unit (a drone diving onto a tank), as the take's <c>AnchorBook.Hit</c> does — 📌
+    /// measured on <c>ua-drone-shelter</c>: without it, "the deck tank is never hit" was vacuous. 🔴 Red-proof: drop the <c>struck</c> term.
+    /// </summary>
+    [Fact]
+    public void CE4042_AHitCue_SeesABurstThatStruckTheUnit()
+    {
+        var checks = Parse("""{ "runFor": 10, "expect": [{"name": "the tank is hit", "on": "hit", "target": "Tank"}] }""", out _);
+        var w = new FakeWorld().Unit("Tank", 1, 100, 0).Unit("Drone", 2, 10, 0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0);
+        w.BlastRows.Insert(0, new JsonObject { ["seq"] = 0, ["shooter"] = 2, ["struck"] = 1, ["effects"] = new JsonArray() });
+        book.Observe(2.5);
+        Assert.Equal(2.5, book.Verdicts().Single().Time!.Value, 6);
+    }
+
+    /// <summary>
+    /// ⭐ A held handle hashes as the unit it MEANS: the passenger points at "Technical" under index 2 in one run and index 3 in another
+    /// (one entity created more before it — allocation order) and the golden is the SAME. 🔴 Red-proof: hash the raw value ⇒ different.
+    /// </summary>
+    [Fact]
+    public void CE4042_AHeldHandle_HashesAsTheUnitItMeans()
+    {
+        var checks = Parse("""{ "runFor": 1, "golden": {"every": 1}, "expect": [{"name": "x", "on": "field", "who": "Rider", "path": "Health.Current", "op": ">", "value": 0}] }""", out _);
+        JsonObject Run(int technicalId)
+        {
+            var w = new FakeWorld().Unit("Rider", 1, 100, 0).Unit("Technical", technicalId, 100, 0);
+            // ⭐ a plain field beside the handle, and one inside an array: the real dump's shape (a handle-only component hid a throw)
+            w.Comps[1]["IsEmbarkedTag"] = new JsonObject { ["VehicleEntity"] = $"[{technicalId}, v1]", ["Seat"] = 2, ["Slots"] = new JsonArray(1, $"[{technicalId}, v1]") };
+            var g = new ScenarioGolden(w);
+            g.Snapshot(0);
+            var book = new ConditionBook(checks, w, 0);
+            book.Finish(0);
+            return g.ToJson("s", 1, book);
+        }
+        Assert.Empty(ScenarioGolden.Compare(Run(2), Run(3)));
     }
 
     /// <summary>

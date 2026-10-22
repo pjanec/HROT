@@ -919,6 +919,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2351</c> (user, option 1) — a squad ORDERED TO HOLD does not break contact on its own: outmatched (six in the
+        /// pool), the reaction paused on <c>SquadHold</c> holds instead of breaking; the same squad on a bound breaks as before.
+        /// ✅ Red-proof: <c>Firm</c> removed ⇒ the held squad breaks contact too.</summary>
+        [Theory]
+        [InlineData("SquadHold", "{}", false)]
+        [InlineData("BoundingOverwatch", "{\"Objective\":[0,100,0],\"BoundMetres\":30}", true)]
+        public void CE2351_ReactToContact_ASquadOrderedToHold_DoesNotBreakContact_OnItsOwn(string task, string json, bool breaks)
+        {
+            var s = new Squad(members: 2);
+            s.Order(json, task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
+            Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
         /// element 0 goes there while element 1 covers, then element 1; both there ⇒ Success. ✅ Red-proof: the <c>To</c> arm dropped ⇒
         /// no contact, so the play fails at once.</summary>
@@ -961,6 +982,28 @@ namespace Hrot.SimHost.Tests
             bool done = false; Fbt.NodeStatus result = default;
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done, "no contact left ⇒ the reaction ends");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2353</c> — "clear" is NO ENEMY, not an empty pool: the hold ends while the squad still sees men who are neutral
+        /// (<see cref="Fdp.Toolkit.Squad.SquadContacts.IsEnemy"/>). 📌 Live on <c>uc-urban-battle</c>: civilians in view kept Squad A's
+        /// reaction holding for 30 minutes, so the convoy never secured. ✅ Red-proof: the hold's end back on <c>Contacts.Count == 0</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2353_ReactToContact_HoldsUntilNoEnemy_ANeutralInViewIsNone()
+        {
+            var s = new Squad(members: 2);
+            var seen = s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            s.Answer(s.RetreatQuery(), null);
+            s.Tick(); s.Tick();
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            Assert.False(s.Finished(out _));
+
+            foreach (var e in seen) s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });   // still pooled
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done, "only neutrals in view ⇒ the reaction ends");
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
@@ -1106,6 +1149,20 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        /// <summary>⭐ <c>CE-2351</c> — a LULL is quiet counted from the fight's start: a contact 2 s old with no round yet is not a lull;
+        /// 10 s on, still no round, it is. ✅ Red-proof: the contact clause removed ⇒ a lull at once.</summary>
+        [Fact]
+        public void CE2351_ALull_IsCountedFromTheContact_NotFromBeforeTheFight()
+        {
+            var s = new Squad(members: 2);
+            s.Tick();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 125; i++) s.Tick();   // 2 s
+            Assert.False(SquadSopConditions.InALull(s.Repo, s.Commander));
+            for (int i = 0; i < 560; i++) s.Tick();   // ~11 s since the contact
+            Assert.True(SquadSopConditions.InALull(s.Repo, s.Commander));
         }
 
         // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────
@@ -5190,7 +5247,7 @@ namespace Hrot.SimHost.Tests
             void Seen(float x)
             {
                 ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
-                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, x, 0f, 1f, s.Repo.SimulationTick);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, x, 0f, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             }
 
             Seen(50f);
@@ -5244,8 +5301,8 @@ namespace Hrot.SimHost.Tests
             var enemy = s.Repo.CreateEntity();
             s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
             s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
-            uint seen = s.Repo.SimulationTick;
-            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Repo.Tick();                 // 11 s pass
+            uint seen = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);                                          // as perception stamps it (CE-3292)
+            for (uint i = 0; i < SquadSopConditions.HaltedContactFreshTicks + 60; i++) s.Tick();                    // 11 s pass
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
             Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, seen);
             Ticks(s, 20);
@@ -5270,12 +5327,45 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(50f, 0f, 0f), Rotation = Quaternion.Identity });
             s.Repo.AddComponent(enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(apc);
-            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, s.Repo.SimulationTick);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 50f, 0f, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             Ticks(s, 20);
             Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // it drives: ride on
             s.Repo.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.None });           // dead in the water
             Ticks(s, 20);
             Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                                   // the wreck stands: get out
+        }
+
+        /// <summary>⭐ <c>CE-2353</c> — a NEUTRAL in the squad's pool near a halted carrier is no enemy: the squad rides on (the same test
+        /// the platoon's SPOT uses, <c>StaffSystems.ComposeSpot</c>). 📌 Live on <c>uc-urban-battle</c>: two civilians 30 m off put every
+        /// remounting squad out again, so the convoy secured and remounted for ten minutes and never moved on. The same man Hostile puts
+        /// it out (the pool half is live). ✅ Red-proof: the neutral test dropped ⇒ it gets out for the civilian.</summary>
+        [Fact]
+        public void CE2353_BasicSquadSop_ANeutralNearAHaltedCarrier_DoesNotPutTheSquadOut()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var apc = Carrier(s, new Vector3(0f, 0f, 0f), 0, 1, 2, 3);
+            s.Repo.AddComponent(apc, new SimVelocity { Linear = Vector3.Zero });                                     // it stands
+            if (!s.Repo.HasComponent<Fdp.Core.EntityInfo>(apc)) s.Repo.AddComponent(apc, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            var man = s.Repo.CreateEntity();
+            s.Repo.AddComponent(man, new SimTransform { Position = new Vector3(30f, 0f, 0f), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(man, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });
+            void SeenNow()
+            {
+                ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+                var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                    ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+                span[0] = new SquadContact { EntityId = (long)man.PackedValue, PositionX = 30f, ThreatScore = 1f, SourceMembersMask = 1,
+                                             LastSeenTick = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo) };   // seen NOW (CE-3292)
+                squad.Contacts.Count = 1;
+            }
+            for (int i = 0; i < 20; i++) { SeenNow(); s.Tick(); }
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                                       // a civilian: ride on
+            s.Repo.SetComponent(man, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            for (int i = 0; i < 20; i++) { SeenNow(); s.Tick(); }
+            Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                                   // an enemy: get out
         }
 
         // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
@@ -6663,7 +6753,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.AddComponent(e, new Fdp.Core.EntityInfo { ForceId = force });
             if (vehicle) s.Repo.AddComponent(e, new global::CarKinem.Core.VehicleState());
             ref var mem = ref s.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(spotter);
-            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, s.Repo.SimulationTick);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, at.X, at.Y, 1f, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
             return e;
         }
 
@@ -7091,6 +7181,34 @@ namespace Hrot.SimHost.Tests
             p.S.Repo.GetComponentRW<SimTransform>(ifv).Position = new Vector3(2f, 370f, 0f);
             for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
             Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐ <c>CE-2354</c> (DA-102 / DA-103) — nobody aboard after <see cref="PlatoonConvoyBehavior.RemountTimeoutSeconds"/>: the
+        /// squads follow on foot AND the vehicles that can move carry on along the route. 📌 Live on <c>uc-urban-battle</c> both squads went
+        /// on foot and the APC and IFV stood on Hold for good — a vehicle was ordered only through a slot still riding it. ✅ Red-proof: the
+        /// on-foot slot skipped in <c>KeepVehicle</c> again ⇒ no second FollowRoute.</summary>
+        [Fact]
+        public void CE2354_PlatoonConvoy_NobodyAboardInTime_TheSquadsFollowOnFoot_AndTheVehiclesCarryOn()
+        {
+            var p = new Platoon();
+            var apc = ConvoyVehicle(p.S, new Vector3(0f, 40f, 0f), 9001, 0, p.Alpha);
+            var ifv = ConvoyVehicle(p.S, new Vector3(0f, 15f, 0f), 9002, 0, p.Bravo);
+            ConvoyRoute(p.S, 9811, new Vector3(0f, 30f, 0f), new Vector3(0f, 380f, 0f));
+            Convoy(p);
+            p.Ticks(3);
+            Embarkation.Disembark(p.S.Repo, p.Alpha);
+            Embarkation.Disembark(p.S.Repo, p.Bravo);
+            p.Ticks(3);                                                                                                   // out, quiet: secure
+            p.ReportSet(p.Alpha);
+            p.ReportSet(p.Bravo);
+            p.Ticks(3);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark), p.OrdersTo(p.Bravo, BehaviorNames.SquadEmbark)));
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // they wait
+
+            p.S.Pause(PlatoonConvoyBehavior.RemountTimeoutSeconds + 1);                                                   // nobody boards
+            p.Ticks(6);
+            Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, "Order.Move"), p.OrdersTo(p.Bravo, "Order.Move")));                  // on foot
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carry on
         }
 
         /// <summary>⭐ <c>CE-2347</c> (DA-102) — a vehicle that cannot move halts the convoy and is left at the remount: its squad boards the

@@ -132,6 +132,17 @@ namespace Fdp.Toolkit.Perception.Components
             fixed (byte* a = mem.Anonymous) return (uint)slot < (uint)mem.Count && a[slot] != 0;
         }
 
+        /// <summary>⭐ <c>CE-2348</c> ③ (R-2071 E-1, Sensing §8.6b) — the slot is a heard BURST: anonymous, sounding like an explosion. A
+        /// burst says where a round LANDED, never where an enemy is: every "is an enemy here?" reader skips it; the alert readers and
+        /// hide-from-a-point keep it.</summary>
+        public static bool IsBurst(in TargetMemory mem, int slot)
+        {
+            fixed (byte* c = mem.SourceClass) return IsAnonymous(in mem, slot) && c[slot] == BurstClass;
+        }
+
+        /// <summary>The class a burst carries — <c>Tkb.Domain.SoundSourceClass.Explosion</c>.</summary>
+        public const byte BurstClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
+
         /// <summary>⭐ <c>CE-3063</c> ② — the first slot that names an ENTITY (the most threatening identified contact, slots being
         /// sorted), or -1 when every remembered contact is heard only.</summary>
         public static int FirstIdentified(in TargetMemory mem)
@@ -312,8 +323,9 @@ namespace Fdp.Toolkit.Perception.Components
                                        float scoreBoost, uint tick)
         {
             radius = radius > 0f ? radius : 1f;
+            bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
             int best = -1; float bestD2 = float.MaxValue;
-            for (int i = 0; i < mem.Count; i++)
+            for (int i = 0; !burst && i < mem.Count; i++)
             {
                 if (mem.Anonymous[i] != 0) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
@@ -334,6 +346,7 @@ namespace Fdp.Toolkit.Perception.Components
             for (int i = 0; i < mem.Count; i++)
             {
                 if (mem.Anonymous[i] == 0 || !ClassesCompatible(mem.SourceClass[i], sourceClass)) continue;
+                if (burst != (mem.SourceClass[i] == BurstClass)) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
                 float reach = mem.Radius[i] + radius;
                 if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
@@ -379,6 +392,7 @@ namespace Fdp.Toolkit.Perception.Components
             {
                 if (mem.Anonymous[i] == 0) continue;
                 byte c = mem.SourceClass[i];
+                if (c == BurstClass) continue;   // ⭐ R-2071 E-1 — the man seen there did not make the bang
                 bool compatible = c == 0 || entityClasses.Length == 0;
                 for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
                 if (!compatible) continue;

@@ -1,6 +1,6 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Air Ops 3c: a doors-off UH-60 inserts a squad. Judge (1) lands within 10 m of the LZ and nobody leaves it in the air, (2) all six dismount, (4) the squad ends near its objective (Leader within 15 m of (200,195), a stand-in for the squad's centre). Left out: (3) 'lifts off 30 m+ only after the last man is out' (a distance from a point that is not a field; the heli's direction of departure is not in the file).",
-  "runFor": 120,
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Air Ops 3c: a doors-off UH-60 inserts a squad. Judge (1) lands within 10 m of the LZ and nobody leaves it in the air, (2) all six dismount, (4) the squad ends near its objective (Leader within 15 m of (200,195), a stand-in for the squad's centre). Left out: (3) 'lifts off 30 m+ only after the last man is out' (a distance from a point that is not a field; the heli's direction of departure is not in the file). runFor 150: the Leader first reaches within 15 m of the objective at 123.75 s and the squad's march ends at 134.75 s (probed); 120 was too short.",
+  "runFor": 150,
   "golden": {
     "every": 10
   },

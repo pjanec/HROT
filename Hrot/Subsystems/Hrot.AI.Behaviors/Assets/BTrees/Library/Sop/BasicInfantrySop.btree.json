@@ -293,6 +293,7 @@
       "ChildVisualIds": [
         "c2331000-0000-0000-0000-000000000002",
         "c2331000-0000-0000-0000-000000000003",
+        "c2331000-0000-0000-0000-000000000005",
         "c2331000-0000-0000-0000-000000000004"
       ],
       "DisplayLabel": "Enemy in sight, no task → fight from cover",
@@ -450,6 +451,22 @@
         "X": 420,
         "Y": 260,
         "Comment": "CE-2322 (AQ97, as built): a crewman in his seat or a passenger — his seat and the vehicle's behaviour decide, not his own rows.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CoverFightConditions.MayFire"
+      },
+      "VisualId": "c2331000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [],
+      "DisplayLabel": "May fire (ROE)",
+      "EditorMetadata": {
+        "X": 1160,
+        "Y": 400,
+        "Comment": "CE-3306: FightFromCover fights, so it runs only where the ROE lets him fire; under Hold Fire the withdraw row decides (D5).",
         "Collapsed": false,
         "Color": null
       }

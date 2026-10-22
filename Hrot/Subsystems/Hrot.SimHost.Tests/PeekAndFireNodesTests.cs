@@ -718,6 +718,29 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2348</c> ③ (R-2071 E-1) — A BURST IS NOTHING TO FIGHT: a unit whose only memory is a heard burst has nothing to peek
+        /// at or fire at — the node ends (Success) with no blind burst; the same slot heard as a rifle shot is a heard enemy it fights.
+        /// 🔴 Red-proof: drop the <c>IsBurst</c> skip in <c>TopAim</c> and the first half keeps running against the impact point.
+        /// </summary>
+        [Fact]
+        public void CE2348_AHeardBurstAlone_IsNothingToFight_AHeardShotIs()
+        {
+            NodeStatus WithOnlyAHeard(byte sourceClass)
+            {
+                var d = new Duel(Window(), seen: false);
+                ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+                mem.Count = 0;
+                TargetMemory.HearContact(ref mem, 26f, 6f, 0f, 10f, sourceClass, 60f, 5);
+                var status = d.Step();
+                Assert.Empty(d.Fires);
+                return status;
+            }
+
+            Assert.Equal(NodeStatus.Success, WithOnlyAHeard(TargetMemory.BurstClass));
+            Assert.Equal(NodeStatus.Running, WithOnlyAHeard(4));   // small arms: a heard enemy
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>P8_R1</c> — <c>CE-3144</c> D14: the sensors look for where the enemy is REMEMBERED, never where he is — the enemy stands
         /// 30 m from his remembered spot and the sensor still points at the spot (a context POINT, no entity); a sighting that moves
         /// the spot more than 2 m re-points it; a newer heard contact takes it over. 🔴 Red-proof: pass <c>threat</c> instead of

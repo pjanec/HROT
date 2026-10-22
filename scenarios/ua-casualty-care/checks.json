@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — C1-C5 (CE-2152) the squad's casualty-care drill. From the header's Judge (2)-(4): the check drops Rifleman 3 to 25 HP at contact (the live check's set_health; contact = the first round at the Hostile), the Medic and only he carries, covering rounds precede him, the man is carried then put down alive. 'Medic goes' is his CarryCasualty task, so 'covering fire first' is stricter than the live '1 m out'. NOT expressed: (1) Rescue winning the decision (an unreadable utility winner), (4) the squad leaving CasualtyCare (a task cue cannot be negated), (5) no order to the man down and the 2.5 m cover-point distance (maneuver data read over HTTP, not components). The take never fired its cues (it had no action).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 C1-C5 (CE-2152) the squad's casualty-care drill. From the header's Judge (2)-(4): the check drops Rifleman 3 to 25 HP at contact (the live check's set_health; contact = the first round at the Hostile), the Medic and only he carries, covering rounds precede him, the man is carried then put down alive. 'Medic goes' is his CarryCasualty task, so 'covering fire first' is stricter than the live '1 m out'. NOT expressed: (1) Rescue winning the decision (an unreadable utility winner), (4) the squad leaving CasualtyCare (a task cue cannot be negated), (5) no order to the man down and the 2.5 m cover-point distance (maneuver data read over HTTP, not components). The take never fired its cues (it had no action). TRIAGE (CE-4042): (a) the squad's drill IS readable \u2014 the Squad entity's SquadDrillTrace component (Active, Kind, Phase, Care.Stage; Kind 11 = CasualtyCare, 12 = FireAndMovement, 7 = SquadHold), so 'the squad runs CasualtyCare' is a field cue, not a task cue (DESIGN \u00a79 'squad drill' gap is closed for this); (b) IsEmbarkedTag.Mode is not in the entity dump (the translator writes Vehicle + Seat only) \u2014 carried / put down is the embark cue (IsEmbarkedTag present / gone). Measured: the drill starts 3.5 s, the Medic goes 4.75 s, the man is carried 14.25 s, put down 24.25 s.",
   "runFor": 90,
   "golden": {
     "every": 10
@@ -31,9 +31,11 @@
     },
     {
       "name": "the squad runs the care drill (CasualtyCare)",
-      "on": "task",
+      "on": "field",
       "who": "Squad",
-      "is": "CasualtyCare",
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 11,
       "after": "the check drops Rifleman 3 to 25 HP"
     },
     {
@@ -52,25 +54,26 @@
     },
     {
       "name": "the Medic takes the man (the casualty is carried)",
-      "on": "field",
+      "on": "embark",
       "who": "Rifleman 3",
-      "path": "IsEmbarkedTag.Mode",
-      "op": "in",
-      "value": [
-        "Carried",
-        "Dragged",
-        "Stretcher"
-      ],
+      "is": true,
       "after": "the Medic goes for him (CarryCasualty)"
     },
     {
       "name": "he puts him down (no longer carried)",
-      "on": "field",
+      "on": "embark",
       "who": "Rifleman 3",
-      "path": "IsEmbarkedTag.Mode",
-      "op": "==",
-      "value": null,
+      "is": false,
       "after": "the Medic takes the man (the casualty is carried)"
+    },
+    {
+      "name": "the squad then leaves CasualtyCare (its drill is no longer kind 11)",
+      "on": "field",
+      "who": "Squad",
+      "path": "SquadDrillTrace.Kind",
+      "op": "!=",
+      "value": 11,
+      "after": "he puts him down (no longer carried)"
     },
     {
       "name": "the casualty is alive",

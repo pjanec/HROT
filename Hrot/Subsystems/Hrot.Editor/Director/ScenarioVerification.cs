@@ -26,6 +26,10 @@ namespace Hrot.Editor.Director
         /// <c>test-fire</c>'s two Bradleys) — a name in a check matches every unit that carries it.</summary>
         IReadOnlyList<(long Id, string Name)> Named();
 
+        /// <summary>The name of the unit at entity INDEX <paramref name="index"/> (the dump writes a held handle as <c>"[index, vGen]"</c>);
+        /// null when it has none.</summary>
+        string? NameOfEntityIndex(int index);
+
         /// <summary>A behaviour's name by its hash (the <c>task</c> cue).</summary>
         string? BehaviourName(int hash);
 
@@ -161,7 +165,9 @@ namespace Hrot.Editor.Director
                 {
                     if (a.Target == null) return null;
                     var hits = _shots.Values.Where(r => r["outcome"]?.ToString() == "Hit" && Is(r["hit"], a.Target)).Select(r => Rel(r["firedAt"]))
-                        .Concat(_blasts.Where(r => r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
+                        // ⭐ a burst that STRUCK the unit (a drone's dive, a round's warhead on it) — as AnchorBook.Hit reads it — or hurt it
+                        .Concat(_blasts.Where(r => Is(r["struck"], a.Target)
+                                                   || r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
                                        .Select(r => Num(r["seenAt"])!.Value))
                         .Where(t => from is null || t >= from - 1e-9).OrderBy(t => t).ToList();
                     return hits.Count >= a.N ? hits[a.N - 1] : null;
@@ -239,7 +245,8 @@ namespace Hrot.Editor.Director
                 if (seq <= _blastFloor || seq <= _blastSeen) continue;
                 var row = (JsonObject)r.DeepClone();
                 row.Remove("rays");
-                if (Num(row["shooter"]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row["shooter"] = n;
+                foreach (var k in new[] { "shooter", "struck" })
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
                 if (row["effects"] is JsonArray fx)
                     foreach (var x in fx.OfType<JsonObject>())
                         if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((long)eid, out var en)) x["entity"] = en;
@@ -354,7 +361,10 @@ namespace Hrot.Editor.Director
                 if (_w.Components(id) is not { } comps) continue;
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                    hashes[type] = _full ? value?.DeepClone() : Hash(value);
+                {
+                    var meant = ByMeaning(value?.DeepClone());
+                    hashes[type] = _full ? meant : Hash(meant);
+                }
                 var p = ConditionBook.At(comps, "SimTransform.Position");
                 units[name] = new JsonObject
                 {
@@ -370,6 +380,35 @@ namespace Hrot.Editor.Director
             }
             _snapshots.Add(new JsonObject { ["t"] = Math.Round(rel, 4), ["units"] = units });
             LastTime = rel;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex HandleShape = new(@"^\[(\d+), v\d+\]$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// ⭐ A held entity handle (<c>"[12, v1]"</c> — its INDEX, i.e. allocation order) becomes the unit it means (<c>"@Technical"</c>, or
+        /// <c>"@?"</c> unnamed): ⛔ otherwise one entity more or less renumbers every later handle and every holder's hash changes with no
+        /// change in meaning. 📌 Measured by backend on <c>ua-tank-ammo</c> (CE-2349 created one item fewer ⇒ <c>IsEmbarkedTag</c> and
+        /// <c>PassengerBuffer</c> differed). ⚠ A network id held as a NUMBER is not rewritten — it cannot be told from any other number.
+        /// </summary>
+        private JsonNode? ByMeaning(JsonNode? n) => Meant(n) ?? n;
+
+        /// <summary>The name a held handle means, or null when <paramref name="n"/> is not one — containers are rewritten in place, and only
+        /// a REPLACED child is assigned back (⛔ assigning a node to its own slot throws "The node already has a parent").</summary>
+        private JsonNode? Meant(JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    foreach (var k in o.Select(kv => kv.Key).ToList()) if (Meant(o[k]) is { } r) o[k] = r;
+                    return null;
+                case JsonArray a:
+                    for (int i = 0; i < a.Count; i++) if (Meant(a[i]) is { } r) a[i] = r;
+                    return null;
+                case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
+                    return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
+                default:
+                    return null;
+            }
         }
 
         private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d ? JsonValue.Create(Math.Round(d, 3)) : n?.DeepClone();

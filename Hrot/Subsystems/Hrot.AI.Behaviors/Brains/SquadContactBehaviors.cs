@@ -25,7 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         /// <summary>Done after this long (s); 0 = never by time.</summary>
         public float DurationSeconds;
-        /// <summary>1 = done once the squad knows no contact.</summary>
+        /// <summary>1 = done once the squad knows no enemy (<see cref="Fdp.Toolkit.Squad.SquadContacts.AnyEnemy"/> — a neutral or a man
+        /// out of the fight is none, CE-2353).</summary>
         public byte EndWhenClear;
     }
 
@@ -85,7 +86,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!SquadManeuverRunner.AnyLive(in ctx)) return NodeStatus.Failure;
             if (p.DurationSeconds > 0f && ctx.Now - ws.StartedAt >= p.DurationSeconds) return NodeStatus.Success;
-            if (p.EndWhenClear != 0 && ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts.Count == 0) return NodeStatus.Success;
+            if (p.EndWhenClear != 0 && !SquadContacts.AnyEnemy(ctx.World, in ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander).Contacts)) return NodeStatus.Success;   // ⭐ CE-2353
             return NodeStatus.Running;
         }
 
@@ -337,6 +338,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         public const byte AssaultUndecided = 0, AssaultClosing = 1, AssaultFlanking = 2;
 
+        /// <summary>
+        /// ⭐ <c>CE-2351</c> (user, `2026-10-22`, option 1) — a squad ORDERED TO HOLD does not break contact on its own: when the task this
+        /// reaction paused is <c>SquadDefend</c> or <c>SquadHold</c>, a BreakContact winner holds instead (withdrawal from a held position
+        /// is the superior's call — the platoon's <c>FallBack</c>, CE-2276). 📐 <c>ua-casualty-care-heavy</c>: three hostiles in the pool,
+        /// BreakContact won (0.63 vs Assault 0.37) and the drill dragged the wounded away inside the 30 s the demo holds under fire.
+        /// </summary>
+        public static bool HoldsFirm(EntityRepository world, Entity self)
+        {
+            var paused = Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(world, self);
+            return paused != null && (paused.BehaviorName == BehaviorNames.SquadDefend || paused.BehaviorName == BehaviorNames.SquadHold);
+        }
+
+        private static void Firm(ref UtilityChoice choice, Entity self, EntityRepository world)
+        {
+            if ((SquadContactResponse)choice.Winner == SquadContactResponse.BreakContact && HoldsFirm(world, self))
+                choice.Winner = (byte)SquadContactResponse.Hold;
+        }
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
@@ -377,6 +396,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var fresh = new UtilityChoice();
                 if (NothingToFight(world, self) || SquadSopConditions.InALull(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight, or a lull: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
+                Firm(ref fresh, self, world);
                 ws.DecidedAt = now;
                 if (fresh.Winner != 0 && fresh.Winner != was)
                 {
@@ -391,6 +411,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (NothingToFight(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
                     else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
+                    Firm(ref ws.Choice, self, world);
                     ws.DecidedAt = now;
                     if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Rescue) FreshCare(ref p);
                 }
@@ -494,21 +515,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>ua-casualty-care-heavy</c>): the pool is rebuilt from the members' memories, which keep a killed enemy until they fade,
         /// so "the pool is empty" came long after the last enemy fell. A heard contact (no entity) counts as alive.
         /// </summary>
+        /// <summary>⭐ R-e — no pooled enemy (a heard contact counts); ⭐ <c>CE-2353</c> — a neutral is none (<see cref="SquadContacts.IsEnemy"/>).</summary>
         private static bool NothingToFight(EntityRepository world, Entity self)
-        {
-            if (!world.HasComponent<SquadCognitiveState>(self)) return true;
-            ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(self);
-            var pool = MemoryMarshal.CreateReadOnlySpan(
-                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
-                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
-            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
-            {
-                var c = pool[i];
-                if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) return false;
-                if (Injury.IsInTheFight(world, new Entity((ulong)c.EntityId))) return false;
-            }
-            return true;
-        }
+            => !world.HasComponent<SquadCognitiveState>(self) || !SquadContacts.AnyEnemy(world, in world.GetComponentRO<SquadCognitiveState>(self).Contacts);
 
         /// <summary>A new rescue starts from nothing: the care play's runtime memory (who, who goes, from where) is cleared.</summary>
         private static void FreshCare(ref ReactToContactParams p)

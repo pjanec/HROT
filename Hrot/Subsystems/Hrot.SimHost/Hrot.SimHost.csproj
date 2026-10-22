@@ -52,6 +52,8 @@
     <!-- Visualization / UI (graphical window support) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- ⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — the shared Details panel every ECS host builds -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
     <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->

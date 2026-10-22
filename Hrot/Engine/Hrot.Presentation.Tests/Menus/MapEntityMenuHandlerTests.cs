@@ -18,14 +18,15 @@ namespace Hrot.Presentation.Tests.Menus;
 
 /// <summary>
 /// ⭐ CE-1134 / CE-1135 (docs/designs/gizmos-1/canvas-context-menu-design.md §9) — the entity inspector's right-click menu is the map's
-/// entity menu (the same JSON, run by the same map actions, only what runs on this node), and the map's view items work on every map host:
-/// Center View moves the camera in 2-D AND 3-D, Select requests the selection, Properties… selects and shows the inspector window.
+/// entity menu (the same JSON, run by the same actions, only what runs on this node), and the view items work on every host: Center View
+/// moves the camera in 2-D AND 3-D, Select requests the selection. ⭐ CE-1150 (§12) — the actions are the HOST's (<see cref="SharedHostActions"/>),
+/// and the menu needs no map. Properties… is the Details bundle's (rails in <c>Hrot.Editor.AiShared.Tests</c>).
 /// ⭐ Re-homes the rails of the Editor's deleted <c>JsonEntityContextMenuHandler</c> (labels, a click, dead / no-id entities, separators).
 /// </summary>
 public sealed class MapEntityMenuHandlerTests : IDisposable
 {
     private readonly EntityRepository _w = new();
-    private readonly InspectorState _state = new();
+    private readonly Hrot.Common.Interactions.HostActions _host = SharedHostActions.Create();
     private readonly MapInteraction _map;
 
     public MapEntityMenuHandlerTests()
@@ -35,7 +36,7 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         _w.RegisterComponent<Health>();
         _w.RegisterComponent<EntityInfo>();
         _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
-        _map = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 64, Inspector = () => _state });
+        _map = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 64, Host = _host });
     }
 
     public void Dispose() => _w.Dispose();
@@ -72,8 +73,8 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
 
     private GlobalActionRequestedEvent[] Requests()
     {
-        _map.InteractionBus.SwapBuffers();
-        return _map.InteractionBus.Read<GlobalActionRequestedEvent>().ToArray();
+        _host.InteractionBus.SwapBuffers();
+        return _host.InteractionBus.Read<GlobalActionRequestedEvent>().ToArray();
     }
 
     [Fact]
@@ -81,11 +82,11 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
     {
         var unit = Unit(42, new Vector3(10, 20, 0));
         var menu = new Menu();
-        new MapEntityMenuHandler(() => (object?)_state).PopulateMenu(unit, menu);   // found through the inspector state, as in a host
+        new MapEntityMenuHandler(() => _host, () => _w).PopulateMenu(unit, menu);   // the host's actions and world, as in a host
 
         Assert.Contains("Center View", menu.Items);
         Assert.Contains("Select", menu.Items);
-        Assert.Contains("Properties…", menu.Items);
+        Assert.DoesNotContain("Properties…", menu.Items);   // ⭐ CE-1150 — only the Details bundle runs it; none is composed here
         Assert.Contains("Pin gizmos >", menu.Items.Select(i => i.Split(" > ")[0] + " >"));
         Assert.DoesNotContain("Rotate", menu.Items);      // no host registered Rotate in this map: the inspector does not offer a dead item
         Assert.NotEqual("---", menu.Items[0]);            // never a leading separator
@@ -104,7 +105,7 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         _w.DestroyEntity(dead);
         var local = _w.CreateEntity();
         var menu = new Menu();
-        var handler = new MapEntityMenuHandler(() => _map);
+        var handler = new MapEntityMenuHandler(() => _host, () => _w);
         handler.PopulateMenu(dead, menu);
         handler.PopulateMenu(local, menu);
         Assert.Empty(menu.Items);
@@ -131,28 +132,43 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         Assert.InRange(Vector3.Distance(three.LookAt, new Vector3(300, -120, 4f)), 0f, 0.05f);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1 / HA-5; 🔒 user, 2026-10-16: <i>"why would it need a map??"</i>) — the inspector's
+    /// menu runs on the HOST's actions alone: no map is built, and its items and a click still work. ✅ Red-proof: the menu reading a map
+    /// (the deleted <c>InspectorMapLink</c> shape) ⇒ no map here ⇒ an empty menu.
+    /// </summary>
     [Fact]
-    public void CE1135_Properties_SelectsTheEntity_AndShowsTheInspectorWindow()
+    public void CE1150_TheInspectorMenu_NeedsNoMap()
     {
-        var unit = Unit(9, Vector3.Zero);
-        var windows = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 512, 512));
-        var win = new Blank("t_fdp_inspector");
-        windows.RegisterWindow(win);
-        win.IsOpen = false;
-        InspectorMapLink.RegisterWindow(windows, "t_fdp_inspector", () => _state);
-        Assert.True(_map.Actions.TryGetHandler(GlobalActionIds.Properties, out var properties));
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<NetworkIdentity>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new NetworkIdentity(77));
+        world.AddComponent(unit, new SimTransform());
+        var host = SharedHostActions.Create();   // ⛔ no MapInteractionPack.Build
+        var menu = new Menu();
 
-        properties(_w, unit);
+        new MapEntityMenuHandler(() => host, () => world).PopulateMenu(unit, menu);
 
-        Assert.True(win.IsOpen, "the inspector window is shown");
-        _w.Bus.SwapBuffers();
-        var request = Assert.Single(_w.Bus.ReadManaged<SelectionChangeRequest>());
-        Assert.Equal(unit, Assert.Single(request.Entities));
+        Assert.Contains("Center View", menu.Items);
+        Assert.Contains("Select", menu.Items);
+        menu.Click("Select");
+        host.InteractionBus.SwapBuffers();
+        var request = Assert.Single(host.InteractionBus.Read<GlobalActionRequestedEvent>().ToArray());
+        Assert.Equal(GlobalActionIds.Select, request.ActionId);
+        Assert.Equal(unit, request.Target);
     }
 
-    private sealed class Blank : Fdp.Presentation.WindowManager.ManagedWindow
+    /// <summary>⭐ CE-1150 (HA-2) — the map registers ITS actions on the host's registry, beside the shared ones: one registry, owned by
+    /// the host, ⛔ not a second one inside the map.</summary>
+    [Fact]
+    public void CE1150_TheMapRegistersOnTheHostsActions()
     {
-        public Blank(string id) : base(id, "Inspector", "Scenario", Fdp.Presentation.WindowManager.WindowScope.PerspectiveBound) { }
-        protected override void DrawClientArea() { }
+        Assert.Same(_host.Actions, _map.Actions);
+        Assert.Same(_host.InteractionBus, _map.InteractionBus);
+        Assert.Same(_host.Dispatch, _map.ActionDispatch);
+        Assert.True(_host.Actions.Has(GlobalActionIds.OpenLayerControl));   // the map's own
+        Assert.True(_host.Actions.Has(GlobalActionIds.Select));             // the host's shared
     }
 }

@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (N.1c PlatoonConvoy built, CE-2347) · 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
-current-answer: §N (start here, 2026-10-20) · then §2 for what the plan built · §5 measured traps
-stale-below: §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
+updated: 2026-10-22 (§N0 rewritten top: R-2071 E-1/E-2 built, CE-2232/2351/2352/3306 fixed, uc-urban-battle PASS 5/5 via CE-2353/2354; next: the embark that never completes, AQ101 awaits the user) · 2026-10-21 (N.1c PlatoonConvoy built, CE-2347) · 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+current-answer: §N0 (start here, 2026-10-22) · then §N (2026-10-20/21) · then §2 for what the plan built · §5 measured traps
+stale-below: §N's ids row and its "unmerged" row (superseded by §N0) · §N.1c's "⑤ fails — waits on backend" (fixed 2026-10-22, §N0) · §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — §8.6a/§8.6b R-2071: a heard explosion is no enemy (E-1/E-2 built)
+  - docs/blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md — E-3 soldier fear/panic, E-4 shelled area: leans, AWAITS THE USER
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §4a CE-2232 (the hide a vehicle can fight from), CE-2352 (a threat's sight range bounds the exposure clock)
+  - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — R-e row CE-2353: ONE squad "enemy" (SquadContacts.IsEnemy)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — APPROVED 2026-10-20: signatures, hearing by distance, the lossless ring, the Band; behaviors owns E (CE-2315)
   - docs/DESIGN_Injury_States.md — §8a CE-2318 as built: a man down is no target, and he lies
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: movement under fire (CE-2319 / CE-2320)
@@ -21,6 +25,47 @@ related-designs:
 # RESUME — behaviors lane: the command chain and the urban battle are built; now the live findings *(top rewritten 2026-10-20)*
 
 **RELEARN** — run the re-learn and open your first reply with the DESIGN BRIEF (`CLAUDE.md`).
+
+## N0. ⭐⭐ Now — START HERE *(written 2026-10-22 at `421c32cbf`)*
+
+| | |
+|---|---|
+| ⭐ lane | `behaviors` (stable branch). `git push -q origin behaviors`. No PRs. Commit trailers per the system reminder; no model ids in the repo |
+| ⭐ ids | tracker next free **`CE-2355`** · rulings next free **`R-2072`** · next architect question **102** (AQ101 written 2026-10-22, awaits the user) |
+| ⚠ unmerged | `backend` +9, `ui` +10, `coordinator` +19 commits ahead of HEAD (2026-10-22). ⇒ first move: `git fetch origin backend ui coordinator`, read new `NOTE_*`/`HANDOFF_*` to behaviors, merge, **`dotnet restore` the test projects you will run** (the third stale-binary trap, `CLAUDE.md`), gate SimHost + Toolkits in the background |
+| ⚠ standing rulings | the coordinator owns `checks.json`, goldens and the nightly sweep; behaviors fixes behaviour + scenario content and proves a fix with ONE scenario run · PL-1 (`CE-2264`) stays ON HOLD · the user allows hard-coded C# behaviour trees instead of JSON BTree assets "to make stuff easier for ai driven development" (offered: convert `BasicInfantrySop` / `BasicSquadSop` — not started) |
+
+### N0.1 Done 2026-10-22 (all pushed, each with rails + red-proof + design fold)
+
+| id | what | where |
+|---|---|---|
+| R-2071 E-1/E-2 (`CE-2348` ③) | user ruling: a heard EXPLOSION is no enemy position — refreshes no known contact, never enters the squad pool, adds no enemy danger, is no fight target; still alerts the calm and TakeCover still hides from it | [Sensing §8.6a/§8.6b](../DESIGN_Thermal_And_Acoustic_Sensing.md); `TargetMemory.IsBurst` |
+| `CE-2232` + `CE-2351` | a vehicle hides where it can FIGHT from (`FiringReachTest` on `FindVehicleHide`); `SensorAim` keeps to heard contacts within 15 m of the named target — `ua-javelin-lock` PASS 5/5 | Vehicle Exposure Cycle §4a; golden `FindVehicleHide.flat` re-recorded |
+| `CE-2352` (hill-attack) | the exposure clock's `CanSeeMe` respects the threat's `VisionRange` — the editor's tanks fire | same doc, budget row |
+| `CE-3306` (backend's note) | AQ98's enemy-in-sight row compared `LastSeenTick` with `SimulationTick`; every reader now uses `PerceptionClock.Now`; the row also asks `MayFire` (ROE) | [answer note](batches/NOTE_Behaviors_To_Backend_TakeCover_Rail_Red_Answer.md) |
+| ⭐ `CE-2353` | ONE squad "enemy": `Fdp.Toolkit.Squad.SquadContacts.IsEnemy/AnyEnemy` (heard = enemy; identified = alive, in the fight, not Neutral). Read by the SPOT, the flank sensor, the halted-carrier dismount row, `NothingToFight`, the hold-until-clear. 📌 civilians and the covert (Neutral) trigger man kept the convoy's squads getting out again and a reaction holding for 30 min | [Squad Tactics R-e](../designs/group-maneuvers/DESIGN_Squad_Tactics.md), [Defend and Attack §11a](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) |
+| ⭐ `CE-2354` | `PlatoonConvoy` orders a vehicle that can move whoever rides it — squads set on foot at the 120 s remount timeout stranded the APC/IFV on Hold | §11a as-built |
+| ✅ live | **`uc-urban-battle` PASS 5/5** (`--timeout 900`): secured 89 s, remount 146 s, IFV on the route 393 s, at its end 459 s, task done | tracker `CE-2354` |
+| coordinator | [scenario-check reply](batches/NOTE_Behaviors_To_Coordinator_Scenario_Check_Findings_Reply.md) (CE-2352 triage) · [uc-reinforce-dry answer](batches/NOTE_Behaviors_To_Coordinator_Reinforce_Dry_Answer.md): the red is R-2071 E-1 BY DESIGN (measured: E-1 off ⇒ PASS 40.5 s); the check needs a real SPOT | — |
+
+### N0.2 ⏭ Next, in order
+
+| # | item | what is known |
+|---|---|---|
+| 1 | ⭐ **the remount embark never completes** (`CE-2354` tail) | live: each `SquadEmbark` ended after ~55 s (its 60 s `EmbarkTimeoutSeconds`), twice, so both squads followed on foot; the APC stood immobile at the IED. Probe the drill during the embark (each man's carrier, health, position, locomotion; the IFV's seats/position). Scratch probe pattern: `ubprobe7.py` (lost with the VM — rewrite: wait for `SquadEmbark` on Squad A/B, dump `/entities/{man}` + `/entities/{squad}/squad` maneuver) |
+| 2 | `ua-casualty-care-heavy` in the editor (coordinator Findings_2) | the Medic gets `CarryCasualty` at 36 s and never carries; Rifleman 3 dies at 101.75 s. Repro: `--mode editor --headless --verify ua-casualty-care-heavy`. Start at `CarryNodes.PickUp` (walk ≤ 3 re-walks within 6 m) |
+| 3 | the rest of `CE-2352` | `bt-mortar-roof`, `pc-ambush-bypass`, `ua-civ-police-line`, `ua-civ-escalation`, `uc-convoy-hit`, `ua-universal-soldier`, `pc-urban-ambush` — one row each once measured. `ua-posture` triaged (an incapacitated Hostile is out of the fight); `ua-rpg-window` triaged (a race) |
+| 4 | `CE-2351` leftovers | `ua-technical-scoot` (geometry), `uc-convoy-hit-ifv` ④ |
+| 5 | AQ101 (R-2071 E-3 fear/panic, E-4 shelled area) | leans written; ⛔ build only on the user's approval. ⚠ the user may also want "a shelled platoon asks for reinforcement" — its home is E-4 (D) |
+
+### N0.3 Traps measured today
+
+| trap | |
+|---|---|
+| `LastSeenTick` is in `PerceptionClock.Now` (= `GlobalTime.FrameNumber`), **never** `world.SimulationTick` | all readers checked 2026-10-22; the rails' harness runs `SimulationTick` ahead so a wrong-clock reader goes red |
+| a live `uc-urban-battle` run is unscripted — each run differs | judge a fix over the timeline, not one sample; use `--timeout 900` (the default 60 ends ~130 s sim) |
+| `pgrep -f <script>` inside a `bash -c` that names the script matches ITSELF | wait on a pid, or let the harness notify |
+| a background job wrapped in `( … ) &` returns at once — no notification for the real work | run the command itself with `run_in_background` |
 
 ## N. ⭐ Now — start here *(written 2026-10-20 at `c12f4e9ac`)*
 

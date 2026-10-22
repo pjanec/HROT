@@ -7,7 +7,7 @@
       "EntityId": 0,
       "PositionX": -1.25,
       "PositionY": -7.2,
-      "Score": 1.7076919,
+      "Score": 3.407692,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -15,7 +15,7 @@
       "EntityId": 0,
       "PositionX": 1.25,
       "PositionY": -7.2,
-      "Score": 1.7076919,
+      "Score": 3.407692,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -23,7 +23,7 @@
       "EntityId": 0,
       "PositionX": -3.75,
       "PositionY": -7.2,
-      "Score": 1.6752785,
+      "Score": 3.3752785,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -31,7 +31,7 @@
       "EntityId": 0,
       "PositionX": 3.75,
       "PositionY": -7.2,
-      "Score": 1.6752785,
+      "Score": 3.3752785,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -39,7 +39,7 @@
       "EntityId": 0,
       "PositionX": -6.25,
       "PositionY": -7.2,
-      "Score": 1.6186287,
+      "Score": 3.3186288,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -47,7 +47,7 @@
       "EntityId": 0,
       "PositionX": 6.25,
       "PositionY": -7.2,
-      "Score": 1.6186287,
+      "Score": 3.3186288,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -55,7 +55,7 @@
       "EntityId": 0,
       "PositionX": -8.75,
       "PositionY": -7.2,
-      "Score": 1.5467407,
+      "Score": 3.2467408,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -63,7 +63,7 @@
       "EntityId": 0,
       "PositionX": 8.75,
       "PositionY": -7.2,
-      "Score": 1.5467407,
+      "Score": 3.2467408,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -71,7 +71,7 @@
       "EntityId": 0,
       "PositionX": 11.25,
       "PositionY": -7.2,
-      "Score": 1.4657304,
+      "Score": 3.1657305,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -79,7 +79,7 @@
       "EntityId": 0,
       "PositionX": -11.25,
       "PositionY": -7.2,
-      "Score": 1.4657304,
+      "Score": 3.1657305,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -87,7 +87,7 @@
       "EntityId": 0,
       "PositionX": -13.75,
       "PositionY": -7.2,
-      "Score": 1.3791586,
+      "Score": 3.0791588,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -95,7 +95,7 @@
       "EntityId": 0,
       "PositionX": 13.75,
       "PositionY": -7.2,
-      "Score": 1.3791586,
+      "Score": 3.0791588,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -103,7 +103,7 @@
       "EntityId": 0,
       "PositionX": -16.25,
       "PositionY": -7.2,
-      "Score": 1.2890542,
+      "Score": 2.9890542,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -111,7 +111,7 @@
       "EntityId": 0,
       "PositionX": 16.25,
       "PositionY": -7.2,
-      "Score": 1.2890542,
+      "Score": 2.9890542,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -119,7 +119,7 @@
       "EntityId": 0,
       "PositionX": -18.75,
       "PositionY": -7.2,
-      "Score": 1.1966047,
+      "Score": 2.8966048,
       "Flags": 0,
       "FlagsMeaningful": 2
     },
@@ -127,7 +127,7 @@
       "EntityId": 0,
       "PositionX": 18.75,
       "PositionY": -7.2,
-      "Score": 1.1966047,
+      "Score": 2.8966048,
       "Flags": 0,
       "FlagsMeaningful": 2
     }
