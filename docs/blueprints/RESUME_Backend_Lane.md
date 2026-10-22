@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21
-current-answer: ⭐⭐⭐⭐⭐⭐⭐⭐ §00000000000 (2026-10-21) — the user's approvals built: CE-2185 armour, CE-3222 gated green, CE-2326 backend half; CE-3177 is behaviors'. Next: the audit's PARTLY rows. ⛔ §0000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐⭐ §0000000000 (2026-10-20 overnight) — the overnight list DONE (CE-2321, audit, CE-1206, CE-3200, CE-3158, CE-3288); next: merge, then the audit's PARTLY rows. ⛔ §000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐ §000000000 (2026-10-20) — Q95 (sound signatures + lossless hearing) BUILT (CE-3282…CE-3285), CE-3279 (EQS timeouts) BUILT, EQS breaker 2 s; NEXT: merge behaviors, then their Scenario Description handoff, then CE-3286 (vehicles stuck in building corners). ⛔ §00000000 below (Q94) is DONE — history. ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-22
+current-answer: ⭐⭐⭐⭐⭐⭐⭐⭐⭐ §000000000000 (2026-10-22) — the CHECKPOINT programme (CE-3299): B2 + R-3039 S4/S1/S3/S2 BUILT; NEXT = B3 (checkpoints as labelled recorder keyframes), then B4, then D1/D7/D17 + B5. ⛔ §00000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐⭐⭐ §00000000000 (2026-10-21) — the user's approvals built: CE-2185 armour, CE-3222 gated green, CE-2326 backend half; CE-3177 is behaviors'. Next: the audit's PARTLY rows. ⛔ §0000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐⭐ §0000000000 (2026-10-20 overnight) — the overnight list DONE (CE-2321, audit, CE-1206, CE-3200, CE-3158, CE-3288); next: merge, then the audit's PARTLY rows. ⛔ §000000000 below is DONE — history. ⭐⭐⭐⭐⭐⭐ §000000000 (2026-10-20) — Q95 (sound signatures + lossless hearing) BUILT (CE-3282…CE-3285), CE-3279 (EQS timeouts) BUILT, EQS breaker 2 s; NEXT: merge behaviors, then their Scenario Description handoff, then CE-3286 (vehicles stuck in building corners). ⛔ §00000000 below (Q94) is DONE — history. ⭐⭐⭐⭐⭐ §00000000 (2026-10-19 evening) — CE-2304 (interior move stall) DONE, Q94 C DONE (CE-3270), D DONE (CE-3271), B DONE (CE-3272) — Q94 B–D complete; A-5…A-7 DEFERRED (R-3022) (A-1…A-4 BUILT, CE-3269). ⛔ §0000000 below (the platoon programme) is DONE — history. ⭐⭐⭐⭐ §0000000 (2026-10-18/19) — the PLATOON PROGRAMME (behaviors' NOTE_Behaviors_To_Backend_Platoon_Programme.md): BR-13 (CE-3251), BR-12 WorldSurvey (CE-3249), BR-3 SquadReport (CE-3250), LD-1/LD-2 (CE-3252, Look Direction §3.2b), BR-8 (CE-3253), BR-9 (CE-3254), BR-2 (CE-3255), BR-4 custody (CE-3256), BR-5 lean (CE-3257), CE-3258 built; CE-2287 designed as Q94 (waits on the user); BR-6 (CE-3259), BR-7 (CE-3260) built — the queue is done; then CE-3261…CE-3263 (Sectors, near-miss origin, formation slots) and ui's G1–G3 (CE-3264…CE-3266, people display on the wire); BR-6/BR-7 blocked on behaviors' CE-2273. ⛔ §000000 below is history (the armed-people queue it names was finished by another backend session). Earlier: §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — the CURRENT programme (CE-3299): decisions D1–D18 (§5), measurements (§6), rails (§7), build order B0–B5 (§8).
+  - docs/DESIGN_System_State_Inventory.md — R-3039: every system field classified (K/A/B/C/S/X), S1 (§6), S2 (§7), S3 (§8) as built.
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
   - docs/REVIEW_Behaviour_Library_Genericity.md — the CURRENT programme's verdict + decisions (§5) and retreat concepts (§6).
   - docs/DESIGN_Peek_And_Fire.md §10 — the approved generalisation (G1–G8, R-257) and §10.7 CoverClaim; CE-3158 builds it.
@@ -13,6 +15,52 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 000000000000. NOW (`2026-10-22`) — the CHECKPOINT programme: R-3039 S1–S4 built, B3 next *(🔒 user: "Yes" to starting B3)*
+
+⭐ **Start here.** `backend` is clean and pushed at `31f690dac` (+ this doc). ⛔ Read `RULINGS.md` first (RULE ZERO).
+⚠ **Merge first:** `origin/behaviors` (`421c32cbf`, 53 commits ahead) and `origin/ui` (`88a60d1c8`, 16 ahead) are NOT merged —
+then `dotnet restore` the test projects you run (CLAUDE.md, third stale-binary trap). The behaviors merge closes `CE-3306`.
+
+**The programme.** [`CE-3299`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) (restore a checkpoint and continue) —
+owning design [**DESIGN_Checkpoint_And_Dry_Run_Restore.md**](https://github.com/pjanec/HROT/blob/backend/docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md): §5 decisions,
+§8 build order. Its precondition is `R-3039` (*a system's memory lives in ECS components; a checkpoint is a plain ECS snapshot*),
+owned by [**DESIGN_System_State_Inventory.md**](https://github.com/pjanec/HROT/blob/backend/docs/DESIGN_System_State_Inventory.md).
+
+### Done (all on `backend`)
+
+| what | commit | where it is written |
+|---|---|---|
+| **B2** — the dry run in ONE handler (D14) | earlier, see the design | Checkpoint design §8 |
+| **R-3039 S4** — every field a system / module / translator carries between frames is classified (K/A/B/C/S/X); rail `EverySystemStateFieldIsClassifiedTests` (C/X may only shrink — ratchet `PendingMoves` = 7, all SUMO X rows) | `d9e91cbe1` | Inventory §1–§5 |
+| **R-3039 S1** — per-entity memory moved onto the entity: squad sense (`SquadMemberSense` 445 / `SquadUnitSense` 446), danger-area edges, the five dispatchers' `DispatchedAction`, `PersonalRouteRef.FollowPending`, animation registration (`ClassOf`), `TrafficShadowFollow` 447 — each with a *restore into a fresh system* rail | `c57376c39` | Inventory §6; [lanes note](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/batches/NOTE_Backend_To_Lanes_R3039_System_Memory_Frames.md) |
+| **R-3039 S3** — ONE restore signal: `AfterRestore.Run` → `WorldEpoch.Restored()`; every class-B cache clears on `WorldEpoch.Moved` (8 animation egress translators, mission/route/overlay translators, entity-request systems, `TrafficPanicSystem`); `LifecycleSystem` re-arms the ELM on a RESTORE (not a load); new class **S** (session state a restore leaves); rail `EveryProtocolField_IsReDerivedAtAWorldReplacement` | `f368a55cf` | Inventory §8; lanes note addendum |
+| **R-3039 S2 routes** — `RouteTrajectorySyncSystem` re-compiles every restored route under its cached id (`TrajectoryPoolManager.RegisterTrajectoryAt` / `EnsureIdsAbove`) | `f368a55cf` | Inventory §7b |
+| **R-3039 S2 solved paths** — `PathTrace` carries `Exact` + `Interpolation` (in the padding); new `TrajectoryRestoreSystem` (first Simulation system of `GroundKinematicsModule`) re-registers each mover's path from its exact trace under its handle, re-plans a thinned one, lifts `NavigationHandleAllocator.EnsureAbove`. 📐 measured: max path 12 points over 4 scenarios, so nearly every path is exact | `086be0890` (measure), `31f690dac` (build) | Inventory §7c / §7c-bis |
+
+📐 Last gates (S2 §7c): Toolkits 4033/0 · SimHost 1857/0 (after the system-count fix) · ClusterRunner 308/0 · Traffic 60/0 · Editor 534/0 ·
+`Hrot.Network.NED.Tests` 149/0. ⚠ `Hrot.NED.Tests` and `Hrot.Animation.Integration.Tests` were never restored in this container — not run.
+
+### ⏭ Next — in the user's accepted order
+
+| # | item | ⭐ the starting facts |
+|---|---|---|
+| **1** | **B3** — checkpoints as labelled recorder keyframes (`R-3044`) | Design §8 B3 + D3 (the master names wall time T ahead on the shared zero; each node's recorder writes keyframe X at its first frame with `TotalWallTicks ≥ T`) + D2 (the keyframe carries the UNCONSUMED step window, as `ReferenceCheckpointHandler` flushes it today). Build: `RecorderTickSystem` takes a *keyframe at T, label X* request → label → frame index in the recording's `.meta.json`; `CheckpointIOWorker`'s `'FDPC'` capture retires; `CollectCheckpoint` exports keyframe X as a one-frame recording; measure **M5** (a forced keyframe's cost on its frame). ⛔ Not started — no code written. Inventory first: `RecorderTickSystem`, `ReferenceCheckpointHandler`, `CheckpointIOWorker`, the master's `TakeCheckpoint` / `CollectCheckpoint` |
+| 2 | **B4** — `RestoreCheckpoint X` = pause → every node seeks to keyframe X → `AfterRestore` → a new recording segment (D8) → live paused; + **D18** (`R-3047`, `CE-3300`): the master mints the branch exercise id, each node copies its history up to T, `FileMode.CreateNew` | clock = `ITimeCommands.SnapTo` (D5) |
+| 3 | **D1 / D7 / D17 + B5** — the 9 SIM-STATE `NoReplay` types made recordable (§6b); singletons honour `DataPolicy` + a rail; the recorder's checkpointing mode (`R-3045`); the R1 oracle live | R1 is red until every violator is fixed — each red names the next one |
+
+### ⏳ Open, not on the critical path
+
+| id | what | lean / state |
+|---|---|---|
+| SUMO X rows (7) | traffic's own memory at a restore | ⏳ **waits on the user** — lean: a restore restarts traffic (Inventory §2c) |
+| [`CE-3309`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) | a managed component replays as one 16 384-entity chunk, allocated anew every frame | engine item; filed, not scheduled |
+| [`CE-3307`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) | the Stride assemblies are walked by neither state rail | small |
+| [`CE-3308`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) | `Networked_Locomotion_BrainSeesFootstepEvents` red — pre-existing at `d9e91cbe1` | open |
+| [`CE-3306`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) | `TakeCoverScenarioTests` red — fixed on `behaviors` | close after the merge |
+
+📌 Ids: backend tracker next free **`CE-3310`**, rulings next free **`R-3049`**, component ids **448–449** free in backend's block
+(450–459 is traffic's).
 
 ## 00000000000. NOW (`2026-10-21`) — the user's approvals, built *(🔒 user: "Those 3 approved. 3177 approved")*
 

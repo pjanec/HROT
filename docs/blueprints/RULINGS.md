@@ -106,7 +106,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 |---|---|---|
 | `ui` | **`R-1000` – `R-1999`** | `R-1023` |
 | `behaviors` | **`R-2000` – `R-2999`** | `R-2071` |
-| `backend` | **`R-3000` – `R-3999`** | `R-3048` |
+| `backend` | **`R-3000` – `R-3999`** | `R-3049` |
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4067` |
 | *a new lane* | the next free thousand: the SAME thousand as its `CE-` block in the tracker's "ID blocks" table; **add its row here first** | |
 
