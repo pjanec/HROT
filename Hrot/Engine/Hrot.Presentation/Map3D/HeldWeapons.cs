@@ -31,6 +31,16 @@ public enum HeldLook : byte
     Mortar,
 }
 
+/// <summary>⭐ CE-1173 / CE-1174 (People Display §5 U12, U13) — what a held weapon's colour must tell the truth about.</summary>
+public enum HeldMarking : byte
+{
+    None,
+    /// <summary>U12 — it LOOKS like a rifle or pistol and fires nothing: drawn orange (a toy's body and safety tip).</summary>
+    Toy,
+    /// <summary>U13 — it fires only non-lethal rounds (the baton-round launcher): a yellow band round it.</summary>
+    LessLethal,
+}
+
 /// <summary>⭐ CE-1236 (People Display §5 U7a) — reading a soldier's held and slung weapons from the replicated
 /// <see cref="Fdp.Toolkit.Combat.Components.WeaponPosture.ActiveMount"/> and his type's mounts. Pure: the rails call it without a GL context.</summary>
 public static class HeldWeapons
@@ -63,6 +73,37 @@ public static class HeldWeapons
         WeaponKind.Pistol => HeldLook.Pistol,
         _ => HeldLook.Rifle,
     };
+
+    /// <summary>
+    /// ⭐ CE-1173 (U12) — a TOY: a mount whose appearance is a rifle or a pistol and that names no round at all (G6: "looks like a rifle
+    /// and fires nothing"). ⚠ Only a mount that STATES its appearance: an old mount that names no round is a weapon
+    /// (<c>ItemAppearances.FiresLethal</c>'s rule), never a toy.
+    /// </summary>
+    public static bool IsToy(WeaponMountDto? mount)
+        => mount?.Appearance is { Look: ItemLook.Rifle or ItemLook.Pistol } && mount.AmmoGuid == 0 && mount.Loadout.All(l => l.AmmoGuid == 0);
+
+    /// <summary>
+    /// ⭐ CE-1173 / CE-1174 — the marking of a held <paramref name="mount"/>: <see cref="HeldMarking.Toy"/> (<see cref="IsToy"/>),
+    /// <see cref="HeldMarking.LessLethal"/> when every round it names is non-lethal (<c>ItemAppearances.FiresLethal</c> — Blunt, Irritant,
+    /// Stun, Smoke), else none. The hands mount and a grenade are thrown, not held as a weapon: none.
+    /// </summary>
+    public static HeldMarking MarkingOf(EntityRepository world, WeaponMountDto? mount)
+    {
+        if (mount == null || mount.Hands || mount.Category is WeaponCategory.Grenade or WeaponCategory.Countermeasure) return HeldMarking.None;
+        if (IsToy(mount)) return HeldMarking.Toy;
+        bool namesRound = mount.AmmoGuid != 0 || mount.Loadout.Any(l => l.AmmoGuid != 0);
+        return namesRound && !Fdp.Toolkit.Combat.ItemAppearances.FiresLethal(world, mount) ? HeldMarking.LessLethal : HeldMarking.None;
+    }
+
+    /// <summary>The mount in <paramref name="man"/>'s hands when it is one of his OWN (<c>ActiveMount</c> below 32); null for a weapon
+    /// system he controls (its own kit draws it, coloured by its type).</summary>
+    public static WeaponMountDto? OwnMountInHands(EntityRepository world, Entity man)
+    {
+        int active = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()
+                     && world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(man)
+            ? world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(man).ActiveMount : 0;
+        return Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active) ? null : Fdp.Toolkit.Combat.CombatTkb.MountOf(world, man, active);
+    }
 
     /// <summary>A look that is a TUBE (it replaces the rifle along its line, and on the shoulder when aimed).</summary>
     public static bool IsTube(HeldLook look) => look is HeldLook.Rpg or HeldLook.MissileTube or HeldLook.Manpads;

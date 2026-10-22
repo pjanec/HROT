@@ -25,6 +25,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct ToggleMap3DEvent { }
 
+    /// <summary>⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p OS-1) — View › First Person: Over the Shoulder; the map's view-mode layer
+    /// drains it and toggles the station's view.</summary>
+    [EventId(8065)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct ToggleShoulderViewEvent { }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
@@ -54,7 +60,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 26;
+        public const int FirstUntoggledLayer = 27;
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -103,6 +109,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.Labels) mask.SetBit(DebugTraceLayers.Labels);
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
+            if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
             if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
             if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
@@ -144,6 +151,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool UnitDetails { get; set; }
         [EditDisplayName("Rounds"), EditDoc("Rounds and grenades in flight or lying on the ground.")]
         public bool Rounds { get; set; } = true;
+        [EditDisplayName("Concealed (ExCon)"), EditDoc("Exercise control: outline what each person carries HIDDEN (a worn charge, a concealed pistol) and name it on his card. Off by default (CE-1169).")]
+        public bool Concealed { get; set; }
     }
 
     /// <summary>⭐ CE-1203 — the Command group.</summary>
@@ -339,7 +348,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.OpenLayerControl
             + ",\"label\":\"Tactical Map Layers...\"},{\"id\":"
             + GlobalActionIds.ToggleMap3D            // ⭐ CE-1033 — the map's 2-D / 3-D switch, on every map host
-            + ",\"label\":\"2-D / 3-D Map\"}]}]";
+            + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
+            + GlobalActionIds.ToggleShoulderView     // ⭐ CE-1201 (§8p OS-1)
+            + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
 
         /// <summary>⭐ CE-3171 — the same View menu plus "RTS command mode", where the map can order units
         /// (<see cref="Hrot.Common.Orders.OrdersOffered"/>; never in a replay).</summary>
@@ -350,7 +361,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.ToggleMap3D
             + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
             + GlobalActionIds.ToggleRtsCommand
-            + ",\"label\":\"RTS Command Mode\"}]}]";
+            + ",\"label\":\"RTS Command Mode\"},{\"id\":"
+            + GlobalActionIds.ToggleShoulderView
+            + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
 
         private readonly long _anchorId;
         private readonly FdpEventBus _interactionBus;

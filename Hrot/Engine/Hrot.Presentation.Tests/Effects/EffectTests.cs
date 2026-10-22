@@ -748,6 +748,50 @@ public sealed class EffectTests
         Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
     }
 
+    /// <summary>
+    /// ⭐ CE-1146 PR-2 (docs/DESIGN_Map_3D_Mode.md §6aa.next SW) — a wreck's smoke drifts on the WORLD'S wind: through <c>Resolve</c> (the
+    /// production path) a World Environment blowing 8 m/s toward the west leans the column west and not north-east (the old fixed breeze);
+    /// calm rises straight; a world with no weather keeps the old breeze. ✅ Red-proof: <c>Resolve</c> not passing the wind ⇒ the column
+    /// leans north-east.
+    /// </summary>
+    [Fact]
+    public void CE1146_PR2_TheSmokeColumn_DriftsOnTheWorldsWind()
+    {
+        var (world, tkb) = World();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var env = world.CreateEntity();
+        world.AddComponent(env, Fdp.Toolkit.Weather.ScenarioClock.Default);
+        world.AddComponent(env, Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new Vector2(-8f, 0f)));
+        At(world, 0.0);
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
+        world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+        var wrecks = new WreckSpawnSystem();
+        Tick(world, wrecks, 0f);
+        world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        Tick(world, wrecks, 0f);
+        var layer = new EffectLayer(() => world, () => tkb, new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb));
+        At(world, 10.0);
+
+        var smoke = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        Assert.True(smoke.Wind is { X: < -7f } w && MathF.Abs(w.Y) < 0.5f, $"the world's wind reaches the column: {smoke.Wind}");
+        Vector2 Lean(EffectLayer.Resolved r)
+        {
+            var puffs = EffectLayer.Puffs(r);
+            var top = puffs.OrderByDescending(p => p.At.Z).Take(4).ToList();
+            return new Vector2(top.Average(p => p.At.X), top.Average(p => p.At.Y)) - new Vector2(r.At.X, r.At.Y);
+        }
+        var lean = Lean(smoke);
+        Assert.True(lean.X < -smoke.Look.Size, $"leans west, downwind: {lean}");
+
+        var calm = Lean(smoke with { Wind = Vector2.Zero });
+        Assert.True(calm.Length() < smoke.Look.Size * 0.5f, $"calm rises straight: {calm}");
+        var none = Lean(smoke with { Wind = null });
+        Assert.True(none.X > 0f && none.Y > 0f, $"no weather modelled: the old north-east breeze: {none}");
+        Assert.Equal(new Vector3(3f, 0f, 0f), EffectLayer.SmokeDrift(new Vector2(40f, 0f)));   // a gale is capped
+    }
+
     private static Entity Round(EntityRepository world, long ammo, Vector3 at, Vector3 velocity, byte warhead = 0, float fuze = 0f,
                                 Vector3 muzzle = default)
     {

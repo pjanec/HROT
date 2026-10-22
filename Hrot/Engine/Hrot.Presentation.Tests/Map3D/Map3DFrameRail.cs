@@ -2295,6 +2295,266 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1146 CL (docs/DESIGN_Map_3D_Mode.md §6aa.CL; 🔒 user, 2026-10-22: <i>"yes exactly that"</i>) — the cloud decks through the
+    /// production camera: from eye height looking up, scattered cumulus, an overcast stratus and cirrus streaks, each a sky unlike the clear
+    /// one; and a FREE camera high above a deck still sees the map (the deck is background — the world is drawn over it). Screenshots
+    /// <c>weather-clouds-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1146_V_CL_CloudLayers_FromBelow_AndTheMapStaysVisibleFromAbove()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+
+        var noon = new Fdp.Toolkit.Weather.WeatherSample { SunElevationDeg = 50, SunAzimuthDeg = 180, RelativeLight = 1f, VisibilityM = 20000f };
+        Fdp.Toolkit.Weather.WeatherSample With(byte octas, Fdp.Toolkit.Weather.CloudKind kind, float baseM)
+        {
+            var w = Fdp.Toolkit.Weather.WeatherConditions.Standard;
+            w.CloudCount = 1;
+            w.SetCloud(0, baseM, 500f, octas, kind);
+            return noon with { Clouds = Fdp.Toolkit.Weather.CloudDeck.Of(w), CloudOctasAbove = octas };
+        }
+        Image Shot(string name, Fdp.Toolkit.Weather.WeatherSample sample, bool deck = true)
+        {
+            sw.Camera3D.Atmosphere = deck ? WeatherSky.Of(sample) : WeatherSky.Of(sample) with { Clouds = null };
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            string path = Path.Combine(shots, name);
+            frame.Screenshot(path);
+            return Raylib.LoadImage(path);
+        }
+        // the share of the sky band (the top third) that is CLOUD — grey to white, not the sky's blue (an octas count greys the sky
+        //   itself, WS-3, so "differs from the clear shot" would count the gaps too)
+        static float Cloud(Image a)
+        {
+            int cloud = 0, n = 0;
+            for (int y = 0; y < a.Height / 3; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(a, x, y);
+                    int lo = Math.Min(p.R, Math.Min(p.G, p.B)), hi = Math.Max(p.R, Math.Max(p.G, p.B));
+                    if (lo > 90 && hi - lo < 22) cloud++;   // grey to white: a lit top or an overcast's underside
+                    n++;
+                }
+            return cloud / (float)Math.Max(1, n);
+        }
+        // the share of the sky band that a translucent deck (cirrus) BRIGHTENS against the clear sky
+        static float Brighter(Image clearShot, Image a)
+        {
+            int lit = 0, n = 0;
+            for (int y = 0; y < a.Height / 3; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(clearShot, x, y); var q = Raylib.GetImageColor(a, x, y);
+                    if (q.R + q.G + q.B - (p.R + p.G + p.B) > 60) lit++;
+                    n++;
+                }
+            return lit / (float)Math.Max(1, n);
+        }
+
+        // from eye height, looking south and up
+        const float up = 0.35f;   // the pose names the LOOK-AT point: put it 8 m ahead of an eye 1.6 m above the ground
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y - 8f * MathF.Cos(up), ground + 1.6f + 8f * MathF.Sin(up)), 8f, MathF.PI * 1.5f, up);
+        var clear = Shot("weather-clouds-clear.png", noon);
+        var scattered = Shot("weather-clouds-scattered-cumulus.png", With(4, Fdp.Toolkit.Weather.CloudKind.Cumulus, ground + 1500f));
+        var overcast = Shot("weather-clouds-overcast-stratus.png", With(8, Fdp.Toolkit.Weather.CloudKind.Stratus, ground + 600f));
+        var cirrus = Shot("weather-clouds-cirrus.png", With(3, Fdp.Toolkit.Weather.CloudKind.Cirrus, ground + 7000f));
+        Assert.Equal(1, CloudDeckRenderer.LayersDrawn);
+        try
+        {
+            float cl = Cloud(clear), sc = Cloud(scattered), ov = Cloud(overcast), ci = Brighter(clear, cirrus);
+            Assert.True(cl < 0.01f, $"a clear sky has no cloud ({cl:P0})");
+            Assert.True(sc > 0.2f && sc < 0.85f, $"scattered cumulus: part of the sky ({sc:P0})");
+            Assert.True(ov > 0.9f, $"an overcast hides the blue ({ov:P0})");
+            Assert.True(ci > 0.1f && ci < 0.85f, $"cirrus: streaks brighten part of the sky ({ci:P0})");
+        }
+        finally { Raylib.UnloadImage(clear); Raylib.UnloadImage(scattered); Raylib.UnloadImage(overcast); Raylib.UnloadImage(cirrus); }
+
+        // a FREE camera 3 km up, looking down through a deck 600 m up: the map is not covered
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground), 3000f, MathF.PI * 1.5f, -1.2f);
+        // ⚠ the same weather with the deck taken out: an overcast dims the light (WS-2), so only the DECK may differ
+        var overcastAbove = With(8, Fdp.Toolkit.Weather.CloudKind.Stratus, ground + 600f);
+        var mapClear = Shot("weather-clouds-from-above-no-deck.png", overcastAbove, deck: false);
+        var mapCloud = Shot("weather-clouds-from-above-overcast.png", overcastAbove);
+        try
+        {
+            var c0 = Raylib.GetImageColor(mapClear, mapClear.Width / 2, mapClear.Height / 2);
+            var c1 = Raylib.GetImageColor(mapCloud, mapCloud.Width / 2, mapCloud.Height / 2);
+            Assert.True(Math.Abs(c0.R - c1.R) + Math.Abs(c0.G - c1.G) + Math.Abs(c0.B - c1.B) < 40,
+                $"the map under a deck stays visible: {c0.R},{c0.G},{c0.B} vs {c1.R},{c1.G},{c1.B}");
+        }
+        finally { Raylib.UnloadImage(mapClear); Raylib.UnloadImage(mapCloud); sw.Camera3D.Atmosphere = null; }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1146 PR-1 (docs/DESIGN_Map_3D_Mode.md §6aa) — rain and snow over the 3-D scene, through the PRODUCTION path: a global weather entity
+    /// (<c>WeatherConditions</c>) raining 6 mm/h with a wind, <c>WeatherSkyLayer.Update</c> sampling it at what the camera looks at, its overlay
+    /// drawing the drops. Dry ⇒ none; rain ⇒ as many as the rate asks, and the frame differs from the dry one; then snow. Screenshots
+    /// <c>weather-rain.png</c>, <c>weather-snow.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1146_V_PR1_RainAndSnow_FromTheWorldsWeather()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();
+        world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        for (int i = 0; i < 3; i++)
+        {
+            var m = world.CreateEntity();
+            float x = spot.X + 4f + i * 1.5f, y = spot.Y - 6f;
+            world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)) });
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+        }
+        var env = world.CreateEntity();
+        world.AddComponent(env, Fdp.Toolkit.Weather.ScenarioClock.Default);
+        var weather = Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new Vector2(-8f, 0f));   // blowing west: from the right, looking south
+        world.AddComponent(env, weather);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(new EntityBodyLayer3D(() => world, () => tkb));
+        var sky = new WeatherSkyLayer(sw, () => world);
+        canvas.AddLayer(sky);
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y - 8f, ground + 1.6f), 30f, MathF.PI * 1.5f, -0.15f);
+
+        string Shot(string name)
+        {
+            sky.Update(0.016f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            string path = Path.Combine(shots, name);
+            frame.Screenshot(path);
+            return path;
+        }
+        string dry = Shot("weather-dry.png");
+        Assert.Equal(0, sky.DropsDrawn);
+
+        weather.Precipitation = (byte)Fdp.Toolkit.Weather.PrecipitationKind.Rain;
+        weather.PrecipitationMmPerHour = 6f;
+        world.SetComponent(env, weather);
+        string rain = Shot("weather-rain.png");
+        Assert.Equal(Precipitation.CountOf(Fdp.Toolkit.Weather.PrecipitationKind.Rain, 6f), sky.DropsDrawn);
+
+        var a = Raylib.LoadImage(dry);
+        var b = Raylib.LoadImage(rain);
+        int changed = 0, n = 0;
+        try
+        {
+            for (int y = 0; y < a.Height; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(a, x, y); var q = Raylib.GetImageColor(b, x, y);
+                    if (Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B) > 24) changed++;
+                    n++;
+                }
+        }
+        finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
+        Assert.True(changed > n / 200, $"the rain shows: {changed} of {n} sampled pixels changed");
+
+        weather.Precipitation = (byte)Fdp.Toolkit.Weather.PrecipitationKind.Snow;
+        weather.PrecipitationMmPerHour = 2f;
+        world.SetComponent(env, weather);
+        Shot("weather-snow.png");
+        Assert.Equal(Precipitation.CountOf(Fdp.Toolkit.Weather.PrecipitationKind.Snow, 2f), sky.DropsDrawn);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1119 U-2 (docs/DESIGN_Map_3D_Mode.md §6w) — the ejection: three pilots in the sky — on the seat with its rocket burning, on the
+    /// seat burnt out, and under an opening canopy with the empty seat falling away beneath him. Screenshot <c>airborne-5-ejection.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1119_V_U2_TheEjectionSeat()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        const double Now = 100.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+        void Pilot(float dx, float up, Fdp.Toolkit.Motion.DescentPhase phase, double since)
+        {
+            var m = world.CreateEntity();
+            world.AddComponent(m, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, ground + up), Rotation = Quaternion.Identity });
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Pilot });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(m, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = Now - since,
+                                                                   Canopy = Fdp.Toolkit.Motion.CanopyKind.Round });
+        }
+        Pilot(-4f, 40f, Fdp.Toolkit.Motion.DescentPhase.Exit, 0.3);
+        Pilot(0f, 40f, Fdp.Toolkit.Motion.DescentPhase.Exit, 1.3);
+        Pilot(5f, 38f, Fdp.Toolkit.Motion.DescentPhase.Deploying, 0.45);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.5f, spot.Y, ground + 38.5f), 13f, -MathF.PI / 2f, -0.05f);   // from the south, level
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-5-ejection.png"));
+        Assert.Equal(3, bodies.EjectionSeatsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a doors-off UH-60 hovering 12 m up, ROPING, two SF men on its ropes; a stick of
     /// paratroopers in every phase (the exit tuck, a free-fall arch, a canopy opening, round canopies — one banked —, a ram-air wing banked
     /// in a spiral, the flare, the landing roll, sitting up landed). Then the hold ends: the ropes are cut and lie where they fell, and a man
@@ -2655,6 +2915,314 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 0.5f, spot.Y, ground + 0.3f), 9f, 0.3f, -0.8f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "dress-3-above.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p) — the over-the-shoulder view: a rifleman seen from behind his right shoulder, his head
+    /// drawn, looking where he aims. Screenshot <c>ce1201-over-the-shoulder.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1201_V_OverTheShoulder()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
+        var man = world.CreateEntity();
+        world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(man, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(man, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed,
+            Point = at + new Vector3(50f, 0f, 1.4f) });
+        var target = world.CreateEntity();   // something to aim at
+        world.AddComponent(target, new SimTransform { Position = at + new Vector3(14f, 1f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(target, new TkbIdentity { TkbType = TkbEntityTypes.Truck_HMMWV });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb) { FirstPerson = man, ShowFirstPersonHead = true };
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        var cam = sw.Camera3D;
+        cam.Yaw = 0f; cam.Pitch = -0.04f; cam.Roll = 0f;
+        cam.Distance = cam.MinDistance;
+        var eye = at + new Vector3(0f, 0f, 1.65f);
+        cam.LookAt = FpsCameraDriver.ShoulderCamera(eye, cam.Forward, ControlScheme.Person, cam.GroundHeight) + cam.Forward * cam.Distance;
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce1201-over-the-shoulder.png"));
+        Assert.True(bodies.FacesPainted > 0 || bodies.FaceDetailsDrawn > 0 || bodies.PartsDrawn > 10, "he is drawn, his head too");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1200 (docs/DESIGN_Entity_Control.md §8o) — first person in a vehicle draws the vehicle, from a crew eye: the HMMWV from the
+    /// driver's seat (its bonnet ahead), the tank from the commander's hatch (its turret and barrel), the UH-60 from the cockpit. 🔒 User,
+    /// live: <i>"in FPS mode the vehicle model should not be turned off — once the camera looks from proper cockpit place, seeing vehicle parts
+    /// is not so much distracting"</i>. Screenshots <c>ce1200-crew-eye-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1200_V_FirstPersonInAVehicle_DrawsIt_FromACrewEye()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        var cam = sw.Camera3D;
+        foreach (var (type, name, z) in new[] { (TkbEntityTypes.Truck_HMMWV, "hmmwv", 0f), (TkbEntityTypes.Tank_T72, "tank", 0f), (TkbEntityTypes.Heli_UH60, "uh60", 30f) })
+        {
+            var v = world.CreateEntity();
+            var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + z);
+            world.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.AddComponent(v, new TkbIdentity { TkbType = type });
+            bodies.FirstPerson = v;
+            frame.Step(canvas.Draw);   // the first frame draws it and learns its crew eye
+            Assert.True(bodies.TryGetEyeLocal(v, out var local), $"{name}: a crew eye");
+            var eye = at + local;
+            cam.Yaw = 0f; cam.Pitch = -0.12f; cam.Roll = 0f;   // looking ahead (east), a little down
+            cam.Distance = cam.MinDistance;
+            cam.LookAt = eye + cam.Forward * cam.Distance;
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, $"ce1200-crew-eye-{name}.png"));
+            world.DestroyEntity(v);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1202 (docs/DESIGN_Map_3D_Mode.md §6n N-2) — the DShK technical with its gun swung to the left: the gunner kneels BEHIND the gun,
+    /// turned with it, not where his seat was. Screenshot <c>ce1202-gunner-turns.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1202_V_TheTechnicalsGunner_TurnsWithTheGun()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
+        var seats = tkb.GetByType(TkbEntityTypes.Technical_Dshk)!.GetDescriptor<CarrierDefDto>()!.Seats;
+        int gunnerSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Gunner);
+        int stationSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
+        var technical = world.CreateEntity();
+        world.AddComponent(technical, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(technical, new TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+        var gunner = world.CreateEntity();
+        world.AddComponent(gunner, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(gunner, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(gunner, new StanceIntent { TargetStance = StanceId.Standing });
+        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)gunnerSeat });
+        var gun = world.CreateEntity();
+        var st = seats[stationSeat];
+        world.AddComponent(gun, new SimTransform { Position = at + new Vector3(st.X, st.Y, st.Z), Rotation = Quaternion.Identity });
+        world.AddComponent(gun, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
+        world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)stationSeat });
+        world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+        var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = (byte)seats.Count };
+        list.Passengers[gunnerSeat] = gunner; list.Passengers[stationSeat] = gun;
+        world.AddComponent(technical, list);
+        var stations = new Fdp.Toolkit.Behavior.Components.CarrierStations { StationMask = (ushort)(1 << stationSeat) };
+        stations.Seats[stationSeat] = new Fdp.Toolkit.Behavior.Components.StationSeat { OperatedBy = (sbyte)gunnerSeat, X = st.X, Y = st.Y, Z = st.Z };
+        world.AddComponent(technical, stations);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (_, e) => e == gun ? new ArticulationPose(MathF.PI / 2f, 0.1f) : ArticulationPose.Neutral);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(at + new Vector3(-1f, 0f, 1.6f), 8f, MathF.PI * 1.25f, -0.45f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce1202-gunner-turns.png"));
+        Assert.Equal(1, bodies.GunnersTurned);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1169 / CE-1172 / CE-1173 / CE-1174 (docs/DESIGN_People_Display.md §5 U7, U11, U12, U13) — the (V) acceptance for the people
+    /// items of the overnight list: a man on his phone, one with binoculars up, one with a stone ready; the three police officers — the baton
+    /// man (cap, vest, belt, baton), the shield man (riot helmet, visor, shield), the launcher man (his launcher's yellow band); and a TOY
+    /// rifle lying on the ground, orange. Screenshots <c>people-overnight-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void PeopleOvernight_V_HeldItems_ThePoliceLook_TheToy_TheBand()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        Assert.True(tkb.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
+        var toyType = new Fdp.Interfaces.TkbTemplate("Toy rifle", 99_616) { DisType = pickUp!.DisType };
+        toyType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto {
+            Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms,
+            Appearance = new Fdp.Toolkit.Tkb.Domain.ItemAppearanceDto { Look = Fdp.Toolkit.Tkb.Domain.ItemLook.Rifle } } } });
+        tkb.Register(toyType);
+        Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // the baton round's warhead: the launcher's band
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Person(long type, float dx, Fdp.Toolkit.Combat.Components.HeldItemKind held = default,
+                      Fdp.Toolkit.Combat.Components.WeaponPostureKind posture = default)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, HeldItem = held, Point = new Vector3(x + 50f, y, G(x, y) + 1.4f) });
+            return e;
+        }
+        long civ = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
+        Person(civ, -6.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Phone);
+        Person(civ, -4.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+        var thrower = Person(civ, -2.0f, Fdp.Toolkit.Combat.Components.HeldItemKind.Throwable);
+        Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(tkb);   // as HrotEnvironment.CreateTkb does: every person has hands
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        int hands = Fdp.Toolkit.Combat.PersonHands.MountIndex(world, thrower);
+        var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = (byte)(hands + 1) };   // the stone in his hand, as a viewer node reads it
+        switch (hands)
+        {
+            case 0: ammo.Load0 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds0 = 3; break;
+            case 1: ammo.Load1 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds1 = 3; break;
+            case 2: ammo.Load2 = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone; ammo.LoadRounds2 = 3; break;
+        }
+        world.AddComponent(thrower, ammo);
+        Assert.NotNull(EntityBodyLayer3D.ThrowableDetail(world, thrower, tkb, BlockFigure.Parts(StanceId.Standing, false)));
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, 0.5f);
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, 2.5f);
+        Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, 4.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
+        // ⭐ CE-1179 (U18) — a surrendered soldier, his rifle laid at his feet, hands up; a placed charge beside the toy, its light on
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        var surrendered = Person(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier, 8.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
+        Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, surrendered, 0);
+        world.AddComponent(surrendered, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
+        var placed = world.CreateEntity();
+        world.AddComponent(placed, new SimTransform { Position = new Vector3(spot.X + 7.4f, spot.Y - 0.9f, G(spot.X + 7.4f, spot.Y - 0.9f)), Rotation = Quaternion.Identity });
+        world.AddComponent(placed, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_ExplosiveCharge });
+        var lying = world.CreateEntity();   // the toy, lying on the ground in front of them
+        world.AddComponent(lying, new SimTransform { Position = new Vector3(spot.X + 6.5f, spot.Y - 0.6f, G(spot.X + 6.5f, spot.Y - 0.6f)), Rotation = Quaternion.Identity });
+        world.AddComponent(lying, new TkbIdentity { TkbType = 99_616 });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 4.0f, spot.Y, ground + 1.3f), 4.6f, -3f * MathF.PI / 4f, -0.10f);   // the civilians, from their front-right
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-1-phone-binoculars-stone.png"));
+        Assert.True(LitShader.Shared.IsValid, "the shader compiled");
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 4.0f, spot.Y - 0.3f, ground + 1.0f), 5.4f, -3f * MathF.PI / 4f, -0.14f);   // police + the toy, from their front
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-2-police-toy.png"));
+        Assert.True(bodies.DetailsDrawn > 0, "the vests, belts and the band are drawn");
+        Assert.Equal(1, bodies.ChargeLightsDrawn);   // the placed charge's light, on at t = 0
+
+        // ⭐ CE-1177 (U16) — four faces close up: calm, afraid, angry, in pain
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        float fy = spot.Y + 6f;
+        Entity Face(float dx)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, fy, G(x, fy)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });   // facing the camera
+            world.AddComponent(e, new TkbIdentity { TkbType = civ });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            return e;
+        }
+        Face(-1.2f);                                                                                                  // calm
+        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
+        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
+        var hurt = Face(1.2f);
+        world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 100f });
+        world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
+        float fg = G(spot.X, fy);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, fy, fg + 1.55f), 3.4f, -MathF.PI / 2f, -0.02f);   // eye level
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-3-faces-calm-afraid-angry-pain.png"));
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 8.0f, spot.Y - 0.5f, ground + 0.4f), 5.0f, -3f * MathF.PI / 4f, -0.42f);   // CE-1179
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "people-overnight-4-laid-down-and-a-placed-charge.png"));
     }
 
     /// <summary>
@@ -3484,7 +4052,7 @@ public sealed class Map3DFrameRail
         using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
         var net = Hrot.Traffic.TrafficNetCache.Of(world)!;
         var query = WorldQuery.Of(world)!;
-        var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt).ToArray();
+        var asphalt = net.Roads.Meshes.Where(m => m.Kind == Sim.Scene.SceneKind.Asphalt && !m.Sidewalk).ToArray();
         Assert.NotEmpty(asphalt);
         var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
         foreach (var m in asphalt) foreach (var v in m.Vertices) { lo = Vector2.Min(lo, new Vector2(v.X, v.Y)); hi = Vector2.Max(hi, new Vector2(v.X, v.Y)); }
@@ -3514,6 +4082,7 @@ public sealed class Map3DFrameRail
         try
         {
             int sampled = 0, grey = 0;
+            var misses = new List<string>();
             foreach (var m in asphalt)
                 for (int t = 0; t + 2 < m.Indices.Length; t += 3)
                 {
@@ -3525,10 +4094,69 @@ public sealed class Map3DFrameRail
                     var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
                     int max = Math.Max(px.R, Math.Max(px.G, px.B)), min = Math.Min(px.R, Math.Min(px.G, px.B));
                     sampled++;
-                    if (max - min < 16 && max < 150) grey++;
+                    // ⭐ CE-1197 — the road SURFACE's neutral grey, the asphalt's or the sidewalk's beside it (from 2 km a lane is two pixels
+                    //   wide); the ground is tinted (green / olive), so ground through the road still fails
+                    if (max - min < 16 && max < 225) grey++;
+                    else if (misses.Count < 40) misses.Add($"({px.R},{px.G},{px.B})");
                 }
             Assert.True(sampled > 200, $"anti-vacuity: asphalt samples on screen {sampled}");
-            Assert.True(grey >= sampled * 0.9, $"asphalt shown at {grey} of {sampled} sampled road triangles");
+            Assert.True(grey >= sampled * 0.9, $"asphalt shown at {grey} of {sampled} sampled road triangles; misses {string.Join(" ", misses)}");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1197</c> — close over a demo-city junction, the sidewalks are drawn light grey beside the dark carriageway. 🔒 User, live,
+    /// <c>2026-10-19</c>: <i>"side-walks on sumo roads not rendered in different shade of gray"</i>. Screenshot
+    /// <c>map3d-ce1197-sidewalks.png</c>. ✅ Red-proof: <c>TrafficRoadScene.IsSidewalk</c> ⇒ false (no light pixel on a sidewalk).
+    /// </summary>
+    [SkippableFact]
+    public void CE1197_V_TheSidewalks_AreLightGrey_BesideTheCarriageway()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        var net = Hrot.Traffic.TrafficNetCache.Of(world)!;
+        var query = WorldQuery.Of(world)!;
+        var walk = net.Roads.Meshes.Single(m => m.Sidewalk);
+        var at = new Vector2(400f, 400f);   // junction d_4_4
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(new TrafficLayer3D(() => world));
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true, animate: false);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), 70f, MathF.PI * 0.3f, -0.9f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-ce1197-sidewalks.png");
+        frame.Screenshot(png);
+
+        var cam = sw.Camera3D;
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int sampled = 0, light = 0;
+            for (int t = 0; t + 2 < walk.Indices.Length; t += 3)
+            {
+                var a = walk.Vertices[walk.Indices[t]]; var b = walk.Vertices[walk.Indices[t + 1]]; var c = walk.Vertices[walk.Indices[t + 2]];
+                var centre = (a + b + c) / 3f;
+                if (Vector2.Distance(new Vector2(centre.X, centre.Y), at) > 45f) continue;
+                var s = cam.WorldToScreen(centre);
+                if (s.X < 2 || s.Y < 2 || s.X > 1277 || s.Y > 797) continue;
+                var px = Raylib.GetImageColor(image, (int)s.X, (int)s.Y);
+                int max = Math.Max(px.R, Math.Max(px.G, px.B)), min = Math.Min(px.R, Math.Min(px.G, px.B));
+                sampled++;
+                if (max - min < 24 && min > 100) light++;
+            }
+            Assert.True(sampled > 10, $"anti-vacuity: sidewalk samples on screen {sampled}");
+            Assert.True(light >= sampled * 0.7, $"sidewalk light grey at {light} of {sampled} sampled triangles");
         }
         finally { Raylib.UnloadImage(image); }
     }

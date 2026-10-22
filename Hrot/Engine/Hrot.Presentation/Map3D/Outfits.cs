@@ -20,7 +20,7 @@ public enum CamoPattern : byte { None, Woodland, Fleck, Desert }
 /// </summary>
 public readonly record struct Outfit(
     Color Top, Color Sleeve, Color Bottom, Color Shin, Color Skin, Color Hair, HairStyle HairStyle, Legwear Legwear,
-    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default);
+    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false);
 
 /// <summary>⭐ CE-1101 (§6r S-3) — a moustache or a beard, or none.</summary>
 public enum BeardKind : byte { None, Moustache, Beard }
@@ -77,6 +77,10 @@ public static class Outfits
 
     /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
     public static readonly Color PoliceUniform = new(34, 46, 82, 255);
+
+    /// <summary>⭐ CE-1172 (U11) — the police vest (darker than the uniform), its pouches, the black belt; the cap's band.</summary>
+    public static readonly Color PoliceVest = new(20, 24, 36, 255), PolicePouch = new(30, 32, 40, 255), PoliceBelt = new(14, 14, 16, 255),
+                                 CapBand = new(236, 236, 232, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
     private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
     private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy
@@ -134,8 +138,10 @@ public static class Outfits
         {
             var uniform = own ?? PoliceUniform;
             var trousers = Scale(uniform, 0.8f);
+            // ⭐ CE-1172 (People Display U11) — the police look: a cap (the shield man a riot helmet), a vest and a belt
             return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, CamoPattern.None,
-                              child, true, FaceOf(seed, type, woman: false, child));
+                              child, true, FaceOf(seed, type, woman: false, child), Police: true,
+                              Riot: type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield);
         }
         if (soldier)
         {
@@ -200,7 +206,14 @@ public static class Outfits
         }
         if (o.Legwear == Legwear.Skirt)   // from the waist to the knee, a little wider than the hips
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.86f), new(1.25f, 1.08f, 0.76f), o.Bottom, Turned: true));
-        if (o.HairStyle == HairStyle.Long)   // down the back of the head to the shoulders
+        if (o.Police)   // ⭐ CE-1172 (U11) — the vest over his chest and back, two pouches on its front, the belt round his waist
+        {
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, 0.14f), new(1.08f, 1.06f, 0.62f), PoliceVest, Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, 0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.42f), new(1.10f, 1.08f, 0.10f), PoliceBelt, Turned: true));
+        }
+        if (o.HairStyle == HairStyle.Long && !o.Police)   // down the back of the head to the shoulders
             into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
         // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
     }

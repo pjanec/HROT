@@ -5,7 +5,11 @@ using Sim.Scene;
 namespace Hrot.Traffic;
 
 /// <summary>One kind's triangles, terrain-local metres, Z up, counter-clockwise from above.</summary>
-public sealed record TrafficRoadMesh(SceneKind Kind, Vector3[] Vertices, int[] Indices)
+/// <param name="Sidewalk">⭐ <c>CE-1197</c> — the pedestrian-only lanes (sidewalks and the walking areas at the corners), split out of
+/// <see cref="SceneKind.Asphalt"/> here because <c>Sim.Scene</c> has no sidewalk kind (it is read-only in HROT, R-4046): their
+/// <see cref="Kind"/> stays <see cref="SceneKind.Asphalt"/>, so "the road surface" is <c>Kind == Asphalt</c> and "the carriageway" is
+/// <c>Kind == Asphalt &amp;&amp; !Sidewalk</c>.</param>
+public sealed record TrafficRoadMesh(SceneKind Kind, Vector3[] Vertices, int[] Indices, bool Sidewalk = false)
 {
     public int TriangleCount => Indices.Length / 3;
 }
@@ -37,7 +41,8 @@ public sealed class TrafficRoadScene
         Plan = plan ?? TrafficRoadPlan.Empty;
     }
 
-    /// <summary>One mesh per kind present: Asphalt, Junction, LaneMarking, Crosswalk, then AmbientGround.</summary>
+    /// <summary>One mesh per kind present: Asphalt (the carriageway), the sidewalks (<see cref="TrafficRoadMesh.Sidewalk"/>), Junction,
+    /// LaneMarking, Crosswalk, then AmbientGround.</summary>
     public IReadOnlyList<TrafficRoadMesh> Meshes { get; }
 
     public IReadOnlyList<TrafficSignal> Signals { get; }
@@ -57,9 +62,28 @@ public sealed class TrafficRoadScene
         var frame = new SceneFrame((minX + maxX) / 2.0, (minY + maxY) / 2.0);
         var scene = RoadSceneBuilder.Build(net, frame);
 
-        var meshes = new List<TrafficRoadMesh>(scene.Meshes.Count + 1);
+        var meshes = new List<TrafficRoadMesh>(scene.Meshes.Count + 2);
         foreach (var (kind, mesh) in scene.Meshes)
-            meshes.Add(ToLocal(kind, mesh, frame, placement));
+        {
+            if (kind != SceneKind.Asphalt) { meshes.Add(ToLocal(kind, mesh, frame, placement)); continue; }
+            // ⭐ CE-1197 — the same ribbons Sim.Scene merged into Asphalt (RoadMeshBuilder.BuildAll, internal lanes included), split by
+            // who may use the lane: a pedestrian-only lane that is not a crossing (crossings stay road, under their zebra) is a sidewalk.
+            var lanes = net.LanesByHandle.ToDictionary(l => l.Handle);
+            var road = new List<SceneMesh>();
+            var walk = new List<SceneMesh>();
+            foreach (var (handle, ribbon) in RoadMeshBuilder.BuildAll(frame, net, includeInternal: true))
+            {
+                if (ribbon.IsEmpty) continue;
+                var lane = lanes[handle];
+                if (!IsSidewalk(lane)) { road.Add(ribbon); continue; }
+                // a WALKING AREA (a junction-interior pedestrian lane, ':…_w…') is a corner's outline, not a centreline: filled as the
+                // polygon it is (the junction fill's own triangulation), never a ribbon running round its edge
+                var corner = lane.Id.StartsWith(':') ? JunctionMeshBuilder.Build(frame, lane.Shape) : SceneMesh.Empty;
+                walk.Add(corner.IsEmpty ? ribbon : corner);
+            }
+            if (road.Count > 0) meshes.Add(ToLocal(SceneKind.Asphalt, SceneMesh.Merge(road), frame, placement));
+            if (walk.Count > 0) meshes.Add(ToLocal(SceneKind.Asphalt, SceneMesh.Merge(walk), frame, placement) with { Sidewalk = true });
+        }
 
         bool hasFootprint = terrainMax.X > terrainMin.X && terrainMax.Y > terrainMin.Y;
         var ground = AmbientGroundBuilder.Build(frame, minX, minY, maxX, maxY,
@@ -80,6 +104,9 @@ public sealed class TrafficRoadScene
 
         return new TrafficRoadScene(meshes, signals, TrafficRoadPlan.For(net, placement, signals.Count));
     }
+
+    /// <summary>⭐ <c>CE-1197</c> — a lane only pedestrians may use (<c>allow="pedestrian"</c>: a sidewalk or a walking area), not a crossing.</summary>
+    public static bool IsSidewalk(Lane lane) => !lane.AllowsRoadVehicle && !CrosswalkBuilder.IsCrossingLaneId(lane.Id);
 
     private static TrafficRoadMesh ToLocal(SceneKind kind, SceneMesh mesh, SceneFrame frame, SumoNetPlacement placement)
     {

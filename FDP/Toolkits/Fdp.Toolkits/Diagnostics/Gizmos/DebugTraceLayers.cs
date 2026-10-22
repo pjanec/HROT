@@ -57,6 +57,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Contact lines and heard rings (<c>LineOfSightGizmo</c>, family Contacts) — split from Perception (1), which keeps the
         /// vision cones.</summary>
         public const byte Contacts = 25;
+        /// <summary>⭐ CE-1169 (People Display §5 U8) — the exercise-control layer "Concealed (ExCon)": items carried in a HIDDEN station,
+        /// outlined for the instructor (<c>ConcealedItemGizmo</c>). Off by default — drawing them for everyone would defeat per-observer
+        /// identification (Civilians AW-13 / AW-15).</summary>
+        public const byte Concealed = 26;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

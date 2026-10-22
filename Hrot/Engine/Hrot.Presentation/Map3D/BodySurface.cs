@@ -25,6 +25,7 @@ uniform float patternSeed;
 uniform vec3 faceAxis;     // the side of the head the face is on, and the top of the head (part frame)
 uniform vec3 faceUp;
 uniform vec4 faceLook;     // eye spacing, mouth half-width, beard (0 none, 1 moustache, 2 beard), brow half-height
+uniform vec3 faceMood;     // CE-1177 (U16): brow lift (+ raised, - knitted), mouth open, eye squint; zero = calm
 float bodyHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.11, 0.23, 0.37)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float bodyNoise(vec3 x)
 {
@@ -47,10 +48,12 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
         if (faceLook.z > 1.5 && p.y < -0.10 && abs(p.x) < 0.47) c = tone1;                        // a beard
         c = mix(c, base * 0.80, bodyBox(p, vec2(0.0, -0.08), vec2(0.055, 0.12)));             // the nose's shade
         if (faceLook.z > 0.5) c = mix(c, tone1, bodyBox(p, vec2(0.0, -0.215), vec2(faceLook.y + 0.03, 0.035)));   // a moustache
-        c = mix(c, tone3, bodyBox(p, vec2(0.0, -0.31), vec2(faceLook.y, 0.035)));             // the mouth
-        c = mix(c, tone1, bodyBox(m, vec2(faceLook.x, 0.175), vec2(0.09, faceLook.w)));        // the brows
-        c = mix(c, vec3(0.94, 0.94, 0.92), bodyBox(m, vec2(faceLook.x, 0.05), vec2(0.085, 0.055)));   // the eyes
-        c = mix(c, tone2, bodyBox(m, vec2(faceLook.x, 0.05), vec2(0.04, 0.055)));             // the irises
+        c = mix(c, faceMood.y > 0.0 ? tone3 * 0.45 : tone3,
+                bodyBox(p, vec2(0.0, -0.31), vec2(faceLook.y * (1.0 - 2.0 * faceMood.y), 0.035 + faceMood.y)));   // the mouth (open: dark)
+        c = mix(c, tone1, bodyBox(m, vec2(faceLook.x, 0.175 + faceMood.x), vec2(0.09, faceLook.w)));        // the brows
+        float eye = max(0.012, 0.055 - faceMood.z);
+        c = mix(c, vec3(0.94, 0.94, 0.92), bodyBox(m, vec2(faceLook.x, 0.05), vec2(0.085, eye)));   // the eyes
+        c = mix(c, tone2, bodyBox(m, vec2(faceLook.x, 0.05), vec2(0.04, eye)));             // the irises
         return c;
     }
     bool woodland = bodyPattern == 1, desert = bodyPattern == 4;
@@ -64,7 +67,8 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
 ";
 
     private uint _shaderId;
-    private int _pattern, _tone1, _tone2, _tone3, _seed, _faceAxis, _faceUp, _faceLook;
+    private int _pattern, _tone1, _tone2, _tone3, _seed, _faceAxis, _faceUp, _faceLook, _faceMood;
+    private Vector3 _mood;
     private SurfaceKind _kind = (SurfaceKind)(-1);
     private Vector3 _t1, _t2, _t3, _axis, _up;
     private float _s = float.NaN;
@@ -89,6 +93,8 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
         _faceAxis = Raylib.GetShaderLocation(s, "faceAxis");
         _faceUp = Raylib.GetShaderLocation(s, "faceUp");
         _faceLook = Raylib.GetShaderLocation(s, "faceLook");
+        _faceMood = Raylib.GetShaderLocation(s, "faceMood");
+        _mood = new Vector3(float.NaN);
         _kind = (SurfaceKind)(-1);
         _s = float.NaN;
         _t1 = _t2 = _t3 = _axis = _up = new Vector3(float.NaN);
@@ -109,8 +115,9 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
     }
 
     /// <summary>A face on the head's <paramref name="on"/> side, in the man's <paramref name="look"/> (his hair for the brows and beard).</summary>
-    public void Face(LitShader shader, FaceOn on, in FaceLook look, Color hair)
+    public void Face(LitShader shader, FaceOn on, in FaceLook look, Color hair, Vector3 mood = default)
     {
+        if (mood != _mood) { _mood = mood; Raylib.SetShaderValue(shader.Shader, _faceMood, mood, ShaderUniformDataType.Vec3); }   // ⭐ CE-1177
         Kind(shader, SurfaceKind.Face);
         Tones(shader, hair, look.EyeColour, look.Lips);
         var (axis, up) = AxesOf(on);
@@ -120,6 +127,20 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
         if (v != _look) { _look = v; Raylib.SetShaderValue(shader.Shader, _faceLook, v, ShaderUniformDataType.Vec4); }
         Painted++;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1177</c> (People Display §5 U16) — a face's expression for <paramref name="mood"/>, the shader's <c>faceMood</c> (brow lift,
+    /// mouth open, eye squint, in the head box's unit frame): calm none · afraid raised brows, the mouth open · angry the brows knitted down,
+    /// the mouth a tight line · in pain the eyes squeezed, the brows down · alarmed the brows up.
+    /// </summary>
+    public static Vector3 Expression(Hrot.Common.Diagnostics.Gizmos.MarkKind mood) => mood switch
+    {
+        Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear => new Vector3(0.05f, 0.035f, 0f),
+        Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger => new Vector3(-0.035f, -0.015f, 0.012f),
+        Hrot.Common.Diagnostics.Gizmos.MarkKind.Pain => new Vector3(-0.025f, 0f, 0.035f),
+        Hrot.Common.Diagnostics.Gizmos.MarkKind.Alarm => new Vector3(0.03f, 0.012f, 0f),
+        _ => Vector3.Zero,
+    };
 
     /// <summary>⭐ CE-1101 (§6r S-3) — the head box's face side and the top of the head, in the part's own frame, for each
     /// <see cref="FaceOn"/> (the same turn as <see cref="BlockFigure.FaceFrame"/>).</summary>

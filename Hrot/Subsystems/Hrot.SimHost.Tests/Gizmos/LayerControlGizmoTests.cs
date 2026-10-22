@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
-            foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid })
+            foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid, DebugTraceLayers.Concealed })   // ⭐ CE-1169 — the ExCon layer too
             {
                 Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
                 Assert.True(bit < LayerControlDto.FirstUntoggledLayer, $"layer {bit} lies below the always-on range");
