@@ -88,9 +88,9 @@ related-designs:
 | `ua-civ-routine-alarm` | shots near a street of civilians | near ones Alarmed, far ones Routine; calm returns; the wounded one stays Casualty | CV-3, CE-2235, CE-2245 | ✅ 11/11 |
 | `ua-civ-shelter` | shots near two houses (one locked) | all panic, enter the open house through its door, gone on every node | CV-7, CE-2236 | ✅ 15/15 |
 | `ua-civ-cower` | fire with no building near | Cower on every node, then Alarmed (not Panic) | CV-7 fallback | ✅ 11/11 |
-| `ua-civ-gathering` | a hurt man at a crossroads | onlookers form one crowd on a 2.5–11 m ring | CV-5, CE-2237 | ⚠ twin ✅, live re-run pending |
+| `ua-civ-gathering` | a hurt man at a crossroads | onlookers form one crowd on a 2.5–11 m ring | CV-5, CE-2237 | ✅ 7/7 live `2026-10-22` |
 | `ua-civ-contagion` | a fight at one end of a street | fear reaches those who heard nothing, through the crowd | CE-2237, CE-2246 | ✅ 3 in a row |
-| `ua-civ-protest` | 12 protesters, no police | one crowd; fists and placards on every node; nobody Hostile or rioting | CE-2240, CV-13 | ⚠ twin ✅, live not recorded |
+| `ua-civ-protest` | 12 protesters, no police | one crowd; fists and placards on every node; nobody Hostile or rioting | CE-2240, CV-13 | ✅ 7/7 live `2026-10-22` |
 | `ua-civ-provocation` | 12 protesters (4 friendly at heart) and 3 police who walk up, baton-charge the front rank, then hold the line | nobody riots before the police are near; after the blows a FRACTION riots, never a friendly one; only rioters turn Hostile, the same on every node | CV-14, PV-1…PV-6 | ✅ 7/7 |
 
 ## 3. Armed people, riots and police force — [Civilians design](DESIGN_Civilians_And_Crowd_Control.md) §5h–§5l
@@ -234,7 +234,7 @@ related-designs:
 | `ua-attack-approach` | target lost from sight | Flank or FiringPosition; regains sight and fires | P4 | ✅ |
 | `ld-sentry-surprise` (+ `-360`) | a sentry with a 200° view cone holds a sector | A crossing in front is seen; B walking up behind is NOT, until he fires; the 360° control sees B | LD-5 (CE-2298) | ✅ |
 | `ua-grenade-or-rifle` | rifle or grenade against a man who ducks out of sight | the grenadier throws, the rifleman does not | WL-4 | ⏳ in-process rail only, no live check |
-| `ua-weather-sensing` · `ua-night-sensing` | two identical observer / target pairs: one in a 60 m fog bank · the same at night | first seen at ~150 m clear, ≤ 60 m in fog · ~40 m at night (light floor 0.25) | S2-1, S2-1n (CE-4035 G-3, G-10) | ⏳ new |
+| `ua-weather-sensing` · `ua-night-sensing` | two identical observer / target pairs: one in a 60 m fog bank · the same at night | first seen at ~150 m clear, ≤ 60 m in fog · ~40 m at night (light floor 0.25) | S2-1, S2-1n (CE-4035 G-3, G-10) | ✅ night 3/3 (seen at 37 m) · ❌ fog: seen at 148 m — the region does not shorten sight live (investigating) |
 
 ## 5. Squads — [Squad tactics](designs/group-maneuvers/DESIGN_Squad_Tactics.md) · [Entity interactions](DESIGN_Entity_Interactions.md)
 
@@ -335,7 +335,7 @@ related-designs:
 | `ua-technical-scoot` | technicals shoot and scoot | the tank ranks the ATGM first | V6 | ⏸ varies run to run (CE-2232) |
 | `ua-rpg-window` | an RPG man between windows vs IFVs | he moves between windows; IFVs fire on the move | V12 | ✅ 4/4 |
 | `ua-ifv-standoff` | a 25 mm IFV vs RPG men | kills at 326 m untouched; up close an RPG hits it | V1, A7 | ✅ 4/4 |
-| `ua-tank-ammo` | one tank, different targets | the round is chosen per target | A7, A8 | ⚠ 2/2, soft targets survived; backend fixed the causes, not re-run |
+| `ua-tank-ammo` | one tank, different targets | the round is chosen per target | A7, A8 | ✅ 3/3 live `2026-10-22` |
 | `ua-hill-attack` | four M1s vs two T-72s over a crest | every shot below the crest; one round per exposure; pairs together; both T-72s dead | H1–H7 | ✅ |
 
 ## 8. Drones, air operations, air defence — [Air operations](designs/air-attack/DESIGN_Air_Operations.md) · [FPV drone](designs/vehicle-tactics/DESIGN_FPV_Drone.md)
@@ -376,7 +376,7 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
-| `ua-indirect-fire` | four vignettes: adjust, time on target, high arc, danger close — ① and ② now play from the file (CE-4035 G-5; the observer waits for the tubes to be manned) | adjust then fire for effect; rounds land together; high arc over a mask; danger close refused / allowed | I1–I9 | ✅ all four · ⏳ re-run self-running |
+| `ua-indirect-fire` | four vignettes: adjust, time on target, high arc, danger close — ① and ② now play from the file (CE-4035 G-5; the observer waits for the tubes to be manned) | adjust then fire for effect; rounds land together; high arc over a mask; danger close refused / allowed | I1–I9 | ✅ 15/15 live `2026-10-22`, ① ② from the file |
 
 ## 10. Weapon systems, airborne — [Weapon systems](designs/weapons/DESIGN_Weapon_Systems.md) · [Weapon layers](DESIGN_Weapon_Layers.md) · [Airborne](designs/airborne/DESIGN_Airborne_Insertion.md)
 
@@ -396,7 +396,7 @@ related-designs:
 | `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, an intruder walking into the M2's arc *(CE-4035 G-11; the Kornet team this row named is not in the file — removed)* | sentry fires on its own; the M2 deploys and fires on Intruder 2; the Javelin is carried | W1–W10 | ⏳ re-run after G-11 |
 | `ua-fast-rope-roof` | 8 men rope onto a roof | 8 down in 7.6 s, a ring on the roof; helicopter leaves after | AB2, AB3, AB7, AB8 | ✅ |
 | `ua-airborne-drop` | a stick of 8 jumps | each lands 7.8–10.5 m from his point; squad assembles | AB4–AB7 | ✅ |
-| `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ⚠ 4/5 — canopy at 3.96 s vs the check's 3.5 s |
+| `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ✅ 6/6 live `2026-10-22` (canopy 2.71 s) |
 | `ua-shootdown-eject` | the A-10 with NO eject task is shot by a Stinger and a ZU-23 under its route | the pilot ejects by himself (≤ 20 % health or a wreck), canopy open, down | AB10 (CE-4035 G-1) | ⏳ new |
 
 ## 11. Not built, open, or known wrong

@@ -199,7 +199,9 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool Planned(ref UrbanPlan p, Entity self, EntityRepository world) => p.Made != 0;
 
-        /// <summary>UM-5 — every leg walked and every live squad within 2 × <see cref="UrbanPlan.ArrivalRadius"/> of the point it has now.</summary>
+        /// <summary>UM-5 — every leg walked and every live squad's nearest man within <see cref="UrbanPlan.ArrivalRadius"/> of the point it has
+        /// now — the radius its own march ends on. 📐 Live (pc-urban-move, `2026-10-22`): with 2 × the radius the task ended while Squad 2 was
+        /// still marching 14 m short of its point.</summary>
         [SharedAiCondition]
         public static unsafe bool Arrived(ref UrbanPlan p, Entity self, EntityRepository world)
         {
@@ -215,7 +217,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (PlatoonConvoyBehavior.LiveMen(world, squad, 0) == 0) continue;
                 if (s != lead) rank++;
                 var at = s == lead ? p.Point(p.Count - 1) : PointAt(ref p, along - p.Spacing * rank);
-                if (Nearest(world, squad, at) > 2f * p.ArrivalRadius) return false;
+                if (Nearest(world, squad, at) > p.ArrivalRadius) return false;
             }
             return true;
         }

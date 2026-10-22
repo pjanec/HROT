@@ -345,10 +345,16 @@ public sealed class PlatoonScenarioTests : IDisposable
             closest = MathF.Min(closest, Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(At(squads[1]).X, At(squads[1]).Y)));
             return Task(platoon) != urban;
         }, timeoutFrames: 24000);
-        _out.WriteLine($"end: {Where()} · platoon task {Task(platoon)} · closest lead–follower {closest:F1} m");
+        // the squads' last marches end a few seconds after the task (each on its point man's arrival)
+        harness.PumpUntil(() => squads.All(n => Task(ByName(cgf, n)) != march), timeoutFrames: 1800);
+        // how far each centre stands from the route's end, along the route (Main Street east to the Cross Road, then south)
+        float ToEnd(Vector3 p) => p.Y < 190f && MathF.Abs(p.X - 200f) < 12f ? p.Y - 120f : 70f + MathF.Max(0f, 200f - p.X);
+        string Along() => string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:{ToEnd(At(n)):F0}"));
+        _out.WriteLine($"end: {Where()} · to the end {Along()} · platoon task {Task(platoon)} · closest lead–follower {closest:F1} m");
         Assert.True(ended, $"③ the task ends; {Where()}");
         Assert.True(Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(200f, 120f)) < 16f, $"③ the lead at the route's end; {Where()}");
-        Assert.True(At(squads[1]).Y > At(squads[0]).Y + 15f && At(squads[2]).Y > At(squads[1]).Y + 15f, $"③ in order down the Cross Road; {Where()}");
+        Assert.True(ToEnd(At(squads[1])) > ToEnd(At(squads[0])) + 15f && ToEnd(At(squads[2])) > ToEnd(At(squads[1])) + 15f,
+            $"③ in order along the route, each a bound behind the one ahead; {Along()}");
         Assert.True(closest > 12f, $"② the follower never walked with the lead (closest {closest:F1} m)");
     }
     /// <summary>The platoon task's name hash and the squads' own task hashes, sampled each frame, for the U-2 twins.</summary>
@@ -378,7 +384,15 @@ public sealed class PlatoonScenarioTests : IDisposable
             if (log != null && frame++ % 120 == 0)
             {
                 string now = $"{Name(t)} | " + string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:{Name(Task(ByName(cgf, n)))}"));
-                if (now != last) { log($"f{frame - 1}: {now}"); last = now; }
+                if (now != last || (frame - 1) % 1200 == 0)
+                {
+                    log($"f{frame - 1}: {now} @ " + string.Join(" ", squads.Select(n =>
+                    {
+                        var c = StaffComposerSystem.CentreOf(cgf, ByName(cgf, n));
+                        return $"({c.X:F0},{c.Y:F0})";
+                    })));
+                    last = now;
+                }
             }
             return (stop?.Invoke() ?? false) || (reacted && resumed);
         }, timeoutFrames: frames);

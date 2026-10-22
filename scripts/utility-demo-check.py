@@ -2836,6 +2836,8 @@ def run_shootdown_eject(c, timeout):
     jet, aa = ids.get("A-10"), [ids.get("Stinger Gunner"), ids.get("ZU-23 Technical")]
     if not c.ok(jet is not None and None not in aa, "the A-10 and the air defence are loaded"):
         return
+    # ⭐ the shots are the WEAPONS' (the seat presets spawn them at load): the launcher and the ZU-23-2
+    weapons = lambda: [x for x in (ids_by_name().get("Stinger (MANPADS)"), ids_by_name().get("ZU-23-2")) if x is not None]
     h0 = health(jet)
     before = {r.get("networkId") for r in data(call("GET", "/entities")) or []}
     call("POST", "/sim/play", {})
@@ -2866,8 +2868,10 @@ def run_shootdown_eject(c, timeout):
         time.sleep(0.25)
     for row in timeline[:90]:
         print("      shootdown @", row)
-    shots = _if_shots(aa)
-    print(f"    air-defence shots {len(shots)}: " + ", ".join(f"{x.get('shooter')}" for x in shots[:12]))
+    shooters = aa + weapons()
+    every = _if_shots_all()
+    print(f"    every shot {len(every)}: " + ", ".join(f"{x.get('shooter')}->{x.get('target')}:{x.get('outcome')}" for x in every[:20]) + f" · weapons {weapons()}")
+    shots = [x for x in every if x.get("shooter") in shooters]
     c.ok(bool(shots), f"① the air defence fires — {len(shots)} shots")
     c.ok(hit_at is not None, f"① …and hits the A-10 — health {h0} → {health(jet)}")
     c.ok(pilot is not None and (hit_at is None or spawned_at >= hit_at), f"② ★ one Pilot (206) ejects with no order, after the hit — {spawned_at} s (hit {hit_at} s)")
@@ -4429,7 +4433,7 @@ def run_uc_request_chain(c, timeout):
         tk = task_name(heli)
         if tk and "heli" not in seen:
             seen["heli"] = t; seen["heliTask"] = tk; log.append(f"{t:7.1f} Apache ordered: {tk} {json.dumps(_order(heli).get('params'))[:200]}")
-        if "heli" in seen:
+        if "heli" in seen and "rounds" in seen:   # ⭐ Q95 E3 — off the terrain the rounds fly 2.3 km: the chain can finish first
             break
         time.sleep(1.0)
     print("    timeline:")

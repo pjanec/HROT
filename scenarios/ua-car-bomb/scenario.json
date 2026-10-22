@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: a car bomb (CE-4035 G-6; TriggerIed + the civilian car's boot charge, ST-9 — never measured as one composition), on basic-desert. A civilian 'Car' (Neutral) with a 'Driver' and an 8 kg 'Car charge' in its boot drives east from (-260, 0) at 8 m/s to a checkpoint: the 'Checkpoint APC' at (0, 0) and 'Checkpoint Soldier 1-3' beside it. The driver runs TriggerIed on his own boot charge (kill zone 15 m, vehicles). Judge: (1) the car drives up to the checkpoint and nobody fires at it (it looks like a civilian car) (2) the charge goes off at the car, only with the APC within 15 m, set off by the driver (3) the soldiers nearest the car are hurt. Fail: the charge never goes off, goes off far from the checkpoint, or bursts somewhere else than the car. Check: python3 scripts/utility-demo-check.py --launch ua-car-bomb"
+    "description": "What: a car bomb (CE-4035 G-6; TriggerIed + the civilian car's boot charge, ST-9 — never measured as one composition), on basic-desert. A civilian 'Car' (Neutral) with a 'Driver' and an 8 kg 'Car charge' in its boot drives east from (-260, 0) at 8 m/s along the 'Car route' (FollowRoute — ⚠ a MoveToLocation never moved this car live: CE-4035 finding) to a checkpoint: the 'Checkpoint APC' at (0, 0) and 'Checkpoint Soldier 1-3' beside it. The driver runs TriggerIed on his own boot charge (kill zone 15 m, vehicles). Judge: (1) the car drives up to the checkpoint and nobody fires at it (it looks like a civilian car) (2) the charge goes off at the car, only with the APC within 15 m, set off by the driver (3) the soldiers nearest the car are hurt. Fail: the charge never goes off, goes off far from the checkpoint, or bursts somewhere else than the car. Check: python3 scripts/utility-demo-check.py --launch ua-car-bomb"
   },
   "entities": {
     "c4035006-0000-4000-8000-000000000001": {
@@ -175,8 +175,8 @@
         ]
       },
       "Behavior": {
-        "Name": "MoveToLocation",
-        "Params": "{\"x\": -7, \"y\": 0, \"speed\": 8, \"arrivalRadius\": 2}",
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 40613, \"Speed\": 8}",
         "Origin": "Superior"
       }
     },
@@ -253,6 +253,50 @@
       "IsEmbarkedTag": {
         "Vehicle": "c4035006-0000-4000-8000-000000000010",
         "Seat": 4
+      }
+    },
+    "c4035006-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          -260,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 40613
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Car route",
+        "ForceId": "Neutral"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -260,
+            "Y": 0,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          },
+          {
+            "X": -7,
+            "Y": 0,
+            "Z": 0,
+            "TargetSpeed": 8,
+            "HeightAgl": 0
+          }
+        ],
+        "IsLoop": false
       }
     }
   }
