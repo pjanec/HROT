@@ -1129,6 +1129,20 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2351</c> — a LULL is quiet counted from the fight's start: a contact 2 s old with no round yet is not a lull;
+        /// 10 s on, still no round, it is. ✅ Red-proof: the contact clause removed ⇒ a lull at once.</summary>
+        [Fact]
+        public void CE2351_ALull_IsCountedFromTheContact_NotFromBeforeTheFight()
+        {
+            var s = new Squad(members: 2);
+            s.Tick();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 125; i++) s.Tick();   // 2 s
+            Assert.False(SquadSopConditions.InALull(s.Repo, s.Commander));
+            for (int i = 0; i < 560; i++) s.Tick();   // ~11 s since the contact
+            Assert.True(SquadSopConditions.InALull(s.Repo, s.Commander));
+        }
+
         // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────
 
         private static void Walk(Squad s, Entity m, Vector3 to, float step = 2f)

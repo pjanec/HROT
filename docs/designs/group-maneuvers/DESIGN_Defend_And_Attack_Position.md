@@ -1694,6 +1694,7 @@ work as a cover for the advancing men?"*
 | **C** `CE-2343` | after a crawl to cover, a move ending ≤ 10 m away and > 1.5 m past the cover on the side it faces is not resumed: he rises crouched and the move ends at the cover | `UnderFire.Step` · `UnderFire.Exposed` |
 | **D** `CE-2346` | a phase change re-sends no order the squad still runs unchanged from this run | `PlatoonAttackBehavior.KeepAttack` → `CommandOrders.StillRunning` |
 | **E** `CE-2344` | a man down still to care for and no round at the squad for 10 s ⇒ the squad's SOP pauses the task and runs `CasualtyCare`; a running `ReactToContact` re-decides to Rescue in the same lull; under fire the care waits | `SquadSopConditions.CasualtyInALull` · `BasicSquadSop` row · `ReactToContactBehavior.Run` |
+| **E′** `CE-2351` *(`2026-10-22`)* | ⚠ **deviation** — a lull is quiet counted from the FIGHT'S START: no round at the squad for 10 s **and no new `SquadContact` in that time** (`SquadSopConditions.InALull`). 📐 Live `ua-casualty-care-heavy`: the reaction chose 4 s after the contact, before the first enemy round at 5.5 s — "no round for 10 s" held trivially and it went for the man under fire. Rail `SquadManeuverTests.CE2351_ALull_IsCountedFromTheContact_*` | a lull from the reaction's own start time — the SOP's lull row runs with no reaction, so it has none |
 | **cars** | eight parked cars (TKB `Car` 8806, 4.5 × 1.8 × 1.5 m) on the two flank lanes of `pc-defend-house`, at x ≤ 101 and x ≥ 146 — the support's fire lane to OBJ (x 110–140) stays clear | `scenarios/pc-defend-house` |
 
 ```mermaid
