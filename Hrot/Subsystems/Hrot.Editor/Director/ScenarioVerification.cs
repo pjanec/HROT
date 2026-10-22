@@ -322,9 +322,15 @@ namespace Hrot.Editor.Director
     {
         public const string FileName = "golden.json";
         private readonly IVerifyWorld _w;
+        private readonly bool _full;
         private readonly JsonArray _snapshots = new();
 
-        public ScenarioGolden(IVerifyWorld world) => _w = world ?? throw new ArgumentNullException(nameof(world));
+        /// <param name="full">Keep each component in full, not its hash (<c>golden.full</c> — to run a difference down).</param>
+        public ScenarioGolden(IVerifyWorld world, bool full = false)
+        {
+            _w = world ?? throw new ArgumentNullException(nameof(world));
+            _full = full;
+        }
 
         public int Snapshots => _snapshots.Count;
 
@@ -339,7 +345,7 @@ namespace Hrot.Editor.Director
                 if (_w.Units.Resolve(name) is not { } id || _w.Components(id) is not { } comps) continue;
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                    hashes[type] = Hash(value);
+                    hashes[type] = _full ? value?.DeepClone() : Hash(value);
                 var p = ConditionBook.At(comps, "SimTransform.Position");
                 units[name] = new JsonObject
                 {
@@ -483,7 +489,7 @@ namespace Hrot.Editor.Director
             _capture = capture;
             _w = world ?? throw new ArgumentNullException(nameof(world));
             _book = new ConditionBook(checks, world, t0);
-            _run = checks.GoldenEvery is null ? null : new ScenarioGolden(world);
+            _run = checks.GoldenEvery is null ? null : new ScenarioGolden(world, checks.GoldenFull);
         }
 
         public ScenarioChecks Checks => _checks;

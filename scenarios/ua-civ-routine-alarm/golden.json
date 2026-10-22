@@ -628,8 +628,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            354.396973,
-            150.269775,
+            354.397,
+            150.27,
             0
           ],
           "health": 100,
@@ -702,8 +702,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            385.854736,
-            197.840027,
+            385.855,
+            197.84,
             0
           ],
           "health": 100,
@@ -776,8 +776,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            206.02356,
-            61.625946,
+            206.024,
+            61.626,
             0
           ],
           "health": 100,
@@ -850,8 +850,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            118.055428,
-            195.529449,
+            118.055,
+            195.529,
             0
           ],
           "health": 100,
@@ -999,8 +999,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.082138,
-            358.753662,
+            200.082,
+            358.754,
             0
           ],
           "health": 100,
@@ -1076,8 +1076,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            201.330994,
-            284.349762,
+            201.331,
+            284.35,
             0
           ],
           "health": 100,
@@ -1190,7 +1190,7 @@
             "LookAtExecutorState": "a3c2bff068a2ac94",
             "LookState": "0e512976e77deac0",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "c511ea913d15a067",
+            "MissionAdapterState": "f7fb71ee32a0babb",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "73ec54ef629d4423",
             "NavState": "f41b3b914ef226ba",
@@ -1235,8 +1235,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            353.714722,
-            150.302322,
+            353.715,
+            150.302,
             0
           ],
           "health": 100,
@@ -1309,8 +1309,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            388.960968,
-            196.693802,
+            388.961,
+            196.694,
             0
           ],
           "health": 100,
@@ -1383,8 +1383,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            208.795547,
-            62.3740959,
+            208.796,
+            62.374,
             0
           ],
           "health": 100,
@@ -1457,8 +1457,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            115.749084,
-            199.721695,
+            115.749,
+            199.722,
             0
           ],
           "health": 100,
@@ -1606,8 +1606,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.082138,
-            358.744507,
+            200.082,
+            358.745,
             0
           ],
           "health": 100,
@@ -1683,8 +1683,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            201.335571,
-            284.349762,
+            201.336,
+            284.35,
             0
           ],
           "health": 100,
@@ -1760,7 +1760,7 @@
         },
         "Rifleman": {
           "position": [
-            205.057617,
+            205.058,
             320,
             0
           ],
@@ -1797,7 +1797,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",
@@ -1844,8 +1844,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            352.559265,
-            148.284149,
+            352.559,
+            148.284,
             0
           ],
           "health": 100,
@@ -1918,8 +1918,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            388.970123,
-            196.693802,
+            388.97,
+            196.694,
             0
           ],
           "health": 100,
@@ -1992,8 +1992,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            208.800125,
-            62.3752403,
+            208.8,
+            62.375,
             0
           ],
           "health": 100,
@@ -2066,8 +2066,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            115.744919,
-            199.729645,
+            115.745,
+            199.73,
             0
           ],
           "health": 100,
@@ -2215,8 +2215,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.082138,
-            358.735352,
+            200.082,
+            358.735,
             0
           ],
           "health": 100,
@@ -2292,8 +2292,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            201.340149,
-            284.349762,
+            201.34,
+            284.35,
             0
           ],
           "health": 100,
@@ -2369,7 +2369,7 @@
         },
         "Rifleman": {
           "position": [
-            205.178711,
+            205.179,
             320,
             0
           ],
@@ -2406,7 +2406,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",
@@ -2453,8 +2453,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            352.050049,
-            147.389023,
+            352.05,
+            147.389,
             0
           ],
           "health": 100,
@@ -2527,8 +2527,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            384.664856,
-            198.122452,
+            384.665,
+            198.122,
             0
           ],
           "health": 100,
@@ -2601,8 +2601,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            206.506317,
-            66.7701187,
+            206.506,
+            66.77,
             0
           ],
           "health": 100,
@@ -2675,8 +2675,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            119.422989,
-            196.5121,
+            119.423,
+            196.512,
             0
           ],
           "health": 100,
@@ -2824,8 +2824,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.082138,
-            358.726196,
+            200.082,
+            358.726,
             0
           ],
           "health": 100,
@@ -2901,8 +2901,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            201.344727,
-            284.349762,
+            201.345,
+            284.35,
             0
           ],
           "health": 100,
@@ -2978,7 +2978,7 @@
         },
         "Rifleman": {
           "position": [
-            205.183289,
+            205.183,
             320,
             0
           ],
@@ -3015,7 +3015,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",
@@ -3062,8 +3062,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            352.050049,
-            147.384445,
+            352.05,
+            147.384,
             0
           ],
           "health": 100,
@@ -3136,8 +3136,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            378.027283,
-            200.324295,
+            378.027,
+            200.324,
             0
           ],
           "health": 100,
@@ -3210,8 +3210,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            205.709732,
-            67.7756195,
+            205.71,
+            67.776,
             0
           ],
           "health": 100,
@@ -3284,8 +3284,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            124.687271,
-            191.906158,
+            124.687,
+            191.906,
             0
           ],
           "health": 100,
@@ -3433,8 +3433,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.12384,
-            358.698334,
+            200.124,
+            358.698,
             0
           ],
           "health": 100,
@@ -3510,8 +3510,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            201.373962,
-            284.368713,
+            201.374,
+            284.369,
             0
           ],
           "health": 100,
@@ -3587,7 +3587,7 @@
         },
         "Rifleman": {
           "position": [
-            205.187866,
+            205.188,
             320,
             0
           ],
@@ -3624,7 +3624,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",
@@ -3671,8 +3671,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            358.18158,
-            147.802933,
+            358.182,
+            147.803,
             0
           ],
           "health": 100,
@@ -3745,8 +3745,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            371.417023,
-            202.517075,
+            371.417,
+            202.517,
             0
           ],
           "health": 100,
@@ -3819,8 +3819,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            202.442184,
-            61.7699699,
+            202.442,
+            61.77,
             0
           ],
           "health": 100,
@@ -3893,8 +3893,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            129.744232,
-            187.481247,
+            129.744,
+            187.481,
             0
           ],
           "health": 100,
@@ -4042,8 +4042,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.28717,
-            358.628967,
+            200.287,
+            358.629,
             0
           ],
           "health": 40,
@@ -4119,8 +4119,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            206.428574,
-            288.622467,
+            206.429,
+            288.622,
             0
           ],
           "health": 100,
@@ -4196,7 +4196,7 @@
         },
         "Rifleman": {
           "position": [
-            205.192444,
+            205.192,
             320,
             0
           ],
@@ -4233,7 +4233,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",
@@ -4280,8 +4280,8 @@
       "units": {
         "Far Civilian 1": {
           "position": [
-            360.972107,
-            147.993362,
+            360.972,
+            147.993,
             0
           ],
           "health": 100,
@@ -4354,8 +4354,8 @@
         },
         "Far Civilian 2": {
           "position": [
-            370.708008,
-            202.752304,
+            370.708,
+            202.752,
             0
           ],
           "health": 100,
@@ -4428,8 +4428,8 @@
         },
         "Far Civilian 3": {
           "position": [
-            201.104492,
-            59.3122368,
+            201.104,
+            59.312,
             0
           ],
           "health": 100,
@@ -4502,8 +4502,8 @@
         },
         "Far Civilian 4": {
           "position": [
-            129.983337,
-            187.272034,
+            129.983,
+            187.272,
             0
           ],
           "health": 100,
@@ -4651,8 +4651,8 @@
         },
         "Near Civilian 1": {
           "position": [
-            200.289001,
-            358.628967,
+            200.289,
+            358.629,
             0
           ],
           "health": 40,
@@ -4728,8 +4728,8 @@
         },
         "Near Civilian 2": {
           "position": [
-            208.570648,
-            290.424225,
+            208.571,
+            290.424,
             0
           ],
           "health": 100,
@@ -4805,7 +4805,7 @@
         },
         "Rifleman": {
           "position": [
-            205.194275,
+            205.194,
             320,
             0
           ],
@@ -4842,7 +4842,7 @@
             "LookAtExecutorState": "7f96b5aef9f1e605",
             "LookState": "d3763e85163b1c57",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
-            "MissionAdapterState": "3e53da74f50d59c5",
+            "MissionAdapterState": "44ca2373177e746b",
             "MissionPlan": "9732c037e5d0f95c",
             "MissionPlanQueue": "7d022e07d2220182",
             "NavState": "6e76fb9a81c19f2c",

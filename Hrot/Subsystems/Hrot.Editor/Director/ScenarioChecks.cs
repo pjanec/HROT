@@ -65,6 +65,8 @@ namespace Hrot.Editor.Director
         public double RunFor { get; init; } = 60d;
         /// <summary>Seconds between golden snapshots; null = no golden (a demo, §5).</summary>
         public double? GoldenEvery { get; init; }
+        /// <summary>The golden keeps every component IN FULL instead of its hash — to run a difference down (large; not for git).</summary>
+        public bool GoldenFull { get; init; }
         /// <summary>How often the world is read for the cues (sim seconds; actions still land on their exact step).</summary>
         public double SampleEvery { get; init; } = 0.25d;
         public IReadOnlyDictionary<string, CheckCue> Anchors { get; init; } = new Dictionary<string, CheckCue>(StringComparer.Ordinal);
@@ -91,12 +93,15 @@ namespace Hrot.Editor.Director
                     problems.Add($"unknown key '{k}'");
 
             double? every = null;
+            bool full = false;
             switch (json["golden"])
             {
                 case null: break;
                 case JsonValue v when v.TryGetValue<bool>(out var b): if (b) every = 10d; break;
                 case JsonObject g:
                     every = TakeJson.Double(g["every"]) ?? 10d;
+                    full = g["full"] is JsonValue fv && fv.TryGetValue<bool>(out var f) && f;
+                    foreach (var (k, _) in g) if (k is not ("every" or "full")) problems.Add($"golden: unknown key '{k}'");
                     if (!(every > 0)) problems.Add("golden.every must be > 0");
                     break;
                 default: problems.Add("golden is {\"every\": seconds} or false"); break;
@@ -166,7 +171,7 @@ namespace Hrot.Editor.Director
 
             return new ScenarioChecks
             {
-                Scenario = scenario, RunFor = runFor, GoldenEvery = every, SampleEvery = sample,
+                Scenario = scenario, RunFor = runFor, GoldenEvery = every, GoldenFull = full, SampleEvery = sample,
                 Anchors = anchors, Do = actions, Expect = expect,
             };
         }
