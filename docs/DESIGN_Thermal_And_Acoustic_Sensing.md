@@ -753,7 +753,7 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 | `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
 
 
-### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: DESIGN — a lean awaits the user)*
+### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: RULED (R-2071), design of the build next)*
 
 📐 **Measured live** (`uc-urban-battle`, `--mode all`, behaviors note ③ — *"own-side shots become enemy contacts 33 m off"*): ⛔ **no
 own-side sound was heard.** The ear's own-force filter (`e.Force == ourForce`, in the ring read and in the movement broadphase) dropped
@@ -766,7 +766,78 @@ enemy round bursting among us places an "enemy, about here" contact ON us, and i
 | ⭐ **lean** | a heard **burst** is a DANGER POINT, not an enemy position: memory keeps it (K2 *"hide from a point is OK"*), but the readers that ask *"is an enemy here?"* (contact in range, strength ratio, keep-in-contact) skip `Explosion`-class anonymous slots; the shooter is placed by his **shot's** report, which K3 already carries | a burst says where the round landed, never where the shooter is — the convoy's only true contact is the RPG's firing point | ⛔ dropping bursts from hearing — loses "hide from a burst" (§8 ③) · ⛔ dropping bursts near the listener — a burst 30 m off is just as much not-an-enemy |
 | ⚠ what would change it | a doctrine that wants "explosions near us" to keep a unit in contact on its own | | |
 
-⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
+⇒ ✅ **RULED `2026-10-22` (R-2071)** — the lean, and more. 🔒 **User, verbatim:** *"i think such an nearby explosion should somehow alert the soldiers if they were calm before, it could also make them beight freightened (under heavy bombardment -> some of them with lower discipline can panic or collapse psychically maybe) - but it should definitely not be an enemy position (this is still unknown and can not be told from a detonation). I think it does not need to create a new dangerous area unless the explosions are repeated there as that might be blocking them in movements"*
+
+| # | ruled | what it means here |
+|---|---|---|
+| E-1 | a heard burst is **never an enemy position** | the "is an enemy here?" readers skip `Explosion`-class anonymous slots (behaviors' half) |
+| E-2 | a burst nearby **alerts** a calm soldier | Calm → Alert, the way a heard shot does |
+| E-3 | it **frightens**; under heavy bombardment a man of low discipline can **panic or collapse** | fear rises with each near burst; past a threshold, discipline decides |
+| E-4 | **no danger area** from one burst — only where bursts **repeat** | a repeatedly shelled spot becomes an area movement avoids |
+
+⏭ E-3 and E-4 need machinery that does not exist (no soldier fear value; no area cost in navigation) ⇒ [Architect Question 101](blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md),
+leans awaiting the user. E-1 and E-2 are designed below and built.
+
+#### 8.6b E-1 / E-2 — the build (behaviors, `2026-10-22`; build-state: BUILT, live check pending)
+
+**INVENTORY** (`grep -rn "IsAnonymous"` and the readers of `ThreatDanger.OfSlot` and the squad pool, over `FDP/Toolkits/Fdp.Toolkits`
+and `Hrot/Subsystems/Hrot.AI.Behaviors`, tests excluded; ⚠ graph coverage not checkable through the CLI). 📐 What made a burst an enemy:
+`ThreatDanger.OfClass(Explosion) = 1` (a tank's danger) · `TargetMemory.HearContact` refreshes an IDENTIFIED contact within the burst's
+circle (a shell near a known enemy keeps him live) · `AbsorbBySighting` lets a seen unit inside the circle take the burst over (every
+emitter's `DetonationClass` defaults to Explosion) · the squad pool merges heard slots without their class · `EqsTacticsNodes.TopAim`
+makes the freshest heard slot "the threat" of PeekAndFire / VehicleFightFromCover · `PeekAndFireNodes.FreshestEvidence` puts the blind
+burst on it · `Condition_HasTarget` and `RoomKnowledge.Of` count it.
+
+```mermaid
+classDiagram
+  class TargetMemory { <<existing, grows>> +IsBurst(mem, slot) «anonymous AND class Explosion» · HearContact «a burst: no refresh of a known contact, fuses only with bursts» · AbsorbBySighting «never takes a burst» }
+  class ThreatDanger { <<existing>> OfSlot «a burst ⇒ 0: no enemy» }
+  class SquadPerceptionMergeSystem { <<existing>> a burst is not merged into the pool }
+  class EqsTacticsNodes { <<existing>> TopAim(…, bursts) «only TakeCover / Flee pass true: hide from a point» }
+  class PeekAndFireNodes { <<existing>> FreshestEvidence «skips bursts» }
+  class EqsCombatNodes { <<existing>> Condition_HasTarget «skips bursts» }
+  class RoomGrenade { <<existing>> RoomKnowledge.Of «skips bursts» }
+  class AlertReaders { <<existing, unchanged — E-2>> SopConditions.InContact · ThreatCount ⇒ FirstThreat · TacticalGait.Threatened · LookNodes · MissionDirector UnderAttack }
+  ThreatDanger ..> TargetMemory
+  SquadPerceptionMergeSystem ..> TargetMemory
+  EqsTacticsNodes ..> TargetMemory
+  PeekAndFireNodes ..> TargetMemory
+  EqsCombatNodes ..> TargetMemory
+  RoomGrenade ..> TargetMemory
+  AlertReaders ..> TargetMemory
+```
+
+*What the picture shows: one predicate, `IsBurst`, and every "is an enemy here?" reader asks it; the alert readers do not, so a burst still
+wakes a calm man (E-2). Hide-from-a-point (TakeCover, Flee) keeps it — K2.*
+
+```mermaid
+sequenceDiagram
+  participant S as Sound (burst at the impact)
+  participant M as TargetMemory (listener)
+  participant Q as Squad pool
+  participant R as readers
+  S->>M: HearContact(class Explosion)
+  M->>M: no known contact refreshed · fuse only with a burst · else a new burst slot
+  M-->>R: InContact / FirstThreat / threatened gait — alert (E-2)
+  M--xQ: not merged (no enemy for the squad)
+  R->>M: OfSlot / TopAim / FreshestEvidence / HasTarget
+  M-->>R: a burst is no enemy (danger 0, no target, no blind burst)
+  R->>M: TakeCover / Flee TopAim(bursts: true)
+  M-->>R: the burst's point — hide from it
+```
+
+| rule | why |
+|---|---|
+| a burst never refreshes an identified contact, and fuses only with another burst | a round landing near a known enemy says nothing new about him |
+| a sighting never absorbs a burst | the man seen there did not make the bang |
+| `OfSlot` = 0 for a burst | enemy strength, "N threats near", a danger area's rating count enemies |
+| the squad pool takes no burst | every squad reader (strength, contact in the engagement area, "nothing to fight") counts enemies; the pool keeps no class to tell |
+| TakeCover / Flee still hide from a burst | K2, and §8 ③: hiding from where rounds land is right |
+
+⭐ **As built `2026-10-22`, as drawn:** `TargetMemory.IsBurst` + `BurstClass` (the HearContact and AbsorbBySighting rules in the same file) · `ThreatDanger.OfSlot` · `SquadPerceptionMergeSystem` · `EqsTacticsNodes.TopAim(…, bursts)` (TakeCover / FallBack pass true) · `PeekAndFireNodes.FreshestEvidence` · `EqsCombatNodes.Condition_HasTarget`. `RoomKnowledge.Of` reads the pool, so the merge covers it. Rails, red-proved: `SquadPerceptionMergeSystemTests.CE2348_*` (memory, danger, pool — drop the merge skip ⇒ red) · `PeekAndFireNodesTests.CE2348_*` (a lone burst is nothing to fight — drop the TopAim skip ⇒ red). Fdp.Toolkits 4023/4024 (the one red, `GhostProtocolTests.Execute_RespectsTimeBudget`, came with CE-4044's count budget), SimHost 1853/1853.
+
+**Rejected:** dropping bursts from hearing (loses E-2's alert and the hide) · a class check in each of the ~10 readers without one
+predicate (ten copies of one rule) · `OfClass(Explosion) = 0` (it is also the class value a heard ENTITY can carry; the predicate is the slot's).
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 

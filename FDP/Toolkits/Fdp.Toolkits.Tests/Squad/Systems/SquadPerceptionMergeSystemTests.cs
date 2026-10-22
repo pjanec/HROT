@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -312,6 +313,46 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal((ushort)0b0011, c.SourceMembersMask);
             Assert.Equal(60f, c.ThreatScore);
             Assert.Equal(100f, c.PositionX);   // the sighting's position, not the sound's estimate
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2348</c> ③ (R-2071 E-1, Sensing §8.6b) — A HEARD BURST IS NO ENEMY: a round landing 4 m from a SEEN enemy does not
+        /// refresh him (his last-seen tick stays), it is its own burst slot; a second burst there fuses with it (one slot), a rifle shot
+        /// there does not; the burst counts no enemy danger; and the squad pool holds only the seen enemy. 📐 Live <c>uc-urban-battle</c>:
+        /// the enemy's RPG bursts landing among the convoy kept it "in contact" after the ambush. 🔴 Red-proof: drop the
+        /// <c>IsBurst</c> skip in the merge and the pool holds two contacts; drop the HearContact rule and the enemy is refreshed.
+        /// </summary>
+        [Fact]
+        public void CE2348_AHeardBurst_IsNoEnemy_NotRefreshingOne_NotCountedNotPooled()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte burst = TargetMemory.BurstClass, smallArms = 4;
+            var enemy = repo.CreateEntity();
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, (long)enemy.PackedValue, 100f, 0f, 50f, tick: 1);
+            TargetMemory.HearContact(ref mem0, 104f, 0f, 0f, 20f, burst, 60f, 5);
+
+            Assert.Equal(2, mem0.Count);
+            int seen = mem0.EntityIds[0] == (long)enemy.PackedValue ? 0 : 1, heard = 1 - seen;
+            Assert.Equal(1u, mem0.LastSeenTick[seen]);
+            Assert.True(TargetMemory.IsBurst(in mem0, heard));
+            Assert.Equal(0f, Fdp.Toolkit.Perception.ThreatDanger.OfSlot(repo, members[0], in mem0, heard));
+
+            TargetMemory.HearContact(ref mem0, 106f, 2f, 0f, 20f, burst, 60f, 6);       // a second burst there: the same slot
+            Assert.Equal(2, mem0.Count);
+            TargetMemory.HearContact(ref mem0, 105f, 1f, 0f, 20f, smallArms, 60f, 7);   // a rifle shot there: never fused into the burst
+            int bursts = 0;
+            for (int i = 0; i < mem0.Count; i++) if (TargetMemory.IsBurst(in mem0, i)) bursts++;
+            Assert.Equal(1, bursts);
+
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 300f, 0f, 0f, 20f, burst, 60f, 5);      // only a burst
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            for (int i = 0; i < GetState(commander).Contacts.Count; i++)
+                Assert.NotEqual(300f, GetContact(commander, i).PositionX);               // no burst in the pool
+            Assert.Contains(Enumerable.Range(0, GetState(commander).Contacts.Count),
+                i => GetContact(commander, i).EntityId == (long)enemy.PackedValue);
         }
 
         /// <summary>⭐ CE-2107 — the guard: a sound the seen entity cannot make (a rifle shot by a tracked engine), or a sound whose

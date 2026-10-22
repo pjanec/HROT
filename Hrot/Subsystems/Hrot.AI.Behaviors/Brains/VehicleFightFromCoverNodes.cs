@@ -734,7 +734,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void KeepSensors(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world,
                                         in ThreatAim was, in ThreatAim threat)
         {
-            var aim = PeekAndFireNodes.SensorAim(world, self, in threat);
+            var aim = PeekAndFireNodes.SensorAim(world, self, in threat, PeekAndFireNodes.DefaultHeardMatchRadius);   // CE-2351 — G4's radius
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var hide = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             // ⭐ CE-2230 — a given hide asks no hide query, a lane no firing-point query
