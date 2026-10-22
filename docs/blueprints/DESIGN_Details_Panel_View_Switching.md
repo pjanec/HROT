@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-22 (§8 BP-515 — tabs or stacked headers, a request for a view; DS-7 amended: Properties… opens Details on EVERY ECS host, canvas-context-menu-design §12)
+updated: 2026-10-22 (§9 CE-1247 — the Summary view on every host, the IG's Entity Properties window retired; §8 BP-515 — tabs or stacked headers, a request for a view; DS-7 amended: Properties… opens Details on EVERY ECS host, canvas-context-menu-design §12)
 current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
   (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
@@ -1110,6 +1110,73 @@ The existing Details suites stay green unchanged (`DetailsWindowDumpsItsChoiceTe
 | tabbed (the layout glyph right-aligned on the bar) | stacked (both headers open after a request) |
 |---|---|
 | ![](../assets/details/details-tabs.png) | ![](../assets/details/details-stacked.png) |
+
+## 9. ⭐⭐ `CE-1247` — **the Summary view: IG's "Entity Properties" card, on every host** — DESIGN + AS-BUILT `2026-10-22` (ui)
+
+🔒 User, `2026-10-22`: *"CE-1247: agreed, convert to summary card"* — on the lean *"fold it into the Details panel as a small 'Summary'
+view every host gets, and retire the IG window."*
+
+**INVENTORY** (`search_graph` `.*(Summary|EntityInspector|EntityCard).*` Class → 40, and `.*ViewDescriptor$` → 16): no entity-summary
+view exists; the IG's `Hrot.IG.UI.EntityInspectorPanel` + `EntityInspectorState` (one host, one window `ig_entity_properties`) is the only
+summary; the map's `EntityCards` (`Fdp.Diagnostics.Contracts`) is a *draw* API, not a model — ⛔ not reusable as a view. Entity views on the
+shell today: Components 30 (every host, CE-1150), Mission 40 / AI 45 / Runtime 50 (Editor Scenario only).
+
+| the build rests on | code — how it is | design basis |
+|---|---|---|
+| the IG card shows id, TKB type, position, affiliation, damage | ✅ `EntityInspectorPanel.DrawContent` | ✅ tracker `CE-1247` |
+| each value has a source on EVERY host | ✅ `NetworkIdentity`, `TkbIdentity`, `SimTransform`, `EntityInfo.ForceId`, `Health` — `ResolvedStyle` is DERIVED from `EntityInfo` + `Health` + IG overrides (`StyleResolutionSystem.cs:113-176`) and only IG / Editor run it | ✅ the user's *"no precalculated percentages"* (`2026-09-05`, quoted at `StyleResolutionSystem.cs:165`) |
+| the IG's selection is the panel's selection | ✅ both read `SelectionState` from the World (`IgApplication.GetSelectedEntity`, `WorldEntitySelectionSource.Selected`) | ✅ `UX_Feature_Selection.md` §2.7.4, ruling ① *one selection per host* |
+| every ECS host composes the shell | ✅ `EntityDetailsBundle` on Editor, CGF, SimHost, IG, RB, Stride | ✅ §8 / `canvas-context-menu-design.md` §12 |
+| the default view is the highest rank that applies | ✅ `DetailsViewRegistry` `OrderByDescending(Rank)` | ✅ §3 |
+| the IG's standalone draw path is unreached | ✅ `IgSubsystem.RegisterWindows` always calls `SetPanelsWindowManaged` (the one production `new IgApplication`) | ⛔ searched, none |
+
+```mermaid
+classDiagram
+    class EntityDetailsBundle { +Workspace +Window }
+    class DetailsViewDescriptor { Id Title Rank AppliesTo Create }
+    class EntitySummaryViewDescriptor { <<new>> ViewId = details.summary  Rank = 35  For(world) }
+    class EntitySummaryView { <<new>> Draw(ctx, scope) }
+    class EntitySummary { <<new>> Read(view, entity)  Name NetworkId TkbType Position Side ShownAs Health }
+    class ScenarioComponentsViewDescriptor { details.components  Rank 30 }
+    class IgEntityPropertiesWindow { <<deleted>> }
+    class EntityInspectorState { <<deleted>> }
+    EntityDetailsBundle --> EntitySummaryViewDescriptor : registers
+    EntityDetailsBundle --> ScenarioComponentsViewDescriptor : registers
+    EntitySummaryViewDescriptor ..> DetailsViewDescriptor : builds
+    EntitySummaryView --> EntitySummary : reads the World through
+    IgEntityPropertiesWindow --> EntityInspectorState
+```
+*What the picture shows that prose hid:* the card is ONE more descriptor on the bundle every host already composes — no host learns of it,
+and the IG pair is deleted rather than re-hosted.
+
+```mermaid
+sequenceDiagram
+    participant Sel as SelectionState (World)
+    participant DW as DetailsWindow (any host)
+    participant V as EntitySummaryView
+    participant S as EntitySummary
+    Sel->>DW: one entity selected (WorldEntitySelectionSource)
+    DW->>DW: offered = Summary 35, Components 30 (+ Editor's 40/45/50)
+    DW->>V: Draw(ctx) — highest rank, or the remembered pick
+    V->>S: Read(world, entity)
+    S-->>V: rows present only for components the entity has
+    V->>V: publish the panel model, draw the rows
+```
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐ **Rank 35** — above Components, below the Editor's Mission / AI / Runtime | on IG / CGF / SimHost / RB the card is what a selection shows (the IG operator's view, kept); on the Editor's Scenario a brain-equipped entity still opens on its AI views. ⚠ An Editor entity with no brain now opens on Summary, not Components — one tab away; Properties… still asks for Components (§8) |
+| ⭐⭐ **read the SOURCES, not `ResolvedStyle`** | the card works where no style runs; where `ResolvedStyle` exists and its affiliation differs (an IG symbol override, *Force Hostile*), a **Shown as** row says so — the IG's information is kept, not lost |
+| ⭐ **a row per component the entity HAS** | ⛔ no zero-filled lines for absent data (the IG card showed `0` for a missing TKB type) |
+
+Rejected: **keep the IG window** — a second summary surface on one host, and the user approved the fold · **put the card inside
+`EntityInspectorPanel`** — that is the Components view's body; a header there would show on every Components draw and not stand as its own
+tab · **read `ResolvedStyle` for side / damage** — blank on SimHost / CGF / RB, which never run `StyleResolutionSystem`.
+
+**AS-BUILT** — `Hrot.Editor.AiShared/Shell/EntitySummaryView.cs` (`EntitySummary`, `EntitySummaryView`, `EntitySummaryViewDescriptor`,
+`EntitySummaryViewPanelViewModel`), registered in `EntityDetailsBundle`'s constructor. Deleted: `IgEntityPropertiesWindow`,
+`Hrot.IG.UI.EntityInspectorPanel`, `EntityInspectorState` (+ its tests, re-homed onto `EntitySummary`), the IG standalone draw of it, the
+`ig_entity_properties` golden id and the `ig-entity-properties` cluster-only kind.
 
 ## ⛔ HISTORY — **how the answer was reached. ⛔ Not the design; do not quote it.**
 

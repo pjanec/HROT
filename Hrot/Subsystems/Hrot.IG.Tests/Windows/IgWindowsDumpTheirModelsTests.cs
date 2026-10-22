@@ -66,37 +66,6 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
         Assert.NotNull(vm);
     }
 
-    // ── EntityInspectorPanel / IgEntityPropertiesWindow ──────────────────────────────────────
-
-    [Fact]
-    public void EntityPropertiesWindow_DeclaresItInstrumented_AndDumpsARealField()
-    {
-        Assert.DoesNotContain("ig_entity_properties", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
-
-        PanelSnapshot.CaptureEnabled = true;
-        var window = new IgEntityPropertiesWindow(new EntityInspectorPanel(new EntityInspectorState()));
-
-        Assert.Contains("ig_entity_properties", PanelSnapshot.RegisteredPanels);
-        window.SimulateDrawClientArea();
-
-        var vm = PanelSnapshot.TryGet("ig_entity_properties");
-        Assert.NotNull(vm);
-        Assert.Equal(IgEntityPropertiesWindow.Kind, vm!.PanelKind);
-        Assert.False(vm.Dump()["hasSelection"]!.GetValue<bool>());
-    }
-
-    [Fact]
-    public void EntityPropertiesWindow_WithCaptureOff_PublishesNothing_ButStaysRegistered()
-    {
-        var window = new IgEntityPropertiesWindow(new EntityInspectorPanel(new EntityInspectorState()));
-
-        var vm = window.SimulateDrawClientArea();
-
-        Assert.Empty(PanelSnapshot.CapturedPanels);
-        Assert.Contains("ig_entity_properties", PanelSnapshot.RegisteredPanels);
-        Assert.NotNull(vm);
-    }
-
     // ── MiniExConPanel / IgMiniExConWindow ───────────────────────────────────────────────────
 
     [Fact]

@@ -317,8 +317,6 @@ SimHost                    DDS                         IG
 |------|------|-------------|
 | `IgDebugPanel.cs` | `class IgDebugPanel` | ImGui: FPS, sim time, ForceHostile/HideLabels toggles |
 | `DebugPanelState.cs` | `class DebugPanelState` | Logic state for the debug panel; wraps `MapUserConfig` |
-| `EntityInspectorPanel.cs` | `class EntityInspectorPanel` | ImGui: entity ID, TKB type, position, affiliation, damage level |
-| `EntityInspectorState.cs` | `class EntityInspectorState` | Reads ECS components into plain properties; testable without ImGui |
 | `MiniExConPanel.cs` | `class MiniExConPanel` | ImGui: TKB type, affiliation, coordinates, Spawn button |
 | `MiniExConPanelState.cs` | `class MiniExConPanelState` | Form state + `Submit()` logic for the Mini ExCon spawner |
 | `MiniExConPanelConstants.cs` | `static class MiniExConPanelConstants` | `DefaultTkbType = 101` |
@@ -683,6 +681,8 @@ public interface IDdsWriter<T>
 
 ### UI State Classes
 
+> ⭐ `CE-1247` (`2026-10-22`): `EntityInspectorPanel` / `EntityInspectorState` and the "IG Entity Properties" window are gone — the card is the shared Details panel's **Summary** view on every host (`Hrot.Editor.AiShared/Shell/EntitySummaryView.cs`; `DESIGN_Details_Panel_View_Switching.md` §9).
+
 ```csharp
 public class DebugPanelState
 {
@@ -693,18 +693,6 @@ public class DebugPanelState
     public void ToggleHideLabels();
     public double CurrentSimTime { get; set; }
     public long CurrentWallTicks { get; set; }
-}
-
-public class EntityInspectorState
-{
-    public bool HasSelection { get; }
-    public Entity InspectedEntity { get; }
-    public int EntityId { get; }
-    public long TkbType { get; }
-    public float PositionX, PositionY, PositionZ { get; }
-    public ForceId Affiliation { get; }
-    public float DamageLevel { get; }
-    public void Refresh(ISimulationView view, Entity entity);
 }
 
 public class PerformanceMetrics
@@ -750,7 +738,6 @@ All internal `ManagedWindow` subclasses with scope `WindowScope.PerspectiveBound
 | Class | Key | Title |
 |-------|-----|-------|
 | `IgDebugWindow` | `"ig_debug"` | `"IG Debug"` |
-| `IgEntityPropertiesWindow` | `"ig_entity_properties"` | `"IG Entity Properties"` |
 | `IgWaypointEditorWindow` | `"ig_waypoint_editor"` | `"Waypoint Editor"` |
 | `IgMiniExConWindow` | `"ig_mini_excon"` | `"Mini ExCon"` |
 | `IgPerformanceWindow` | `"ig_performance"` | `"Performance"` |

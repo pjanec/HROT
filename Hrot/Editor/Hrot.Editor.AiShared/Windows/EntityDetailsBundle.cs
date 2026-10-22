@@ -72,6 +72,7 @@ public sealed class EntityDetailsBundle : IUiBundle
             context:           Workspace.ContextSource());
         Workspace.Contribute(Window);
         Workspace.DetailsViews.Add(ScenarioComponentsViewDescriptor.For(panel: host.Inspector, session: host.Session));
+        Workspace.DetailsViews.Add(EntitySummaryViewDescriptor.For(host.World));   // ⭐ CE-1247 — the IG's former card, every host
     }
 
     /// <inheritdoc/>
