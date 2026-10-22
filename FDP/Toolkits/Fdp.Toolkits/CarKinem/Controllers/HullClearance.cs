@@ -67,9 +67,13 @@ namespace CarKinem.Controllers
         {
             if (Vector2.DistanceSquared(a, b) < 1e-8f) return false;
             float step = Vector2.Distance(a, b);
-            float rise = world.SurfaceZ(b.X, b.Y, za) - za;
-            if (rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step
-                && world.SurfaceZ(a.X, a.Y, za) - za <= CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM)
+            // ⭐ CE-4041 — the rise is from the POINT'S OWN ground under a, never from the hull's centre height: on a slope a corner half a
+            //   hull ahead stands L/2 × slope above the centre, and read against the centre it "rose like a wall" the moment that passed
+            //   VehicleMaxStepM. 📌 ua-hill-attack: every tank was held at the ridge's foot (slope ~0.1, a 9.8 m hull) and backed out again,
+            //   no round fired for minutes. A corner stepping onto a solid block still rises by its height; one already on it rises 0.
+            float ground = world.SurfaceZ(a.X, a.Y, za);
+            float rise = world.SurfaceZ(b.X, b.Y, za) - ground;
+            if (rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step)
                 return true;
             var crossings = t_crossings ??= new List<TraceCrossing>();   // ⭐ one per thread: the kinematics runs ForEachParallel
             float probe = CarKinem.Systems.CarKinematicsSystem.HullProbeM;

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-10-22 (§5f.1 a corner's rise is from its own ground — the hill attack's ramp, CE-4041; behaviors, cross-lane) · 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
 current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
@@ -463,6 +463,17 @@ kill (CE-2197), so it never reached the wall. The runs vary; the table's tank ru
 | a fixed back-up distance | the room a hull needs is its turn — a tank needs ~6.3 m of radius, a pickup less |
 | a hull-sized navmesh | the navmesh is a disc (1.8 m); a 7 m box's corners are the problem |
 | reverse on every behaviour move | a motion fault fixed in every behaviour |
+
+### 5f.1 Amended — a corner's rise is from its OWN ground, never the centre's height (`CE-4041`, `2026-10-22`, behaviors — cross-lane)
+
+📌 **Measured on `ua-hill-attack`, editor and `--mode all` alike:** every tank was HELD at the ridge's foot (y ≈ 166, slope ~0.1 m/m, a 9.8 m hull), its wall-hold timer ran, the recovery backed it out ~4.5 m and it drove into the same hold again — for minutes, no round fired. `/terrain/query` crossed nothing and `/terrain/levels` showed a smooth ramp (≤ 0.31 m/m, far under `VehicleMaxClimbSlope` 1.0). ⭐ The cause: `HullClearance.Enters` measured each CORNER's rise against the hull **centre's** height. On a slope a corner half a hull ahead stands L/2 × slope above the centre, so the moment that passed `VehicleMaxStepM` (0.5 m) the corner "rose like a wall".
+
+| ⭐ as built | why |
+|---|---|
+| the rise test is `SurfaceZ(b) − SurfaceZ(a)` — the point's own ground step; the "already above" clause is gone | a corner stepping onto a solid block still rises by the block's height (⑤ in §5f holds); one already on it rises 0 and may move out (`CE3286_AHullLeftHalfInsideABlock_CanDriveOut` green) |
+| ⛔ rejected: a slope allowance on the centre-relative test | a tolerance would only move the false wall up the slope |
+
+✅ Rail `CarKinematicsSystemTests.CE4041_AHullDrivesUpARampItCanClimb_NeverHeld` (a tank up a 0.3 m/m ramp), red with the centre-relative rise; every `CarKinem` rail green.
 
 ## 5g. A wreck never moves, and a vehicle that is not driving is never pushed — `CE-3287` (`2026-10-20`, backend; R-3026)
 

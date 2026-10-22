@@ -803,11 +803,12 @@ namespace CarKinem.Tests.Systems
         /// <see cref="FrustrationTicks"/> (the recovery's state) unless <paramref name="recovery"/> is off.
         /// </summary>
         private static (EntityRepository Repo, Entity E, TrajectoryPoolManager Pool) HullWorld(Vector2 start, Quaternion facing, Vector3[] path,
-            KinematicsMode mode = KinematicsMode.CustomTrajectory, float arrivalRadius = 2f, float startSpeed = 0f, bool recovery = true)
+            KinematicsMode mode = KinematicsMode.CustomTrajectory, float arrivalRadius = 2f, float startSpeed = 0f, bool recovery = true,
+            string world = BlockWorld)
         {
             var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: startSpeed, facing: facing, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
-            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(BlockWorld));
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(world));
             if (recovery)
             {
                 repo.RegisterComponent<FrustrationTicks>();
@@ -967,6 +968,37 @@ namespace CarKinem.Tests.Systems
             Assert.True(arrivedAt >= 0, $"never arrived — at ({end.X:F1}, {end.Y:F1})");
             Assert.InRange(end.Y, 10f - 3.5f - 0.6f, 10f - 3.5f + 0.05f);   // the nose at the wall
             Assert.True(deepest <= 0.05f, $"a corner stood {deepest:F2} m inside the block");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>A plain ramp, flat ground to y = 0, then rising 0.3 m per metre to z 9 at y = 30 (the hill attack's ridge is 0.1–0.31).</summary>
+        private const string RampWorld =
+            "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"ramp\"}," +
+            "\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[0,0,0],[60,0,0],[60,30,9],[0,30,9],[0,0,0]]]}}]}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4041</c> — a tank drives UP A RAMP it can climb (0.3 m/m, far under <see cref="CarKinematicsSystem.VehicleMaxClimbSlope"/>):
+        /// it is never held. 📌 ua-hill-attack: each corner's rise was read against the hull CENTRE's height, so at the ramp's foot a corner
+        /// half a hull ahead (L/2 × slope above the centre) "rose like a wall" past 0.5 m — every tank was held there and backed out again.
+        /// 🔴 Red-proof: the rise against the centre's height ⇒ held at the foot.
+        /// </summary>
+        [Fact]
+        public void CE4041_AHullDrivesUpARampItCanClimb_NeverHeld()
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth, new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 25f, 7.5f) },
+                                            mode: KinematicsMode.Direct, recovery: false, world: RampWorld);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(end.Y > 20f, $"held on the ramp at y={end.Y:F1} (z {end.Z:F2})");
+            Assert.InRange(end.Z, 0.3f * end.Y - 0.1f, 0.3f * end.Y + 0.1f);   // on the ramp surface
             pool.Dispose();
             repo.Dispose();
         }
