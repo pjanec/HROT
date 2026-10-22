@@ -124,6 +124,11 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("verify-capture", Required = false, Default = false, HelpText = "With --verify: re-record each scenario's golden.json")]
         public bool VerifyCapture { get; set; }
 
+        /// <summary>⭐ CE-4042 — the nightly's output folder: a log and a report per scenario, <c>summary.json</c> and <c>junit.xml</c>.</summary>
+        [Option("verify-out", Required = false,
+                HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]
+        public string VerifyOut { get; set; } = string.Empty;
+
         /// <summary>⭐ CE-4042 — write the verify report (JSON) here.</summary>
         [Option("verify-report", Required = false, HelpText = "With --verify: write the report (JSON) to this file")]
         public string VerifyReport { get; set; } = string.Empty;

@@ -1,0 +1,53 @@
+# ⭐ CE-4042 — the nightly scenario regression as a GitHub Actions workflow. A TEMPLATE: it does nothing here.
+# To switch it on, copy it to .github/workflows/scenario-regression.yml (a decision for the user: it spends runner minutes).
+#
+# Two jobs: `list` reads which scenarios carry a checks.json; `verify` runs ONE scenario per matrix job — each a fresh process
+# (CE-3294), each its own red/green in the Actions view, all in parallel. scripts/scenario-regression.sh runs the same locally.
+name: scenario-regression
+
+on:
+  schedule:
+    - cron: "17 2 * * *"        # nightly, 02:17 UTC
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "scenarios to verify (a,b,c or all)"
+        default: "all"
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: ${{ steps.list.outputs.scenarios }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          want="${{ github.event.inputs.scenarios || 'all' }}"
+          if [ "$want" = "all" ]; then
+            names=$(ls scenarios/*/checks.json | cut -d/ -f2)
+          else
+            names=$(echo "$want" | tr ',' '\n')
+          fi
+          echo "scenarios=$(echo "$names" | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: list
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJson(needs.list.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: verify ${{ matrix.scenario }}
+        run: OUT=out scripts/scenario-regression.sh "${{ matrix.scenario }}"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ matrix.scenario }}
+          path: out/

@@ -139,6 +139,15 @@ public sealed class TakeStore
     /// <summary>⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §4) — a scenario's own JSON beside it (<c>checks.json</c>, <c>golden.json</c>).</summary>
     public string ScenarioFilePath(string scenario, string file) => Path.Combine(ScenariosRoot, scenario, file);
 
+    /// <summary>The scenarios that carry <paramref name="file"/> beside them (<c>checks.json</c> — the ones that can be verified).</summary>
+    public IReadOnlyList<string> ScenariosWith(string file)
+    {
+        var root = ScenariosRoot;
+        if (!Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.EnumerateDirectories(root).Where(d => File.Exists(Path.Combine(d, file)))
+            .Select(Path.GetFileName).OfType<string>().OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
     /// <summary>A scenario's own JSON file; null with the reason when there is none or it does not parse.</summary>
     public Loaded<JsonObject> LoadScenarioJson(string scenario, string file)
     {

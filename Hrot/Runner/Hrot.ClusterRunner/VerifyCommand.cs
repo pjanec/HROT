@@ -45,10 +45,15 @@ internal static class VerifyCommand
         Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
     }
 
-    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report)
+    /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;
+    /// empty = a fresh folder under the temp directory.</param>
+    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report, string outDir = "")
     {
-        var dir = Path.Combine(Path.GetTempPath(), "hrot-verify", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
+        var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
+            : Path.Combine(Path.GetTempPath(), "hrot-verify", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dir);
+        var started0 = Stopwatch.StartNew();
+        var cases = new List<(string Scenario, int Code, double Seconds, JsonObject? Item, string Log)>();
         var keep = StripVerify(args);
         var reports = new JsonArray();
         var failed = new List<string>();
@@ -80,6 +85,7 @@ internal static class VerifyCommand
             JsonNode? r = File.Exists(childReport) ? JsonNode.Parse(File.ReadAllText(childReport)) : null;
             var item = r?["scenarios"]?[0]?.DeepClone() ?? new JsonObject { ["scenario"] = s, ["status"] = "no report", ["exitCode"] = code, ["log"] = log };
             reports.Add(item);
+            cases.Add((s, code, started.Elapsed.TotalSeconds, item as JsonObject, log));
             if (code != 0) failed.Add(s);
             Console.WriteLine($"[Verify] {(code == 0 ? "PASS" : "FAIL")} {s} — exit {code}, {started.Elapsed.TotalSeconds:0} s (log {log})");
             CommandLineVerify.PrintItem(item as JsonObject, Console.Out, "    ");
@@ -89,10 +95,46 @@ internal static class VerifyCommand
             ["passed"] = failed.Count == 0, ["count"] = scenarios.Count, ["failed"] = new JsonArray(failed.Select(f => (JsonNode?)f).ToArray()),
             ["scenarios"] = reports,
         };
-        if (!string.IsNullOrWhiteSpace(report))
-            File.WriteAllText(Path.GetFullPath(report), all.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        var text = all.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(dir, "summary.json"), text);
+        File.WriteAllText(Path.Combine(dir, "junit.xml"), JUnit(cases, started0.Elapsed.TotalSeconds));
+        if (!string.IsNullOrWhiteSpace(report)) File.WriteAllText(Path.GetFullPath(report), text);
         Console.WriteLine($"[Verify] {scenarios.Count - failed.Count} of {scenarios.Count} pass" + (failed.Count > 0 ? $"; failing: {string.Join(", ", failed)}" : ""));
         return failed.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// ⭐ JUnit XML — the report a CI server (GitHub, Jenkins, GitLab) shows as a test list: one test case per scenario, its failure the
+    /// failed conditions and the golden's first difference, its output the log's path.
+    /// </summary>
+    internal static string JUnit(IReadOnlyList<(string Scenario, int Code, double Seconds, JsonObject? Item, string Log)> cases, double seconds)
+    {
+        static string X(string s) => System.Security.SecurityElement.Escape(s) ?? "";
+        var sb = new System.Text.StringBuilder();
+        int failures = cases.Count(c => c.Code != 0);
+        sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.Append($"<testsuites name=\"scenario-regression\" tests=\"{cases.Count}\" failures=\"{failures}\" time=\"{seconds:0.0}\">\n");
+        sb.Append($"  <testsuite name=\"scenario-regression\" tests=\"{cases.Count}\" failures=\"{failures}\" time=\"{seconds:0.0}\">\n");
+        foreach (var c in cases)
+        {
+            sb.Append($"    <testcase classname=\"scenarios\" name=\"{X(c.Scenario)}\" time=\"{c.Seconds:0.0}\">\n");
+            if (c.Code != 0)
+            {
+                var lines = new List<string>();
+                foreach (var v in (c.Item?["verdicts"] as JsonArray ?? new JsonArray()).OfType<JsonObject>().Where(v => (bool?)v["ok"] != true))
+                    lines.Add($"FAIL {v["name"]}{(v["heldOutsideItsWindowAt"] is { } o ? $" (held at {o} s, outside its window)" : "")}");
+                if (c.Item?["golden"]?.ToString() is { } g && g is not ("same" or "none" or "captured")) lines.Add($"golden {g}");
+                foreach (var d in (c.Item?["goldenDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
+                foreach (var p in (c.Item?["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
+                foreach (var p in (c.Item?["runProblems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
+                if (lines.Count == 0) lines.Add($"exit {c.Code} — {c.Item?["status"]}");
+                sb.Append($"      <failure message=\"{X(lines[0])}\">{X(string.Join("\n", lines))}</failure>\n");
+            }
+            sb.Append($"      <system-out>{X("log: " + c.Log)}</system-out>\n");
+            sb.Append("    </testcase>\n");
+        }
+        sb.Append("  </testsuite>\n</testsuites>\n");
+        return sb.ToString();
     }
 
     /// <summary>The arguments without <c>--verify</c> / <c>--verify-report</c> and their values (the parent names each child's own).</summary>
@@ -102,8 +144,9 @@ internal static class VerifyCommand
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
-            if (a is "--verify" or "--verify-report") { i++; continue; }
-            if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)) continue;
+            if (a is "--verify" or "--verify-report" or "--verify-out") { i++; continue; }
+            if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)
+                || a.StartsWith("--verify-out=", StringComparison.Ordinal)) continue;
             keep.Add(a);
         }
         return keep;
