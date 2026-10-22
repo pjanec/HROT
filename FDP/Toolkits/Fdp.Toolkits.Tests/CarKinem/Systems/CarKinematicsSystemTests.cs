@@ -804,11 +804,11 @@ namespace CarKinem.Tests.Systems
         /// </summary>
         private static (EntityRepository Repo, Entity E, TrajectoryPoolManager Pool) HullWorld(Vector2 start, Quaternion facing, Vector3[] path,
             KinematicsMode mode = KinematicsMode.CustomTrajectory, float arrivalRadius = 2f, float startSpeed = 0f, bool recovery = true,
-            string world = BlockWorld)
+            Fdp.Toolkit.Terrain.TerrainWorld? world = null)
         {
             var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: startSpeed, facing: facing, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
-            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(world));
+            repo.SetSingletonManaged(world ?? Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(BlockWorld));
             if (recovery)
             {
                 repo.RegisterComponent<FrustrationTicks>();
@@ -972,14 +972,25 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
-        /// <summary>A plain ramp, flat ground to y = 0, then rising 0.3 m per metre to z 9 at y = 30 (the hill attack's ridge is 0.1–0.31).</summary>
-        private const string RampWorld =
-            "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
-            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"ramp\"}," +
-            "\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[0,0,0],[60,0,0],[60,30,9],[0,30,9],[0,0,0]]]}}]}";
+        /// <summary>A height-grid hillside (the ground model of basic-desert's ridge): flat to y = 0, then rising 0.3 m per metre (the
+        /// hill attack's ridge is 0.1–0.31).</summary>
+        private static Fdp.Toolkit.Terrain.TerrainWorld Hillside()
+        {
+            var sb = new System.Text.StringBuilder("ncols 21\nnrows 21\nxllcenter -100\nyllcenter -100\ncellsize 10\nNODATA_value -9999\n");
+            for (int row = 0; row < 21; row++)
+            {
+                float y = -100f + (20 - row) * 10f;
+                string z = (MathF.Max(0f, y) * 0.3f).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                for (int c = 0; c < 21; c++) sb.Append(z).Append(c < 20 ? " " : "\n");
+            }
+            string grid = sb.ToString();
+            const string geojson = "{ \"type\": \"FeatureCollection\", \"hrot\": { \"schemaVersion\": 1, \"bounds\": [-100, -100, 100, 100], "
+                + "\"groundZ\": 0, \"heightGrid\": \"hill.height.asc\" }, \"features\": [] }";
+            return Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(geojson, "hill", new Fdp.Toolkit.Terrain.TerrainAssets { ReadFile = n => n == "hill.height.asc" ? grid : null });
+        }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-4041</c> — a tank drives UP A RAMP it can climb (0.3 m/m, far under <see cref="CarKinematicsSystem.VehicleMaxClimbSlope"/>):
+        /// ⭐⭐ <c>CE-4041</c> — a tank drives UP A HILLSIDE it can climb (0.3 m/m on a height grid, far under <see cref="CarKinematicsSystem.VehicleMaxClimbSlope"/>):
         /// it is never held. 📌 ua-hill-attack: each corner's rise was read against the hull CENTRE's height, so at the ramp's foot a corner
         /// half a hull ahead (L/2 × slope above the centre) "rose like a wall" past 0.5 m — every tank was held there and backed out again.
         /// 🔴 Red-proof: the rise against the centre's height ⇒ held at the foot.
@@ -988,7 +999,7 @@ namespace CarKinem.Tests.Systems
         public void CE4041_AHullDrivesUpARampItCanClimb_NeverHeld()
         {
             var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth, new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 25f, 7.5f) },
-                                            mode: KinematicsMode.Direct, recovery: false, world: RampWorld);
+                                            mode: KinematicsMode.Direct, recovery: false, world: Hillside());
             var spatial = new SpatialHashSystem();
             var kin = new CarKinematicsSystem(pool);
             for (int i = 0; i < 20 * 60; i++)
