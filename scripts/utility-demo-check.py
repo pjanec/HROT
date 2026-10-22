@@ -2798,6 +2798,36 @@ def run_eject(c, timeout):
     c.ok(pp2 is not None and flat(pp, pp2) < 2.0, f"④ ★ and stays down — moved {flat(pp, pp2) if pp2 else None} m in 6 s; behaviour {(st.get('behavior') or {}).get('name')}, stance {st.get('stance')}")
 
 
+def run_weather_sensing(c, timeout, night=False):
+    """⭐ CE-4035 G-3 / G-10 — ua-weather-sensing (noon, one pair in a 60 m fog bank) and ua-night-sensing (00:30, both clear): two identical
+    observer / target pairs; each target walks to its observer from 220 m. The distance at which each observer FIRST sees his target
+    (visual memory) is the measurement — PerceptionWeather caps sight by the visibility (S2-1) and scales it by the light (S2-1n)."""
+    ids = ids_by_name()
+    labels = ("Clear", "Second") if night else ("Clear", "Fog")
+    pairs = [(ids.get(f"Observer {l}"), ids.get(f"Target {l}")) for l in labels]
+    if not c.ok(all(None not in pr for pr in pairs), "the two observer / target pairs are loaded"):
+        return
+    seen = {}
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    end = time.time() + timeout + 120
+    while time.time() < end and len(seen) < len(pairs):
+        for (o, t), l in zip(pairs, labels):
+            if l not in seen and _remembers(o, t):
+                po, pt = position(o), position(t)
+                seen[l] = flat(po, pt) if po and pt else None
+        if all((flat(position(o) or (0, 0), position(t) or (0, 0)) < 20) for o, t in pairs):
+            break
+        time.sleep(0.2)
+    print(f"    first seen at: {seen}")
+    if night:
+        for l in labels:
+            c.ok(seen.get(l) is not None and seen[l] <= 75, f"① at night '{l}' is first seen well inside 150 m (≈ 40 m expected) — {seen.get(l)}")
+    else:
+        c.ok(seen.get("Clear") is not None and seen["Clear"] >= 120, f"① clear: seen at about the full 150 m — {seen.get('Clear')}")
+        c.ok(seen.get("Fog") is not None and seen["Fog"] <= 65, f"② in the fog bank: seen only at 60 m or less — {seen.get('Fog')}")
+
+
 def run_shootdown_eject(c, timeout):
     """⭐ CE-4035 G-1 — ua-shootdown-eject: the A-10 has NO eject task; the Stinger and the ZU-23 under its route shoot it, and the pilot
     ejects by EjectionSystem alone (below 20 % health, or a wreck — CE-3215). 🔒 User: "the pilot ejecting from a destroyed aircraft
@@ -4871,6 +4901,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire,
              "ua-shootdown-eject": run_shootdown_eject,
+             "ua-weather-sensing": run_weather_sensing, "ua-night-sensing": lambda c, t: run_weather_sensing(c, t, night=True),
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,

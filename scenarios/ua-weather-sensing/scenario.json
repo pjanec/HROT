@@ -1,0 +1,396 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: weather shortens sight (CE-4035 G-3; PerceptionWeather S2-1: sight capped by the visibility), on basic-desert at noon local, clear. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Fog' at (0, 300) inside a 'Fog bank' (x -50..270, y 230..370, visibility 60 m); 'Target Clear' and 'Target Fog' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: (1) the clear observer first SEES his target at about his full 150 m (2) the fog observer only at 60 m or less. Fail: both seen at the same distance. Compare: ua-night-sensing (the same pairs at night). Check: python3 scripts/utility-demo-check.py --launch ua-weather-sensing"
+  },
+  "entities": {
+    "c4035003-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8810
+      },
+      "NetworkIdentity": {
+        "Value": 40300
+      },
+      "ScenarioClock": {
+        "StartUtcTicks": 638860968000000000,
+        "DisplayUtcOffsetMinutes": 120
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "c4035003-0000-4000-8000-000000000002": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -160,
+            "Y": -70
+          },
+          {
+            "X": -160,
+            "Y": 70
+          },
+          {
+            "X": 160,
+            "Y": 70
+          },
+          {
+            "X": 160,
+            "Y": -70
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [
+          110,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 40301
+      },
+      "TkbIdentity": {
+        "TkbType": 8811
+      },
+      "EntityInfo": {
+        "Name": "Fog bank",
+        "ForceId": "Neutral"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.97,
+        "WindCount": 0,
+        "CloudCount": 0,
+        "VisibilityM": 60,
+        "FogTopM": 40,
+        "FogVisibilityM": 60,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 10,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          120,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          300,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "c4035003-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 40310
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer Clear",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035003-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          220,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 40311
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Target Clear",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 15, \"y\": 0, \"speed\": 1.4, \"arrivalRadius\": 2}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035003-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 40312
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer Fog",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035003-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          220,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 40313
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Target Fog",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 15, \"y\": 300, \"speed\": 1.4, \"arrivalRadius\": 2}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
