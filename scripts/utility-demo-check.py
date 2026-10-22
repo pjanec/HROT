@@ -831,8 +831,13 @@ def run_casualty_care(c, timeout, casualty_name="Rifleman 3"):
     t_down = sim_time()
     down = wait_for(lambda: (comps(sq).get("RecentSenses") or {}).get("SquadMemberDown", 0) > 0 and comps(sq)["RecentSenses"], 10)
     c.ok(down is not None, "the squad knows a man is down (SquadMemberDown on the commander)")
-    d = wait_for(lambda: (x := decision(utility(sq), "Squad contact response")) and x.get("winner") == "Rescue" and x, 15)
-    c.ok(d is not None, f"Rescue wins the squad's decision ({decision(utility(sq), 'Squad contact response')})")
+    # ⭐ CE-2344 (R-2066 E, 4e8ac7075) — in a LULL (no round at the squad for 10 s) the running ReactToContact takes Rescue directly, with no
+    #   utility pass, so no decision is recorded. This Hostile's rifle is empty: the squad is never fired on, so it is always the lull path
+    #   (📐 bisected 2026-10-22). The Rescue is read from the drill the reaction runs (kindName CasualtyCare), or from the decision.
+    d = wait_for(lambda: ((x := decision(utility(sq), "Squad contact response")) and x.get("winner") == "Rescue" and x)
+                         or ((m := maneuver(sq)) and m.get("kindName") == "CasualtyCare" and m), 15)
+    c.ok(d is not None, f"Rescue wins — the decision, or the lull's direct Rescue (CE-2344) "
+                        f"({decision(utility(sq), 'Squad contact response') or (maneuver(sq) or {}).get('kindName')})")
     if casualty_name == "Leader":
         newl = wait_for(lambda: any(((comps(n).get("UnitSubordinate") or {}).get("Designation") == "SquadLeader")
                                      for k, n in members.items() if k != "Leader") and True, 5)
