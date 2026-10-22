@@ -105,9 +105,16 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>⭐ <c>CE-2322</c> (AQ97, as built) — he sits aboard a vehicle (a crewman spawned in his seat, a passenger): the vehicle's
-        /// behaviour and his seat decide, so a soldier's own SOP stands aside as under command.</summary>
+        /// behaviour and his seat decide, so a soldier's own SOP stands aside as under command. ⭐ <c>CE-4035</c> G-11 — NOT when what he sits
+        /// in is a WEAPON SYSTEM (a manned M2, a mortar tube): the weapon has no brain (Weapon Systems W-D), so nothing would decide — 📐 live
+        /// `ua-m2-engage`: the gunner saw the intruder for 50 s from his seat and the M2 never fired.</summary>
         [SharedAiCondition]
         public static bool Aboard(Entity self, EntityRepository world)
-            => world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>() && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self);
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                || !world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self)) return false;
+            var carrier = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(self).VehicleEntity;
+            return !Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(world, carrier);
+        }
     }
 }

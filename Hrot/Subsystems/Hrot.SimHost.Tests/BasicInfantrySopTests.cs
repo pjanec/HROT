@@ -240,6 +240,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorOrigin.Superior, crew.Task.Origin);
         }
 
+        /// <summary>⭐ <c>CE-4035</c> G-11 — a man in a WEAPON SYSTEM's seat (a manned M2) is not "aboard": the weapon has no brain (W-D), so
+        /// his own rows stay his — idle with an enemy in sight, he engages. 📐 Live `ua-m2-engage`: the gunner watched the intruder for 50 s.
+        /// ✅ Red-proof: <c>Aboard</c> true for any carrier ⇒ he stays Idle ⇒ red.</summary>
+        [Fact]
+        public void CE4035_AGunnerInAWeaponSystem_IsNotAboard_HeEngagesWhatHeSees()
+        {
+            var w = new World();
+            var m2 = w.Repo.CreateEntity();
+            w.Repo.AddComponent(m2, new Fdp.Toolkit.Combat.WeaponSystemParams());
+            w.Repo.AddComponent(w.Unit, new IsEmbarkedTag { VehicleEntity = m2 });
+            w.StartSop();
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("FightFromCover", w.TaskName);
+        }
+
         // ── ⭐ CE-2331 / CE-2332 / CE-2333 (AQ98, R-2070) — the cover reaction fights back and ends; an idle man engages what he sees ────
 
         /// <summary>⭐ AQ98 B — the reaction ENDS after a quiet lapse though the threat is still remembered (the hide-only rule lasted while
