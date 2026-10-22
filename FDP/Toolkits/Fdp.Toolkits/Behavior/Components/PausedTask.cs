@@ -14,7 +14,8 @@ namespace Fdp.Toolkit.Behavior.Components
     /// snapshot taken during one restores the reaction alone (the AI snapshot, <c>CE-3042</c>, saves the task).</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PausedTask)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed class PausedTask
     {
         /// <summary>The paused behaviour's registered name.</summary>

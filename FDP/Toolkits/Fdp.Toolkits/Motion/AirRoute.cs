@@ -31,7 +31,8 @@ namespace Fdp.Toolkit.Motion
     /// from the route entity the intent names (<see cref="NavigationIntent.RouteEntityId"/>). Muscle-local: never saved, never on the wire.
     /// </summary>
     [ComponentId(GlobalComponentIds.AirPath)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed class AirPath
     {
         // ── what it was compiled from ──

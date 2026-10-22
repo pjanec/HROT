@@ -57,7 +57,8 @@ namespace Fdp.Toolkit.Perception.Survey
     /// the wire as <c>SensorConfigPayload {Kind = <see cref="WorldSurveyRequestJson.Kind"/>, Json}</c>. Replace it (never edit it in place) and
     /// call <c>WorldSurveyChildSensor.Configure</c> — that is what starts a new epoch.
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoScenario)]
     [ComponentId(GlobalComponentIds.WorldSurveyRequest)]
     public sealed class WorldSurveyRequest
     {

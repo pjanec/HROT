@@ -24,7 +24,8 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </para>
     /// </summary>
     [ComponentId(BehaviorApplicationComponentIds.BehaviorStartRecord)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed class BehaviorStartRecord
     {
         /// <summary>The registered behaviour name — what <c>AssignBehaviorEvent.BehaviorName</c> takes.</summary>

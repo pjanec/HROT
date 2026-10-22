@@ -14,21 +14,24 @@ namespace Fdp.Toolkit.Behavior.Components
     /// sets a new instance.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.SubordinateOrders)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed class SubordinateOrders
     {
         /// <summary>One member's latest order from this commander.</summary>
-        public readonly struct Entry
+        // ⭐ CE-3299 D1 — not `readonly`: the recorder writes public settable members (CE-3305), so readonly fields were unrecordable.
+        //   The members are still only set through the constructor.
+        public struct Entry
         {
-            public readonly Entity Member;
+            public Entity Member;
             /// <summary>The behaviour ordered ("" = unknown to the commander, e.g. an order NAME a unit member resolves itself:
             /// its release is an unnamed clear).</summary>
-            public readonly string Behavior;
-            public readonly BehaviorOrigin Origin;
+            public string Behavior;
+            public BehaviorOrigin Origin;
             /// <summary>The commander's run that gave it (<see cref="BehaviorState.InstanceId"/>, or the SOP's run).</summary>
-            public readonly uint Run;
+            public uint Run;
             /// <summary>⭐ <c>CE-2304</c> — the order's params as sent ("" = not kept): an unchanged re-send is recognised by them.</summary>
-            public readonly string Json;
+            public string Json;
 
             public Entry(Entity member, string behavior, BehaviorOrigin origin, uint run, string json = "")
             {
@@ -36,9 +39,12 @@ namespace Fdp.Toolkit.Behavior.Components
             }
         }
 
-        public readonly Entry[] Orders;
+        public Entry[] Orders;   // ⭐ D1 — settable, for the recorder (see Entry)
 
         public SubordinateOrders(Entry[] orders) => Orders = orders;
+
+        /// <summary>⭐ <c>CE-3299</c> D1 — for the recorder, which builds a component before it writes its members.</summary>
+        public SubordinateOrders() => Orders = Array.Empty<Entry>();
 
         /// <summary>The commander's run that is ticking now gave <paramref name="member"/> <paramref name="behavior"/> with
         /// <paramref name="json"/> (replaces that member's previous record — a member runs one task).</summary>

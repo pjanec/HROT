@@ -64,7 +64,8 @@ namespace Fdp.Toolkit.Behavior.Components
 
     /// <summary>⭐ <c>CE-3035</c> — what the SOP slot was started with (the twin of <see cref="BehaviorStartRecord"/>).</summary>
     [ComponentId(GlobalComponentIds.SopStartRecord)]
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed class SopStartRecord
     {
         /// <summary>The SOP behaviour's name.</summary>

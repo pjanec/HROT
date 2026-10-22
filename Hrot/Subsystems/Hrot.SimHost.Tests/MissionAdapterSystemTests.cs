@@ -122,5 +122,25 @@ namespace Hrot.SimHost.Tests
             var intentEvents = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
             Assert.Empty(intentEvents);
         }
-    }
+    
+        /// <summary>
+        /// ⭐ CE-3299 D1 — the adapter's dispatch memory is RECORDED: a restored run keeps the phase it last sent instead of re-sending
+        /// it (which restarted the phase behaviour, cf. CE-2304). ⛔ It was Transient, so a keyframe dropped it.
+        /// </summary>
+        [Fact]
+        public void CE3299_D1_TheDispatchMemory_SurvivesAKeyframe()
+        {
+            using var repo = CreateWorld();
+            Assert.True(ComponentTypeRegistry.IsRecordable(ComponentTypeRegistry.GetId(typeof(Hrot.CGF.Components.MissionAdapterState))));
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Hrot.CGF.Components.MissionAdapterState { LastPhase = 3, LastPlanVersion = 7 });
+            repo.Tick();
+            var keyframe = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            repo.Tick();
+            repo.RemoveComponent<Hrot.CGF.Components.MissionAdapterState>(e);
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(repo, keyframe);
+            var back = repo.GetComponent<Hrot.CGF.Components.MissionAdapterState>(e);
+            Assert.Equal(((byte)3, 7u), (back.LastPhase, back.LastPlanVersion));
+        }
+}
 }
